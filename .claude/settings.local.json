@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(jq:*)",
+      "Bash(echo)",
+      "Bash(python:*)",
+      "Bash(cp:*)",
+      "Bash(node:*)",
+      "Bash(find:*)",
+      "Bash(npm run build:*)",
+      "Bash(alembic revision:*)",
+      "Bash(mv:*)",
+      "Bash(rm:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npx typescript:*)",
+      "Bash(grep:*)",
+      "Bash(npm run:*)",
+      "Bash(sed:*)",
+      "Bash(curl:*)",
+      "Bash(mkdir:*)",
+      "Bash(/dev/null)",
+      "WebSearch",
+      "Bash(tsc --noEmit)",
+      "Bash(source .env)"
+    ],
+    "deny": [],
+    "defaultMode": "acceptEdits",
+    "additionalDirectories": [
+      "C:\\c\\code\\jam-bot"
+    ]
+  }
+}

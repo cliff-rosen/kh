@@ -1,0 +1,45 @@
+{
+    "success": true,
+    "errors": [],
+    "outputs": {
+        "optimized_query": "(\"research goal\"[Title/Abstract] OR \"focus areas\"[Title/Abstract]) AND (\"research article\"[Publication Type] OR \"review\"[Publication Type]) AND (\"2028/01/01\"[Date - Publication] : \"2023/10/04\"[Date - Publication])",
+        "query_components": {
+            "terms": [
+                "research goal",
+                "focus areas"
+            ],
+            "publication_types": [
+                "research article",
+                "review"
+            ],
+            "date_restriction": "2028/01/01 to 2023/10/04"
+        },
+        "search_strategy": "The search strategy involves using the key phrases 'research goal' and 'focus areas', intended to match the titles or abstracts of articles that are directly relevant to the research goal, using 'Title/Abstract' field tagging for increased precision. To ensure relevance, the search is further refined by limiting the results to publications of type 'research article' or 'review', which are typically more comprehensive and trustworthy. The search is also restricted to the last 5 years of publication, aligning with current developments in the field and ensuring recent and relevant information. Although the specific focus areas were not given, the strategy assumes 'research goal' as the central theme and uses a broad approach to identify potentially valuable literature.",
+        "estimated_results": "Varies based on database updates and specificity but should be manageable given the specific constraints applied."
+    },
+    "canonical_outputs": {
+        "optimized_query": "(\"research goal\"[Title/Abstract] OR \"focus areas\"[Title/Abstract]) AND (\"research article\"[Publication Type] OR \"review\"[Publication Type]) AND (\"2028/01/01\"[Date - Publication] : \"2023/10/04\"[Date - Publication])",
+        "query_components": {
+            "terms": [
+                "research goal",
+                "focus areas"
+            ],
+            "publication_types": [
+                "research article",
+                "review"
+            ],
+            "date_restriction": "2028/01/01 to 2023/10/04"
+        },
+        "search_strategy": "The search strategy involves using the key phrases 'research goal' and 'focus areas', intended to match the titles or abstracts of articles that are directly relevant to the research goal, using 'Title/Abstract' field tagging for increased precision. To ensure relevance, the search is further refined by limiting the results to publications of type 'research article' or 'review', which are typically more comprehensive and trustworthy. The search is also restricted to the last 5 years of publication, aligning with current developments in the field and ensuring recent and relevant information. Although the specific focus areas were not given, the strategy assumes 'research goal' as the central theme and uses a broad approach to identify potentially valuable literature.",
+        "estimated_results": "Varies based on database updates and specificity but should be manageable given the specific constraints applied."
+    },
+    "metadata": {
+        "tool_id": "pubmed_generate_query",
+        "research_goal": {
+            "value": "null",
+            "parameter_type": "asset",
+            "parameter_name": "research_goal"
+        },
+        "timestamp": "2025-07-20T17:56:58.583578"
+    }
+}
