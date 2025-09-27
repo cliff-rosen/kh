@@ -24,16 +24,8 @@ from utils.state_serializer import (
 
 from schemas.chat import ChatMessage, MessageRole, AssetReference
 from schemas.agent_responses import AgentResponse, StatusResponse
-from schemas.workflow import Mission, MissionStatus, HopStatus
-from schemas.lite_models import HopLite
 
-from agents.prompts.mission_prompt_simple import MissionDefinitionPromptCaller
-from agents.prompts.hop_designer_prompt_simple import HopDesignerPromptCaller
-from agents.prompts.hop_implementer_prompt_simple import HopImplementerPromptCaller, HopImplementationResponse
-
-from services.mission_service import MissionService
 from services.user_session_service import UserSessionService
-from services.state_transition_service import StateTransitionService, TransactionType, StateTransitionError, TransactionResult
 
 
 # Use settings from config
@@ -44,16 +36,13 @@ VECTOR_STORE_ID = os.getenv("VECTOR_STORE_ID", "vs_68347e57e7408191a5a775f40db83
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 # Module-level service instances
-_mission_service: Optional[MissionService] = None
 _session_service: Optional[UserSessionService] = None
-_state_transition_service: Optional[StateTransitionService] = None
 _user_id: Optional[int] = None
 
 
 class State(BaseModel):
     """State for the RAVE workflow"""
     messages: List[ChatMessage]
-    mission: Optional[Mission] = None
     mission_id: Optional[str] = None  # Add mission_id for persistence
     tool_params: Dict[str, Any] = {}
     next_node: str
@@ -70,193 +59,9 @@ def _initialize_services(config: Dict[str, Any]) -> None:
     """Initialize module-level services from config"""
     global _mission_service, _session_service, _state_transition_service, _user_id
     configurable = config.get('configurable', {})
-    _mission_service = configurable.get('mission_service')
     _session_service = configurable.get('session_service')
-    _state_transition_service = configurable.get('state_transition_service')
     _user_id = configurable.get('user_id')
 
-async def _update_mission_unified(state: State, mission_id: str = None) -> None:
-    """
-    Unified method to update mission state - handles both persisting changes and refreshing from database
-    
-    Args:
-        state: Current agent state containing mission
-        mission_id: Optional. If provided and state.mission exists, persists the mission before refreshing.
-                    Also sets the ID for the mission to be refreshed into the state.
-    """
-    if not _mission_service or not _user_id:
-        logger.warning("Cannot update mission - services not initialized")
-        return
-        
-    # Step 1: If mission_id is provided and there's a mission object, persist it.
-    if mission_id and state.mission:
-        await _mission_service.update_mission(mission_id, _user_id, state.mission)
-        logger.debug(f"Successfully persisted mission {mission_id}")
-    
-    # Step 2: Determine which mission to refresh from the database.
-    id_to_refresh = mission_id or (state.mission.id if state.mission else None)
-    
-    if id_to_refresh:
-        updated_mission = await _mission_service.get_mission(id_to_refresh, _user_id)
-        if updated_mission:
-            state.mission = updated_mission
-            state.mission_id = updated_mission.id  # Ensure ID consistency
-            logger.debug(f"Successfully refreshed mission state for {state.mission.id}")
-        else:
-            logger.warning(f"Could not refresh mission state for {id_to_refresh}")
-
-async def _send_to_state_transition_service(transaction_type: TransactionType, data: Dict[str, Any]) -> TransactionResult:
-    """Helper function to send any proposal to StateTransitionService"""
-    if not (_state_transition_service and _user_id):
-        raise StateTransitionError("StateTransitionService not initialized")
-    
-    # Add user_id to data if not present
-    if 'user_id' not in data:
-        data['user_id'] = _user_id
-    
-    return await _state_transition_service.updateState(transaction_type, data)
-
-async def _handle_mission_proposal_creation(parsed_response, state: State, response_message: ChatMessage) -> None:
-    """Handle mission proposal: 1) LLM generated proposal, 2) Send to StateTransitionService"""
-    logger.info("Processing mission proposal creation")
-    
-    try:
-        # Step 2: Send proposal to StateTransitionService (Step 1 was LLM generation)
-        result = await _send_to_state_transition_service(
-            TransactionType.PROPOSE_MISSION,
-            {'mission_lite': parsed_response.mission_proposal}
-        )
-        
-        
-        # Update local state with persisted mission
-        await _update_mission_unified(state, mission_id=result.entity_id)
-        
-        # Create response message
-        mission_lite = parsed_response.mission_proposal
-        response_message.content = (
-            f"I've created a mission proposal: **{mission_lite.name}**\n\n"
-            f"{mission_lite.description}\n\n"
-            f"**Goal:** {mission_lite.goal}\n\n"
-            f"**Success Criteria:**\n" +
-            "\n".join(f"- {criterion}" for criterion in mission_lite.success_criteria) +
-            "\n\nThis mission is now awaiting your approval. Would you like me to proceed?"
-        )
-        
-    except Exception as e:
-        response_message.content = f"Error creating mission: {str(e)}"
-        raise e
-
-async def _handle_hop_proposal_creation(parsed_response, state: State, response_message: ChatMessage) -> None:
-    """Handle hop proposal creation and persistence"""
-    if not parsed_response.hop_proposal:
-        raise ValueError("Response type is HOP_PROPOSAL but no hop proposal was provided")
-    
-    # Get the HopLite proposal
-    hop_lite: HopLite = parsed_response.hop_proposal
-   
-    try:
-        
-        # Step 2: Send HopLite proposal to StateTransitionService directly (following our pattern)
-        result = await _send_to_state_transition_service(
-            TransactionType.PROPOSE_HOP_PLAN,
-            {
-                'mission_id': state.mission.id,
-                'hop_lite': hop_lite  # Send HopLite object directly like we do with MissionLite
-            }
-        )
-        
-        # Update local state
-        await _update_mission_unified(state)
-        
-        # Create success response
-        response_message.content = f"Hop plan proposed: {hop_lite.name}. Please review and approve to proceed with implementation."
-        
-    except Exception as e:
-        response_message.content = f"Error creating hop: {str(e)}"
-        raise e
-
-async def _handle_implementation_plan_proposal(parsed_response, state: State, response_message: ChatMessage) -> None:
-    """Handle implementation plan proposal: 1) LLM generated proposal, 2) Send to StateTransitionService"""
-    
-    try:
-        # Log what the LLM returned
-        logger.info(f"LLM returned {len(parsed_response.tool_steps)} tool steps")
-        for i, tool_step in enumerate(parsed_response.tool_steps):
-            logger.info(f"Tool Step {i}: {tool_step.tool_id}")
-            logger.info(f"  Parameter mapping: {tool_step.parameter_mapping}")
-            logger.info(f"  Result mapping: {tool_step.result_mapping}")
-        
-        # Step 2: Send proposal to StateTransitionService
-        data_to_send = {
-            'hop_id': state.mission.current_hop.id,
-            'tool_steps': parsed_response.tool_steps
-        }
-        logger.info(f"Sending to StateTransitionService: hop_id={data_to_send['hop_id']}")
-        logger.info(f"Tool steps being sent: {len(data_to_send['tool_steps'])}")
-        
-        result = await _send_to_state_transition_service(
-            TransactionType.PROPOSE_HOP_IMPL,
-            data_to_send
-        )
-        
-        
-        # Update local state
-        await _update_mission_unified(state)
-        
-        response_message.content = (
-            f"I've created an implementation plan for **{state.mission.current_hop.name}** "
-            f"with {len(parsed_response.tool_steps)} tool steps.\n\n"
-            f"{parsed_response.response_content}\n\n"
-            "This implementation plan is now awaiting your approval."
-        )
-        
-    except Exception as e:
-        response_message.content = f"Error creating implementation plan: {str(e)}"
-        raise e
-
-def _validate_state_coordination(mission: Optional[Mission]) -> List[str]:
-    """
-    Validate state coordination per the status system specification.
-    
-    Returns list of validation errors (empty if valid).
-    """
-    errors = []
-    
-    if not mission:
-        return errors
-    
-    # Mission-Hop Coordination Rules from spec
-    if mission.status == MissionStatus.AWAITING_APPROVAL:
-        # Mission awaiting approval should have no current hop
-        if mission.current_hop:
-            errors.append(f"Mission AWAITING_APPROVAL should not have current hop, but found hop with status {mission.current_hop.status}")
-    
-    elif mission.status == MissionStatus.IN_PROGRESS:
-        # Mission in progress can have various hop states or no hop
-        if mission.current_hop:
-            valid_hop_states = {
-                HopStatus.HOP_PLAN_STARTED,
-                HopStatus.HOP_PLAN_PROPOSED,
-                HopStatus.HOP_PLAN_READY,
-                HopStatus.HOP_IMPL_STARTED,
-                HopStatus.HOP_IMPL_PROPOSED,
-                HopStatus.HOP_IMPL_READY,
-                HopStatus.EXECUTING,
-                HopStatus.COMPLETED
-            }
-            if mission.current_hop.status not in valid_hop_states:
-                errors.append(f"Mission IN_PROGRESS has invalid hop status: {mission.current_hop.status}")
-    
-    elif mission.status == MissionStatus.COMPLETED:
-        # Mission completed should have completed final hop or no hop
-        if mission.current_hop and mission.current_hop.status != HopStatus.COMPLETED:
-            errors.append(f"Mission COMPLETED should have completed hop or no hop, but found hop with status {mission.current_hop.status}")
-    
-    elif mission.status in [MissionStatus.FAILED, MissionStatus.CANCELLED]:
-        # Failed/cancelled missions can have various hop states
-        pass
-    
-    return errors
 
 
 # ---------------------------------------------------------------------------
@@ -316,137 +121,11 @@ async def supervisor_node(state: State, writer: StreamWriter, config: Dict[str, 
                 extra={"request_id": request_id, "next_node": next_node}
             )
         
-        elif state.mission.status == MissionStatus.AWAITING_APPROVAL:
-            # Mission awaiting approval - route to mission specialist
-            next_node = "mission_specialist_node"
-            routing_message = "Mission awaiting approval - routing to mission specialist for processing"
-            logger.info(
-                "Routing decision: Mission awaiting approval",
-                extra={"request_id": request_id, "next_node": next_node, "mission_id": state.mission.id}
-            )
-        
-        elif state.mission.status == MissionStatus.IN_PROGRESS:
-            # Mission in progress - check hop state for detailed workflow routing
-            logger.debug(
-                "Mission in progress - analyzing hop status",
-                extra={
-                    "request_id": request_id,
-                    "mission_id": state.mission.id,
-                    "has_current_hop": bool(state.mission.current_hop),
-                    "current_hop_status": state.mission.current_hop.status.value if state.mission.current_hop else None
-                }
-            )
-            
-            if not state.mission.current_hop:
-                # No current hop - route to hop designer to start planning
-                next_node = "hop_designer_node"
-                routing_message = "Mission in progress with no current hop - routing to hop designer to start planning"
-                logger.info(
-                    "Routing decision: No current hop",
-                    extra={"request_id": request_id, "next_node": next_node, "mission_id": state.mission.id}
-                )
-            elif state.mission.current_hop.status == HopStatus.HOP_PLAN_STARTED:
-                # Hop planning started - route to hop designer
-                next_node = "hop_designer_node"
-                routing_message = "Hop planning started - routing to hop designer to continue planning"
-                logger.info(
-                    "Routing decision: Hop planning started",
-                    extra={"request_id": request_id, "next_node": next_node, "hop_id": state.mission.current_hop.id}
-                )
-            elif state.mission.current_hop.status == HopStatus.HOP_PLAN_PROPOSED:
-                # Hop plan proposed - route to hop designer
-                next_node = "hop_designer_node"
-                routing_message = "Hop plan proposed - routing to hop designer for processing"
-                logger.info(
-                    "Routing decision: Hop plan proposed",
-                    extra={"request_id": request_id, "next_node": next_node, "hop_id": state.mission.current_hop.id}
-                )
-            elif state.mission.current_hop.status == HopStatus.HOP_PLAN_READY:
-                # Hop plan ready - route to hop implementer to start implementation
-                next_node = "hop_implementer_node"
-                routing_message = "Hop plan ready - routing to hop implementer to start implementation"
-            elif state.mission.current_hop.status == HopStatus.HOP_IMPL_STARTED:
-                # Hop implementation started - route to hop implementer
-                next_node = "hop_implementer_node"
-                routing_message = "Hop implementation started - routing to hop implementer"
-            elif state.mission.current_hop.status == HopStatus.HOP_IMPL_PROPOSED:
-                # Hop implementation proposed - route to hop implementer
-                next_node = "hop_implementer_node"
-                routing_message = "Hop implementation proposed - routing to hop implementer for processing"
-            elif state.mission.current_hop.status == HopStatus.HOP_IMPL_READY:
-                # Hop implementation ready - route to hop implementer (ready to execute)
-                next_node = "hop_implementer_node"
-                routing_message = "Hop implementation ready - routing to hop implementer for execution"
-            elif state.mission.current_hop.status == HopStatus.EXECUTING:
-                # Hop executing - wait for completion (no active routing needed)
-                next_node = END
-                routing_message = "Hop is executing - waiting for tool steps to complete"
-            elif state.mission.current_hop.status == HopStatus.COMPLETED:
-                # Hop completed - check if final hop or continue to next hop
-                if state.mission.current_hop.is_final:
-                    # Final hop completed - complete the mission and route to mission specialist
-                    state.mission.status = MissionStatus.COMPLETED
-                    state.mission.updated_at = datetime.utcnow()
-                    # Persist mission completion
-                    await _update_mission_unified(state, state.mission.id)
-                    next_node = "mission_specialist_node"
-                    routing_message = "Final hop completed - mission completed, routing to mission specialist for final processing"
-                else:
-                    # Non-final hop completed - clear current hop and route to hop designer for next hop
-                    state.mission.current_hop = None
-                    state.mission.current_hop_id = None
-                    state.mission.updated_at = datetime.utcnow()
-                    # Persist mission state
-                    await _update_mission_unified(state, state.mission.id)
-                    next_node = "hop_designer_node"
-                    routing_message = "Hop completed (non-final) - routing to hop designer for next hop"
-            elif state.mission.current_hop.status == HopStatus.FAILED:
-                # Hop failed - route to mission specialist for error handling
-                next_node = "mission_specialist_node"
-                routing_message = "Hop failed - routing to mission specialist for error handling"
-            elif state.mission.current_hop.status == HopStatus.CANCELLED:
-                # Hop cancelled - route to mission specialist
-                next_node = "mission_specialist_node"
-                routing_message = "Hop cancelled - routing to mission specialist for processing"
-            else:
-                # Unknown hop status
-                routing_message = f"Unknown hop status: {state.mission.current_hop.status}"
-                next_node = "mission_specialist_node"
-        
-        elif state.mission.status == MissionStatus.COMPLETED:
-            # Mission completed - route to mission specialist for final processing
-            next_node = "mission_specialist_node"
-            routing_message = "Mission completed - routing to mission specialist for final processing"
-        
-        elif state.mission.status == MissionStatus.FAILED:
-            # Mission failed - route to mission specialist for error handling
-            next_node = "mission_specialist_node"
-            routing_message = "Mission failed - routing to mission specialist for error handling"
-        
-        elif state.mission.status == MissionStatus.CANCELLED:
-            # Mission cancelled - route to mission specialist for cleanup
-            next_node = "mission_specialist_node"
-            routing_message = "Mission cancelled - routing to mission specialist for cleanup"
-        
         else:
             # Unknown mission status
             routing_message = f"Unknown mission status: {state.mission.status}"
             next_node = "mission_specialist_node"
 
-        # Validate state coordination per specification
-        validation_errors = _validate_state_coordination(state.mission)
-        if validation_errors:
-            logger.warning(
-                "State coordination issues detected",
-                extra={"validation_errors": validation_errors}
-            )
-            # Log but don't fail - continue with routing
-
-        # Log routing decision
-        logger.debug(
-            "Routing decision made",
-            extra={"routing_message": routing_message, "next_node": next_node}
-        )
 
         # Create routing message
         response_message = ChatMessage(
@@ -461,11 +140,8 @@ async def supervisor_node(state: State, writer: StreamWriter, config: Dict[str, 
 
         state_update = {
             "messages": [*state.messages, response_message.model_dump()],
-            "mission": state.mission,
-            "mission_id": state.mission_id,
             "next_node": next_node,
             "tool_params": state.tool_params,
-            "asset_summaries": state.asset_summaries
         }
 
         # Stream response and return command

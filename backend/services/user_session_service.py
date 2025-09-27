@@ -17,10 +17,9 @@ import re
 from fastapi import Depends
 
 from database import get_db
-from models import UserSession, User, Chat, Mission, ChatMessage, UserSessionStatus
+from models import UserSession, User, Chat, ChatMessage, UserSessionStatus
 from schemas.user_session import UserSession as UserSessionSchema, CreateUserSessionResponse
 from schemas.chat import Chat as ChatSchema
-from schemas.workflow import Mission as MissionSchema
 from exceptions import NotFoundError, ValidationError
 
 
@@ -50,48 +49,7 @@ class UserSessionService:
         
         return f"Session {next_number}"
     
-    async def link_mission_to_session(self, user_id: int, mission_id: str, commit: bool = True) -> bool:
-        """
-        Link a mission to the user's active session
-        
-        Args:
-            user_id: The user ID
-            mission_id: The mission ID to link to the session
-            commit: Whether to commit the transaction (default: True)
-            
-        Returns:
-            bool: True if successful, False if no active session found
-            
-        Raises:
-            ValidationError: If the operation fails
-        """
-        try:
-            # Get the user's active session
-            user_session = self.db.query(UserSession).filter(
-                and_(
-                    UserSession.user_id == user_id,
-                    UserSession.status == UserSessionStatus.ACTIVE
-                )
-            ).order_by(desc(UserSession.last_activity_at)).first()
-            
-            if not user_session:
-                raise ValidationError("No active session found to link mission to")
-            
-            # Update the session with the mission ID
-            user_session.mission_id = mission_id
-            user_session.updated_at = datetime.utcnow()
-            user_session.last_activity_at = datetime.utcnow()
-            
-            if commit:
-                self.db.commit()
-            
-            return True
-            
-        except Exception as e:
-            if commit:
-                self.db.rollback()
-            raise ValidationError(f"Failed to link mission to session: {str(e)}")
-
+  
     def create_user_session(self, user_id: int, request: any) -> CreateUserSessionResponse:
         """Create a new user session with associated chat"""
         try:
@@ -194,8 +152,6 @@ class UserSessionService:
             user_session.name = request.name
         if request.status is not None:
             user_session.status = request.status
-        if request.mission_id is not None:
-            user_session.mission_id = request.mission_id
         if request.session_metadata is not None:
             user_session.session_metadata = request.session_metadata
         
@@ -229,7 +185,6 @@ class UserSessionService:
             name=user_session.name,
             status=user_session.status,
             chat_id=user_session.chat_id,
-            mission_id=user_session.mission_id,
             session_metadata=user_session.session_metadata or {},
             created_at=user_session.created_at,
             updated_at=user_session.updated_at,

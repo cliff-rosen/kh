@@ -7,7 +7,7 @@ load_dotenv(override=True)
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "HopBot"
+    APP_NAME: str = "KH"
     SETTING_VERSION: str = "0.0.1"
     FRONTEND_URL: str = "https://hopbot.ironcliff.ai"
 

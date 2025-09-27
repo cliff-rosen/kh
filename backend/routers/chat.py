@@ -14,16 +14,12 @@ from config.logging_config import get_request_id
 logger = logging.getLogger(__name__)
 
 from schemas.chat import ChatMessage, MessageRole
-from schemas.workflow import ChatContextPayload, Mission
 from schemas.user_session import UserSession
 from schemas.agent_responses import AgentResponse, StatusResponse
 
 from services.auth_service import validate_token
-from services.mission_service import MissionService, get_mission_service
 from services.user_session_service import UserSessionService, get_user_session_service
 from services.chat_service import ChatService, get_chat_service
-from services.mission_context_builder import MissionContextBuilder, get_mission_context_builder_service
-from services.state_transition_service import StateTransitionService, get_state_transition_service
 
 from agents.primary_agent import graph as primary_agent, State
 
@@ -63,10 +59,7 @@ class ChatRequest(BaseModel):
 async def chat_stream(
     chat_request: ChatRequest,
     session_service: UserSessionService = Depends(get_user_session_service),
-    mission_service: MissionService = Depends(get_mission_service),
     chat_service: ChatService = Depends(get_chat_service),
-    context_builder: MissionContextBuilder = Depends(get_mission_context_builder_service),
-    state_transition_service: StateTransitionService = Depends(get_state_transition_service),
     current_user = Depends(validate_token),
     db: Session = Depends(get_db)
 ) -> EventSourceResponse:
@@ -121,15 +114,13 @@ async def chat_stream(
                 }
                 return
             chat_id = active_session.chat_id
-            mission_id = active_session.mission_id
             
             logger.info(
                 "Active session found, processing request",
                 extra={
                     "request_id": request_id,
                     "user_id": current_user.user_id,
-                    "chat_id": chat_id,
-                    "mission_id": mission_id
+                    "chat_id": chat_id
                 }
             )
             
@@ -147,74 +138,29 @@ async def chat_stream(
                     )
                     chat_service.save_message(chat_id, current_user.user_id, latest_message)
             
-            # Get mission from database
-            mission: Optional[Mission] = None
-            if mission_id:
-                logger.debug(
-                    "Loading mission from database",
-                    extra={"request_id": request_id, "mission_id": mission_id}
-                )
-                mission = await mission_service.get_mission(mission_id, current_user.user_id)
-                if not mission:
-                    logger.error(
-                        "Mission not found",
-                        extra={"request_id": request_id, "mission_id": mission_id}
-                    )
-                    error_response = AgentResponse(
-                        token=None,
-                        response_text=None,
-                        payload=None,
-                        status=None,
-                        error="Mission not found",
-                        debug=None
-                    )
-                    yield {
-                        "event": "message",
-                        "data": error_response.model_dump_json()
-                    }
-                    return
             
             # Enrich payload with asset summaries using MissionContextBuilder
             logger.debug(
                 "Preparing chat context",
-                extra={"request_id": request_id, "has_mission": bool(mission)}
+                extra={"request_id": request_id}
             )
-            context_payload: ChatContextPayload = await context_builder.prepare_chat_context(
-                mission,
-                current_user.user_id,
-                db,
-                chat_request.payload or {}
-            )
-            
-            if not mission and context_payload and context_payload.get("mission"):
-                mission = context_payload["mission"]
-                logger.info(
-                    "Mission created from context",
-                    extra={"request_id": request_id, "mission_id": mission.id if mission else None}
-                )
             
             # Initialize agent state
             logger.info(
                 "Initializing agent state for supervisor routing",
                 extra={
                     "request_id": request_id,
-                    "mission_id": mission_id,
-                    "asset_count": len(context_payload.get("asset_summaries", {})),
                     "next_node": "supervisor_node"
                 }
             )
             state = State(
                 messages=chat_request.messages,
-                mission=mission,
-                mission_id=mission_id,
-                asset_summaries=context_payload.get("asset_summaries", {}),
                 tool_params={},
                 next_node="supervisor_node"
             )
             
             graph_config = {
                 "configurable": {
-                    "mission_service": mission_service,
                     "session_service": session_service,
                     "state_transition_service": state_transition_service,
                     "user_id": current_user.user_id,

@@ -9,8 +9,6 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 from pydantic import BaseModel
 
-from schemas.workflow import Mission, Hop, MissionStatus, HopStatus
-from schemas.asset import Asset
 
 class SerializedState(BaseModel):
     """Base model for serialized state to ensure consistent structure"""
@@ -18,52 +16,6 @@ class SerializedState(BaseModel):
     mission: dict
     tool_params: Dict[str, Any] = {}
     next_node: str
-
-def serialize_asset(asset: Asset) -> dict:
-    """Serialize a single asset to JSON-compatible dict"""
-    if not asset:
-        return None
-    return asset.model_dump(mode='json')
-
-def serialize_assets(assets: Dict[str, Asset]) -> Dict[str, dict]:
-    """Serialize a dictionary of assets to JSON-compatible dict"""
-    if not assets:
-        return {}
-    return {
-        asset_id: serialize_asset(asset)
-        for asset_id, asset in assets.items()
-    }
-
-def serialize_asset_list(assets: list[Asset]) -> list[dict]:
-    """Serialize a list of assets to JSON-compatible list"""
-    if not assets:
-        return []
-    return [serialize_asset(asset) for asset in assets]
-
-def serialize_hop(hop: Optional[Hop]) -> Optional[dict]:
-    """Serialize a hop to JSON-compatible dict"""
-    if not hop:
-        return None
-    
-    hop_dict = hop.model_dump(mode='json')
-    # Ensure status is serialized as string value
-    hop_dict['status'] = hop.status.value if hop.status else None
-    return hop_dict
-
-def serialize_mission(mission: Mission) -> dict:
-    """Serialize a mission to JSON-compatible dict"""
-    if not mission:
-        return {}
-        
-    mission_dict = mission.model_dump(mode='json')
-    
-    # Serialize mission asset mapping
-    mission_dict['mission_asset_map'] = {aid: role.value for aid, role in mission.mission_asset_map.items()}
-    
-    # Ensure status is serialized as string value
-    mission_dict['status'] = mission.status.value if mission.status else None
-    
-    return mission_dict
 
 def serialize_state_with_datetime(state: BaseModel) -> dict:
     """

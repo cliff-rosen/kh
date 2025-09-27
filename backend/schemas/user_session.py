@@ -9,7 +9,6 @@ from typing import Optional, Any, Dict
 from pydantic import BaseModel, Field
 from datetime import datetime
 from enum import Enum
-from .workflow import Mission
 
 
 class UserSessionStatus(str, Enum):
@@ -30,7 +29,6 @@ class UserSession(BaseModel):
     
     # Relationships
     chat_id: str = Field(description="ID of the associated chat")
-    mission_id: Optional[str] = Field(default=None, description="ID of the associated mission if created")
     
     # Metadata
     session_metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional session metadata")
@@ -40,7 +38,6 @@ class UserSession(BaseModel):
     
     # Relationships (populated by services)
     chat: Optional['Chat'] = Field(default=None, description="Associated chat conversation")
-    mission: Optional[Mission] = Field(default=None, description="Associated mission if created")
 
 
 # Service Response models (used by service layer)

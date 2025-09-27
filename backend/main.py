@@ -2,8 +2,8 @@ from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-# from routers import search, auth, workflow, tools, files, bot, email, asset
-from routers import auth, email, asset, chat, llm, tools, search, web_retrieval, mission, hop, tool_step, user_session, state_transition, pubmed, google_scholar, extraction, unified_search, lab, article_chat, workbench, smart_search, smart_search2, pubmed_search_designer, analytics
+# from routers import search, auth, workflow, tools, files, bot, asset
+from routers import auth, chat, llm, search, web_retrieval, user_session,  pubmed, google_scholar, extraction, unified_search, lab, article_chat, workbench, smart_search, smart_search2, pubmed_search_designer, analytics
 from database import init_db
 from config import settings, setup_logging
 from middleware import LoggingMiddleware
@@ -50,17 +50,10 @@ app.include_router(
 
 # Core API routers (prefix added here)
 app.include_router(chat.router, prefix="/api")
-app.include_router(email.router, prefix="/api")
-app.include_router(asset.router, prefix="/api")
-app.include_router(mission.router, prefix="/api")
-app.include_router(hop.router, prefix="/api")
-app.include_router(tool_step.router, prefix="/api")
 app.include_router(user_session.router, prefix="/api")
 app.include_router(llm.router, prefix="/api")
-app.include_router(tools.router, prefix="/api")
 app.include_router(search.router, prefix="/api")
 app.include_router(web_retrieval.router, prefix="/api")
-app.include_router(state_transition.router, prefix="/api")
 app.include_router(pubmed.router, prefix="/api")
 app.include_router(google_scholar.router, prefix="/api")
 app.include_router(extraction.router, prefix="/api")
