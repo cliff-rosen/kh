@@ -1,4 +1,3 @@
-import { Mission } from '@/types/workflow';
 
 export enum MessageRole {
     USER = 'user',
@@ -81,26 +80,17 @@ export interface SupervisorResponse {
     result_details: any;
 }
 
-// Streaming response payload types
-export interface MissionPayload {
-    mission: Mission;
-}
 
 export interface HopPayload {
     hop: any; // Could be more specific if Hop type is available
 }
 
-export interface StreamResponsePayload {
-    mission?: Mission;
-    hop?: any;
-    [key: string]: any;
-}
 
 // Core streaming response types (matches backend)
 export interface AgentResponse {
     token: string | null;
     response_text: string | null;
-    payload: StreamResponsePayload | string | null;
+    payload: object | string | null;
     status: string | null;
     error: string | null;
     debug: string | object | null;

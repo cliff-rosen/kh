@@ -4,7 +4,6 @@ import { Toaster } from './components/ui/toaster';
 
 // contexts
 import { ThemeProvider } from './context/ThemeContext';
-import { JamBotProvider } from './context/JamBotContext';
 import { WorkbenchProvider } from './context/WorkbenchContext';
 import { SmartSearchProvider } from './context/SmartSearchContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -15,9 +14,7 @@ import { setStreamSessionExpiredHandler } from './lib/api/streamUtils';
 // components
 import TopBar from './components/TopBar';
 import { LoginForm } from './components/features/auth';
-import EmailAuthSuccess from './pages/EmailAuthSuccess';
 import Profile from './pages/Profile';
-import JamBotPage from './pages/JamBot';
 import LabPage from './pages/Lab';
 import SmartSearchLab from './pages/SmartSearchLab';
 import SmartSearch2 from './pages/SmartSearch2';
@@ -46,7 +43,6 @@ function AppContent() {
         <main className="flex-1 overflow-y-auto pt-16">
           <Routes>
             <Route path="/" element={<Navigate to={defaultRoute} />} />
-            <Route path="/jam-bot" element={<JamBotPage />} />
             <Route path="/workbench" element={<WorkbenchPage />} />
             <Route path="/lab" element={<LabPage />} />
             <Route path="/smart-search" element={<SmartSearchLab />} />
@@ -54,7 +50,6 @@ function AppContent() {
             <Route path="/smart-search-2" element={<SmartSearch2 />} />
             <Route path="/search-history" element={<SearchHistory />} />
             <Route path="/profile" element={<Profile />} />
-            <Route path="/email/auth/success" element={<EmailAuthSuccess />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
@@ -79,13 +74,11 @@ function AppContent() {
 
   return (
     <ThemeProvider>
-      <JamBotProvider>
-        <WorkbenchProvider>
-          <SmartSearchProvider>
-            <AuthenticatedApp />
-          </SmartSearchProvider>
-        </WorkbenchProvider>
-      </JamBotProvider>
+      <WorkbenchProvider>
+        <SmartSearchProvider>
+          <AuthenticatedApp />
+        </SmartSearchProvider>
+      </WorkbenchProvider>
       <Toaster />
     </ThemeProvider>
   );

@@ -5,7 +5,6 @@
  * for persistence and API operations.
  */
 
-import { Mission } from '@/types/workflow';
 import { Chat } from '@/types/chat';
 
 export enum UserSessionStatus {
@@ -28,7 +27,6 @@ export interface UserSession {
 
     // Relationships (populated by services)
     chat?: Chat;
-    mission?: Mission;
 }
 
 // API Request/Response types

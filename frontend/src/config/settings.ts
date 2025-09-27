@@ -14,14 +14,14 @@ const isLocalhost = currentHost === 'localhost' || currentHost === '127.0.0.1';
 
 const productionSettings: Settings = {
     apiUrl: 'https://hopbot-api.ironcliff.ai',
-    appName: 'HopBot',
+    appName: 'KH',
     logoUrl: '/cognify-icon.svg'  // Using existing icon
 };
 
 const developmentSettings: Settings = {
     // Use the current host for the API URL in development
     apiUrl: isLocalhost ? 'http://localhost:8000' : `http://${currentHost}:8000`,
-    appName: 'HopBot (Dev)',
+    appName: 'KH (Dev)',
     logoUrl: '/cognify-icon.svg'  // Using existing icon
 };
 

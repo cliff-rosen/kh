@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { EmailAgentOAuthButton } from '@/components/features/auth';
 import { FeaturePresetManagementModal } from '@/components/features/workbench';
 import { QuickActionManagementModal } from '@/components/features/workbench/QuickActionManagementModal';
 import { CompanyProfileManagementModal } from '@/components/features/profile/CompanyProfileManagementModal';
 import { Button } from '@/components/ui/button';
-import { EnvelopeIcon } from '@heroicons/react/24/outline';
 import { Settings, Sliders, MessageCircle, Building2 } from 'lucide-react';
 
 export default function Profile() {
@@ -29,18 +27,6 @@ export default function Profile() {
                     <p className="text-sm text-gray-500">
                         {user?.email}
                     </p>
-                </div>
-
-                {/* Gmail Connection */}
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <EnvelopeIcon className="h-5 w-5 text-gray-400" />
-                        <div>
-                            <h3 className="text-sm font-medium text-gray-900 dark:text-white">Gmail</h3>
-                            <p className="text-sm text-gray-500">Manage your Gmail connection</p>
-                        </div>
-                    </div>
-                    <EmailAgentOAuthButton />
                 </div>
 
                 {/* Company Profile Management */}
