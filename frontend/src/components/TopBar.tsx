@@ -1,6 +1,6 @@
 import { useTheme } from '../context/ThemeContext';
 import { NavLink, useLocation } from 'react-router-dom';
-import { MoonIcon, SunIcon, ChatBubbleLeftRightIcon, BeakerIcon, UserCircleIcon, TableCellsIcon, MagnifyingGlassIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import { MoonIcon, SunIcon, BeakerIcon, UserCircleIcon, TableCellsIcon, MagnifyingGlassIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import settings from '../config/settings';
 import { HelpGuide } from '@/components/features/help';
 import { useAuth } from '../context/AuthContext';
@@ -36,10 +36,6 @@ export default function TopBar() {
                     {/* Show all menu items for admins and users */}
                     {canSeeAllMenus && (
                         <>
-                            <NavLink to="/jam-bot" className={getLinkClass('/jam-bot')}>
-                                <ChatBubbleLeftRightIcon className="h-5 w-5 mr-2" />
-                                Chat
-                            </NavLink>
                             <NavLink to="/workbench" className={getLinkClass('/workbench')}>
                                 <TableCellsIcon className="h-5 w-5 mr-2" />
                                 Workbench

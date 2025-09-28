@@ -1,5 +1,4 @@
 import React from 'react';
-import { Clock, CheckCircle, XCircle, PlayCircle, AlertCircle } from 'lucide-react';
 
 /**
  * STATUS LEVELS - Simple and Clear:
