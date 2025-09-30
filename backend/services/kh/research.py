@@ -9,15 +9,16 @@ import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
+from fastapi import Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from .base import BaseKHService
+from database import get_db
 from models import CompanyProfile, OnboardingSession
 from schemas.kh_schemas import CompanyResearchData, CompanyProfileResponse
 from agents.prompts.base_prompt_caller import BasePromptCaller
 from services.web_retrieval_service import WebRetrievalService
-from config.llm_models import get_task_config
+from config.llm_models import get_task_config, supports_reasoning_effort
 
 logger = logging.getLogger(__name__)
 
@@ -34,56 +35,17 @@ class CompanyInfo(BaseModel):
     financial_highlights: Optional[Dict[str, Any]] = None
 
 
-class ResearchPromptCaller(BasePromptCaller):
-    """Specialized prompt caller for company research synthesis"""
-
-    def __init__(self):
-        config = get_task_config("knowledge_horizon", "profile_research")
-
-        super().__init__(
-            response_model=CompanyInfo,
-            system_message="""You are a research analyst specializing in pharmaceutical and biotech companies.
-
-            Analyze the provided information and extract:
-            1. Company description and focus
-            2. Main therapeutic areas
-            3. Key products in pipeline (with development stage if available)
-            4. Key executives and leadership
-            5. Main competitors
-            6. Recent important developments
-            7. Financial highlights if available
-
-            Be comprehensive but concise. Focus on information relevant for horizon scanning.""",
-            model=config.get("model", "gpt-5"),
-            reasoning_effort=config.get("reasoning_effort", "high")
-        )
 
 
-class CompanyResearchService(BaseKHService):
+class CompanyResearchService:
     """
     Service for researching companies and building profiles
     """
 
     def __init__(self, db_session: Session):
-        super().__init__(db_session)
-        self.research_caller = ResearchPromptCaller()
+        self.db = db_session
         self.web_service = WebRetrievalService()
 
-    async def health_check(self) -> Dict[str, Any]:
-        """Check service health"""
-        try:
-            profile_count = self.db.query(CompanyProfile).count()
-
-            return {
-                'status': 'healthy',
-                'database': 'connected',
-                'total_profiles': profile_count
-            }
-        except Exception as e:
-            return {
-                'status': 'unhealthy',
-                'error': str(e)
-            }
 
     async def research_company(self,
                               company_name: str,
@@ -98,7 +60,7 @@ class CompanyResearchService(BaseKHService):
         Returns:
             Research data about the company
         """
-        self._log_operation('research_company', {'company': company_name})
+        logger.info(f"Researching company: {company_name}")
 
         try:
             # Gather information from multiple sources
@@ -282,17 +244,79 @@ class CompanyResearchService(BaseKHService):
                 for news in research_data['news'][:5]:
                     context += f"- {news.get('title', '')}: {news.get('snippet', '')}\n"
 
+            # Get model config for research synthesis
+            task_config = get_task_config("knowledge_horizon", "profile_research")
+
+            # Create response schema for company info
+            response_schema = {
+                "type": "object",
+                "properties": {
+                    "company_name": {"type": "string"},
+                    "description": {"type": "string"},
+                    "therapeutic_areas": {
+                        "type": "array",
+                        "items": {"type": "string"}
+                    },
+                    "pipeline_products": {
+                        "type": "array",
+                        "items": {"type": "object"}
+                    },
+                    "key_personnel": {
+                        "type": "array",
+                        "items": {"type": "object"}
+                    },
+                    "competitors": {
+                        "type": "array",
+                        "items": {"type": "string"}
+                    },
+                    "recent_developments": {
+                        "type": "array",
+                        "items": {"type": "string"}
+                    },
+                    "financial_highlights": {"type": "object"}
+                },
+                "required": ["company_name", "description"]
+            }
+
+            system_message = """You are a research analyst specializing in pharmaceutical and biotech companies.
+
+            Analyze the provided information and extract:
+            1. Company description and focus
+            2. Main therapeutic areas
+            3. Key products in pipeline (with development stage if available)
+            4. Key executives and leadership
+            5. Main competitors
+            6. Recent important developments
+            7. Financial highlights if available
+
+            Be comprehensive but concise. Focus on information relevant for horizon scanning."""
+
+            # Create prompt caller for research synthesis
+            prompt_caller = BasePromptCaller(
+                response_model=response_schema,
+                system_message=system_message,
+                model=task_config.get("model", "gpt-4"),
+                temperature=task_config.get("temperature", 0.1),
+                reasoning_effort=task_config.get("reasoning_effort", "high") if supports_reasoning_effort(task_config.get("model", "gpt-4")) else None
+            )
+
             # Call LLM to synthesize
-            result = await self.research_caller.invoke(
+            result = await prompt_caller.invoke(
                 messages=[{
                     'role': 'user',
                     'content': (f"Analyze this information about {company_name} "
                               f"and provide a structured summary:\n\n{context}")
-                }],
-                log_prompt=False
+                }]
             )
 
-            return result
+            # Extract the result data
+            llm_result = result.result
+            if hasattr(llm_result, 'model_dump'):
+                company_data = llm_result.model_dump()
+            else:
+                company_data = llm_result
+
+            return CompanyInfo(**company_data)
 
         except Exception as e:
             logger.error(f"Failed to synthesize research: {e}")
@@ -315,7 +339,7 @@ class CompanyResearchService(BaseKHService):
         Returns:
             Updated company profile
         """
-        self._log_operation('enrich_profile', {'profile_id': profile_id})
+        logger.info(f"Enriching profile {profile_id}")
 
         profile = self.db.query(CompanyProfile).filter(
             CompanyProfile.profile_id == profile_id
@@ -371,7 +395,7 @@ class CompanyResearchService(BaseKHService):
         Returns:
             LinkedIn research data
         """
-        self._log_operation('research_user_linkedin', {'name': name})
+        logger.info(f"Researching LinkedIn for: {name}")
 
         # Placeholder - would integrate with LinkedIn API or scraping
         # For now, return structured placeholder data
@@ -397,7 +421,7 @@ class CompanyResearchService(BaseKHService):
         Returns:
             List of competitor company names
         """
-        self._log_operation('research_competitors', {'company': company_name})
+        logger.info(f"Researching competitors for: {company_name}")
 
         # Use LLM to identify competitors
         try:
@@ -429,7 +453,7 @@ class CompanyResearchService(BaseKHService):
         Returns:
             List of trend insights
         """
-        self._log_operation('get_industry_trends', {'areas': therapeutic_areas})
+        logger.info(f"Getting industry trends for: {therapeutic_areas}")
 
         trends = []
         for area in therapeutic_areas[:3]:  # Limit to top 3 areas
@@ -453,3 +477,8 @@ class CompanyResearchService(BaseKHService):
                 logger.error(f"Failed to get trends for {area}: {e}")
 
         return trends
+
+
+async def get_research_service(db: Session = Depends(get_db)) -> CompanyResearchService:
+    """Get CompanyResearchService instance for dependency injection"""
+    return CompanyResearchService(db)

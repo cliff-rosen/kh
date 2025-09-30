@@ -8,9 +8,10 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import logging
 
+from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from .base import BaseKHService
+from database import get_db
 from models import OnboardingSession, CompanyProfile, User
 from schemas.kh_schemas import (
     OnboardingMessage,
@@ -21,61 +22,21 @@ from schemas.kh_schemas import (
     CompanyProfileResponse
 )
 from agents.prompts.base_prompt_caller import BasePromptCaller
-from config.llm_models import get_task_config
+from config.llm_models import get_task_config, supports_reasoning_effort
 
 logger = logging.getLogger(__name__)
 
 
-class OnboardingPromptCaller(BasePromptCaller):
-    """Specialized prompt caller for onboarding conversations"""
-
-    def __init__(self):
-        # Get optimal model for onboarding
-        config = get_task_config("knowledge_horizon", "onboarding_chat")
-
-        super().__init__(
-            response_model=OnboardingExtraction,
-            system_message="""You are an intelligent onboarding assistant for Knowledge Horizon,
-            an AI-powered horizon scanning application for pharmaceutical and biotech executives.
-
-            Extract key information from the conversation to build a user profile.
-            Focus on:
-            1. User's full name
-            2. Job title/role
-            3. Company name
-            4. Any priorities or specific interests they mention
-
-            Be thorough but concise in your extraction.""",
-            model=config.get("model", "gpt-5-mini"),
-            temperature=0.0
-        )
 
 
-class OnboardingService(BaseKHService):
+class OnboardingService:
     """
     Service for managing user onboarding flow
     """
 
     def __init__(self, db_session: Session):
-        super().__init__(db_session)
-        self.prompt_caller = OnboardingPromptCaller()
+        self.db = db_session
 
-    async def health_check(self) -> Dict[str, Any]:
-        """Check service health"""
-        try:
-            # Check database connection
-            session_count = self.db.query(OnboardingSession).count()
-
-            return {
-                'status': 'healthy',
-                'database': 'connected',
-                'total_sessions': session_count
-            }
-        except Exception as e:
-            return {
-                'status': 'unhealthy',
-                'error': str(e)
-            }
 
     async def start_session(self, user_id: int) -> OnboardingSessionResponse:
         """
@@ -87,7 +48,7 @@ class OnboardingService(BaseKHService):
         Returns:
             New onboarding session
         """
-        self._log_operation('start_session', {'user_id': user_id})
+        logger.info(f"Starting onboarding session for user {user_id}")
 
         # Check if user already has an incomplete session
         existing_session = self.db.query(OnboardingSession).filter(
@@ -127,7 +88,7 @@ class OnboardingService(BaseKHService):
         Returns:
             Response with extracted data and next question
         """
-        self._log_operation('process_message', {'session_id': session_id})
+        logger.info(f"Processing message for session {session_id}")
 
         # Get session
         session = self.db.query(OnboardingSession).filter(
@@ -186,6 +147,59 @@ class OnboardingService(BaseKHService):
             return None
 
         try:
+            # Get model config for onboarding extraction
+            task_config = get_task_config("knowledge_horizon", "onboarding_chat")
+
+            # Create response schema for extraction
+            response_schema = {
+                "type": "object",
+                "properties": {
+                    "full_name": {
+                        "type": "string",
+                        "description": "User's full name"
+                    },
+                    "job_title": {
+                        "type": "string",
+                        "description": "User's job title"
+                    },
+                    "company_name": {
+                        "type": "string",
+                        "description": "Company name"
+                    },
+                    "priorities": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "User's stated priorities"
+                    },
+                    "additional_context": {
+                        "type": "object",
+                        "description": "Additional extracted context"
+                    }
+                },
+                "required": ["full_name", "job_title", "company_name"]
+            }
+
+            system_message = """You are an intelligent onboarding assistant for Knowledge Horizon,
+            an AI-powered horizon scanning application for pharmaceutical and biotech executives.
+
+            Extract key information from the conversation to build a user profile.
+            Focus on:
+            1. User's full name
+            2. Job title/role
+            3. Company name
+            4. Any priorities or specific interests they mention
+
+            Be thorough but concise in your extraction."""
+
+            # Create prompt caller for extraction
+            prompt_caller = BasePromptCaller(
+                response_model=response_schema,
+                system_message=system_message,
+                model=task_config.get("model", "gpt-4-mini"),
+                temperature=0.0,
+                reasoning_effort=task_config.get("reasoning_effort", "low") if supports_reasoning_effort(task_config.get("model", "gpt-4-mini")) else None
+            )
+
             # Convert to format expected by prompt caller
             messages = [
                 {'role': msg['role'], 'content': msg['content']}
@@ -193,12 +207,18 @@ class OnboardingService(BaseKHService):
             ]
 
             # Extract information using LLM
-            result = await self.prompt_caller.invoke(
-                messages=messages,
-                log_prompt=False
+            result = await prompt_caller.invoke(
+                messages=messages
             )
 
-            return result
+            # Extract the result data
+            llm_result = result.result
+            if hasattr(llm_result, 'model_dump'):
+                extraction_data = llm_result.model_dump()
+            else:
+                extraction_data = llm_result
+
+            return OnboardingExtraction(**extraction_data)
 
         except Exception as e:
             logger.error(f"Failed to extract profile info: {e}")
@@ -265,7 +285,7 @@ class OnboardingService(BaseKHService):
         Returns:
             Created company profile
         """
-        self._log_operation('complete_onboarding', {'session_id': session_id})
+        logger.info(f"Completing onboarding for session {session_id}")
 
         # Get session
         session = self.db.query(OnboardingSession).filter(
@@ -364,7 +384,7 @@ class OnboardingService(BaseKHService):
         Returns:
             Completed onboarding session
         """
-        self._log_operation('simulate_conversation', {'user_id': user_id})
+        logger.info(f"Simulating conversation for user {user_id}")
 
         # Start session
         session = await self.start_session(user_id)
@@ -420,3 +440,8 @@ class OnboardingService(BaseKHService):
         self.db.refresh(db_session)
 
         return OnboardingSessionResponse.from_orm(db_session)
+
+
+async def get_onboarding_service(db: Session = Depends(get_db)) -> OnboardingService:
+    """Get OnboardingService instance for dependency injection"""
+    return OnboardingService(db)

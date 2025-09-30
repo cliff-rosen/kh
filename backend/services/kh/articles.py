@@ -8,10 +8,11 @@ import logging
 from datetime import datetime, date
 from typing import List, Dict, Any, Optional
 
+from fastapi import Depends
 from sqlalchemy import and_, or_, desc
 from sqlalchemy.orm import Session
 
-from .base import BaseKHService
+from database import get_db
 from models import Article, ReportArticleAssociation, InformationSource
 from schemas.kh_schemas import (
     ArticleCreate,
@@ -27,28 +28,13 @@ from schemas.kh_schemas import (
 logger = logging.getLogger(__name__)
 
 
-class ArticleService(BaseKHService):
+class ArticleService:
     """
     Service for managing articles and their report associations
     """
 
-    async def health_check(self) -> Dict[str, Any]:
-        """Check service health"""
-        try:
-            article_count = self.db.query(Article).count()
-            association_count = self.db.query(ReportArticleAssociation).count()
-
-            return {
-                'status': 'healthy',
-                'database': 'connected',
-                'total_articles': article_count,
-                'total_associations': association_count
-            }
-        except Exception as e:
-            return {
-                'status': 'unhealthy',
-                'error': str(e)
-            }
+    def __init__(self, db_session: Session):
+        self.db = db_session
 
     async def create_or_update_article(self, article_data: ArticleCreate) -> ArticleResponse:
         """
@@ -60,7 +46,7 @@ class ArticleService(BaseKHService):
         Returns:
             Created or updated article
         """
-        self._log_operation('create_or_update_article', {'url': article_data.url})
+        logger.info(f"Creating/updating article: {article_data.url}")
 
         # Check if article already exists by URL
         existing_article = None
@@ -193,10 +179,7 @@ class ArticleService(BaseKHService):
         Returns:
             Created association
         """
-        self._log_operation('associate_article_with_report', {
-            'report_id': association_data.report_id,
-            'article_id': association_data.article_id
-        })
+        logger.info(f"Associating article {association_data.article_id} with report {association_data.report_id}")
 
         # Check if association already exists
         existing = self.db.query(ReportArticleAssociation).filter(
@@ -390,3 +373,8 @@ class ArticleService(BaseKHService):
                 for assoc in associations
             ]
         }
+
+
+async def get_article_service(db: Session = Depends(get_db)) -> ArticleService:
+    """Get ArticleService instance for dependency injection"""
+    return ArticleService(db)
