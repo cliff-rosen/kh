@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Enum, TIMESTAMP, JSON, LargeBinary, Boolean, UniqueConstraint, Index, Float
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Date, Enum, TIMESTAMP, JSON, LargeBinary, Boolean, UniqueConstraint, Index, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, foreign, remote, validates
 from datetime import datetime
@@ -997,3 +997,276 @@ class UserEvent(Base):
         Index('idx_event_type_time', 'event_type', 'timestamp'),
         Index('idx_user_journey', 'user_id', 'journey_id'),
     )
+
+
+# ============================================================================
+# KNOWLEDGE HORIZON MODELS
+# ============================================================================
+
+class ReportFrequency(str, PyEnum):
+    """Report delivery frequency"""
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    BIWEEKLY = "biweekly"
+    MONTHLY = "monthly"
+
+class SourceType(str, PyEnum):
+    """Types of information sources"""
+    JOURNAL = "journal"
+    NEWS = "news"
+    REGULATORY = "regulatory"
+    CLINICAL = "clinical"
+    PATENT = "patent"
+    COMPANY = "company"
+    PREPRINT = "preprint"
+    CONFERENCE = "conference"
+
+class FeedbackType(str, PyEnum):
+    """Types of user feedback"""
+    THUMBS_UP = "thumbs_up"
+    THUMBS_DOWN = "thumbs_down"
+    IRRELEVANT = "irrelevant"
+    IMPORTANT = "important"
+
+
+class CompanyProfile(Base):
+    """Company and user profile information"""
+    __tablename__ = "company_profiles"
+
+    profile_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, unique=True)
+    company_name = Column(String(255), nullable=False)
+    job_title = Column(String(255), nullable=False)
+    therapeutic_areas = Column(JSON, default=list)  # List of therapeutic areas
+    pipeline_products = Column(JSON, default=list)  # List of products in pipeline
+    competitors = Column(JSON, default=list)  # List of competitor companies
+    company_metadata = Column(JSON, default=dict)  # Additional company data
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="company_profile")
+    mandates = relationship("CurationMandate", back_populates="profile")
+
+
+class CurationMandate(Base):
+    """User's information curation preferences and focus areas"""
+    __tablename__ = "curation_mandates"
+
+    mandate_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    profile_id = Column(Integer, ForeignKey("company_profiles.profile_id"))
+    primary_focus = Column(JSON, default=list)  # Primary topics/areas
+    secondary_interests = Column(JSON, default=list)  # Secondary topics
+    competitors_to_track = Column(JSON, default=list)  # Specific competitors
+    regulatory_focus = Column(JSON, default=list)  # Regulatory areas
+    scientific_domains = Column(JSON, default=list)  # Scientific areas
+    exclusions = Column(JSON, default=list)  # Topics to exclude
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="mandates")
+    profile = relationship("CompanyProfile", back_populates="mandates")
+    sources = relationship("InformationSource", back_populates="mandate")
+    reports = relationship("Report", back_populates="mandate")
+
+
+class InformationSource(Base):
+    """Configured information sources for content retrieval"""
+    __tablename__ = "information_sources"
+
+    source_id = Column(Integer, primary_key=True, index=True)
+    mandate_id = Column(Integer, ForeignKey("curation_mandates.mandate_id"), nullable=False)
+    source_type = Column(Enum(SourceType), nullable=False)
+    source_name = Column(String(255), nullable=False)
+    source_url = Column(String(500))
+    retrieval_config = Column(JSON, default=dict)  # Query templates, filters, etc.
+    search_queries = Column(JSON, default=list)  # Specific search queries
+    update_frequency = Column(String(50))  # How often to check
+    is_active = Column(Boolean, default=True)
+    last_fetched = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    mandate = relationship("CurationMandate", back_populates="sources")
+    articles = relationship("Article", back_populates="source")
+
+
+class Report(Base):
+    """Generated reports for users"""
+    __tablename__ = "reports"
+
+    report_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    mandate_id = Column(Integer, ForeignKey("curation_mandates.mandate_id"))
+    report_date = Column(Date, nullable=False)
+    executive_summary = Column(Text)
+    key_highlights = Column(JSON, default=list)  # List of key points
+    thematic_analysis = Column(Text)
+    coverage_stats = Column(JSON, default=dict)  # Statistics about coverage
+    is_read = Column(Boolean, default=False)
+    read_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="reports")
+    mandate = relationship("CurationMandate", back_populates="reports")
+    article_associations = relationship("ReportArticleAssociation", back_populates="report", cascade="all, delete-orphan")
+    articles = relationship("Article", secondary="report_article_associations", back_populates="reports")
+    feedback = relationship("UserFeedback", back_populates="report")
+
+
+class Article(Base):
+    """Standalone articles table for all curated content"""
+    __tablename__ = "articles"
+
+    article_id = Column(Integer, primary_key=True, index=True)
+    source_id = Column(Integer, ForeignKey("information_sources.source_id"))
+
+    # Core article information
+    title = Column(String(500), nullable=False)
+    url = Column(String(1000), unique=True, index=True)  # Unique to prevent duplicates
+    authors = Column(JSON, default=list)
+    publication_date = Column(Date)
+
+    # Content
+    summary = Column(Text)  # Original summary/abstract
+    ai_summary = Column(Text)  # AI-generated summary
+    full_text = Column(Text)  # Cached full text if available
+
+    # Metadata
+    source_type = Column(Enum(SourceType))
+    metadata = Column(JSON, default=dict)  # Additional metadata (journal, DOI, etc.)
+    theme_tags = Column(JSON, default=list)
+
+    # Tracking
+    first_seen = Column(DateTime, default=datetime.utcnow)
+    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    fetch_count = Column(Integer, default=1)  # How many times fetched
+
+    # Relationships
+    source = relationship("InformationSource", back_populates="articles")
+    report_associations = relationship("ReportArticleAssociation", back_populates="article")
+    reports = relationship("Report", secondary="report_article_associations", back_populates="articles")
+    feedback = relationship("UserFeedback", back_populates="article")
+
+    # Indexes
+    __table_args__ = (
+        Index('idx_articles_date', 'publication_date'),
+        Index('idx_articles_source', 'source_id'),
+        Index('idx_articles_type', 'source_type'),
+    )
+
+
+class ReportArticleAssociation(Base):
+    """Association table linking articles to reports with report-specific metadata"""
+    __tablename__ = "report_article_associations"
+
+    # Composite primary key
+    report_id = Column(Integer, ForeignKey("reports.report_id"), primary_key=True)
+    article_id = Column(Integer, ForeignKey("articles.article_id"), primary_key=True)
+
+    # Report-specific metadata for this article
+    relevance_score = Column(Float)  # Relevance to this specific report's mandate
+    relevance_rationale = Column(Text)  # Why included in this report
+    ranking = Column(Integer)  # Order in report (1 = most important)
+
+    # User interactions specific to this report
+    user_feedback = Column(Enum(FeedbackType))
+    is_starred = Column(Boolean, default=False)
+    is_read = Column(Boolean, default=False)
+    notes = Column(Text)  # User notes for this article in this report
+
+    # Timestamps
+    added_at = Column(DateTime, default=datetime.utcnow)
+    read_at = Column(DateTime)
+
+    # Relationships
+    report = relationship("Report", back_populates="article_associations")
+    article = relationship("Article", back_populates="report_associations")
+
+    # Indexes
+    __table_args__ = (
+        Index('idx_report_article_score', 'report_id', 'relevance_score'),
+        Index('idx_report_article_ranking', 'report_id', 'ranking'),
+        Index('idx_article_reports', 'article_id', 'report_id'),
+    )
+
+
+class ReportSchedule(Base):
+    """User's report delivery schedule"""
+    __tablename__ = "report_schedules"
+
+    schedule_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, unique=True)
+    frequency = Column(Enum(ReportFrequency), nullable=False)
+    day_of_week = Column(Integer)  # 0-6 for Monday-Sunday
+    day_of_month = Column(Integer)  # 1-31 for monthly
+    time_of_day = Column(String(5))  # HH:MM format
+    timezone = Column(String(50), default="UTC")
+    is_active = Column(Boolean, default=True)
+    is_paused = Column(Boolean, default=False)
+    next_run_at = Column(DateTime)
+    last_run_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="report_schedule")
+
+
+class UserFeedback(Base):
+    """User feedback on reports and articles"""
+    __tablename__ = "user_feedback"
+
+    feedback_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    report_id = Column(Integer, ForeignKey("reports.report_id"))
+    article_id = Column(Integer, ForeignKey("articles.article_id"))
+    feedback_type = Column(Enum(FeedbackType), nullable=False)
+    feedback_value = Column(String(50))  # Additional feedback value
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="feedback")
+    report = relationship("Report", back_populates="feedback")
+    article = relationship("Article", back_populates="feedback")
+
+    # Constraints
+    __table_args__ = (
+        CheckConstraint(
+            '(report_id IS NOT NULL AND article_id IS NULL) OR (report_id IS NULL AND article_id IS NOT NULL)',
+            name='feedback_target_check'
+        ),
+    )
+
+
+class OnboardingSession(Base):
+    """Track user onboarding sessions"""
+    __tablename__ = "onboarding_sessions"
+
+    session_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    conversation_history = Column(JSON, default=list)  # Chat messages
+    extracted_data = Column(JSON, default=dict)  # Extracted profile data
+    research_data = Column(JSON, default=dict)  # Research findings
+    completed_steps = Column(JSON, default=list)  # Completed onboarding steps
+    is_complete = Column(Boolean, default=False)
+    completed_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="onboarding_sessions")
+
+
+# Add relationships to User model
+User.company_profile = relationship("CompanyProfile", back_populates="user", uselist=False)
+User.mandates = relationship("CurationMandate", back_populates="user")
+User.reports = relationship("Report", back_populates="user")
+User.report_schedule = relationship("ReportSchedule", back_populates="user", uselist=False)
+User.feedback = relationship("UserFeedback", back_populates="user")
+User.onboarding_sessions = relationship("OnboardingSession", back_populates="user")
