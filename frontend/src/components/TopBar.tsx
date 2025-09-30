@@ -44,10 +44,6 @@ export default function TopBar() {
                     )}
 
                     {/* Smart Search is visible to all roles */}
-                    <NavLink to="/smart-search" className={getLinkClass('/smart-search')}>
-                        <MagnifyingGlassIcon className="h-5 w-5 mr-2" />
-                        Smart Search
-                    </NavLink>
                     <NavLink to="/pubmed-search-designer" className={getLinkClass('/pubmed-search-designer')}>
                         <PencilSquareIcon className="h-5 w-5 mr-2" />
                         Search Designer

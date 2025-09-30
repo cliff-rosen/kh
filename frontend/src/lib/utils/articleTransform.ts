@@ -1,4 +1,4 @@
-import type { SmartSearchArticle } from '@/types/smart-search';
+import type { SmartSearchArticle } from '@/types/smartsearch2';
 import type { CanonicalResearchArticle } from '@/types/canonical_types';
 
 // --- Helper transforms ---

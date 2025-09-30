@@ -19,7 +19,7 @@ import {
 } from '@/lib/utils/journeyTracking';
 
 import type { CanonicalFeatureDefinition } from '@/types/canonical_types';
-import type { SmartSearchArticle } from '@/types/smart-search';
+import type { SmartSearchArticle, FilteringStats } from '@/types/smartsearch2';
 
 export const MAX_ARTICLES_TO_FILTER = 500;
 const PAGE_SIZE = 50;
@@ -55,13 +55,7 @@ interface SmartSearch2State {
     pendingFeatures: CanonicalFeatureDefinition[];
 
     // FILTERING STATS
-    filteringStats: {
-        total_processed: number;
-        total_accepted: number;
-        total_rejected: number;
-        average_confidence: number;
-        duration_seconds: number;
-    } | null;
+    filteringStats: FilteringStats | null;
 
     // RESEARCH JOURNEY STATE (persistent data)
     researchQuestion: string;

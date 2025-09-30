@@ -3,7 +3,7 @@
  * Supports CSV, BibTeX, and PDF export formats
  */
 
-import type { SmartSearchArticle } from '@/types/smart-search';
+import type { SmartSearchArticle } from '@/types/smartsearch2';
 import type { CanonicalFeatureDefinition } from '@/types/canonical_types';
 
 /**
@@ -203,9 +203,9 @@ export const exportToPDF = (
               <div class="features">
                 <strong>Extracted Features:</strong>
                 ${appliedFeatures.map(feature => {
-                  const value = article.extracted_features?.[feature.id];
-                  return value ? `<div class="feature-item"><strong>${feature.name}:</strong> ${value}</div>` : '';
-                }).filter(Boolean).join('')}
+    const value = article.extracted_features?.[feature.id];
+    return value ? `<div class="feature-item"><strong>${feature.name}:</strong> ${value}</div>` : '';
+  }).filter(Boolean).join('')}
               </div>
             ` : ''}
           </div>

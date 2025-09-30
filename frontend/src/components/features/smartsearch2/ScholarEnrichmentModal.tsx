@@ -19,7 +19,7 @@ import {
 
 import { useSmartSearch2 } from '@/context/SmartSearch2Context';
 import { smartSearch2Api } from '@/lib/api/smartSearch2Api';
-import type { SmartSearchArticle } from '@/types/smart-search';
+import type { SmartSearchArticle } from '@/types/smartsearch2';
 import type { CanonicalResearchArticle } from '@/types/canonical_types';
 import { _toCanonicalResearchArticles } from '@/lib/utils/articleTransform';
 

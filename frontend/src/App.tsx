@@ -5,7 +5,6 @@ import { Toaster } from './components/ui/toaster';
 // contexts
 import { ThemeProvider } from './context/ThemeContext';
 import { WorkbenchProvider } from './context/WorkbenchContext';
-import { SmartSearchProvider } from './context/SmartSearchContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 // utils
@@ -16,9 +15,7 @@ import TopBar from './components/TopBar';
 import { LoginForm } from './components/features/auth';
 import Profile from './pages/Profile';
 import LabPage from './pages/Lab';
-import SmartSearchLab from './pages/SmartSearchLab';
 import SmartSearch2 from './pages/SmartSearch2';
-import SearchHistory from './pages/SearchHistory';
 import WorkbenchPage from './pages/Workbench';
 import TokenLogin from './pages/TokenLogin';
 import PubMedSearchDesigner from './pages/PubMedSearchDesigner';
@@ -35,7 +32,7 @@ function AppContent() {
 
   // Main app content when authenticated
   const AuthenticatedApp = () => {
-    const defaultRoute = '/smart-search';  // Smart Search is now default for all users
+    const defaultRoute = '/smart-search-2';
 
     return (
       <div className="h-screen flex flex-col dark:bg-gray-900 bg-gray-50">
@@ -45,10 +42,9 @@ function AppContent() {
             <Route path="/" element={<Navigate to={defaultRoute} />} />
             <Route path="/workbench" element={<WorkbenchPage />} />
             <Route path="/lab" element={<LabPage />} />
-            <Route path="/smart-search" element={<SmartSearchLab />} />
+            <Route path="/smart-search" element={<Navigate to="/smart-search-2" replace />} />
             <Route path="/pubmed-search-designer" element={<PubMedSearchDesigner />} />
             <Route path="/smart-search-2" element={<SmartSearch2 />} />
-            <Route path="/search-history" element={<SearchHistory />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -75,9 +71,7 @@ function AppContent() {
   return (
     <ThemeProvider>
       <WorkbenchProvider>
-        <SmartSearchProvider>
-          <AuthenticatedApp />
-        </SmartSearchProvider>
+        <AuthenticatedApp />
       </WorkbenchProvider>
       <Toaster />
     </ThemeProvider>

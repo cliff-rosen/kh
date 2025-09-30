@@ -7,7 +7,7 @@ import { ArrowLeft, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 
 import { SmartSearch2Provider, useSmartSearch2, ResultState, MAX_ARTICLES_TO_FILTER } from '@/context/SmartSearch2Context';
 import type { CanonicalFeatureDefinition } from '@/types/canonical_types';
-import type { SmartSearchArticle } from '@/types/smart-search';
+import type { SmartSearchArticle } from '@/types/smartsearch2';
 import { generatePrefixedUUID } from '@/lib/utils/uuid';
 
 import { SearchForm, KeywordHelper, FilterModal } from '@/components/features/smartsearch2';

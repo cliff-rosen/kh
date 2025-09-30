@@ -6,7 +6,7 @@
 
 import { api } from './index';
 import type { CanonicalResearchArticle } from '@/types/canonical_types';
-import type { SearchPaginationInfo, FilteredArticle } from '@/types/smart-search';
+import type { SearchPaginationInfo, FilteredArticle } from '@/types/smartsearch2';
 import type { CanonicalFeatureDefinition } from '@/types/canonical_types';
 import type {
     FeatureExtractionResponse as BaseFeatureExtractionResponse
@@ -181,54 +181,54 @@ export const smartSearch2Api = new SmartSearch2Api();
 // ============= ANALYTICS =============
 
 export interface JourneyAnalyticsData {
-  current_journey: {
-    journey_id: string;
-    event_count: number;
-    duration: string;
-    events: Array<{
-      user_id: string;
-      journey_id: string;
-      event_id: string;
-      event_type: string;
-      timestamp: string;
-      event_data: any;
+    current_journey: {
+        journey_id: string;
+        event_count: number;
+        duration: string;
+        events: Array<{
+            user_id: string;
+            journey_id: string;
+            event_id: string;
+            event_type: string;
+            timestamp: string;
+            event_data: any;
+        }>;
+    } | null;
+    recent_journeys: Array<{
+        journey_id: string;
+        event_count: number;
+        start_time: string;
+        duration: string;
+        last_event_type: string;
     }>;
-  } | null;
-  recent_journeys: Array<{
-    journey_id: string;
-    event_count: number;
-    start_time: string;
-    duration: string;
-    last_event_type: string;
-  }>;
 }
 
 export async function getJourneyAnalytics(journeyId: string): Promise<JourneyAnalyticsData> {
-  const response = await api.get(`/api/analytics/journey/${journeyId}`);
-  return response.data;
+    const response = await api.get(`/api/analytics/journey/${journeyId}`);
+    return response.data;
 }
 
 export interface UserJourney {
-  journey_id: string;
-  user_id?: number;
-  username?: string;
-  start_time: string;
-  last_time: string;
-  duration: string;
-  event_count: number;
-  last_event_type: string;
+    journey_id: string;
+    user_id?: number;
+    username?: string;
+    start_time: string;
+    last_time: string;
+    duration: string;
+    event_count: number;
+    last_event_type: string;
 }
 
 export interface UserJourneysResponse {
-  journeys: UserJourney[];
+    journeys: UserJourney[];
 }
 
 export async function getUserJourneys(): Promise<UserJourneysResponse> {
-  const response = await api.get('/api/smart-search-2/analytics/my-journeys');
-  return response.data;
+    const response = await api.get('/api/smart-search-2/analytics/my-journeys');
+    return response.data;
 }
 
 export async function getAllUserJourneys(): Promise<UserJourneysResponse> {
-  const response = await api.get('/api/smart-search-2/analytics/all-journeys');
-  return response.data;
+    const response = await api.get('/api/smart-search-2/analytics/all-journeys');
+    return response.data;
 }

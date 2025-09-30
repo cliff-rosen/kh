@@ -26,7 +26,7 @@ import {
 
 import { exportToCSV, copyPMIDsToClipboard, exportToPDF } from '@/lib/utils/exportUtils';
 
-import type { SmartSearchArticle, SearchPaginationInfo } from '@/types/smart-search';
+import type { SmartSearchArticle, SearchPaginationInfo } from '@/types/smartsearch2';
 import type { CanonicalFeatureDefinition } from '@/types/canonical_types';
 
 
@@ -95,7 +95,7 @@ export function SearchResults({
     onUndoFilter,
     searchQuery
 }: SearchResultsProps) {
-    
+
     const resolveArticleSourceLabel = (article: SmartSearchArticle): string => {
         const src = (article.source || '').toLowerCase();
         if (src.includes('pubmed')) return 'PubMed';
