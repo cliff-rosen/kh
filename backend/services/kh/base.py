@@ -2,10 +2,11 @@
 Base classes for Knowledge Horizon services
 """
 
-from typing import Optional, Dict, Any, Type
-from sqlalchemy.orm import Session
 import logging
 from abc import ABC, abstractmethod
+from typing import Optional, Dict, Any, List
+
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class BaseKHService(ABC):
         self.config = config or {}
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def _validate_params(self, params: Dict[str, Any], required: list) -> bool:
+    def _validate_params(self, params: Dict[str, Any], required: List[str]) -> bool:
         """
         Validate that required parameters are present
 
@@ -122,7 +123,7 @@ class ServiceRegistry:
             raise ValueError(f"Required service not found: {name}")
         return service
 
-    def list_services(self) -> list:
+    def list_services(self) -> List[str]:
         """
         List all registered services
 

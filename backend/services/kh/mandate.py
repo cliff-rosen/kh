@@ -4,11 +4,12 @@ Mandate Service for Knowledge Horizon
 Generates and manages curation mandates based on user profiles.
 """
 
-from typing import List, Dict, Any, Optional
-from sqlalchemy.orm import Session
-from datetime import datetime
 import logging
+from datetime import datetime
+from typing import List, Dict, Any, Optional
+
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from .base import BaseKHService
 from models import CurationMandate, CompanyProfile, UserFeedback, FeedbackType
@@ -56,7 +57,8 @@ class MandateGeneratorCaller(BasePromptCaller):
             response_model=GeneratedMandate,
             system_message="""You are an expert at creating information curation mandates for pharmaceutical executives.
 
-            Based on the user's profile and company information, generate a comprehensive curation mandate that will guide the selection and filtering of industry information.
+            Based on the user's profile and company information, generate a comprehensive
+            curation mandate that will guide the selection and filtering of industry information.
 
             Consider:
             1. The user's role and responsibilities

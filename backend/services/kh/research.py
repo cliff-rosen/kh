@@ -4,13 +4,13 @@ Company Research Service for Knowledge Horizon
 Performs automated research on companies and users to build comprehensive profiles.
 """
 
-from typing import List, Dict, Any, Optional
-from sqlalchemy.orm import Session
-from datetime import datetime
 import asyncio
 import logging
-import json
+from datetime import datetime
+from typing import List, Dict, Any, Optional
+
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from .base import BaseKHService
 from models import CompanyProfile, OnboardingSession
@@ -286,7 +286,8 @@ class CompanyResearchService(BaseKHService):
             result = await self.research_caller.invoke(
                 messages=[{
                     'role': 'user',
-                    'content': f"Analyze this information about {company_name} and provide a structured summary:\n\n{context}"
+                    'content': (f"Analyze this information about {company_name} "
+                              f"and provide a structured summary:\n\n{context}")
                 }],
                 log_prompt=False
             )

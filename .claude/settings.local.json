@@ -22,7 +22,11 @@
       "Bash(/dev/null)",
       "WebSearch",
       "Bash(tsc --noEmit)",
-      "Bash(source .env)"
+      "Bash(source .env)",
+      "Bash(for file in *.py)",
+      "Bash(do echo \"=== $file ===\")",
+      "Bash(awk:*)",
+      "Bash(done)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits",

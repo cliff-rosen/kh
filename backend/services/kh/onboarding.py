@@ -5,10 +5,10 @@ Manages the AI-driven onboarding conversation and user profile extraction.
 """
 
 from typing import List, Dict, Any, Optional
-from sqlalchemy.orm import Session
 from datetime import datetime
-import json
 import logging
+
+from sqlalchemy.orm import Session
 
 from .base import BaseKHService
 from models import OnboardingSession, CompanyProfile, User
@@ -215,7 +215,8 @@ class OnboardingService(BaseKHService):
             Next question to ask, or None if complete
         """
         if not extracted_data:
-            return "Hello! I'm here to help you set up Knowledge Horizon. Could you please tell me your name and what you do?"
+            return ("Hello! I'm here to help you set up Knowledge Horizon. "
+                    "Could you please tell me your name and what you do?")
 
         # Check what's missing
         missing_fields = []
@@ -230,7 +231,8 @@ class OnboardingService(BaseKHService):
             return "Which company do you work for?"
 
         if not extracted_data.get('priorities'):
-            return "What are your main priorities or areas of interest for staying informed about industry developments?"
+            return ("What are your main priorities or areas of interest for staying "
+                    "informed about industry developments?")
 
         # All basic info collected
         return None
@@ -369,10 +371,27 @@ class OnboardingService(BaseKHService):
 
         # Simulate conversation
         test_messages = [
-            OnboardingMessage(role="assistant", content="Hello! I'm here to help you set up Knowledge Horizon. Could you please tell me your name and what you do?"),
-            OnboardingMessage(role="user", content="Hi! I'm Dr. Sarah Johnson, I'm the VP of Clinical Development at BioPharm Industries."),
-            OnboardingMessage(role="assistant", content="Nice to meet you, Dr. Johnson! What are your main priorities for staying informed about industry developments?"),
-            OnboardingMessage(role="user", content="I need to track developments in immunotherapy, especially CAR-T and checkpoint inhibitors for solid tumors. Also need to keep an eye on our competitors like Roche and Merck."),
+            OnboardingMessage(
+                role="assistant",
+                content="Hello! I'm here to help you set up Knowledge Horizon. "
+                       "Could you please tell me your name and what you do?"
+            ),
+            OnboardingMessage(
+                role="user",
+                content="Hi! I'm Dr. Sarah Johnson, I'm the VP of Clinical Development "
+                       "at BioPharm Industries."
+            ),
+            OnboardingMessage(
+                role="assistant",
+                content="Nice to meet you, Dr. Johnson! What are your main priorities "
+                       "for staying informed about industry developments?"
+            ),
+            OnboardingMessage(
+                role="user",
+                content="I need to track developments in immunotherapy, especially CAR-T "
+                       "and checkpoint inhibitors for solid tumors. Also need to keep an "
+                       "eye on our competitors like Roche and Merck."
+            ),
         ]
 
         for message in test_messages:
