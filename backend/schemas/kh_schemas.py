@@ -291,7 +291,7 @@ class ArticleCreate(BaseModel):
     summary: Optional[str] = None
     ai_summary: Optional[str] = None
     source_type: Optional[SourceType] = None
-    metadata: Dict[str, Any] = {}
+    article_metadata: Dict[str, Any] = {}
     theme_tags: List[str] = []
 
 
@@ -307,7 +307,7 @@ class ArticleResponse(BaseModel):
     ai_summary: Optional[str]
     full_text: Optional[str]
     source_type: Optional[SourceType]
-    metadata: Dict[str, Any]
+    article_metadata: Dict[str, Any]
     theme_tags: List[str]
     first_seen: datetime
     last_updated: datetime
@@ -324,7 +324,7 @@ class ArticleUpdate(BaseModel):
     ai_summary: Optional[str] = None
     full_text: Optional[str] = None
     theme_tags: Optional[List[str]] = None
-    metadata: Optional[Dict[str, Any]] = None
+    article_metadata: Optional[Dict[str, Any]] = None
 
 
 # ============================================================================
@@ -421,7 +421,7 @@ class ReportScheduleCreate(BaseModel):
     frequency: ReportFrequency
     day_of_week: Optional[int] = Field(None, ge=0, le=6, description="0-6 for Monday-Sunday")
     day_of_month: Optional[int] = Field(None, ge=1, le=31)
-    time_of_day: str = Field("08:00", regex="^([01]?[0-9]|2[0-3]):[0-5][0-9]$", description="HH:MM format")
+    time_of_day: str = Field("08:00", pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$", description="HH:MM format")
     timezone: str = "UTC"
 
     @validator('day_of_week')
@@ -442,7 +442,7 @@ class ReportScheduleUpdate(BaseModel):
     frequency: Optional[ReportFrequency] = None
     day_of_week: Optional[int] = Field(None, ge=0, le=6)
     day_of_month: Optional[int] = Field(None, ge=1, le=31)
-    time_of_day: Optional[str] = Field(None, regex="^([01]?[0-9]|2[0-3]):[0-5][0-9]$")
+    time_of_day: Optional[str] = Field(None, pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$")
     timezone: Optional[str] = None
     is_active: Optional[bool] = None
     is_paused: Optional[bool] = None

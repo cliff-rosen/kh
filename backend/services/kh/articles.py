@@ -99,7 +99,7 @@ class ArticleService(BaseKHService):
             summary=article_data.summary,
             ai_summary=article_data.ai_summary,
             source_type=article_data.source_type,
-            metadata=article_data.metadata,
+            article_metadata=article_data.article_metadata,
             theme_tags=article_data.theme_tags,
             fetch_count=1
         )

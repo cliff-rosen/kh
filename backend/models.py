@@ -1138,7 +1138,7 @@ class Article(Base):
 
     # Metadata
     source_type = Column(Enum(SourceType))
-    metadata = Column(JSON, default=dict)  # Additional metadata (journal, DOI, etc.)
+    article_metadata = Column(JSON, default=dict)  # Additional metadata (journal, DOI, etc.)
     theme_tags = Column(JSON, default=list)
 
     # Tracking
