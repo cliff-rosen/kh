@@ -3,13 +3,12 @@ import { useAuth } from '../../context/AuthContext';
 
 export default function SettingsPage() {
     const { user } = useAuth();
-    const [activeTab, setActiveTab] = useState('profile');
+    const [activeTab, setActiveTab] = useState('user');
 
     const tabs = [
-        { id: 'profile', name: 'Profile', icon: '👤' },
-        { id: 'mandate', name: 'Curation Mandate', icon: '🎯' },
+        { id: 'user', name: 'User Profile', icon: '👤' },
+        { id: 'company', name: 'Company Profile', icon: '🏢' },
         { id: 'notifications', name: 'Notifications', icon: '🔔' },
-        { id: 'sources', name: 'Information Sources', icon: '📡' },
         { id: 'schedule', name: 'Report Schedule', icon: '📅' },
     ];
 
@@ -48,10 +47,10 @@ export default function SettingsPage() {
                 {/* Main Content */}
                 <div className="flex-1">
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-                        {activeTab === 'profile' && (
+                        {activeTab === 'user' && (
                             <div className="p-6">
                                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
-                                    Profile Information
+                                    User Profile
                                 </h2>
                                 <div className="space-y-6">
                                     <div>
@@ -64,6 +63,9 @@ export default function SettingsPage() {
                                             disabled
                                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
                                         />
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                            Email cannot be changed after registration
+                                        </p>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -77,7 +79,7 @@ export default function SettingsPage() {
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                            Job Title
+                                            Role/Job Title
                                         </label>
                                         <input
                                             type="text"
@@ -87,11 +89,11 @@ export default function SettingsPage() {
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                            Company
+                                            Preferences
                                         </label>
-                                        <input
-                                            type="text"
-                                            placeholder="Enter your company name"
+                                        <textarea
+                                            placeholder="Any specific preferences or notes about your information needs..."
+                                            rows={3}
                                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                         />
                                     </div>
@@ -99,22 +101,62 @@ export default function SettingsPage() {
                             </div>
                         )}
 
-                        {activeTab === 'mandate' && (
+                        {activeTab === 'company' && (
                             <div className="p-6">
                                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
-                                    Curation Mandate
+                                    Company Profile
                                 </h2>
-                                <div className="bg-yellow-50 dark:bg-yellow-900/50 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4 mb-6">
-                                    <p className="text-yellow-800 dark:text-yellow-200">
-                                        ⚠️ Your curation mandate defines what information we prioritize for you.
-                                        Complete your onboarding to generate a personalized mandate.
-                                    </p>
+                                <div className="space-y-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                            Company Name
+                                        </label>
+                                        <input
+                                            type="text"
+                                            placeholder="Enter your company name"
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                            Therapeutic Areas
+                                        </label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g., Oncology, Immunology, Neurology"
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        />
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                            Separate multiple areas with commas
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                            Key Competitors
+                                        </label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g., Roche, Merck, Pfizer"
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        />
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                            Companies you want to monitor
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                            Pipeline Products
+                                        </label>
+                                        <textarea
+                                            placeholder="Key products in your pipeline that you want to monitor competitive landscape for..."
+                                            rows={3}
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        />
+                                    </div>
                                 </div>
-                                <button className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                                    Complete Onboarding
-                                </button>
                             </div>
                         )}
+
 
                         {activeTab === 'notifications' && (
                             <div className="p-6">
@@ -147,25 +189,6 @@ export default function SettingsPage() {
                             </div>
                         )}
 
-                        {activeTab === 'sources' && (
-                            <div className="p-6">
-                                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
-                                    Information Sources
-                                </h2>
-                                <p className="text-gray-600 dark:text-gray-400 mb-6">
-                                    Configure which sources we monitor for your intelligence reports.
-                                </p>
-                                <div className="bg-blue-50 dark:bg-blue-900/50 border border-blue-200 dark:border-blue-700 rounded-lg p-6">
-                                    <h3 className="text-lg font-medium text-blue-900 dark:text-blue-100 mb-2">
-                                        🚧 Source Configuration Coming Soon
-                                    </h3>
-                                    <p className="text-blue-800 dark:text-blue-200">
-                                        We'll automatically configure relevant sources based on your mandate.
-                                        Advanced source customization will be available in a future update.
-                                    </p>
-                                </div>
-                            </div>
-                        )}
 
                         {activeTab === 'schedule' && (
                             <div className="p-6">

@@ -22,7 +22,7 @@ import TokenLogin from './pages/TokenLogin';
 import PubMedSearchDesigner from './pages/PubMedSearchDesigner';
 
 // Knowledge Horizon pages (placeholders for now)
-import OnboardingPage from './pages/kh/OnboardingPage';
+import NewStreamPage from './pages/kh/NewStreamPage';
 import DashboardPage from './pages/kh/DashboardPage';
 import ReportsPage from './pages/kh/ReportsPage';
 import SettingsPage from './pages/kh/SettingsPage';
@@ -50,7 +50,7 @@ function AppContent() {
           <Routes>
             {/* Knowledge Horizon Routes */}
             <Route path="/" element={<Navigate to={defaultRoute} />} />
-            <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route path="/new-stream" element={<NewStreamPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
