@@ -90,7 +90,11 @@ export default function DashboardPage() {
                     ) : (
                         <div className="space-y-2">
                             {researchStreams.slice(0, 3).map((stream) => (
-                                <div key={stream.stream_id} className="flex items-center justify-between py-2">
+                                <div
+                                    key={stream.stream_id}
+                                    className="flex items-center justify-between py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 rounded px-2 -mx-2 transition-colors"
+                                    onClick={() => navigate(`/reports?stream=${stream.stream_id}`)}
+                                >
                                     <div className="flex-1">
                                         <div className="font-medium text-gray-900 dark:text-white text-sm">
                                             {stream.stream_name}
