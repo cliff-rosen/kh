@@ -1,12 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useResearchStream } from '../context/ResearchStreamContext';
-import { CalendarIcon, DocumentTextIcon, StarIcon } from '@heroicons/react/24/outline';
+import { reportApi } from '../lib/api/reportApi';
+import { Report } from '../types';
+import { CalendarIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 
 export default function ReportsPage() {
     const [searchParams] = useSearchParams();
     const { researchStreams, loadResearchStreams, isLoading } = useResearchStream();
     const [selectedStream, setSelectedStream] = useState('');
+    const [latestReport, setLatestReport] = useState<Report | null>(null);
+    const [loadingReport, setLoadingReport] = useState(false);
+    const [reportError, setReportError] = useState<string | null>(null);
 
     const hasStreams = researchStreams.length > 0;
 
@@ -22,6 +27,30 @@ export default function ReportsPage() {
             setSelectedStream(streamParam);
         }
     }, [searchParams]);
+
+    // Load report when stream is selected
+    useEffect(() => {
+        if (selectedStream) {
+            const loadReport = async () => {
+                setLoadingReport(true);
+                setReportError(null);
+                setLatestReport(null);
+                try {
+                    const report = await reportApi.getLatestReportForStream(Number(selectedStream));
+                    setLatestReport(report);
+                } catch (err: any) {
+                    if (err.response?.status === 404) {
+                        setReportError('no_reports');
+                    } else {
+                        setReportError('error');
+                    }
+                } finally {
+                    setLoadingReport(false);
+                }
+            };
+            loadReport();
+        }
+    }, [selectedStream]);
 
     return (
         <div className="max-w-7xl mx-auto p-6">
@@ -95,8 +124,14 @@ export default function ReportsPage() {
                             Choose a research stream above to view its reports.
                         </p>
                     </div>
-                ) : (
-                    /* Reports for Selected Stream */
+                ) : loadingReport ? (
+                    /* Loading Report */
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                        <p className="text-gray-600 dark:text-gray-400">Loading report...</p>
+                    </div>
+                ) : reportError === 'no_reports' ? (
+                    /* No Reports Yet */
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
                         <DocumentTextIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                         <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
@@ -109,7 +144,99 @@ export default function ReportsPage() {
                             Generate First Report
                         </button>
                     </div>
-                )}
+                ) : reportError ? (
+                    /* Error Loading Report */
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
+                        <div className="text-red-600 dark:text-red-400 mb-4">Error loading report</div>
+                        <button
+                            onClick={() => setSelectedStream(selectedStream)}
+                            className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                        >
+                            Retry
+                        </button>
+                    </div>
+                ) : latestReport && latestReport.article_count === 0 ? (
+                    /* Report with No Articles */
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8">
+                        <div className="flex items-start justify-between mb-6">
+                            <div>
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                    Report - {new Date(latestReport.report_date).toLocaleDateString()}
+                                </h3>
+                                <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400 mt-2">
+                                    <span className="flex items-center gap-1">
+                                        <CalendarIcon className="h-4 w-4" />
+                                        Generated {new Date(latestReport.created_at).toLocaleDateString()}
+                                    </span>
+                                    <span>0 articles</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-6 text-center">
+                            <p className="text-amber-800 dark:text-amber-200">
+                                This report was generated but no relevant articles were found for the specified period.
+                            </p>
+                        </div>
+                    </div>
+                ) : latestReport ? (
+                    /* Report with Articles */
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8">
+                        <div className="flex items-start justify-between mb-6">
+                            <div>
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                    Report - {new Date(latestReport.report_date).toLocaleDateString()}
+                                </h3>
+                                <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400 mt-2">
+                                    <span className="flex items-center gap-1">
+                                        <CalendarIcon className="h-4 w-4" />
+                                        Generated {new Date(latestReport.created_at).toLocaleDateString()}
+                                    </span>
+                                    <span>{latestReport.article_count} articles reviewed</span>
+                                    <span>{latestReport.key_highlights?.length || 0} key insights</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div>
+                                <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-2">
+                                    Executive Summary
+                                </h4>
+                                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                        {latestReport.executive_summary}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {latestReport.key_highlights && latestReport.key_highlights.length > 0 && (
+                                <div>
+                                    <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-2">
+                                        Key Highlights
+                                    </h4>
+                                    <ul className="list-disc list-inside space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                                        {latestReport.key_highlights.map((highlight, idx) => (
+                                            <li key={idx}>{highlight}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            {latestReport.thematic_analysis && (
+                                <div>
+                                    <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-2">
+                                        Thematic Analysis
+                                    </h4>
+                                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                            {latestReport.thematic_analysis}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : null}
 
                 {/* Sample report structure (commented out for now) */}
                 {/*

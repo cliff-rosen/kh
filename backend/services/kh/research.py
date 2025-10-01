@@ -35,8 +35,6 @@ class CompanyInfo(BaseModel):
     financial_highlights: Optional[Dict[str, Any]] = None
 
 
-
-
 class CompanyResearchService:
     """
     Service for researching companies and building profiles

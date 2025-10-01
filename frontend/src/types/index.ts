@@ -2,3 +2,4 @@
 
 export * from './profile';
 export * from './research-stream';
+export * from './report';
