@@ -1,7 +1,7 @@
 import { api } from './index';
 import { UserProfile, CompanyProfile, ProfileCompletenessStatus } from '../../types';
 
-// Request/Response wrapper types
+// Request types that match backend schemas
 export interface UserProfileUpdateRequest {
     full_name?: string;
     job_title?: string;
@@ -15,27 +15,10 @@ export interface CompanyProfileUpdateRequest {
     pipeline_products?: string;
 }
 
-export interface UserProfileResponse {
-    data: UserProfile;
-    message?: string;
-}
-
-export interface CompanyProfileResponse {
-    data: CompanyProfile;
-    message?: string;
-}
-
+// Response type for /api/profiles/all endpoint
 export interface AllProfilesResponse {
-    data: {
-        user: UserProfile;
-        company: CompanyProfile;
-    };
-    message?: string;
-}
-
-export interface ProfileCompletenessResponse {
-    data: ProfileCompletenessStatus;
-    message?: string;
+    user: UserProfile;
+    company: CompanyProfile;
 }
 
 export const profileApi = {
@@ -82,8 +65,8 @@ export const profileApi = {
     /**
      * Get both user and company profiles in one call
      */
-    async getAllProfiles(): Promise<{ user: UserProfile; company: CompanyProfile }> {
-        const response = await api.get('/api/profiles/all');
+    async getAllProfiles(): Promise<AllProfilesResponse> {
+        const response = await api.get<AllProfilesResponse>('/api/profiles/all');
         return response.data;
     }
 };

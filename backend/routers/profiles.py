@@ -11,21 +11,30 @@ from models import User
 from schemas.profile import UserProfile, CompanyProfile, ProfileCompletenessStatus
 from services.profile_service import ProfileService
 from routers.auth import get_current_user
-
-# Request schemas for this endpoint
 from pydantic import BaseModel
 from typing import List, Optional
 
+# Request/Response types for this API
 class UserProfileUpdateRequest(BaseModel):
+    """User profile update request"""
     full_name: Optional[str] = None
     job_title: Optional[str] = None
     preferences: Optional[str] = None
 
+
 class CompanyProfileUpdateRequest(BaseModel):
+    """Company profile update request"""
     company_name: Optional[str] = None
     therapeutic_areas: Optional[List[str]] = None
     competitors: Optional[List[str]] = None
     pipeline_products: Optional[str] = None
+
+
+class AllProfilesResponse(BaseModel):
+    """Response containing both user and company profiles"""
+    user: UserProfile
+    company: CompanyProfile
+
 
 router = APIRouter(prefix="/api", tags=["profiles"])
 
@@ -108,11 +117,12 @@ async def check_profile_completeness(
     return service.check_profile_completeness(current_user.user_id)
 
 
-@router.get("/profiles/all")
+@router.get("/profiles/all", response_model=AllProfilesResponse)
 async def get_all_profiles(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get both user and company profiles in one call"""
     service = ProfileService(db)
-    return service.get_all_profiles(current_user.user_id)
+    profiles = service.get_all_profiles(current_user.user_id)
+    return AllProfilesResponse(user=profiles['user'], company=profiles['company'])
