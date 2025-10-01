@@ -147,24 +147,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const fetchActiveSession = async () => {
         try {
-            const sessionData = await authApi.getActiveSession()
+            // Knowledge Horizon uses simplified auth - skip active session fetch
+            // Session data is set from login response only
+            return
 
-            setSessionId(sessionData.id)
-            setSessionName(sessionData.name)
-            setChatId(sessionData.chat_id)
-            setMissionId(sessionData.mission_id)
-            setSessionMetadata(sessionData.session_metadata || {})
+            // const sessionData = await authApi.getActiveSession()
+
+            // setSessionId(sessionData.id)
+            // setSessionName(sessionData.name)
+            // setChatId(sessionData.chat_id)
+            // setMissionId(sessionData.mission_id)
+            // setSessionMetadata(sessionData.session_metadata || {})
 
             // Update localStorage with fresh data
-            localStorage.setItem('sessionData', JSON.stringify({
-                sessionId: sessionData.id,
-                sessionName: sessionData.name,
-                chatId: sessionData.chat_id,
-                missionId: sessionData.mission_id,
-                sessionMetadata: sessionData.session_metadata || {}
-            }))
+            // localStorage.setItem('sessionData', JSON.stringify({
+            //     sessionId: sessionData.id,
+            //     sessionName: sessionData.name,
+            //     chatId: sessionData.chat_id,
+            //     missionId: sessionData.mission_id,
+            //     sessionMetadata: sessionData.session_metadata || {}
+            // }))
 
-            console.log('Fetched and restored active session from backend:', sessionData)
+            // console.log('Fetched and restored active session from backend:', sessionData)
         } catch (error) {
             console.error('Error fetching active session:', error)
             // If no active session exists, that's okay - user might need to create one

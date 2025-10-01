@@ -13,7 +13,6 @@ export default function ProfileCompletion({ completenessStatus, onComplete }: Pr
         companyProfile,
         updateUserProfile,
         updateCompanyProfile,
-        loadAllProfiles,
         isLoading,
         error,
         clearError
@@ -29,12 +28,6 @@ export default function ProfileCompletion({ completenessStatus, onComplete }: Pr
         therapeutic_areas: [] as string[],
         competitors: [] as string[]
     });
-
-    // Load profiles and populate forms
-    useEffect(() => {
-        loadAllProfiles();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     useEffect(() => {
         if (userProfile) {

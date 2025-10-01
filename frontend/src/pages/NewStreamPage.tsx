@@ -15,6 +15,7 @@ export default function NewStreamPage() {
     const [showCreateForm, setShowCreateForm] = useState(false);
 
     useEffect(() => {
+        console.log('checking prerequisites');
         const checkPrerequisites = async () => {
             try {
                 await checkCompleteness();
@@ -24,7 +25,7 @@ export default function NewStreamPage() {
         };
 
         checkPrerequisites();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleProfileComplete = async () => {
