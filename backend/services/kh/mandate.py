@@ -1,7 +1,7 @@
 """
-Mandate Service for Knowledge Horizon
+Research Stream Service for Knowledge Horizon
 
-Generates and manages curation mandates based on user profiles.
+Generates and manages research streams based on user profiles.
 """
 
 import logging

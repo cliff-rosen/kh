@@ -130,43 +130,63 @@ class CompanyResearchData(BaseModel):
 
 
 # ============================================================================
-# CURATION MANDATE SCHEMAS
+# RESEARCH STREAM SCHEMAS (formerly CURATION MANDATE)
 # ============================================================================
 
-class CurationMandateCreate(BaseModel):
-    """Create a curation mandate"""
+class StreamType(str, Enum):
+    COMPETITIVE = "competitive"  # Competitor monitoring
+    REGULATORY = "regulatory"    # Regulatory updates and changes
+    CLINICAL = "clinical"        # Clinical trials and research
+    MARKET = "market"           # Market analysis and trends
+    SCIENTIFIC = "scientific"   # Scientific literature and discoveries
+    MIXED = "mixed"             # Multi-purpose streams
+
+class ResearchStreamCreate(BaseModel):
+    """Create a research stream"""
     user_id: int
     profile_id: Optional[int] = None
-    primary_focus: List[str] = []
-    secondary_interests: List[str] = []
-    competitors_to_track: List[str] = []
-    regulatory_focus: List[str] = []
+    stream_name: str
+    description: Optional[str] = None
+    stream_type: StreamType = StreamType.MIXED
+    focus_areas: List[str] = []  # Consolidated primary + secondary
+    competitors: List[str] = []
+    regulatory_bodies: List[str] = []
     scientific_domains: List[str] = []
     exclusions: List[str] = []
+    keywords: List[str] = []
+    report_frequency: ReportFrequency = ReportFrequency.WEEKLY
 
 
-class CurationMandateUpdate(BaseModel):
-    """Update a curation mandate"""
-    primary_focus: Optional[List[str]] = None
-    secondary_interests: Optional[List[str]] = None
-    competitors_to_track: Optional[List[str]] = None
-    regulatory_focus: Optional[List[str]] = None
+class ResearchStreamUpdate(BaseModel):
+    """Update a research stream"""
+    stream_name: Optional[str] = None
+    description: Optional[str] = None
+    stream_type: Optional[StreamType] = None
+    focus_areas: Optional[List[str]] = None
+    competitors: Optional[List[str]] = None
+    regulatory_bodies: Optional[List[str]] = None
     scientific_domains: Optional[List[str]] = None
     exclusions: Optional[List[str]] = None
+    keywords: Optional[List[str]] = None
+    report_frequency: Optional[ReportFrequency] = None
     is_active: Optional[bool] = None
 
 
-class CurationMandateResponse(BaseModel):
-    """Curation mandate response"""
-    mandate_id: int
+class ResearchStreamResponse(BaseModel):
+    """Research stream response"""
+    stream_id: int
     user_id: int
     profile_id: Optional[int]
-    primary_focus: List[str]
-    secondary_interests: List[str]
-    competitors_to_track: List[str]
-    regulatory_focus: List[str]
+    stream_name: str
+    description: Optional[str]
+    stream_type: StreamType
+    focus_areas: List[str]
+    competitors: List[str]
+    regulatory_bodies: List[str]
     scientific_domains: List[str]
     exclusions: List[str]
+    keywords: List[str]
+    report_frequency: ReportFrequency
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -175,11 +195,13 @@ class CurationMandateResponse(BaseModel):
         from_attributes = True
 
 
-class MandateGenerationRequest(BaseModel):
-    """Request to generate a mandate from profile"""
+class StreamGenerationRequest(BaseModel):
+    """Request to generate a research stream from profile"""
     profile: CompanyProfileResponse
     research_data: Optional[CompanyResearchData] = None
     user_preferences: Optional[Dict[str, Any]] = None
+    stream_name: Optional[str] = None
+    stream_type: StreamType = StreamType.MIXED
 
 
 # ============================================================================
@@ -188,7 +210,7 @@ class MandateGenerationRequest(BaseModel):
 
 class InformationSourceCreate(BaseModel):
     """Create an information source"""
-    mandate_id: int
+    research_stream_id: int
     source_type: SourceType
     source_name: str
     source_url: Optional[str] = None
@@ -210,7 +232,7 @@ class InformationSourceUpdate(BaseModel):
 class InformationSourceResponse(BaseModel):
     """Information source response"""
     source_id: int
-    mandate_id: int
+    research_stream_id: int
     source_type: SourceType
     source_name: str
     source_url: Optional[str]
@@ -242,7 +264,7 @@ class SourceRecommendation(BaseModel):
 class ReportCreate(BaseModel):
     """Create a report"""
     user_id: int
-    mandate_id: Optional[int] = None
+    research_stream_id: Optional[int] = None
     report_date: date
     executive_summary: str
     key_highlights: List[str] = []
@@ -254,7 +276,7 @@ class ReportResponse(BaseModel):
     """Report response"""
     report_id: int
     user_id: int
-    mandate_id: Optional[int]
+    research_stream_id: Optional[int]
     report_date: date
     executive_summary: str
     key_highlights: List[str]
@@ -522,7 +544,7 @@ class FeedbackSummary(BaseModel):
 class PipelineConfig(BaseModel):
     """Configuration for report generation pipeline"""
     user_id: int
-    mandate_id: int
+    research_stream_id: int
     max_articles: int = 30
     relevance_threshold: float = 0.7
     include_sources: List[SourceType] = []
@@ -554,7 +576,7 @@ class ReportGenerationRequest(BaseModel):
 
 class TestReportRequest(BaseModel):
     """Request to generate a test report"""
-    mandate: CurationMandateResponse
+    research_stream: ResearchStreamResponse
     sources: List[InformationSourceResponse]
     date_range_days: int = 7
     max_articles: int = 15

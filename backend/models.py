@@ -40,6 +40,15 @@ class ReportFrequency(str, PyEnum):
     BIWEEKLY = "biweekly"
     MONTHLY = "monthly"
 
+class StreamType(str, PyEnum):
+    """Type of research stream"""
+    COMPETITIVE = "competitive"  # Competitor monitoring
+    REGULATORY = "regulatory"    # Regulatory updates and changes
+    CLINICAL = "clinical"        # Clinical trials and research
+    MARKET = "market"           # Market analysis and trends
+    SCIENTIFIC = "scientific"   # Scientific literature and discoveries
+    MIXED = "mixed"             # Multi-purpose streams
+
 
 # Core User table
 class User(Base):
@@ -80,30 +89,42 @@ class CompanyProfile(Base):
 
     # Relationships
     user = relationship("User", back_populates="company_profile")
-    mandates = relationship("CurationMandate", back_populates="profile")
+    research_streams = relationship("ResearchStream", back_populates="profile")
 
 
-class CurationMandate(Base):
-    """User's information curation preferences and focus areas"""
-    __tablename__ = "curation_mandates"
+class ResearchStream(Base):
+    """Complete research monitoring setup (formerly CurationMandate)"""
+    __tablename__ = "research_streams"
 
-    mandate_id = Column(Integer, primary_key=True, index=True)
+    stream_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
     profile_id = Column(Integer, ForeignKey("company_profiles.profile_id"))
-    primary_focus = Column(JSON, default=list)  # Primary topics/areas
-    secondary_interests = Column(JSON, default=list)  # Secondary topics
-    competitors_to_track = Column(JSON, default=list)  # Specific competitors
-    regulatory_focus = Column(JSON, default=list)  # Regulatory bodies/areas
-    scientific_domains = Column(JSON, default=list)  # Scientific domains
+
+    # Stream configuration
+    stream_name = Column(String(255), nullable=False)  # User-defined name like "Oncology Competitive Intelligence"
+    description = Column(Text)  # Optional detailed description
+    stream_type = Column(Enum(StreamType), nullable=False, default=StreamType.MIXED)
+
+    # All monitoring configuration consolidated at stream level
+    focus_areas = Column(JSON, default=list)  # Therapeutic areas, business functions, topics
+    competitors = Column(JSON, default=list)  # Companies to monitor
+    regulatory_bodies = Column(JSON, default=list)  # FDA, EMA, etc.
+    scientific_domains = Column(JSON, default=list)  # Clinical, preclinical, discovery, etc.
     exclusions = Column(JSON, default=list)  # Topics to exclude
+    keywords = Column(JSON, default=list)  # Additional search keywords
+
+    # Report scheduling integrated at stream level
+    report_frequency = Column(Enum(ReportFrequency), default=ReportFrequency.WEEKLY)
+
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    user = relationship("User", back_populates="mandates")
-    profile = relationship("CompanyProfile", back_populates="mandates")
-    sources = relationship("InformationSource", back_populates="mandate")
+    user = relationship("User", back_populates="research_streams")
+    profile = relationship("CompanyProfile", back_populates="research_streams")
+    sources = relationship("InformationSource", back_populates="research_stream")
+    reports = relationship("Report", back_populates="research_stream")
 
 
 class InformationSource(Base):
@@ -111,7 +132,7 @@ class InformationSource(Base):
     __tablename__ = "information_sources"
 
     source_id = Column(Integer, primary_key=True, index=True)
-    mandate_id = Column(Integer, ForeignKey("curation_mandates.mandate_id"), nullable=False)
+    research_stream_id = Column(Integer, ForeignKey("research_streams.stream_id"), nullable=False)
     source_type = Column(Enum(SourceType), nullable=False)
     source_name = Column(String(255), nullable=False)
     source_url = Column(String(500))
@@ -123,7 +144,7 @@ class InformationSource(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
-    mandate = relationship("CurationMandate", back_populates="sources")
+    research_stream = relationship("ResearchStream", back_populates="sources")
     articles = relationship("Article", back_populates="source")
 
 
@@ -159,7 +180,7 @@ class Report(Base):
 
     report_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
-    mandate_id = Column(Integer, ForeignKey("curation_mandates.mandate_id"))
+    research_stream_id = Column(Integer, ForeignKey("research_streams.stream_id"))
     report_date = Column(Date, nullable=False)
     executive_summary = Column(Text)
     key_highlights = Column(JSON, default=list)  # List of key points
@@ -171,7 +192,7 @@ class Report(Base):
 
     # Relationships
     user = relationship("User", back_populates="reports")
-    mandate = relationship("CurationMandate")
+    research_stream = relationship("ResearchStream", back_populates="reports")
     article_associations = relationship("ReportArticleAssociation", back_populates="report")
     feedback = relationship("UserFeedback", back_populates="report")
 
@@ -267,7 +288,7 @@ class OnboardingSession(Base):
 
 # Add relationships to User model
 User.company_profile = relationship("CompanyProfile", back_populates="user", uselist=False)
-User.mandates = relationship("CurationMandate", back_populates="user")
+User.research_streams = relationship("ResearchStream", back_populates="user")
 User.reports = relationship("Report", back_populates="user")
 User.report_schedule = relationship("ReportSchedule", back_populates="user", uselist=False)
 User.feedback = relationship("UserFeedback", back_populates="user")
