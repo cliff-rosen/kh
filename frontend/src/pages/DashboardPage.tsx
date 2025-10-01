@@ -117,32 +117,34 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            {/* Main Content Area */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8">
-                <div className="text-center py-12">
-                    <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
-                        🚀 Get Started with Knowledge Horizon
-                    </h2>
-                    <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-2xl mx-auto">
-                        Create your first research stream to start monitoring the information that matters to your business.
-                        Once active, your dashboard will show the latest intelligence, trending topics, and actionable insights.
-                    </p>
-                    <div className="flex justify-center gap-4">
-                        <button
-                            onClick={() => navigate('/new-stream')}
-                            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                            Create Research Stream
-                        </button>
-                        <button
-                            onClick={() => navigate('/reports')}
-                            className="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                        >
-                            View Reports
-                        </button>
+            {/* Main Content Area - Only show if no streams */}
+            {!isLoading && researchStreams.length === 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8">
+                    <div className="text-center py-12">
+                        <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
+                            🚀 Get Started with Knowledge Horizon
+                        </h2>
+                        <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-2xl mx-auto">
+                            Create your first research stream to start monitoring the information that matters to your business.
+                            Once active, your dashboard will show the latest intelligence, trending topics, and actionable insights.
+                        </p>
+                        <div className="flex justify-center gap-4">
+                            <button
+                                onClick={() => navigate('/new-stream')}
+                                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                                Create Research Stream
+                            </button>
+                            <button
+                                onClick={() => navigate('/reports')}
+                                className="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                            >
+                                View Reports
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 }
