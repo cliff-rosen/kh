@@ -1,12 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { useProfile } from '../context/ProfileContext';
-import { useNavigate } from 'react-router-dom';
 import ProfileCompletion from '../components/ProfileCompletion';
 import ResearchStreamForm from '../components/ResearchStreamForm';
 
 export default function NewStreamPage() {
-    const { user } = useAuth();
     const {
         completenessStatus,
         checkCompleteness,
@@ -14,7 +11,6 @@ export default function NewStreamPage() {
         error,
         clearError
     } = useProfile();
-    const navigate = useNavigate();
     const [isCheckingPrerequisites, setIsCheckingPrerequisites] = useState(true);
     const [showCreateForm, setShowCreateForm] = useState(false);
 

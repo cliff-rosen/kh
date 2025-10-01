@@ -23,7 +23,7 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const newStream = await createResearchStream(form);
+            await createResearchStream(form);
             navigate('/dashboard');
         } catch (err) {
             console.error('Failed to create research stream:', err);
