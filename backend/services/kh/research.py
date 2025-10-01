@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import CompanyProfile, OnboardingSession
-from schemas.kh_schemas import CompanyResearchData, CompanyProfileResponse
+from schemas import CompanyResearchData, CompanyProfileResponse
 from agents.prompts.base_prompt_caller import BasePromptCaller
 from services.web_retrieval_service import WebRetrievalService
 from config.llm_models import get_task_config, supports_reasoning_effort

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
-import { useProfile } from '../../context/ProfileContext';
+import { useAuth } from '../context/AuthContext';
+import { useProfile } from '../context/ProfileContext';
 
 export default function SettingsPage() {
     const { user } = useAuth();

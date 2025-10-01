@@ -6,6 +6,7 @@ import { Toaster } from './components/ui/toaster';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProfileProvider } from './context/ProfileContext';
+import { ResearchStreamProvider } from './context/ResearchStreamContext';
 
 // utils
 import { setStreamSessionExpiredHandler } from './lib/api/streamUtils';
@@ -75,7 +76,9 @@ function AppContent() {
   return (
     <ThemeProvider>
       <ProfileProvider>
-        <AuthenticatedApp />
+        <ResearchStreamProvider>
+          <AuthenticatedApp />
+        </ResearchStreamProvider>
       </ProfileProvider>
       <Toaster />
     </ThemeProvider>

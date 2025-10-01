@@ -115,4 +115,5 @@ export * from './extractApi';
 
 // Unified workbench API (replaces tabelizer, articleGroup, articleWorkbench APIs)
 export * from './workbenchApi';
-export * from './profileApi'; 
+export * from './profileApi';
+export * from './researchStreamApi'; 
