@@ -95,6 +95,7 @@ class User(Base):
     user_id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, index=True)
     password = Column(String(255))
+    full_name = Column(String(255), nullable=True)  # User's full name from onboarding
     is_active = Column(Boolean, default=True)
     role = Column(Enum(UserRole, name='userrole'), default=UserRole.USER, nullable=False)
     login_token = Column(String(255), nullable=True, index=True)  # One-time login token
@@ -113,7 +114,7 @@ class User(Base):
 
     hops = relationship("Hop", cascade="all, delete-orphan")
     article_groups = relationship("ArticleGroup", back_populates="user", cascade="all, delete-orphan")
-    company_profile = relationship("UserCompanyProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    legacy_company_profile = relationship("UserCompanyProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
 class Asset(Base):
     __tablename__ = "assets"
@@ -763,7 +764,7 @@ class UserCompanyProfile(Base):
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    user = relationship('User', back_populates='company_profile')
+    user = relationship('User', back_populates='legacy_company_profile')
     
     def to_dict(self):
         """Convert to dictionary for API responses"""

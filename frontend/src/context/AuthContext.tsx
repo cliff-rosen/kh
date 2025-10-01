@@ -26,10 +26,12 @@ interface AuthContextType {
     sessionId: string | null
     sessionName: string | null
     chatId: string | null
+    /** @deprecated mission_id is deprecated for Knowledge Horizon */
     missionId: string | null
     sessionMetadata: Record<string, any>
 
     // Session methods
+    /** @deprecated updateSessionMission is deprecated for Knowledge Horizon */
     updateSessionMission: (missionId: string) => Promise<void>
     updateSessionMetadata: (metadata: Record<string, any>) => Promise<void>
     switchToNewSession: (sessionData: { session_id: string; session_name: string; chat_id: string; mission_id?: string; session_metadata: Record<string, any> }) => void
@@ -238,6 +240,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Session management functions
     const updateSessionMission = async (newMissionId: string) => {
+        console.warn('[DEPRECATED] updateSessionMission is deprecated for Knowledge Horizon. This functionality will be removed in a future version.')
         if (!sessionId) return
 
         try {
