@@ -1,17 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useResearchStream } from '../context/ResearchStreamContext';
 import { CalendarIcon, DocumentTextIcon, StarIcon } from '@heroicons/react/24/outline';
 
 export default function ReportsPage() {
+    const [searchParams] = useSearchParams();
+    const { researchStreams, loadResearchStreams, isLoading } = useResearchStream();
     const [selectedStream, setSelectedStream] = useState('');
 
-    // TODO: Replace with actual data from API
-    const researchStreams = [
-        { id: '1', name: 'Oncology Competitive Intelligence' },
-        { id: '2', name: 'FDA Regulatory Updates' },
-        { id: '3', name: 'Immunotherapy Research' }
-    ];
-
     const hasStreams = researchStreams.length > 0;
+
+    // Load research streams on mount
+    useEffect(() => {
+        loadResearchStreams();
+    }, [loadResearchStreams]);
+
+    // Set selected stream from URL parameter
+    useEffect(() => {
+        const streamParam = searchParams.get('stream');
+        if (streamParam) {
+            setSelectedStream(streamParam);
+        }
+    }, [searchParams]);
 
     return (
         <div className="max-w-7xl mx-auto p-6">
@@ -47,8 +57,8 @@ export default function ReportsPage() {
                             >
                                 <option value="">Select a research stream...</option>
                                 {researchStreams.map(stream => (
-                                    <option key={stream.id} value={stream.id}>
-                                        {stream.name}
+                                    <option key={stream.stream_id} value={stream.stream_id}>
+                                        {stream.stream_name}
                                     </option>
                                 ))}
                             </select>
