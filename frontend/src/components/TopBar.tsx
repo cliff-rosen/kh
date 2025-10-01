@@ -1,6 +1,6 @@
 import { useTheme } from '../context/ThemeContext';
 import { NavLink, useLocation } from 'react-router-dom';
-import { MoonIcon, SunIcon, BeakerIcon, UserCircleIcon, TableCellsIcon, MagnifyingGlassIcon, PencilSquareIcon, HomeIcon, DocumentTextIcon, Cog6ToothIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { MoonIcon, SunIcon, UserCircleIcon, HomeIcon, DocumentTextIcon, Cog6ToothIcon, PlusIcon } from '@heroicons/react/24/outline';
 import settings from '../config/settings';
 import { HelpGuide } from '@/components/features/help';
 import { useAuth } from '../context/AuthContext';
@@ -19,8 +19,6 @@ export default function TopBar() {
             }`;
     };
 
-    // Role-based navigation filtering
-    const isAdmin = user?.role === 'admin'
 
     return (
         <header className="fixed top-0 left-0 right-0 h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-50 flex items-center justify-between px-6">
@@ -54,24 +52,6 @@ export default function TopBar() {
                         New Stream
                     </NavLink>
 
-                    {/* Admin-only legacy tools */}
-                    {isAdmin && (
-                        <>
-                            <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2" />
-                            <NavLink to="/admin/workbench" className={getLinkClass('/admin/workbench')}>
-                                <TableCellsIcon className="h-5 w-5 mr-2" />
-                                Workbench
-                            </NavLink>
-                            <NavLink to="/admin/smart-search-2" className={getLinkClass('/admin/smart-search-2')}>
-                                <MagnifyingGlassIcon className="h-5 w-5 mr-2" />
-                                Smart Search
-                            </NavLink>
-                            <NavLink to="/admin/lab" className={getLinkClass('/admin/lab')}>
-                                <BeakerIcon className="h-5 w-5 mr-2" />
-                                Lab
-                            </NavLink>
-                        </>
-                    )}
                 </nav>
             </div>
 

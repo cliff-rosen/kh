@@ -17,11 +17,11 @@ import { LoginForm } from './components/features/auth';
 import Profile from './pages/Profile';
 import TokenLogin from './pages/TokenLogin';
 
-// Knowledge Horizon pages (placeholders for now)
-import NewStreamPage from './pages/kh/NewStreamPage';
-import DashboardPage from './pages/kh/DashboardPage';
-import ReportsPage from './pages/kh/ReportsPage';
-import SettingsPage from './pages/kh/SettingsPage';
+// Knowledge Horizon pages
+import NewStreamPage from './pages/NewStreamPage';
+import DashboardPage from './pages/DashboardPage';
+import ReportsPage from './pages/ReportsPage';
+import SettingsPage from './pages/SettingsPage';
 
 // Inner component that uses auth context
 function AppContent() {

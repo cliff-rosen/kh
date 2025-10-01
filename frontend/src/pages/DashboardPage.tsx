@@ -1,7 +1,9 @@
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export default function DashboardPage() {
     const { user } = useAuth();
+    const navigate = useNavigate();
 
     return (
         <div className="max-w-7xl mx-auto p-6">
@@ -46,17 +48,20 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
-                {/* Mandate Status */}
+                {/* Research Streams */}
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                        🎯 Curation Mandate
+                        🔬 Research Streams
                     </h3>
                     <div className="text-center py-4">
-                        <div className="text-yellow-600 dark:text-yellow-400 mb-2">
-                            ⚠️ Not Configured
+                        <div className="text-gray-600 dark:text-gray-400 mb-2">
+                            No active streams
                         </div>
-                        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
-                            Set Up Mandate
+                        <button
+                            onClick={() => navigate('/new-stream')}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                        >
+                            Create Stream
                         </button>
                     </div>
                 </div>
@@ -66,18 +71,23 @@ export default function DashboardPage() {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8">
                 <div className="text-center py-12">
                     <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
-                        🚧 Dashboard Coming Soon
+                        🚀 Get Started with Knowledge Horizon
                     </h2>
                     <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-2xl mx-auto">
-                        Your personalized dashboard will show the latest curated intelligence,
-                        trending topics in your areas of interest, and actionable insights
-                        tailored to your role and company.
+                        Create your first research stream to start monitoring the information that matters to your business.
+                        Once active, your dashboard will show the latest intelligence, trending topics, and actionable insights.
                     </p>
                     <div className="flex justify-center gap-4">
-                        <button className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                            Complete Onboarding
+                        <button
+                            onClick={() => navigate('/new-stream')}
+                            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                            Create Research Stream
                         </button>
-                        <button className="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        <button
+                            onClick={() => navigate('/reports')}
+                            className="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        >
                             View Reports
                         </button>
                     </div>
