@@ -28,6 +28,8 @@ export default function ProfileCompletion({ completenessStatus, onComplete }: Pr
         therapeutic_areas: [] as string[],
         competitors: [] as string[]
     });
+    const [therapeuticAreasInput, setTherapeuticAreasInput] = useState('');
+    const [competitorsInput, setCompetitorsInput] = useState('');
 
     useEffect(() => {
         if (userProfile) {
@@ -45,6 +47,8 @@ export default function ProfileCompletion({ completenessStatus, onComplete }: Pr
                 therapeutic_areas: companyProfile.therapeutic_areas || [],
                 competitors: companyProfile.competitors || []
             });
+            setTherapeuticAreasInput((companyProfile.therapeutic_areas || []).join(', '));
+            setCompetitorsInput((companyProfile.competitors || []).join(', '));
         }
     }, [companyProfile]);
 
@@ -82,11 +86,13 @@ export default function ProfileCompletion({ completenessStatus, onComplete }: Pr
     };
 
     const handleTherapeuticAreasChange = (value: string) => {
+        setTherapeuticAreasInput(value);
         const areas = value.split(',').map(s => s.trim()).filter(s => s);
         setCompanyForm({ ...companyForm, therapeutic_areas: areas });
     };
 
     const handleCompetitorsChange = (value: string) => {
+        setCompetitorsInput(value);
         const competitors = value.split(',').map(s => s.trim()).filter(s => s);
         setCompanyForm({ ...companyForm, competitors });
     };
@@ -211,7 +217,7 @@ export default function ProfileCompletion({ completenessStatus, onComplete }: Pr
                         <input
                             type="text"
                             placeholder="e.g., Oncology, Immunology, Neurology"
-                            value={companyForm.therapeutic_areas.join(', ')}
+                            value={therapeuticAreasInput}
                             onChange={(e) => handleTherapeuticAreasChange(e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                             required
@@ -228,7 +234,7 @@ export default function ProfileCompletion({ completenessStatus, onComplete }: Pr
                         <input
                             type="text"
                             placeholder="e.g., Roche, Merck, Pfizer"
-                            value={companyForm.competitors.join(', ')}
+                            value={competitorsInput}
                             onChange={(e) => handleCompetitorsChange(e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                             required
