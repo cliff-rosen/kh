@@ -14,8 +14,7 @@ import logging
 import time
 import traceback
 
-# Import for session management
-from services.user_session_service import UserSessionService
+# Session management removed - Knowledge Horizon uses simplified auth
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = settings.JWT_SECRET_KEY
@@ -79,13 +78,13 @@ async def create_user(db: Session, user: UserCreate):
 
 async def register_and_login_user(db: Session, user: UserCreate) -> Token:
     """
-    Register a new user and automatically log them in, returning JWT token with session information
+    Register a new user and automatically log them in, returning JWT token
     """
     logger.info(f"Attempting to register and login user with email: {user.email}")
-    
+
     # First create the user (this will handle duplicate email checking)
     db_user = await create_user(db, user)
-    
+
     try:
         # Extract username from email
         username = user.email.split('@')[0]
@@ -102,43 +101,21 @@ async def register_and_login_user(db: Session, user: UserCreate) -> Token:
         logger.debug(f"Token data: {token_data}")
 
         access_token = create_access_token(data=token_data)
-        
-        # Create initial session for new user
-        logger.debug("Creating initial session for new user")
-        session_service = UserSessionService(db)
-        from routers.user_session import CreateUserSessionRequest
-        session_request = CreateUserSessionRequest(
-            session_metadata={
-                "created_via": "registration",
-                "initialized_at": datetime.utcnow().isoformat()
-            }
-        )
-        session_response = session_service.create_user_session(db_user.user_id, session_request)
-        session_id = session_response.user_session.id
-        session_name = session_response.user_session.name
-        chat_id = session_response.user_session.chat_id
-        mission_id = session_response.user_session.mission_id
-        session_metadata = session_response.user_session.session_metadata or {}
 
-        logger.info(f"Successfully registered and logged in user: {user.email} with session: {session_id}")
+        logger.info(f"Successfully registered and logged in user: {user.email}")
 
         return Token(
             access_token=access_token,
             token_type="bearer",
             username=username,
             role=db_user.role,
-            session_id=session_id,
-            session_name=session_name,
-            chat_id=chat_id,
-            mission_id=mission_id,
-            session_metadata=session_metadata
+            user_id=db_user.user_id,
+            email=db_user.email
         )
 
     except Exception as e:
         logger.error(f"Error during post-registration login: {str(e)}")
         logger.error(traceback.format_exc())
-        # If login fails after registration, we should probably clean up the user
-        # But for now, let's just raise the error
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"User registered but login failed: {str(e)}"
@@ -147,7 +124,7 @@ async def register_and_login_user(db: Session, user: UserCreate) -> Token:
 
 async def login_user(db: Session, email: str, password: str) -> Token:
     """
-    Authenticate user and return JWT token with session information
+    Authenticate user and return JWT token
     """
     logger.info(f"Login attempt for email: {email}")
     try:
@@ -189,50 +166,16 @@ async def login_user(db: Session, email: str, password: str) -> Token:
         logger.debug(f"Token data: {token_data}")
 
         access_token = create_access_token(data=token_data)
-        
-        # Load or create session
-        logger.debug("Loading or creating user session")
-        session_service = UserSessionService(db)
-        session = session_service.get_active_session(user.user_id)
-        
-        if session:
-            logger.debug(f"Found active session: {session.id}")
-            # Update session activity
-            session_service.update_session_activity(user.user_id, session.id)
-            session_id = session.id
-            session_name = session.name
-            chat_id = session.chat_id
-            mission_id = session.mission_id
-            session_metadata = session.session_metadata or {}
-        else:
-            logger.debug("No active session found, creating new session")
-            # Create new session
-            from routers.user_session import CreateUserSessionRequest
-            session_request = CreateUserSessionRequest(
-                session_metadata={
-                    "created_via": "login",
-                    "initialized_at": datetime.utcnow().isoformat()
-                }
-            )
-            session_response = session_service.create_user_session(user.user_id, session_request)
-            session_id = session_response.user_session.id
-            session_name = session_response.user_session.name
-            chat_id = session_response.user_session.chat_id
-            mission_id = session_response.user_session.mission_id
-            session_metadata = session_response.user_session.session_metadata or {}
 
-        logger.info(f"Successfully logged in user: {email} with session: {session_id}")
+        logger.info(f"Successfully logged in user: {email}")
 
         return Token(
             access_token=access_token,
             token_type="bearer",
             username=username,
             role=user.role,
-            session_id=session_id,
-            session_name=session_name,
-            chat_id=chat_id,
-            mission_id=mission_id,
-            session_metadata=session_metadata
+            user_id=user.user_id,
+            email=user.email
         )
 
     except HTTPException:

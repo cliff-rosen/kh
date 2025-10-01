@@ -284,48 +284,16 @@ async def login_with_token(
         
         # Create access token
         access_token = auth_service.create_access_token(data=token_data)
-        
-        # Load or create session (same logic as regular login)
-        from services.user_session_service import UserSessionService
-        session_service = UserSessionService(db)
-        session = session_service.get_active_session(user.user_id)
-        
-        if session:
-            # Update session activity
-            session_service.update_session_activity(user.user_id, session.id)
-            session_id = session.id
-            session_name = session.name
-            chat_id = session.chat_id
-            mission_id = session.mission_id
-            session_metadata = session.session_metadata or {}
-        else:
-            # Create new session
-            from routers.user_session import CreateUserSessionRequest
-            session_request = CreateUserSessionRequest(
-                session_metadata={
-                    "created_via": "token_login",
-                    "initialized_at": datetime.utcnow().isoformat()
-                }
-            )
-            session_response = session_service.create_user_session(user.user_id, session_request)
-            session_id = session_response.user_session.id
-            session_name = session_response.user_session.name
-            chat_id = session_response.user_session.chat_id
-            mission_id = session_response.user_session.mission_id
-            session_metadata = session_response.user_session.session_metadata or {}
-        
+
         logger.info(f"Successfully authenticated user {user.email} with login token")
-        
+
         return Token(
             access_token=access_token,
             token_type="bearer",
             username=username,
             role=user.role,
-            session_id=session_id,
-            session_name=session_name,
-            chat_id=chat_id,
-            mission_id=mission_id,
-            session_metadata=session_metadata
+            user_id=user.user_id,
+            email=user.email
         )
         
     except HTTPException:

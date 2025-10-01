@@ -3,7 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 # from routers import search, auth, workflow, tools, files, bot, asset
-from routers import auth, chat, llm, search, web_retrieval, user_session,  pubmed, google_scholar, extraction, unified_search, lab, article_chat, workbench, smart_search2, pubmed_search_designer, analytics
+# Import only Knowledge Horizon compatible routers (legacy routers removed)
+from routers import auth, llm, search, web_retrieval, pubmed, extraction, unified_search, lab
 from database import init_db
 from config import settings, setup_logging
 from middleware import LoggingMiddleware
@@ -49,23 +50,23 @@ app.include_router(
 )
 
 # Core API routers (prefix added here)
-app.include_router(chat.router, prefix="/api")
-app.include_router(user_session.router, prefix="/api")
+# Chat router removed - Knowledge Horizon uses different chat approach
+# User session router removed - Knowledge Horizon uses simplified auth
 app.include_router(llm.router, prefix="/api")
 app.include_router(search.router, prefix="/api")
 app.include_router(web_retrieval.router, prefix="/api")
 app.include_router(pubmed.router, prefix="/api")
-app.include_router(google_scholar.router, prefix="/api")
+# Google Scholar removed - legacy feature with EventType dependency
 app.include_router(extraction.router, prefix="/api")
 app.include_router(unified_search.router, prefix="/api")
 app.include_router(lab.router, prefix="/api")
-app.include_router(smart_search2.router, prefix="/api")
+# Smart Search 2 removed - legacy feature with EventType dependency
 
-# Additional API routers (prefix added here)
-app.include_router(workbench.router, prefix="/api")        # /api/workbench (unified)
-app.include_router(article_chat.router, prefix="/api")     # /api/article-chat
-app.include_router(pubmed_search_designer.router, prefix="/api/pubmed")  # /api/pubmed/fetch-articles, /api/pubmed/test-search
-app.include_router(analytics.router, prefix="/api")  # /api/analytics
+# Legacy routers removed for Knowledge Horizon transition:
+# - workbench: Uses legacy Asset/Mission models
+# - article_chat: Uses UserCompanyProfile
+# - pubmed_search_designer: Uses legacy models
+# - analytics: Uses EventType/UserEvent models
 
 logger.info("Routers included")
 

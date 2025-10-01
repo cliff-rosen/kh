@@ -19,11 +19,7 @@ from .chat import (
     CreateChatMessageResponse
  )
 
-from .user_session import (
-    UserSession,
-    UserSessionStatus,
-    CreateUserSessionResponse
-)
+# User session schemas removed - Knowledge Horizon uses simplified auth
 
 
 __all__ = [
@@ -42,8 +38,5 @@ __all__ = [
     'CreateChatMessageRequest',
     'CreateChatMessageResponse',
 
-    # User Session schemas
-    'UserSession',
-    'UserSessionStatus',
-    'CreateUserSessionResponse'
+# User Session schemas removed for Knowledge Horizon
 ]  
