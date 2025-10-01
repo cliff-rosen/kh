@@ -1,13 +1,11 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import {
     profileApi,
-    UserProfile,
-    CompanyProfile,
-    ProfileCompletenessStatus,
-    UserProfileUpdate,
-    CompanyProfileUpdate,
+    UserProfileUpdateRequest,
+    CompanyProfileUpdateRequest,
     handleApiError
 } from '../lib/api';
+import { UserProfile, CompanyProfile, ProfileCompletenessStatus } from '../types';
 
 interface ProfileContextType {
     // State
@@ -21,8 +19,8 @@ interface ProfileContextType {
     loadAllProfiles: () => Promise<void>;
     loadUserProfile: () => Promise<void>;
     loadCompanyProfile: () => Promise<void>;
-    updateUserProfile: (updates: UserProfileUpdate) => Promise<void>;
-    updateCompanyProfile: (updates: CompanyProfileUpdate) => Promise<void>;
+    updateUserProfile: (updates: UserProfileUpdateRequest) => Promise<void>;
+    updateCompanyProfile: (updates: CompanyProfileUpdateRequest) => Promise<void>;
     checkCompleteness: () => Promise<void>;
     clearError: () => void;
 }
@@ -84,7 +82,7 @@ export function ProfileProvider({ children }: ProfileProviderProps) {
         }
     }, []);
 
-    const updateUserProfile = useCallback(async (updates: UserProfileUpdate) => {
+    const updateUserProfile = useCallback(async (updates: UserProfileUpdateRequest) => {
         setIsLoading(true);
         setError(null);
         try {
@@ -99,7 +97,7 @@ export function ProfileProvider({ children }: ProfileProviderProps) {
         }
     }, []);
 
-    const updateCompanyProfile = useCallback(async (updates: CompanyProfileUpdate) => {
+    const updateCompanyProfile = useCallback(async (updates: CompanyProfileUpdateRequest) => {
         setIsLoading(true);
         setError(null);
         try {
