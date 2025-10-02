@@ -1,157 +1,55 @@
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StreamChatInterface from '../components/StreamChatInterface';
 import StreamConfigPreview from '../components/StreamConfigPreview';
-import {
-    StreamChatMessage,
-    PartialStreamConfig,
-    StreamCreationStep,
-    StreamChatRequest,
-    StreamChatResponse
-} from '../types/stream-chat';
-import { api } from '../lib/api';
+import { useStreamChat } from '../context/StreamChatContext';
 import { useToast } from '../components/ui/use-toast';
 
 export default function NewStreamChatPage() {
     const navigate = useNavigate();
     const { toast } = useToast();
-    const [messages, setMessages] = useState<StreamChatMessage[]>([
-        {
-            role: 'assistant',
-            content: "Hi! I'm here to help you create a research stream. Let's start with the basics.\n\nWhat area of business or research are you focused on? For example, you might say 'cardiovascular therapeutics' or 'oncology drug development'.",
-            timestamp: new Date().toISOString()
-        }
-    ]);
-    const [currentStep, setCurrentStep] = useState<StreamCreationStep>('intro');
-    const [streamConfig, setStreamConfig] = useState<PartialStreamConfig>({});
-    const [isLoading, setIsLoading] = useState(false);
+    const {
+        messages,
+        streamConfig,
+        currentStep,
+        isLoading,
+        error,
+        sendMessage,
+        handleSelectSuggestion,
+        handleToggleOption,
+        createStream,
+        clearError
+    } = useStreamChat();
 
-    const sendMessage = async (content: string) => {
-        // Add user message
-        const userMessage: StreamChatMessage = {
-            role: 'user',
-            content,
-            timestamp: new Date().toISOString()
+    // Handle completion and navigation
+    useEffect(() => {
+        const handleCompletion = async () => {
+            if (currentStep === 'complete' && streamConfig.stream_name) {
+                const newStream = await createStream(streamConfig);
+                if (newStream) {
+                    toast({
+                        title: 'Success!',
+                        description: 'Your research stream has been created.'
+                    });
+                    navigate('/streams');
+                }
+            }
         };
-        setMessages(prev => [...prev, userMessage]);
-        setIsLoading(true);
 
-        try {
-            // Call backend API
-            const request: StreamChatRequest = {
-                message: content,
-                current_config: streamConfig,
-                current_step: currentStep
-            };
+        handleCompletion();
+    }, [currentStep, streamConfig, createStream, toast, navigate]);
 
-            const response = await api.post<StreamChatResponse>('/api/research-streams/chat', request);
-            const data = response.data;
-
-            // Add assistant response
-            const assistantMessage: StreamChatMessage = {
-                role: 'assistant',
-                content: data.message,
-                timestamp: new Date().toISOString(),
-                suggestions: data.suggestions?.therapeutic_areas?.map(area => ({
-                    label: area,
-                    value: area
-                })) || data.suggestions?.companies?.map(company => ({
-                    label: company,
-                    value: company
-                })),
-                options: data.options
-            };
-
-            setMessages(prev => [...prev, assistantMessage]);
-            setCurrentStep(data.next_step);
-            setStreamConfig(data.updated_config);
-
-            // If complete, create the stream
-            if (data.next_step === 'complete') {
-                await createStream(data.updated_config);
-            }
-        } catch (error) {
-            console.error('Error sending message:', error);
+    // Show errors from context
+    useEffect(() => {
+        if (error) {
             toast({
                 title: 'Error',
-                description: 'Failed to process your message. Please try again.',
+                description: error,
                 variant: 'destructive'
             });
-        } finally {
-            setIsLoading(false);
+            clearError();
         }
-    };
-
-    const handleSelectSuggestion = (value: string) => {
-        sendMessage(value);
-    };
-
-    const handleToggleOption = (value: string) => {
-        // Update options in the last message
-        setMessages(prev => {
-            const updated = [...prev];
-            const lastMessage = updated[updated.length - 1];
-            if (lastMessage.options) {
-                lastMessage.options = lastMessage.options.map(opt =>
-                    opt.value === value ? { ...opt, checked: !opt.checked } : opt
-                );
-            }
-            return updated;
-        });
-
-        // Update config based on current step
-        if (currentStep === 'focus') {
-            setStreamConfig(prev => {
-                const areas = prev.focus_areas || [];
-                const hasArea = areas.includes(value);
-                return {
-                    ...prev,
-                    focus_areas: hasArea
-                        ? areas.filter(a => a !== value)
-                        : [...areas, value]
-                };
-            });
-        } else if (currentStep === 'competitors') {
-            setStreamConfig(prev => {
-                const companies = prev.competitors || [];
-                const hasCompany = companies.includes(value);
-                return {
-                    ...prev,
-                    competitors: hasCompany
-                        ? companies.filter(c => c !== value)
-                        : [...companies, value]
-                };
-            });
-        }
-    };
-
-    const createStream = async (config: PartialStreamConfig) => {
-        try {
-            const response = await api.post('/api/research-streams', {
-                stream_name: config.stream_name,
-                description: config.description,
-                stream_type: config.stream_type,
-                focus_areas: config.focus_areas || [],
-                competitors: config.competitors || [],
-                report_frequency: config.report_frequency
-            });
-
-            toast({
-                title: 'Success!',
-                description: 'Your research stream has been created.'
-            });
-
-            // Navigate to streams page
-            navigate('/streams');
-        } catch (error) {
-            console.error('Error creating stream:', error);
-            toast({
-                title: 'Error',
-                description: 'Failed to create research stream. Please try again.',
-                variant: 'destructive'
-            });
-        }
-    };
+    }, [error, toast, clearError]);
 
     return (
         <div className="w-full h-[calc(100vh-4rem)] p-6">

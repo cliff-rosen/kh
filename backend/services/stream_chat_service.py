@@ -4,9 +4,11 @@ Handles the interview flow and LLM integration
 """
 
 from sqlalchemy.orm import Session
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, AsyncGenerator
 import anthropic
 import os
+import json
+from schemas.agent_responses import AgentResponse, StatusResponse
 
 class StreamChatService:
     def __init__(self, db: Session, user_id: int):
@@ -51,6 +53,79 @@ class StreamChatService:
         )
 
         return result
+
+    async def stream_message(
+        self,
+        message: str,
+        current_config: Dict[str, Any],
+        current_step: str
+    ) -> AsyncGenerator[str, None]:
+        """
+        Stream a chat message response with status updates
+        """
+
+        # Build conversation context for the LLM
+        system_prompt = self._build_system_prompt()
+        user_prompt = self._build_user_prompt(message, current_config, current_step)
+
+        # Send status update that we're calling the LLM
+        status_response = StatusResponse(
+            status="Thinking about your response...",
+            payload={"tool": "claude_api", "step": current_step},
+            error=None,
+            debug=None
+        )
+        yield status_response.model_dump_json()
+
+        # Call Claude API with streaming
+        collected_text = ""
+
+        async with self.client.messages.stream(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=2000,
+            system=system_prompt,
+            messages=[{
+                "role": "user",
+                "content": user_prompt
+            }]
+        ) as stream:
+            async for text in stream.text_stream:
+                collected_text += text
+                # Stream each token as it arrives
+                token_response = AgentResponse(
+                    token=text,
+                    response_text=None,
+                    payload=None,
+                    status="streaming",
+                    error=None,
+                    debug=None
+                )
+                yield token_response.model_dump_json()
+
+        # Parse the complete LLM response
+        result = self._parse_llm_response(
+            collected_text,
+            message,
+            current_config,
+            current_step
+        )
+
+        # Send final response with structured data
+        final_response = AgentResponse(
+            token=None,
+            response_text=None,
+            payload={
+                "message": result["message"],
+                "next_step": result["next_step"],
+                "updated_config": result["updated_config"],
+                "suggestions": result.get("suggestions"),
+                "options": result.get("options")
+            },
+            status="complete",
+            error=None,
+            debug=None
+        )
+        yield final_response.model_dump_json()
 
     def _build_system_prompt(self) -> str:
         return """You are an AI assistant helping users create research streams for Knowledge Horizon,

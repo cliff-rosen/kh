@@ -1,5 +1,11 @@
 import { api } from './index';
 import { ResearchStream, StreamType, ReportFrequency } from '../../types';
+import {
+    StreamChatRequest,
+    StreamChatResponse
+} from '../../types/stream-chat';
+import { makeStreamRequest } from './streamUtils';
+import { StreamResponse, AgentResponse, StatusResponse } from '../../types/chat';
 
 // Request/Response wrapper types
 export interface ResearchStreamCreateRequest {
@@ -78,5 +84,80 @@ export const researchStreamApi = {
     async toggleResearchStreamStatus(streamId: number, isActive: boolean): Promise<ResearchStream> {
         const response = await api.patch(`/api/research-streams/${streamId}/status`, { is_active: isActive });
         return response.data;
+    },
+
+    /**
+     * Send a chat message for AI-guided stream creation (non-streaming)
+     */
+    async sendChatMessage(request: StreamChatRequest): Promise<StreamChatResponse> {
+        const response = await api.post('/api/research-streams/chat', request);
+        return response.data;
+    },
+
+    /**
+     * Stream chat messages for AI-guided stream creation
+     * @param request - Chat request with message, config, and current step
+     * @returns AsyncGenerator that yields StreamResponse objects
+     */
+    streamChatMessage: async function* (
+        request: StreamChatRequest
+    ): AsyncGenerator<StreamResponse> {
+        try {
+            const rawStream = makeStreamRequest('/api/research-streams/chat/stream', request, 'POST');
+
+            for await (const update of rawStream) {
+                const lines = update.data.split('\n');
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+
+                    if (!line.startsWith('data: ')) continue;
+
+                    const jsonStr = line.slice(6);
+                    try {
+                        const data = JSON.parse(jsonStr);
+
+                        // Check if it's a status response (tool usage, thinking, etc.)
+                        if (data.status && !data.token) {
+                            yield {
+                                status: data.status,
+                                payload: data.payload ?? null,
+                                error: data.error ?? null,
+                                debug: data.debug ?? null
+                            } as StatusResponse;
+                        } else {
+                            // Agent response with tokens or final response
+                            yield {
+                                token: data.token ?? null,
+                                response_text: data.response_text ?? null,
+                                payload: data.payload ?? null,
+                                status: data.status ?? null,
+                                error: data.error ?? null,
+                                debug: data.debug ?? null
+                            } as AgentResponse;
+                        }
+                    } catch (e) {
+                        // JSON parse error - yield error response
+                        yield {
+                            token: null,
+                            response_text: null,
+                            payload: null,
+                            status: null,
+                            error: `Failed to parse response: ${e instanceof Error ? e.message : String(e)}`,
+                            debug: { originalLine: line }
+                        } as AgentResponse;
+                    }
+                }
+            }
+        } catch (error) {
+            // Yield error response if stream fails
+            yield {
+                token: null,
+                response_text: null,
+                payload: null,
+                status: null,
+                error: `Stream error: ${error instanceof Error ? error.message : String(error)}`,
+                debug: { streamError: true }
+            } as AgentResponse;
+        }
     }
 };
