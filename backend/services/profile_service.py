@@ -165,8 +165,8 @@ class ProfileService:
             can_create_research_stream=can_create_research_stream
         )
 
-    def get_all_profiles(self, user_id: int) -> Dict[str, Any]:
-        """Get both user and company profiles"""
+    def get_full_profile(self, user_id: int) -> Dict[str, Any]:
+        """Get both user and company profiles for current user"""
         user_profile = self.get_user_profile(user_id)
         company_profile = self.get_company_profile(user_id)
 

@@ -7,7 +7,7 @@ export default function SettingsPage() {
     const {
         userProfile,
         companyProfile,
-        loadAllProfiles,
+        loadFullProfile,
         updateUserProfile,
         updateCompanyProfile,
         isLoading,
@@ -32,8 +32,8 @@ export default function SettingsPage() {
 
     // Load profiles on mount
     useEffect(() => {
-        loadAllProfiles();
-    }, [loadAllProfiles]);
+        loadFullProfile();
+    }, [loadFullProfile]);
 
     // Update form state when profiles load
     useEffect(() => {

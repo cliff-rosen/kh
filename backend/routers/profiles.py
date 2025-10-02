@@ -31,8 +31,8 @@ class CompanyProfileUpdateRequest(BaseModel):
     pipeline_products: Optional[str] = None
 
 
-class AllProfilesResponse(BaseModel):
-    """Response containing both user and company profiles"""
+class FullProfileResponse(BaseModel):
+    """Response containing both user and company profiles for current user"""
     user: UserProfile
     company: CompanyProfile
 
@@ -118,12 +118,12 @@ async def check_profile_completeness(
     return service.check_profile_completeness(current_user.user_id)
 
 
-@router.get("/all", response_model=AllProfilesResponse)
-async def get_all_profiles(
+@router.get("/full", response_model=FullProfileResponse)
+async def get_full_profile(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get both user and company profiles in one call"""
+    """Get both user and company profiles for current user in one call"""
     service = ProfileService(db)
-    profiles = service.get_all_profiles(current_user.user_id)
-    return AllProfilesResponse(user=profiles['user'], company=profiles['company'])
+    profiles = service.get_full_profile(current_user.user_id)
+    return FullProfileResponse(user=profiles['user'], company=profiles['company'])

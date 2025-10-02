@@ -16,7 +16,7 @@ interface ProfileContextType {
     error: string | null;
 
     // Actions
-    loadAllProfiles: () => Promise<void>;
+    loadFullProfile: () => Promise<void>;
     loadUserProfile: () => Promise<void>;
     loadCompanyProfile: () => Promise<void>;
     updateUserProfile: (updates: UserProfileUpdateRequest) => Promise<void>;
@@ -42,11 +42,11 @@ export function ProfileProvider({ children }: ProfileProviderProps) {
         setError(null);
     }, []);
 
-    const loadAllProfiles = useCallback(async () => {
+    const loadFullProfile = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
-            const profiles = await profileApi.getAllProfiles();
+            const profiles = await profileApi.getFullProfile();
             setUserProfile(profiles.user);
             setCompanyProfile(profiles.company);
         } catch (err) {
@@ -131,7 +131,7 @@ export function ProfileProvider({ children }: ProfileProviderProps) {
         error,
 
         // Actions
-        loadAllProfiles,
+        loadFullProfile,
         loadUserProfile,
         loadCompanyProfile,
         updateUserProfile,

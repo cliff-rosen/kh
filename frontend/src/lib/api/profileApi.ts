@@ -15,8 +15,8 @@ export interface CompanyProfileUpdateRequest {
     pipeline_products?: string;
 }
 
-// Response type for /api/profiles/all endpoint
-export interface AllProfilesResponse {
+// Response type for /api/profiles/full endpoint
+export interface FullProfileResponse {
     user: UserProfile;
     company: CompanyProfile;
 }
@@ -63,10 +63,10 @@ export const profileApi = {
     },
 
     /**
-     * Get both user and company profiles in one call
+     * Get full profile (both user and company profiles) in one call
      */
-    async getAllProfiles(): Promise<AllProfilesResponse> {
-        const response = await api.get<AllProfilesResponse>('/api/profiles/all');
+    async getFullProfile(): Promise<FullProfileResponse> {
+        const response = await api.get<FullProfileResponse>('/api/profiles/full');
         return response.data;
     }
 };
