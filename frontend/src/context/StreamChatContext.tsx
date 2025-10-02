@@ -198,43 +198,41 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
     }, [streamChatMessage]);
 
     const handleToggleOption = useCallback((value: string) => {
-        // Update options in the last message
+        // Update options in the last message (create new objects for React to detect change)
         setMessages(prev => {
             const updated = [...prev];
-            const lastMessage = updated[updated.length - 1];
+            const lastMessageIndex = updated.length - 1;
+            const lastMessage = updated[lastMessageIndex];
+
             if (lastMessage.options) {
-                lastMessage.options = lastMessage.options.map(opt =>
-                    opt.value === value ? { ...opt, checked: !opt.checked } : opt
-                );
+                // Create a new message object with updated options
+                updated[lastMessageIndex] = {
+                    ...lastMessage,
+                    options: lastMessage.options.map(opt =>
+                        opt.value === value ? { ...opt, checked: !opt.checked } : opt
+                    )
+                };
             }
             return updated;
         });
 
-        // Update config based on current step
-        if (currentStep === 'focus') {
+        // Update config based on target field (from responseMode/targetField)
+        if (!targetField) return;
+
+        // Handle array fields (focus_areas, competitors)
+        if (targetField === 'focus_areas' || targetField === 'competitors') {
             setStreamConfig(prev => {
-                const areas = prev.focus_areas || [];
-                const hasArea = areas.includes(value);
+                const currentArray = (prev[targetField as keyof PartialStreamConfig] as string[]) || [];
+                const hasValue = currentArray.includes(value);
                 return {
                     ...prev,
-                    focus_areas: hasArea
-                        ? areas.filter(a => a !== value)
-                        : [...areas, value]
-                };
-            });
-        } else if (currentStep === 'competitors') {
-            setStreamConfig(prev => {
-                const companies = prev.competitors || [];
-                const hasCompany = companies.includes(value);
-                return {
-                    ...prev,
-                    competitors: hasCompany
-                        ? companies.filter(c => c !== value)
-                        : [...companies, value]
+                    [targetField]: hasValue
+                        ? currentArray.filter(v => v !== value)
+                        : [...currentArray, value]
                 };
             });
         }
-    }, [currentStep]);
+    }, [targetField]);
 
     const createStream = useCallback(async (config: PartialStreamConfig): Promise<ResearchStream | null> => {
         setIsLoading(true);
