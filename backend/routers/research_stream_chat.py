@@ -11,9 +11,10 @@ import logging
 
 from database import get_db
 from models import User
+from schemas.agent_responses import AgentResponse, StatusResponse
+
 from routers.auth import get_current_user
 from services.stream_chat_service import StreamChatService
-from schemas.agent_responses import AgentResponse, StatusResponse
 
 logger = logging.getLogger(__name__)
 
