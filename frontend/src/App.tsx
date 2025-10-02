@@ -20,6 +20,7 @@ import TokenLogin from './pages/TokenLogin';
 
 // Knowledge Horizon pages
 import NewStreamPage from './pages/NewStreamPage';
+import NewStreamChatPage from './pages/NewStreamChatPage';
 import DashboardPage from './pages/DashboardPage';
 import StreamsPage from './pages/StreamsPage';
 import StreamDetailPage from './pages/StreamDetailPage';
@@ -51,6 +52,7 @@ function AppContent() {
             <Route path="/streams" element={<StreamsPage />} />
             <Route path="/streams/:id" element={<StreamDetailPage />} />
             <Route path="/new-stream" element={<NewStreamPage />} />
+            <Route path="/new-stream/chat" element={<NewStreamChatPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/profile" element={<Profile />} />
