@@ -104,15 +104,7 @@ export const researchStreamApi = {
     },
 
     /**
-     * Send a chat message for AI-guided stream creation (non-streaming)
-     */
-    async sendChatMessage(request: StreamChatRequest): Promise<StreamChatResponse> {
-        const response = await api.post('/api/research-streams/chat', request);
-        return response.data;
-    },
-
-    /**
-     * Stream chat messages for AI-guided stream creation
+     * Stream chat messages for AI-guided research stream creation via SSE
      * @param request - Chat request with message, config, and current step
      * @returns AsyncGenerator that yields StreamResponse objects
      */

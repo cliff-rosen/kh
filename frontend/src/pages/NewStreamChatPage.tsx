@@ -15,7 +15,7 @@ export default function NewStreamChatPage() {
         isLoading,
         error,
         statusMessage,
-        sendMessage,
+        streamChatMessage,
         handleSelectSuggestion,
         handleToggleOption,
         createStream,
@@ -68,7 +68,7 @@ export default function NewStreamChatPage() {
                 <div className="lg:col-span-2">
                     <StreamChatInterface
                         messages={messages}
-                        onSendMessage={sendMessage}
+                        onSendMessage={streamChatMessage}
                         onSelectSuggestion={handleSelectSuggestion}
                         onToggleOption={handleToggleOption}
                         isLoading={isLoading}

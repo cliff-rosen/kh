@@ -1,5 +1,5 @@
 """
-Stream Chat Service for AI-guided research stream creation
+Research Stream Chat Service for AI-guided research stream creation
 Handles the interview flow and LLM integration
 """
 
@@ -14,58 +14,20 @@ from schemas.research_stream import PartialStreamConfig
 STREAM_CHAT_MODEL = "claude-sonnet-4-20250514"
 STREAM_CHAT_MAX_TOKENS = 2000
 
-class StreamChatService:
+class ResearchStreamChatService:
     def __init__(self, db: Session, user_id: int):
         self.db = db
         self.user_id = user_id
         self.client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 
-    async def process_message(
-        self,
-        message: str,
-        current_config: PartialStreamConfig,
-        current_step: str
-    ) -> Dict[str, Any]:
-        """
-        Process a user message and return the next step in the interview
-        """
-
-        # Build conversation context for the LLM
-        system_prompt = self._build_system_prompt()
-        user_prompt = self._build_user_prompt(message, current_config, current_step)
-
-        # Call Claude API
-        response = self.client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=2000,
-            system=system_prompt,
-            messages=[{
-                "role": "user",
-                "content": user_prompt
-            }]
-        )
-
-        # Parse the LLM response
-        assistant_message = response.content[0].text
-
-        # Extract structured data from the response
-        result = self._parse_llm_response(
-            assistant_message,
-            message,
-            current_config,
-            current_step
-        )
-
-        return result
-
-    async def stream_message(
+    async def stream_chat_message(
         self,
         message: str,
         current_config: PartialStreamConfig,
         current_step: str
     ) -> AsyncGenerator[str, None]:
         """
-        Stream a chat message response with status updates
+        Stream a chat message response with status updates via SSE
         """
 
         # Build conversation context for the LLM

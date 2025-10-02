@@ -15,7 +15,7 @@ from schemas.agent_responses import AgentResponse, StatusResponse
 from schemas.research_stream import PartialStreamConfig
 
 from routers.auth import get_current_user
-from services.stream_chat_service import StreamChatService
+from services.research_stream_chat_service import ResearchStreamChatService
 
 logger = logging.getLogger(__name__)
 
@@ -32,33 +32,6 @@ class CheckboxOption(BaseModel):
     label: str
     value: str
     checked: bool
-
-
-class StreamChatResponse(BaseModel):
-    message: str
-    next_step: str
-    updated_config: PartialStreamConfig
-    suggestions: Optional[Dict[str, List[str]]] = None
-    options: Optional[List[CheckboxOption]] = None
-
-
-@router.post("/chat", response_model=StreamChatResponse)
-async def chat_for_stream_creation(
-    request: StreamChatRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Process a chat message in the stream creation interview flow.
-    The AI assistant guides the user through creating a research stream.
-    """
-    service = StreamChatService(db, current_user.user_id)
-    response = await service.process_message(
-        message=request.message,
-        current_config=request.current_config,
-        current_step=request.current_step
-    )
-    return response
 
 
 @router.post("/chat/stream",
@@ -98,10 +71,10 @@ async def chat_stream_for_stream_creation(
     async def event_generator():
         """Generate SSE events that are AgentResponse or StatusResponse objects"""
         try:
-            service = StreamChatService(db, current_user.user_id)
+            service = ResearchStreamChatService(db, current_user.user_id)
 
             # Stream the response from the service
-            async for chunk in service.stream_message(
+            async for chunk in service.stream_chat_message(
                 message=request.message,
                 current_config=request.current_config,
                 current_step=request.current_step

@@ -17,7 +17,7 @@ interface StreamChatContextType {
     statusMessage: string | null;
 
     // Actions
-    sendMessage: (content: string) => Promise<void>;
+    streamChatMessage: (content: string) => Promise<void>;
     handleSelectSuggestion: (value: string) => void;
     handleToggleOption: (value: string) => void;
     createStream: (config: PartialStreamConfig) => Promise<ResearchStream | null>;
@@ -63,7 +63,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         setStatusMessage(null);
     }, []);
 
-    const sendMessage = useCallback(async (content: string) => {
+    const streamChatMessage = useCallback(async (content: string) => {
         // Add user message
         const userMessage: StreamChatMessage = {
             role: 'user',
@@ -153,8 +153,8 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
     }, [streamConfig, currentStep]);
 
     const handleSelectSuggestion = useCallback((value: string) => {
-        sendMessage(value);
-    }, [sendMessage]);
+        streamChatMessage(value);
+    }, [streamChatMessage]);
 
     const handleToggleOption = useCallback((value: string) => {
         // Update options in the last message
@@ -226,7 +226,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         statusMessage,
 
         // Actions
-        sendMessage,
+        streamChatMessage,
         handleSelectSuggestion,
         handleToggleOption,
         createStream,
