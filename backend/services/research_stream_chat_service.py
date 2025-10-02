@@ -25,7 +25,8 @@ class ResearchStreamChatService:
         self,
         message: str,
         current_config: PartialStreamConfig,
-        current_step: str
+        current_step: str,
+        conversation_history: List[Dict[str, str]] = None
     ) -> AsyncGenerator[str, None]:
         """
         Stream a chat message response with status updates via SSE.
@@ -54,15 +55,28 @@ class ResearchStreamChatService:
         # Call Claude API with streaming
         collected_text = ""
 
+        # Build conversation messages array
+        messages = []
+
+        # Add conversation history if provided
+        if conversation_history:
+            for msg in conversation_history:
+                messages.append({
+                    "role": msg.get("role"),
+                    "content": msg.get("content")
+                })
+
+        # Add current user message
+        messages.append({
+            "role": "user",
+            "content": user_prompt
+        })
+
         stream = self.client.messages.stream(
             model=STREAM_CHAT_MODEL,
             max_tokens=STREAM_CHAT_MAX_TOKENS,
-            temperature=1.0,
             system=system_prompt,
-            messages=[{
-                "role": "user",
-                "content": user_prompt
-            }]
+            messages=messages
         )
 
         with stream as stream_manager:

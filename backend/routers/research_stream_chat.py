@@ -22,10 +22,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/research-streams", tags=["research-streams"])
 
 
+class ChatMessage(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
 class StreamChatRequest(BaseModel):
     message: str
     current_config: PartialStreamConfig
     current_step: str
+    conversation_history: List[ChatMessage] = []  # Full message history (user + assistant)
 
 
 class CheckboxOption(BaseModel):
@@ -77,7 +82,8 @@ async def chat_stream_for_stream_creation(
             async for chunk in service.stream_chat_message(
                 message=request.message,
                 current_config=request.current_config,
-                current_step=request.current_step
+                current_step=request.current_step,
+                conversation_history=[msg.model_dump() for msg in request.conversation_history]
             ):
                 # Yield as SSE event
                 yield {

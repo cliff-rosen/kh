@@ -10,10 +10,16 @@ import { makeStreamRequest } from './streamUtils';
 import { StreamResponse, AgentResponse, StatusResponse } from '../../types/chat';
 
 // API Request/Response types (belong in API layer, not in types/)
+export interface ChatMessage {
+    role: 'user' | 'assistant';
+    content: string;
+}
+
 export interface StreamChatRequest {
     message: string;
     current_config: PartialStreamConfig;
     current_step: StreamCreationStep;
+    conversation_history: ChatMessage[];
 }
 
 export interface StreamChatResponse {

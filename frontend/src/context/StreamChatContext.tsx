@@ -76,11 +76,18 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         setStatusMessage(null);
 
         try {
+            // Build conversation history (exclude the message we just added)
+            const history = messages.map(msg => ({
+                role: msg.role,
+                content: msg.content
+            }));
+
             // Call backend API with streaming
             const request: StreamChatRequest = {
                 message: content,
                 current_config: streamConfig,
-                current_step: currentStep
+                current_step: currentStep,
+                conversation_history: history
             };
 
             let finalPayload: any = null;
