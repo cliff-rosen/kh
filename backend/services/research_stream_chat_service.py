@@ -182,7 +182,18 @@ class ResearchStreamChatService:
                 field_update = line.replace("UPDATED_FIELD:", "").strip()
                 if "=" in field_update:
                     field, value = field_update.split("=", 1)
-                    updated_config[field.strip()] = value.strip()
+                    field_name = field.strip()
+                    field_value = value.strip()
+
+                    # Handle list fields - competitors and focus_areas should be lists
+                    if field_name in ['competitors', 'focus_areas'] and field_value:
+                        # Split by comma if it's a comma-separated list, otherwise wrap in list
+                        if ',' in field_value:
+                            updated_config[field_name] = [v.strip() for v in field_value.split(',')]
+                        else:
+                            updated_config[field_name] = [field_value]
+                    else:
+                        updated_config[field_name] = field_value
             elif line.startswith("SUGGESTIONS:"):
                 suggestion_list = line.replace("SUGGESTIONS:", "").strip()
                 suggestions_array = [s.strip() for s in suggestion_list.split(",")]
