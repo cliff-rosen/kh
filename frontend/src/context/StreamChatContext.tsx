@@ -14,6 +14,7 @@ interface StreamChatContextType {
     currentStep: StreamCreationStep;
     isLoading: boolean;
     error: string | null;
+    statusMessage: string | null;
 
     // Actions
     sendMessage: (content: string) => Promise<void>;
@@ -42,6 +43,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
     const [currentStep, setCurrentStep] = useState<StreamCreationStep>('intro');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
     const clearError = useCallback(() => {
         setError(null);
@@ -58,6 +60,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         setStreamConfig({});
         setCurrentStep('intro');
         setError(null);
+        setStatusMessage(null);
     }, []);
 
     const sendMessage = useCallback(async (content: string) => {
@@ -70,6 +73,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         setMessages(prev => [...prev, userMessage]);
         setIsLoading(true);
         setError(null);
+        setStatusMessage(null);
 
         try {
             // Call backend API with streaming
@@ -80,7 +84,6 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
             };
 
             let assistantMessageContent = '';
-            let currentStatus = '';
             let finalPayload: any = null;
 
             // Add a placeholder assistant message for streaming
@@ -94,11 +97,13 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
             // Stream the response
             for await (const chunk of researchStreamApi.streamChatMessage(request)) {
                 if ('status' in chunk && chunk.status && !('token' in chunk)) {
-                    // Status response - update loading state
-                    currentStatus = chunk.status;
+                    // Status response - update status message for UI display
+                    setStatusMessage(chunk.status);
                 } else if ('token' in chunk && chunk.token) {
                     // Token response - accumulate message
                     assistantMessageContent += chunk.token;
+                    // Clear status message when we start receiving content
+                    setStatusMessage(null);
                     // Update the last message with accumulated content
                     setMessages(prev => {
                         const updated = [...prev];
@@ -111,6 +116,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
                 } else if ('payload' in chunk && chunk.payload && chunk.status === 'complete') {
                     // Final payload with structured data
                     finalPayload = chunk.payload;
+                    setStatusMessage(null);
                 }
             }
 
@@ -140,6 +146,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
             }
         } catch (err) {
             setError(handleApiError(err));
+            setStatusMessage(null);
         } finally {
             setIsLoading(false);
         }
@@ -216,6 +223,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         currentStep,
         isLoading,
         error,
+        statusMessage,
 
         // Actions
         sendMessage,

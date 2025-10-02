@@ -10,6 +10,9 @@ import os
 import json
 from schemas.agent_responses import AgentResponse, StatusResponse
 
+STREAM_CHAT_MODEL = "claude-sonnet-4-20250514"
+STREAM_CHAT_MAX_TOKENS = 2000
+
 class StreamChatService:
     def __init__(self, db: Session, user_id: int):
         self.db = db
@@ -81,8 +84,8 @@ class StreamChatService:
         collected_text = ""
 
         stream = self.client.messages.stream(
-            model="claude-sonnet-4-20250514",
-            max_tokens=2000,
+            model=STREAM_CHAT_MODEL,
+            max_tokens=STREAM_CHAT_MAX_TOKENS,
             system=system_prompt,
             messages=[{
                 "role": "user",

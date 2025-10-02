@@ -8,6 +8,7 @@ interface StreamChatInterfaceProps {
     onSelectSuggestion: (suggestion: string) => void;
     onToggleOption: (value: string) => void;
     isLoading?: boolean;
+    statusMessage?: string | null;
 }
 
 export default function StreamChatInterface({
@@ -15,7 +16,8 @@ export default function StreamChatInterface({
     onSendMessage,
     onSelectSuggestion,
     onToggleOption,
-    isLoading = false
+    isLoading = false,
+    statusMessage = null
 }: StreamChatInterfaceProps) {
     const [input, setInput] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -108,7 +110,24 @@ export default function StreamChatInterface({
                     </div>
                 ))}
 
-                {isLoading && (
+                {isLoading && statusMessage && (
+                    <div className="flex justify-start">
+                        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg px-4 py-2 border border-blue-200 dark:border-blue-800">
+                            <div className="flex items-center gap-2">
+                                <div className="animate-pulse flex gap-1">
+                                    <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                                    <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                                    <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                                </div>
+                                <span className="text-sm text-blue-700 dark:text-blue-300">
+                                    {statusMessage}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {isLoading && !statusMessage && (
                     <div className="flex justify-start">
                         <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-2">
                             <div className="flex items-center gap-2">

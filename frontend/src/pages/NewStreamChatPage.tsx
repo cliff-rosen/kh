@@ -14,6 +14,7 @@ export default function NewStreamChatPage() {
         currentStep,
         isLoading,
         error,
+        statusMessage,
         sendMessage,
         handleSelectSuggestion,
         handleToggleOption,
@@ -71,6 +72,7 @@ export default function NewStreamChatPage() {
                         onSelectSuggestion={handleSelectSuggestion}
                         onToggleOption={handleToggleOption}
                         isLoading={isLoading}
+                        statusMessage={statusMessage}
                     />
                 </div>
 
