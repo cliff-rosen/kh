@@ -83,45 +83,36 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
                 current_step: currentStep
             };
 
-            let assistantMessageContent = '';
             let finalPayload: any = null;
-
-            // Add a placeholder assistant message for streaming
-            const placeholderMessage: StreamChatMessage = {
-                role: 'assistant',
-                content: '',
-                timestamp: new Date().toISOString()
-            };
-            setMessages(prev => [...prev, placeholderMessage]);
+            let isReceivingTokens = false;
 
             // Stream the response
             for await (const chunk of researchStreamApi.streamChatMessage(request)) {
+                console.log('Received chunk:', chunk);
                 if ('status' in chunk && chunk.status && !('token' in chunk)) {
                     // Status response - update status message for UI display
                     setStatusMessage(chunk.status);
                 } else if ('token' in chunk && chunk.token) {
-                    // Token response - accumulate message
-                    assistantMessageContent += chunk.token;
-                    // Clear status message when we start receiving content
-                    setStatusMessage(null);
-                    // Update the last message with accumulated content
-                    setMessages(prev => {
-                        const updated = [...prev];
-                        updated[updated.length - 1] = {
-                            ...updated[updated.length - 1],
-                            content: assistantMessageContent
-                        };
-                        return updated;
-                    });
+                    // Token response - we're streaming raw LLM output which includes formatting
+                    // Don't display it - wait for the parsed final payload
+                    // Update status to show we're receiving the response
+                    if (!isReceivingTokens) {
+                        isReceivingTokens = true;
+                        setStatusMessage("Receiving response...");
+                    }
                 } else if ('payload' in chunk && chunk.payload && chunk.status === 'complete') {
                     // Final payload with structured data
+                    console.log('Got final payload:', chunk.payload);
                     finalPayload = chunk.payload;
                     setStatusMessage(null);
                 }
             }
 
+            console.log('Stream complete. Final payload:', finalPayload);
+
             // Update with final structured data from payload
             if (finalPayload) {
+                console.log('Processing final payload...');
                 const suggestions = finalPayload.suggestions?.therapeutic_areas?.map((area: string) => ({
                     label: area,
                     value: area
@@ -130,17 +121,16 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
                     value: company
                 }));
 
-                setMessages(prev => {
-                    const updated = [...prev];
-                    updated[updated.length - 1] = {
-                        ...updated[updated.length - 1],
-                        content: finalPayload.message,
-                        suggestions,
-                        options: finalPayload.options
-                    };
-                    return updated;
-                });
+                // Add the assistant message with parsed content
+                const assistantMessage: StreamChatMessage = {
+                    role: 'assistant',
+                    content: finalPayload.message,
+                    timestamp: new Date().toISOString(),
+                    suggestions,
+                    options: finalPayload.options
+                };
 
+                setMessages(prev => [...prev, assistantMessage]);
                 setCurrentStep(finalPayload.next_step);
                 setStreamConfig(finalPayload.updated_config);
             }
