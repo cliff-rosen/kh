@@ -58,8 +58,9 @@ export default function NewStreamChatPage() {
     }, [error, toast, clearError]);
 
     return (
-        <div className="w-full h-[calc(100vh-4rem)] p-6 overflow-hidden flex flex-col">
-            <div className="mb-4 flex-shrink-0">
+        <div className="fixed inset-0 top-16 p-6 flex flex-col">
+            {/* Back button - Fixed at top */}
+            <div className="mb-4">
                 <button
                     onClick={() => navigate('/new-stream')}
                     className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
@@ -68,9 +69,10 @@ export default function NewStreamChatPage() {
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
-                {/* Chat Interface - Left */}
-                <div className="lg:col-span-2 h-full">
+            {/* Main content - Two columns, each with their own scroll */}
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-hidden">
+                {/* Chat Interface - Left - Scrolls internally */}
+                <div className="lg:col-span-2 h-full overflow-hidden">
                     <StreamChatInterface
                         messages={messages}
                         onSendMessage={streamChatMessage}
@@ -83,8 +85,8 @@ export default function NewStreamChatPage() {
                     />
                 </div>
 
-                {/* Config Preview - Right */}
-                <div className="lg:col-span-1 h-full">
+                {/* Config Preview - Right - Fixed, no scroll */}
+                <div className="lg:col-span-1 h-full overflow-hidden">
                     <StreamConfigPreview
                         config={streamConfig}
                         highlightedField={responseMode === 'SUGGESTION' ? targetField : null}
