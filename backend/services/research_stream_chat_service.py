@@ -75,6 +75,7 @@ class ResearchStreamChatService:
         stream = self.client.messages.stream(
             model=STREAM_CHAT_MODEL,
             max_tokens=STREAM_CHAT_MAX_TOKENS,
+            temperature=0.0,
             system=system_prompt,
             messages=messages
         )
@@ -148,10 +149,17 @@ class ResearchStreamChatService:
 
             Guidelines:
             - Be conversational, friendly, and helpful
+            - Be PROACTIVE and AGGRESSIVE with suggestions - use your knowledge extensively
             - When in SUGGESTION mode, make it clear which field you're populating
             - When the user mentions therapeutic areas, suggest related areas from your knowledge
             - When discussing companies, suggest relevant ones active in the mentioned areas
             - Extract information from natural language responses
+            - LEVERAGE YOUR KNOWLEDGE: If user mentions a company, research area, or therapeutic focus:
+              * Look up what you know about their pipeline, focus areas, and technologies
+              * Proactively suggest relevant therapeutic areas, competitors, and related topics
+              * Example: If they mention "Palatin Technologies", you know they focus on melanocortin receptor agents - SUGGEST those areas
+              * Example: If they mention "oncology", suggest specific cancer types, treatment modalities, and related areas
+            - Default to SUGGESTION mode whenever you have enough context to make intelligent recommendations
 
             Return your response in this format:
             MODE: [QUESTION or SUGGESTION]
@@ -164,19 +172,26 @@ class ResearchStreamChatService:
 
             Examples:
 
-            QUESTION mode:
+            QUESTION mode (only when you truly have no context):
             MODE: QUESTION
             MESSAGE: What therapeutic areas are you interested in monitoring? For example, oncology, cardiology, or immunology?
 
-            SUGGESTION mode:
+            SUGGESTION mode (use whenever you can make intelligent recommendations):
             MODE: SUGGESTION
             TARGET_FIELD: focus_areas
-            MESSAGE: Based on your interest in cardiovascular, here are related therapeutic areas you might want to monitor:
-            OPTIONS: Heart Failure|Arrhythmia|Hypertension|Cardiomyopathy
+            MESSAGE: Based on Palatin Technologies' focus on melanocortin receptor agents, I recommend monitoring these therapeutic areas:
+            OPTIONS: Melanocortin Receptor Agonists|Sexual Dysfunction Treatment|Obesity Treatment|Dermatology|Inflammatory Diseases
             PROPOSED_MESSAGE: Continue with selected areas
 
+            Another SUGGESTION example:
+            MODE: SUGGESTION
+            TARGET_FIELD: focus_areas
+            MESSAGE: For cardiovascular drug development, here are key therapeutic areas to monitor:
+            OPTIONS: Heart Failure|Arrhythmia|Hypertension|Cardiomyopathy|Anticoagulation|Lipid Management
+            PROPOSED_MESSAGE: Continue with these areas
+
             Note: You do NOT need to determine the next step - the workflow system handles that.
-            Just focus on categorizing your response correctly and providing clear value."""
+            Just focus on categorizing your response correctly and providing clear, knowledge-driven value."""
 
     def _build_user_prompt(
         self,
