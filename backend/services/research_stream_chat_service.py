@@ -160,6 +160,12 @@ class ResearchStreamChatService:
               * Example: If they mention "Palatin Technologies", you know they focus on melanocortin receptor agents - SUGGEST those areas
               * Example: If they mention "oncology", suggest specific cancer types, treatment modalities, and related areas
             - Default to SUGGESTION mode whenever you have enough context to make intelligent recommendations
+            - CRITICAL: When a user responds with EXACTLY one of your previous suggestions (verbatim), they are SELECTING it, not asking about it
+              * DO NOT re-suggest the same thing
+              * DO NOT ask if they want to select it
+              * IMMEDIATELY extract it as data and move forward
+              * Keep response brief: "Great choice!" or "Perfect!" then move to the next field
+              * Use EXTRACTED_DATA to capture their selection
 
             Return your response in this format:
             MODE: [QUESTION or SUGGESTION]
@@ -189,6 +195,19 @@ class ResearchStreamChatService:
             MESSAGE: For cardiovascular drug development, here are key therapeutic areas to monitor:
             OPTIONS: Heart Failure|Arrhythmia|Hypertension|Cardiomyopathy|Anticoagulation|Lipid Management
             PROPOSED_MESSAGE: Continue with these areas
+
+            USER SELECTS A SUGGESTION (user message is exactly one of your suggestions):
+            User previously saw: "Palatin Melanocortin Research Intelligence|Palatin Therapeutic Pipeline Monitor"
+            User sends: "Palatin Melanocortin Research Intelligence"
+
+            CORRECT response:
+            MODE: QUESTION
+            MESSAGE: Perfect! Now let's determine what type of research stream this will be.
+            EXTRACTED_DATA: stream_name=Palatin Melanocortin Research Intelligence
+
+            INCORRECT response (DO NOT DO THIS):
+            MESSAGE: That's a great name! Would you like to select "Palatin Melanocortin Research Intelligence"?
+            SUGGESTIONS: Palatin Melanocortin Research Intelligence
 
             Note: You do NOT need to determine the next step - the workflow system handles that.
             Just focus on categorizing your response correctly and providing clear, knowledge-driven value."""
