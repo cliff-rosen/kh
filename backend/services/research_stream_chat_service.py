@@ -126,6 +126,13 @@ class ResearchStreamChatService:
 
     def _build_system_prompt(self, step_guidance: Dict[str, Any]) -> str:
         """Build system prompt using workflow guidance instead of hardcoded flow"""
+
+        # Extract options if this step has fixed choices
+        options_info = ""
+        if step_guidance.get('options'):
+            options_list = ", ".join(step_guidance['options'])
+            options_info = f"\nAvailable Options: {options_list}\nYou MUST suggest these exact options."
+
         return f"""You are an AI assistant helping users create research streams for Knowledge Horizon,
             a biomedical and business intelligence platform.
 
@@ -133,7 +140,7 @@ class ResearchStreamChatService:
             The workflow system will handle state management and determine what step comes next.
 
             Current Step Objective: {step_guidance.get('objective', 'Collect information')}
-            Information to Collect: {step_guidance.get('collect', 'User input')}
+            Information to Collect: {step_guidance.get('collect', 'User input')}{options_info}
 
             IMPORTANT: Each response must be categorized as one of two modes:
 
@@ -176,6 +183,14 @@ class ResearchStreamChatService:
             OPTIONS: [option1|option2|option3] (only for SUGGESTION mode - multi-select checkboxes)
             PROPOSED_MESSAGE: [short message user can click to continue] (only for SUGGESTION mode with OPTIONS - e.g., "Continue with these selections")
 
+            IMPORTANT FORMATTING RULES:
+            - For EXTRACTED_DATA with lists (focus_areas, competitors): Use clean comma-separated values WITHOUT brackets or quotes
+              Example: EXTRACTED_DATA: focus_areas=Oncology, Cardiology, Immunology
+              NOT: EXTRACTED_DATA: focus_areas=["Oncology", "Cardiology", "Immunology"]
+            - For single values: Just the value, no quotes
+              Example: EXTRACTED_DATA: stream_name=Palatin Research Stream
+              NOT: EXTRACTED_DATA: stream_name="Palatin Research Stream"
+
             Examples:
 
             QUESTION mode (only when you truly have no context):
@@ -195,6 +210,18 @@ class ResearchStreamChatService:
             MESSAGE: For cardiovascular drug development, here are key therapeutic areas to monitor:
             OPTIONS: Heart Failure|Arrhythmia|Hypertension|Cardiomyopathy|Anticoagulation|Lipid Management
             PROPOSED_MESSAGE: Continue with these areas
+
+            SUGGESTION example for fixed-choice fields (stream_type):
+            MODE: SUGGESTION
+            TARGET_FIELD: stream_type
+            MESSAGE: Based on your focus on Palatin Technologies, what type of research stream would be most useful?
+            SUGGESTIONS: competitive, regulatory, clinical, market, scientific, mixed
+
+            SUGGESTION example for fixed-choice fields (report_frequency):
+            MODE: SUGGESTION
+            TARGET_FIELD: report_frequency
+            MESSAGE: How often would you like to receive reports about this research area?
+            SUGGESTIONS: daily, weekly, biweekly, monthly
 
             USER SELECTS A SUGGESTION (user message is exactly one of your suggestions):
             User previously saw: "Palatin Melanocortin Research Intelligence|Palatin Therapeutic Pipeline Monitor"
@@ -294,13 +321,25 @@ class ResearchStreamChatService:
 
                     # Handle list fields - competitors and focus_areas should be lists
                     if field_name in ['competitors', 'focus_areas'] and field_value:
+                        # Remove brackets and quotes if present
+                        field_value = field_value.strip('[]')
+
                         # Split by comma if it's a comma-separated list, otherwise wrap in list
                         if ',' in field_value:
-                            updates[field_name] = [v.strip() for v in field_value.split(',')]
+                            # Split and clean each item (remove quotes, whitespace)
+                            updates[field_name] = [
+                                v.strip().strip('"').strip("'")
+                                for v in field_value.split(',')
+                                if v.strip()
+                            ]
                         else:
-                            updates[field_name] = [field_value]
+                            # Single item - remove quotes
+                            cleaned_value = field_value.strip('"').strip("'")
+                            if cleaned_value:
+                                updates[field_name] = [cleaned_value]
                     else:
-                        updates[field_name] = field_value
+                        # For non-list fields, just remove quotes if present
+                        updates[field_name] = field_value.strip('"').strip("'")
             elif stripped.startswith("SUGGESTIONS:"):
                 in_message = False
                 suggestion_list = stripped.replace("SUGGESTIONS:", "").strip()
