@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { StreamChatMessage, SuggestionChip, CheckboxOption } from '../types/stream-chat';
+import { StreamChatMessage } from '../types/stream-chat';
 import { PaperAirplaneIcon } from '@heroicons/react/24/solid';
 
 interface StreamChatInterfaceProps {
@@ -53,16 +53,14 @@ export default function StreamChatInterface({
                 {messages.map((message, idx) => (
                     <div key={idx}>
                         <div
-                            className={`flex ${
-                                message.role === 'user' ? 'justify-end' : 'justify-start'
-                            }`}
+                            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'
+                                }`}
                         >
                             <div
-                                className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                                    message.role === 'user'
+                                className={`max-w-[80%] rounded-lg px-4 py-2 ${message.role === 'user'
                                         ? 'bg-blue-600 text-white'
                                         : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-                                }`}
+                                    }`}
                             >
                                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                                 <p className="text-xs opacity-70 mt-1">
