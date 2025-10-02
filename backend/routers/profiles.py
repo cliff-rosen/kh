@@ -5,14 +5,15 @@ Profile API endpoints
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Dict, Any
+from pydantic import BaseModel
+from typing import List, Optional
 
 from database import get_db
 from models import User
+
 from schemas.profile import UserProfile, CompanyProfile, ProfileCompletenessStatus
-from services.profile_service import ProfileService
 from routers.auth import get_current_user
-from pydantic import BaseModel
-from typing import List, Optional
+from services.profile_service import ProfileService
 
 # Request/Response types for this API
 class UserProfileUpdateRequest(BaseModel):

@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import Article, ReportArticleAssociation, InformationSource
-from schemas.kh_schemas import (
+from schemas import (
     ArticleCreate,
     ArticleResponse,
     ArticleUpdate,

@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npm run lint)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(python -c \"from database import engine; from sqlalchemy import inspect; inspector = inspect(engine); print(''Columns in reports table:''); print([col[''name''] for col in inspector.get_columns(''reports'')])\")",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": [],

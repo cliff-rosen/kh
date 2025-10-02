@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import OnboardingSession, CompanyProfile, User
-from schemas.kh_schemas import (
+from schemas import (
     OnboardingMessage,
     OnboardingExtraction,
     OnboardingSessionCreate,
@@ -25,8 +25,6 @@ from agents.prompts.base_prompt_caller import BasePromptCaller
 from config.llm_models import get_task_config, supports_reasoning_effort
 
 logger = logging.getLogger(__name__)
-
-
 
 
 class OnboardingService:

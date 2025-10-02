@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import CurationMandate, CompanyProfile, UserFeedback, FeedbackType
-from schemas.kh_schemas import (
+from schemas import (
     CurationMandateCreate,
     CurationMandateUpdate,
     CurationMandateResponse,

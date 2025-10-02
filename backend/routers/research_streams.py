@@ -5,15 +5,16 @@ Research Streams API endpoints
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+from pydantic import BaseModel
 
 from database import get_db
 from models import User
+
 from schemas.research_stream import ResearchStream, StreamType, ReportFrequency
 from services.research_stream_service import ResearchStreamService
 from routers.auth import get_current_user
 
 # Request/Response schemas for this endpoint
-from pydantic import BaseModel
 
 class ResearchStreamCreateRequest(BaseModel):
     stream_name: str

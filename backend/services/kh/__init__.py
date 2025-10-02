@@ -4,10 +4,10 @@ Knowledge Horizon Services
 Core services for the Knowledge Horizon POC application.
 """
 
-from .onboarding import OnboardingService, get_onboarding_service
-from .research import CompanyResearchService, get_research_service
-from .mandate import MandateService, get_mandate_service
-from .articles import ArticleService, get_article_service
+from .onboarding_service import OnboardingService, get_onboarding_service
+from .company_research_service import CompanyResearchService, get_research_service
+from .mandate_service import MandateService, get_mandate_service
+from .article_service import ArticleService, get_article_service
 
 __all__ = [
     'OnboardingService', 'get_onboarding_service',
