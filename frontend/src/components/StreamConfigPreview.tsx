@@ -171,7 +171,7 @@ export default function StreamConfigPreview({ config, highlightedField, onUpdate
                         </label>
                         {config.focus_areas && config.focus_areas.length > 0 && editingField !== 'focus_areas' && (
                             <button
-                                onClick={() => startEditing('focus_areas', config.focus_areas.join(', '))}
+                                onClick={() => startEditing('focus_areas', config.focus_areas?.join(', ') || '')}
                                 className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                             >
                                 <PencilIcon className="h-4 w-4" />
@@ -227,7 +227,7 @@ export default function StreamConfigPreview({ config, highlightedField, onUpdate
                         </label>
                         {config.competitors && config.competitors.length > 0 && editingField !== 'competitors' && (
                             <button
-                                onClick={() => startEditing('competitors', config.competitors.join(', '))}
+                                onClick={() => startEditing('competitors', config.competitors?.join(', ') || '')}
                                 className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                             >
                                 <PencilIcon className="h-4 w-4" />
@@ -390,7 +390,7 @@ export default function StreamConfigPreview({ config, highlightedField, onUpdate
                             </label>
                             {editingField !== 'business_goals' && (
                                 <button
-                                    onClick={() => startEditing('business_goals', config.business_goals.join(', '))}
+                                    onClick={() => startEditing('business_goals', config.business_goals?.join(', ') || '')}
                                     className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                                 >
                                     <PencilIcon className="h-4 w-4" />
@@ -439,7 +439,7 @@ export default function StreamConfigPreview({ config, highlightedField, onUpdate
                             </label>
                             {editingField !== 'keywords' && (
                                 <button
-                                    onClick={() => startEditing('keywords', config.keywords.join(', '))}
+                                    onClick={() => startEditing('keywords', config.keywords?.join(', ') || '')}
                                     className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                                 >
                                     <PencilIcon className="h-4 w-4" />
