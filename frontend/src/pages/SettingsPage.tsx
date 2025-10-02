@@ -70,8 +70,6 @@ export default function SettingsPage() {
     const tabs = [
         { id: 'user', name: 'User Profile', icon: '👤' },
         { id: 'company', name: 'Company Profile', icon: '🏢' },
-        { id: 'notifications', name: 'Notifications', icon: '🔔' },
-        { id: 'schedule', name: 'Report Schedule', icon: '📅' },
     ];
 
     return (
@@ -283,82 +281,6 @@ export default function SettingsPage() {
                                 </form>
                             </div>
                         )}
-
-
-                        {activeTab === 'notifications' && (
-                            <div className="p-6">
-                                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
-                                    Notification Preferences
-                                </h2>
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-600">
-                                        <div>
-                                            <h3 className="font-medium text-gray-900 dark:text-white">Email Reports</h3>
-                                            <p className="text-sm text-gray-600 dark:text-gray-400">Receive weekly intelligence reports via email</p>
-                                        </div>
-                                        <input type="checkbox" className="h-4 w-4 text-blue-600" defaultChecked />
-                                    </div>
-                                    <div className="flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-600">
-                                        <div>
-                                            <h3 className="font-medium text-gray-900 dark:text-white">Breaking News Alerts</h3>
-                                            <p className="text-sm text-gray-600 dark:text-gray-400">Immediate notifications for critical developments</p>
-                                        </div>
-                                        <input type="checkbox" className="h-4 w-4 text-blue-600" />
-                                    </div>
-                                    <div className="flex items-center justify-between py-3">
-                                        <div>
-                                            <h3 className="font-medium text-gray-900 dark:text-white">Weekly Digest</h3>
-                                            <p className="text-sm text-gray-600 dark:text-gray-400">Summary of all activity and insights</p>
-                                        </div>
-                                        <input type="checkbox" className="h-4 w-4 text-blue-600" defaultChecked />
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-
-                        {activeTab === 'schedule' && (
-                            <div className="p-6">
-                                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
-                                    Report Schedule
-                                </h2>
-                                <div className="space-y-6">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                            Report Frequency
-                                        </label>
-                                        <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                                            <option value="daily">Daily</option>
-                                            <option value="weekly" selected>Weekly</option>
-                                            <option value="biweekly">Bi-weekly</option>
-                                            <option value="monthly">Monthly</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                            Delivery Time
-                                        </label>
-                                        <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                                            <option value="08:00">8:00 AM</option>
-                                            <option value="09:00" selected>9:00 AM</option>
-                                            <option value="10:00">10:00 AM</option>
-                                            <option value="17:00">5:00 PM</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                            Time Zone
-                                        </label>
-                                        <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                                            <option value="UTC">UTC</option>
-                                            <option value="EST" selected>Eastern Time</option>
-                                            <option value="PST">Pacific Time</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
                     </div>
                 </div>
             </div>
