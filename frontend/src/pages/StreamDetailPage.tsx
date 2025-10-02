@@ -17,10 +17,17 @@ export default function StreamDetailPage() {
         focus_areas: [] as string[],
         competitors: [] as string[],
         report_frequency: ReportFrequency.WEEKLY,
-        is_active: true
+        is_active: true,
+        // Phase 1 fields
+        purpose: '',
+        business_goals: [] as string[],
+        expected_outcomes: '',
+        keywords: [] as string[]
     });
     const [focusAreasInput, setFocusAreasInput] = useState('');
     const [competitorsInput, setCompetitorsInput] = useState('');
+    const [businessGoalsInput, setBusinessGoalsInput] = useState('');
+    const [keywordsInput, setKeywordsInput] = useState('');
 
     useEffect(() => {
         loadResearchStreams();
@@ -38,10 +45,17 @@ export default function StreamDetailPage() {
                     focus_areas: foundStream.focus_areas || [],
                     competitors: foundStream.competitors || [],
                     report_frequency: foundStream.report_frequency,
-                    is_active: foundStream.is_active
+                    is_active: foundStream.is_active,
+                    // Phase 1 fields
+                    purpose: foundStream.purpose || '',
+                    business_goals: foundStream.business_goals || [],
+                    expected_outcomes: foundStream.expected_outcomes || '',
+                    keywords: foundStream.keywords || []
                 });
                 setFocusAreasInput((foundStream.focus_areas || []).join(', '));
                 setCompetitorsInput((foundStream.competitors || []).join(', '));
+                setBusinessGoalsInput((foundStream.business_goals || []).join(', '));
+                setKeywordsInput((foundStream.keywords || []).join(', '));
             }
         }
     }, [id, researchStreams]);
@@ -56,6 +70,18 @@ export default function StreamDetailPage() {
         setCompetitorsInput(value);
         const competitors = value.split(',').map(s => s.trim()).filter(s => s);
         setForm({ ...form, competitors });
+    };
+
+    const handleBusinessGoalsChange = (value: string) => {
+        setBusinessGoalsInput(value);
+        const goals = value.split(',').map(s => s.trim()).filter(s => s);
+        setForm({ ...form, business_goals: goals });
+    };
+
+    const handleKeywordsChange = (value: string) => {
+        setKeywordsInput(value);
+        const keywords = value.split(',').map(s => s.trim()).filter(s => s);
+        setForm({ ...form, keywords });
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -228,6 +254,73 @@ export default function StreamDetailPage() {
                         <label htmlFor="is_active" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
                             Stream is active
                         </label>
+                    </div>
+
+                    {/* Phase 1 Fields */}
+                    <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                            Enhanced Configuration
+                        </h3>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Purpose *
+                        </label>
+                        <textarea
+                            value={form.purpose}
+                            onChange={(e) => setForm({ ...form, purpose: e.target.value })}
+                            rows={3}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            placeholder="What's the purpose of this research stream? What decisions will it help you make?"
+                            required
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Business Goals
+                        </label>
+                        <input
+                            type="text"
+                            value={businessGoalsInput}
+                            onChange={(e) => handleBusinessGoalsChange(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            placeholder="e.g., Inform study design, Track competitive landscape"
+                        />
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            Strategic objectives (comma-separated)
+                        </p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Expected Outcomes
+                        </label>
+                        <textarea
+                            value={form.expected_outcomes}
+                            onChange={(e) => setForm({ ...form, expected_outcomes: e.target.value })}
+                            rows={2}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            placeholder="What outcomes or decisions will this intelligence drive?"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Search Keywords *
+                        </label>
+                        <input
+                            type="text"
+                            value={keywordsInput}
+                            onChange={(e) => handleKeywordsChange(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            placeholder="e.g., melanocortin, MCR1, MCR4, obesity"
+                            required
+                        />
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            Specific keywords for literature search (comma-separated)
+                        </p>
                     </div>
 
                     <div className="flex justify-between items-center pt-6 border-t border-gray-200 dark:border-gray-700">

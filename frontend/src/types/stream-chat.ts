@@ -22,9 +22,12 @@ export interface CheckboxOption {
 
 export type StreamCreationStep =
     | 'intro'
+    | 'business_focus'
+    | 'purpose'
     | 'name'
     | 'type'
     | 'focus'
+    | 'keywords'
     | 'competitors'
     | 'frequency'
     | 'review'
@@ -37,6 +40,18 @@ export interface PartialStreamConfig {
     focus_areas?: string[];
     competitors?: string[];
     report_frequency?: string;
+
+    // Phase 1 additions
+    purpose?: string;
+    business_goals?: string[];
+    expected_outcomes?: string;
+    keywords?: string[];
+    scoring_config?: {
+        relevance_weight?: number;
+        evidence_weight?: number;
+        inclusion_threshold?: number;
+        max_items_per_report?: number;
+    };
 }
 
 export interface StreamChatSuggestions {

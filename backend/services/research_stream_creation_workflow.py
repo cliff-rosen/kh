@@ -14,9 +14,11 @@ class WorkflowStep(str, Enum):
     """Steps in the research stream creation workflow"""
     INTRO = "intro"
     BUSINESS_FOCUS = "business_focus"
+    PURPOSE = "purpose"  # Phase 1: Why this stream exists
     STREAM_NAME = "stream_name"
     STREAM_TYPE = "stream_type"
     FOCUS_AREAS = "focus_areas"
+    KEYWORDS = "keywords"  # Phase 1: Search keywords
     COMPETITORS = "competitors"
     REPORT_FREQUENCY = "report_frequency"
     REVIEW = "review"
@@ -47,29 +49,35 @@ class ResearchStreamCreationWorkflow:
     STEP_REQUIREMENTS = {
         WorkflowStep.INTRO: [],
         WorkflowStep.BUSINESS_FOCUS: [],  # Just collecting context
+        WorkflowStep.PURPOSE: ["purpose"],  # Phase 1: Purpose is required
         WorkflowStep.STREAM_NAME: ["stream_name"],
         WorkflowStep.STREAM_TYPE: ["stream_type"],
         WorkflowStep.FOCUS_AREAS: ["focus_areas"],
+        WorkflowStep.KEYWORDS: ["keywords"],  # Phase 1: Keywords required
         WorkflowStep.COMPETITORS: [],  # Optional - can skip
         WorkflowStep.REPORT_FREQUENCY: ["report_frequency"],
-        WorkflowStep.REVIEW: ["stream_name", "stream_type", "focus_areas", "report_frequency"],
-        WorkflowStep.COMPLETE: ["stream_name", "stream_type", "focus_areas", "report_frequency"]
+        WorkflowStep.REVIEW: ["purpose", "stream_name", "stream_type", "focus_areas", "keywords", "report_frequency"],
+        WorkflowStep.COMPLETE: ["purpose", "stream_name", "stream_type", "focus_areas", "keywords", "report_frequency"]
     }
 
     # Dependency graph: each step defines what steps must be completed before it can be entered
     STEP_DEPENDENCIES = {
         WorkflowStep.INTRO: [],  # No dependencies - always the starting point
         WorkflowStep.BUSINESS_FOCUS: [WorkflowStep.INTRO],
-        WorkflowStep.STREAM_NAME: [WorkflowStep.INTRO],  # Can happen after intro
+        WorkflowStep.PURPOSE: [WorkflowStep.INTRO],  # Can happen after intro
+        WorkflowStep.STREAM_NAME: [WorkflowStep.PURPOSE],  # Name should come after purpose
         WorkflowStep.STREAM_TYPE: [WorkflowStep.INTRO],  # Can happen after intro
         WorkflowStep.FOCUS_AREAS: [WorkflowStep.INTRO],  # Can happen after intro
+        WorkflowStep.KEYWORDS: [WorkflowStep.FOCUS_AREAS],  # Keywords after focus areas
         WorkflowStep.COMPETITORS: [WorkflowStep.INTRO],  # Can happen after intro
         WorkflowStep.REPORT_FREQUENCY: [WorkflowStep.INTRO],  # Can happen after intro
         WorkflowStep.REVIEW: [  # Review requires all core fields to be collected
             WorkflowStep.INTRO,
+            WorkflowStep.PURPOSE,
             WorkflowStep.STREAM_NAME,
             WorkflowStep.STREAM_TYPE,
             WorkflowStep.FOCUS_AREAS,
+            WorkflowStep.KEYWORDS,
             WorkflowStep.REPORT_FREQUENCY
         ],
         WorkflowStep.COMPLETE: [WorkflowStep.REVIEW]  # Complete only after review
@@ -80,9 +88,11 @@ class ResearchStreamCreationWorkflow:
     PREFERRED_STEP_ORDER = [
         WorkflowStep.INTRO,
         WorkflowStep.BUSINESS_FOCUS,
+        WorkflowStep.PURPOSE,  # Phase 1: Ask purpose early
         WorkflowStep.STREAM_NAME,
         WorkflowStep.STREAM_TYPE,
         WorkflowStep.FOCUS_AREAS,
+        WorkflowStep.KEYWORDS,  # Phase 1: Keywords after focus areas
         WorkflowStep.COMPETITORS,
         WorkflowStep.REPORT_FREQUENCY,
         WorkflowStep.REVIEW,
@@ -253,6 +263,14 @@ class ResearchStreamCreationWorkflow:
                     "Are you interested in a specific therapeutic area like oncology or cardiovascular?"
                 ]
             },
+            WorkflowStep.PURPOSE: {
+                "objective": "Understand why this stream exists and what decisions it will inform",
+                "collect": "purpose",
+                "example_questions": [
+                    "What's the purpose of this research stream? What decisions will it help you make?",
+                    "Why do you want to monitor this area? What opportunities or risks are you tracking?"
+                ]
+            },
             WorkflowStep.STREAM_NAME: {
                 "objective": "Create a descriptive name for the stream",
                 "collect": "stream_name",
@@ -276,6 +294,15 @@ class ResearchStreamCreationWorkflow:
                 "example_questions": [
                     "Which specific therapeutic areas should we monitor?",
                     "What topics or domains are most relevant to you?"
+                ],
+                "provide_suggestions": True
+            },
+            WorkflowStep.KEYWORDS: {
+                "objective": "Collect specific search keywords for literature databases",
+                "collect": "keywords (list)",
+                "example_questions": [
+                    "What specific keywords should we use when searching scientific literature?",
+                    "Are there specific molecules, pathways, or terms we should search for?"
                 ],
                 "provide_suggestions": True
             },

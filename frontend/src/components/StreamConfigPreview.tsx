@@ -36,7 +36,7 @@ export default function StreamConfigPreview({ config, highlightedField, onUpdate
         if (onUpdateField) {
             // Convert comma-separated string to array for array fields
             let valueToSave = editValue;
-            if (fieldName === 'focus_areas' || fieldName === 'competitors') {
+            if (fieldName === 'focus_areas' || fieldName === 'competitors' || fieldName === 'keywords' || fieldName === 'business_goals') {
                 valueToSave = editValue
                     ? editValue.split(',').map((item: string) => item.trim()).filter((item: string) => item)
                     : [];
@@ -324,6 +324,166 @@ export default function StreamConfigPreview({ config, highlightedField, onUpdate
                     )}
                 </div>
 
+                {/* Phase 1 Fields Divider */}
+                {(config.purpose || config.keywords || config.business_goals) && (
+                    <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+                        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
+                            Enhanced Configuration
+                        </h4>
+                    </div>
+                )}
+
+                {/* Purpose */}
+                {config.purpose && (
+                    <div className={getFieldClassName('purpose')}>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Purpose {isHighlighted('purpose') && <span className="text-blue-600 dark:text-blue-400 text-xs">(selecting...)</span>}
+                            </label>
+                            {editingField !== 'purpose' && (
+                                <button
+                                    onClick={() => startEditing('purpose', config.purpose)}
+                                    className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                >
+                                    <PencilIcon className="h-4 w-4" />
+                                </button>
+                            )}
+                        </div>
+                        {editingField === 'purpose' ? (
+                            <div className="flex gap-2">
+                                <textarea
+                                    value={editValue || ''}
+                                    onChange={(e) => setEditValue(e.target.value)}
+                                    rows={3}
+                                    className="flex-1 px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    autoFocus
+                                />
+                                <div className="flex flex-col gap-1">
+                                    <button
+                                        onClick={() => saveEdit('purpose')}
+                                        className="p-1 text-green-600 hover:text-green-700 dark:text-green-400"
+                                    >
+                                        <CheckIcon className="h-5 w-5" />
+                                    </button>
+                                    <button
+                                        onClick={cancelEditing}
+                                        className="p-1 text-red-600 hover:text-red-700 dark:text-red-400"
+                                    >
+                                        <XMarkIcon className="h-5 w-5" />
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-sm text-gray-900 dark:text-white">
+                                {config.purpose}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Business Goals */}
+                {config.business_goals && config.business_goals.length > 0 && (
+                    <div className={getFieldClassName('business_goals')}>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Business Goals {isHighlighted('business_goals') && <span className="text-blue-600 dark:text-blue-400 text-xs">(selecting...)</span>}
+                            </label>
+                            {editingField !== 'business_goals' && (
+                                <button
+                                    onClick={() => startEditing('business_goals', config.business_goals.join(', '))}
+                                    className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                >
+                                    <PencilIcon className="h-4 w-4" />
+                                </button>
+                            )}
+                        </div>
+                        {editingField === 'business_goals' ? (
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={editValue || ''}
+                                    onChange={(e) => setEditValue(e.target.value)}
+                                    placeholder="Enter goals separated by commas"
+                                    className="flex-1 px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    autoFocus
+                                />
+                                <button
+                                    onClick={() => saveEdit('business_goals')}
+                                    className="p-1 text-green-600 hover:text-green-700 dark:text-green-400"
+                                >
+                                    <CheckIcon className="h-5 w-5" />
+                                </button>
+                                <button
+                                    onClick={cancelEditing}
+                                    className="p-1 text-red-600 hover:text-red-700 dark:text-red-400"
+                                >
+                                    <XMarkIcon className="h-5 w-5" />
+                                </button>
+                            </div>
+                        ) : (
+                            <ul className="list-disc list-inside space-y-1 text-sm text-gray-900 dark:text-white">
+                                {config.business_goals.map((goal, idx) => (
+                                    <li key={idx}>{goal}</li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                )}
+
+                {/* Keywords */}
+                {config.keywords && config.keywords.length > 0 && (
+                    <div className={getFieldClassName('keywords')}>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Search Keywords {isHighlighted('keywords') && <span className="text-blue-600 dark:text-blue-400 text-xs">(selecting...)</span>}
+                            </label>
+                            {editingField !== 'keywords' && (
+                                <button
+                                    onClick={() => startEditing('keywords', config.keywords.join(', '))}
+                                    className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                >
+                                    <PencilIcon className="h-4 w-4" />
+                                </button>
+                            )}
+                        </div>
+                        {editingField === 'keywords' ? (
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={editValue || ''}
+                                    onChange={(e) => setEditValue(e.target.value)}
+                                    placeholder="Enter keywords separated by commas"
+                                    className="flex-1 px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    autoFocus
+                                />
+                                <button
+                                    onClick={() => saveEdit('keywords')}
+                                    className="p-1 text-green-600 hover:text-green-700 dark:text-green-400"
+                                >
+                                    <CheckIcon className="h-5 w-5" />
+                                </button>
+                                <button
+                                    onClick={cancelEditing}
+                                    className="p-1 text-red-600 hover:text-red-700 dark:text-red-400"
+                                >
+                                    <XMarkIcon className="h-5 w-5" />
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex flex-wrap gap-2">
+                                {config.keywords.map((keyword, idx) => (
+                                    <span
+                                        key={idx}
+                                        className="px-3 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded-full text-sm"
+                                    >
+                                        {keyword}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Completeness Indicator */}
                 <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
                     <div className="flex items-center justify-between text-sm">
@@ -345,14 +505,15 @@ export default function StreamConfigPreview({ config, highlightedField, onUpdate
 }
 
 function getCompletionPercentage(config: PartialStreamConfig): number {
-    const fields = [
+    const requiredFields = [
         config.stream_name,
         config.stream_type,
         config.focus_areas?.length,
-        config.competitors?.length,
-        config.report_frequency
+        config.report_frequency,
+        config.purpose,
+        config.keywords?.length
     ];
 
-    const completed = fields.filter(field => field).length;
-    return Math.round((completed / fields.length) * 100);
+    const completed = requiredFields.filter(field => field).length;
+    return Math.round((completed / requiredFields.length) * 100);
 }

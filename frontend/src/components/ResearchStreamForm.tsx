@@ -17,7 +17,12 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
         stream_type: StreamType.MIXED,
         focus_areas: [] as string[],
         competitors: [] as string[],
-        report_frequency: ReportFrequency.WEEKLY
+        report_frequency: ReportFrequency.WEEKLY,
+        // Phase 1 fields
+        purpose: '',
+        business_goals: [] as string[],
+        expected_outcomes: '',
+        keywords: [] as string[]
     });
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -38,6 +43,16 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
     const handleCompetitorsChange = (value: string) => {
         const competitors = value.split(',').map(s => s.trim()).filter(s => s);
         setForm({ ...form, competitors });
+    };
+
+    const handleBusinessGoalsChange = (value: string) => {
+        const goals = value.split(',').map(s => s.trim()).filter(s => s);
+        setForm({ ...form, business_goals: goals });
+    };
+
+    const handleKeywordsChange = (value: string) => {
+        const keywords = value.split(',').map(s => s.trim()).filter(s => s);
+        setForm({ ...form, keywords });
     };
 
     return (
@@ -155,6 +170,79 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                         <option value={ReportFrequency.BIWEEKLY}>Bi-weekly</option>
                         <option value={ReportFrequency.MONTHLY}>Monthly</option>
                     </select>
+                </div>
+
+                {/* Phase 1 Fields */}
+                <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                        Enhanced Configuration
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        Optional: Provide additional context for better intelligence gathering
+                    </p>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Purpose *
+                    </label>
+                    <textarea
+                        placeholder="What's the purpose of this research stream? What decisions will it help you make?"
+                        rows={3}
+                        value={form.purpose}
+                        onChange={(e) => setForm({ ...form, purpose: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        required
+                    />
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        Example: Monitor melanocortin pathways to identify opportunities and risks for drug development programs
+                    </p>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Business Goals
+                    </label>
+                    <input
+                        type="text"
+                        placeholder="e.g., Inform study design, Track competitive landscape, Identify new indications"
+                        value={form.business_goals.join(', ')}
+                        onChange={(e) => handleBusinessGoalsChange(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        Strategic objectives this stream supports (comma-separated)
+                    </p>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Expected Outcomes
+                    </label>
+                    <textarea
+                        placeholder="What outcomes or decisions will this intelligence drive?"
+                        rows={2}
+                        value={form.expected_outcomes}
+                        onChange={(e) => setForm({ ...form, expected_outcomes: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Search Keywords *
+                    </label>
+                    <input
+                        type="text"
+                        placeholder="e.g., melanocortin, MCR1, MCR4, bremelanotide, obesity, dry eye disease"
+                        value={form.keywords.join(', ')}
+                        onChange={(e) => handleKeywordsChange(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        required
+                    />
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        Specific keywords to search in scientific literature (comma-separated)
+                    </p>
                 </div>
 
                 <div className="flex justify-between">

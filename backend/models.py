@@ -101,7 +101,15 @@ class ResearchStream(Base):
     regulatory_bodies = Column(JSON, default=list)  # FDA, EMA, etc.
     scientific_domains = Column(JSON, default=list)  # Clinical, preclinical, discovery, etc.
     exclusions = Column(JSON, default=list)  # Topics to exclude
-    keywords = Column(JSON, default=list)  # Additional search keywords
+    keywords = Column(JSON, default=list)  # Search keywords
+
+    # Phase 1: Purpose and Business Context
+    purpose = Column(Text, nullable=True)  # Why this stream exists - what decisions it will inform
+    business_goals = Column(JSON, default=list, nullable=True)  # Strategic objectives this stream supports
+    expected_outcomes = Column(Text, nullable=True)  # What outcomes/decisions this intelligence will drive
+
+    # Phase 1: Scoring Configuration
+    scoring_config = Column(JSON, nullable=True)  # Relevance scoring and filtering config
 
     # Report scheduling integrated at stream level
     report_frequency = Column(Enum(ReportFrequency), default=ReportFrequency.WEEKLY)

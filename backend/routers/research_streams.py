@@ -4,34 +4,55 @@ Research Streams API endpoints
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
-from pydantic import BaseModel
+from typing import List, Optional
+from pydantic import BaseModel, Field
 
 from database import get_db
 from models import User
 
-from schemas.research_stream import ResearchStream, StreamType, ReportFrequency
+from schemas.research_stream import (
+    ResearchStream,
+    StreamType,
+    ReportFrequency,
+    ScoringConfig
+)
 from services.research_stream_service import ResearchStreamService
 from routers.auth import get_current_user
 
-# Request/Response schemas for this endpoint
-
+# Request/Response types (API layer only)
 class ResearchStreamCreateRequest(BaseModel):
-    stream_name: str
-    description: str = None
-    stream_type: StreamType = StreamType.MIXED
-    focus_areas: List[str] = []
-    competitors: List[str] = []
-    report_frequency: ReportFrequency = ReportFrequency.WEEKLY
+    """Request schema for creating a research stream"""
+    stream_name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    stream_type: StreamType
+    focus_areas: List[str] = Field(default_factory=list)
+    competitors: List[str] = Field(default_factory=list)
+    report_frequency: ReportFrequency
+
+    # Phase 1 additions
+    purpose: Optional[str] = None
+    business_goals: Optional[List[str]] = None
+    expected_outcomes: Optional[str] = None
+    keywords: Optional[List[str]] = None
+    scoring_config: Optional[ScoringConfig] = None
+
 
 class ResearchStreamUpdateRequest(BaseModel):
-    stream_name: str = None
-    description: str = None
-    stream_type: StreamType = None
-    focus_areas: List[str] = None
-    competitors: List[str] = None
-    report_frequency: ReportFrequency = None
-    is_active: bool = None
+    """Request schema for updating a research stream"""
+    stream_name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    stream_type: Optional[StreamType] = None
+    focus_areas: Optional[List[str]] = None
+    competitors: Optional[List[str]] = None
+    report_frequency: Optional[ReportFrequency] = None
+    is_active: Optional[bool] = None
+
+    # Phase 1 additions
+    purpose: Optional[str] = None
+    business_goals: Optional[List[str]] = None
+    expected_outcomes: Optional[str] = None
+    keywords: Optional[List[str]] = None
+    scoring_config: Optional[ScoringConfig] = None
 
 class ResearchStreamResponse(BaseModel):
     data: ResearchStream
@@ -81,8 +102,12 @@ async def create_research_stream(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Create a new research stream"""
+    """Create a new research stream with Phase 1 enhancements"""
     service = ResearchStreamService(db)
+
+    # Convert scoring_config from Pydantic model to dict if present
+    scoring_dict = request.scoring_config.dict() if request.scoring_config else None
+
     return service.create_research_stream(
         user_id=current_user.user_id,
         stream_name=request.stream_name,
@@ -90,7 +115,13 @@ async def create_research_stream(
         stream_type=request.stream_type,
         focus_areas=request.focus_areas,
         competitors=request.competitors,
-        report_frequency=request.report_frequency
+        report_frequency=request.report_frequency,
+        # Phase 1 fields
+        purpose=request.purpose,
+        business_goals=request.business_goals,
+        expected_outcomes=request.expected_outcomes,
+        keywords=request.keywords,
+        scoring_config=scoring_dict
     )
 
 
@@ -101,7 +132,7 @@ async def update_research_stream(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Update an existing research stream"""
+    """Update an existing research stream with Phase 1 support"""
     service = ResearchStreamService(db)
 
     # Verify ownership
@@ -114,6 +145,11 @@ async def update_research_stream(
 
     # Prepare update data (only non-None values)
     update_data = {k: v for k, v in request.dict().items() if v is not None}
+
+    # Convert scoring_config from Pydantic model to dict if present
+    if 'scoring_config' in update_data and update_data['scoring_config'] is not None:
+        if hasattr(update_data['scoring_config'], 'dict'):
+            update_data['scoring_config'] = update_data['scoring_config'].dict()
 
     return service.update_research_stream(stream_id, update_data)
 

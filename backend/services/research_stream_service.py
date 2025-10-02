@@ -64,14 +64,24 @@ class ResearchStreamService:
         stream_type: StreamType = StreamType.MIXED,
         focus_areas: List[str] = None,
         competitors: List[str] = None,
-        report_frequency: ReportFrequency = ReportFrequency.WEEKLY
+        report_frequency: ReportFrequency = ReportFrequency.WEEKLY,
+        # Phase 1 additions
+        purpose: Optional[str] = None,
+        business_goals: Optional[List[str]] = None,
+        expected_outcomes: Optional[str] = None,
+        keywords: Optional[List[str]] = None,
+        scoring_config: Optional[Dict[str, Any]] = None
     ) -> ResearchStream:
-        """Create a new research stream"""
+        """Create a new research stream with Phase 1 enhancements"""
 
         if focus_areas is None:
             focus_areas = []
         if competitors is None:
             competitors = []
+        if business_goals is None:
+            business_goals = []
+        if keywords is None:
+            keywords = []
 
         research_stream = ResearchStream(
             user_id=user_id,
@@ -81,6 +91,12 @@ class ResearchStreamService:
             focus_areas=focus_areas,
             competitors=competitors,
             report_frequency=report_frequency,
+            # Phase 1 fields
+            purpose=purpose,
+            business_goals=business_goals,
+            expected_outcomes=expected_outcomes,
+            keywords=keywords,
+            scoring_config=scoring_config,
             is_active=True,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
