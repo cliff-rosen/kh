@@ -80,7 +80,7 @@ class StreamChatService:
         # Call Claude API with streaming
         collected_text = ""
 
-        async with self.client.messages.stream(
+        stream = self.client.messages.stream(
             model="claude-3-5-sonnet-20241022",
             max_tokens=2000,
             system=system_prompt,
@@ -88,8 +88,10 @@ class StreamChatService:
                 "role": "user",
                 "content": user_prompt
             }]
-        ) as stream:
-            async for text in stream.text_stream:
+        )
+
+        with stream as stream_manager:
+            for text in stream_manager.text_stream:
                 collected_text += text
                 # Stream each token as it arrives
                 token_response = AgentResponse(
