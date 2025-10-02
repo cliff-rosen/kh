@@ -49,7 +49,7 @@ export default function StreamConfigPreview({ config }: StreamConfigPreviewProps
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Focus Areas
                     </label>
-                    {config.focus_areas && config.focus_areas.length > 0 ? (
+                    {config.focus_areas && Array.isArray(config.focus_areas) && config.focus_areas.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
                             {config.focus_areas.map((area, idx) => (
                                 <span
@@ -70,7 +70,7 @@ export default function StreamConfigPreview({ config }: StreamConfigPreviewProps
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Competitors to Monitor
                     </label>
-                    {config.competitors && config.competitors.length > 0 ? (
+                    {config.competitors && Array.isArray(config.competitors) && config.competitors.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
                             {config.competitors.map((competitor, idx) => (
                                 <span

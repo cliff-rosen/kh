@@ -10,7 +10,7 @@ import {
     StreamChatResponse
 } from '../types/stream-chat';
 import { api } from '../lib/api';
-import { useToast } from '../hooks/use-toast';
+import { useToast } from '../components/ui/use-toast';
 
 export default function NewStreamChatPage() {
     const navigate = useNavigate();
