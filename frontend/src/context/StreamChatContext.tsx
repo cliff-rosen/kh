@@ -1,10 +1,9 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { researchStreamApi, handleApiError } from '../lib/api';
+import { researchStreamApi, handleApiError, StreamChatRequest } from '../lib/api';
 import {
     StreamChatMessage,
     PartialStreamConfig,
-    StreamCreationStep,
-    StreamChatRequest
+    StreamCreationStep
 } from '../types/stream-chat';
 import { ResearchStream } from '../types';
 

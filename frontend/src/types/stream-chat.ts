@@ -50,18 +50,3 @@ export interface StreamCreationChatState {
     streamConfig: PartialStreamConfig;
     suggestions: StreamChatSuggestions;
 }
-
-// API Request/Response types
-export interface StreamChatRequest {
-    message: string;
-    current_config: PartialStreamConfig;
-    current_step: StreamCreationStep;
-}
-
-export interface StreamChatResponse {
-    message: string;
-    next_step: StreamCreationStep;
-    updated_config: PartialStreamConfig;
-    suggestions?: StreamChatSuggestions;
-    options?: CheckboxOption[];
-}

@@ -1,11 +1,28 @@
 import { api } from './index';
 import { ResearchStream, StreamType, ReportFrequency } from '../../types';
 import {
-    StreamChatRequest,
-    StreamChatResponse
+    PartialStreamConfig,
+    StreamCreationStep,
+    StreamChatSuggestions,
+    CheckboxOption
 } from '../../types/stream-chat';
 import { makeStreamRequest } from './streamUtils';
 import { StreamResponse, AgentResponse, StatusResponse } from '../../types/chat';
+
+// API Request/Response types (belong in API layer, not in types/)
+export interface StreamChatRequest {
+    message: string;
+    current_config: PartialStreamConfig;
+    current_step: StreamCreationStep;
+}
+
+export interface StreamChatResponse {
+    message: string;
+    next_step: StreamCreationStep;
+    updated_config: PartialStreamConfig;
+    suggestions?: StreamChatSuggestions;
+    options?: CheckboxOption[];
+}
 
 // Request/Response wrapper types
 export interface ResearchStreamCreateRequest {
