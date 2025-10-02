@@ -84,7 +84,25 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
             };
 
             let finalPayload: any = null;
-            let isReceivingTokens = false;
+            let accumulatedText = '';
+            let messageStarted = false;
+
+            // Add placeholder message
+            const placeholderMessage: StreamChatMessage = {
+                role: 'assistant',
+                content: '',
+                timestamp: new Date().toISOString()
+            };
+            setMessages(prev => [...prev, placeholderMessage]);
+
+            // Helper to extract just the MESSAGE content from accumulated text
+            const extractMessage = (text: string): string => {
+                const messageMatch = text.match(/MESSAGE:\s*([\s\S]*?)(?=\n(?:NEXT_STEP|UPDATED_FIELD|SUGGESTIONS|OPTIONS):|$)/);
+                if (messageMatch) {
+                    return messageMatch[1].trim();
+                }
+                return '';
+            };
 
             // Stream the response
             for await (const chunk of researchStreamApi.streamChatMessage(request)) {
@@ -96,16 +114,31 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
                     console.log('Got final payload:', chunk.payload);
                     finalPayload = chunk.payload;
                     setStatusMessage(null);
-                } else if (chunk.status && !chunk.token) {
+                } else if (chunk.status && !('token' in chunk)) {
                     // Status response (thinking, etc.) - update status message for UI display
                     setStatusMessage(chunk.status);
-                } else if (chunk.token) {
-                    // Token response - we're streaming raw LLM output which includes formatting
-                    // Don't display it - wait for the parsed final payload
-                    // Update status to show we're receiving the response
-                    if (!isReceivingTokens) {
-                        isReceivingTokens = true;
-                        setStatusMessage("Receiving response...");
+                } else if ('token' in chunk && chunk.token) {
+                    // Accumulate tokens
+                    accumulatedText += chunk.token;
+
+                    // Extract and display just the MESSAGE portion as it arrives
+                    const messageContent = extractMessage(accumulatedText);
+
+                    if (messageContent) {
+                        if (!messageStarted) {
+                            messageStarted = true;
+                            setStatusMessage(null);
+                        }
+
+                        // Update the placeholder message with extracted content
+                        setMessages(prev => {
+                            const updated = [...prev];
+                            updated[updated.length - 1] = {
+                                ...updated[updated.length - 1],
+                                content: messageContent
+                            };
+                            return updated;
+                        });
                     }
                 }
             }
@@ -123,16 +156,18 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
                     value: company
                 }));
 
-                // Add the assistant message with parsed content
-                const assistantMessage: StreamChatMessage = {
-                    role: 'assistant',
-                    content: finalPayload.message,
-                    timestamp: new Date().toISOString(),
-                    suggestions,
-                    options: finalPayload.options
-                };
+                // Update the existing message with final content and add suggestions/options
+                setMessages(prev => {
+                    const updated = [...prev];
+                    updated[updated.length - 1] = {
+                        ...updated[updated.length - 1],
+                        content: finalPayload.message,
+                        suggestions,
+                        options: finalPayload.options
+                    };
+                    return updated;
+                });
 
-                setMessages(prev => [...prev, assistantMessage]);
                 setCurrentStep(finalPayload.next_step);
                 setStreamConfig(finalPayload.updated_config);
             }
