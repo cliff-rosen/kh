@@ -17,12 +17,14 @@ export default function StreamConfigPreview({ config, highlightedField }: Stream
     };
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 h-full">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                Research Stream Configuration
-            </h3>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow h-full flex flex-col overflow-hidden">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Research Stream Configuration
+                </h3>
+            </div>
 
-            <div className="space-y-6">
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
                 {/* Stream Name */}
                 <div className={getFieldClassName('stream_name')}>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -106,21 +108,21 @@ export default function StreamConfigPreview({ config, highlightedField }: Stream
                         {config.report_frequency || <span className="text-gray-400 italic">Not set</span>}
                     </div>
                 </div>
-            </div>
 
-            {/* Completeness Indicator */}
-            <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Configuration Progress</span>
-                    <span className="font-medium text-gray-900 dark:text-white">
-                        {getCompletionPercentage(config)}%
-                    </span>
-                </div>
-                <div className="mt-2 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div
-                        className="h-full bg-blue-600 transition-all duration-300"
-                        style={{ width: `${getCompletionPercentage(config)}%` }}
-                    ></div>
+                {/* Completeness Indicator */}
+                <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600 dark:text-gray-400">Configuration Progress</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                            {getCompletionPercentage(config)}%
+                        </span>
+                    </div>
+                    <div className="mt-2 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-blue-600 transition-all duration-300"
+                            style={{ width: `${getCompletionPercentage(config)}%` }}
+                        ></div>
+                    </div>
                 </div>
             </div>
         </div>
