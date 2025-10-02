@@ -57,6 +57,7 @@ class ResearchStreamChatService:
         stream = self.client.messages.stream(
             model=STREAM_CHAT_MODEL,
             max_tokens=STREAM_CHAT_MAX_TOKENS,
+            temperature=1.0,
             system=system_prompt,
             messages=[{
                 "role": "user",
@@ -176,20 +177,32 @@ class ResearchStreamChatService:
         LLM now only returns MESSAGE, EXTRACTED_DATA, SUGGESTIONS, and OPTIONS.
         Workflow controller determines next step.
         """
-        lines = assistant_message.split('\n')
-
         response_message = ""
         updates = {}
         suggestions = {}
         options = []
 
-        for line in lines:
-            line = line.strip()
-            if line.startswith("MESSAGE:"):
-                response_message = line.replace("MESSAGE:", "").strip()
-            elif line.startswith("EXTRACTED_DATA:"):
-                field_update = line.replace("EXTRACTED_DATA:", "").strip()
-                if "=" in field_update:
+        # Extract MESSAGE (everything until first structured field marker)
+        message_match = assistant_message.split('\n')
+        in_message = False
+        message_lines = []
+
+        for line in assistant_message.split('\n'):
+            stripped = line.strip()
+
+            if stripped.startswith("MESSAGE:"):
+                in_message = True
+                # Get content after MESSAGE: on same line
+                content = stripped.replace("MESSAGE:", "").strip()
+                if content:
+                    message_lines.append(content)
+            elif in_message and not any(stripped.startswith(marker) for marker in ["EXTRACTED_DATA:", "SUGGESTIONS:", "OPTIONS:"]):
+                # Continue collecting message lines
+                message_lines.append(line.rstrip())
+            elif stripped.startswith("EXTRACTED_DATA:"):
+                in_message = False
+                field_update = stripped.replace("EXTRACTED_DATA:", "").strip()
+                if field_update and "=" in field_update:
                     field, value = field_update.split("=", 1)
                     field_name = field.strip()
                     field_value = value.strip()
@@ -203,17 +216,25 @@ class ResearchStreamChatService:
                             updates[field_name] = [field_value]
                     else:
                         updates[field_name] = field_value
-            elif line.startswith("SUGGESTIONS:"):
-                suggestion_list = line.replace("SUGGESTIONS:", "").strip()
-                suggestions_array = [s.strip() for s in suggestion_list.split(",")]
-                # Store as therapeutic_areas by default, can be overridden
-                suggestions['therapeutic_areas'] = suggestions_array
-            elif line.startswith("OPTIONS:"):
-                options_list = line.replace("OPTIONS:", "").strip()
-                options = [
-                    {"label": opt.strip(), "value": opt.strip(), "checked": False}
-                    for opt in options_list.split("|")
-                ]
+            elif stripped.startswith("SUGGESTIONS:"):
+                in_message = False
+                suggestion_list = stripped.replace("SUGGESTIONS:", "").strip()
+                if suggestion_list:  # Only process if not empty
+                    suggestions_array = [s.strip() for s in suggestion_list.split(",") if s.strip()]
+                    if suggestions_array:  # Only add if array is not empty
+                        # Store as therapeutic_areas by default, can be overridden
+                        suggestions['therapeutic_areas'] = suggestions_array
+            elif stripped.startswith("OPTIONS:"):
+                in_message = False
+                options_list = stripped.replace("OPTIONS:", "").strip()
+                if options_list:  # Only process if not empty
+                    options = [
+                        {"label": opt.strip(), "value": opt.strip(), "checked": False}
+                        for opt in options_list.split("|")
+                        if opt.strip()  # Skip empty options
+                    ]
+
+        response_message = "\n".join(message_lines).strip()
 
         # If no message was extracted, use the whole response
         if not response_message:
