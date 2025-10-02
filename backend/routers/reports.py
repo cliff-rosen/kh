@@ -43,3 +43,22 @@ async def get_latest_report_for_stream(
         )
 
     return report
+
+
+@router.get("/{report_id}")
+async def get_report_with_articles(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get a report with its associated articles"""
+    service = ReportService(db)
+    report = service.get_report_with_articles(report_id, current_user.user_id)
+
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found"
+        )
+
+    return report
