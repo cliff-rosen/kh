@@ -89,10 +89,17 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
             // Stream the response
             for await (const chunk of researchStreamApi.streamChatMessage(request)) {
                 console.log('Received chunk:', chunk);
-                if ('status' in chunk && chunk.status && !('token' in chunk)) {
-                    // Status response - update status message for UI display
+
+                // Check for complete status first (most important)
+                if (chunk.status === 'complete' && chunk.payload) {
+                    // Final payload with structured data
+                    console.log('Got final payload:', chunk.payload);
+                    finalPayload = chunk.payload;
+                    setStatusMessage(null);
+                } else if (chunk.status && !chunk.token) {
+                    // Status response (thinking, etc.) - update status message for UI display
                     setStatusMessage(chunk.status);
-                } else if ('token' in chunk && chunk.token) {
+                } else if (chunk.token) {
                     // Token response - we're streaming raw LLM output which includes formatting
                     // Don't display it - wait for the parsed final payload
                     // Update status to show we're receiving the response
@@ -100,11 +107,6 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
                         isReceivingTokens = true;
                         setStatusMessage("Receiving response...");
                     }
-                } else if ('payload' in chunk && chunk.payload && chunk.status === 'complete') {
-                    // Final payload with structured data
-                    console.log('Got final payload:', chunk.payload);
-                    finalPayload = chunk.payload;
-                    setStatusMessage(null);
                 }
             }
 
