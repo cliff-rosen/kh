@@ -1,6 +1,6 @@
 import { useTheme } from '../context/ThemeContext';
 import { NavLink, useLocation } from 'react-router-dom';
-import { MoonIcon, SunIcon, UserCircleIcon, HomeIcon, DocumentTextIcon, Cog6ToothIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { MoonIcon, SunIcon, UserCircleIcon, HomeIcon, DocumentTextIcon, Cog6ToothIcon, BeakerIcon } from '@heroicons/react/24/outline';
 import settings from '../config/settings';
 import { HelpGuide } from '@/components/features/help';
 import { useAuth } from '../context/AuthContext';
@@ -36,6 +36,10 @@ export default function TopBar() {
                         <HomeIcon className="h-5 w-5 mr-2" />
                         Dashboard
                     </NavLink>
+                    <NavLink to="/streams" className={getLinkClass('/streams')}>
+                        <BeakerIcon className="h-5 w-5 mr-2" />
+                        Streams
+                    </NavLink>
                     <NavLink to="/reports" className={getLinkClass('/reports')}>
                         <DocumentTextIcon className="h-5 w-5 mr-2" />
                         Reports
@@ -44,14 +48,6 @@ export default function TopBar() {
                         <Cog6ToothIcon className="h-5 w-5 mr-2" />
                         Settings
                     </NavLink>
-
-                    {/* Action Items */}
-                    <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2" />
-                    <NavLink to="/new-stream" className="flex items-center px-3 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors">
-                        <PlusIcon className="h-5 w-5 mr-2" />
-                        New Stream
-                    </NavLink>
-
                 </nav>
             </div>
 

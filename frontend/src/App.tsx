@@ -21,6 +21,7 @@ import TokenLogin from './pages/TokenLogin';
 // Knowledge Horizon pages
 import NewStreamPage from './pages/NewStreamPage';
 import DashboardPage from './pages/DashboardPage';
+import StreamsPage from './pages/StreamsPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 
@@ -45,8 +46,9 @@ function AppContent() {
           <Routes>
             {/* Knowledge Horizon Routes */}
             <Route path="/" element={<Navigate to={defaultRoute} />} />
-            <Route path="/new-stream" element={<NewStreamPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/streams" element={<StreamsPage />} />
+            <Route path="/new-stream" element={<NewStreamPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/profile" element={<Profile />} />
