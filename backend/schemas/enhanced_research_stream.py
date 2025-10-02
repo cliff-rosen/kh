@@ -256,3 +256,48 @@ class PartialStreamConfigEnhanced(BaseModel):
 
     # Phase 1: Scoring (as dict for flexibility during chat)
     scoring_config: Optional[dict] = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "stream_name": "Palatin Melanocortin Research Intelligence",
+                "description": "Weekly scientific literature monitoring for melanocortin pathway research",
+                "stream_type": "scientific",
+                "focus_areas": [
+                    "Obesity",
+                    "Dry Eye Disease",
+                    "Sexual Dysfunction",
+                    "Ocular Disease"
+                ],
+                "competitors": [
+                    "Rhythm Pharmaceuticals",
+                    "Novo Nordisk"
+                ],
+                "report_frequency": "weekly",
+                "purpose": "Monitor scientific literature on melanocortin pathways to identify opportunities and risks for Palatin's drug development programs",
+                "business_goals": [
+                    "Inform design of ongoing MCR4 obesity studies",
+                    "Track competitive landscape in melanocortin space",
+                    "Identify new indications for melanocortin therapies"
+                ],
+                "expected_outcomes": "Enable informed decisions on study design, competitive positioning, and pipeline prioritization",
+                "keywords": [
+                    "melanocortin",
+                    "MCR1",
+                    "MCR4",
+                    "bremelanotide",
+                    "PL7737",
+                    "obesity",
+                    "dry eye disease",
+                    "female sexual dysfunction",
+                    "glaucoma",
+                    "retinal disease"
+                ],
+                "scoring_config": {
+                    "relevance_weight": 0.6,
+                    "evidence_weight": 0.4,
+                    "inclusion_threshold": 7.0,
+                    "max_items_per_report": 10
+                }
+            }
+        }
