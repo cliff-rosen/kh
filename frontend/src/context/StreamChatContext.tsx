@@ -22,6 +22,7 @@ interface StreamChatContextType {
     streamChatMessage: (content: string) => Promise<void>;
     handleSelectSuggestion: (value: string) => void;
     handleToggleOption: (value: string) => void;
+    handleUpdateField: (fieldName: string, value: any) => void;
     createStream: (config: PartialStreamConfig) => Promise<ResearchStream | null>;
     resetChat: () => void;
     clearError: () => void;
@@ -234,6 +235,13 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         }
     }, [targetField]);
 
+    const handleUpdateField = useCallback((fieldName: string, value: any) => {
+        setStreamConfig(prev => ({
+            ...prev,
+            [fieldName]: value
+        }));
+    }, []);
+
     const createStream = useCallback(async (config: PartialStreamConfig): Promise<ResearchStream | null> => {
         setIsLoading(true);
         setError(null);
@@ -270,6 +278,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         streamChatMessage,
         handleSelectSuggestion,
         handleToggleOption,
+        handleUpdateField,
         createStream,
         resetChat,
         clearError,

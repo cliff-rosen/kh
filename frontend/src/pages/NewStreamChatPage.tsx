@@ -20,6 +20,7 @@ export default function NewStreamChatPage() {
         streamChatMessage,
         handleSelectSuggestion,
         handleToggleOption,
+        handleUpdateField,
         createStream,
         clearError
     } = useStreamChat();
@@ -83,6 +84,7 @@ export default function NewStreamChatPage() {
                     <StreamConfigPreview
                         config={streamConfig}
                         highlightedField={responseMode === 'SUGGESTION' ? targetField : null}
+                        onUpdateField={handleUpdateField}
                     />
                 </div>
             </div>
