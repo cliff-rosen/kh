@@ -20,16 +20,11 @@ class ProfileService:
         if not user:
             return None
 
-        # Get job_title from company profile if it exists
-        company_profile = self.db.query(CompanyProfile).filter(
-            CompanyProfile.user_id == user_id
-        ).first()
-
         return UserProfile(
             user_id=user.user_id,
             email=user.email,
             full_name=user.full_name,
-            job_title=company_profile.job_title if company_profile else None,
+            job_title=user.job_title,
             preferences=None,  # Not implemented yet
             created_at=user.created_at,
             updated_at=user.updated_at
@@ -64,30 +59,10 @@ class ProfileService:
         # Update user fields
         if 'full_name' in updates:
             user.full_name = updates['full_name']
+        if 'job_title' in updates:
+            user.job_title = updates['job_title']
 
         user.updated_at = datetime.utcnow()
-
-        # Handle job_title - it goes to company profile
-        if 'job_title' in updates:
-            company_profile = self.db.query(CompanyProfile).filter(
-                CompanyProfile.user_id == user_id
-            ).first()
-
-            if not company_profile:
-                # Create company profile if it doesn't exist
-                company_profile = CompanyProfile(
-                    user_id=user_id,
-                    company_name="",  # Will be updated later
-                    job_title=updates['job_title'],
-                    therapeutic_areas=[],
-                    competitors=[],
-                    pipeline_products=[],
-                    company_metadata={}
-                )
-                self.db.add(company_profile)
-            else:
-                company_profile.job_title = updates['job_title']
-                company_profile.updated_at = datetime.utcnow()
 
         self.db.commit()
         self.db.refresh(user)
@@ -137,9 +112,7 @@ class ProfileService:
         # Check user profile completeness
         if not user.full_name:
             missing_user_fields.append('full_name')
-
-        # Check job_title from company profile
-        if not company_profile or not company_profile.job_title:
+        if not user.job_title:
             missing_user_fields.append('job_title')
 
         # Check company profile completeness

@@ -59,6 +59,7 @@ class User(Base):
     email = Column(String(255), unique=True, index=True)
     password = Column(String(255))
     full_name = Column(String(255), nullable=True)  # User's full name from onboarding
+    job_title = Column(String(255), nullable=True)  # User's job title
     is_active = Column(Boolean, default=True)
     role = Column(Enum(UserRole, name='userrole'), default=UserRole.USER, nullable=False)
     login_token = Column(String(255), nullable=True, index=True)  # One-time login token
