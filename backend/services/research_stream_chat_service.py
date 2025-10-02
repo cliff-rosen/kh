@@ -131,7 +131,17 @@ class ResearchStreamChatService:
         options_info = ""
         if step_guidance.get('options'):
             options_list = ", ".join(step_guidance['options'])
-            options_info = f"\nAvailable Options: {options_list}\nYou MUST suggest these exact options."
+            field_name = step_guidance.get('collect', 'this field')
+            options_info = f"""
+
+            CRITICAL - FIXED CHOICE FIELD:
+            You are collecting: {field_name}
+            Available Options: {options_list}
+
+            You MUST provide these options as SUGGESTIONS so the user can select one.
+            DO NOT ask an open-ended question without providing the suggestion chips.
+            Use MODE: SUGGESTION with TARGET_FIELD: {field_name.replace(' (list)', '').replace(' ', '_')}
+            Format: SUGGESTIONS: {options_list}"""
 
         return f"""You are an AI assistant helping users create research streams for Knowledge Horizon,
             a biomedical and business intelligence platform.
@@ -153,6 +163,8 @@ class ResearchStreamChatService:
             - You can suggest specific values for a configuration field
             - User can select from your suggestions to populate the field
             - Must specify which field (stream_name, stream_type, focus_areas, competitors, report_frequency)
+            - Use SUGGESTIONS for single-select fields (stream_type, report_frequency, stream_name)
+            - Use OPTIONS for multi-select fields (focus_areas, competitors)
 
             Guidelines:
             - Be conversational, friendly, and helpful
@@ -166,7 +178,9 @@ class ResearchStreamChatService:
               * Proactively suggest relevant therapeutic areas, competitors, and related topics
               * Example: If they mention "Palatin Technologies", you know they focus on melanocortin receptor agents - SUGGEST those areas
               * Example: If they mention "oncology", suggest specific cancer types, treatment modalities, and related areas
-            - Default to SUGGESTION mode whenever you have enough context to make intelligent recommendations
+            - CRITICAL: ALWAYS default to SUGGESTION mode - only use QUESTION mode if you truly have zero context
+            - NEVER ask "what would you like?" without providing suggestions or options
+            - If you're moving to a new field, immediately provide suggestions for that field
             - CRITICAL: When a user responds with EXACTLY one of your previous suggestions (verbatim), they are SELECTING it, not asking about it
               * DO NOT re-suggest the same thing
               * DO NOT ask if they want to select it
@@ -227,14 +241,17 @@ class ResearchStreamChatService:
             User previously saw: "Palatin Melanocortin Research Intelligence|Palatin Therapeutic Pipeline Monitor"
             User sends: "Palatin Melanocortin Research Intelligence"
 
-            CORRECT response:
+            CORRECT response (acknowledge + immediately suggest for next field):
+            MODE: SUGGESTION
+            TARGET_FIELD: stream_type
+            MESSAGE: Perfect! "Palatin Melanocortin Research Intelligence" is a great name. Now let's determine what type of research stream this will be:
+            EXTRACTED_DATA: stream_name=Palatin Melanocortin Research Intelligence
+            SUGGESTIONS: competitive, regulatory, clinical, market, scientific, mixed
+
+            INCORRECT response (DO NOT DO THIS - asking without suggestions):
             MODE: QUESTION
             MESSAGE: Perfect! Now let's determine what type of research stream this will be.
             EXTRACTED_DATA: stream_name=Palatin Melanocortin Research Intelligence
-
-            INCORRECT response (DO NOT DO THIS):
-            MESSAGE: That's a great name! Would you like to select "Palatin Melanocortin Research Intelligence"?
-            SUGGESTIONS: Palatin Melanocortin Research Intelligence
 
             Note: You do NOT need to determine the next step - the workflow system handles that.
             Just focus on categorizing your response correctly and providing clear, knowledge-driven value."""
