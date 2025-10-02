@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useResearchStream } from '../context/ResearchStreamContext';
 import { useNavigate } from 'react-router-dom';
+import { PencilIcon } from '@heroicons/react/24/outline';
 
 export default function DashboardPage() {
     const { user } = useAuth();
@@ -11,6 +12,12 @@ export default function DashboardPage() {
     useEffect(() => {
         loadResearchStreams();
     }, [loadResearchStreams]);
+
+    // Mock function to get report count - replace with actual API call later
+    const getReportCount = (streamId: number) => {
+        // TODO: Fetch actual report count from API
+        return Math.floor(Math.random() * 20); // Mock data
+    };
 
     return (
         <div className="max-w-7xl mx-auto p-6">
@@ -23,7 +30,7 @@ export default function DashboardPage() {
                 </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                 {/* Quick Stats */}
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
@@ -31,16 +38,20 @@ export default function DashboardPage() {
                     </h3>
                     <div className="space-y-3">
                         <div className="flex justify-between">
+                            <span className="text-gray-600 dark:text-gray-400">Active Streams</span>
+                            <span className="font-semibold text-gray-900 dark:text-white">
+                                {researchStreams.filter(s => s.is_active).length}
+                            </span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-gray-600 dark:text-gray-400">Total Streams</span>
+                            <span className="font-semibold text-gray-900 dark:text-white">
+                                {researchStreams.length}
+                            </span>
+                        </div>
+                        <div className="flex justify-between">
                             <span className="text-gray-600 dark:text-gray-400">Reports Generated</span>
-                            <span className="font-semibold">--</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-gray-600 dark:text-gray-400">Articles Reviewed</span>
-                            <span className="font-semibold">--</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-gray-600 dark:text-gray-400">Sources Monitored</span>
-                            <span className="font-semibold">--</span>
+                            <span className="font-semibold text-gray-900 dark:text-white">--</span>
                         </div>
                     </div>
                 </div>
@@ -54,75 +65,10 @@ export default function DashboardPage() {
                         No recent activity
                     </div>
                 </div>
-
-                {/* Research Streams */}
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                        🔬 Research Streams
-                    </h3>
-                    {isLoading ? (
-                        <div className="text-center py-4">
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                            <div className="text-gray-600 dark:text-gray-400 text-sm">Loading...</div>
-                        </div>
-                    ) : error ? (
-                        <div className="text-center py-4">
-                            <div className="text-red-600 dark:text-red-400 mb-2 text-sm">Error loading streams</div>
-                            <button
-                                onClick={loadResearchStreams}
-                                className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                            >
-                                Retry
-                            </button>
-                        </div>
-                    ) : researchStreams.length === 0 ? (
-                        <div className="text-center py-4">
-                            <div className="text-gray-600 dark:text-gray-400 mb-2">
-                                No active streams
-                            </div>
-                            <button
-                                onClick={() => navigate('/new-stream')}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                            >
-                                Create Stream
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="space-y-2">
-                            {researchStreams.slice(0, 3).map((stream) => (
-                                <div
-                                    key={stream.stream_id}
-                                    className="flex items-center justify-between py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 rounded px-2 -mx-2 transition-colors"
-                                    onClick={() => navigate(`/reports?stream=${stream.stream_id}`)}
-                                >
-                                    <div className="flex-1">
-                                        <div className="font-medium text-gray-900 dark:text-white text-sm">
-                                            {stream.stream_name}
-                                        </div>
-                                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                                            {stream.stream_type} • {stream.is_active ? 'Active' : 'Inactive'}
-                                        </div>
-                                    </div>
-                                    <div className={`w-2 h-2 rounded-full ${stream.is_active ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                                </div>
-                            ))}
-                            {researchStreams.length > 3 && (
-                                <div className="text-center pt-2">
-                                    <button
-                                        onClick={() => navigate('/settings')}
-                                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                                    >
-                                        View all ({researchStreams.length})
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
             </div>
 
-            {/* Main Content Area - Only show if no streams */}
-            {!isLoading && researchStreams.length === 0 && (
+            {/* Research Streams Table */}
+            {!isLoading && researchStreams.length === 0 ? (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8">
                     <div className="text-center py-12">
                         <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
@@ -146,6 +92,131 @@ export default function DashboardPage() {
                                 View Reports
                             </button>
                         </div>
+                    </div>
+                </div>
+            ) : isLoading ? (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8">
+                    <div className="flex items-center justify-center py-12">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                    </div>
+                </div>
+            ) : (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+                    <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                            🔬 Research Streams
+                        </h2>
+                        <button
+                            onClick={() => navigate('/streams')}
+                            className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                            View All
+                        </button>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-gray-50 dark:bg-gray-700">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Stream Name
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Type
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Focus Areas
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Frequency
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Reports
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Status
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Actions
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                {researchStreams.map((stream) => (
+                                    <tr key={stream.stream_id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                                {stream.stream_name}
+                                            </div>
+                                            {stream.description && (
+                                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-xs truncate">
+                                                    {stream.description}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className="text-sm text-gray-900 dark:text-white capitalize">
+                                                {stream.stream_type}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-wrap gap-1 max-w-xs">
+                                                {stream.focus_areas && stream.focus_areas.length > 0 ? (
+                                                    <>
+                                                        {stream.focus_areas.slice(0, 2).map((area, idx) => (
+                                                            <span
+                                                                key={idx}
+                                                                className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded"
+                                                            >
+                                                                {area}
+                                                            </span>
+                                                        ))}
+                                                        {stream.focus_areas.length > 2 && (
+                                                            <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
+                                                                +{stream.focus_areas.length - 2}
+                                                            </span>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <span className="text-sm text-gray-400">None</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className="text-sm text-gray-900 dark:text-white capitalize">
+                                                {stream.report_frequency}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <button
+                                                onClick={() => navigate(`/reports?stream=${stream.stream_id}`)}
+                                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                            >
+                                                {getReportCount(stream.stream_id)} reports
+                                            </button>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                                stream.is_active
+                                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                                    : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                                            }`}>
+                                                <span className={`w-2 h-2 rounded-full mr-1.5 ${stream.is_active ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                                                {stream.is_active ? 'Active' : 'Inactive'}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                            <button
+                                                onClick={() => navigate(`/streams/${stream.stream_id}`)}
+                                                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                                                title="Edit stream"
+                                            >
+                                                <PencilIcon className="h-4 w-4" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             )}
