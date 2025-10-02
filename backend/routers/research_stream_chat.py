@@ -12,6 +12,7 @@ import logging
 from database import get_db
 from models import User
 from schemas.agent_responses import AgentResponse, StatusResponse
+from schemas.research_stream import PartialStreamConfig
 
 from routers.auth import get_current_user
 from services.stream_chat_service import StreamChatService
@@ -23,7 +24,7 @@ router = APIRouter(prefix="/api/research-streams", tags=["research-streams"])
 
 class StreamChatRequest(BaseModel):
     message: str
-    current_config: Dict[str, Any]
+    current_config: PartialStreamConfig
     current_step: str
 
 
@@ -36,7 +37,7 @@ class CheckboxOption(BaseModel):
 class StreamChatResponse(BaseModel):
     message: str
     next_step: str
-    updated_config: Dict[str, Any]
+    updated_config: PartialStreamConfig
     suggestions: Optional[Dict[str, List[str]]] = None
     options: Optional[List[CheckboxOption]] = None
 

@@ -24,6 +24,16 @@ class ReportFrequency(str, Enum):
     MONTHLY = "monthly"
 
 
+class PartialStreamConfig(BaseModel):
+    """Partial stream configuration for AI-guided creation (all fields optional)"""
+    stream_name: Optional[str] = None
+    description: Optional[str] = None
+    stream_type: Optional[str] = None  # Use string to allow flexibility during chat
+    focus_areas: Optional[List[str]] = None
+    competitors: Optional[List[str]] = None
+    report_frequency: Optional[str] = None  # Use string to allow flexibility during chat
+
+
 class ResearchStream(BaseModel):
     """Research stream business object"""
     stream_id: int

@@ -9,6 +9,7 @@ import anthropic
 import os
 import json
 from schemas.agent_responses import AgentResponse, StatusResponse
+from schemas.research_stream import PartialStreamConfig
 
 STREAM_CHAT_MODEL = "claude-sonnet-4-20250514"
 STREAM_CHAT_MAX_TOKENS = 2000
@@ -22,7 +23,7 @@ class StreamChatService:
     async def process_message(
         self,
         message: str,
-        current_config: Dict[str, Any],
+        current_config: PartialStreamConfig,
         current_step: str
     ) -> Dict[str, Any]:
         """
@@ -60,7 +61,7 @@ class StreamChatService:
     async def stream_message(
         self,
         message: str,
-        current_config: Dict[str, Any],
+        current_config: PartialStreamConfig,
         current_step: str
     ) -> AsyncGenerator[str, None]:
         """
@@ -174,10 +175,12 @@ class StreamChatService:
     def _build_user_prompt(
         self,
         message: str,
-        current_config: Dict[str, Any],
+        current_config: PartialStreamConfig,
         current_step: str
     ) -> str:
-        config_summary = "\n".join([f"{k}: {v}" for k, v in current_config.items()])
+        # Convert Pydantic model to dict and filter out None values
+        config_dict = {k: v for k, v in current_config.model_dump().items() if v is not None}
+        config_summary = "\n".join([f"{k}: {v}" for k, v in config_dict.items()])
 
         return f"""Current step: {current_step}
             Current configuration:
@@ -192,7 +195,7 @@ class StreamChatService:
         self,
         assistant_message: str,
         user_message: str,
-        current_config: Dict[str, Any],
+        current_config: PartialStreamConfig,
         current_step: str
     ) -> Dict[str, Any]:
         """
@@ -202,7 +205,8 @@ class StreamChatService:
 
         response_message = ""
         next_step = current_step
-        updated_config = current_config.copy()
+        # Convert to dict for easier manipulation
+        updated_config = current_config.model_dump()
         suggestions = {}
         options = []
 
