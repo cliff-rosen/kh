@@ -169,6 +169,20 @@ class Article(Base):
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     fetch_count = Column(Integer, default=1)  # How many times we've seen this
 
+    # PubMed-specific fields
+    pmid = Column(String(20), index=True)  # PubMed ID
+    abstract = Column(Text)  # Full abstract text
+    comp_date = Column(Date)  # Completion date
+    year = Column(String(4))  # Publication year
+    journal = Column(String(255))  # Journal name
+    volume = Column(String(50))  # Journal volume
+    issue = Column(String(50))  # Journal issue
+    medium = Column(String(100))  # Publication medium
+    pages = Column(String(50))  # Page range
+    poi = Column(String(255))  # Publication Object Identifier
+    doi = Column(String(255), index=True)  # Digital Object Identifier
+    is_systematic = Column(Boolean, default=False)  # Is this a systematic review
+
     # Relationships
     source = relationship("InformationSource", back_populates="articles")
     report_associations = relationship("ReportArticleAssociation", back_populates="article")
