@@ -97,7 +97,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
 
             // Helper to extract just the MESSAGE content from accumulated text
             const extractMessage = (text: string): string => {
-                const messageMatch = text.match(/MESSAGE:\s*([\s\S]*?)(?=\n(?:NEXT_STEP|UPDATED_FIELD|SUGGESTIONS|OPTIONS):|$)/);
+                const messageMatch = text.match(/MESSAGE:\s*([\s\S]*?)(?=\n(?:EXTRACTED_DATA|SUGGESTIONS|OPTIONS):|$)/);
                 if (messageMatch) {
                     return messageMatch[1].trim();
                 }

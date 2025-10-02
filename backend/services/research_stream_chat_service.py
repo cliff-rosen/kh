@@ -10,6 +10,7 @@ import os
 import json
 from schemas.agent_responses import AgentResponse, StatusResponse
 from schemas.research_stream import PartialStreamConfig
+from services.research_stream_creation_workflow import ResearchStreamCreationWorkflow
 
 STREAM_CHAT_MODEL = "claude-sonnet-4-20250514"
 STREAM_CHAT_MAX_TOKENS = 2000
@@ -27,12 +28,19 @@ class ResearchStreamChatService:
         current_step: str
     ) -> AsyncGenerator[str, None]:
         """
-        Stream a chat message response with status updates via SSE
+        Stream a chat message response with status updates via SSE.
+        Uses workflow controller for state management and LLM for conversation.
         """
 
-        # Build conversation context for the LLM
-        system_prompt = self._build_system_prompt()
-        user_prompt = self._build_user_prompt(message, current_config, current_step)
+        # Initialize workflow controller
+        workflow = ResearchStreamCreationWorkflow(current_step, current_config)
+
+        # Get guidance from workflow for this step
+        step_guidance = workflow.get_step_guidance()
+
+        # Build conversation context for the LLM using workflow guidance
+        system_prompt = self._build_system_prompt(step_guidance)
+        user_prompt = self._build_user_prompt(message, current_config, step_guidance)
 
         # Send status update that we're calling the LLM
         status_response = StatusResponse(
@@ -70,24 +78,26 @@ class ResearchStreamChatService:
                 )
                 yield token_response.model_dump_json()
 
-        # Parse the complete LLM response
-        result = self._parse_llm_response(
-            collected_text,
-            message,
-            current_config,
-            current_step
-        )
+        # Parse the LLM response to extract structured data
+        extracted_data = self._parse_llm_response(collected_text)
+
+        # Update workflow config with extracted data
+        if extracted_data.get("updates"):
+            workflow.update_config(extracted_data["updates"])
+
+        # Let workflow determine next step (not the LLM)
+        next_step = workflow.get_next_step()
 
         # Send final response with structured data
         final_response = AgentResponse(
             token=None,
             response_text=None,
             payload={
-                "message": result["message"],
-                "next_step": result["next_step"],
-                "updated_config": result["updated_config"],
-                "suggestions": result.get("suggestions"),
-                "options": result.get("options")
+                "message": extracted_data.get("message", collected_text),
+                "next_step": next_step.value,
+                "updated_config": workflow.config.model_dump(),
+                "suggestions": extracted_data.get("suggestions"),
+                "options": extracted_data.get("options")
             },
             status="complete",
             error=None,
@@ -95,80 +105,71 @@ class ResearchStreamChatService:
         )
         yield final_response.model_dump_json()
 
-    def _build_system_prompt(self) -> str:
-        return """You are an AI assistant helping users create research streams for Knowledge Horizon,
-            a biomedical and business intelligence platform. Your role is to guide users through an interview
-            to gather the necessary information to create a research stream.
+    def _build_system_prompt(self, step_guidance: Dict[str, Any]) -> str:
+        """Build system prompt using workflow guidance instead of hardcoded flow"""
+        return f"""You are an AI assistant helping users create research streams for Knowledge Horizon,
+            a biomedical and business intelligence platform.
 
-            A research stream needs the following information:
-            1. stream_name: A descriptive name for the research stream
-            2. description: What the stream will monitor
-            3. stream_type: One of: competitive, regulatory, clinical, market, scientific, mixed
-            4. focus_areas: Therapeutic areas, topics, or domains to monitor (e.g., "Heart Failure", "Oncology")
-            5. competitors: Companies or organizations to monitor (if relevant)
-            6. report_frequency: One of: daily, weekly, biweekly, monthly
+            Your role is to have a natural, conversational interaction with the user to collect information.
+            The workflow system will handle state management and determine what step comes next.
+
+            Current Step Objective: {step_guidance.get('objective', 'Collect information')}
+            Information to Collect: {step_guidance.get('collect', 'User input')}
 
             Guidelines:
-            - Be conversational and friendly
-            - Ask one question at a time
-            - When the user mentions a therapeutic area or domain, search your knowledge to suggest related areas
-            - When suggesting companies, think about which are active in the mentioned therapeutic areas
+            - Be conversational, friendly, and helpful
+            - Ask clear, focused questions
+            - When the user mentions therapeutic areas, suggest related areas from your knowledge
+            - When discussing companies, suggest relevant ones active in the mentioned areas
             - Extract information from natural language responses
-            - Move to the next step when you have enough information
-            - Be helpful in understanding what information is needed
-
-            Current interview flow:
-            1. intro: Greet and ask about their business focus
-            2. name: Determine the stream name based on their focus
-            3. type: Determine stream type based on their needs
-            4. focus: Get focus areas/therapeutic areas
-            5. competitors: Get competitors to monitor (if applicable)
-            6. frequency: Determine report frequency
-            7. review: Show summary and confirm
-            8. complete: Finish
+            - If this step provides suggestions, include them in your response
 
             Return your response in this format:
-            MESSAGE: [Your conversational message to the user]
-            NEXT_STEP: [intro|name|type|focus|competitors|frequency|review|complete]
-            UPDATED_FIELD: [field_name]=[value] (if extracting a value)
+            MESSAGE: [Your conversational message to the user - this is what they will see]
+            EXTRACTED_DATA: [field_name]=[value] (if you extracted information from their response)
             SUGGESTIONS: [comma-separated list] (if providing therapeutic areas or companies)
-            OPTIONS: [option1|option2|option3] (if providing checkbox options)"""
+            OPTIONS: [option1|option2|option3] (if providing checkbox options)
+
+            Note: You do NOT need to determine the next step - the workflow system handles that.
+            Just focus on having a good conversation and extracting relevant information."""
 
     def _build_user_prompt(
         self,
         message: str,
         current_config: PartialStreamConfig,
-        current_step: str
+        step_guidance: Dict[str, Any]
     ) -> str:
+        """Build user prompt with workflow context"""
         # Convert Pydantic model to dict and filter out None values
         config_dict = {k: v for k, v in current_config.model_dump().items() if v is not None}
         config_summary = "\n".join([f"{k}: {v}" for k, v in config_dict.items()])
 
-        return f"""Current step: {current_step}
-            Current configuration:
-            {config_summary if config_summary else "Empty"}
+        # Include any example questions from workflow guidance
+        example_questions = step_guidance.get('example_questions', [])
+        examples_text = "\n".join([f"- {q}" for q in example_questions]) if example_questions else ""
+
+        return f"""Current configuration so far:
+            {config_summary if config_summary else "No information collected yet"}
+
+            {f'Example questions you could ask:\\n{examples_text}' if examples_text else ''}
 
             User's message: {message}
 
-            Based on the user's message and current step, provide the next message and determine what to do next.
-            Remember to extract information from their response and update the configuration accordingly."""
+            Based on the user's message, provide a conversational response and extract any relevant information."""
 
     def _parse_llm_response(
         self,
-        assistant_message: str,
-        user_message: str,
-        current_config: PartialStreamConfig,
-        current_step: str
+        assistant_message: str
     ) -> Dict[str, Any]:
         """
-        Parse the LLM response and extract structured data
+        Parse the LLM response and extract structured data.
+        LLM now only returns MESSAGE, EXTRACTED_DATA, SUGGESTIONS, and OPTIONS.
+        Workflow controller determines next step.
         """
         lines = assistant_message.split('\n')
 
         response_message = ""
-        next_step = current_step
-        # Convert to dict for easier manipulation
-        updated_config = current_config.model_dump()
+        updates = {}
         suggestions = {}
         options = []
 
@@ -176,10 +177,8 @@ class ResearchStreamChatService:
             line = line.strip()
             if line.startswith("MESSAGE:"):
                 response_message = line.replace("MESSAGE:", "").strip()
-            elif line.startswith("NEXT_STEP:"):
-                next_step = line.replace("NEXT_STEP:", "").strip()
-            elif line.startswith("UPDATED_FIELD:"):
-                field_update = line.replace("UPDATED_FIELD:", "").strip()
+            elif line.startswith("EXTRACTED_DATA:"):
+                field_update = line.replace("EXTRACTED_DATA:", "").strip()
                 if "=" in field_update:
                     field, value = field_update.split("=", 1)
                     field_name = field.strip()
@@ -189,20 +188,16 @@ class ResearchStreamChatService:
                     if field_name in ['competitors', 'focus_areas'] and field_value:
                         # Split by comma if it's a comma-separated list, otherwise wrap in list
                         if ',' in field_value:
-                            updated_config[field_name] = [v.strip() for v in field_value.split(',')]
+                            updates[field_name] = [v.strip() for v in field_value.split(',')]
                         else:
-                            updated_config[field_name] = [field_value]
+                            updates[field_name] = [field_value]
                     else:
-                        updated_config[field_name] = field_value
+                        updates[field_name] = field_value
             elif line.startswith("SUGGESTIONS:"):
                 suggestion_list = line.replace("SUGGESTIONS:", "").strip()
                 suggestions_array = [s.strip() for s in suggestion_list.split(",")]
-
-                # Determine what type of suggestions these are
-                if current_step in ['focus', 'name']:
-                    suggestions['therapeutic_areas'] = suggestions_array
-                elif current_step == 'competitors':
-                    suggestions['companies'] = suggestions_array
+                # Store as therapeutic_areas by default, can be overridden
+                suggestions['therapeutic_areas'] = suggestions_array
             elif line.startswith("OPTIONS:"):
                 options_list = line.replace("OPTIONS:", "").strip()
                 options = [
@@ -216,8 +211,7 @@ class ResearchStreamChatService:
 
         return {
             "message": response_message,
-            "next_step": next_step,
-            "updated_config": updated_config,
+            "updates": updates if updates else None,
             "suggestions": suggestions if suggestions else None,
             "options": options if options else None
         }
