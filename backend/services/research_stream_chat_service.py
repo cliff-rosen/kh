@@ -148,14 +148,24 @@ class ResearchStreamChatService:
         example_questions = step_guidance.get('example_questions', [])
         examples_text = "\n".join([f"- {q}" for q in example_questions]) if example_questions else ""
 
-        return f"""Current configuration so far:
-            {config_summary if config_summary else "No information collected yet"}
+        prompt_parts = [
+            "Current configuration so far:",
+            config_summary if config_summary else "No information collected yet",
+            ""
+        ]
 
-            {f'Example questions you could ask:\\n{examples_text}' if examples_text else ''}
+        if examples_text:
+            prompt_parts.append("Example questions you could ask:")
+            prompt_parts.append(examples_text)
+            prompt_parts.append("")
 
-            User's message: {message}
+        prompt_parts.extend([
+            f"User's message: {message}",
+            "",
+            "Based on the user's message, provide a conversational response and extract any relevant information."
+        ])
 
-            Based on the user's message, provide a conversational response and extract any relevant information."""
+        return "\n".join(prompt_parts)
 
     def _parse_llm_response(
         self,
