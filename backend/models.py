@@ -15,17 +15,6 @@ class UserRole(str, PyEnum):
     USER = "user"
     TESTER = "tester"
 
-class SourceType(str, PyEnum):
-    """Type of information source"""
-    JOURNAL = "journal"
-    NEWS = "news"
-    REGULATORY = "regulatory"
-    CLINICAL = "clinical"
-    PATENT = "patent"
-    COMPANY = "company"
-    PREPRINT = "preprint"
-    CONFERENCE = "conference"
-
 class FeedbackType(str, PyEnum):
     """Type of user feedback"""
     THUMBS_UP = "thumbs_up"
@@ -124,28 +113,22 @@ class ResearchStream(Base):
     # Relationships
     user = relationship("User", back_populates="research_streams")
     profile = relationship("CompanyProfile", back_populates="research_streams")
-    sources = relationship("InformationSource", back_populates="research_stream")
     reports = relationship("Report", back_populates="research_stream")
 
 
 class InformationSource(Base):
-    """Sources of information for curation"""
+    """Sources of information for curation - represents actual searchable sources like PubMed, Google Scholar, etc."""
     __tablename__ = "information_sources"
 
     source_id = Column(Integer, primary_key=True, index=True)
-    research_stream_id = Column(Integer, ForeignKey("research_streams.stream_id"), nullable=False)
-    source_type = Column(Enum(SourceType), nullable=False)
-    source_name = Column(String(255), nullable=False)
-    source_url = Column(String(500))
-    retrieval_config = Column(JSON, default=dict)  # Configuration for data retrieval
-    search_queries = Column(JSON, default=list)  # Search terms/queries
-    update_frequency = Column(String(50), default="daily")
+    source_name = Column(String(255), nullable=False, unique=True)  # e.g., "PubMed", "Google Scholar", "Semantic Scholar"
+    source_url = Column(String(500))  # Base URL for the source
+    description = Column(Text)  # Description of the source
     is_active = Column(Boolean, default=True)
-    last_fetched = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    research_stream = relationship("ResearchStream", back_populates="sources")
     articles = relationship("Article", back_populates="source")
 
 
@@ -162,7 +145,6 @@ class Article(Base):
     summary = Column(Text)  # Original summary
     ai_summary = Column(Text)  # AI-generated summary
     full_text = Column(Text)  # Full article text
-    source_type = Column(Enum(SourceType))
     article_metadata = Column(JSON, default=dict)  # Additional metadata
     theme_tags = Column(JSON, default=list)  # Thematic tags
     first_seen = Column(DateTime, default=datetime.utcnow)

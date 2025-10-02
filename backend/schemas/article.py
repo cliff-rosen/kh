@@ -6,16 +6,6 @@ Matches the Article model in models.py
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date
-from enum import Enum
-
-
-class SourceType(str, Enum):
-    PUBMED = "pubmed"
-    GOOGLE_SCHOLAR = "google_scholar"
-    RSS_FEED = "rss_feed"
-    WEB_SCRAPE = "web_scrape"
-    MANUAL = "manual"
-    OTHER = "other"
 
 
 class Article(BaseModel):
@@ -29,7 +19,6 @@ class Article(BaseModel):
     summary: Optional[str] = None
     ai_summary: Optional[str] = None
     full_text: Optional[str] = None
-    source_type: Optional[SourceType] = None
     article_metadata: Dict[str, Any] = {}
     theme_tags: List[str] = []
     first_seen: datetime
