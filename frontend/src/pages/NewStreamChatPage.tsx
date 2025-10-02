@@ -20,6 +20,8 @@ export default function NewStreamChatPage() {
         streamChatMessage,
         handleSelectSuggestion,
         handleToggleOption,
+        handleSelectAllOptions,
+        handleDeselectAllOptions,
         handleUpdateField,
         createStream,
         clearError
@@ -74,6 +76,8 @@ export default function NewStreamChatPage() {
                         onSendMessage={streamChatMessage}
                         onSelectSuggestion={handleSelectSuggestion}
                         onToggleOption={handleToggleOption}
+                        onSelectAllOptions={handleSelectAllOptions}
+                        onDeselectAllOptions={handleDeselectAllOptions}
                         isLoading={isLoading}
                         statusMessage={statusMessage}
                     />

@@ -7,6 +7,8 @@ interface StreamChatInterfaceProps {
     onSendMessage: (message: string) => void;
     onSelectSuggestion: (suggestion: string) => void;
     onToggleOption: (value: string) => void;
+    onSelectAllOptions?: () => void;
+    onDeselectAllOptions?: () => void;
     isLoading?: boolean;
     statusMessage?: string | null;
 }
@@ -16,6 +18,8 @@ export default function StreamChatInterface({
     onSendMessage,
     onSelectSuggestion,
     onToggleOption,
+    onSelectAllOptions,
+    onDeselectAllOptions,
     isLoading = false,
     statusMessage = null
 }: StreamChatInterfaceProps) {
@@ -88,23 +92,53 @@ export default function StreamChatInterface({
 
                         {/* Checkbox Options */}
                         {message.options && message.options.length > 0 && (
-                            <div className="mt-3 ml-2 space-y-2">
-                                {message.options.map((option, oIdx) => (
-                                    <label
-                                        key={oIdx}
-                                        className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                            <div className="mt-3 ml-2">
+                                {/* Select All / Deselect All */}
+                                <div className="flex gap-2 mb-2">
+                                    <button
+                                        onClick={onSelectAllOptions}
+                                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                                     >
-                                        <input
-                                            type="checkbox"
-                                            checked={option.checked}
-                                            onChange={() => onToggleOption(option.value)}
-                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <span className="text-sm text-gray-900 dark:text-white">
-                                            {option.label}
-                                        </span>
-                                    </label>
-                                ))}
+                                        Select All
+                                    </button>
+                                    <span className="text-xs text-gray-400">|</span>
+                                    <button
+                                        onClick={onDeselectAllOptions}
+                                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                    >
+                                        Deselect All
+                                    </button>
+                                </div>
+
+                                {/* Options List */}
+                                <div className="space-y-2">
+                                    {message.options.map((option, oIdx) => (
+                                        <label
+                                            key={oIdx}
+                                            className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={option.checked}
+                                                onChange={() => onToggleOption(option.value)}
+                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span className="text-sm text-gray-900 dark:text-white">
+                                                {option.label}
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+
+                                {/* Proposed Message Button */}
+                                {message.proposedMessage && (
+                                    <button
+                                        onClick={() => onSendMessage(message.proposedMessage!)}
+                                        className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                                    >
+                                        {message.proposedMessage}
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>

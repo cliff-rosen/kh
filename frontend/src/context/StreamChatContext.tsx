@@ -22,6 +22,8 @@ interface StreamChatContextType {
     streamChatMessage: (content: string) => Promise<void>;
     handleSelectSuggestion: (value: string) => void;
     handleToggleOption: (value: string) => void;
+    handleSelectAllOptions: () => void;
+    handleDeselectAllOptions: () => void;
     handleUpdateField: (fieldName: string, value: any) => void;
     createStream: (config: PartialStreamConfig) => Promise<ResearchStream | null>;
     resetChat: () => void;
@@ -174,7 +176,8 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
                         ...updated[updated.length - 1],
                         content: finalPayload.message,
                         suggestions,
-                        options: finalPayload.options
+                        options: finalPayload.options,
+                        proposedMessage: finalPayload.proposed_message
                     };
                     return updated;
                 });
@@ -235,6 +238,62 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         }
     }, [targetField]);
 
+    const handleSelectAllOptions = useCallback(() => {
+        if (!targetField) return;
+
+        // Update all options to checked in the last message
+        setMessages(prev => {
+            const updated = [...prev];
+            const lastMessageIndex = updated.length - 1;
+            const lastMessage = updated[lastMessageIndex];
+
+            if (lastMessage.options) {
+                const allValues = lastMessage.options.map(opt => opt.value);
+
+                updated[lastMessageIndex] = {
+                    ...lastMessage,
+                    options: lastMessage.options.map(opt => ({ ...opt, checked: true }))
+                };
+
+                // Update config with all values
+                if (targetField === 'focus_areas' || targetField === 'competitors') {
+                    setStreamConfig(prev => ({
+                        ...prev,
+                        [targetField]: allValues
+                    }));
+                }
+            }
+            return updated;
+        });
+    }, [targetField]);
+
+    const handleDeselectAllOptions = useCallback(() => {
+        if (!targetField) return;
+
+        // Update all options to unchecked in the last message
+        setMessages(prev => {
+            const updated = [...prev];
+            const lastMessageIndex = updated.length - 1;
+            const lastMessage = updated[lastMessageIndex];
+
+            if (lastMessage.options) {
+                updated[lastMessageIndex] = {
+                    ...lastMessage,
+                    options: lastMessage.options.map(opt => ({ ...opt, checked: false }))
+                };
+
+                // Clear config field
+                if (targetField === 'focus_areas' || targetField === 'competitors') {
+                    setStreamConfig(prev => ({
+                        ...prev,
+                        [targetField]: []
+                    }));
+                }
+            }
+            return updated;
+        });
+    }, [targetField]);
+
     const handleUpdateField = useCallback((fieldName: string, value: any) => {
         setStreamConfig(prev => ({
             ...prev,
@@ -278,6 +337,8 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         streamChatMessage,
         handleSelectSuggestion,
         handleToggleOption,
+        handleSelectAllOptions,
+        handleDeselectAllOptions,
         handleUpdateField,
         createStream,
         resetChat,

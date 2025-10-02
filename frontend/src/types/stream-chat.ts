@@ -6,6 +6,7 @@ export interface StreamChatMessage {
     timestamp: string;
     suggestions?: SuggestionChip[];
     options?: CheckboxOption[];
+    proposedMessage?: string;
 }
 
 export interface SuggestionChip {

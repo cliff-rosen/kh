@@ -111,6 +111,7 @@ class ResearchStreamChatService:
                 "message": extracted_data.get("message", collected_text),
                 "mode": extracted_data.get("mode", "QUESTION"),
                 "target_field": extracted_data.get("target_field"),
+                "proposed_message": extracted_data.get("proposed_message"),
                 "next_step": next_step.value,
                 "updated_config": workflow.config.model_dump(),
                 "suggestions": extracted_data.get("suggestions"),
@@ -159,6 +160,7 @@ class ResearchStreamChatService:
             EXTRACTED_DATA: [field_name]=[value] (if you extracted information from their response)
             SUGGESTIONS: [comma-separated list] (only for SUGGESTION mode - single-select options)
             OPTIONS: [option1|option2|option3] (only for SUGGESTION mode - multi-select checkboxes)
+            PROPOSED_MESSAGE: [short message user can click to continue] (only for SUGGESTION mode with OPTIONS - e.g., "Continue with these selections")
 
             Examples:
 
@@ -171,6 +173,7 @@ class ResearchStreamChatService:
             TARGET_FIELD: focus_areas
             MESSAGE: Based on your interest in cardiovascular, here are related therapeutic areas you might want to monitor:
             OPTIONS: Heart Failure|Arrhythmia|Hypertension|Cardiomyopathy
+            PROPOSED_MESSAGE: Continue with selected areas
 
             Note: You do NOT need to determine the next step - the workflow system handles that.
             Just focus on categorizing your response correctly and providing clear value."""
@@ -220,6 +223,7 @@ class ResearchStreamChatService:
         response_message = ""
         mode = "QUESTION"  # Default to QUESTION mode
         target_field = None
+        proposed_message = None
         updates = {}
         suggestions = {}
         options = []
@@ -235,13 +239,15 @@ class ResearchStreamChatService:
                 mode = stripped.replace("MODE:", "").strip().upper()
             elif stripped.startswith("TARGET_FIELD:"):
                 target_field = stripped.replace("TARGET_FIELD:", "").strip()
+            elif stripped.startswith("PROPOSED_MESSAGE:"):
+                proposed_message = stripped.replace("PROPOSED_MESSAGE:", "").strip()
             elif stripped.startswith("MESSAGE:"):
                 in_message = True
                 # Get content after MESSAGE: on same line
                 content = stripped.replace("MESSAGE:", "").strip()
                 if content:
                     message_lines.append(content)
-            elif in_message and not any(stripped.startswith(marker) for marker in ["MODE:", "TARGET_FIELD:", "EXTRACTED_DATA:", "SUGGESTIONS:", "OPTIONS:"]):
+            elif in_message and not any(stripped.startswith(marker) for marker in ["MODE:", "TARGET_FIELD:", "PROPOSED_MESSAGE:", "EXTRACTED_DATA:", "SUGGESTIONS:", "OPTIONS:"]):
                 # Continue collecting message lines
                 message_lines.append(line.rstrip())
             elif stripped.startswith("EXTRACTED_DATA:"):
@@ -288,6 +294,7 @@ class ResearchStreamChatService:
             "message": response_message,
             "mode": mode,
             "target_field": target_field,
+            "proposed_message": proposed_message,
             "updates": updates if updates else None,
             "suggestions": suggestions if suggestions else None,
             "options": options if options else None
