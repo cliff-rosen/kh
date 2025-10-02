@@ -32,7 +32,7 @@ class StreamChatService:
 
         # Call Claude API
         response = self.client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-20250514",
             max_tokens=2000,
             system=system_prompt,
             messages=[{
@@ -81,7 +81,7 @@ class StreamChatService:
         collected_text = ""
 
         stream = self.client.messages.stream(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-20250514",
             max_tokens=2000,
             system=system_prompt,
             messages=[{
@@ -131,42 +131,42 @@ class StreamChatService:
 
     def _build_system_prompt(self) -> str:
         return """You are an AI assistant helping users create research streams for Knowledge Horizon,
-a biomedical and business intelligence platform. Your role is to guide users through an interview
-to gather the necessary information to create a research stream.
+            a biomedical and business intelligence platform. Your role is to guide users through an interview
+            to gather the necessary information to create a research stream.
 
-A research stream needs the following information:
-1. stream_name: A descriptive name for the research stream
-2. description: What the stream will monitor
-3. stream_type: One of: competitive, regulatory, clinical, market, scientific, mixed
-4. focus_areas: Therapeutic areas, topics, or domains to monitor (e.g., "Heart Failure", "Oncology")
-5. competitors: Companies or organizations to monitor (if relevant)
-6. report_frequency: One of: daily, weekly, biweekly, monthly
+            A research stream needs the following information:
+            1. stream_name: A descriptive name for the research stream
+            2. description: What the stream will monitor
+            3. stream_type: One of: competitive, regulatory, clinical, market, scientific, mixed
+            4. focus_areas: Therapeutic areas, topics, or domains to monitor (e.g., "Heart Failure", "Oncology")
+            5. competitors: Companies or organizations to monitor (if relevant)
+            6. report_frequency: One of: daily, weekly, biweekly, monthly
 
-Guidelines:
-- Be conversational and friendly
-- Ask one question at a time
-- When the user mentions a therapeutic area or domain, search your knowledge to suggest related areas
-- When suggesting companies, think about which are active in the mentioned therapeutic areas
-- Extract information from natural language responses
-- Move to the next step when you have enough information
-- Be helpful in understanding what information is needed
+            Guidelines:
+            - Be conversational and friendly
+            - Ask one question at a time
+            - When the user mentions a therapeutic area or domain, search your knowledge to suggest related areas
+            - When suggesting companies, think about which are active in the mentioned therapeutic areas
+            - Extract information from natural language responses
+            - Move to the next step when you have enough information
+            - Be helpful in understanding what information is needed
 
-Current interview flow:
-1. intro: Greet and ask about their business focus
-2. name: Determine the stream name based on their focus
-3. type: Determine stream type based on their needs
-4. focus: Get focus areas/therapeutic areas
-5. competitors: Get competitors to monitor (if applicable)
-6. frequency: Determine report frequency
-7. review: Show summary and confirm
-8. complete: Finish
+            Current interview flow:
+            1. intro: Greet and ask about their business focus
+            2. name: Determine the stream name based on their focus
+            3. type: Determine stream type based on their needs
+            4. focus: Get focus areas/therapeutic areas
+            5. competitors: Get competitors to monitor (if applicable)
+            6. frequency: Determine report frequency
+            7. review: Show summary and confirm
+            8. complete: Finish
 
-Return your response in this format:
-MESSAGE: [Your conversational message to the user]
-NEXT_STEP: [intro|name|type|focus|competitors|frequency|review|complete]
-UPDATED_FIELD: [field_name]=[value] (if extracting a value)
-SUGGESTIONS: [comma-separated list] (if providing therapeutic areas or companies)
-OPTIONS: [option1|option2|option3] (if providing checkbox options)"""
+            Return your response in this format:
+            MESSAGE: [Your conversational message to the user]
+            NEXT_STEP: [intro|name|type|focus|competitors|frequency|review|complete]
+            UPDATED_FIELD: [field_name]=[value] (if extracting a value)
+            SUGGESTIONS: [comma-separated list] (if providing therapeutic areas or companies)
+            OPTIONS: [option1|option2|option3] (if providing checkbox options)"""
 
     def _build_user_prompt(
         self,
@@ -177,13 +177,13 @@ OPTIONS: [option1|option2|option3] (if providing checkbox options)"""
         config_summary = "\n".join([f"{k}: {v}" for k, v in current_config.items()])
 
         return f"""Current step: {current_step}
-Current configuration:
-{config_summary if config_summary else "Empty"}
+            Current configuration:
+            {config_summary if config_summary else "Empty"}
 
-User's message: {message}
+            User's message: {message}
 
-Based on the user's message and current step, provide the next message and determine what to do next.
-Remember to extract information from their response and update the configuration accordingly."""
+            Based on the user's message and current step, provide the next message and determine what to do next.
+            Remember to extract information from their response and update the configuration accordingly."""
 
     def _parse_llm_response(
         self,
