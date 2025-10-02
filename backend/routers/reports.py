@@ -8,7 +8,7 @@ from typing import List
 
 from database import get_db
 from models import User
-from schemas.report import Report
+from schemas.report import Report, ReportWithArticles
 from services.report_service import ReportService
 from routers.auth import get_current_user
 
@@ -45,7 +45,7 @@ async def get_latest_report_for_stream(
     return report
 
 
-@router.get("/{report_id}")
+@router.get("/{report_id}", response_model=ReportWithArticles)
 async def get_report_with_articles(
     report_id: int,
     db: Session = Depends(get_db),
