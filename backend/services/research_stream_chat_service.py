@@ -109,6 +109,8 @@ class ResearchStreamChatService:
             response_text=None,
             payload={
                 "message": extracted_data.get("message", collected_text),
+                "mode": extracted_data.get("mode", "QUESTION"),
+                "target_field": extracted_data.get("target_field"),
                 "next_step": next_step.value,
                 "updated_config": workflow.config.model_dump(),
                 "suggestions": extracted_data.get("suggestions"),
@@ -131,22 +133,47 @@ class ResearchStreamChatService:
             Current Step Objective: {step_guidance.get('objective', 'Collect information')}
             Information to Collect: {step_guidance.get('collect', 'User input')}
 
+            IMPORTANT: Each response must be categorized as one of two modes:
+
+            **MODE 1: QUESTION** - You need to ask clarifying questions to gather information
+            - User hasn't provided enough context yet
+            - You need to guide them toward providing specific information
+            - No concrete suggestions can be made yet
+
+            **MODE 2: SUGGESTION** - You have enough information to present concrete options
+            - You can suggest specific values for a configuration field
+            - User can select from your suggestions to populate the field
+            - Must specify which field (stream_name, stream_type, focus_areas, competitors, report_frequency)
+
             Guidelines:
             - Be conversational, friendly, and helpful
-            - Ask clear, focused questions
+            - When in SUGGESTION mode, make it clear which field you're populating
             - When the user mentions therapeutic areas, suggest related areas from your knowledge
             - When discussing companies, suggest relevant ones active in the mentioned areas
             - Extract information from natural language responses
-            - If this step provides suggestions, include them in your response
 
             Return your response in this format:
+            MODE: [QUESTION or SUGGESTION]
             MESSAGE: [Your conversational message to the user - this is what they will see]
+            TARGET_FIELD: [field_name] (only for SUGGESTION mode - which config field these suggestions populate)
             EXTRACTED_DATA: [field_name]=[value] (if you extracted information from their response)
-            SUGGESTIONS: [comma-separated list] (if providing therapeutic areas or companies)
-            OPTIONS: [option1|option2|option3] (if providing checkbox options)
+            SUGGESTIONS: [comma-separated list] (only for SUGGESTION mode - single-select options)
+            OPTIONS: [option1|option2|option3] (only for SUGGESTION mode - multi-select checkboxes)
+
+            Examples:
+
+            QUESTION mode:
+            MODE: QUESTION
+            MESSAGE: What therapeutic areas are you interested in monitoring? For example, oncology, cardiology, or immunology?
+
+            SUGGESTION mode:
+            MODE: SUGGESTION
+            TARGET_FIELD: focus_areas
+            MESSAGE: Based on your interest in cardiovascular, here are related therapeutic areas you might want to monitor:
+            OPTIONS: Heart Failure|Arrhythmia|Hypertension|Cardiomyopathy
 
             Note: You do NOT need to determine the next step - the workflow system handles that.
-            Just focus on having a good conversation and extracting relevant information."""
+            Just focus on categorizing your response correctly and providing clear value."""
 
     def _build_user_prompt(
         self,
@@ -188,29 +215,33 @@ class ResearchStreamChatService:
     ) -> Dict[str, Any]:
         """
         Parse the LLM response and extract structured data.
-        LLM now only returns MESSAGE, EXTRACTED_DATA, SUGGESTIONS, and OPTIONS.
-        Workflow controller determines next step.
+        Now includes MODE and TARGET_FIELD for clearer UX.
         """
         response_message = ""
+        mode = "QUESTION"  # Default to QUESTION mode
+        target_field = None
         updates = {}
         suggestions = {}
         options = []
 
         # Extract MESSAGE (everything until first structured field marker)
-        message_match = assistant_message.split('\n')
         in_message = False
         message_lines = []
 
         for line in assistant_message.split('\n'):
             stripped = line.strip()
 
-            if stripped.startswith("MESSAGE:"):
+            if stripped.startswith("MODE:"):
+                mode = stripped.replace("MODE:", "").strip().upper()
+            elif stripped.startswith("TARGET_FIELD:"):
+                target_field = stripped.replace("TARGET_FIELD:", "").strip()
+            elif stripped.startswith("MESSAGE:"):
                 in_message = True
                 # Get content after MESSAGE: on same line
                 content = stripped.replace("MESSAGE:", "").strip()
                 if content:
                     message_lines.append(content)
-            elif in_message and not any(stripped.startswith(marker) for marker in ["EXTRACTED_DATA:", "SUGGESTIONS:", "OPTIONS:"]):
+            elif in_message and not any(stripped.startswith(marker) for marker in ["MODE:", "TARGET_FIELD:", "EXTRACTED_DATA:", "SUGGESTIONS:", "OPTIONS:"]):
                 # Continue collecting message lines
                 message_lines.append(line.rstrip())
             elif stripped.startswith("EXTRACTED_DATA:"):
@@ -236,8 +267,7 @@ class ResearchStreamChatService:
                 if suggestion_list:  # Only process if not empty
                     suggestions_array = [s.strip() for s in suggestion_list.split(",") if s.strip()]
                     if suggestions_array:  # Only add if array is not empty
-                        # Store as therapeutic_areas by default, can be overridden
-                        suggestions['therapeutic_areas'] = suggestions_array
+                        suggestions = suggestions_array  # Just return array, target_field tells us what it's for
             elif stripped.startswith("OPTIONS:"):
                 in_message = False
                 options_list = stripped.replace("OPTIONS:", "").strip()
@@ -256,6 +286,8 @@ class ResearchStreamChatService:
 
         return {
             "message": response_message,
+            "mode": mode,
+            "target_field": target_field,
             "updates": updates if updates else None,
             "suggestions": suggestions if suggestions else None,
             "options": options if options else None

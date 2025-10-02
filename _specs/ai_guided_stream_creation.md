@@ -258,6 +258,147 @@ The backend streams responses in real-time using SSE:
 - Next step: COMPLETE
 - System creates research stream and redirects
 
+## Suggestions vs Options
+
+The system provides two types of interactive elements that users can engage with:
+
+### Suggestions (Clickable Chips)
+
+**Purpose:** Provide intelligent, context-aware recommendations that users can select with a single click.
+
+**Behavior:**
+- Displayed as clickable chips/badges below the assistant's message
+- Clicking a suggestion **sends it as a new user message**
+- Acts like the user typed and sent that text
+- LLM receives the suggestion text and can extract data from it
+- **Single-select** - clicking one sends it immediately
+
+**Use Cases:**
+- Suggesting therapeutic areas: `["Oncology", "Cardiovascular", "Immunology"]`
+- Suggesting companies: `["Pfizer", "Moderna", "Johnson & Johnson"]`
+- Suggesting stream names: `["Cardio Intelligence Stream", "Heart Failure Monitor"]`
+
+**Example Flow:**
+```
+Assistant: "Which therapeutic areas are you interested in?"
+Suggestions: [Oncology] [Cardiovascular] [Immunology] [Rare Diseases]
+
+User clicks [Cardiovascular]
+→ System sends message: "Cardiovascular"
+→ LLM extracts: focus_areas = ["Cardiovascular"]
+```
+
+**Data Structure:**
+```typescript
+suggestions: {
+  therapeutic_areas?: string[]  // Array of suggestion strings
+  companies?: string[]          // Array of suggestion strings
+}
+```
+
+### Options (Checkboxes)
+
+**Purpose:** Allow users to select multiple items from a predefined list before proceeding.
+
+**Behavior:**
+- Displayed as checkboxes below the assistant's message
+- User can check/uncheck multiple items
+- Checking updates the configuration **immediately in state** (no message sent)
+- **Multi-select** - user builds a selection, then continues conversation
+- State persists until user sends next message
+
+**Use Cases:**
+- Selecting multiple focus areas from a list
+- Choosing multiple competitors to monitor
+- Selecting content types or report preferences
+
+**Example Flow:**
+```
+Assistant: "Which of these areas should we monitor?"
+Options:
+☐ Heart Failure
+☐ Arrhythmia
+☐ Hypertension
+☐ Cardiomyopathy
+
+User checks [Heart Failure] and [Arrhythmia]
+→ Config updates immediately: focus_areas = ["Heart Failure", "Arrhythmia"]
+→ No message sent yet
+
+User types: "Those look good"
+→ Message sent with updated config
+→ LLM sees config already has focus_areas filled
+```
+
+**Data Structure:**
+```typescript
+options: Array<{
+  label: string    // Display text
+  value: string    // Value to store in config
+  checked: boolean // Current selection state
+}>
+```
+
+### Key Differences Summary
+
+| Feature | Suggestions | Options |
+|---------|------------|---------|
+| **UI Element** | Clickable chips/badges | Checkboxes |
+| **Selection** | Single-select | Multi-select |
+| **Action** | Sends message immediately | Updates state, no message |
+| **Use Case** | Quick single choice | Building a list of items |
+| **LLM Awareness** | LLM sees suggestion as user message | LLM sees updated config fields |
+| **State Update** | Via LLM extraction from message | Direct state update on toggle |
+
+### Implementation Details
+
+**Suggestions Implementation:**
+```typescript
+// frontend/src/context/StreamChatContext.tsx
+const handleSelectSuggestion = useCallback((value: string) => {
+    streamChatMessage(value);  // Send as new message
+}, [streamChatMessage]);
+```
+
+**Options Implementation:**
+```typescript
+// frontend/src/context/StreamChatContext.tsx
+const handleToggleOption = useCallback((value: string) => {
+    // Update config state immediately
+    if (currentStep === 'focus') {
+        setStreamConfig(prev => ({
+            ...prev,
+            focus_areas: toggleArrayItem(prev.focus_areas, value)
+        }));
+    }
+    // Update checkbox UI state
+    setMessages(prev => {
+        const updated = [...prev];
+        const lastMessage = updated[updated.length - 1];
+        if (lastMessage.options) {
+            lastMessage.options = lastMessage.options.map(opt =>
+                opt.value === value ? { ...opt, checked: !opt.checked } : opt
+            );
+        }
+        return updated;
+    });
+}, [currentStep]);
+```
+
+### When to Use Each
+
+**Use Suggestions when:**
+- Offering a few (3-5) quick alternatives
+- User should pick one and move on
+- The choice itself provides context for the next question
+- Example: "What's your primary focus?" → [Oncology] [Cardiology] [Neurology]
+
+**Use Options when:**
+- User should select multiple items from a list
+- Building a comprehensive list (e.g., multiple therapeutic areas)
+- User needs to see their selections build up
+- Example: "Which of these 10 areas are relevant?" → Checkboxes for all 10
+
 ## Design Principles
 
 1. **Separation of Concerns:** Workflow logic ≠ Conversation logic

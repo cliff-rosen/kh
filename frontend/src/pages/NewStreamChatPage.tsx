@@ -15,6 +15,8 @@ export default function NewStreamChatPage() {
         isLoading,
         error,
         statusMessage,
+        responseMode,
+        targetField,
         streamChatMessage,
         handleSelectSuggestion,
         handleToggleOption,
@@ -78,7 +80,10 @@ export default function NewStreamChatPage() {
 
                 {/* Config Preview - Right */}
                 <div className="lg:col-span-1">
-                    <StreamConfigPreview config={streamConfig} />
+                    <StreamConfigPreview
+                        config={streamConfig}
+                        highlightedField={responseMode === 'SUGGESTION' ? targetField : null}
+                    />
                 </div>
             </div>
         </div>

@@ -15,6 +15,8 @@ interface StreamChatContextType {
     isLoading: boolean;
     error: string | null;
     statusMessage: string | null;
+    responseMode: 'QUESTION' | 'SUGGESTION' | null;
+    targetField: string | null;
 
     // Actions
     streamChatMessage: (content: string) => Promise<void>;
@@ -44,6 +46,8 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [statusMessage, setStatusMessage] = useState<string | null>(null);
+    const [responseMode, setResponseMode] = useState<'QUESTION' | 'SUGGESTION' | null>(null);
+    const [targetField, setTargetField] = useState<string | null>(null);
 
     const clearError = useCallback(() => {
         setError(null);
@@ -104,7 +108,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
 
             // Helper to extract just the MESSAGE content from accumulated text
             const extractMessage = (text: string): string => {
-                const messageMatch = text.match(/MESSAGE:\s*([\s\S]*?)(?=\n(?:EXTRACTED_DATA|SUGGESTIONS|OPTIONS):|$)/);
+                const messageMatch = text.match(/MESSAGE:\s*([\s\S]*?)(?=\n(?:MODE|TARGET_FIELD|EXTRACTED_DATA|SUGGESTIONS|OPTIONS):|$)/);
                 if (messageMatch) {
                     return messageMatch[1].trim();
                 }
@@ -155,12 +159,11 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
             // Update with final structured data from payload
             if (finalPayload) {
                 console.log('Processing final payload...');
-                const suggestions = finalPayload.suggestions?.therapeutic_areas?.map((area: string) => ({
-                    label: area,
-                    value: area
-                })) || finalPayload.suggestions?.companies?.map((company: string) => ({
-                    label: company,
-                    value: company
+
+                // Convert suggestions array to labeled format if present
+                const suggestions = finalPayload.suggestions?.map((item: string) => ({
+                    label: item,
+                    value: item
                 }));
 
                 // Update the existing message with final content and add suggestions/options
@@ -174,6 +177,10 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
                     };
                     return updated;
                 });
+
+                // Update mode and target field for UI highlighting
+                setResponseMode(finalPayload.mode || null);
+                setTargetField(finalPayload.target_field || null);
 
                 setCurrentStep(finalPayload.next_step);
                 setStreamConfig(finalPayload.updated_config);
@@ -258,6 +265,8 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         isLoading,
         error,
         statusMessage,
+        responseMode,
+        targetField,
 
         // Actions
         streamChatMessage,

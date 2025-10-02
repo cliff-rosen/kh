@@ -2,9 +2,20 @@ import { PartialStreamConfig } from '../types/stream-chat';
 
 interface StreamConfigPreviewProps {
     config: PartialStreamConfig;
+    highlightedField?: string | null;
 }
 
-export default function StreamConfigPreview({ config }: StreamConfigPreviewProps) {
+export default function StreamConfigPreview({ config, highlightedField }: StreamConfigPreviewProps) {
+    // Helper to determine if a field should be highlighted
+    const isHighlighted = (fieldName: string) => highlightedField === fieldName;
+
+    // Highlight styling
+    const getFieldClassName = (fieldName: string) => {
+        return isHighlighted(fieldName)
+            ? 'bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500 rounded-lg p-3 -m-1 transition-all'
+            : '';
+    };
+
     return (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 h-full">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
@@ -13,9 +24,9 @@ export default function StreamConfigPreview({ config }: StreamConfigPreviewProps
 
             <div className="space-y-6">
                 {/* Stream Name */}
-                <div>
+                <div className={getFieldClassName('stream_name')}>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Stream Name
+                        Stream Name {isHighlighted('stream_name') && <span className="text-blue-600 dark:text-blue-400 text-xs">(selecting...)</span>}
                     </label>
                     <div className="text-gray-900 dark:text-white">
                         {config.stream_name || <span className="text-gray-400 italic">Not set</span>}
@@ -35,9 +46,9 @@ export default function StreamConfigPreview({ config }: StreamConfigPreviewProps
                 )}
 
                 {/* Stream Type */}
-                <div>
+                <div className={getFieldClassName('stream_type')}>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Stream Type
+                        Stream Type {isHighlighted('stream_type') && <span className="text-blue-600 dark:text-blue-400 text-xs">(selecting...)</span>}
                     </label>
                     <div className="text-gray-900 dark:text-white capitalize">
                         {config.stream_type || <span className="text-gray-400 italic">Not set</span>}
@@ -45,9 +56,9 @@ export default function StreamConfigPreview({ config }: StreamConfigPreviewProps
                 </div>
 
                 {/* Focus Areas */}
-                <div>
+                <div className={getFieldClassName('focus_areas')}>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Focus Areas
+                        Focus Areas {isHighlighted('focus_areas') && <span className="text-blue-600 dark:text-blue-400 text-xs">(selecting...)</span>}
                     </label>
                     {config.focus_areas && Array.isArray(config.focus_areas) && config.focus_areas.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
@@ -66,9 +77,9 @@ export default function StreamConfigPreview({ config }: StreamConfigPreviewProps
                 </div>
 
                 {/* Competitors */}
-                <div>
+                <div className={getFieldClassName('competitors')}>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Competitors to Monitor
+                        Competitors to Monitor {isHighlighted('competitors') && <span className="text-blue-600 dark:text-blue-400 text-xs">(selecting...)</span>}
                     </label>
                     {config.competitors && Array.isArray(config.competitors) && config.competitors.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
@@ -87,9 +98,9 @@ export default function StreamConfigPreview({ config }: StreamConfigPreviewProps
                 </div>
 
                 {/* Report Frequency */}
-                <div>
+                <div className={getFieldClassName('report_frequency')}>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Report Frequency
+                        Report Frequency {isHighlighted('report_frequency') && <span className="text-blue-600 dark:text-blue-400 text-xs">(selecting...)</span>}
                     </label>
                     <div className="text-gray-900 dark:text-white capitalize">
                         {config.report_frequency || <span className="text-gray-400 italic">Not set</span>}
