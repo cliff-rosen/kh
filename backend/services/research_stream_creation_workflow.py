@@ -111,7 +111,8 @@ class ResearchStreamCreationWorkflow:
             WorkflowValidationResult with validation status and any missing fields
         """
         required_fields = self.STEP_REQUIREMENTS.get(step, [])
-        config_dict = self.config.model_dump()
+        # Handle both dict and Pydantic model
+        config_dict = self.config.model_dump() if hasattr(self.config, 'model_dump') else self.config if hasattr(self.config, 'model_dump') else self.config
         missing_fields = []
 
         for field in required_fields:
@@ -213,7 +214,7 @@ class ResearchStreamCreationWorkflow:
             if step in available_steps:
                 # Apply business logic: skip competitors for certain stream types
                 if step == WorkflowStep.COMPETITORS:
-                    config_dict = self.config.model_dump()
+                    config_dict = self.config.model_dump() if hasattr(self.config, 'model_dump') else self.config if hasattr(self.config, 'model_dump') else self.config
                     stream_type = config_dict.get('stream_type', '')
                     if stream_type in ['scientific', 'clinical']:
                         continue  # Skip this step
@@ -233,7 +234,7 @@ class ResearchStreamCreationWorkflow:
         Returns:
             Updated PartialStreamConfig
         """
-        config_dict = self.config.model_dump()
+        config_dict = self.config.model_dump() if hasattr(self.config, 'model_dump') else self.config
         config_dict.update(updates)
         self.config = PartialStreamConfig(**config_dict)
         return self.config
@@ -245,7 +246,7 @@ class ResearchStreamCreationWorkflow:
         Returns:
             Dictionary with guidance for the LLM prompt
         """
-        config_dict = self.config.model_dump()
+        config_dict = self.config.model_dump() if hasattr(self.config, 'model_dump') else self.config
 
         guidance = {
             WorkflowStep.INTRO: {
@@ -372,7 +373,7 @@ class ResearchStreamCreationWorkflow:
         for step in [WorkflowStep.REVIEW]:  # Use review step as it has all required fields
             all_required_fields.update(self.STEP_REQUIREMENTS[step])
 
-        config_dict = self.config.model_dump()
+        config_dict = self.config.model_dump() if hasattr(self.config, 'model_dump') else self.config
         filled_fields = sum(
             1 for field in all_required_fields
             if config_dict.get(field) and (
