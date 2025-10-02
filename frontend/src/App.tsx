@@ -22,6 +22,7 @@ import TokenLogin from './pages/TokenLogin';
 import NewStreamPage from './pages/NewStreamPage';
 import DashboardPage from './pages/DashboardPage';
 import StreamsPage from './pages/StreamsPage';
+import StreamDetailPage from './pages/StreamDetailPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 
@@ -48,6 +49,7 @@ function AppContent() {
             <Route path="/" element={<Navigate to={defaultRoute} />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/streams" element={<StreamsPage />} />
+            <Route path="/streams/:id" element={<StreamDetailPage />} />
             <Route path="/new-stream" element={<NewStreamPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} />

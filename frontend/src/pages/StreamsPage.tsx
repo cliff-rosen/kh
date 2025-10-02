@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useResearchStream } from '../context/ResearchStreamContext';
-import { PlusIcon, BeakerIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, BeakerIcon, PencilIcon } from '@heroicons/react/24/outline';
 
 export default function StreamsPage() {
     const navigate = useNavigate();
@@ -57,8 +57,7 @@ export default function StreamsPage() {
                     {researchStreams.map((stream) => (
                         <div
                             key={stream.stream_id}
-                            className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer"
-                            onClick={() => navigate(`/reports?stream=${stream.stream_id}`)}
+                            className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow"
                         >
                             <div className="p-6">
                                 <div className="flex items-start justify-between mb-4">
@@ -72,7 +71,19 @@ export default function StreamsPage() {
                                             </p>
                                         )}
                                     </div>
-                                    <div className={`w-3 h-3 rounded-full ${stream.is_active ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                navigate(`/streams/${stream.stream_id}`);
+                                            }}
+                                            className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                                            title="Edit stream"
+                                        >
+                                            <PencilIcon className="h-4 w-4" />
+                                        </button>
+                                        <div className={`w-3 h-3 rounded-full ${stream.is_active ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                                    </div>
                                 </div>
 
                                 <div className="space-y-2">
@@ -103,10 +114,16 @@ export default function StreamsPage() {
                                     )}
                                 </div>
 
-                                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
                                     <div className="text-xs text-gray-500 dark:text-gray-400">
                                         Created {new Date(stream.created_at).toLocaleDateString()}
                                     </div>
+                                    <button
+                                        onClick={() => navigate(`/reports?stream=${stream.stream_id}`)}
+                                        className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                    >
+                                        View Reports →
+                                    </button>
                                 </div>
                             </div>
                         </div>
