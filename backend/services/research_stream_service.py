@@ -17,11 +17,12 @@ class ResearchStreamService:
         self.db = db
 
     def get_user_research_streams(self, user_id: int) -> List[Dict[str, Any]]:
-        """Get all research streams for a user with report counts"""
-        # Query streams with report counts
-        streams_with_counts = self.db.query(
+        """Get all research streams for a user with report counts and latest report date"""
+        # Query streams with report counts and latest report date
+        streams_with_stats = self.db.query(
             ResearchStream,
-            func.count(Report.report_id).label('report_count')
+            func.count(Report.report_id).label('report_count'),
+            func.max(Report.created_at).label('latest_report_date')
         ).outerjoin(
             Report,
             and_(
@@ -36,11 +37,12 @@ class ResearchStreamService:
             ResearchStream.created_at.desc()
         ).all()
 
-        # Convert to list of dicts with report_count included
+        # Convert to list of dicts with report_count and latest_report_date included
         result = []
-        for stream, report_count in streams_with_counts:
+        for stream, report_count, latest_report_date in streams_with_stats:
             stream_dict = ResearchStreamSchema.from_orm(stream).dict()
             stream_dict['report_count'] = report_count
+            stream_dict['latest_report_date'] = latest_report_date.isoformat() if latest_report_date else None
             result.append(stream_dict)
 
         return result

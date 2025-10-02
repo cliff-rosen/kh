@@ -29,4 +29,5 @@ export interface ResearchStream {
     created_at: string;
     updated_at: string;
     report_count?: number;
+    latest_report_date?: string | null;
 }

@@ -127,6 +127,9 @@ export default function DashboardPage() {
                                         Reports
                                     </th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Last Run
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                         Status
                                     </th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -187,6 +190,19 @@ export default function DashboardPage() {
                                             >
                                                 {stream.report_count || 0} reports
                                             </button>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            {stream.latest_report_date ? (
+                                                <button
+                                                    onClick={() => navigate(`/reports?stream=${stream.stream_id}`)}
+                                                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                                    title="View latest report"
+                                                >
+                                                    {new Date(stream.latest_report_date).toLocaleDateString()}
+                                                </button>
+                                            ) : (
+                                                <span className="text-sm text-gray-400">No reports</span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${

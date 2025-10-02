@@ -38,6 +38,7 @@ class ResearchStream(BaseModel):
     created_at: datetime
     updated_at: datetime
     report_count: Optional[int] = 0  # Report count when fetched with counts
+    latest_report_date: Optional[str] = None  # Latest report creation date
 
     class Config:
         from_attributes = True
