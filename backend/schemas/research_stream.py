@@ -37,6 +37,7 @@ class ResearchStream(BaseModel):
     is_active: bool = True
     created_at: datetime
     updated_at: datetime
+    report_count: Optional[int] = 0  # Report count when fetched with counts
 
     class Config:
         from_attributes = True

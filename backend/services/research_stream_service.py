@@ -3,11 +3,12 @@ Research Stream service for managing research streams
 """
 
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
-from models import ResearchStream
+from models import ResearchStream, Report
+from schemas.research_stream import ResearchStream as ResearchStreamSchema
 from schemas.research_stream import StreamType, ReportFrequency
 
 
@@ -15,11 +16,34 @@ class ResearchStreamService:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_user_research_streams(self, user_id: int) -> List[ResearchStream]:
-        """Get all research streams for a user"""
-        return self.db.query(ResearchStream).filter(
+    def get_user_research_streams(self, user_id: int) -> List[Dict[str, Any]]:
+        """Get all research streams for a user with report counts"""
+        # Query streams with report counts
+        streams_with_counts = self.db.query(
+            ResearchStream,
+            func.count(Report.report_id).label('report_count')
+        ).outerjoin(
+            Report,
+            and_(
+                Report.research_stream_id == ResearchStream.stream_id,
+                Report.user_id == user_id
+            )
+        ).filter(
             ResearchStream.user_id == user_id
-        ).order_by(ResearchStream.created_at.desc()).all()
+        ).group_by(
+            ResearchStream.stream_id
+        ).order_by(
+            ResearchStream.created_at.desc()
+        ).all()
+
+        # Convert to list of dicts with report_count included
+        result = []
+        for stream, report_count in streams_with_counts:
+            stream_dict = ResearchStreamSchema.from_orm(stream).dict()
+            stream_dict['report_count'] = report_count
+            result.append(stream_dict)
+
+        return result
 
     def get_research_stream(self, stream_id: int, user_id: int) -> Optional[ResearchStream]:
         """Get a specific research stream by ID for a user"""

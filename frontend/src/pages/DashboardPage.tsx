@@ -13,12 +13,6 @@ export default function DashboardPage() {
         loadResearchStreams();
     }, [loadResearchStreams]);
 
-    // Mock function to get report count - replace with actual API call later
-    const getReportCount = (streamId: number) => {
-        // TODO: Fetch actual report count from API
-        return Math.floor(Math.random() * 20); // Mock data
-    };
-
     return (
         <div className="max-w-7xl mx-auto p-6">
             <div className="mb-8">
@@ -191,7 +185,7 @@ export default function DashboardPage() {
                                                 onClick={() => navigate(`/reports?stream=${stream.stream_id}`)}
                                                 className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
                                             >
-                                                {getReportCount(stream.stream_id)} reports
+                                                {stream.report_count || 0} reports
                                             </button>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">

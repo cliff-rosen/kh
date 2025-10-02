@@ -28,4 +28,5 @@ export interface ResearchStream {
     is_active: boolean;
     created_at: string;
     updated_at: string;
+    report_count?: number;
 }
