@@ -37,15 +37,15 @@ class AllProfilesResponse(BaseModel):
     company: CompanyProfile
 
 
-router = APIRouter(prefix="/api", tags=["profiles"])
+router = APIRouter(prefix="/api/profiles", tags=["profiles"])
 
 
-@router.get("/auth/me", response_model=UserProfile)
-async def get_current_user_profile(
+@router.get("/user", response_model=UserProfile)
+async def get_user_profile(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get current user's profile (used by existing frontend auth)"""
+    """Get current user's profile"""
     service = ProfileService(db)
     profile = service.get_user_profile(current_user.user_id)
     if not profile:
@@ -56,7 +56,7 @@ async def get_current_user_profile(
     return profile
 
 
-@router.put("/users/profile", response_model=UserProfile)
+@router.put("/user", response_model=UserProfile)
 async def update_user_profile(
     request: UserProfileUpdateRequest,
     db: Session = Depends(get_db),
@@ -77,7 +77,7 @@ async def update_user_profile(
         )
 
 
-@router.get("/companies/profile", response_model=CompanyProfile)
+@router.get("/company", response_model=CompanyProfile)
 async def get_company_profile(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -93,7 +93,7 @@ async def get_company_profile(
     return profile
 
 
-@router.put("/companies/profile", response_model=CompanyProfile)
+@router.put("/company", response_model=CompanyProfile)
 async def update_company_profile(
     request: CompanyProfileUpdateRequest,
     db: Session = Depends(get_db),
@@ -108,7 +108,7 @@ async def update_company_profile(
     return service.update_company_profile(current_user.user_id, update_data)
 
 
-@router.get("/profiles/completeness", response_model=ProfileCompletenessStatus)
+@router.get("/completeness", response_model=ProfileCompletenessStatus)
 async def check_profile_completeness(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -118,7 +118,7 @@ async def check_profile_completeness(
     return service.check_profile_completeness(current_user.user_id)
 
 
-@router.get("/profiles/all", response_model=AllProfilesResponse)
+@router.get("/all", response_model=AllProfilesResponse)
 async def get_all_profiles(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)

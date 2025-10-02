@@ -26,7 +26,7 @@ export const profileApi = {
      * Get current user's profile
      */
     async getUserProfile(): Promise<UserProfile> {
-        const response = await api.get('/api/auth/me');
+        const response = await api.get('/api/profiles/user');
         return response.data;
     },
 
@@ -34,7 +34,7 @@ export const profileApi = {
      * Update user profile
      */
     async updateUserProfile(updates: UserProfileUpdateRequest): Promise<UserProfile> {
-        const response = await api.put('/api/users/profile', updates);
+        const response = await api.put('/api/profiles/user', updates);
         return response.data;
     },
 
@@ -42,7 +42,7 @@ export const profileApi = {
      * Get current user's company profile
      */
     async getCompanyProfile(): Promise<CompanyProfile> {
-        const response = await api.get('/api/companies/profile');
+        const response = await api.get('/api/profiles/company');
         return response.data;
     },
 
@@ -50,7 +50,7 @@ export const profileApi = {
      * Update company profile
      */
     async updateCompanyProfile(updates: CompanyProfileUpdateRequest): Promise<CompanyProfile> {
-        const response = await api.put('/api/companies/profile', updates);
+        const response = await api.put('/api/profiles/company', updates);
         return response.data;
     },
 
