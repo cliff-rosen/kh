@@ -34,18 +34,22 @@ export type StreamCreationStep =
     | 'complete';
 
 export interface PartialStreamConfig {
-    stream_name?: string;
-    description?: string;
-    stream_type?: string;
-    focus_areas?: string[];
-    competitors?: string[];
-    report_frequency?: string;
-
-    // Phase 1 additions
+    // Core Purpose & Context (drives everything else)
     purpose?: string;
     business_goals?: string[];
     expected_outcomes?: string;
+
+    // Stream Identity
+    stream_name?: string;
+    stream_type?: string;
+
+    // What to Monitor
+    focus_areas?: string[];
     keywords?: string[];
+    competitors?: string[];
+
+    // Configuration
+    report_frequency?: string;
     scoring_config?: {
         relevance_weight?: number;
         evidence_weight?: number;

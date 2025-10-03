@@ -336,8 +336,8 @@ class ResearchStreamChatService:
                     field_name = field.strip()
                     field_value = value.strip()
 
-                    # Handle list fields - competitors and focus_areas should be lists
-                    if field_name in ['competitors', 'focus_areas'] and field_value:
+                    # Handle list fields - competitors, focus_areas, keywords, business_goals should be lists
+                    if field_name in ['competitors', 'focus_areas', 'keywords', 'business_goals'] and field_value:
                         # Remove brackets and quotes if present
                         field_value = field_value.strip('[]')
 

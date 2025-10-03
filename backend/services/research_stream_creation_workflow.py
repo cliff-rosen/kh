@@ -60,17 +60,18 @@ class ResearchStreamCreationWorkflow:
         WorkflowStep.COMPLETE: ["purpose", "stream_name", "stream_type", "focus_areas", "keywords", "report_frequency"]
     }
 
-    # Dependency graph: each step defines what steps must be completed before it can be entered
+    # Dependency graph: PURPOSE drives everything else
+    # Purpose -> informs what type, what areas to focus on, what to name it
     STEP_DEPENDENCIES = {
         WorkflowStep.INTRO: [],  # No dependencies - always the starting point
-        WorkflowStep.BUSINESS_FOCUS: [WorkflowStep.INTRO],
-        WorkflowStep.PURPOSE: [WorkflowStep.INTRO],  # Can happen after intro
-        WorkflowStep.STREAM_NAME: [WorkflowStep.PURPOSE],  # Name should come after purpose
-        WorkflowStep.STREAM_TYPE: [WorkflowStep.INTRO],  # Can happen after intro
-        WorkflowStep.FOCUS_AREAS: [WorkflowStep.INTRO],  # Can happen after intro
+        WorkflowStep.BUSINESS_FOCUS: [WorkflowStep.INTRO],  # Gather context first
+        WorkflowStep.PURPOSE: [WorkflowStep.INTRO],  # Purpose is the foundation
+        WorkflowStep.STREAM_NAME: [WorkflowStep.PURPOSE],  # Name based on purpose
+        WorkflowStep.STREAM_TYPE: [WorkflowStep.PURPOSE],  # Type based on purpose
+        WorkflowStep.FOCUS_AREAS: [WorkflowStep.PURPOSE],  # Focus areas based on purpose
         WorkflowStep.KEYWORDS: [WorkflowStep.FOCUS_AREAS],  # Keywords after focus areas
-        WorkflowStep.COMPETITORS: [WorkflowStep.INTRO],  # Can happen after intro
-        WorkflowStep.REPORT_FREQUENCY: [WorkflowStep.INTRO],  # Can happen after intro
+        WorkflowStep.COMPETITORS: [WorkflowStep.PURPOSE],  # Competitors based on purpose
+        WorkflowStep.REPORT_FREQUENCY: [WorkflowStep.PURPOSE],  # Frequency based on purpose
         WorkflowStep.REVIEW: [  # Review requires all core fields to be collected
             WorkflowStep.INTRO,
             WorkflowStep.PURPOSE,
