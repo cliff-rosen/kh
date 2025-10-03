@@ -242,12 +242,25 @@ class ResearchStreamChatService:
             OPTIONS: Melanocortin Receptor Agonists|Sexual Dysfunction Treatment|Obesity and Metabolic Disorders|Dermatology|Dry Eye Disease|Ocular Disease
             PROPOSED_MESSAGE: Continue with selected areas
 
+            SUGGESTION mode for STREAM_NAME (text field with suggestions):
+            MODE: SUGGESTION
+            TARGET_FIELD: stream_name
+            MESSAGE: Based on your purpose and focus, here are some name suggestions:
+            SUGGESTIONS: Palatin Melanocortin Research Intelligence, Palatin Competitive Science Stream, Melanocortin Pathway Monitor
+
             SUGGESTION mode for KEYWORDS (multi-select list):
             MODE: SUGGESTION
             TARGET_FIELD: keywords
             MESSAGE: Based on your focus areas, here are key search terms I recommend:
             OPTIONS: melanocortin|MCR1|MCR4|bremelanotide|PL7737|obesity|metabolic syndrome|sexual dysfunction|dry eye|retinal disease
             PROPOSED_MESSAGE: Continue with these keywords
+
+            SUGGESTION mode for COMPETITORS (multi-select list - optional):
+            MODE: SUGGESTION
+            TARGET_FIELD: competitors
+            MESSAGE: Here are relevant competitors in your therapeutic areas:
+            OPTIONS: Novo Nordisk|Eli Lilly|Amgen|Rhythm Pharmaceuticals|Esperion Therapeutics|Bausch + Lomb
+            PROPOSED_MESSAGE: Continue with selected competitors
 
             SUGGESTION mode for STREAM_TYPE (single-select):
             MODE: SUGGESTION
