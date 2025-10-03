@@ -136,16 +136,16 @@ interface ChatRequest {
 #### Scenario 4: User Edits Field Inline
 **Context**: User clicks pencil icon next to "purpose" in config preview and changes it
 
-**This is NOT a chat operation**
+**This is NOT a chat operation - it's pure frontend state management**
 
 **Frontend action**:
-1. Calls separate endpoint: `PUT /api/research-streams/chat/update-field`
-2. Sends: `{field_name: "purpose", value: "Updated purpose text"}`
-3. Receives updated config
-4. Updates local state
-5. No chat message, no LLM call, no step change
+1. User edits field in preview panel
+2. Frontend updates `current_config` state locally
+3. No API call needed
+4. Next chat message will include the updated config
+5. No LLM call, no step change
 
-**This keeps field edits fast and simple - they don't need conversation.**
+**Field edits are just local state updates. The updated config gets sent with the next chat message.**
 
 ---
 
@@ -423,10 +423,10 @@ interface ChatResponse {
    - Let backend/LLM handle parsing
 
 4. When user edits field in preview:
-   - Call separate API endpoint: `PUT /api/research-streams/chat/update-field`
-   - Update config locally
-   - Don't change current_step
-   - Don't send chat message
+   - Update `current_config` state locally (pure frontend)
+   - No API call
+   - No step change
+   - Next chat message will include the updated config
 
 ---
 
@@ -454,7 +454,7 @@ interface ChatResponse {
 
 5. **Should we allow editing completed steps?**
    - User on KEYWORDS step, wants to change PURPOSE
-   - **Recommendation**: Use separate update endpoint (stays on KEYWORDS, keeps conversation flowing)
+   - **Recommendation**: Yes - just update local config state (stays on KEYWORDS, keeps conversation flowing)
 
 ---
 
@@ -474,7 +474,7 @@ interface ChatResponse {
 - [ ] Add logic to detect user action type when sending message
 - [ ] Send appropriate `user_action` metadata with each request
 - [ ] Use `next_step` from response for subsequent requests
-- [ ] Create separate field update handler (calls update endpoint, not chat)
+- [ ] Handle inline field edits as local state updates only
 - [ ] Update UI to show structured options from backend
 - [ ] Add skip button for optional fields
 

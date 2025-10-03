@@ -44,6 +44,7 @@ export interface PartialStreamConfig {
     // Stream Identity
     stream_name?: string;
     stream_type?: string;
+    description?: string;
 
     // What to Monitor
     focus_areas?: string[];
