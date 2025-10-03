@@ -162,9 +162,9 @@ class ResearchStreamChatService:
             **MODE 2: SUGGESTION** - You have enough information to present concrete options
             - You can suggest specific values for a configuration field
             - User can select from your suggestions to populate the field
-            - Must specify which field (stream_name, stream_type, focus_areas, competitors, report_frequency)
+            - Must specify which field (purpose, business_goals, expected_outcomes, stream_name, stream_type, focus_areas, keywords, competitors, report_frequency)
             - Use SUGGESTIONS for single-select fields (stream_type, report_frequency, stream_name)
-            - Use OPTIONS for multi-select fields (focus_areas, competitors)
+            - Use OPTIONS for multi-select fields (business_goals, focus_areas, keywords, competitors)
 
             Guidelines:
             - Be conversational, friendly, and helpful
@@ -198,43 +198,67 @@ class ResearchStreamChatService:
             PROPOSED_MESSAGE: [short message user can click to continue] (only for SUGGESTION mode with OPTIONS - e.g., "Continue with these selections")
 
             IMPORTANT FORMATTING RULES:
-            - For EXTRACTED_DATA with lists (focus_areas, competitors): Use clean comma-separated values WITHOUT brackets or quotes
+            - For EXTRACTED_DATA with lists (business_goals, focus_areas, keywords, competitors): Use clean comma-separated values WITHOUT brackets or quotes
               Example: EXTRACTED_DATA: focus_areas=Oncology, Cardiology, Immunology
+              Example: EXTRACTED_DATA: keywords=melanocortin, MCR1, MCR4, obesity
+              Example: EXTRACTED_DATA: business_goals=Inform study design, Track competitive landscape
               NOT: EXTRACTED_DATA: focus_areas=["Oncology", "Cardiology", "Immunology"]
-            - For single values: Just the value, no quotes
+            - For single values (purpose, expected_outcomes, stream_name): Just the value, no quotes
               Example: EXTRACTED_DATA: stream_name=Palatin Research Stream
+              Example: EXTRACTED_DATA: purpose=Monitor melanocortin pathways for competitive intelligence
               NOT: EXTRACTED_DATA: stream_name="Palatin Research Stream"
 
             Examples:
 
             QUESTION mode (only when you truly have no context):
             MODE: QUESTION
-            MESSAGE: What therapeutic areas are you interested in monitoring? For example, oncology, cardiology, or immunology?
+            MESSAGE: What's the purpose of this research stream? What decisions will it help you make?
 
-            SUGGESTION mode (use whenever you can make intelligent recommendations):
+            SUGGESTION mode for PURPOSE (text field):
+            MODE: SUGGESTION
+            TARGET_FIELD: purpose
+            MESSAGE: Based on your interest in Palatin Technologies, here are some potential purposes for this stream:
+            OPTIONS: Monitor competitive landscape for strategic planning|Track melanocortin pathway research for pipeline development|Identify partnership opportunities in metabolic disease|Monitor regulatory developments affecting our compounds
+            PROPOSED_MESSAGE: Continue with selected purpose
+
+            SUGGESTION mode for BUSINESS_GOALS (multi-select list):
+            MODE: SUGGESTION
+            TARGET_FIELD: business_goals
+            MESSAGE: What business goals will this stream support?
+            OPTIONS: Inform study design decisions|Track competitive landscape|Identify new therapeutic indications|Monitor regulatory pathway|Support partnership discussions|Guide R&D investment priorities
+            PROPOSED_MESSAGE: Continue with selected goals
+
+            SUGGESTION mode for EXPECTED_OUTCOMES (text field):
+            MODE: SUGGESTION
+            TARGET_FIELD: expected_outcomes
+            MESSAGE: What specific outcomes do you expect from this intelligence?
+            OPTIONS: Quarterly competitive landscape reports for leadership|Weekly alerts on new clinical trial filings|Monthly synthesis of new melanocortin research|Real-time alerts on regulatory changes
+            PROPOSED_MESSAGE: Continue with this outcome
+
+            SUGGESTION mode for FOCUS_AREAS (multi-select list):
             MODE: SUGGESTION
             TARGET_FIELD: focus_areas
-            MESSAGE: Based on Palatin Technologies' focus on melanocortin receptor agents, I recommend monitoring these therapeutic areas:
-            OPTIONS: Melanocortin Receptor Agonists|Sexual Dysfunction Treatment|Obesity Treatment|Dermatology|Inflammatory Diseases
+            MESSAGE: Based on Palatin's melanocortin focus, I recommend monitoring these therapeutic areas:
+            OPTIONS: Melanocortin Receptor Agonists|Sexual Dysfunction Treatment|Obesity and Metabolic Disorders|Dermatology|Dry Eye Disease|Ocular Disease
             PROPOSED_MESSAGE: Continue with selected areas
 
-            Another SUGGESTION example:
+            SUGGESTION mode for KEYWORDS (multi-select list):
             MODE: SUGGESTION
-            TARGET_FIELD: focus_areas
-            MESSAGE: For cardiovascular drug development, here are key therapeutic areas to monitor:
-            OPTIONS: Heart Failure|Arrhythmia|Hypertension|Cardiomyopathy|Anticoagulation|Lipid Management
-            PROPOSED_MESSAGE: Continue with these areas
+            TARGET_FIELD: keywords
+            MESSAGE: Based on your focus areas, here are key search terms I recommend:
+            OPTIONS: melanocortin|MCR1|MCR4|bremelanotide|PL7737|obesity|metabolic syndrome|sexual dysfunction|dry eye|retinal disease
+            PROPOSED_MESSAGE: Continue with these keywords
 
-            SUGGESTION example for fixed-choice fields (stream_type):
+            SUGGESTION mode for STREAM_TYPE (single-select):
             MODE: SUGGESTION
             TARGET_FIELD: stream_type
-            MESSAGE: Based on your focus on Palatin Technologies, what type of research stream would be most useful?
+            MESSAGE: What type of intelligence are you most interested in?
             SUGGESTIONS: competitive, regulatory, clinical, market, scientific, mixed
 
-            SUGGESTION example for fixed-choice fields (report_frequency):
+            SUGGESTION mode for REPORT_FREQUENCY (single-select):
             MODE: SUGGESTION
             TARGET_FIELD: report_frequency
-            MESSAGE: How often would you like to receive reports about this research area?
+            MESSAGE: How often would you like to receive reports?
             SUGGESTIONS: daily, weekly, biweekly, monthly
 
             USER SELECTS A SUGGESTION (user message is exactly one of your suggestions):

@@ -29,11 +29,11 @@ class ResearchStreamCreateRequest(BaseModel):
     competitors: List[str] = Field(default_factory=list)
     report_frequency: ReportFrequency
 
-    # Phase 1 additions
-    purpose: Optional[str] = None
-    business_goals: Optional[List[str]] = None
-    expected_outcomes: Optional[str] = None
-    keywords: Optional[List[str]] = None
+    # Phase 1 additions (REQUIRED)
+    purpose: str = Field(..., min_length=1)
+    business_goals: List[str] = Field(..., min_items=1)
+    expected_outcomes: str = Field(..., min_length=1)
+    keywords: List[str] = Field(..., min_items=1)
     scoring_config: Optional[ScoringConfig] = None
 
 
