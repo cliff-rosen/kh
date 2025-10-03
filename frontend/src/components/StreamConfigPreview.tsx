@@ -98,7 +98,7 @@ export default function StreamConfigPreview({ config, highlightedField, onUpdate
                 <div className={getFieldClassName('business_goals')}>
                     <div className="flex items-center justify-between mb-2">
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Business Goals {isHighlighted('business_goals') && <span className="text-blue-600 dark:text-blue-400 text-xs">(selecting...)</span>}
+                            Business Goals * {isHighlighted('business_goals') && <span className="text-blue-600 dark:text-blue-400 text-xs">(selecting...)</span>}
                         </label>
                         {config.business_goals && config.business_goals.length > 0 && editingField !== 'business_goals' && (
                             <button
@@ -145,7 +145,7 @@ export default function StreamConfigPreview({ config, highlightedField, onUpdate
                 <div className={getFieldClassName('expected_outcomes')}>
                     <div className="flex items-center justify-between mb-2">
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Expected Outcomes {isHighlighted('expected_outcomes') && <span className="text-blue-600 dark:text-blue-400 text-xs">(selecting...)</span>}
+                            Expected Outcomes * {isHighlighted('expected_outcomes') && <span className="text-blue-600 dark:text-blue-400 text-xs">(selecting...)</span>}
                         </label>
                         {config.expected_outcomes && editingField !== 'expected_outcomes' && (
                             <button
@@ -476,6 +476,8 @@ export default function StreamConfigPreview({ config, highlightedField, onUpdate
 function getCompletionPercentage(config: PartialStreamConfig): number {
     const requiredFields = [
         config.purpose,
+        config.business_goals?.length,
+        config.expected_outcomes,
         config.stream_name,
         config.stream_type,
         config.focus_areas?.length,

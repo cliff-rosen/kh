@@ -14,11 +14,13 @@ class WorkflowStep(str, Enum):
     """Steps in the research stream creation workflow"""
     INTRO = "intro"
     BUSINESS_FOCUS = "business_focus"
-    PURPOSE = "purpose"  # Phase 1: Why this stream exists
+    PURPOSE = "purpose"  # Phase 1: Why this stream exists (REQUIRED)
+    BUSINESS_GOALS = "business_goals"  # Phase 1: Strategic objectives (REQUIRED)
+    EXPECTED_OUTCOMES = "expected_outcomes"  # Phase 1: What decisions this drives (REQUIRED)
     STREAM_NAME = "stream_name"
     STREAM_TYPE = "stream_type"
     FOCUS_AREAS = "focus_areas"
-    KEYWORDS = "keywords"  # Phase 1: Search keywords
+    KEYWORDS = "keywords"  # Phase 1: Search keywords (REQUIRED)
     COMPETITORS = "competitors"
     REPORT_FREQUENCY = "report_frequency"
     REVIEW = "review"
@@ -49,32 +51,37 @@ class ResearchStreamCreationWorkflow:
     STEP_REQUIREMENTS = {
         WorkflowStep.INTRO: [],
         WorkflowStep.BUSINESS_FOCUS: [],  # Just collecting context
-        WorkflowStep.PURPOSE: ["purpose"],  # Phase 1: Purpose is required
+        WorkflowStep.PURPOSE: ["purpose"],  # REQUIRED
+        WorkflowStep.BUSINESS_GOALS: ["business_goals"],  # REQUIRED
+        WorkflowStep.EXPECTED_OUTCOMES: ["expected_outcomes"],  # REQUIRED
         WorkflowStep.STREAM_NAME: ["stream_name"],
         WorkflowStep.STREAM_TYPE: ["stream_type"],
         WorkflowStep.FOCUS_AREAS: ["focus_areas"],
-        WorkflowStep.KEYWORDS: ["keywords"],  # Phase 1: Keywords required
+        WorkflowStep.KEYWORDS: ["keywords"],  # REQUIRED
         WorkflowStep.COMPETITORS: [],  # Optional - can skip
         WorkflowStep.REPORT_FREQUENCY: ["report_frequency"],
-        WorkflowStep.REVIEW: ["purpose", "stream_name", "stream_type", "focus_areas", "keywords", "report_frequency"],
-        WorkflowStep.COMPLETE: ["purpose", "stream_name", "stream_type", "focus_areas", "keywords", "report_frequency"]
+        WorkflowStep.REVIEW: ["purpose", "business_goals", "expected_outcomes", "stream_name", "stream_type", "focus_areas", "keywords", "report_frequency"],
+        WorkflowStep.COMPLETE: ["purpose", "business_goals", "expected_outcomes", "stream_name", "stream_type", "focus_areas", "keywords", "report_frequency"]
     }
 
-    # Dependency graph: PURPOSE drives everything else
-    # Purpose -> informs what type, what areas to focus on, what to name it
+    # Dependency graph: PURPOSE → BUSINESS_GOALS → EXPECTED_OUTCOMES drives everything else
     STEP_DEPENDENCIES = {
         WorkflowStep.INTRO: [],  # No dependencies - always the starting point
         WorkflowStep.BUSINESS_FOCUS: [WorkflowStep.INTRO],  # Gather context first
         WorkflowStep.PURPOSE: [WorkflowStep.INTRO],  # Purpose is the foundation
-        WorkflowStep.STREAM_NAME: [WorkflowStep.PURPOSE],  # Name based on purpose
-        WorkflowStep.STREAM_TYPE: [WorkflowStep.PURPOSE],  # Type based on purpose
-        WorkflowStep.FOCUS_AREAS: [WorkflowStep.PURPOSE],  # Focus areas based on purpose
+        WorkflowStep.BUSINESS_GOALS: [WorkflowStep.PURPOSE],  # Goals flow from purpose
+        WorkflowStep.EXPECTED_OUTCOMES: [WorkflowStep.BUSINESS_GOALS],  # Outcomes flow from goals
+        WorkflowStep.STREAM_NAME: [WorkflowStep.EXPECTED_OUTCOMES],  # Name based on purpose/goals/outcomes
+        WorkflowStep.STREAM_TYPE: [WorkflowStep.EXPECTED_OUTCOMES],  # Type based on purpose/goals
+        WorkflowStep.FOCUS_AREAS: [WorkflowStep.STREAM_TYPE],  # Focus areas after type
         WorkflowStep.KEYWORDS: [WorkflowStep.FOCUS_AREAS],  # Keywords after focus areas
-        WorkflowStep.COMPETITORS: [WorkflowStep.PURPOSE],  # Competitors based on purpose
-        WorkflowStep.REPORT_FREQUENCY: [WorkflowStep.PURPOSE],  # Frequency based on purpose
-        WorkflowStep.REVIEW: [  # Review requires all core fields to be collected
+        WorkflowStep.COMPETITORS: [WorkflowStep.FOCUS_AREAS],  # Competitors based on focus
+        WorkflowStep.REPORT_FREQUENCY: [WorkflowStep.KEYWORDS],  # Frequency after main config
+        WorkflowStep.REVIEW: [  # Review requires all required fields to be collected
             WorkflowStep.INTRO,
             WorkflowStep.PURPOSE,
+            WorkflowStep.BUSINESS_GOALS,
+            WorkflowStep.EXPECTED_OUTCOMES,
             WorkflowStep.STREAM_NAME,
             WorkflowStep.STREAM_TYPE,
             WorkflowStep.FOCUS_AREAS,
@@ -84,18 +91,20 @@ class ResearchStreamCreationWorkflow:
         WorkflowStep.COMPLETE: [WorkflowStep.REVIEW]  # Complete only after review
     }
 
-    # Suggested step order (for when multiple paths are possible)
+    # Suggested step order (strict progression)
     # This is used to prioritize which incomplete step to suggest next
     PREFERRED_STEP_ORDER = [
         WorkflowStep.INTRO,
         WorkflowStep.BUSINESS_FOCUS,
-        WorkflowStep.PURPOSE,  # Phase 1: Ask purpose early
-        WorkflowStep.STREAM_NAME,
-        WorkflowStep.STREAM_TYPE,
-        WorkflowStep.FOCUS_AREAS,
-        WorkflowStep.KEYWORDS,  # Phase 1: Keywords after focus areas
-        WorkflowStep.COMPETITORS,
-        WorkflowStep.REPORT_FREQUENCY,
+        WorkflowStep.PURPOSE,  # 1. Why does this exist?
+        WorkflowStep.BUSINESS_GOALS,  # 2. What do you want to achieve?
+        WorkflowStep.EXPECTED_OUTCOMES,  # 3. What decisions will this drive?
+        WorkflowStep.STREAM_NAME,  # 4. Name it
+        WorkflowStep.STREAM_TYPE,  # 5. What type of monitoring?
+        WorkflowStep.FOCUS_AREAS,  # 6. What areas?
+        WorkflowStep.KEYWORDS,  # 7. What search terms?
+        WorkflowStep.COMPETITORS,  # 8. (Optional) What companies?
+        WorkflowStep.REPORT_FREQUENCY,  # 9. How often?
         WorkflowStep.REVIEW,
         WorkflowStep.COMPLETE
     ]
@@ -266,11 +275,28 @@ class ResearchStreamCreationWorkflow:
                 ]
             },
             WorkflowStep.PURPOSE: {
-                "objective": "Understand why this stream exists and what decisions it will inform",
+                "objective": "Understand why this stream exists - the foundation",
                 "collect": "purpose",
                 "example_questions": [
                     "What's the purpose of this research stream? What decisions will it help you make?",
                     "Why do you want to monitor this area? What opportunities or risks are you tracking?"
+                ]
+            },
+            WorkflowStep.BUSINESS_GOALS: {
+                "objective": "Identify the strategic objectives this stream supports",
+                "collect": "business_goals (list)",
+                "example_questions": [
+                    "What strategic business goals will this stream support?",
+                    "What are you hoping to achieve with this intelligence? (e.g., inform study design, track competitive landscape, identify new indications)"
+                ],
+                "provide_suggestions": True
+            },
+            WorkflowStep.EXPECTED_OUTCOMES: {
+                "objective": "Understand what decisions or actions this intelligence will drive",
+                "collect": "expected_outcomes",
+                "example_questions": [
+                    "What specific outcomes or decisions will this intelligence drive?",
+                    "How will you use this information to make better decisions?"
                 ]
             },
             WorkflowStep.STREAM_NAME: {

@@ -279,7 +279,7 @@ export default function StreamDetailPage() {
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Business Goals
+                            Business Goals *
                         </label>
                         <input
                             type="text"
@@ -287,6 +287,7 @@ export default function StreamDetailPage() {
                             onChange={(e) => handleBusinessGoalsChange(e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                             placeholder="e.g., Inform study design, Track competitive landscape"
+                            required
                         />
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                             Strategic objectives (comma-separated)
@@ -295,7 +296,7 @@ export default function StreamDetailPage() {
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Expected Outcomes
+                            Expected Outcomes *
                         </label>
                         <textarea
                             value={form.expected_outcomes}
@@ -303,6 +304,7 @@ export default function StreamDetailPage() {
                             rows={2}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                             placeholder="What outcomes or decisions will this intelligence drive?"
+                            required
                         />
                     </div>
 

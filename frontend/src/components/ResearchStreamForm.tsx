@@ -201,7 +201,7 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Business Goals
+                        Business Goals *
                     </label>
                     <input
                         type="text"
@@ -209,6 +209,7 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                         value={form.business_goals.join(', ')}
                         onChange={(e) => handleBusinessGoalsChange(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        required
                     />
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         Strategic objectives this stream supports (comma-separated)
@@ -217,7 +218,7 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Expected Outcomes
+                        Expected Outcomes *
                     </label>
                     <textarea
                         placeholder="What outcomes or decisions will this intelligence drive?"
@@ -225,6 +226,7 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                         value={form.expected_outcomes}
                         onChange={(e) => setForm({ ...form, expected_outcomes: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        required
                     />
                 </div>
 

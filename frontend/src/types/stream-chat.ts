@@ -24,6 +24,8 @@ export type StreamCreationStep =
     | 'intro'
     | 'business_focus'
     | 'purpose'
+    | 'business_goals'
+    | 'expected_outcomes'
     | 'name'
     | 'type'
     | 'focus'

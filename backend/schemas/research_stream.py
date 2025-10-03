@@ -88,13 +88,13 @@ class ResearchStream(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    # Phase 1: Purpose and Business Context
-    purpose: Optional[str] = None
-    business_goals: Optional[List[str]] = None
-    expected_outcomes: Optional[str] = None
+    # Phase 1: Purpose and Business Context (REQUIRED)
+    purpose: str  # Required: Why this stream exists
+    business_goals: List[str]  # Required: Strategic objectives
+    expected_outcomes: str  # Required: What decisions this will drive
 
-    # Phase 1: Search Strategy
-    keywords: Optional[List[str]] = None
+    # Phase 1: Search Strategy (REQUIRED)
+    keywords: List[str]  # Required: Search terms for literature
 
     # Phase 1: Scoring Configuration
     scoring_config: Optional[ScoringConfig] = None
