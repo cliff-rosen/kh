@@ -33,108 +33,125 @@ class ResearchStreamChatService:
         Stream a chat message response with status updates via SSE.
         Uses workflow controller for state management and LLM for conversation.
         """
+        import logging
+        logger = logging.getLogger(__name__)
 
-        # Default to text_input if no user action provided
-        if user_action is None:
-            user_action = UserAction(type="text_input")
+        try:
+            # Default to text_input if no user action provided
+            if user_action is None:
+                user_action = UserAction(type="text_input")
 
-        # Initialize workflow controller
-        workflow = ResearchStreamCreationWorkflow(current_step, current_config)
+            # Initialize workflow controller
+            workflow = ResearchStreamCreationWorkflow(current_step, current_config)
 
-        # Process user action BEFORE calling LLM
-        step_completed = self._process_user_action(workflow, user_action, message)
+            # Process user action BEFORE calling LLM
+            step_completed = self._process_user_action(workflow, user_action, message)
 
-        # If step is complete, advance to next step
-        if step_completed:
-            workflow.advance_step()
+            # If step is complete, get next step and update workflow
+            if step_completed:
+                next_step = workflow.get_next_step()
+                # Re-initialize workflow with the new step
+                workflow = ResearchStreamCreationWorkflow(next_step.value, workflow.config)
 
-        # Get guidance from workflow for CURRENT step (may have advanced)
-        step_guidance = workflow.get_step_guidance()
+            # Get guidance from workflow for CURRENT step (may have advanced)
+            step_guidance = workflow.get_step_guidance()
 
-        # Build conversation context for the LLM using workflow guidance
-        system_prompt = self._build_system_prompt(step_guidance)
-        user_prompt = self._build_user_prompt(message, current_config, step_guidance)
+            # Build conversation context for the LLM using workflow guidance
+            system_prompt = self._build_system_prompt(step_guidance)
+            user_prompt = self._build_user_prompt(message, current_config, step_guidance)
 
-        # Send status update that we're calling the LLM
-        status_response = StatusResponse(
-            status="Thinking about your response...",
-            payload={"tool": "claude_api", "step": current_step},
-            error=None,
-            debug=None
-        )
-        yield status_response.model_dump_json()
+            # Send status update that we're calling the LLM
+            status_response = StatusResponse(
+                status="Thinking about your response...",
+                payload={"tool": "claude_api", "step": current_step},
+                error=None,
+                debug=None
+            )
+            yield status_response.model_dump_json()
 
-        # Call Claude API with streaming
-        collected_text = ""
+            # Call Claude API with streaming
+            collected_text = ""
 
-        # Build conversation messages array
-        messages = []
+            # Build conversation messages array
+            messages = []
 
-        # Add conversation history if provided
-        if conversation_history:
-            for msg in conversation_history:
-                messages.append({
-                    "role": msg.get("role"),
-                    "content": msg.get("content")
-                })
+            # Add conversation history if provided
+            if conversation_history:
+                for msg in conversation_history:
+                    messages.append({
+                        "role": msg.get("role"),
+                        "content": msg.get("content")
+                    })
 
-        # Add current user message
-        messages.append({
-            "role": "user",
-            "content": user_prompt
-        })
+            # Add current user message
+            messages.append({
+                "role": "user",
+                "content": user_prompt
+            })
 
-        stream = self.client.messages.stream(
-            model=STREAM_CHAT_MODEL,
-            max_tokens=STREAM_CHAT_MAX_TOKENS,
-            temperature=0.0,
-            system=system_prompt,
-            messages=messages
-        )
+            stream = self.client.messages.stream(
+                model=STREAM_CHAT_MODEL,
+                max_tokens=STREAM_CHAT_MAX_TOKENS,
+                temperature=0.0,
+                system=system_prompt,
+                messages=messages
+            )
 
-        with stream as stream_manager:
-            for text in stream_manager.text_stream:
-                collected_text += text
-                # Stream each token as it arrives
-                token_response = AgentResponse(
-                    token=text,
-                    response_text=None,
-                    payload=None,
-                    status="streaming",
-                    error=None,
-                    debug=None
-                )
-                yield token_response.model_dump_json()
+            with stream as stream_manager:
+                for text in stream_manager.text_stream:
+                    collected_text += text
+                    # Stream each token as it arrives
+                    token_response = AgentResponse(
+                        token=text,
+                        response_text=None,
+                        payload=None,
+                        status="streaming",
+                        error=None,
+                        debug=None
+                    )
+                    yield token_response.model_dump_json()
 
-        # Parse the LLM response to extract structured data
-        extracted_data = self._parse_llm_response(collected_text)
+            # Parse the LLM response to extract structured data
+            extracted_data = self._parse_llm_response(collected_text)
 
-        # Update workflow config with extracted data
-        if extracted_data.get("updates"):
-            workflow.update_config(extracted_data["updates"])
+            # Update workflow config with extracted data
+            if extracted_data.get("updates"):
+                workflow.update_config(extracted_data["updates"])
 
-        # Let workflow determine next step (not the LLM)
-        next_step = workflow.get_next_step()
+            # Let workflow determine next step (not the LLM)
+            next_step = workflow.get_next_step()
 
-        # Send final response with structured data
-        final_response = AgentResponse(
-            token=None,
-            response_text=None,
-            payload={
-                "message": extracted_data.get("message", collected_text),
-                "mode": extracted_data.get("mode", "QUESTION"),
-                "target_field": extracted_data.get("target_field"),
-                "proposed_message": extracted_data.get("proposed_message"),
-                "next_step": next_step.value,
-                "updated_config": workflow.config.model_dump(),
-                "suggestions": extracted_data.get("suggestions"),
-                "options": extracted_data.get("options")
-            },
-            status="complete",
-            error=None,
-            debug=None
-        )
-        yield final_response.model_dump_json()
+            # Send final response with structured data
+            final_response = AgentResponse(
+                token=None,
+                response_text=None,
+                payload={
+                    "message": extracted_data.get("message", collected_text),
+                    "mode": extracted_data.get("mode", "QUESTION"),
+                    "target_field": extracted_data.get("target_field"),
+                    "proposed_message": extracted_data.get("proposed_message"),
+                    "next_step": next_step.value,
+                    "updated_config": workflow.config.model_dump(),
+                    "suggestions": extracted_data.get("suggestions"),
+                    "options": extracted_data.get("options")
+                },
+                status="complete",
+                error=None,
+                debug=None
+            )
+            yield final_response.model_dump_json()
+
+        except Exception as e:
+            logger.error(f"Error in stream_chat_message: {str(e)}", exc_info=True)
+            error_response = AgentResponse(
+                token=None,
+                response_text=None,
+                payload=None,
+                status=None,
+                error=f"Service error: {str(e)}",
+                debug={"error_type": type(e).__name__}
+            )
+            yield error_response.model_dump_json()
 
     def _build_system_prompt(self, step_guidance: Dict[str, Any]) -> str:
         """Build system prompt using workflow guidance instead of hardcoded flow"""
@@ -468,7 +485,7 @@ class ResearchStreamChatService:
         Process user action and update workflow config.
         Returns True if the current step is complete, False otherwise.
         """
-        from services.research_stream_creation_workflow import WorkflowStep, STEP_TO_FIELD_MAPPING
+        from services.research_stream_creation_workflow import WorkflowStep
 
         current_step = workflow.current_step
 

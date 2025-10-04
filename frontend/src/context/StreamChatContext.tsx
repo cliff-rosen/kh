@@ -125,6 +125,15 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
             for await (const chunk of researchStreamApi.streamChatMessage(request)) {
                 console.log('Received chunk:', chunk);
 
+                // Check for errors first
+                if (chunk.error) {
+                    console.error('Stream error:', chunk.error);
+                    setError(chunk.error);
+                    setStatusMessage(null);
+                    setIsLoading(false);
+                    return;
+                }
+
                 // Check for complete status first (most important)
                 if (chunk.status === 'complete' && chunk.payload) {
                     // Final payload with structured data
