@@ -9,6 +9,7 @@ interface StreamChatInterfaceProps {
     onToggleOption: (value: string) => void;
     onSelectAllOptions?: () => void;
     onDeselectAllOptions?: () => void;
+    onContinueWithOptions?: () => void;
     isLoading?: boolean;
     statusMessage?: string | null;
 }
@@ -20,6 +21,7 @@ export default function StreamChatInterface({
     onToggleOption,
     onSelectAllOptions,
     onDeselectAllOptions,
+    onContinueWithOptions,
     isLoading = false,
     statusMessage = null
 }: StreamChatInterfaceProps) {
@@ -133,7 +135,7 @@ export default function StreamChatInterface({
                                 {/* Proposed Message Button */}
                                 {message.proposedMessage && (
                                     <button
-                                        onClick={() => onSendMessage(message.proposedMessage!)}
+                                        onClick={onContinueWithOptions}
                                         className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                                     >
                                         {message.proposedMessage}

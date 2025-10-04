@@ -22,6 +22,7 @@ export default function NewStreamChatPage() {
         handleToggleOption,
         handleSelectAllOptions,
         handleDeselectAllOptions,
+        handleContinueWithOptions,
         handleUpdateField,
         createStream,
         clearError
@@ -81,6 +82,7 @@ export default function NewStreamChatPage() {
                             onToggleOption={handleToggleOption}
                             onSelectAllOptions={handleSelectAllOptions}
                             onDeselectAllOptions={handleDeselectAllOptions}
+                            onContinueWithOptions={handleContinueWithOptions}
                             isLoading={isLoading}
                             statusMessage={statusMessage}
                         />

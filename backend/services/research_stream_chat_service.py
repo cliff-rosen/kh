@@ -41,7 +41,14 @@ class ResearchStreamChatService:
         # Initialize workflow controller
         workflow = ResearchStreamCreationWorkflow(current_step, current_config)
 
-        # Get guidance from workflow for this step
+        # Process user action BEFORE calling LLM
+        step_completed = self._process_user_action(workflow, user_action, message)
+
+        # If step is complete, advance to next step
+        if step_completed:
+            workflow.advance_step()
+
+        # Get guidance from workflow for CURRENT step (may have advanced)
         step_guidance = workflow.get_step_guidance()
 
         # Build conversation context for the LLM using workflow guidance
@@ -131,6 +138,11 @@ class ResearchStreamChatService:
 
     def _build_system_prompt(self, step_guidance: Dict[str, Any]) -> str:
         """Build system prompt using workflow guidance instead of hardcoded flow"""
+        from services.research_stream_creation_workflow import WorkflowStep
+
+        # Determine current step from guidance
+        current_step_name = step_guidance.get('step', 'exploration')
+        is_exploration = current_step_name == 'exploration'
 
         # Extract options if this step has fixed choices
         options_info = ""
@@ -148,14 +160,28 @@ class ResearchStreamChatService:
             Use MODE: SUGGESTION with TARGET_FIELD: {field_name.replace(' (list)', '').replace(' ', '_')}
             Format: SUGGESTIONS: {options_list}"""
 
+        # Add EXPLORATION-specific rules
+        exploration_rules = ""
+        if is_exploration:
+            exploration_rules = """
+
+            CRITICAL - YOU ARE IN EXPLORATION MODE:
+            - You MUST use MODE: QUESTION (never MODE: SUGGESTION)
+            - DO NOT provide SUGGESTIONS or OPTIONS
+            - Ask open-ended questions to understand the user's needs
+            - Gather context about their business, goals, and research interests
+            - The workflow will transition to data collection steps when ready
+            """
+
         return f"""You are an AI assistant helping users create research streams for Knowledge Horizon,
             a biomedical and business intelligence platform.
 
             Your role is to have a natural, conversational interaction with the user to collect information.
             The workflow system will handle state management and determine what step comes next.
 
+            Current Step: {current_step_name}
             Current Step Objective: {step_guidance.get('objective', 'Collect information')}
-            Information to Collect: {step_guidance.get('collect', 'User input')}{options_info}
+            Information to Collect: {step_guidance.get('collect', 'User input')}{options_info}{exploration_rules}
 
             IMPORTANT: Each response must be categorized as one of two modes:
 
@@ -431,3 +457,52 @@ class ResearchStreamChatService:
             "suggestions": suggestions if suggestions else None,
             "options": options if options else None
         }
+
+    def _process_user_action(
+        self,
+        workflow: ResearchStreamCreationWorkflow,
+        user_action: UserAction,
+        message: str
+    ) -> bool:
+        """
+        Process user action and update workflow config.
+        Returns True if the current step is complete, False otherwise.
+        """
+        from services.research_stream_creation_workflow import WorkflowStep, STEP_TO_FIELD_MAPPING
+
+        current_step = workflow.current_step
+
+        # EXPLORATION step - only accepts text_input, never completes from user action
+        if current_step == WorkflowStep.EXPLORATION:
+            return False
+
+        # DATA STEPS - can be completed by user actions
+        if user_action.type == "option_selected":
+            # User selected a single suggestion
+            field_name = user_action.target_field
+            value = user_action.selected_value
+
+            if field_name and value:
+                workflow.update_config({field_name: value})
+                # Check if this completes the step
+                return workflow.is_step_completed(current_step)
+
+        elif user_action.type == "options_selected":
+            # User selected multiple options (checkboxes)
+            field_name = user_action.target_field
+            values = user_action.selected_values or []
+
+            if field_name and values:
+                workflow.update_config({field_name: values})
+                # Check if this completes the step
+                return workflow.is_step_completed(current_step)
+
+        elif user_action.type == "text_input":
+            # User typed text - LLM will extract data, don't mark as complete
+            return False
+
+        elif user_action.type == "skip_step":
+            # User wants to skip this step
+            return True
+
+        return False

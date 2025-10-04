@@ -425,6 +425,7 @@ class ResearchStreamCreationWorkflow:
         }
 
         step_info = guidance.get(self.current_step, {})
+        step_info["step"] = self.current_step.value  # Add current step name
         step_info["current_config"] = config_dict
         step_info["missing_fields"] = self.validate_step(self.current_step).missing_fields
 

@@ -3,7 +3,8 @@ import { researchStreamApi, handleApiError, StreamChatRequest } from '../lib/api
 import {
     StreamChatMessage,
     PartialStreamConfig,
-    StreamCreationStep
+    StreamCreationStep,
+    UserAction
 } from '../types/stream-chat';
 import { ResearchStream } from '../types';
 
@@ -19,11 +20,12 @@ interface StreamChatContextType {
     targetField: string | null;
 
     // Actions
-    streamChatMessage: (content: string) => Promise<void>;
+    streamChatMessage: (content: string, userAction?: UserAction) => Promise<void>;
     handleSelectSuggestion: (value: string) => void;
     handleToggleOption: (value: string) => void;
     handleSelectAllOptions: () => void;
     handleDeselectAllOptions: () => void;
+    handleContinueWithOptions: () => void;  // NEW
     handleUpdateField: (fieldName: string, value: any) => void;
     createStream: (config: PartialStreamConfig) => Promise<ResearchStream | null>;
     resetChat: () => void;
@@ -199,8 +201,14 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
     }, [streamConfig, currentStep]);
 
     const handleSelectSuggestion = useCallback((value: string) => {
-        streamChatMessage(value);
-    }, [streamChatMessage]);
+        // Send with option_selected user action
+        const userAction: UserAction = {
+            type: 'option_selected',
+            target_field: targetField || undefined,
+            selected_value: value
+        };
+        streamChatMessage(value, userAction);
+    }, [streamChatMessage, targetField]);
 
     const handleToggleOption = useCallback((value: string) => {
         // Update options in the last message (create new objects for React to detect change)
@@ -295,6 +303,27 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         });
     }, [targetField]);
 
+    const handleContinueWithOptions = useCallback(() => {
+        if (!targetField) return;
+
+        // Get selected values from last message
+        const lastMessage = messages[messages.length - 1];
+        const selectedValues = lastMessage.options
+            ?.filter(opt => opt.checked)
+            .map(opt => opt.value) || [];
+
+        // Send with options_selected user action
+        const userAction: UserAction = {
+            type: 'options_selected',
+            target_field: targetField,
+            selected_values: selectedValues
+        };
+
+        // Use the proposed message or a default
+        const message = lastMessage.proposedMessage || 'Continue with these selections';
+        streamChatMessage(message, userAction);
+    }, [messages, targetField, streamChatMessage]);
+
     const handleUpdateField = useCallback((fieldName: string, value: any) => {
         setStreamConfig(prev => ({
             ...prev,
@@ -340,6 +369,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         handleToggleOption,
         handleSelectAllOptions,
         handleDeselectAllOptions,
+        handleContinueWithOptions,
         handleUpdateField,
         createStream,
         resetChat,
