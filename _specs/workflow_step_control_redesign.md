@@ -113,34 +113,28 @@ When user edits a field inline in the preview panel:
 #### Exploration Step
 
 **Allowable User Response Types:**
-- `text_input` - User responds to questions or provides information
-- `option_selected` - Not typical, but could happen if LLM provided suggestions while in exploration
-- `options_selected` - Not typical, but could happen if LLM provided options while in exploration
+- `text_input` - ONLY valid action from exploration step
+
+**Why only text_input?**
+- Exploration uses MODE: QUESTION (asks questions, gathers context)
+- LLM never provides suggestions/options while in exploration
+- To provide suggestions, LLM must first transition to a data step
+- Therefore: No options to select, only text responses
 
 **Handling Logic:**
 
 **BEFORE LLM Call:**
 
 ```python
-if user_action.type == "option_selected":
-    # User selected a suggestion - extract and populate field
-    current_config[user_action.target_field] = user_action.selected_value
-    workflow.update_config({user_action.target_field: user_action.selected_value})
-    step_just_completed = True
-
-elif user_action.type == "options_selected":
-    # User selected multiple options - extract and populate field
-    current_config[user_action.target_field] = user_action.selected_values
-    workflow.update_config({user_action.target_field: user_action.selected_values})
-    step_just_completed = True
-
-elif user_action.type == "text_input":
-    # User typed free text - LLM will parse
-    step_just_completed = False
+# From exploration, only text_input is valid
+if user_action.type != "text_input":
+    yield error_response("Invalid action type for exploration step")
+    return
 
 # Get valid next steps
 valid_next_steps = workflow.get_available_next_steps()
 valid_steps_list = [s.value for s in valid_next_steps]
+# Includes: exploration (stay), all uncompleted data steps, possibly review
 ```
 
 **DURING LLM Call:**
@@ -148,14 +142,13 @@ valid_steps_list = [s.value for s in valid_next_steps]
 Build system prompt that includes:
 - Current step: `exploration`
 - Valid next steps list (includes exploration + all uncompleted data steps)
-- Instruction: "You are in EXPLORATION mode. Ask questions to gather context. When you have enough info to suggest options for a specific field, transition to that data step."
+- Instruction: "You are in EXPLORATION mode. You MUST use MODE: QUESTION. Ask questions to gather context. When you have enough info to suggest options for a specific field, you MUST transition to that data step - DO NOT provide suggestions while still in exploration."
 
 LLM receives:
 - User's message
 - Current config state
 - Conversation history
 - Valid transitions
-- Whether a step just completed
 
 **AFTER LLM Call:**
 
@@ -209,11 +202,14 @@ The LLM should reason:
    - Consider what fields are already populated
    - Choose from valid next steps list
 
-**Example:**
+**Examples:**
+
+**Example 1: LLM needs more context (stays in exploration)**
 
 ```
 Current step: exploration
 User message: "I want to monitor Palatin Technologies"
+User action: text_input
 Valid next steps: exploration, purpose, business_goals, stream_name, stream_type, focus_areas, keywords, competitors, report_frequency
 
 LLM reasoning: "User mentioned a company but not what they want to monitor. Need more context."
@@ -224,17 +220,43 @@ MESSAGE: What aspects of Palatin Technologies are you interested in monitoring? 
 NEXT_STEP: exploration
 ```
 
+**Example 2: LLM has enough context (transitions to data step)**
+
+```
+Current step: exploration
+User message: "Their melanocortin receptor pipeline and competitive landscape"
+User action: text_input
+Valid next steps: exploration, purpose, business_goals, stream_name, stream_type, focus_areas, keywords, competitors, report_frequency
+
+LLM reasoning: "Now I know company + focus area. I can suggest stream names."
+
+Response:
+MODE: SUGGESTION
+TARGET_FIELD: stream_name
+MESSAGE: Based on your interest in Palatin's melanocortin pipeline, here are some stream name suggestions:
+SUGGESTIONS: Palatin Melanocortin Intelligence, Palatin Competitive Landscape Monitor, Palatin Pipeline Tracker
+NEXT_STEP: stream_name
+```
+
 #### Review Step
 
 **Allowable User Response Types:**
-- `text_input` - User confirms, asks for changes, or provides feedback
+- `text_input` - ONLY valid action from review step
+
+**Why only text_input?**
+- Review step presents configuration for confirmation
+- User types "yes", "looks good", "create it", etc. to confirm
+- Or types about changes they want to make
+- No suggestions/options provided in review mode
 
 **Handling Logic:**
 
 **BEFORE LLM Call:**
 ```python
-# In review, text_input is primary interaction
-step_just_completed = False
+# From review, only text_input is valid
+if user_action.type != "text_input":
+    yield error_response("Invalid action type for review step")
+    return
 
 # Get valid next steps
 valid_next_steps = workflow.get_available_next_steps()  # [exploration, complete]
@@ -285,10 +307,17 @@ return response
 Data steps: `purpose`, `business_goals`, `expected_outcomes`, `stream_name`, `stream_type`, `focus_areas`, `keywords`, `competitors`, `report_frequency`
 
 **Allowable User Response Types:**
-- `option_selected` - User clicked a suggestion for THIS step's field
-- `options_selected` - User selected checkboxes for THIS step's field
-- `text_input` - User typed free text (could be for this field or a different field)
-- `skip_step` - User skipped this step (only for optional fields like competitors)
+- `option_selected` - User clicked a single suggestion chip
+- `options_selected` - User selected checkboxes and clicked continue button
+- `text_input` - User typed free text in chat
+- `skip_step` - User clicked skip button (ONLY valid for optional fields: `competitors`)
+
+**Why these actions from data steps?**
+- Data steps provide MODE: SUGGESTION with actual suggestions/options
+- User can click a suggestion → `option_selected`
+- User can check multiple boxes and continue → `options_selected`
+- User can type instead of clicking → `text_input`
+- User can skip if field is optional → `skip_step`
 
 **Handling Logic:**
 
@@ -470,11 +499,16 @@ Valid next steps: exploration, competitors, report_frequency
 LLM parsing: Extracts purpose update
 
 Response:
-MODE: QUESTION
-MESSAGE: Got it, I've updated the purpose to "Monitor regulatory changes". Now, back to keywords - based on regulatory focus, I recommend: FDA approval, clinical trial, regulatory pathway, compliance
+MODE: SUGGESTION
+TARGET_FIELD: keywords
+MESSAGE: Got it, I've updated the purpose to "Monitor regulatory changes". Now, back to keywords - based on regulatory focus, here are recommended search terms:
+OPTIONS: FDA approval|clinical trial|regulatory pathway|compliance|regulatory filing|drug approval
+PROPOSED_MESSAGE: Continue with these keywords
 EXTRACTED_DATA: purpose=Monitor regulatory changes
-NEXT_STEP: exploration
+NEXT_STEP: keywords
 ```
+
+Note: LLM stays on keywords step and provides suggestions for it, while also extracting the purpose update.
 
 **Scenario D: User typed text answering for current field**
 
@@ -515,48 +549,65 @@ async def stream_chat_message(
     field_for_current_step = STEP_TO_FIELD_MAPPING.get(current_step) if is_data_step else None
 
     # ========================================
-    # STEP 1: Process User Action BEFORE LLM
+    # STEP 1: Validate User Action for Current Step
+    # ========================================
+
+    # Non-data steps (exploration, review) only allow text_input
+    if current_step in ["exploration", "review"]:
+        if user_action.type != "text_input":
+            yield error_response(f"Only text_input allowed from {current_step} step")
+            return
+
+    # Complete step has no valid actions
+    if current_step == "complete":
+        yield error_response("Workflow is complete, no further actions allowed")
+        return
+
+    # ========================================
+    # STEP 2: Process User Action BEFORE LLM
     # ========================================
 
     if user_action.type == "option_selected":
-        # Update config with selected value
+        # Can only happen from data steps
         current_config[user_action.target_field] = user_action.selected_value
         workflow.update_config({user_action.target_field: user_action.selected_value})
 
         # Mark step complete if selection was for current step's field
-        if is_data_step and user_action.target_field == field_for_current_step:
+        if user_action.target_field == field_for_current_step:
             step_just_completed = True
 
     elif user_action.type == "options_selected":
-        # Update config with selected values
+        # Can only happen from data steps
         current_config[user_action.target_field] = user_action.selected_values
         workflow.update_config({user_action.target_field: user_action.selected_values})
 
         # Mark step complete if selections were for current step's field
-        if is_data_step and user_action.target_field == field_for_current_step:
+        if user_action.target_field == field_for_current_step:
             step_just_completed = True
 
     elif user_action.type == "skip_step":
-        # Verify field is optional
-        if field_for_current_step in OPTIONAL_FIELDS:
-            step_just_completed = True
-        else:
-            yield error_response("This field is required")
+        # Can only happen from data steps, and only for optional fields
+        if not is_data_step:
+            yield error_response("Cannot skip non-data step")
             return
+        if field_for_current_step not in OPTIONAL_FIELDS:
+            yield error_response("This field is required and cannot be skipped")
+            return
+        step_just_completed = True
 
     elif user_action.type == "text_input":
-        # User typed free text - LLM will parse
+        # Can happen from any step - LLM will parse
         pass
 
     # ========================================
-    # STEP 2: Get Valid Next Steps
+    # STEP 3: Get Valid Next Steps
     # ========================================
 
     valid_next_steps = workflow.get_available_next_steps()
     valid_steps_list = [s.value for s in valid_next_steps]
 
     # ========================================
-    # STEP 3: Build System Prompt
+    # STEP 4: Build System Prompt
     # ========================================
 
     step_guidance = workflow.get_step_guidance()
@@ -571,7 +622,7 @@ async def stream_chat_message(
     user_prompt = self._build_user_prompt(message, current_config, step_guidance)
 
     # ========================================
-    # STEP 4: Call LLM (Streaming)
+    # STEP 5: Call LLM (Streaming)
     # ========================================
 
     collected_text = ""
@@ -580,7 +631,7 @@ async def stream_chat_message(
         yield {"token": token, "status": "streaming"}
 
     # ========================================
-    # STEP 5: Parse LLM Response
+    # STEP 6: Parse LLM Response
     # ========================================
 
     parsed = _parse_llm_response(collected_text)
@@ -596,7 +647,7 @@ async def stream_chat_message(
                 step_just_completed = True
 
     # ========================================
-    # STEP 6: Validate Next Step Transition
+    # STEP 7: Validate Next Step Transition
     # ========================================
 
     if parsed.next_step:
@@ -611,7 +662,20 @@ async def stream_chat_message(
         next_step = current_step
 
     # ========================================
-    # STEP 7: Return Response
+    # STEP 8: Validate LLM Response Consistency
+    # ========================================
+
+    # If in exploration, LLM should NOT provide suggestions
+    if current_step == "exploration" and parsed.mode == "SUGGESTION":
+        logger.warning("LLM provided suggestions while in exploration - should transition to data step first")
+        # Could reject this, or allow it as a transition signal
+
+    # If in data step and transitioning to same data step, must have suggestions
+    if is_data_step and next_step == current_step and parsed.mode != "SUGGESTION":
+        logger.warning(f"LLM staying on data step {current_step} but not providing suggestions")
+
+    # ========================================
+    # STEP 9: Return Response
     # ========================================
 
     yield {
@@ -659,9 +723,13 @@ Your role:
 - Gather information about their domain, companies, therapeutic areas, goals, etc.
 - When you have enough context to suggest options for a specific field → transition to that data step
 
+CRITICAL: You MUST use MODE: QUESTION while in exploration.
+DO NOT provide SUGGESTIONS or OPTIONS while in exploration.
+To provide suggestions, you MUST first transition to the relevant data step.
+
 Decision logic:
-- Do I have enough context to suggest options for a field? → YES: transition to that data step
-- Do I need more information? → NO: stay in exploration and ask questions
+- Do I have enough context to suggest options for a field? → YES: transition to that data step (NEXT_STEP: field_name) and provide suggestions there
+- Do I need more information? → NO: stay in exploration (NEXT_STEP: exploration) and ask questions
 """
     elif current_step == "review":
         step_context = """
