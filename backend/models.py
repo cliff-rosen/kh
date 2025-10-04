@@ -103,10 +103,10 @@ class ResearchStream(Base):
     exclusions = Column(JSON, default=list)  # Topics to exclude
     keywords = Column(JSON, default=list, nullable=False)  # Search keywords - REQUIRED
 
-    # Phase 1: Purpose and Business Context (REQUIRED)
-    purpose = Column(Text, nullable=False)  # Why this stream exists - what decisions it will inform
-    business_goals = Column(JSON, default=list, nullable=False)  # Strategic objectives this stream supports
-    expected_outcomes = Column(Text, nullable=False)  # What outcomes/decisions this intelligence will drive
+    # Phase 1: Purpose and Business Context (REQUIRED for new streams)
+    purpose = Column(Text, nullable=True)  # Why this stream exists - what decisions it will inform
+    business_goals = Column(JSON, default=list, nullable=True)  # Strategic objectives this stream supports
+    expected_outcomes = Column(Text, nullable=True)  # What outcomes/decisions this intelligence will drive
 
     # Phase 1: Scoring Configuration
     scoring_config = Column(JSON, nullable=True)  # Relevance scoring and filtering config

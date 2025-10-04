@@ -12,7 +12,7 @@ import logging
 from database import get_db
 from models import User
 from schemas.agent_responses import AgentResponse, StatusResponse
-from schemas.research_stream import PartialStreamConfig
+from schemas.research_stream import PartialStreamConfig, UserAction
 
 from routers.auth import get_current_user
 from services.research_stream_chat_service import ResearchStreamChatService
@@ -31,6 +31,7 @@ class StreamChatRequest(BaseModel):
     current_config: PartialStreamConfig
     current_step: str
     conversation_history: List[ChatMessage] = []  # Full message history (user + assistant)
+    user_action: Optional[UserAction] = None  # NEW: Metadata about user's action
 
 
 class CheckboxOption(BaseModel):
@@ -78,12 +79,16 @@ async def chat_stream_for_stream_creation(
         try:
             service = ResearchStreamChatService(db, current_user.user_id)
 
+            # Default user_action to text_input if not provided (backward compatibility)
+            user_action = request.user_action or UserAction(type="text_input")
+
             # Stream the response from the service
             async for chunk in service.stream_chat_message(
                 message=request.message,
                 current_config=request.current_config,
                 current_step=request.current_step,
-                conversation_history=[msg.model_dump() for msg in request.conversation_history]
+                conversation_history=[msg.model_dump() for msg in request.conversation_history],
+                user_action=user_action
             ):
                 # Yield as SSE event
                 yield {

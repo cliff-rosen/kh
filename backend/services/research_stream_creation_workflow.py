@@ -12,8 +12,7 @@ from schemas.research_stream import PartialStreamConfig
 
 class WorkflowStep(str, Enum):
     """Steps in the research stream creation workflow"""
-    INTRO = "intro"
-    BUSINESS_FOCUS = "business_focus"
+    EXPLORATION = "exploration"  # Conversational hub for gathering context
     PURPOSE = "purpose"  # Phase 1: Why this stream exists (REQUIRED)
     BUSINESS_GOALS = "business_goals"  # Phase 1: Strategic objectives (REQUIRED)
     EXPECTED_OUTCOMES = "expected_outcomes"  # Phase 1: What decisions this drives (REQUIRED)
@@ -49,8 +48,7 @@ class ResearchStreamCreationWorkflow:
 
     # Define required fields for each step to be considered "complete"
     STEP_REQUIREMENTS = {
-        WorkflowStep.INTRO: [],
-        WorkflowStep.BUSINESS_FOCUS: [],  # Just collecting context
+        WorkflowStep.EXPLORATION: [],  # No data - just conversational context gathering
         WorkflowStep.PURPOSE: ["purpose"],  # REQUIRED
         WorkflowStep.BUSINESS_GOALS: ["business_goals"],  # REQUIRED
         WorkflowStep.EXPECTED_OUTCOMES: ["expected_outcomes"],  # REQUIRED
@@ -64,11 +62,39 @@ class ResearchStreamCreationWorkflow:
         WorkflowStep.COMPLETE: ["purpose", "business_goals", "expected_outcomes", "stream_name", "stream_type", "focus_areas", "keywords", "report_frequency"]
     }
 
+    # Mapping of steps to field names (for data steps only)
+    STEP_TO_FIELD_MAPPING = {
+        WorkflowStep.PURPOSE: "purpose",
+        WorkflowStep.BUSINESS_GOALS: "business_goals",
+        WorkflowStep.EXPECTED_OUTCOMES: "expected_outcomes",
+        WorkflowStep.STREAM_NAME: "stream_name",
+        WorkflowStep.STREAM_TYPE: "stream_type",
+        WorkflowStep.FOCUS_AREAS: "focus_areas",
+        WorkflowStep.KEYWORDS: "keywords",
+        WorkflowStep.COMPETITORS: "competitors",
+        WorkflowStep.REPORT_FREQUENCY: "report_frequency"
+    }
+
+    # List of optional fields that can be skipped
+    OPTIONAL_FIELDS = ["competitors"]
+
+    # Data steps (have associated fields)
+    DATA_STEPS = [
+        WorkflowStep.PURPOSE,
+        WorkflowStep.BUSINESS_GOALS,
+        WorkflowStep.EXPECTED_OUTCOMES,
+        WorkflowStep.STREAM_NAME,
+        WorkflowStep.STREAM_TYPE,
+        WorkflowStep.FOCUS_AREAS,
+        WorkflowStep.KEYWORDS,
+        WorkflowStep.COMPETITORS,
+        WorkflowStep.REPORT_FREQUENCY
+    ]
+
     # Dependency graph: PURPOSE → BUSINESS_GOALS → EXPECTED_OUTCOMES drives everything else
     STEP_DEPENDENCIES = {
-        WorkflowStep.INTRO: [],  # No dependencies - always the starting point
-        WorkflowStep.BUSINESS_FOCUS: [WorkflowStep.INTRO],  # Gather context first
-        WorkflowStep.PURPOSE: [WorkflowStep.INTRO],  # Purpose is the foundation
+        WorkflowStep.EXPLORATION: [],  # No dependencies - always the starting point
+        WorkflowStep.PURPOSE: [WorkflowStep.EXPLORATION],  # Purpose is the foundation
         WorkflowStep.BUSINESS_GOALS: [WorkflowStep.PURPOSE],  # Goals flow from purpose
         WorkflowStep.EXPECTED_OUTCOMES: [WorkflowStep.BUSINESS_GOALS],  # Outcomes flow from goals
         WorkflowStep.STREAM_NAME: [WorkflowStep.EXPECTED_OUTCOMES],  # Name based on purpose/goals/outcomes
@@ -78,7 +104,7 @@ class ResearchStreamCreationWorkflow:
         WorkflowStep.COMPETITORS: [WorkflowStep.FOCUS_AREAS],  # Competitors based on focus
         WorkflowStep.REPORT_FREQUENCY: [WorkflowStep.KEYWORDS],  # Frequency after main config
         WorkflowStep.REVIEW: [  # Review requires all required fields to be collected
-            WorkflowStep.INTRO,
+            WorkflowStep.EXPLORATION,
             WorkflowStep.PURPOSE,
             WorkflowStep.BUSINESS_GOALS,
             WorkflowStep.EXPECTED_OUTCOMES,
@@ -94,8 +120,7 @@ class ResearchStreamCreationWorkflow:
     # Suggested step order (strict progression)
     # This is used to prioritize which incomplete step to suggest next
     PREFERRED_STEP_ORDER = [
-        WorkflowStep.INTRO,
-        WorkflowStep.BUSINESS_FOCUS,
+        WorkflowStep.EXPLORATION,
         WorkflowStep.PURPOSE,  # 1. Why does this exist?
         WorkflowStep.BUSINESS_GOALS,  # 2. What do you want to achieve?
         WorkflowStep.EXPECTED_OUTCOMES,  # 3. What decisions will this drive?
@@ -143,6 +168,18 @@ class ResearchStreamCreationWorkflow:
         """Check if a specific step has been completed (its requirements are met)"""
         return self.validate_step(step).is_valid
 
+    def _all_required_fields_complete(self) -> bool:
+        """Check if all required fields are complete (ready for review)"""
+        required_fields = ["purpose", "business_goals", "expected_outcomes", "stream_name",
+                          "stream_type", "focus_areas", "keywords", "report_frequency"]
+        config_dict = self.config.model_dump() if hasattr(self.config, 'model_dump') else self.config
+
+        for field in required_fields:
+            value = config_dict.get(field)
+            if value is None or (isinstance(value, (list, str)) and not value):
+                return False
+        return True
+
     def get_completed_steps(self) -> List[WorkflowStep]:
         """Get list of all steps that have been completed"""
         completed = []
@@ -173,22 +210,51 @@ class ResearchStreamCreationWorkflow:
 
     def get_available_next_steps(self) -> List[WorkflowStep]:
         """
-        Get all steps that we could validly transition to based on dependencies.
+        Get all steps that we could validly transition to based on current step.
+
+        Rules:
+        - EXPLORATION is ALWAYS available (except from COMPLETE)
+        - From EXPLORATION: Can jump to any uncompleted data step
+        - From data steps: Can go to other uncompleted data steps OR back to EXPLORATION
+        - REVIEW available when all required fields complete
+        - COMPLETE only from REVIEW
 
         Returns:
-            List of WorkflowSteps that have their dependencies satisfied
+            List of WorkflowSteps that are valid transitions
         """
         available = []
-        completed_steps = self.get_completed_steps()
 
-        for step in WorkflowStep:
-            # Skip if already completed
-            if step in completed_steps:
-                continue
+        if self.current_step == WorkflowStep.COMPLETE:
+            # Workflow is done
+            return available
 
-            # Check if dependencies are met
-            if self.can_transition_to(step):
-                available.append(step)
+        # EXPLORATION is always available (as a fallback for asking questions)
+        if self.current_step != WorkflowStep.EXPLORATION:
+            available.append(WorkflowStep.EXPLORATION)
+
+        if self.current_step == WorkflowStep.EXPLORATION:
+            # From EXPLORATION: Can jump to any uncompleted data step
+            available.append(WorkflowStep.EXPLORATION)  # Can stay in exploration
+
+            for step in self.DATA_STEPS:
+                # Add if not yet completed
+                if not self.is_step_completed(step):
+                    available.append(step)
+
+        elif self.current_step == WorkflowStep.REVIEW:
+            # From REVIEW can go to COMPLETE or back to EXPLORATION
+            available.append(WorkflowStep.COMPLETE)
+
+        else:
+            # From data steps: can go to other uncompleted data steps
+            # EXPLORATION already added above
+            for step in self.DATA_STEPS:
+                if step != self.current_step and not self.is_step_completed(step):
+                    available.append(step)
+
+        # Add REVIEW if all required fields are complete
+        if self._all_required_fields_complete() and self.current_step != WorkflowStep.REVIEW:
+            available.append(WorkflowStep.REVIEW)
 
         return available
 
@@ -259,19 +325,13 @@ class ResearchStreamCreationWorkflow:
         config_dict = self.config.model_dump() if hasattr(self.config, 'model_dump') else self.config
 
         guidance = {
-            WorkflowStep.INTRO: {
-                "objective": "Welcome the user and explain the process",
-                "collect": "Nothing specific - just set expectations",
+            WorkflowStep.EXPLORATION: {
+                "objective": "Gather context and information to prepare for field suggestions",
+                "collect": "Conversational context (no specific field)",
                 "example_questions": [
-                    "I'll help you create a research stream. Let's start by understanding your focus area."
-                ]
-            },
-            WorkflowStep.BUSINESS_FOCUS: {
-                "objective": "Understand what area they want to monitor",
-                "collect": "General business focus or therapeutic area (stored as context)",
-                "example_questions": [
-                    "What area of business or research are you focused on?",
-                    "Are you interested in a specific therapeutic area like oncology or cardiovascular?"
+                    "I'll help you create a research stream. What area would you like to monitor?",
+                    "What aspects of your business or research are you focused on?",
+                    "Are you interested in a specific company, therapeutic area, or market segment?"
                 ]
             },
             WorkflowStep.PURPOSE: {

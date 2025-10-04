@@ -4,7 +4,7 @@ Domain/Business objects only - no request/response types
 """
 
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Literal
 from datetime import datetime
 from enum import Enum
 
@@ -52,6 +52,14 @@ class ScoringConfig(BaseModel):
     )
 
 
+class UserAction(BaseModel):
+    """Metadata about what type of action the user is taking"""
+    type: Literal['option_selected', 'options_selected', 'text_input', 'skip_step']
+    target_field: Optional[str] = None  # Which field this relates to
+    selected_value: Optional[str] = None  # For single-select (SUGGESTIONS)
+    selected_values: Optional[List[str]] = None  # For multi-select (OPTIONS)
+
+
 class PartialStreamConfig(BaseModel):
     """Partial stream configuration for AI-guided creation (all fields optional)"""
     # Core fields
@@ -88,13 +96,13 @@ class ResearchStream(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    # Phase 1: Purpose and Business Context (REQUIRED)
-    purpose: str  # Required: Why this stream exists
-    business_goals: List[str]  # Required: Strategic objectives
-    expected_outcomes: str  # Required: What decisions this will drive
+    # Phase 1: Purpose and Business Context (REQUIRED for new streams, optional for legacy)
+    purpose: Optional[str] = ""  # Why this stream exists
+    business_goals: Optional[List[str]] = []  # Strategic objectives
+    expected_outcomes: Optional[str] = ""  # What decisions this will drive
 
-    # Phase 1: Search Strategy (REQUIRED)
-    keywords: List[str]  # Required: Search terms for literature
+    # Phase 1: Search Strategy (REQUIRED for new streams, optional for legacy)
+    keywords: Optional[List[str]] = []  # Search terms for literature
 
     # Phase 1: Scoring Configuration
     scoring_config: Optional[ScoringConfig] = None
