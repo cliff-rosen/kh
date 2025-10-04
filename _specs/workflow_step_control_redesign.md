@@ -500,7 +500,382 @@ interface ChatResponse {
 
 ---
 
-### 9. Migration Path
+### 9. LLM-Driven State Transitions with EXPLORATION Step
+
+#### The New Workflow Structure
+
+The workflow now has a conversational hub that the LLM can always return to:
+
+1. **EXPLORATION** (replaces INTRO) - Conversational context gathering
+   - Starting point of the workflow
+   - Always available as a transition target
+   - LLM asks questions and gathers information
+   - When LLM has enough context → transitions to specific data step
+
+2. **Data Steps** - Collect specific fields with suggestions
+   - `PURPOSE` → collects `purpose` field
+   - `BUSINESS_GOALS` → collects `business_goals` field
+   - `EXPECTED_OUTCOMES` → collects `expected_outcomes` field
+   - `STREAM_NAME` → collects `stream_name` field
+   - `STREAM_TYPE` → collects `stream_type` field
+   - `FOCUS_AREAS` → collects `focus_areas` field
+   - `KEYWORDS` → collects `keywords` field
+   - `COMPETITORS` → collects `competitors` field (optional)
+   - `REPORT_FREQUENCY` → collects `report_frequency` field
+
+3. **REVIEW** - Confirms configuration before creation
+4. **COMPLETE** - Workflow finishes
+
+#### The Core Problem: When to Ask vs When to Suggest
+
+The fundamental challenge is knowing when the LLM should:
+- **Ask questions** (gather more context)
+- **Provide suggestions** (move to collecting a field)
+
+Static step progression forces the LLM to ask about fields in a predetermined order, even when the conversation doesn't support it.
+
+#### Solution: EXPLORATION as a Conversational Hub
+
+**EXPLORATION is always a valid transition target.** This gives the LLM two clear modes:
+
+**Mode 1: EXPLORATION (asking questions)**
+- LLM doesn't have enough context yet
+- Asks clarifying questions
+- Gathers information about user's needs
+- When ready → transitions to a specific data step
+
+**Mode 2: Data Step (providing suggestions)**
+- LLM has enough context to suggest options for a field
+- Provides SUGGESTIONS or OPTIONS
+- User selects → step completes
+- LLM reasons about next step OR returns to EXPLORATION if more context needed
+
+#### How It Works
+
+When a step completes (user selects an option):
+
+1. **Backend marks the step complete** and updates config
+2. **Backend gets valid next steps** from workflow engine (always includes EXPLORATION)
+3. **Backend gives LLM the valid options** and asks it to reason about the best next step
+4. **LLM decides:**
+   - If it has enough context for a specific field → transition to that data step with suggestions
+   - If it needs more context → transition to EXPLORATION and ask questions
+5. **Backend validates** the choice is in the valid list
+
+The workflow engine controls **what's possible**, the LLM **reasons about the best option** from the valid set, and the backend **validates** the LLM's choice.
+
+#### Implementation
+
+**1. Workflow Engine Method**
+
+```python
+def get_available_next_steps(self) -> List[WorkflowStep]:
+    """
+    Returns list of valid steps the workflow can transition to from current step.
+
+    Rules:
+    - EXPLORATION is ALWAYS available (except from COMPLETE)
+    - From EXPLORATION: Can jump to any uncompleted data step
+    - From data steps: Can go to other uncompleted data steps OR back to EXPLORATION
+    - REVIEW available when all required fields complete
+    - COMPLETE only from REVIEW
+    """
+    current = self.current_step
+    available = []
+
+    if current == WorkflowStep.COMPLETE:
+        # Workflow is done
+        return available
+
+    # EXPLORATION is always available (as a fallback for asking questions)
+    if current != WorkflowStep.EXPLORATION:
+        available.append(WorkflowStep.EXPLORATION)
+
+    if current == WorkflowStep.EXPLORATION:
+        # From EXPLORATION: Can jump to any uncompleted data step
+        available.append(WorkflowStep.EXPLORATION)  # Can stay in exploration
+
+        for step in [WorkflowStep.PURPOSE, WorkflowStep.BUSINESS_GOALS,
+                     WorkflowStep.EXPECTED_OUTCOMES, WorkflowStep.STREAM_NAME,
+                     WorkflowStep.STREAM_TYPE, WorkflowStep.FOCUS_AREAS,
+                     WorkflowStep.KEYWORDS, WorkflowStep.COMPETITORS,
+                     WorkflowStep.REPORT_FREQUENCY]:
+            # Add if not yet completed
+            if not self._is_step_completed(step):
+                available.append(step)
+
+    elif current == WorkflowStep.REVIEW:
+        # From REVIEW can go to COMPLETE or back to EXPLORATION
+        available.append(WorkflowStep.COMPLETE)
+
+    else:
+        # From data steps: can go to other uncompleted data steps
+        # EXPLORATION already added above
+        for step in [WorkflowStep.PURPOSE, WorkflowStep.BUSINESS_GOALS,
+                     WorkflowStep.EXPECTED_OUTCOMES, WorkflowStep.STREAM_NAME,
+                     WorkflowStep.STREAM_TYPE, WorkflowStep.FOCUS_AREAS,
+                     WorkflowStep.KEYWORDS, WorkflowStep.COMPETITORS,
+                     WorkflowStep.REPORT_FREQUENCY]:
+            if step != current and not self._is_step_completed(step):
+                available.append(step)
+
+    # Add REVIEW if all required fields are complete
+    if self._all_required_fields_complete() and current != WorkflowStep.REVIEW:
+        available.append(WorkflowStep.REVIEW)
+
+    return available
+```
+
+**2. System Prompt with Valid Transitions**
+
+```python
+def _build_system_prompt(self, step_guidance: Dict[str, Any],
+                         valid_next_steps: List[str],
+                         step_just_completed: bool = False) -> str:
+
+    valid_steps_text = ", ".join(valid_next_steps)
+
+    completion_context = ""
+    if step_just_completed:
+        completion_context = """
+    IMPORTANT: The user just completed the previous step by selecting an option.
+    You now need to reason about which next step makes the most sense given the conversation trajectory so far.
+    """
+
+    return f"""You are an AI assistant helping users create research streams.
+
+    Current Step: {self.current_step}
+    Valid next steps you can transition to: {valid_steps_text}
+    {completion_context}
+
+    Current Step Objective: {step_guidance.get('objective', 'Collect information')}
+
+    CRITICAL RULES FOR STEP TRANSITIONS:
+
+    1. You can ONLY transition to steps in the "Valid next steps" list above
+    2. EXPLORATION is your conversational hub - use it when you need to ask questions
+    3. Data steps require SUGGESTIONS - only transition to them when you can provide options
+    4. When transitioning, reason about which step makes most sense given conversation trajectory
+
+    TWO MODES OF OPERATION:
+
+    **EXPLORATION Mode** (asking questions):
+    - Use when you need more context from the user
+    - Ask clarifying questions to understand their needs
+    - Gather information about domain, companies, therapeutic areas, etc.
+    - When you have enough context → transition to a data step with suggestions
+
+    **Data Step Mode** (providing suggestions):
+    - Use when you have enough context to suggest options for a specific field
+    - MUST provide SUGGESTIONS (single-select) or OPTIONS (multi-select)
+    - User selects → field is populated → you reason about next step
+
+    DECISION LOGIC:
+
+    Do I have enough context to suggest options for a specific field?
+    → YES: Transition to that data step with MODE: SUGGESTION
+    → NO: Transition to EXPLORATION with MODE: QUESTION
+
+    Example Flow:
+
+    1. Start in EXPLORATION:
+       User: "I want to monitor Palatin Technologies"
+       Valid next steps: exploration, purpose, business_goals, stream_name, stream_type, focus_areas, keywords, competitors, report_frequency
+
+       LLM reasons: "They mentioned a company, but I don't know what they want to monitor or why"
+       MODE: QUESTION
+       MESSAGE: What aspects of Palatin Technologies are you interested in monitoring? For example, their pipeline, competitive landscape, or specific therapeutic areas?
+       NEXT_STEP: exploration
+
+    2. User provides context, LLM has enough info:
+       User: "Their melanocortin receptor pipeline and competitive landscape"
+       Valid next steps: exploration, purpose, business_goals, stream_name, stream_type, focus_areas, keywords, competitors, report_frequency
+
+       LLM reasons: "Now I know company + focus. I can suggest stream names."
+       MODE: SUGGESTION
+       TARGET_FIELD: stream_name
+       MESSAGE: Based on your interest in Palatin's melanocortin pipeline, here are some stream name suggestions:
+       SUGGESTIONS: Palatin Melanocortin Intelligence, Palatin Competitive Landscape Monitor, Palatin Pipeline Tracker
+       NEXT_STEP: stream_name
+
+    3. User selects stream name, step complete:
+       Valid next steps: exploration, purpose, business_goals, stream_type, focus_areas, keywords, competitors, report_frequency
+
+       LLM reasons: "They mentioned competitive landscape earlier, so stream_type makes sense"
+       MODE: SUGGESTION
+       TARGET_FIELD: stream_type
+       MESSAGE: Perfect! Now let's define what type of intelligence this stream will focus on:
+       SUGGESTIONS: competitive, regulatory, clinical, market, scientific, mixed
+       NEXT_STEP: stream_type
+
+    4. User selects stream_type, but LLM needs more context:
+       Valid next steps: exploration, purpose, business_goals, focus_areas, keywords, competitors, report_frequency
+
+       LLM reasons: "I should understand their purpose before suggesting focus areas"
+       MODE: QUESTION
+       MESSAGE: Great! Before we set up the focus areas, can you tell me what business decisions this intelligence will support?
+       NEXT_STEP: exploration
+
+    Return format:
+    MODE: [QUESTION or SUGGESTION]
+    MESSAGE: [Your conversational message]
+    TARGET_FIELD: [field_name] (only for SUGGESTION mode)
+    EXTRACTED_DATA: [field_name]=[value] (if extracted from user input)
+    SUGGESTIONS: [comma-separated] (only for SUGGESTION mode - single-select)
+    OPTIONS: [opt1|opt2|opt3] (only for SUGGESTION mode - multi-select)
+    PROPOSED_MESSAGE: [button text] (only for OPTIONS mode)
+    NEXT_STEP: [step_name] (from valid next steps list - reason about best choice)
+    """
+```
+
+**3. Backend Flow with LLM Reasoning**
+
+```python
+async def stream_chat_message(
+    message: str,
+    current_config: PartialStreamConfig,
+    current_step: str,
+    conversation_history: List[Dict],
+    user_action: UserAction
+) -> AsyncGenerator[str, None]:
+
+    workflow = ResearchStreamCreationWorkflow(current_step, current_config)
+    step_just_completed = False
+
+    # STEP 1: Process user action BEFORE calling LLM
+
+    if user_action.type == "option_selected":
+        # User clicked a single suggestion - step is COMPLETE
+        current_config[user_action.target_field] = user_action.selected_value
+        workflow.update_config({user_action.target_field: user_action.selected_value})
+        step_just_completed = True
+
+    elif user_action.type == "options_selected":
+        # User selected multiple checkboxes - step is COMPLETE
+        current_config[user_action.target_field] = user_action.selected_values
+        workflow.update_config({user_action.target_field: user_action.selected_values})
+        step_just_completed = True
+
+    elif user_action.type == "skip_step":
+        # User skipped optional field - step is COMPLETE
+        step_just_completed = True
+
+    # STEP 2: Get valid next steps from workflow engine
+    valid_next_steps = workflow.get_available_next_steps()
+    valid_steps_list = [s.value for s in valid_next_steps]
+
+    # STEP 3: Build prompts with valid transitions for LLM to reason about
+    step_guidance = workflow.get_step_guidance()
+    system_prompt = self._build_system_prompt(
+        step_guidance,
+        valid_steps_list,
+        step_just_completed  # Tell LLM if we just completed a step
+    )
+    user_prompt = self._build_user_prompt(message, current_config, step_guidance)
+
+    # STEP 4: Call LLM - it will reason about which next step makes sense
+    collected_text = ""
+    async for token in call_llm(system_prompt, user_prompt, conversation_history):
+        collected_text += token
+        yield {"token": token, "status": "streaming"}
+
+    # STEP 5: Parse LLM response
+    parsed = _parse_llm_response(collected_text)
+
+    # Update config with any extracted data (for text_input scenarios)
+    if parsed.extracted_data:
+        for field, value in parsed.extracted_data.items():
+            current_config[field] = value
+
+    # STEP 6: Validate LLM's chosen next step
+    if parsed.next_step:
+        if parsed.next_step in valid_steps_list:
+            next_step = parsed.next_step
+        else:
+            # LLM tried to transition to invalid step - reject and stay
+            logger.warning(f"LLM attempted invalid transition to {parsed.next_step}")
+            next_step = current_step
+    else:
+        # No transition specified - stay on current step
+        next_step = current_step
+
+    # STEP 7: Return response
+    yield {
+        "message": parsed.message,
+        "next_step": next_step,
+        "updated_config": current_config,
+        "target_field": parsed.target_field,
+        "suggestions": parsed.suggestions,
+        "options": parsed.options,
+        "proposed_message": parsed.proposed_message
+    }
+```
+
+**4. LLM Response Parsing Update**
+
+```python
+def _parse_llm_response(self, assistant_message: str) -> Dict[str, Any]:
+    """Parse LLM response including NEXT_STEP field"""
+
+    # ... existing parsing logic ...
+
+    next_step = None
+
+    for line in assistant_message.split('\n'):
+        stripped = line.strip()
+
+        # ... existing field parsing ...
+
+        elif stripped.startswith("NEXT_STEP:"):
+            next_step = stripped.replace("NEXT_STEP:", "").strip()
+
+    return {
+        "message": response_message,
+        "mode": mode,
+        "target_field": target_field,
+        "proposed_message": proposed_message,
+        "updates": updates,
+        "suggestions": suggestions,
+        "options": options,
+        "next_step": next_step  # NEW
+    }
+```
+
+#### Workflow Transition Rules
+
+**From INTRO (data-less)**:
+- Can jump to: any data step with met dependencies
+- LLM chooses based on context gathered
+- Must provide SUGGESTIONS when transitioning
+
+**From BUSINESS_FOCUS (data-less)**:
+- Can jump to: any data step with met dependencies
+- Can go back to: INTRO (if more context needed)
+
+**From Data Steps**:
+- Can go to: next uncompleted step in sequence
+- Can stay: current step (gather more info)
+- Linear progression: PURPOSE → BUSINESS_GOALS → EXPECTED_OUTCOMES → STREAM_NAME → ...
+
+**From REVIEW**:
+- Can go to: COMPLETE (finish workflow)
+- Can go to: any data step (to edit)
+
+**From COMPLETE**:
+- Workflow ends
+
+#### Benefits
+
+1. **Workflow engine controls structure**: Enforces dependencies and valid paths
+2. **LLM provides intelligence**: Chooses best transition based on conversation
+3. **Validation prevents errors**: Backend verifies LLM's choice is valid
+4. **Flexible from data-less steps**: Can jump intelligently instead of forcing linear flow
+5. **Structured from data steps**: Follows clear sequence when collecting fields
+6. **Debuggable**: Clear audit trail of why transitions happen
+
+---
+
+### 10. Migration Path
 
 1. **Phase 1**: Add `user_action` to backend (optional, backward compatible)
    - If `user_action` present, use new logic
@@ -518,3 +893,9 @@ interface ChatResponse {
    - Skip buttons
    - Go back functionality
    - Better validation messages
+
+5. **Phase 5**: Implement LLM-driven transitions
+   - Add `get_available_next_steps()` to workflow engine
+   - Update system prompt with valid transitions
+   - Add `NEXT_STEP` parsing
+   - Add transition validation
