@@ -843,35 +843,36 @@ def _parse_llm_response(self, assistant_message: str) -> Dict[str, Any]:
 
 #### Workflow Transition Rules
 
-**From INTRO (data-less)**:
-- Can jump to: any data step with met dependencies
-- LLM chooses based on context gathered
-- Must provide SUGGESTIONS when transitioning
+**From EXPLORATION**:
+- Can stay in: EXPLORATION (keep asking questions)
+- Can jump to: any uncompleted data step (when ready to suggest options)
+- Can go to: REVIEW (when all required fields complete)
 
-**From BUSINESS_FOCUS (data-less)**:
-- Can jump to: any data step with met dependencies
-- Can go back to: INTRO (if more context needed)
-
-**From Data Steps**:
-- Can go to: next uncompleted step in sequence
-- Can stay: current step (gather more info)
-- Linear progression: PURPOSE → BUSINESS_GOALS → EXPECTED_OUTCOMES → STREAM_NAME → ...
+**From Data Steps** (PURPOSE, BUSINESS_GOALS, etc.):
+- Can go to: EXPLORATION (need more context before suggesting next field)
+- Can go to: another uncompleted data step (ready to suggest options for that field)
+- Can go to: REVIEW (when all required fields complete)
 
 **From REVIEW**:
-- Can go to: COMPLETE (finish workflow)
-- Can go to: any data step (to edit)
+- Can go to: COMPLETE (user confirms)
+- Can go to: EXPLORATION (user wants to make changes)
 
 **From COMPLETE**:
 - Workflow ends
 
+**Key principle**: EXPLORATION is always available as a fallback. LLM decides:
+- "Do I have enough context to suggest options?" → Go to data step
+- "Do I need more info?" → Go to/stay in EXPLORATION
+
 #### Benefits
 
-1. **Workflow engine controls structure**: Enforces dependencies and valid paths
-2. **LLM provides intelligence**: Chooses best transition based on conversation
-3. **Validation prevents errors**: Backend verifies LLM's choice is valid
-4. **Flexible from data-less steps**: Can jump intelligently instead of forcing linear flow
-5. **Structured from data steps**: Follows clear sequence when collecting fields
-6. **Debuggable**: Clear audit trail of why transitions happen
+1. **Clear separation of concerns**: EXPLORATION for questions, data steps for suggestions
+2. **Natural conversation flow**: LLM can ask questions when needed instead of forcing suggestions
+3. **Always has a fallback**: EXPLORATION is always available when LLM needs more context
+4. **Intelligent transitions**: LLM reasons about best next step based on conversation trajectory
+5. **Workflow engine controls structure**: Enforces what transitions are valid
+6. **Backend validates choices**: Prevents invalid transitions
+7. **Debuggable**: Clear audit trail of why transitions happen (LLM reasoning + validation)
 
 ---
 
