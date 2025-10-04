@@ -118,10 +118,15 @@ class ResearchStreamChatService:
             if extracted_data.get("updates"):
                 workflow.update_config(extracted_data["updates"])
 
-            # Let workflow determine next step (not the LLM)
-            next_step = workflow.get_next_step()
+            # Check if LLM-extracted data completed the current step
+            # If so, advance to next step
+            current_step_complete = workflow.is_step_completed(workflow.current_step)
+            if current_step_complete:
+                next_step = workflow.get_next_step()
+                workflow = ResearchStreamCreationWorkflow(next_step.value, workflow.config)
 
             # Send final response with structured data
+            # next_step is the CURRENT step (after potential advancement)
             final_response = AgentResponse(
                 token=None,
                 response_text=None,
@@ -130,7 +135,7 @@ class ResearchStreamChatService:
                     "mode": extracted_data.get("mode", "QUESTION"),
                     "target_field": extracted_data.get("target_field"),
                     "proposed_message": extracted_data.get("proposed_message"),
-                    "next_step": next_step.value,
+                    "next_step": workflow.current_step.value,
                     "updated_config": workflow.config.model_dump(),
                     "suggestions": extracted_data.get("suggestions"),
                     "options": extracted_data.get("options")
@@ -185,6 +190,7 @@ class ResearchStreamChatService:
             CRITICAL - YOU ARE IN EXPLORATION MODE:
             - You MUST use MODE: QUESTION (never MODE: SUGGESTION)
             - DO NOT provide SUGGESTIONS or OPTIONS
+            - DO NOT use EXTRACTED_DATA - you are gathering context, not collecting structured data yet
             - Ask open-ended questions to understand the user's needs
             - Gather context about their business, goals, and research interests
             - The workflow will transition to data collection steps when ready
@@ -211,8 +217,17 @@ class ResearchStreamChatService:
             - You can suggest specific values for a configuration field
             - User can select from your suggestions to populate the field
             - Must specify which field (purpose, business_goals, expected_outcomes, stream_name, stream_type, focus_areas, keywords, competitors, report_frequency)
-            - Use SUGGESTIONS for single-select fields (stream_type, report_frequency, stream_name)
-            - Use OPTIONS for multi-select fields (business_goals, focus_areas, keywords, competitors)
+
+            CRITICAL - Field Type Formatting:
+            - Use SUGGESTIONS for single-select/text fields: purpose, expected_outcomes, stream_name, stream_type, report_frequency
+              * These show as clickable suggestion chips
+              * User clicks ONE to select it
+              * Format: SUGGESTIONS: option1, option2, option3
+            - Use OPTIONS for multi-select/array fields: business_goals, focus_areas, keywords, competitors
+              * These show as checkboxes
+              * User can select MULTIPLE
+              * Format: OPTIONS: option1|option2|option3
+              * Must include PROPOSED_MESSAGE for the continue button
 
             Guidelines:
             - Be conversational, friendly, and helpful
@@ -262,12 +277,11 @@ class ResearchStreamChatService:
             MODE: QUESTION
             MESSAGE: What's the purpose of this research stream? What decisions will it help you make?
 
-            SUGGESTION mode for PURPOSE (text field):
+            SUGGESTION mode for PURPOSE (single-select text field - use SUGGESTIONS not OPTIONS):
             MODE: SUGGESTION
             TARGET_FIELD: purpose
             MESSAGE: Based on your interest in Palatin Technologies, here are some potential purposes for this stream:
-            OPTIONS: Monitor competitive landscape for strategic planning|Track melanocortin pathway research for pipeline development|Identify partnership opportunities in metabolic disease|Monitor regulatory developments affecting our compounds
-            PROPOSED_MESSAGE: Continue with selected purpose
+            SUGGESTIONS: Monitor competitive landscape for strategic planning, Track melanocortin pathway research for pipeline development, Identify partnership opportunities in metabolic disease
 
             SUGGESTION mode for BUSINESS_GOALS (multi-select list):
             MODE: SUGGESTION
@@ -276,12 +290,11 @@ class ResearchStreamChatService:
             OPTIONS: Inform study design decisions|Track competitive landscape|Identify new therapeutic indications|Monitor regulatory pathway|Support partnership discussions|Guide R&D investment priorities
             PROPOSED_MESSAGE: Continue with selected goals
 
-            SUGGESTION mode for EXPECTED_OUTCOMES (text field):
+            SUGGESTION mode for EXPECTED_OUTCOMES (single-select text field - use SUGGESTIONS not OPTIONS):
             MODE: SUGGESTION
             TARGET_FIELD: expected_outcomes
             MESSAGE: What specific outcomes do you expect from this intelligence?
-            OPTIONS: Quarterly competitive landscape reports for leadership|Weekly alerts on new clinical trial filings|Monthly synthesis of new melanocortin research|Real-time alerts on regulatory changes
-            PROPOSED_MESSAGE: Continue with this outcome
+            SUGGESTIONS: Quarterly competitive landscape reports for leadership, Weekly alerts on new clinical trial filings, Monthly synthesis of new melanocortin research, Real-time alerts on regulatory changes
 
             SUGGESTION mode for FOCUS_AREAS (multi-select list):
             MODE: SUGGESTION
