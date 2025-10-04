@@ -4,7 +4,8 @@ import {
     PartialStreamConfig,
     StreamCreationStep,
     StreamChatSuggestions,
-    CheckboxOption
+    CheckboxOption,
+    UserAction
 } from '../../types/stream-chat';
 import { makeStreamRequest } from './streamUtils';
 import { StreamResponse, AgentResponse, StatusResponse } from '../../types/chat';
@@ -20,6 +21,7 @@ export interface StreamChatRequest {
     current_config: PartialStreamConfig;
     current_step: StreamCreationStep;
     conversation_history: ChatMessage[];
+    user_action?: UserAction;  // NEW: Metadata about user's action
 }
 
 export interface StreamChatResponse {

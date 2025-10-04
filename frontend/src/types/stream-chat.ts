@@ -1,5 +1,12 @@
 // Chat types for AI-guided research stream creation
 
+export interface UserAction {
+    type: 'option_selected' | 'options_selected' | 'text_input' | 'skip_step';
+    target_field?: string;
+    selected_value?: string;
+    selected_values?: string[];
+}
+
 export interface StreamChatMessage {
     role: 'user' | 'assistant';
     content: string;
@@ -21,17 +28,16 @@ export interface CheckboxOption {
 }
 
 export type StreamCreationStep =
-    | 'intro'
-    | 'business_focus'
+    | 'exploration'  // Replaces 'intro' and 'business_focus'
     | 'purpose'
     | 'business_goals'
     | 'expected_outcomes'
-    | 'name'
-    | 'type'
-    | 'focus'
+    | 'stream_name'
+    | 'stream_type'
+    | 'focus_areas'
     | 'keywords'
     | 'competitors'
-    | 'frequency'
+    | 'report_frequency'
     | 'review'
     | 'complete';
 

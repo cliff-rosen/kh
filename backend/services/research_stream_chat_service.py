@@ -9,7 +9,7 @@ import anthropic
 import os
 import json
 from schemas.agent_responses import AgentResponse, StatusResponse
-from schemas.research_stream import PartialStreamConfig
+from schemas.research_stream import PartialStreamConfig, UserAction
 from services.research_stream_creation_workflow import ResearchStreamCreationWorkflow
 
 STREAM_CHAT_MODEL = "claude-sonnet-4-20250514"
@@ -26,12 +26,17 @@ class ResearchStreamChatService:
         message: str,
         current_config: PartialStreamConfig,
         current_step: str,
-        conversation_history: List[Dict[str, str]] = None
+        conversation_history: List[Dict[str, str]] = None,
+        user_action: UserAction = None
     ) -> AsyncGenerator[str, None]:
         """
         Stream a chat message response with status updates via SSE.
         Uses workflow controller for state management and LLM for conversation.
         """
+
+        # Default to text_input if no user action provided
+        if user_action is None:
+            user_action = UserAction(type="text_input")
 
         # Initialize workflow controller
         workflow = ResearchStreamCreationWorkflow(current_step, current_config)

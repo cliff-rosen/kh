@@ -45,7 +45,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         }
     ]);
     const [streamConfig, setStreamConfig] = useState<PartialStreamConfig>({});
-    const [currentStep, setCurrentStep] = useState<StreamCreationStep>('intro');
+    const [currentStep, setCurrentStep] = useState<StreamCreationStep>('exploration');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -65,12 +65,12 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
             }
         ]);
         setStreamConfig({});
-        setCurrentStep('intro');
+        setCurrentStep('exploration');
         setError(null);
         setStatusMessage(null);
     }, []);
 
-    const streamChatMessage = useCallback(async (content: string) => {
+    const streamChatMessage = useCallback(async (content: string, userAction?: UserAction) => {
         // Add user message
         const userMessage: StreamChatMessage = {
             role: 'user',
@@ -94,7 +94,8 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
                 message: content,
                 current_config: streamConfig,
                 current_step: currentStep,
-                conversation_history: history
+                conversation_history: history,
+                user_action: userAction || { type: 'text_input' }  // Default to text_input
             };
 
             let finalPayload: any = null;
