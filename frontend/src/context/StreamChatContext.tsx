@@ -210,6 +210,14 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
     }, [streamConfig, currentStep]);
 
     const handleSelectSuggestion = useCallback((value: string) => {
+        // Update preview area immediately (before backend call)
+        if (targetField) {
+            setStreamConfig(prev => ({
+                ...prev,
+                [targetField]: value
+            }));
+        }
+
         // Send with option_selected user action
         const userAction: UserAction = {
             type: 'option_selected',
@@ -241,8 +249,9 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         // Update config based on target field (from responseMode/targetField)
         if (!targetField) return;
 
-        // Handle array fields (focus_areas, competitors)
-        if (targetField === 'focus_areas' || targetField === 'competitors') {
+        // Handle array fields (business_goals, focus_areas, keywords, competitors)
+        const arrayFields = ['business_goals', 'focus_areas', 'keywords', 'competitors'];
+        if (arrayFields.includes(targetField)) {
             setStreamConfig(prev => {
                 const currentArray = (prev[targetField as keyof PartialStreamConfig] as string[]) || [];
                 const hasValue = currentArray.includes(value);
@@ -274,7 +283,8 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
                 };
 
                 // Update config with all values
-                if (targetField === 'focus_areas' || targetField === 'competitors') {
+                const arrayFields = ['business_goals', 'focus_areas', 'keywords', 'competitors'];
+                if (arrayFields.includes(targetField)) {
                     setStreamConfig(prev => ({
                         ...prev,
                         [targetField]: allValues
@@ -301,7 +311,8 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
                 };
 
                 // Clear config field
-                if (targetField === 'focus_areas' || targetField === 'competitors') {
+                const arrayFields = ['business_goals', 'focus_areas', 'keywords', 'competitors'];
+                if (arrayFields.includes(targetField)) {
                     setStreamConfig(prev => ({
                         ...prev,
                         [targetField]: []
