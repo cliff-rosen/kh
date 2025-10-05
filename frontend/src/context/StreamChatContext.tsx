@@ -1,18 +1,18 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { researchStreamApi, handleApiError, StreamChatRequest } from '../lib/api';
+import { researchStreamApi, handleApiError, StreamBuildChatRequest } from '../lib/api';
+import { ChatMessage } from '../types/stream-builder-chat';
 import {
-    StreamChatMessage,
-    PartialStreamConfig,
-    StreamCreationStep,
+    StreamInProgress,
+    StreamBuildStep,
     UserAction
-} from '../types/stream-chat';
+} from '../types/stream-building';
 import { ResearchStream } from '../types';
 
 interface StreamChatContextType {
     // State
-    messages: StreamChatMessage[];
-    streamConfig: PartialStreamConfig;
-    currentStep: StreamCreationStep;
+    messages: ChatMessage[];
+    streamConfig: StreamInProgress;
+    currentStep: StreamBuildStep;
     isLoading: boolean;
     error: string | null;
     statusMessage: string | null;
@@ -28,7 +28,7 @@ interface StreamChatContextType {
     handleContinueWithOptions: () => void;
     handleAcceptReview: () => Promise<void>;  // NEW - Accept and create stream
     handleUpdateField: (fieldName: string, value: any) => void;
-    createStream: (config: PartialStreamConfig) => Promise<ResearchStream | null>;
+    createStream: (config: StreamInProgress) => Promise<ResearchStream | null>;
     resetChat: () => void;
     clearError: () => void;
 }
@@ -40,15 +40,15 @@ interface StreamChatProviderProps {
 }
 
 export function StreamChatProvider({ children }: StreamChatProviderProps) {
-    const [messages, setMessages] = useState<StreamChatMessage[]>([
+    const [messages, setMessages] = useState<ChatMessage[]>([
         {
             role: 'assistant',
             content: "Hi! I'm here to help you create a research stream. Let's start with the basics.\n\nWhat area of business or research are you focused on? For example, you might say 'cardiovascular therapeutics' or 'oncology drug development'.",
             timestamp: new Date().toISOString()
         }
     ]);
-    const [streamConfig, setStreamConfig] = useState<PartialStreamConfig>({});
-    const [currentStep, setCurrentStep] = useState<StreamCreationStep>('exploration');
+    const [streamConfig, setStreamConfig] = useState<StreamInProgress>({});
+    const [currentStep, setCurrentStep] = useState<StreamBuildStep>('exploration');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -75,7 +75,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
 
     const streamChatMessage = useCallback(async (content: string, userAction?: UserAction) => {
         // Add user message
-        const userMessage: StreamChatMessage = {
+        const userMessage: ChatMessage = {
             role: 'user',
             content,
             timestamp: new Date().toISOString()
@@ -93,9 +93,9 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
             }));
 
             // Call backend API with streaming
-            const request: StreamChatRequest = {
+            const request: StreamBuildChatRequest = {
                 message: content,
-                current_config: streamConfig,
+                current_stream: streamConfig,
                 current_step: currentStep,
                 conversation_history: history,
                 user_action: userAction || { type: 'text_input' }  // Default to text_input
@@ -106,7 +106,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
             let messageStarted = false;
 
             // Add placeholder message
-            const placeholderMessage: StreamChatMessage = {
+            const placeholderMessage: ChatMessage = {
                 role: 'assistant',
                 content: '',
                 timestamp: new Date().toISOString()
@@ -200,7 +200,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
                 setTargetField(finalPayload.target_field || null);
 
                 setCurrentStep(finalPayload.next_step);
-                setStreamConfig(finalPayload.updated_config);
+                setStreamConfig(finalPayload.updated_stream);
             }
         } catch (err) {
             setError(handleApiError(err));
@@ -254,7 +254,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         const arrayFields = ['business_goals', 'focus_areas', 'keywords', 'competitors'];
         if (arrayFields.includes(targetField)) {
             setStreamConfig(prev => {
-                const currentArray = (prev[targetField as keyof PartialStreamConfig] as string[]) || [];
+                const currentArray = (prev[targetField as keyof StreamInProgress] as string[]) || [];
                 const hasValue = currentArray.includes(value);
                 return {
                     ...prev,
@@ -352,7 +352,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         }));
     }, []);
 
-    const createStream = useCallback(async (config: PartialStreamConfig): Promise<ResearchStream | null> => {
+    const createStream = useCallback(async (config: StreamInProgress): Promise<ResearchStream | null> => {
         setIsLoading(true);
         setError(null);
         try {

@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { PartialStreamConfig } from '../types/stream-chat';
+import { StreamInProgress } from '../types/stream-building';
 import { PencilIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 interface StreamConfigPreviewProps {
-    config: PartialStreamConfig;
+    config: StreamInProgress;
     highlightedField?: string | null;
     onUpdateField?: (fieldName: string, value: any) => void;
 }
@@ -473,7 +473,7 @@ export default function StreamConfigPreview({ config, highlightedField, onUpdate
     );
 }
 
-function getCompletionPercentage(config: PartialStreamConfig): number {
+function getCompletionPercentage(config: StreamInProgress): number {
     const requiredFields = [
         config.purpose,
         config.business_goals?.length,

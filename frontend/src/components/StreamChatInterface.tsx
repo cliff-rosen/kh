@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { StreamChatMessage } from '../types/stream-chat';
+import { ChatMessage } from '../types/stream-builder-chat';
 import { PaperAirplaneIcon } from '@heroicons/react/24/solid';
 
 interface StreamChatInterfaceProps {
-    messages: StreamChatMessage[];
+    messages: ChatMessage[];
     onSendMessage: (message: string) => void;
     onSelectSuggestion: (suggestion: string) => void;
     onToggleOption: (value: string) => void;

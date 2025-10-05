@@ -1,25 +1,68 @@
 import { api } from './index';
 import { ResearchStream, StreamType, ReportFrequency } from '../../types';
 import {
-    PartialStreamConfig,
-    StreamCreationStep,
+    StreamInProgress,
+    StreamBuildStep,
     UserAction,
-    ChatMessage
-} from '../../types/stream-chat';
+    Suggestion,
+    MultiSelectOption
+} from '../../types/stream-building';
 import { makeStreamRequest } from './streamUtils';
-import { StreamResponse, AgentResponse, StatusResponse } from '../../types/chat';
 
-/**
- * Stream Chat API Types
- */
+// ============================================================================
+// Stream Building Chat API
+// ============================================================================
 
-export interface StreamChatRequest {
+// Simple message format for API requests
+export interface ApiMessage {
+    role: 'user' | 'assistant';
+    content: string;
+}
+
+export interface StreamBuildChatRequest {
     message: string;
-    current_config: PartialStreamConfig;
-    current_step: StreamCreationStep;
-    conversation_history: ChatMessage[];
+    current_stream: StreamInProgress;
+    current_step: StreamBuildStep;
+    conversation_history: ApiMessage[];
     user_action?: UserAction;
 }
+
+// ============================================================================
+// SSE Streaming Response Types
+// ============================================================================
+
+// The parsed payload from a complete LLM response
+export interface StreamBuildChatPayload {
+    message: string;                      // AI's response text
+    mode: 'QUESTION' | 'SUGGESTION' | 'REVIEW';  // Response mode
+    target_field: string | null;          // Field being asked about
+    next_step: StreamBuildStep;           // Next workflow step
+    updated_stream: StreamInProgress;     // Updated stream data
+    suggestions?: Suggestion[];           // Suggestion chips (if mode=SUGGESTION)
+    options?: MultiSelectOption[];        // Checkboxes (if mode=SUGGESTION)
+    proposed_message?: string;            // Button text for options
+}
+
+// Status updates during streaming (thinking, tool use, etc.)
+export interface StatusResponse {
+    status: string;
+    payload: string | object | null;
+    error: string | null;
+    debug: string | object | null;
+}
+
+// Token-by-token streaming response from LLM
+export interface AgentResponse {
+    token: string | null;                 // Individual token
+    response_text: string | null;         // Accumulated text
+    payload: StreamBuildChatPayload | null;  // Final parsed response
+    status: string | null;
+    error: string | null;
+    debug: string | object | null;
+}
+
+// Union type for all possible stream responses
+export type StreamResponse = AgentResponse | StatusResponse;
 
 /**
  * Research Stream CRUD API Types
@@ -103,7 +146,7 @@ export const researchStreamApi = {
      * @returns AsyncGenerator that yields StreamResponse objects
      */
     streamChatMessage: async function* (
-        request: StreamChatRequest
+        request: StreamBuildChatRequest
     ): AsyncGenerator<StreamResponse> {
         try {
             const rawStream = makeStreamRequest('/api/research-streams/chat/stream', request, 'POST');
