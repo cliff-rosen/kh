@@ -213,6 +213,23 @@ class ResearchStreamChatService:
             - The workflow will automatically advance past completed fields
             """
 
+        # Add REVIEW-specific rules
+        is_review = current_step_name == 'review'
+        review_rules = ""
+        if is_review:
+            review_rules = """
+
+            CRITICAL - YOU ARE IN REVIEW MODE:
+            - Use MODE: REVIEW (not QUESTION or SUGGESTION)
+            - Present a comprehensive summary of the stream configuration
+            - Format the summary clearly with all collected fields
+            - Tell the user: "Your stream is ready to create. Review the configuration above and click 'Accept & Create Stream' to proceed, or type any changes you'd like to make."
+            - DO NOT provide SUGGESTIONS or OPTIONS
+            - If user requests changes, use EXTRACTED_DATA to capture them and stay in REVIEW mode
+            - The frontend will show an "Accept & Create Stream" button
+            - DO NOT advance to COMPLETE - that happens when user clicks Accept button
+            """
+
         return f"""You are an AI assistant helping users create research streams for Knowledge Horizon,
             a biomedical and business intelligence platform.
 
@@ -221,9 +238,9 @@ class ResearchStreamChatService:
 
             Current Step: {current_step_name}
             Current Step Objective: {step_guidance.get('objective', 'Collect information')}
-            Information to Collect: {step_guidance.get('collect', 'User input')}{options_info}{exploration_rules}
+            Information to Collect: {step_guidance.get('collect', 'User input')}{options_info}{exploration_rules}{review_rules}
 
-            IMPORTANT: Each response must be categorized as one of two modes:
+            IMPORTANT: Each response must be categorized as one of three modes:
 
             **MODE 1: QUESTION** - You need to ask clarifying questions to gather information
             - User hasn't provided enough context yet
@@ -234,6 +251,12 @@ class ResearchStreamChatService:
             - You can suggest specific values for a configuration field
             - User can select from your suggestions to populate the field
             - Must specify which field (purpose, business_goals, expected_outcomes, stream_name, stream_type, focus_areas, keywords, competitors, report_frequency)
+
+            **MODE 3: REVIEW** - Present final summary and await user confirmation
+            - Show comprehensive summary of all collected configuration
+            - User will click "Accept & Create Stream" button to proceed
+            - User can still type changes, which you should capture with EXTRACTED_DATA
+            - Stay in REVIEW mode after processing changes
 
             CRITICAL - Field Type Formatting:
             - Use SUGGESTIONS for single-select/text fields: purpose, expected_outcomes, stream_name, stream_type, report_frequency
@@ -277,7 +300,7 @@ class ResearchStreamChatService:
               * Use EXTRACTED_DATA to capture their selection
 
             Return your response in this format:
-            MODE: [QUESTION or SUGGESTION]
+            MODE: [QUESTION or SUGGESTION or REVIEW]
             MESSAGE: [Your conversational message to the user - this is what they will see]
             TARGET_FIELD: [field_name] (only for SUGGESTION mode - which config field these suggestions populate)
             EXTRACTED_DATA: [field_name]=[value] (if you extracted information from their response)
@@ -383,6 +406,32 @@ class ResearchStreamChatService:
             MODE: QUESTION
             MESSAGE: Perfect! Now let's determine what type of research stream this will be.
             EXTRACTED_DATA: stream_name=Palatin Melanocortin Research Intelligence
+
+            REVIEW mode (present final summary):
+            MODE: REVIEW
+            MESSAGE: Perfect! Your research stream is ready to create. Here's a summary:
+
+            **Stream Name:** Palatin Melanocortin Research Intelligence
+            **Purpose:** Monitor melanocortin pathway research for competitive intelligence
+            **Business Goals:** Track competitive landscape, Inform study design decisions, Identify partnership opportunities
+            **Expected Outcomes:** Quarterly competitive landscape reports for leadership
+            **Stream Type:** Scientific
+            **Focus Areas:** Melanocortin Receptor Agonists, Obesity and Metabolic Disorders, Sexual Dysfunction Treatment
+            **Keywords:** melanocortin, MCR1, MCR4, bremelanotide, obesity, metabolic syndrome
+            **Competitors:** Novo Nordisk, Eli Lilly, Rhythm Pharmaceuticals
+            **Report Frequency:** Weekly
+
+            Review the configuration above and click "Accept & Create Stream" to proceed, or type any changes you'd like to make.
+
+            REVIEW mode with user edit:
+            User: "change frequency to monthly"
+            MODE: REVIEW
+            MESSAGE: Updated! I've changed the report frequency to monthly. Here's your updated configuration:
+
+            [... same summary with updated frequency ...]
+
+            Review the configuration and click "Accept & Create Stream" when ready, or type any other changes.
+            EXTRACTED_DATA: report_frequency=monthly
 
             Note: You do NOT need to determine the next step - the workflow system handles that.
             Just focus on categorizing your response correctly and providing clear, knowledge-driven value."""
@@ -534,6 +583,15 @@ class ResearchStreamChatService:
         from services.research_stream_creation_workflow import WorkflowStep
 
         current_step = workflow.current_step
+
+        # REVIEW step - only accepts accept_review action
+        if current_step == WorkflowStep.REVIEW:
+            if user_action.type == "accept_review":
+                # User clicked "Accept & Create Stream" - advance to COMPLETE
+                return True
+            else:
+                # User is making edits - stay in REVIEW
+                return False
 
         # EXPLORATION step - only accepts text_input, never completes from user action
         if current_step == WorkflowStep.EXPLORATION:

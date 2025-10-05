@@ -54,7 +54,7 @@ class ScoringConfig(BaseModel):
 
 class UserAction(BaseModel):
     """Metadata about what type of action the user is taking"""
-    type: Literal['option_selected', 'options_selected', 'text_input', 'skip_step']
+    type: Literal['option_selected', 'options_selected', 'text_input', 'skip_step', 'accept_review']
     target_field: Optional[str] = None  # Which field this relates to
     selected_value: Optional[str] = None  # For single-select (SUGGESTIONS)
     selected_values: Optional[List[str]] = None  # For multi-select (OPTIONS)

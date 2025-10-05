@@ -1,7 +1,7 @@
 // Chat types for AI-guided research stream creation
 
 export interface UserAction {
-    type: 'option_selected' | 'options_selected' | 'text_input' | 'skip_step';
+    type: 'option_selected' | 'options_selected' | 'text_input' | 'skip_step' | 'accept_review';
     target_field?: string;
     selected_value?: string;
     selected_values?: string[];

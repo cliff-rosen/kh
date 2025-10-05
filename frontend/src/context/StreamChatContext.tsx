@@ -16,7 +16,7 @@ interface StreamChatContextType {
     isLoading: boolean;
     error: string | null;
     statusMessage: string | null;
-    responseMode: 'QUESTION' | 'SUGGESTION' | null;
+    responseMode: 'QUESTION' | 'SUGGESTION' | 'REVIEW' | null;
     targetField: string | null;
 
     // Actions
@@ -25,7 +25,8 @@ interface StreamChatContextType {
     handleToggleOption: (value: string) => void;
     handleSelectAllOptions: () => void;
     handleDeselectAllOptions: () => void;
-    handleContinueWithOptions: () => void;  // NEW
+    handleContinueWithOptions: () => void;
+    handleAcceptReview: () => Promise<void>;  // NEW - Accept and create stream
     handleUpdateField: (fieldName: string, value: any) => void;
     createStream: (config: PartialStreamConfig) => Promise<ResearchStream | null>;
     resetChat: () => void;
@@ -377,6 +378,27 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         }
     }, []);
 
+    const handleAcceptReview = useCallback(async () => {
+        // User clicked "Accept & Create Stream" in REVIEW mode
+        // Send accept_review action to backend, which will advance to COMPLETE
+        // Then create the stream
+        const userAction: UserAction = {
+            type: 'accept_review'
+        };
+
+        // First, send the accept action to backend (advances to COMPLETE step)
+        await streamChatMessage('Accept', userAction);
+
+        // Now create the stream
+        const createdStream = await createStream(streamConfig);
+
+        if (createdStream) {
+            // Successfully created!
+            // TODO: Navigate to Phase 2 implementation workflow
+            console.log('Stream created successfully:', createdStream);
+        }
+    }, [streamConfig, streamChatMessage, createStream]);
+
     const value: StreamChatContextType = {
         // State
         messages,
@@ -395,6 +417,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         handleSelectAllOptions,
         handleDeselectAllOptions,
         handleContinueWithOptions,
+        handleAcceptReview,
         handleUpdateField,
         createStream,
         resetChat,

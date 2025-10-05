@@ -23,6 +23,7 @@ export default function NewStreamChatPage() {
         handleSelectAllOptions,
         handleDeselectAllOptions,
         handleContinueWithOptions,
+        handleAcceptReview,
         handleUpdateField,
         createStream,
         clearError
@@ -83,8 +84,10 @@ export default function NewStreamChatPage() {
                             onSelectAllOptions={handleSelectAllOptions}
                             onDeselectAllOptions={handleDeselectAllOptions}
                             onContinueWithOptions={handleContinueWithOptions}
+                            onAcceptReview={handleAcceptReview}
                             isLoading={isLoading}
                             statusMessage={statusMessage}
+                            responseMode={responseMode}
                         />
                     </div>
 

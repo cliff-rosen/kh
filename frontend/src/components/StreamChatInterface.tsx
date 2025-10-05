@@ -10,8 +10,10 @@ interface StreamChatInterfaceProps {
     onSelectAllOptions?: () => void;
     onDeselectAllOptions?: () => void;
     onContinueWithOptions?: () => void;
+    onAcceptReview?: () => void;
     isLoading?: boolean;
     statusMessage?: string | null;
+    responseMode?: 'QUESTION' | 'SUGGESTION' | 'REVIEW' | null;
 }
 
 export default function StreamChatInterface({
@@ -22,8 +24,10 @@ export default function StreamChatInterface({
     onSelectAllOptions,
     onDeselectAllOptions,
     onContinueWithOptions,
+    onAcceptReview,
     isLoading = false,
-    statusMessage = null
+    statusMessage = null,
+    responseMode = null
 }: StreamChatInterfaceProps) {
     const [input, setInput] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -177,6 +181,21 @@ export default function StreamChatInterface({
                                 </span>
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {/* Accept & Create Stream button (REVIEW mode only) */}
+                {responseMode === 'REVIEW' && !isLoading && onAcceptReview && (
+                    <div className="flex justify-center mt-6">
+                        <button
+                            onClick={onAcceptReview}
+                            className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-lg transition-colors flex items-center gap-2"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                            </svg>
+                            Accept & Create Stream
+                        </button>
                     </div>
                 )}
 
