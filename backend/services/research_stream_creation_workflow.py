@@ -303,6 +303,7 @@ class ResearchStreamCreationWorkflow:
     def update_config(self, updates: Dict[str, Any]) -> PartialStreamConfig:
         """
         Update the configuration with new values.
+        For array fields, intelligently merges instead of replacing.
 
         Args:
             updates: Dictionary of fields to update
@@ -311,7 +312,24 @@ class ResearchStreamCreationWorkflow:
             Updated PartialStreamConfig
         """
         config_dict = self.config.model_dump() if hasattr(self.config, 'model_dump') else self.config
-        config_dict.update(updates)
+
+        # Array fields that should be merged, not replaced
+        array_fields = ['business_goals', 'focus_areas', 'keywords', 'competitors']
+
+        for field_name, new_value in updates.items():
+            if field_name in array_fields and isinstance(new_value, list):
+                # Merge arrays: combine existing + new, removing duplicates
+                existing = config_dict.get(field_name, [])
+                if isinstance(existing, list):
+                    # Combine and deduplicate while preserving order
+                    combined = existing + [item for item in new_value if item not in existing]
+                    config_dict[field_name] = combined
+                else:
+                    config_dict[field_name] = new_value
+            else:
+                # For non-array fields, replace value
+                config_dict[field_name] = new_value
+
         self.config = PartialStreamConfig(**config_dict)
         return self.config
 

@@ -118,12 +118,26 @@ class ResearchStreamChatService:
             if extracted_data.get("updates"):
                 workflow.update_config(extracted_data["updates"])
 
-            # Check if LLM-extracted data completed the current step
-            # If so, advance to next step
-            current_step_complete = workflow.is_step_completed(workflow.current_step)
-            if current_step_complete:
-                next_step = workflow.get_next_step()
-                workflow = ResearchStreamCreationWorkflow(next_step.value, workflow.config)
+            # Smart step detection: advance past completed steps
+            from services.research_stream_creation_workflow import WorkflowStep
+
+            if workflow.current_step == WorkflowStep.EXPLORATION:
+                # In EXPLORATION, if user volunteered data, skip to first incomplete required step
+                for step in workflow.PREFERRED_STEP_ORDER:
+                    if step == WorkflowStep.EXPLORATION:
+                        continue
+                    if step in [WorkflowStep.REVIEW, WorkflowStep.COMPLETE]:
+                        continue  # Don't auto-advance to review/complete
+                    if not workflow.is_step_completed(step):
+                        # Found first incomplete step
+                        workflow = ResearchStreamCreationWorkflow(step.value, workflow.config)
+                        break
+            else:
+                # For data steps, check if current step is complete and advance
+                current_step_complete = workflow.is_step_completed(workflow.current_step)
+                if current_step_complete:
+                    next_step = workflow.get_next_step()
+                    workflow = ResearchStreamCreationWorkflow(next_step.value, workflow.config)
 
             # Send final response with structured data
             # next_step is the CURRENT step (after potential advancement)
@@ -190,10 +204,13 @@ class ResearchStreamChatService:
             CRITICAL - YOU ARE IN EXPLORATION MODE:
             - You MUST use MODE: QUESTION (never MODE: SUGGESTION)
             - DO NOT provide SUGGESTIONS or OPTIONS
-            - DO NOT use EXTRACTED_DATA - you are gathering context, not collecting structured data yet
-            - Ask open-ended questions to understand the user's needs
-            - Gather context about their business, goals, and research interests
-            - The workflow will transition to data collection steps when ready
+            - You CAN and SHOULD use EXTRACTED_DATA when the user explicitly provides structured information
+              * Example: "I want a stream named XYZ" → EXTRACTED_DATA: stream_name=XYZ
+              * Example: "monitoring oncology and cardiology" → EXTRACTED_DATA: focus_areas=Oncology, Cardiology
+              * Acknowledge what you captured: "Got it, I'll name it XYZ. Now, what's the purpose..."
+            - When user provides vague or conversational input, ask clarifying questions instead of guessing
+            - Focus on gathering context about their business, goals, and research interests
+            - The workflow will automatically advance past completed fields
             """
 
         return f"""You are an AI assistant helping users create research streams for Knowledge Horizon,
@@ -236,6 +253,14 @@ class ResearchStreamChatService:
             - When the user mentions therapeutic areas, suggest related areas from your knowledge
             - When discussing companies, suggest relevant ones active in the mentioned areas
             - Extract information from natural language responses
+            - CRITICAL - USER AGENCY: If the user explicitly requests to set/change ANY field at ANY time, honor it with EXTRACTED_DATA
+              * Example: While asking about purpose, user says "actually call it 'XYZ Monitor'" → EXTRACTED_DATA: stream_name=XYZ Monitor
+              * Example: While in stream_type, user says "add Pfizer to competitors" → EXTRACTED_DATA: competitors=Pfizer
+              * Example: User says "change purpose to monitor competitive landscape" → EXTRACTED_DATA: purpose=monitor competitive landscape
+              * For array fields (business_goals, focus_areas, keywords, competitors), values are ADDED to existing, not replaced
+              * For single-value fields (purpose, stream_name, etc.), values are REPLACED
+              * Acknowledge the change and continue with current step
+              * User can edit any field at any time, regardless of current workflow step
             - LEVERAGE YOUR KNOWLEDGE: If user mentions a company, research area, or therapeutic focus:
               * Look up what you know about their pipeline, focus areas, and technologies
               * Proactively suggest relevant therapeutic areas, competitors, and related topics
@@ -272,6 +297,14 @@ class ResearchStreamChatService:
               NOT: EXTRACTED_DATA: stream_name="Palatin Research Stream"
 
             Examples:
+
+            EXPLORATION mode with volunteered data (extract what user provides):
+            User: "I want a research stream named 'Oncology Competitive Intel' monitoring Pfizer and Novartis in oncology"
+            MODE: QUESTION
+            MESSAGE: Great! I'll set up a stream called "Oncology Competitive Intel" focused on oncology, monitoring Pfizer and Novartis. Now, what's the main purpose of this stream? What decisions will it help you make?
+            EXTRACTED_DATA: stream_name=Oncology Competitive Intel
+            EXTRACTED_DATA: focus_areas=Oncology
+            EXTRACTED_DATA: competitors=Pfizer, Novartis
 
             QUESTION mode (only when you truly have no context):
             MODE: QUESTION
