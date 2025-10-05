@@ -1,34 +1,16 @@
-// Chat types for AI-guided research stream creation
+/**
+ * Stream Chat Types
+ * Types for AI-guided research stream creation workflow
+ */
 
-export interface UserAction {
-    type: 'option_selected' | 'options_selected' | 'text_input' | 'skip_step' | 'accept_review';
-    target_field?: string;
-    selected_value?: string;
-    selected_values?: string[];
-}
+import { ScoringConfig } from './research-stream';
 
-export interface StreamChatMessage {
-    role: 'user' | 'assistant';
-    content: string;
-    timestamp: string;
-    suggestions?: SuggestionChip[];
-    options?: CheckboxOption[];
-    proposedMessage?: string;
-}
-
-export interface SuggestionChip {
-    label: string;
-    value: string;
-}
-
-export interface CheckboxOption {
-    label: string;
-    value: string;
-    checked: boolean;
-}
+/**
+ * Workflow Step Types
+ */
 
 export type StreamCreationStep =
-    | 'exploration'  // Replaces 'intro' and 'business_focus'
+    | 'exploration'
     | 'purpose'
     | 'business_goals'
     | 'expected_outcomes'
@@ -41,8 +23,54 @@ export type StreamCreationStep =
     | 'review'
     | 'complete';
 
+/**
+ * User Action Types
+ */
+
+export interface UserAction {
+    type: 'option_selected' | 'options_selected' | 'text_input' | 'skip_step' | 'accept_review';
+    target_field?: string;
+    selected_value?: string;
+    selected_values?: string[];
+}
+
+/**
+ * Message Types
+ */
+
+export interface ChatMessage {
+    role: 'user' | 'assistant';
+    content: string;
+}
+
+export interface StreamChatMessage extends ChatMessage {
+    timestamp: string;
+    suggestions?: SuggestionChip[];
+    options?: CheckboxOption[];
+    proposedMessage?: string;
+}
+
+/**
+ * UI Component Types
+ */
+
+export interface SuggestionChip {
+    label: string;
+    value: string;
+}
+
+export interface CheckboxOption {
+    label: string;
+    value: string;
+    checked: boolean;
+}
+
+/**
+ * Configuration Types
+ */
+
 export interface PartialStreamConfig {
-    // Core Purpose & Context (drives everything else)
+    // Core Purpose & Context
     purpose?: string;
     business_goals?: string[];
     expected_outcomes?: string;
@@ -59,23 +87,5 @@ export interface PartialStreamConfig {
 
     // Configuration
     report_frequency?: string;
-    scoring_config?: {
-        relevance_weight?: number;
-        evidence_weight?: number;
-        inclusion_threshold?: number;
-        max_items_per_report?: number;
-    };
-}
-
-export interface StreamChatSuggestions {
-    therapeutic_areas?: string[];
-    companies?: string[];
-    stream_types?: string[];
-}
-
-export interface StreamCreationChatState {
-    messages: StreamChatMessage[];
-    currentStep: StreamCreationStep;
-    streamConfig: PartialStreamConfig;
-    suggestions: StreamChatSuggestions;
+    scoring_config?: ScoringConfig;
 }

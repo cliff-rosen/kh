@@ -3,36 +3,28 @@ import { ResearchStream, StreamType, ReportFrequency } from '../../types';
 import {
     PartialStreamConfig,
     StreamCreationStep,
-    StreamChatSuggestions,
-    CheckboxOption,
-    UserAction
+    UserAction,
+    ChatMessage
 } from '../../types/stream-chat';
 import { makeStreamRequest } from './streamUtils';
 import { StreamResponse, AgentResponse, StatusResponse } from '../../types/chat';
 
-// API Request/Response types (belong in API layer, not in types/)
-export interface ChatMessage {
-    role: 'user' | 'assistant';
-    content: string;
-}
+/**
+ * Stream Chat API Types
+ */
 
 export interface StreamChatRequest {
     message: string;
     current_config: PartialStreamConfig;
     current_step: StreamCreationStep;
     conversation_history: ChatMessage[];
-    user_action?: UserAction;  // NEW: Metadata about user's action
+    user_action?: UserAction;
 }
 
-export interface StreamChatResponse {
-    message: string;
-    next_step: StreamCreationStep;
-    updated_config: PartialStreamConfig;
-    suggestions?: StreamChatSuggestions;
-    options?: CheckboxOption[];
-}
+/**
+ * Research Stream CRUD API Types
+ */
 
-// Request/Response wrapper types
 export interface ResearchStreamCreateRequest {
     stream_name: string;
     description?: string;
@@ -55,17 +47,6 @@ export interface ResearchStreamUpdateRequest {
     competitors?: string[];
     report_frequency?: ReportFrequency;
     is_active?: boolean;
-}
-
-export interface ResearchStreamResponse {
-    data: ResearchStream;
-    message?: string;
-}
-
-export interface ResearchStreamsListResponse {
-    data: ResearchStream[];
-    message?: string;
-    total: number;
 }
 
 export const researchStreamApi = {
