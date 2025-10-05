@@ -361,7 +361,12 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
                 stream_type: config.stream_type as any,
                 focus_areas: config.focus_areas || [],
                 competitors: config.competitors || [],
-                report_frequency: config.report_frequency as any
+                report_frequency: config.report_frequency as any,
+                // Phase 1 required fields
+                purpose: config.purpose!,
+                business_goals: config.business_goals || [],
+                expected_outcomes: config.expected_outcomes!,
+                keywords: config.keywords || []
             });
             return newStream;
         } catch (err) {

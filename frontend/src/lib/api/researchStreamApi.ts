@@ -40,6 +40,11 @@ export interface ResearchStreamCreateRequest {
     focus_areas: string[];
     competitors: string[];
     report_frequency: ReportFrequency;
+    // Phase 1 required fields
+    purpose: string;
+    business_goals: string[];
+    expected_outcomes: string;
+    keywords: string[];
 }
 
 export interface ResearchStreamUpdateRequest {

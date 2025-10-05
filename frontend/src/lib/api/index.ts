@@ -93,6 +93,12 @@ export const handleApiError = (error: any): string => {
     }
     const data = error.response.data;
     console.log('Error data:', data);
+
+    // Handle validation errors (FastAPI returns array of error objects)
+    if (Array.isArray(data.detail)) {
+      return data.detail.map((err: any) => err.msg || JSON.stringify(err)).join('; ');
+    }
+
     return data.detail || data.message || 'An error occurred';
   } else if (error.request) {
     return 'No response from server';
