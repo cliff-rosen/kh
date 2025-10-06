@@ -32,14 +32,19 @@ export default function StreamChatInterface() {
     const renderMessageContent = (content: string) => {
         // Simple regex to find [text](url) markdown links
         const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-        const parts: (string | JSX.Element)[] = [];
+        const parts: JSX.Element[] = [];
         let lastIndex = 0;
         let match;
+        let partIndex = 0;
 
         while ((match = linkRegex.exec(content)) !== null) {
             // Add text before the link
             if (match.index > lastIndex) {
-                parts.push(content.substring(lastIndex, match.index));
+                parts.push(
+                    <span key={`text-${partIndex++}`}>
+                        {content.substring(lastIndex, match.index)}
+                    </span>
+                );
             }
 
             // Add the link
@@ -47,7 +52,7 @@ export default function StreamChatInterface() {
             const linkUrl = match[2];
             parts.push(
                 <Link
-                    key={match.index}
+                    key={`link-${partIndex++}`}
                     to={linkUrl}
                     className="text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300"
                 >
@@ -60,10 +65,14 @@ export default function StreamChatInterface() {
 
         // Add remaining text
         if (lastIndex < content.length) {
-            parts.push(content.substring(lastIndex));
+            parts.push(
+                <span key={`text-${partIndex++}`}>
+                    {content.substring(lastIndex)}
+                </span>
+            );
         }
 
-        return parts.length > 0 ? parts : content;
+        return parts.length > 0 ? <>{parts}</> : content;
     };
 
     const handleSubmit = (e: React.FormEvent) => {
