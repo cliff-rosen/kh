@@ -349,6 +349,14 @@ class ResearchStreamCreationWorkflow:
                     "Are you interested in a specific company, therapeutic area, or market segment?"
                 ]
             },
+            WorkflowStep.STREAM_NAME: {
+                "objective": "Create a descriptive name for the stream",
+                "collect": "stream_name",
+                "example_questions": [
+                    "What would you like to name this research stream?",
+                    "Based on your focus, how about we call this stream: '{suggested_name}'?"
+                ]
+            },
             WorkflowStep.PURPOSE: {
                 "objective": "Understand why this stream exists - the foundation",
                 "collect": "purpose",
@@ -357,65 +365,12 @@ class ResearchStreamCreationWorkflow:
                     "Why do you want to monitor this area? What opportunities or risks are you tracking?"
                 ]
             },
-            WorkflowStep.BUSINESS_GOALS: {
-                "objective": "Identify the strategic objectives this stream supports",
-                "collect": "business_goals (list)",
+            WorkflowStep.CHANNELS: {
+                "objective": "Create monitoring channels with specific focus areas",
+                "collect": "channels (array of channel objects)",
                 "example_questions": [
-                    "What strategic business goals will this stream support?",
-                    "What are you hoping to achieve with this intelligence? (e.g., inform study design, track competitive landscape, identify new indications)"
-                ],
-                "provide_suggestions": True
-            },
-            WorkflowStep.EXPECTED_OUTCOMES: {
-                "objective": "Understand what decisions or actions this intelligence will drive",
-                "collect": "expected_outcomes",
-                "example_questions": [
-                    "What specific outcomes or decisions will this intelligence drive?",
-                    "How will you use this information to make better decisions?"
-                ]
-            },
-            WorkflowStep.STREAM_NAME: {
-                "objective": "Create a descriptive name for the stream",
-                "collect": "stream_name",
-                "example_questions": [
-                    "Based on your focus, how about we call this stream: '{suggested_name}'?",
-                    "What would you like to name this research stream?"
-                ]
-            },
-            WorkflowStep.STREAM_TYPE: {
-                "objective": "Determine what type of monitoring they need",
-                "collect": "stream_type",
-                "options": ["competitive", "regulatory", "clinical", "market", "scientific", "mixed"],
-                "example_questions": [
-                    "What type of information are you most interested in tracking?",
-                    "Are you monitoring competitors, regulatory changes, clinical trials, or scientific research?"
-                ]
-            },
-            WorkflowStep.FOCUS_AREAS: {
-                "objective": "Get specific therapeutic areas or topics",
-                "collect": "focus_areas (list)",
-                "example_questions": [
-                    "Which specific therapeutic areas should we monitor?",
-                    "What topics or domains are most relevant to you?"
-                ],
-                "provide_suggestions": True
-            },
-            WorkflowStep.KEYWORDS: {
-                "objective": "Collect specific search keywords for literature databases",
-                "collect": "keywords (list)",
-                "example_questions": [
-                    "What specific keywords should we use when searching scientific literature?",
-                    "Are there specific molecules, pathways, or terms we should search for?"
-                ],
-                "provide_suggestions": True
-            },
-            WorkflowStep.COMPETITORS: {
-                "objective": "Identify companies to monitor (if applicable)",
-                "collect": "competitors (list)",
-                "optional": True,
-                "example_questions": [
-                    "Are there specific companies you'd like to monitor?",
-                    "Which competitors should we track in this space?"
+                    "Let's set up your monitoring channels. Each channel focuses on a specific area. What's the first area you want to monitor?",
+                    "Based on your purpose, I recommend creating channels for different aspects like scientific research, clinical trials, and competitive intelligence. Does that work?"
                 ],
                 "provide_suggestions": True
             },
