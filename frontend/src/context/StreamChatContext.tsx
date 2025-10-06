@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { researchStreamApi, handleApiError, StreamBuildChatRequest } from '../lib/api';
 import { ChatMessage } from '../types/stream-builder-chat';
 import {
@@ -245,20 +245,8 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         // Update config based on target field (from responseMode/targetField)
         if (!targetField) return;
 
-        // Handle array fields (business_goals, focus_areas, keywords, competitors)
-        const arrayFields = ['business_goals', 'focus_areas', 'keywords', 'competitors'];
-        if (arrayFields.includes(targetField)) {
-            setStreamConfig(prev => {
-                const currentArray = (prev[targetField as keyof StreamInProgress] as string[]) || [];
-                const hasValue = currentArray.includes(value);
-                return {
-                    ...prev,
-                    [targetField]: hasValue
-                        ? currentArray.filter(v => v !== value)
-                        : [...currentArray, value]
-                };
-            });
-        }
+        // For channel-related fields, backend will handle the update
+        // We just toggle the UI state here
     }, [targetField]);
 
     const selectAllOptions = useCallback(() => {
@@ -271,21 +259,10 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
             const lastMessage = updated[lastMessageIndex];
 
             if (lastMessage.options) {
-                const allValues = lastMessage.options.map(opt => opt.value);
-
                 updated[lastMessageIndex] = {
                     ...lastMessage,
                     options: lastMessage.options.map(opt => ({ ...opt, checked: true }))
                 };
-
-                // Update config with all values
-                const arrayFields = ['business_goals', 'focus_areas', 'keywords', 'competitors'];
-                if (arrayFields.includes(targetField)) {
-                    setStreamConfig(prev => ({
-                        ...prev,
-                        [targetField]: allValues
-                    }));
-                }
             }
             return updated;
         });
@@ -305,15 +282,6 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
                     ...lastMessage,
                     options: lastMessage.options.map(opt => ({ ...opt, checked: false }))
                 };
-
-                // Clear config field
-                const arrayFields = ['business_goals', 'focus_areas', 'keywords', 'competitors'];
-                if (arrayFields.includes(targetField)) {
-                    setStreamConfig(prev => ({
-                        ...prev,
-                        [targetField]: []
-                    }));
-                }
             }
             return updated;
         });
@@ -351,18 +319,29 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         setIsLoading(true);
         setError(null);
         try {
+            // Validate and convert ChannelInProgress to Channel
+            if (!config.channels || config.channels.length === 0) {
+                throw new Error('At least one channel is required');
+            }
+
+            // Ensure all channels are complete before creating
+            const completeChannels = config.channels.map(ch => {
+                if (!ch.name || !ch.focus || !ch.type || !ch.keywords || ch.keywords.length === 0) {
+                    throw new Error('All channel fields are required');
+                }
+                return {
+                    name: ch.name,
+                    focus: ch.focus,
+                    type: ch.type as any,
+                    keywords: ch.keywords
+                };
+            });
+
             const newStream = await researchStreamApi.createResearchStream({
                 stream_name: config.stream_name!,
-                description: config.description,
-                stream_type: config.stream_type as any,
-                focus_areas: config.focus_areas || [],
-                competitors: config.competitors || [],
-                report_frequency: config.report_frequency as any,
-                // Phase 1 required fields
                 purpose: config.purpose!,
-                business_goals: config.business_goals || [],
-                expected_outcomes: config.expected_outcomes!,
-                keywords: config.keywords || []
+                channels: completeChannels,
+                report_frequency: config.report_frequency as any
             });
             return newStream;
         } catch (err) {
