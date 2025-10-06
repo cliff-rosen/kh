@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { PaperAirplaneIcon } from '@heroicons/react/24/solid';
 import { useStreamChat } from '../context/StreamChatContext';
+import { Link } from 'react-router-dom';
 
 export default function StreamChatInterface() {
     const {
@@ -26,6 +27,44 @@ export default function StreamChatInterface() {
     useEffect(() => {
         scrollToBottom();
     }, [messages]);
+
+    // Helper to render message content with markdown links
+    const renderMessageContent = (content: string) => {
+        // Simple regex to find [text](url) markdown links
+        const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+        const parts: (string | JSX.Element)[] = [];
+        let lastIndex = 0;
+        let match;
+
+        while ((match = linkRegex.exec(content)) !== null) {
+            // Add text before the link
+            if (match.index > lastIndex) {
+                parts.push(content.substring(lastIndex, match.index));
+            }
+
+            // Add the link
+            const linkText = match[1];
+            const linkUrl = match[2];
+            parts.push(
+                <Link
+                    key={match.index}
+                    to={linkUrl}
+                    className="text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300"
+                >
+                    {linkText}
+                </Link>
+            );
+
+            lastIndex = match.index + match[0].length;
+        }
+
+        // Add remaining text
+        if (lastIndex < content.length) {
+            parts.push(content.substring(lastIndex));
+        }
+
+        return parts.length > 0 ? parts : content;
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -61,7 +100,7 @@ export default function StreamChatInterface() {
                                     : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
                                     }`}
                             >
-                                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                                <p className="text-sm whitespace-pre-wrap">{renderMessageContent(message.content)}</p>
                                 <p className="text-xs opacity-70 mt-1">
                                     {new Date(message.timestamp).toLocaleTimeString()}
                                 </p>

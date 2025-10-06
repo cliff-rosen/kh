@@ -380,24 +380,31 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
 
     const acceptReview = useCallback(async () => {
         // User clicked "Accept & Create Stream" in REVIEW mode
-        // Send accept_review action to backend, which will advance to COMPLETE
-        // Then create the stream
-        const userAction: UserAction = {
-            type: 'accept_review'
-        };
+        setIsLoading(true);
+        setError(null);
 
-        // First, send the accept action to backend (advances to COMPLETE step)
-        await streamChatMessage('Accept', userAction);
+        try {
+            // Create the stream on backend
+            const createdStream = await createStream(streamConfig);
 
-        // Now create the stream
-        const createdStream = await createStream(streamConfig);
+            if (createdStream) {
+                // Add success message to chat
+                const successMessage: ChatMessage = {
+                    role: 'assistant',
+                    content: `✅ Stream created successfully!\n\nYour research stream "${createdStream.stream_name}" is now active and ready to monitor.\n\n[Click here to view your streams →](/streams)`,
+                    timestamp: new Date().toISOString()
+                };
+                setMessages(prev => [...prev, successMessage]);
 
-        if (createdStream) {
-            // Successfully created!
-            // TODO: Navigate to Phase 2 implementation workflow
-            console.log('Stream created successfully:', createdStream);
+                // Update to complete step
+                setCurrentStep('complete');
+            }
+        } catch (err) {
+            setError(handleApiError(err));
+        } finally {
+            setIsLoading(false);
         }
-    }, [streamConfig, streamChatMessage, createStream]);
+    }, [streamConfig, createStream]);
 
     const value: StreamChatContextType = {
         // State

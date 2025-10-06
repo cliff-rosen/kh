@@ -10,32 +10,14 @@ export default function NewStreamChatPage() {
     const { toast } = useToast();
     const {
         streamConfig,
-        currentStep,
         error,
         responseMode,
         targetField,
         updateField,
-        createStream,
         clearError
     } = useStreamChat();
 
-    // Handle completion and navigation
-    useEffect(() => {
-        const handleCompletion = async () => {
-            if (currentStep === 'complete' && streamConfig.stream_name) {
-                const newStream = await createStream(streamConfig);
-                if (newStream) {
-                    toast({
-                        title: 'Success!',
-                        description: 'Your research stream has been created.'
-                    });
-                    navigate('/streams');
-                }
-            }
-        };
-
-        handleCompletion();
-    }, [currentStep, streamConfig, createStream, toast, navigate]);
+    // No longer needed - context handles stream creation
 
     // Show errors from context
     useEffect(() => {
