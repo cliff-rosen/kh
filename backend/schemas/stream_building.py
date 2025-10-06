@@ -12,17 +12,19 @@ from enum import Enum
 # Stream being built (all fields optional as they're filled in progressively)
 # ============================================================================
 
+class ChannelInProgress(BaseModel):
+    """Channel being built within a stream"""
+    name: Optional[str] = None
+    focus: Optional[str] = None
+    type: Optional[str] = None  # string during building, validated on submission
+    keywords: Optional[List[str]] = None
+
+
 class StreamInProgress(BaseModel):
     """Stream being built - all fields optional as they're filled progressively"""
-    purpose: Optional[str] = None
-    business_goals: Optional[List[str]] = None
-    expected_outcomes: Optional[str] = None
     stream_name: Optional[str] = None
-    stream_type: Optional[str] = None  # string during building, validated on submission
-    description: Optional[str] = None
-    focus_areas: Optional[List[str]] = None
-    keywords: Optional[List[str]] = None
-    competitors: Optional[List[str]] = None
+    purpose: Optional[str] = None
+    channels: Optional[List[ChannelInProgress]] = None
     report_frequency: Optional[str] = None  # string during building, validated on submission
     scoring_config: Optional[dict] = None
 
@@ -34,14 +36,9 @@ class StreamInProgress(BaseModel):
 class StreamBuildStep(str, Enum):
     """Steps in the stream building workflow"""
     EXPLORATION = "exploration"
-    PURPOSE = "purpose"
-    BUSINESS_GOALS = "business_goals"
-    EXPECTED_OUTCOMES = "expected_outcomes"
     STREAM_NAME = "stream_name"
-    STREAM_TYPE = "stream_type"
-    FOCUS_AREAS = "focus_areas"
-    KEYWORDS = "keywords"
-    COMPETITORS = "competitors"
+    PURPOSE = "purpose"
+    CHANNELS = "channels"  # Collect all channels
     REPORT_FREQUENCY = "report_frequency"
     REVIEW = "review"
     COMPLETE = "complete"

@@ -1,19 +1,20 @@
-import { ScoringConfig } from './research-stream';
+import { ScoringConfig, Channel } from './research-stream';
 
 // ============================================================================
 // Stream being built (all fields optional as they're filled in progressively)
 // ============================================================================
 
-export interface StreamInProgress {
-    purpose?: string;
-    business_goals?: string[];
-    expected_outcomes?: string;
-    stream_name?: string;
-    stream_type?: string;  // string during building, validated on submission
-    description?: string;
-    focus_areas?: string[];
+export interface ChannelInProgress {
+    name?: string;
+    focus?: string;
+    type?: string;  // string during building, validated on submission
     keywords?: string[];
-    competitors?: string[];
+}
+
+export interface StreamInProgress {
+    stream_name?: string;
+    purpose?: string;
+    channels?: ChannelInProgress[];
     report_frequency?: string;  // string during building, validated on submission
     scoring_config?: ScoringConfig;
 }
@@ -24,14 +25,9 @@ export interface StreamInProgress {
 
 export type StreamBuildStep =
     | 'exploration'
-    | 'purpose'
-    | 'business_goals'
-    | 'expected_outcomes'
     | 'stream_name'
-    | 'stream_type'
-    | 'focus_areas'
-    | 'keywords'
-    | 'competitors'
+    | 'purpose'
+    | 'channels'       // Collect all channels
     | 'report_frequency'
     | 'review'
     | 'complete';

@@ -83,36 +83,32 @@ class CompanyProfile(Base):
 
 
 class ResearchStream(Base):
-    """Complete research monitoring setup (formerly CurationMandate)"""
+    """Research stream with channel-based structure"""
     __tablename__ = "research_streams"
 
     stream_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
     profile_id = Column(Integer, ForeignKey("company_profiles.profile_id"))
 
-    # Stream configuration
-    stream_name = Column(String(255), nullable=False)  # User-defined name like "Oncology Competitive Intelligence"
-    description = Column(Text)  # Optional detailed description
-    stream_type = Column(Enum(StreamType), nullable=False, default=StreamType.MIXED)
+    # Core stream configuration
+    stream_name = Column(String(255), nullable=False)
+    purpose = Column(Text, nullable=False)  # Why this stream exists, what questions it answers
 
-    # All monitoring configuration consolidated at stream level
-    focus_areas = Column(JSON, default=list)  # Therapeutic areas, business functions, topics
-    competitors = Column(JSON, default=list)  # Companies to monitor
+    # Channels: independent monitoring channels with focus, type, and keywords
+    # Format: [{"name": "...", "focus": "...", "type": "competitive", "keywords": [...]}]
+    channels = Column(JSON, nullable=False)
+
+    # Report scheduling
+    report_frequency = Column(Enum(ReportFrequency), default=ReportFrequency.WEEKLY)
+
+    # Workflow and scoring configuration (JSONB)
+    workflow_config = Column(JSON, nullable=True)  # Source retrieval configuration
+    scoring_config = Column(JSON, nullable=True)  # Relevance scoring and filtering config
+
+    # Legacy fields (to be removed after migration cleanup)
     regulatory_bodies = Column(JSON, default=list)  # FDA, EMA, etc.
     scientific_domains = Column(JSON, default=list)  # Clinical, preclinical, discovery, etc.
     exclusions = Column(JSON, default=list)  # Topics to exclude
-    keywords = Column(JSON, default=list, nullable=False)  # Search keywords - REQUIRED
-
-    # Phase 1: Purpose and Business Context (REQUIRED for new streams)
-    purpose = Column(Text, nullable=True)  # Why this stream exists - what decisions it will inform
-    business_goals = Column(JSON, default=list, nullable=True)  # Strategic objectives this stream supports
-    expected_outcomes = Column(Text, nullable=True)  # What outcomes/decisions this intelligence will drive
-
-    # Phase 1: Scoring Configuration
-    scoring_config = Column(JSON, nullable=True)  # Relevance scoring and filtering config
-
-    # Report scheduling integrated at stream level
-    report_frequency = Column(Enum(ReportFrequency), default=ReportFrequency.WEEKLY)
 
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)

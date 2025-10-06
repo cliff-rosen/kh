@@ -1,10 +1,10 @@
 """
-Research stream schemas for Knowledge Horizon - Phase 1 Enhanced
+Research stream schemas for Knowledge Horizon - Channel-based structure
 Domain/Business objects only - no request/response types
 """
 
-from pydantic import BaseModel, Field
-from typing import List, Optional, Literal
+from pydantic import BaseModel, Field, computed_field
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
 
@@ -23,6 +23,14 @@ class ReportFrequency(str, Enum):
     WEEKLY = "weekly"
     BIWEEKLY = "biweekly"
     MONTHLY = "monthly"
+
+
+class Channel(BaseModel):
+    """A channel within a research stream - specific focus with keywords"""
+    name: str = Field(description="Channel name")
+    focus: str = Field(description="What this channel monitors")
+    type: StreamType = Field(description="Type of intelligence for this channel")
+    keywords: List[str] = Field(description="Keywords for this channel")
 
 
 class ScoringConfig(BaseModel):
@@ -53,33 +61,33 @@ class ScoringConfig(BaseModel):
 
 
 class ResearchStream(BaseModel):
-    """Research stream response object - Phase 1 Enhanced"""
+    """Research stream - channel-based structure"""
     stream_id: int
     user_id: int
     stream_name: str
-    description: Optional[str] = None
-    stream_type: StreamType
-    focus_areas: List[str] = []
-    competitors: List[str] = []
+    purpose: str = Field(description="Why this stream exists, what questions it answers")
+    channels: List[Channel] = Field(description="Independent channels with focus, type, and keywords")
     report_frequency: ReportFrequency
     is_active: bool = True
     created_at: datetime
     updated_at: datetime
 
-    # Phase 1: Purpose and Business Context (REQUIRED for new streams, optional for legacy)
-    purpose: Optional[str] = ""  # Why this stream exists
-    business_goals: Optional[List[str]] = []  # Strategic objectives
-    expected_outcomes: Optional[str] = ""  # What decisions this will drive
-
-    # Phase 1: Search Strategy (REQUIRED for new streams, optional for legacy)
-    keywords: Optional[List[str]] = []  # Search terms for literature
-
-    # Phase 1: Scoring Configuration
+    # Workflow and scoring configuration
+    workflow_config: Optional[Dict[str, Any]] = Field(None, description="Source retrieval configuration (JSONB)")
     scoring_config: Optional[ScoringConfig] = None
 
     # Aggregated data (when fetched with counts)
     report_count: Optional[int] = 0
     latest_report_date: Optional[str] = None
+
+    @computed_field
+    @property
+    def stream_type(self) -> StreamType:
+        """Derived from channels: homogeneous = that type, heterogeneous = mixed"""
+        if not self.channels:
+            return StreamType.MIXED
+        channel_types = {ch.type for ch in self.channels}
+        return list(channel_types)[0] if len(channel_types) == 1 else StreamType.MIXED
 
     class Config:
         from_attributes = True
