@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useResearchStream } from '../context/ResearchStreamContext';
-import { StreamType, ReportFrequency } from '../types';
+import { StreamType, ReportFrequency, Channel } from '../types';
 import { useNavigate } from 'react-router-dom';
+import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 interface ResearchStreamFormProps {
     onCancel?: () => void;
@@ -13,20 +14,31 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
 
     const [form, setForm] = useState({
         stream_name: '',
-        description: '',
-        stream_type: StreamType.MIXED,
-        focus_areas: [] as string[],
-        competitors: [] as string[],
-        report_frequency: ReportFrequency.WEEKLY,
-        // Phase 1 fields
         purpose: '',
-        business_goals: [] as string[],
-        expected_outcomes: '',
-        keywords: [] as string[]
+        channels: [
+            {
+                name: '',
+                focus: '',
+                type: StreamType.COMPETITIVE,
+                keywords: [] as string[]
+            }
+        ] as Channel[],
+        report_frequency: ReportFrequency.WEEKLY
     });
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Validate that all channels are complete
+        const incompleteChannel = form.channels.find(ch =>
+            !ch.name || !ch.focus || !ch.type || ch.keywords.length === 0
+        );
+
+        if (incompleteChannel) {
+            alert('Please complete all channel fields before submitting');
+            return;
+        }
+
         try {
             await createResearchStream(form);
             navigate('/dashboard');
@@ -35,24 +47,41 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
         }
     };
 
-    const handleFocusAreasChange = (value: string) => {
-        const areas = value.split(',').map(s => s.trim()).filter(s => s);
-        setForm({ ...form, focus_areas: areas });
+    const addChannel = () => {
+        setForm({
+            ...form,
+            channels: [
+                ...form.channels,
+                {
+                    name: '',
+                    focus: '',
+                    type: StreamType.COMPETITIVE,
+                    keywords: []
+                }
+            ]
+        });
     };
 
-    const handleCompetitorsChange = (value: string) => {
-        const competitors = value.split(',').map(s => s.trim()).filter(s => s);
-        setForm({ ...form, competitors });
+    const removeChannel = (index: number) => {
+        if (form.channels.length === 1) {
+            alert('At least one channel is required');
+            return;
+        }
+        setForm({
+            ...form,
+            channels: form.channels.filter((_, i) => i !== index)
+        });
     };
 
-    const handleBusinessGoalsChange = (value: string) => {
-        const goals = value.split(',').map(s => s.trim()).filter(s => s);
-        setForm({ ...form, business_goals: goals });
+    const updateChannel = (index: number, field: keyof Channel, value: any) => {
+        const updated = [...form.channels];
+        updated[index] = { ...updated[index], [field]: value };
+        setForm({ ...form, channels: updated });
     };
 
-    const handleKeywordsChange = (value: string) => {
+    const handleKeywordsChange = (index: number, value: string) => {
         const keywords = value.split(',').map(s => s.trim()).filter(s => s);
-        setForm({ ...form, keywords });
+        updateChannel(index, 'keywords', keywords);
     };
 
     return (
@@ -62,7 +91,7 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                     Create Research Stream
                 </h2>
                 <p className="text-gray-600 dark:text-gray-400">
-                    Define what you want to monitor and how often you want reports.
+                    Set up monitoring channels to track different areas of research.
                 </p>
             </div>
 
@@ -79,6 +108,7 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
             )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Stream Name */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Stream Name *
@@ -93,12 +123,13 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                     />
                 </div>
 
+                {/* Purpose */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Purpose *
                     </label>
                     <textarea
-                        placeholder="What's the purpose of this research stream? What decisions will it help you make?"
+                        placeholder="Why does this stream exist? What questions will it answer?"
                         rows={3}
                         value={form.purpose}
                         onChange={(e) => setForm({ ...form, purpose: e.target.value })}
@@ -106,122 +137,120 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                         required
                     />
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        Example: Monitor melanocortin pathways to identify opportunities and risks for drug development programs
+                        Example: Track competitive landscape in melanocortin receptor drug development to inform strategic decisions
                     </p>
                 </div>
 
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Business Goals *
-                    </label>
-                    <input
-                        type="text"
-                        placeholder="e.g., Inform study design, Track competitive landscape, Identify new indications"
-                        value={form.business_goals.join(', ')}
-                        onChange={(e) => handleBusinessGoalsChange(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        required
-                    />
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        Strategic objectives this stream supports (comma-separated)
+                {/* Channels */}
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Monitoring Channels *
+                        </label>
+                        <button
+                            type="button"
+                            onClick={addChannel}
+                            className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                            <PlusIcon className="h-4 w-4" />
+                            Add Channel
+                        </button>
+                    </div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Each channel monitors a specific area with its own focus and keywords
                     </p>
+
+                    {form.channels.map((channel, index) => (
+                        <div key={index} className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 space-y-4">
+                            <div className="flex items-center justify-between mb-2">
+                                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                                    Channel {index + 1}
+                                </h3>
+                                {form.channels.length > 1 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => removeChannel(index)}
+                                        className="text-red-600 dark:text-red-400 hover:text-red-700"
+                                    >
+                                        <TrashIcon className="h-5 w-5" />
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Channel Name */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Channel Name *
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g., Melanocortin Pathways"
+                                    value={channel.name}
+                                    onChange={(e) => updateChannel(index, 'name', e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    required
+                                />
+                            </div>
+
+                            {/* Channel Focus */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    What to Monitor *
+                                </label>
+                                <textarea
+                                    placeholder="What specifically do you want to track in this channel?"
+                                    rows={2}
+                                    value={channel.focus}
+                                    onChange={(e) => updateChannel(index, 'focus', e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    required
+                                />
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                    Example: Track competitor drug development activities and clinical trial progress
+                                </p>
+                            </div>
+
+                            {/* Channel Type */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Intelligence Type *
+                                </label>
+                                <select
+                                    value={channel.type}
+                                    onChange={(e) => updateChannel(index, 'type', e.target.value as StreamType)}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    required
+                                >
+                                    <option value={StreamType.COMPETITIVE}>Competitive Intelligence</option>
+                                    <option value={StreamType.REGULATORY}>Regulatory Updates</option>
+                                    <option value={StreamType.CLINICAL}>Clinical Research</option>
+                                    <option value={StreamType.MARKET}>Market Analysis</option>
+                                    <option value={StreamType.SCIENTIFIC}>Scientific Literature</option>
+                                </select>
+                            </div>
+
+                            {/* Channel Keywords */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Search Keywords *
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g., melanocortin, MCR1, MCR4, bremelanotide"
+                                    value={channel.keywords.join(', ')}
+                                    onChange={(e) => handleKeywordsChange(index, e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    required
+                                />
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                    Keywords to search for in this channel (comma-separated)
+                                </p>
+                            </div>
+                        </div>
+                    ))}
                 </div>
 
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Expected Outcomes *
-                    </label>
-                    <textarea
-                        placeholder="What outcomes or decisions will this intelligence drive?"
-                        rows={2}
-                        value={form.expected_outcomes}
-                        onChange={(e) => setForm({ ...form, expected_outcomes: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        required
-                    />
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Stream Type *
-                    </label>
-                    <select
-                        value={form.stream_type}
-                        onChange={(e) => setForm({ ...form, stream_type: e.target.value as StreamType })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    >
-                        <option value={StreamType.COMPETITIVE}>Competitive Intelligence</option>
-                        <option value={StreamType.REGULATORY}>Regulatory Updates</option>
-                        <option value={StreamType.CLINICAL}>Clinical Research</option>
-                        <option value={StreamType.MARKET}>Market Analysis</option>
-                        <option value={StreamType.SCIENTIFIC}>Scientific Literature</option>
-                        <option value={StreamType.MIXED}>Mixed - Multiple focus areas</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Description
-                    </label>
-                    <textarea
-                        placeholder="Optional additional details about this stream..."
-                        rows={3}
-                        value={form.description}
-                        onChange={(e) => setForm({ ...form, description: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Focus Areas *
-                    </label>
-                    <input
-                        type="text"
-                        placeholder="e.g., Drug development, Clinical trials, Market access"
-                        value={form.focus_areas.join(', ')}
-                        onChange={(e) => handleFocusAreasChange(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        required
-                    />
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        Separate multiple areas with commas
-                    </p>
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Search Keywords *
-                    </label>
-                    <input
-                        type="text"
-                        placeholder="e.g., melanocortin, MCR1, MCR4, bremelanotide, obesity, dry eye disease"
-                        value={form.keywords.join(', ')}
-                        onChange={(e) => handleKeywordsChange(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        required
-                    />
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        Specific keywords to search in scientific literature (comma-separated)
-                    </p>
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Competitors to Monitor
-                    </label>
-                    <input
-                        type="text"
-                        placeholder="e.g., Roche, Merck, Pfizer"
-                        value={form.competitors.join(', ')}
-                        onChange={(e) => handleCompetitorsChange(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        Companies you want to track
-                    </p>
-                </div>
-
+                {/* Report Frequency */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Report Frequency *
@@ -238,7 +267,8 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                     </select>
                 </div>
 
-                <div className="flex justify-between">
+                {/* Form Actions */}
+                <div className="flex justify-between pt-4">
                     <button
                         type="button"
                         onClick={onCancel || (() => navigate('/dashboard'))}
