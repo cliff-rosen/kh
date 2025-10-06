@@ -95,95 +95,6 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Description
-                    </label>
-                    <textarea
-                        placeholder="Brief description of what this stream will monitor..."
-                        rows={3}
-                        value={form.description}
-                        onChange={(e) => setForm({ ...form, description: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Stream Type
-                    </label>
-                    <select
-                        value={form.stream_type}
-                        onChange={(e) => setForm({ ...form, stream_type: e.target.value as StreamType })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    >
-                        <option value={StreamType.MIXED}>Mixed - Multiple focus areas</option>
-                        <option value={StreamType.COMPETITIVE}>Competitive Intelligence</option>
-                        <option value={StreamType.REGULATORY}>Regulatory Updates</option>
-                        <option value={StreamType.CLINICAL}>Clinical Research</option>
-                        <option value={StreamType.MARKET}>Market Analysis</option>
-                        <option value={StreamType.SCIENTIFIC}>Scientific Literature</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Focus Areas
-                    </label>
-                    <input
-                        type="text"
-                        placeholder="e.g., Drug development, Clinical trials, Market access"
-                        value={form.focus_areas.join(', ')}
-                        onChange={(e) => handleFocusAreasChange(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        Separate multiple areas with commas
-                    </p>
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Competitors to Monitor
-                    </label>
-                    <input
-                        type="text"
-                        placeholder="e.g., Roche, Merck, Pfizer"
-                        value={form.competitors.join(', ')}
-                        onChange={(e) => handleCompetitorsChange(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        Companies you want to track
-                    </p>
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Report Frequency
-                    </label>
-                    <select
-                        value={form.report_frequency}
-                        onChange={(e) => setForm({ ...form, report_frequency: e.target.value as ReportFrequency })}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    >
-                        <option value={ReportFrequency.DAILY}>Daily</option>
-                        <option value={ReportFrequency.WEEKLY}>Weekly</option>
-                        <option value={ReportFrequency.BIWEEKLY}>Bi-weekly</option>
-                        <option value={ReportFrequency.MONTHLY}>Monthly</option>
-                    </select>
-                </div>
-
-                {/* Phase 1 Fields */}
-                <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                        Enhanced Configuration
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                        Optional: Provide additional context for better intelligence gathering
-                    </p>
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Purpose *
                     </label>
                     <textarea
@@ -232,6 +143,54 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Stream Type *
+                    </label>
+                    <select
+                        value={form.stream_type}
+                        onChange={(e) => setForm({ ...form, stream_type: e.target.value as StreamType })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                        <option value={StreamType.COMPETITIVE}>Competitive Intelligence</option>
+                        <option value={StreamType.REGULATORY}>Regulatory Updates</option>
+                        <option value={StreamType.CLINICAL}>Clinical Research</option>
+                        <option value={StreamType.MARKET}>Market Analysis</option>
+                        <option value={StreamType.SCIENTIFIC}>Scientific Literature</option>
+                        <option value={StreamType.MIXED}>Mixed - Multiple focus areas</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Description
+                    </label>
+                    <textarea
+                        placeholder="Optional additional details about this stream..."
+                        rows={3}
+                        value={form.description}
+                        onChange={(e) => setForm({ ...form, description: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Focus Areas *
+                    </label>
+                    <input
+                        type="text"
+                        placeholder="e.g., Drug development, Clinical trials, Market access"
+                        value={form.focus_areas.join(', ')}
+                        onChange={(e) => handleFocusAreasChange(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        required
+                    />
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        Separate multiple areas with commas
+                    </p>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Search Keywords *
                     </label>
                     <input
@@ -245,6 +204,38 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         Specific keywords to search in scientific literature (comma-separated)
                     </p>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Competitors to Monitor
+                    </label>
+                    <input
+                        type="text"
+                        placeholder="e.g., Roche, Merck, Pfizer"
+                        value={form.competitors.join(', ')}
+                        onChange={(e) => handleCompetitorsChange(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        Companies you want to track
+                    </p>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Report Frequency *
+                    </label>
+                    <select
+                        value={form.report_frequency}
+                        onChange={(e) => setForm({ ...form, report_frequency: e.target.value as ReportFrequency })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                        <option value={ReportFrequency.DAILY}>Daily</option>
+                        <option value={ReportFrequency.WEEKLY}>Weekly</option>
+                        <option value={ReportFrequency.BIWEEKLY}>Bi-weekly</option>
+                        <option value={ReportFrequency.MONTHLY}>Monthly</option>
+                    </select>
                 </div>
 
                 <div className="flex justify-between">
