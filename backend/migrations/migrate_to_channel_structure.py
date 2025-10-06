@@ -35,7 +35,7 @@ def migrate():
         logger.info("Adding workflow_config column...")
         db.execute(text("""
             ALTER TABLE research_streams
-            ADD COLUMN IF NOT EXISTS workflow_config JSONB NULL
+            ADD COLUMN IF NOT EXISTS workflow_config JSON NULL
         """))
         db.commit()
 
@@ -43,7 +43,7 @@ def migrate():
         logger.info("Adding channels column...")
         db.execute(text("""
             ALTER TABLE research_streams
-            ADD COLUMN IF NOT EXISTS channels JSONB NULL
+            ADD COLUMN IF NOT EXISTS channels JSON NULL
         """))
         db.commit()
 
@@ -96,11 +96,11 @@ def migrate():
         db.commit()
         logger.info(f"Migrated {len(streams)} streams")
 
-        # 4. Make channels NOT NULL
+        # 4. Make channels NOT NULL (MySQL/MariaDB syntax)
         logger.info("Making channels column NOT NULL...")
         db.execute(text("""
             ALTER TABLE research_streams
-            ALTER COLUMN channels SET NOT NULL
+            MODIFY COLUMN channels JSON NOT NULL
         """))
         db.commit()
 

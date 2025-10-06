@@ -105,11 +105,6 @@ class ResearchStream(Base):
     workflow_config = Column(JSON, nullable=True)  # Source retrieval configuration
     scoring_config = Column(JSON, nullable=True)  # Relevance scoring and filtering config
 
-    # Legacy fields (to be removed after migration cleanup)
-    regulatory_bodies = Column(JSON, default=list)  # FDA, EMA, etc.
-    scientific_domains = Column(JSON, default=list)  # Clinical, preclinical, discovery, etc.
-    exclusions = Column(JSON, default=list)  # Topics to exclude
-
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

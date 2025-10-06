@@ -6,7 +6,7 @@ import { PencilIcon } from '@heroicons/react/24/outline';
 
 export default function DashboardPage() {
     const { user } = useAuth();
-    const { researchStreams, loadResearchStreams, isLoading, error } = useResearchStream();
+    const { researchStreams, loadResearchStreams, isLoading } = useResearchStream();
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -118,7 +118,7 @@ export default function DashboardPage() {
                                         Type
                                     </th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                        Focus Areas
+                                        Channels
                                     </th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                         Frequency
@@ -144,9 +144,9 @@ export default function DashboardPage() {
                                             <div className="text-sm font-medium text-gray-900 dark:text-white">
                                                 {stream.stream_name}
                                             </div>
-                                            {stream.description && (
+                                            {stream.purpose && (
                                                 <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-xs truncate">
-                                                    {stream.description}
+                                                    {stream.purpose}
                                                 </div>
                                             )}
                                         </td>
@@ -157,19 +157,19 @@ export default function DashboardPage() {
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="flex flex-wrap gap-1 max-w-xs">
-                                                {stream.focus_areas && stream.focus_areas.length > 0 ? (
+                                                {stream.channels && stream.channels.length > 0 ? (
                                                     <>
-                                                        {stream.focus_areas.slice(0, 2).map((area, idx) => (
+                                                        {stream.channels.slice(0, 2).map((channel, idx) => (
                                                             <span
                                                                 key={idx}
                                                                 className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded"
                                                             >
-                                                                {area}
+                                                                {channel.name}
                                                             </span>
                                                         ))}
-                                                        {stream.focus_areas.length > 2 && (
+                                                        {stream.channels.length > 2 && (
                                                             <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
-                                                                +{stream.focus_areas.length - 2}
+                                                                +{stream.channels.length - 2}
                                                             </span>
                                                         )}
                                                     </>
