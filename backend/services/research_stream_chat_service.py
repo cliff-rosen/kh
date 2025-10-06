@@ -549,7 +549,8 @@ class ResearchStreamChatService:
                 if suggestion_list:  # Only process if not empty
                     suggestions_array = [s.strip() for s in suggestion_list.split(",") if s.strip()]
                     if suggestions_array:  # Only add if array is not empty
-                        suggestions = suggestions_array  # Just return array, target_field tells us what it's for
+                        # Convert to Suggestion objects with label and value
+                        suggestions = [{"label": s, "value": s} for s in suggestions_array]
             elif stripped.startswith("OPTIONS:"):
                 in_message = False
                 options_list = stripped.replace("OPTIONS:", "").strip()
