@@ -179,12 +179,14 @@ class ResearchStreamChatService:
             yield error_response.model_dump_json()
 
     def _build_system_prompt(self, step_guidance: Dict[str, Any]) -> str:
-        """Build system prompt using workflow guidance instead of hardcoded flow"""
+        """Build system prompt using workflow guidance - CHANNEL-BASED STRUCTURE"""
         from services.research_stream_creation_workflow import WorkflowStep
 
         # Determine current step from guidance
         current_step_name = step_guidance.get('step', 'exploration')
         is_exploration = current_step_name == 'exploration'
+        is_channels = current_step_name == 'channels'
+        is_review = current_step_name == 'review'
 
         # Extract options if this step has fixed choices
         options_info = ""
@@ -212,15 +214,31 @@ class ResearchStreamChatService:
             - DO NOT provide SUGGESTIONS or OPTIONS
             - You CAN and SHOULD use EXTRACTED_DATA when the user explicitly provides structured information
               * Example: "I want a stream named XYZ" → EXTRACTED_DATA: stream_name=XYZ
-              * Example: "monitoring oncology and cardiology" → EXTRACTED_DATA: focus_areas=Oncology, Cardiology
-              * Acknowledge what you captured: "Got it, I'll name it XYZ. Now, what's the purpose..."
+              * Example: "for melanocortin research" → EXTRACTED_DATA: purpose=Monitor melanocortin research
+              * Acknowledge what you captured: "Got it! Now, what's the purpose..."
             - When user provides vague or conversational input, ask clarifying questions instead of guessing
             - Focus on gathering context about their business, goals, and research interests
             - The workflow will automatically advance past completed fields
             """
 
+        # Add CHANNELS-specific rules
+        channels_rules = ""
+        if is_channels:
+            channels_rules = """
+
+            CRITICAL - YOU ARE IN CHANNELS MODE:
+            - A channel is a focused monitoring area with: name, focus (what to monitor), type (competitive/regulatory/clinical/market/scientific), keywords
+            - Guide the user to create 1-3 channels that make sense for their purpose
+            - For each channel, collect: name, focus, type, keywords
+            - Use MODE: SUGGESTION to propose channels based on their purpose and context
+            - Example: If purpose is "melanocortin research", suggest channels like:
+              * Channel 1: "Melanocortin Pathways" (scientific, keywords: melanocortin, MCR1, MCR4)
+              * Channel 2: "Obesity Therapeutics" (clinical, keywords: obesity, weight loss, metabolic)
+            - Format channels as EXTRACTED_DATA when user approves:
+              EXTRACTED_DATA: channels=[{"name": "...", "focus": "...", "type": "...", "keywords": [...]}]
+            """
+
         # Add REVIEW-specific rules
-        is_review = current_step_name == 'review'
         review_rules = ""
         if is_review:
             review_rules = """
@@ -228,7 +246,7 @@ class ResearchStreamChatService:
             CRITICAL - YOU ARE IN REVIEW MODE:
             - Use MODE: REVIEW (not QUESTION or SUGGESTION)
             - Present a comprehensive summary of the stream configuration
-            - Format the summary clearly with all collected fields
+            - Format the summary clearly showing: stream_name, purpose, channels (each with name/focus/type/keywords), report_frequency
             - Tell the user: "Your stream is ready to create. Review the configuration above and click 'Accept & Create Stream' to proceed, or type any changes you'd like to make."
             - DO NOT provide SUGGESTIONS or OPTIONS
             - If user requests changes, use EXTRACTED_DATA to capture them and stay in REVIEW mode
@@ -239,12 +257,23 @@ class ResearchStreamChatService:
         return f"""You are an AI assistant helping users create research streams for Knowledge Horizon,
             a biomedical and business intelligence platform.
 
+            CHANNEL-BASED STRUCTURE:
+            Research streams now consist of:
+            - stream_name: Name of the stream
+            - purpose: Why this stream exists, what questions it answers
+            - channels: Array of monitoring channels, each with:
+              * name: Channel name (e.g., "Melanocortin Pathways")
+              * focus: What this channel monitors (e.g., "Track competitor drug development")
+              * type: competitive/regulatory/clinical/market/scientific
+              * keywords: Array of search keywords
+            - report_frequency: daily/weekly/biweekly/monthly
+
             Your role is to have a natural, conversational interaction with the user to collect information.
             The workflow system will handle state management and determine what step comes next.
 
             Current Step: {current_step_name}
             Current Step Objective: {step_guidance.get('objective', 'Collect information')}
-            Information to Collect: {step_guidance.get('collect', 'User input')}{options_info}{exploration_rules}{review_rules}
+            Information to Collect: {step_guidance.get('collect', 'User input')}{options_info}{exploration_rules}{channels_rules}{review_rules}
 
             IMPORTANT: Each response must be categorized as one of three modes:
 
@@ -256,7 +285,7 @@ class ResearchStreamChatService:
             **MODE 2: SUGGESTION** - You have enough information to present concrete options
             - You can suggest specific values for a configuration field
             - User can select from your suggestions to populate the field
-            - Must specify which field (purpose, business_goals, expected_outcomes, stream_name, stream_type, focus_areas, keywords, competitors, report_frequency)
+            - Must specify which field (stream_name, purpose, channels, report_frequency)
 
             **MODE 3: REVIEW** - Present final summary and await user confirmation
             - Show comprehensive summary of all collected configuration
@@ -265,15 +294,13 @@ class ResearchStreamChatService:
             - Stay in REVIEW mode after processing changes
 
             CRITICAL - Field Type Formatting:
-            - Use SUGGESTIONS for single-select/text fields: purpose, expected_outcomes, stream_name, stream_type, report_frequency
+            - Use SUGGESTIONS for single-select/text fields: stream_name, purpose, report_frequency
               * These show as clickable suggestion chips
               * User clicks ONE to select it
               * Format: SUGGESTIONS: option1, option2, option3
-            - Use OPTIONS for multi-select/array fields: business_goals, focus_areas, keywords, competitors
-              * These show as checkboxes
-              * User can select MULTIPLE
-              * Format: OPTIONS: option1|option2|option3
-              * Must include PROPOSED_MESSAGE for the continue button
+            - For CHANNELS: Propose complete channel configurations and capture as EXTRACTED_DATA
+              * Guide user to create 1-3 focused channels
+              * Each channel needs: name, focus, type, keywords
 
             Guidelines:
             - Be conversational, friendly, and helpful
@@ -284,10 +311,8 @@ class ResearchStreamChatService:
             - Extract information from natural language responses
             - CRITICAL - USER AGENCY: If the user explicitly requests to set/change ANY field at ANY time, honor it with EXTRACTED_DATA
               * Example: While asking about purpose, user says "actually call it 'XYZ Monitor'" → EXTRACTED_DATA: stream_name=XYZ Monitor
-              * Example: While in stream_type, user says "add Pfizer to competitors" → EXTRACTED_DATA: competitors=Pfizer
               * Example: User says "change purpose to monitor competitive landscape" → EXTRACTED_DATA: purpose=monitor competitive landscape
-              * For array fields (business_goals, focus_areas, keywords, competitors), values are ADDED to existing, not replaced
-              * For single-value fields (purpose, stream_name, etc.), values are REPLACED
+              * For single-value fields (purpose, stream_name, report_frequency), values are REPLACED
               * Acknowledge the change and continue with current step
               * User can edit any field at any time, regardless of current workflow step
             - LEVERAGE YOUR KNOWLEDGE: If user mentions a company, research area, or therapeutic focus:
@@ -315,116 +340,80 @@ class ResearchStreamChatService:
             PROPOSED_MESSAGE: [short message user can click to continue] (only for SUGGESTION mode with OPTIONS - e.g., "Continue with these selections")
 
             IMPORTANT FORMATTING RULES:
-            - For EXTRACTED_DATA with lists (business_goals, focus_areas, keywords, competitors): Use clean comma-separated values WITHOUT brackets or quotes
-              Example: EXTRACTED_DATA: focus_areas=Oncology, Cardiology, Immunology
-              Example: EXTRACTED_DATA: keywords=melanocortin, MCR1, MCR4, obesity
-              Example: EXTRACTED_DATA: business_goals=Inform study design, Track competitive landscape
-              NOT: EXTRACTED_DATA: focus_areas=["Oncology", "Cardiology", "Immunology"]
-            - For single values (purpose, expected_outcomes, stream_name): Just the value, no quotes
+            - For single values (purpose, stream_name, report_frequency): Just the value, no quotes
               Example: EXTRACTED_DATA: stream_name=Palatin Research Stream
               Example: EXTRACTED_DATA: purpose=Monitor melanocortin pathways for competitive intelligence
+              Example: EXTRACTED_DATA: report_frequency=weekly
               NOT: EXTRACTED_DATA: stream_name="Palatin Research Stream"
+            - For channels: Use JSON array format
+              Example: EXTRACTED_DATA: channels=[{"name": "Melanocortin Pathways", "focus": "Track scientific research", "type": "scientific", "keywords": ["melanocortin", "MCR1", "MCR4"]}]
 
             Examples:
 
-            EXPLORATION mode with volunteered data (extract what user provides):
-            User: "I want a research stream named 'Oncology Competitive Intel' monitoring Pfizer and Novartis in oncology"
+            EXPLORATION mode with volunteered data:
+            User: "I want a research stream named 'Melanocortin Intelligence' for competitive research"
             MODE: QUESTION
-            MESSAGE: Great! I'll set up a stream called "Oncology Competitive Intel" focused on oncology, monitoring Pfizer and Novartis. Now, what's the main purpose of this stream? What decisions will it help you make?
-            EXTRACTED_DATA: stream_name=Oncology Competitive Intel
-            EXTRACTED_DATA: focus_areas=Oncology
-            EXTRACTED_DATA: competitors=Pfizer, Novartis
+            MESSAGE: Great! I'll set up a stream called "Melanocortin Intelligence" for competitive research. Now, what's the main purpose of this stream? What decisions will it help you make?
+            EXTRACTED_DATA: stream_name=Melanocortin Intelligence
+            EXTRACTED_DATA: purpose=Monitor competitive research
 
             QUESTION mode (only when you truly have no context):
             MODE: QUESTION
             MESSAGE: What's the purpose of this research stream? What decisions will it help you make?
 
-            SUGGESTION mode for PURPOSE (single-select text field - use SUGGESTIONS not OPTIONS):
+            SUGGESTION mode for PURPOSE:
             MODE: SUGGESTION
             TARGET_FIELD: purpose
             MESSAGE: Based on your interest in Palatin Technologies, here are some potential purposes for this stream:
             SUGGESTIONS: Monitor competitive landscape for strategic planning, Track melanocortin pathway research for pipeline development, Identify partnership opportunities in metabolic disease
 
-            SUGGESTION mode for BUSINESS_GOALS (multi-select list):
-            MODE: SUGGESTION
-            TARGET_FIELD: business_goals
-            MESSAGE: What business goals will this stream support?
-            OPTIONS: Inform study design decisions|Track competitive landscape|Identify new therapeutic indications|Monitor regulatory pathway|Support partnership discussions|Guide R&D investment priorities
-            PROPOSED_MESSAGE: Continue with selected goals
-
-            SUGGESTION mode for EXPECTED_OUTCOMES (single-select text field - use SUGGESTIONS not OPTIONS):
-            MODE: SUGGESTION
-            TARGET_FIELD: expected_outcomes
-            MESSAGE: What specific outcomes do you expect from this intelligence?
-            SUGGESTIONS: Quarterly competitive landscape reports for leadership, Weekly alerts on new clinical trial filings, Monthly synthesis of new melanocortin research, Real-time alerts on regulatory changes
-
-            SUGGESTION mode for FOCUS_AREAS (multi-select list):
-            MODE: SUGGESTION
-            TARGET_FIELD: focus_areas
-            MESSAGE: Based on Palatin's melanocortin focus, I recommend monitoring these therapeutic areas:
-            OPTIONS: Melanocortin Receptor Agonists|Sexual Dysfunction Treatment|Obesity and Metabolic Disorders|Dermatology|Dry Eye Disease|Ocular Disease
-            PROPOSED_MESSAGE: Continue with selected areas
-
-            SUGGESTION mode for STREAM_NAME (text field with suggestions):
+            SUGGESTION mode for STREAM_NAME:
             MODE: SUGGESTION
             TARGET_FIELD: stream_name
-            MESSAGE: Based on your purpose and focus, here are some name suggestions:
+            MESSAGE: Based on your purpose, here are some name suggestions:
             SUGGESTIONS: Palatin Melanocortin Research Intelligence, Palatin Competitive Science Stream, Melanocortin Pathway Monitor
 
-            SUGGESTION mode for KEYWORDS (multi-select list):
+            CHANNELS mode - Proposing channel structure:
             MODE: SUGGESTION
-            TARGET_FIELD: keywords
-            MESSAGE: Based on your focus areas, here are key search terms I recommend:
-            OPTIONS: melanocortin|MCR1|MCR4|bremelanotide|PL7737|obesity|metabolic syndrome|sexual dysfunction|dry eye|retinal disease
-            PROPOSED_MESSAGE: Continue with these keywords
+            TARGET_FIELD: channels
+            MESSAGE: Based on your purpose to monitor melanocortin pathway research, I recommend creating these channels:
 
-            SUGGESTION mode for COMPETITORS (multi-select list - optional):
-            MODE: SUGGESTION
-            TARGET_FIELD: competitors
-            MESSAGE: Here are relevant competitors in your therapeutic areas:
-            OPTIONS: Novo Nordisk|Eli Lilly|Amgen|Rhythm Pharmaceuticals|Esperion Therapeutics|Bausch + Lomb
-            PROPOSED_MESSAGE: Continue with selected competitors
+            **Channel 1: Melanocortin Pathways**
+            - Focus: Track scientific research on melanocortin receptors
+            - Type: scientific
+            - Keywords: melanocortin, MCR1, MCR4, MCR5, alpha-MSH, melanocyte stimulating hormone
 
-            SUGGESTION mode for STREAM_TYPE (single-select):
-            MODE: SUGGESTION
-            TARGET_FIELD: stream_type
-            MESSAGE: What type of intelligence are you most interested in?
-            SUGGESTIONS: competitive, regulatory, clinical, market, scientific, mixed
+            **Channel 2: Clinical Developments**
+            - Focus: Monitor clinical trials for melanocortin-based treatments
+            - Type: clinical
+            - Keywords: bremelanotide, PL-6983, clinical trial, phase 2, phase 3
 
-            SUGGESTION mode for REPORT_FREQUENCY (single-select):
+            **Channel 3: Competitive Intelligence**
+            - Focus: Track competitor activities in melanocortin space
+            - Type: competitive
+            - Keywords: Novo Nordisk, Eli Lilly, Rhythm Pharmaceuticals, pipeline, drug development
+
+            Does this structure work for you? Type "yes" to proceed or suggest modifications.
+
+            REPORT_FREQUENCY mode:
             MODE: SUGGESTION
             TARGET_FIELD: report_frequency
             MESSAGE: How often would you like to receive reports?
             SUGGESTIONS: daily, weekly, biweekly, monthly
-
-            USER SELECTS A SUGGESTION (user message is exactly one of your suggestions):
-            User previously saw: "Palatin Melanocortin Research Intelligence|Palatin Therapeutic Pipeline Monitor"
-            User sends: "Palatin Melanocortin Research Intelligence"
-
-            CORRECT response (acknowledge + immediately suggest for next field):
-            MODE: SUGGESTION
-            TARGET_FIELD: stream_type
-            MESSAGE: Perfect! "Palatin Melanocortin Research Intelligence" is a great name. Now let's determine what type of research stream this will be:
-            EXTRACTED_DATA: stream_name=Palatin Melanocortin Research Intelligence
-            SUGGESTIONS: competitive, regulatory, clinical, market, scientific, mixed
-
-            INCORRECT response (DO NOT DO THIS - asking without suggestions):
-            MODE: QUESTION
-            MESSAGE: Perfect! Now let's determine what type of research stream this will be.
-            EXTRACTED_DATA: stream_name=Palatin Melanocortin Research Intelligence
 
             REVIEW mode (present final summary):
             MODE: REVIEW
             MESSAGE: Perfect! Your research stream is ready to create. Here's a summary:
 
             **Stream Name:** Palatin Melanocortin Research Intelligence
-            **Purpose:** Monitor melanocortin pathway research for competitive intelligence
-            **Business Goals:** Track competitive landscape, Inform study design decisions, Identify partnership opportunities
-            **Expected Outcomes:** Quarterly competitive landscape reports for leadership
-            **Stream Type:** Scientific
-            **Focus Areas:** Melanocortin Receptor Agonists, Obesity and Metabolic Disorders, Sexual Dysfunction Treatment
-            **Keywords:** melanocortin, MCR1, MCR4, bremelanotide, obesity, metabolic syndrome
-            **Competitors:** Novo Nordisk, Eli Lilly, Rhythm Pharmaceuticals
+            **Purpose:** Monitor melanocortin pathway research for competitive intelligence and pipeline development
+            **Channels:**
+            - **Melanocortin Pathways** (scientific): Track scientific research
+              Keywords: melanocortin, MCR1, MCR4, MCR5, alpha-MSH
+            - **Clinical Developments** (clinical): Monitor clinical trials
+              Keywords: bremelanotide, PL-6983, clinical trial, phase 2, phase 3
+            - **Competitive Intelligence** (competitive): Track competitor activities
+              Keywords: Novo Nordisk, Eli Lilly, Rhythm Pharmaceuticals, pipeline
             **Report Frequency:** Weekly
 
             Review the configuration above and click "Accept & Create Stream" to proceed, or type any changes you'd like to make.
@@ -522,26 +511,16 @@ class ResearchStreamChatService:
                     field_name = field.strip()
                     field_value = value.strip()
 
-                    # Handle list fields - competitors, focus_areas, keywords, business_goals should be lists
-                    if field_name in ['competitors', 'focus_areas', 'keywords', 'business_goals'] and field_value:
-                        # Remove brackets and quotes if present
-                        field_value = field_value.strip('[]')
-
-                        # Split by comma if it's a comma-separated list, otherwise wrap in list
-                        if ',' in field_value:
-                            # Split and clean each item (remove quotes, whitespace)
-                            updates[field_name] = [
-                                v.strip().strip('"').strip("'")
-                                for v in field_value.split(',')
-                                if v.strip()
-                            ]
-                        else:
-                            # Single item - remove quotes
-                            cleaned_value = field_value.strip('"').strip("'")
-                            if cleaned_value:
-                                updates[field_name] = [cleaned_value]
+                    # Handle channels - parse as JSON
+                    if field_name == 'channels' and field_value:
+                        try:
+                            updates[field_name] = json.loads(field_value)
+                        except json.JSONDecodeError:
+                            # If JSON parsing fails, log and skip
+                            import logging
+                            logging.warning(f"Failed to parse channels JSON: {field_value}")
                     else:
-                        # For non-list fields, just remove quotes if present
+                        # For all other fields, just remove quotes if present
                         updates[field_name] = field_value.strip('"').strip("'")
             elif stripped.startswith("SUGGESTIONS:"):
                 in_message = False
