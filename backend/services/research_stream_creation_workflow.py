@@ -2,7 +2,7 @@
 Research Stream Creation Workflow State Machine
 
 Manages the state transitions and business logic for creating a research stream
-through an AI-guided interview process. Separates workflow management from LLM interaction.
+through an AI-guided interview process. Channel-based structure.
 """
 
 from typing import Dict, Any, List, Optional, Tuple
@@ -11,19 +11,14 @@ from schemas.stream_building import StreamInProgress
 
 
 class WorkflowStep(str, Enum):
-    """Steps in the research stream creation workflow"""
-    EXPLORATION = "exploration"  # Conversational hub for gathering context
-    PURPOSE = "purpose"  # Phase 1: Why this stream exists (REQUIRED)
-    BUSINESS_GOALS = "business_goals"  # Phase 1: Strategic objectives (REQUIRED)
-    EXPECTED_OUTCOMES = "expected_outcomes"  # Phase 1: What decisions this drives (REQUIRED)
-    STREAM_NAME = "stream_name"
-    STREAM_TYPE = "stream_type"
-    FOCUS_AREAS = "focus_areas"
-    KEYWORDS = "keywords"  # Phase 1: Search keywords (REQUIRED)
-    COMPETITORS = "competitors"
-    REPORT_FREQUENCY = "report_frequency"
-    REVIEW = "review"
-    COMPLETE = "complete"
+    """Steps in the research stream creation workflow - channel-based"""
+    EXPLORATION = "exploration"  # Initial context gathering
+    STREAM_NAME = "stream_name"  # Name the stream
+    PURPOSE = "purpose"  # Why this stream exists (REQUIRED)
+    CHANNELS = "channels"  # Collect monitoring channels (name, focus, type, keywords)
+    REPORT_FREQUENCY = "report_frequency"  # How often to generate reports
+    REVIEW = "review"  # Review all configuration
+    COMPLETE = "complete"  # Stream created
 
 
 class WorkflowValidationResult:
@@ -49,87 +44,53 @@ class ResearchStreamCreationWorkflow:
     # Define required fields for each step to be considered "complete"
     STEP_REQUIREMENTS = {
         WorkflowStep.EXPLORATION: [],  # No data - just conversational context gathering
-        WorkflowStep.PURPOSE: ["purpose"],  # REQUIRED
-        WorkflowStep.BUSINESS_GOALS: ["business_goals"],  # REQUIRED
-        WorkflowStep.EXPECTED_OUTCOMES: ["expected_outcomes"],  # REQUIRED
         WorkflowStep.STREAM_NAME: ["stream_name"],
-        WorkflowStep.STREAM_TYPE: ["stream_type"],
-        WorkflowStep.FOCUS_AREAS: ["focus_areas"],
-        WorkflowStep.KEYWORDS: ["keywords"],  # REQUIRED
-        WorkflowStep.COMPETITORS: [],  # Optional - can skip
+        WorkflowStep.PURPOSE: ["purpose"],  # REQUIRED
+        WorkflowStep.CHANNELS: ["channels"],  # At least one complete channel
         WorkflowStep.REPORT_FREQUENCY: ["report_frequency"],
-        WorkflowStep.REVIEW: ["purpose", "business_goals", "expected_outcomes", "stream_name", "stream_type", "focus_areas", "keywords", "report_frequency"],
-        WorkflowStep.COMPLETE: ["purpose", "business_goals", "expected_outcomes", "stream_name", "stream_type", "focus_areas", "keywords", "report_frequency"]
+        WorkflowStep.REVIEW: ["stream_name", "purpose", "channels", "report_frequency"],
+        WorkflowStep.COMPLETE: ["stream_name", "purpose", "channels", "report_frequency"]
     }
 
     # Mapping of steps to field names (for data steps only)
     STEP_TO_FIELD_MAPPING = {
-        WorkflowStep.PURPOSE: "purpose",
-        WorkflowStep.BUSINESS_GOALS: "business_goals",
-        WorkflowStep.EXPECTED_OUTCOMES: "expected_outcomes",
         WorkflowStep.STREAM_NAME: "stream_name",
-        WorkflowStep.STREAM_TYPE: "stream_type",
-        WorkflowStep.FOCUS_AREAS: "focus_areas",
-        WorkflowStep.KEYWORDS: "keywords",
-        WorkflowStep.COMPETITORS: "competitors",
+        WorkflowStep.PURPOSE: "purpose",
+        WorkflowStep.CHANNELS: "channels",
         WorkflowStep.REPORT_FREQUENCY: "report_frequency"
     }
 
-    # List of optional fields that can be skipped
-    OPTIONAL_FIELDS = ["competitors"]
-
     # Data steps (have associated fields)
     DATA_STEPS = [
-        WorkflowStep.PURPOSE,
-        WorkflowStep.BUSINESS_GOALS,
-        WorkflowStep.EXPECTED_OUTCOMES,
         WorkflowStep.STREAM_NAME,
-        WorkflowStep.STREAM_TYPE,
-        WorkflowStep.FOCUS_AREAS,
-        WorkflowStep.KEYWORDS,
-        WorkflowStep.COMPETITORS,
+        WorkflowStep.PURPOSE,
+        WorkflowStep.CHANNELS,
         WorkflowStep.REPORT_FREQUENCY
     ]
 
-    # Dependency graph: PURPOSE → BUSINESS_GOALS → EXPECTED_OUTCOMES drives everything else
+    # Simplified dependency graph
     STEP_DEPENDENCIES = {
-        WorkflowStep.EXPLORATION: [],  # No dependencies - always the starting point
-        WorkflowStep.PURPOSE: [WorkflowStep.EXPLORATION],  # Purpose is the foundation
-        WorkflowStep.BUSINESS_GOALS: [WorkflowStep.PURPOSE],  # Goals flow from purpose
-        WorkflowStep.EXPECTED_OUTCOMES: [WorkflowStep.BUSINESS_GOALS],  # Outcomes flow from goals
-        WorkflowStep.STREAM_NAME: [WorkflowStep.EXPECTED_OUTCOMES],  # Name based on purpose/goals/outcomes
-        WorkflowStep.STREAM_TYPE: [WorkflowStep.EXPECTED_OUTCOMES],  # Type based on purpose/goals
-        WorkflowStep.FOCUS_AREAS: [WorkflowStep.STREAM_TYPE],  # Focus areas after type
-        WorkflowStep.KEYWORDS: [WorkflowStep.FOCUS_AREAS],  # Keywords after focus areas
-        WorkflowStep.COMPETITORS: [WorkflowStep.FOCUS_AREAS],  # Competitors based on focus
-        WorkflowStep.REPORT_FREQUENCY: [WorkflowStep.KEYWORDS],  # Frequency after main config
-        WorkflowStep.REVIEW: [  # Review requires all required fields to be collected
-            WorkflowStep.EXPLORATION,
-            WorkflowStep.PURPOSE,
-            WorkflowStep.BUSINESS_GOALS,
-            WorkflowStep.EXPECTED_OUTCOMES,
+        WorkflowStep.EXPLORATION: [],
+        WorkflowStep.STREAM_NAME: [WorkflowStep.EXPLORATION],
+        WorkflowStep.PURPOSE: [WorkflowStep.STREAM_NAME],
+        WorkflowStep.CHANNELS: [WorkflowStep.PURPOSE],  # Channels after purpose
+        WorkflowStep.REPORT_FREQUENCY: [WorkflowStep.CHANNELS],
+        WorkflowStep.REVIEW: [
             WorkflowStep.STREAM_NAME,
-            WorkflowStep.STREAM_TYPE,
-            WorkflowStep.FOCUS_AREAS,
-            WorkflowStep.KEYWORDS,
+            WorkflowStep.PURPOSE,
+            WorkflowStep.CHANNELS,
             WorkflowStep.REPORT_FREQUENCY
         ],
-        WorkflowStep.COMPLETE: [WorkflowStep.REVIEW]  # Complete only after review
+        WorkflowStep.COMPLETE: [WorkflowStep.REVIEW]
     }
 
     # Suggested step order (strict progression)
-    # This is used to prioritize which incomplete step to suggest next
     PREFERRED_STEP_ORDER = [
         WorkflowStep.EXPLORATION,
-        WorkflowStep.PURPOSE,  # 1. Why does this exist?
-        WorkflowStep.BUSINESS_GOALS,  # 2. What do you want to achieve?
-        WorkflowStep.EXPECTED_OUTCOMES,  # 3. What decisions will this drive?
-        WorkflowStep.STREAM_NAME,  # 4. Name it
-        WorkflowStep.STREAM_TYPE,  # 5. What type of monitoring?
-        WorkflowStep.FOCUS_AREAS,  # 6. What areas?
-        WorkflowStep.KEYWORDS,  # 7. What search terms?
-        WorkflowStep.COMPETITORS,  # 8. (Optional) What companies?
-        WorkflowStep.REPORT_FREQUENCY,  # 9. How often?
+        WorkflowStep.STREAM_NAME,
+        WorkflowStep.PURPOSE,
+        WorkflowStep.CHANNELS,
+        WorkflowStep.REPORT_FREQUENCY,
         WorkflowStep.REVIEW,
         WorkflowStep.COMPLETE
     ]
@@ -137,6 +98,33 @@ class ResearchStreamCreationWorkflow:
     def __init__(self, current_step: str, current_config: StreamInProgress):
         self.current_step = WorkflowStep(current_step)
         self.config = current_config
+
+    def _validate_channels(self) -> Tuple[bool, List[str]]:
+        """
+        Validate that channels are complete.
+        Returns: (is_valid, list of issues)
+        """
+        config_dict = self.config.model_dump() if hasattr(self.config, 'model_dump') else self.config
+        channels = config_dict.get('channels', [])
+
+        if not channels:
+            return False, ["At least one channel is required"]
+
+        issues = []
+        for i, channel in enumerate(channels):
+            ch_dict = channel if isinstance(channel, dict) else channel.model_dump() if hasattr(channel, 'model_dump') else {}
+
+            if not ch_dict.get('name'):
+                issues.append(f"Channel {i+1}: missing name")
+            if not ch_dict.get('focus'):
+                issues.append(f"Channel {i+1}: missing focus")
+            if not ch_dict.get('type'):
+                issues.append(f"Channel {i+1}: missing type")
+            keywords = ch_dict.get('keywords', [])
+            if not keywords or len(keywords) == 0:
+                issues.append(f"Channel {i+1}: missing keywords")
+
+        return len(issues) == 0, issues
 
     def validate_step(self, step: WorkflowStep) -> WorkflowValidationResult:
         """
@@ -146,11 +134,17 @@ class ResearchStreamCreationWorkflow:
             WorkflowValidationResult with validation status and any missing fields
         """
         required_fields = self.STEP_REQUIREMENTS.get(step, [])
-        # Handle both dict and Pydantic model
-        config_dict = self.config.model_dump() if hasattr(self.config, 'model_dump') else self.config if hasattr(self.config, 'model_dump') else self.config
+        config_dict = self.config.model_dump() if hasattr(self.config, 'model_dump') else self.config
         missing_fields = []
 
         for field in required_fields:
+            # Special handling for channels
+            if field == "channels":
+                is_valid, issues = self._validate_channels()
+                if not is_valid:
+                    missing_fields.extend(issues)
+                continue
+
             value = config_dict.get(field)
             if value is None or (isinstance(value, (list, str)) and not value):
                 missing_fields.append(field)
@@ -170,15 +164,18 @@ class ResearchStreamCreationWorkflow:
 
     def _all_required_fields_complete(self) -> bool:
         """Check if all required fields are complete (ready for review)"""
-        required_fields = ["purpose", "business_goals", "expected_outcomes", "stream_name",
-                          "stream_type", "focus_areas", "keywords", "report_frequency"]
+        required_fields = ["stream_name", "purpose", "report_frequency"]
         config_dict = self.config.model_dump() if hasattr(self.config, 'model_dump') else self.config
 
+        # Check basic fields
         for field in required_fields:
             value = config_dict.get(field)
             if value is None or (isinstance(value, (list, str)) and not value):
                 return False
-        return True
+
+        # Check channels
+        is_valid, _ = self._validate_channels()
+        return is_valid
 
     def get_completed_steps(self) -> List[WorkflowStep]:
         """Get list of all steps that have been completed"""
