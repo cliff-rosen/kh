@@ -1,5 +1,5 @@
 import { api } from './index';
-import { ResearchStream, StreamType, ReportFrequency } from '../../types';
+import { ResearchStream, StreamType, ReportFrequency, Channel } from '../../types';
 import {
     StreamInProgress,
     StreamBuildStep,
@@ -70,24 +70,15 @@ export type StreamResponse = AgentResponse | StatusResponse;
 
 export interface ResearchStreamCreateRequest {
     stream_name: string;
-    description?: string;
-    stream_type: StreamType;
-    focus_areas: string[];
-    competitors: string[];
-    report_frequency: ReportFrequency;
-    // Phase 1 required fields
     purpose: string;
-    business_goals: string[];
-    expected_outcomes: string;
-    keywords: string[];
+    channels: Channel[];
+    report_frequency: ReportFrequency;
 }
 
 export interface ResearchStreamUpdateRequest {
     stream_name?: string;
-    description?: string;
-    stream_type?: StreamType;
-    focus_areas?: string[];
-    competitors?: string[];
+    purpose?: string;
+    channels?: Channel[];
     report_frequency?: ReportFrequency;
     is_active?: boolean;
 }

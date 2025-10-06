@@ -12,6 +12,7 @@ from models import User
 
 from schemas.research_stream import (
     ResearchStream,
+    Channel,
     StreamType,
     ReportFrequency,
     ScoringConfig
@@ -21,37 +22,21 @@ from routers.auth import get_current_user
 
 # Request/Response types (API layer only)
 class ResearchStreamCreateRequest(BaseModel):
-    """Request schema for creating a research stream"""
+    """Request schema for creating a research stream - channel-based"""
     stream_name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
-    stream_type: StreamType
-    focus_areas: List[str] = Field(default_factory=list)
-    competitors: List[str] = Field(default_factory=list)
+    purpose: str = Field(..., min_length=1, description="Why this stream exists")
+    channels: List[Channel] = Field(..., min_items=1, description="Monitoring channels")
     report_frequency: ReportFrequency
-
-    # Phase 1 additions (REQUIRED)
-    purpose: str = Field(..., min_length=1)
-    business_goals: List[str] = Field(..., min_items=1)
-    expected_outcomes: str = Field(..., min_length=1)
-    keywords: List[str] = Field(..., min_items=1)
     scoring_config: Optional[ScoringConfig] = None
 
 
 class ResearchStreamUpdateRequest(BaseModel):
     """Request schema for updating a research stream"""
     stream_name: Optional[str] = Field(None, min_length=1, max_length=255)
-    description: Optional[str] = None
-    stream_type: Optional[StreamType] = None
-    focus_areas: Optional[List[str]] = None
-    competitors: Optional[List[str]] = None
+    purpose: Optional[str] = None
+    channels: Optional[List[Channel]] = None
     report_frequency: Optional[ReportFrequency] = None
     is_active: Optional[bool] = None
-
-    # Phase 1 additions
-    purpose: Optional[str] = None
-    business_goals: Optional[List[str]] = None
-    expected_outcomes: Optional[str] = None
-    keywords: Optional[List[str]] = None
     scoring_config: Optional[ScoringConfig] = None
 
 class ResearchStreamResponse(BaseModel):
@@ -102,25 +87,19 @@ async def create_research_stream(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Create a new research stream with Phase 1 enhancements"""
+    """Create a new research stream with channel-based structure"""
     service = ResearchStreamService(db)
 
-    # Convert scoring_config from Pydantic model to dict if present
+    # Convert Pydantic models to dicts
+    channels_dict = [ch.dict() if hasattr(ch, 'dict') else ch for ch in request.channels]
     scoring_dict = request.scoring_config.dict() if request.scoring_config else None
 
     return service.create_research_stream(
         user_id=current_user.user_id,
         stream_name=request.stream_name,
-        description=request.description,
-        stream_type=request.stream_type,
-        focus_areas=request.focus_areas,
-        competitors=request.competitors,
-        report_frequency=request.report_frequency,
-        # Phase 1 fields
         purpose=request.purpose,
-        business_goals=request.business_goals,
-        expected_outcomes=request.expected_outcomes,
-        keywords=request.keywords,
+        channels=channels_dict,
+        report_frequency=request.report_frequency,
         scoring_config=scoring_dict
     )
 
