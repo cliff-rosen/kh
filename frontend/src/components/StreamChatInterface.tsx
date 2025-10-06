@@ -15,7 +15,8 @@ export default function StreamChatInterface() {
         acceptReview,
         isLoading,
         statusMessage,
-        responseMode
+        responseMode,
+        currentStep
     } = useStreamChat();
     const [input, setInput] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -219,8 +220,8 @@ export default function StreamChatInterface() {
                     </div>
                 )}
 
-                {/* Accept & Create Stream button (REVIEW mode only) */}
-                {responseMode === 'REVIEW' && !isLoading && (
+                {/* Accept & Create Stream button (REVIEW mode only, before completion) */}
+                {responseMode === 'REVIEW' && currentStep !== 'complete' && !isLoading && (
                     <div className="flex justify-center mt-6">
                         <button
                             onClick={acceptReview}

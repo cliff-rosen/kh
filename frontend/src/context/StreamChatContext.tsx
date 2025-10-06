@@ -176,19 +176,14 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
             if (finalPayload) {
                 console.log('Processing final payload...');
 
-                // Convert suggestions array to labeled format if present
-                const suggestions = finalPayload.suggestions?.map((item: string) => ({
-                    label: item,
-                    value: item
-                }));
-
+                // Suggestions are already in {label, value} format from backend
                 // Update the existing message with final content and add suggestions/options
                 setMessages(prev => {
                     const updated = [...prev];
                     updated[updated.length - 1] = {
                         ...updated[updated.length - 1],
                         content: finalPayload.message,
-                        suggestions,
+                        suggestions: finalPayload.suggestions,
                         options: finalPayload.options,
                         proposedMessage: finalPayload.proposed_message
                     };
