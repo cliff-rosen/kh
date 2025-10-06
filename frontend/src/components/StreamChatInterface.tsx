@@ -1,34 +1,21 @@
 import { useState, useRef, useEffect } from 'react';
-import { ChatMessage } from '../types/stream-builder-chat';
 import { PaperAirplaneIcon } from '@heroicons/react/24/solid';
+import { useStreamChat } from '../context/StreamChatContext';
 
-interface StreamChatInterfaceProps {
-    messages: ChatMessage[];
-    onSendMessage: (message: string) => void;
-    onSelectSuggestion: (suggestion: string) => void;
-    onToggleOption: (value: string) => void;
-    onSelectAllOptions?: () => void;
-    onDeselectAllOptions?: () => void;
-    onContinueWithOptions?: () => void;
-    onAcceptReview?: () => void;
-    isLoading?: boolean;
-    statusMessage?: string | null;
-    responseMode?: 'QUESTION' | 'SUGGESTION' | 'REVIEW' | null;
-}
-
-export default function StreamChatInterface({
-    messages,
-    onSendMessage,
-    onSelectSuggestion,
-    onToggleOption,
-    onSelectAllOptions,
-    onDeselectAllOptions,
-    onContinueWithOptions,
-    onAcceptReview,
-    isLoading = false,
-    statusMessage = null,
-    responseMode = null
-}: StreamChatInterfaceProps) {
+export default function StreamChatInterface() {
+    const {
+        messages,
+        streamChatMessage,
+        selectSuggestion,
+        toggleOption,
+        selectAllOptions,
+        deselectAllOptions,
+        continueWithOptions,
+        acceptReview,
+        isLoading,
+        statusMessage,
+        responseMode
+    } = useStreamChat();
     const [input, setInput] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -43,7 +30,7 @@ export default function StreamChatInterface({
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (input.trim() && !isLoading) {
-            onSendMessage(input.trim());
+            streamChatMessage(input.trim());
             setInput('');
         }
     };
@@ -87,7 +74,7 @@ export default function StreamChatInterface({
                                 {message.suggestions.map((suggestion, sIdx) => (
                                     <button
                                         key={sIdx}
-                                        onClick={() => onSelectSuggestion(suggestion.value)}
+                                        onClick={() => selectSuggestion(suggestion.value)}
                                         className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
                                     >
                                         {suggestion.label}
@@ -102,14 +89,14 @@ export default function StreamChatInterface({
                                 {/* Select All / Deselect All */}
                                 <div className="flex gap-2 mb-2">
                                     <button
-                                        onClick={onSelectAllOptions}
+                                        onClick={selectAllOptions}
                                         className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                                     >
                                         Select All
                                     </button>
                                     <span className="text-xs text-gray-400">|</span>
                                     <button
-                                        onClick={onDeselectAllOptions}
+                                        onClick={deselectAllOptions}
                                         className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                                     >
                                         Deselect All
@@ -126,7 +113,7 @@ export default function StreamChatInterface({
                                             <input
                                                 type="checkbox"
                                                 checked={option.checked}
-                                                onChange={() => onToggleOption(option.value)}
+                                                onChange={() => toggleOption(option.value)}
                                                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                             />
                                             <span className="text-sm text-gray-900 dark:text-white">
@@ -139,7 +126,7 @@ export default function StreamChatInterface({
                                 {/* Proposed Message Button */}
                                 {message.proposedMessage && (
                                     <button
-                                        onClick={onContinueWithOptions}
+                                        onClick={continueWithOptions}
                                         className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                                     >
                                         {message.proposedMessage}
@@ -185,10 +172,10 @@ export default function StreamChatInterface({
                 )}
 
                 {/* Accept & Create Stream button (REVIEW mode only) */}
-                {responseMode === 'REVIEW' && !isLoading && onAcceptReview && (
+                {responseMode === 'REVIEW' && !isLoading && (
                     <div className="flex justify-center mt-6">
                         <button
-                            onClick={onAcceptReview}
+                            onClick={acceptReview}
                             className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-lg transition-colors flex items-center gap-2"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">

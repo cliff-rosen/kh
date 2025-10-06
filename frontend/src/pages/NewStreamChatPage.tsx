@@ -9,21 +9,11 @@ export default function NewStreamChatPage() {
     const navigate = useNavigate();
     const { toast } = useToast();
     const {
-        messages,
         streamConfig,
         currentStep,
-        isLoading,
         error,
-        statusMessage,
         responseMode,
         targetField,
-        streamChatMessage,
-        selectSuggestion,
-        toggleOption,
-        selectAllOptions,
-        deselectAllOptions,
-        continueWithOptions,
-        acceptReview,
         updateField,
         createStream,
         clearError
@@ -76,19 +66,7 @@ export default function NewStreamChatPage() {
                 <div className="h-full grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Chat Interface - Left - Scrolls internally */}
                     <div className="lg:col-span-2 min-h-0">
-                        <StreamChatInterface
-                            messages={messages}
-                            onSendMessage={streamChatMessage}
-                            onSelectSuggestion={selectSuggestion}
-                            onToggleOption={toggleOption}
-                            onSelectAllOptions={selectAllOptions}
-                            onDeselectAllOptions={deselectAllOptions}
-                            onContinueWithOptions={continueWithOptions}
-                            onAcceptReview={acceptReview}
-                            isLoading={isLoading}
-                            statusMessage={statusMessage}
-                            responseMode={responseMode}
-                        />
+                        <StreamChatInterface />
                     </div>
 
                     {/* Config Preview - Right - Fixed, no scroll */}
