@@ -230,12 +230,27 @@ class ResearchStreamChatService:
             - A channel is a focused monitoring area with: name, focus (what to monitor), type (competitive/regulatory/clinical/market/scientific), keywords
             - Guide the user to create 1-3 channels that make sense for their purpose
             - For each channel, collect: name, focus, type, keywords
-            - Use MODE: SUGGESTION to propose channels based on their purpose and context
-            - Example: If purpose is "melanocortin research", suggest channels like:
-              * Channel 1: "Melanocortin Pathways" (scientific, keywords: melanocortin, MCR1, MCR4)
-              * Channel 2: "Obesity Therapeutics" (clinical, keywords: obesity, weight loss, metabolic)
-            - Format channels as EXTRACTED_DATA when user approves:
-              EXTRACTED_DATA: channels=[{"name": "...", "focus": "...", "type": "...", "keywords": [...]}]
+
+            WHEN PROPOSING CHANNELS (first time in channels step):
+            - Use MODE: SUGGESTION
+            - TARGET_FIELD: channels
+            - In MESSAGE: Present the channel structure in formatted markdown:
+              **Channel 1: [Name]**
+              - Focus: [what to monitor]
+              - Type: [type]
+              - Keywords: [comma-separated list]
+            - SUGGESTIONS: Accept these channels (this becomes a clickable button)
+            - User can click "Accept these channels" button OR type their own input
+
+            WHEN USER ACCEPTS (clicks suggestion or types "yes"/"looks good"/etc):
+            - Use EXTRACTED_DATA to save the channels:
+              EXTRACTED_DATA: channels=[{{"name": "...", "focus": "...", "type": "...", "keywords": [...]}}]
+            - Move forward
+
+            WHEN USER REQUESTS CHANGES:
+            - Stay in CHANNELS mode
+            - Adjust based on their feedback
+            - Present updated channels with SUGGESTIONS again
             """
 
         # Add REVIEW-specific rules
@@ -346,7 +361,7 @@ class ResearchStreamChatService:
               Example: EXTRACTED_DATA: report_frequency=weekly
               NOT: EXTRACTED_DATA: stream_name="Palatin Research Stream"
             - For channels: Use JSON array format
-              Example: EXTRACTED_DATA: channels=[{"name": "Melanocortin Pathways", "focus": "Track scientific research", "type": "scientific", "keywords": ["melanocortin", "MCR1", "MCR4"]}]
+              Example: EXTRACTED_DATA: channels=[{{"name": "Melanocortin Pathways", "focus": "Track scientific research", "type": "scientific", "keywords": ["melanocortin", "MCR1", "MCR4"]}}]
 
             Examples:
 
@@ -393,7 +408,10 @@ class ResearchStreamChatService:
             - Type: competitive
             - Keywords: Novo Nordisk, Eli Lilly, Rhythm Pharmaceuticals, pipeline, drug development
 
-            Does this structure work for you? Type "yes" to proceed or suggest modifications.
+            Would you like to use these channels?
+            SUGGESTIONS: Accept these channels
+
+            (User can click button or type feedback. When they accept, you extract the channels as JSON)
 
             REPORT_FREQUENCY mode:
             MODE: SUGGESTION

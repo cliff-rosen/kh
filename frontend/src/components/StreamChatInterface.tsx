@@ -29,51 +29,121 @@ export default function StreamChatInterface() {
         scrollToBottom();
     }, [messages]);
 
-    // Helper to render message content with markdown links
+    // Helper to render message content with markdown formatting
     const renderMessageContent = (content: string) => {
-        // Simple regex to find [text](url) markdown links
-        const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-        const parts: JSX.Element[] = [];
-        let lastIndex = 0;
-        let match;
-        let partIndex = 0;
+        const lines = content.split('\n');
+        const elements: JSX.Element[] = [];
 
-        while ((match = linkRegex.exec(content)) !== null) {
-            // Add text before the link
-            if (match.index > lastIndex) {
-                parts.push(
-                    <span key={`text-${partIndex++}`}>
-                        {content.substring(lastIndex, match.index)}
-                    </span>
-                );
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+
+            // Skip empty lines
+            if (line.trim() === '') {
+                elements.push(<br key={`br-${i}`} />);
+                continue;
             }
 
-            // Add the link
-            const linkText = match[1];
-            const linkUrl = match[2];
-            parts.push(
-                <Link
-                    key={`link-${partIndex++}`}
-                    to={linkUrl}
-                    className="text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300"
-                >
-                    {linkText}
-                </Link>
-            );
+            // Check for bold text with ** prefix (channel headers)
+            if (line.match(/^\*\*(.+?)\*\*/)) {
+                const boldMatch = line.match(/^\*\*(.+?)\*\*/);
+                if (boldMatch) {
+                    elements.push(
+                        <div key={`bold-${i}`} className="font-bold text-base mt-3 mb-1">
+                            {boldMatch[1]}
+                        </div>
+                    );
+                    continue;
+                }
+            }
 
-            lastIndex = match.index + match[0].length;
+            // Check for list items with - prefix (channel details)
+            if (line.match(/^\s*-\s+(.+)/)) {
+                const listMatch = line.match(/^\s*-\s+(.+)/);
+                if (listMatch) {
+                    const itemText = listMatch[1];
+                    // Parse key: value format
+                    const keyValueMatch = itemText.match(/^([^:]+):\s*(.+)$/);
+                    if (keyValueMatch) {
+                        elements.push(
+                            <div key={`list-${i}`} className="ml-4 my-1">
+                                <span className="font-semibold">{keyValueMatch[1]}:</span>{' '}
+                                <span className="text-gray-700 dark:text-gray-300">{keyValueMatch[2]}</span>
+                            </div>
+                        );
+                    } else {
+                        elements.push(
+                            <div key={`list-${i}`} className="ml-4 my-1">
+                                {itemText}
+                            </div>
+                        );
+                    }
+                    continue;
+                }
+            }
+
+            // Regular text with inline formatting
+            const formattedLine = formatInlineMarkdown(line);
+            elements.push(
+                <div key={`line-${i}`} className="my-1">
+                    {formattedLine}
+                </div>
+            );
         }
 
-        // Add remaining text
-        if (lastIndex < content.length) {
-            parts.push(
-                <span key={`text-${partIndex++}`}>
-                    {content.substring(lastIndex)}
-                </span>
-            );
+        return <div className="space-y-1">{elements}</div>;
+    };
+
+    // Helper to format inline markdown (bold, links)
+    const formatInlineMarkdown = (text: string) => {
+        const parts: (string | JSX.Element)[] = [];
+        let remaining = text;
+        let key = 0;
+
+        while (remaining.length > 0) {
+            // Check for bold **text**
+            const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
+            if (boldMatch && boldMatch.index !== undefined) {
+                // Add text before bold
+                if (boldMatch.index > 0) {
+                    parts.push(remaining.substring(0, boldMatch.index));
+                }
+                // Add bold text
+                parts.push(
+                    <strong key={`bold-${key++}`} className="font-semibold">
+                        {boldMatch[1]}
+                    </strong>
+                );
+                remaining = remaining.substring(boldMatch.index + boldMatch[0].length);
+                continue;
+            }
+
+            // Check for links [text](url)
+            const linkMatch = remaining.match(/\[([^\]]+)\]\(([^)]+)\)/);
+            if (linkMatch && linkMatch.index !== undefined) {
+                // Add text before link
+                if (linkMatch.index > 0) {
+                    parts.push(remaining.substring(0, linkMatch.index));
+                }
+                // Add link
+                parts.push(
+                    <Link
+                        key={`link-${key++}`}
+                        to={linkMatch[2]}
+                        className="text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300"
+                    >
+                        {linkMatch[1]}
+                    </Link>
+                );
+                remaining = remaining.substring(linkMatch.index + linkMatch[0].length);
+                continue;
+            }
+
+            // No more special formatting, add remaining text
+            parts.push(remaining);
+            break;
         }
 
-        return parts.length > 0 ? <>{parts}</> : content;
+        return <>{parts}</>;
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -110,7 +180,7 @@ export default function StreamChatInterface() {
                                     : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
                                     }`}
                             >
-                                <p className="text-sm whitespace-pre-wrap">{renderMessageContent(message.content)}</p>
+                                <div className="text-sm">{renderMessageContent(message.content)}</div>
                                 <p className="text-xs opacity-70 mt-1">
                                     {new Date(message.timestamp).toLocaleTimeString()}
                                 </p>

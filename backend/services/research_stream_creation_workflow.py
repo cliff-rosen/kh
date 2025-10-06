@@ -285,13 +285,6 @@ class ResearchStreamCreationWorkflow:
         # that hasn't been completed yet
         for step in self.PREFERRED_STEP_ORDER:
             if step in available_steps:
-                # Apply business logic: skip competitors for certain stream types
-                if step == WorkflowStep.COMPETITORS:
-                    config_dict = self.config.model_dump() if hasattr(self.config, 'model_dump') else self.config if hasattr(self.config, 'model_dump') else self.config
-                    stream_type = config_dict.get('stream_type', '')
-                    if stream_type in ['scientific', 'clinical']:
-                        continue  # Skip this step
-
                 return step
 
         # Fallback: return first available step
@@ -310,22 +303,9 @@ class ResearchStreamCreationWorkflow:
         """
         config_dict = self.config.model_dump() if hasattr(self.config, 'model_dump') else self.config
 
-        # Array fields that should be merged, not replaced
-        array_fields = ['business_goals', 'focus_areas', 'keywords', 'competitors']
-
+        # Update all fields by replacing values
         for field_name, new_value in updates.items():
-            if field_name in array_fields and isinstance(new_value, list):
-                # Merge arrays: combine existing + new, removing duplicates
-                existing = config_dict.get(field_name, [])
-                if isinstance(existing, list):
-                    # Combine and deduplicate while preserving order
-                    combined = existing + [item for item in new_value if item not in existing]
-                    config_dict[field_name] = combined
-                else:
-                    config_dict[field_name] = new_value
-            else:
-                # For non-array fields, replace value
-                config_dict[field_name] = new_value
+            config_dict[field_name] = new_value
 
         self.config = StreamInProgress(**config_dict)
         return self.config
