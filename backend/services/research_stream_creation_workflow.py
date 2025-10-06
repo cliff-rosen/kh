@@ -7,7 +7,7 @@ through an AI-guided interview process. Separates workflow management from LLM i
 
 from typing import Dict, Any, List, Optional, Tuple
 from enum import Enum
-from schemas.research_stream import PartialStreamConfig
+from schemas.stream_building import StreamInProgress
 
 
 class WorkflowStep(str, Enum):
@@ -134,7 +134,7 @@ class ResearchStreamCreationWorkflow:
         WorkflowStep.COMPLETE
     ]
 
-    def __init__(self, current_step: str, current_config: PartialStreamConfig):
+    def __init__(self, current_step: str, current_config: StreamInProgress):
         self.current_step = WorkflowStep(current_step)
         self.config = current_config
 
@@ -300,7 +300,7 @@ class ResearchStreamCreationWorkflow:
         # Fallback: return first available step
         return available_steps[0]
 
-    def update_config(self, updates: Dict[str, Any]) -> PartialStreamConfig:
+    def update_config(self, updates: Dict[str, Any]) -> StreamInProgress:
         """
         Update the configuration with new values.
         For array fields, intelligently merges instead of replacing.
@@ -309,7 +309,7 @@ class ResearchStreamCreationWorkflow:
             updates: Dictionary of fields to update
 
         Returns:
-            Updated PartialStreamConfig
+            Updated StreamInProgress
         """
         config_dict = self.config.model_dump() if hasattr(self.config, 'model_dump') else self.config
 
@@ -330,7 +330,7 @@ class ResearchStreamCreationWorkflow:
                 # For non-array fields, replace value
                 config_dict[field_name] = new_value
 
-        self.config = PartialStreamConfig(**config_dict)
+        self.config = StreamInProgress(**config_dict)
         return self.config
 
     def get_step_guidance(self) -> Dict[str, Any]:

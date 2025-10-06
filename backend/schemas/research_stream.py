@@ -52,36 +52,6 @@ class ScoringConfig(BaseModel):
     )
 
 
-class UserAction(BaseModel):
-    """Metadata about what type of action the user is taking"""
-    type: Literal['option_selected', 'options_selected', 'text_input', 'skip_step', 'accept_review']
-    target_field: Optional[str] = None  # Which field this relates to
-    selected_value: Optional[str] = None  # For single-select (SUGGESTIONS)
-    selected_values: Optional[List[str]] = None  # For multi-select (OPTIONS)
-
-
-class PartialStreamConfig(BaseModel):
-    """Partial stream configuration for AI-guided creation (all fields optional)"""
-    # Core fields
-    stream_name: Optional[str] = None
-    description: Optional[str] = None
-    stream_type: Optional[str] = None  # Use string to allow flexibility during chat
-    focus_areas: Optional[List[str]] = None
-    competitors: Optional[List[str]] = None
-    report_frequency: Optional[str] = None  # Use string to allow flexibility during chat
-
-    # Phase 1: Purpose and Context
-    purpose: Optional[str] = None
-    business_goals: Optional[List[str]] = None
-    expected_outcomes: Optional[str] = None
-
-    # Phase 1: Search Strategy
-    keywords: Optional[List[str]] = None
-
-    # Phase 1: Scoring (as dict for flexibility during chat)
-    scoring_config: Optional[dict] = None
-
-
 class ResearchStream(BaseModel):
     """Research stream response object - Phase 1 Enhanced"""
     stream_id: int

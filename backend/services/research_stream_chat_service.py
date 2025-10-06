@@ -8,8 +8,7 @@ from typing import Dict, Any, List, Optional, AsyncGenerator
 import anthropic
 import os
 import json
-from schemas.agent_responses import AgentResponse, StatusResponse
-from schemas.research_stream import PartialStreamConfig, UserAction
+from schemas.stream_building import StreamInProgress, UserAction, UserActionType
 from services.research_stream_creation_workflow import ResearchStreamCreationWorkflow
 
 STREAM_CHAT_MODEL = "claude-sonnet-4-20250514"
@@ -24,7 +23,7 @@ class ResearchStreamChatService:
     async def stream_chat_message(
         self,
         message: str,
-        current_config: PartialStreamConfig,
+        current_stream: StreamInProgress,
         current_step: str,
         conversation_history: List[Dict[str, str]] = None,
         user_action: UserAction = None
@@ -39,10 +38,10 @@ class ResearchStreamChatService:
         try:
             # Default to text_input if no user action provided
             if user_action is None:
-                user_action = UserAction(type="text_input")
+                user_action = UserAction(type=UserActionType.TEXT_INPUT)
 
             # Initialize workflow controller
-            workflow = ResearchStreamCreationWorkflow(current_step, current_config)
+            workflow = ResearchStreamCreationWorkflow(current_step, current_stream)
 
             # Process user action BEFORE calling LLM
             step_completed = self._process_user_action(workflow, user_action, message)
@@ -58,10 +57,11 @@ class ResearchStreamChatService:
 
             # Build conversation context for the LLM using workflow guidance
             system_prompt = self._build_system_prompt(step_guidance)
-            user_prompt = self._build_user_prompt(message, current_config, step_guidance)
+            user_prompt = self._build_user_prompt(message, current_stream, step_guidance)
 
             # Send status update that we're calling the LLM
-            status_response = StatusResponse(
+            from routers.research_stream_chat import StreamBuildStatusResponse
+            status_response = StreamBuildStatusResponse(
                 status="Thinking about your response...",
                 payload={"tool": "claude_api", "step": current_step},
                 error=None,
@@ -101,7 +101,8 @@ class ResearchStreamChatService:
                 for text in stream_manager.text_stream:
                     collected_text += text
                     # Stream each token as it arrives
-                    token_response = AgentResponse(
+                    from routers.research_stream_chat import StreamBuildAgentResponse
+                    token_response = StreamBuildAgentResponse(
                         token=text,
                         response_text=None,
                         payload=None,
@@ -141,19 +142,23 @@ class ResearchStreamChatService:
 
             # Send final response with structured data
             # next_step is the CURRENT step (after potential advancement)
-            final_response = AgentResponse(
+            from routers.research_stream_chat import StreamBuildAgentResponse, StreamBuildChatPayload
+
+            payload = StreamBuildChatPayload(
+                message=extracted_data.get("message", collected_text),
+                mode=extracted_data.get("mode", "QUESTION"),
+                target_field=extracted_data.get("target_field"),
+                proposed_message=extracted_data.get("proposed_message"),
+                next_step=workflow.current_step.value,
+                updated_stream=workflow.config,
+                suggestions=extracted_data.get("suggestions"),
+                options=extracted_data.get("options")
+            )
+
+            final_response = StreamBuildAgentResponse(
                 token=None,
                 response_text=None,
-                payload={
-                    "message": extracted_data.get("message", collected_text),
-                    "mode": extracted_data.get("mode", "QUESTION"),
-                    "target_field": extracted_data.get("target_field"),
-                    "proposed_message": extracted_data.get("proposed_message"),
-                    "next_step": workflow.current_step.value,
-                    "updated_config": workflow.config.model_dump(),
-                    "suggestions": extracted_data.get("suggestions"),
-                    "options": extracted_data.get("options")
-                },
+                payload=payload,
                 status="complete",
                 error=None,
                 debug=None
@@ -162,7 +167,8 @@ class ResearchStreamChatService:
 
         except Exception as e:
             logger.error(f"Error in stream_chat_message: {str(e)}", exc_info=True)
-            error_response = AgentResponse(
+            from routers.research_stream_chat import StreamBuildAgentResponse
+            error_response = StreamBuildAgentResponse(
                 token=None,
                 response_text=None,
                 payload=None,
@@ -439,12 +445,12 @@ class ResearchStreamChatService:
     def _build_user_prompt(
         self,
         message: str,
-        current_config: PartialStreamConfig,
+        current_stream: StreamInProgress,
         step_guidance: Dict[str, Any]
     ) -> str:
         """Build user prompt with workflow context"""
         # Convert Pydantic model to dict and filter out None values
-        config_dict = {k: v for k, v in current_config.model_dump().items() if v is not None}
+        config_dict = {k: v for k, v in current_stream.model_dump().items() if v is not None}
         config_summary = "\n".join([f"{k}: {v}" for k, v in config_dict.items()])
 
         # Include any example questions from workflow guidance

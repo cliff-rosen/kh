@@ -21,13 +21,13 @@ interface StreamChatContextType {
 
     // Actions
     streamChatMessage: (content: string, userAction?: UserAction) => Promise<void>;
-    handleSelectSuggestion: (value: string) => void;
-    handleToggleOption: (value: string) => void;
-    handleSelectAllOptions: () => void;
-    handleDeselectAllOptions: () => void;
-    handleContinueWithOptions: () => void;
-    handleAcceptReview: () => Promise<void>;  // NEW - Accept and create stream
-    handleUpdateField: (fieldName: string, value: any) => void;
+    selectSuggestion: (value: string) => void;
+    toggleOption: (value: string) => void;
+    selectAllOptions: () => void;
+    deselectAllOptions: () => void;
+    continueWithOptions: () => void;
+    acceptReview: () => Promise<void>;  // NEW - Accept and create stream
+    updateField: (fieldName: string, value: any) => void;
     createStream: (config: StreamInProgress) => Promise<ResearchStream | null>;
     resetChat: () => void;
     clearError: () => void;
@@ -210,7 +210,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         }
     }, [streamConfig, currentStep]);
 
-    const handleSelectSuggestion = useCallback((value: string) => {
+    const selectSuggestion = useCallback((value: string) => {
         // Update preview area immediately (before backend call)
         if (targetField) {
             setStreamConfig(prev => ({
@@ -228,7 +228,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         streamChatMessage(value, userAction);
     }, [streamChatMessage, targetField]);
 
-    const handleToggleOption = useCallback((value: string) => {
+    const toggleOption = useCallback((value: string) => {
         // Update options in the last message (create new objects for React to detect change)
         setMessages(prev => {
             const updated = [...prev];
@@ -266,7 +266,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         }
     }, [targetField]);
 
-    const handleSelectAllOptions = useCallback(() => {
+    const selectAllOptions = useCallback(() => {
         if (!targetField) return;
 
         // Update all options to checked in the last message
@@ -296,7 +296,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         });
     }, [targetField]);
 
-    const handleDeselectAllOptions = useCallback(() => {
+    const deselectAllOptions = useCallback(() => {
         if (!targetField) return;
 
         // Update all options to unchecked in the last message
@@ -324,7 +324,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         });
     }, [targetField]);
 
-    const handleContinueWithOptions = useCallback(() => {
+    const continueWithOptions = useCallback(() => {
         if (!targetField) return;
 
         // Get selected values from last message
@@ -345,7 +345,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         streamChatMessage(message, userAction);
     }, [messages, targetField, streamChatMessage]);
 
-    const handleUpdateField = useCallback((fieldName: string, value: any) => {
+    const updateField = useCallback((fieldName: string, value: any) => {
         setStreamConfig(prev => ({
             ...prev,
             [fieldName]: value
@@ -378,7 +378,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
         }
     }, []);
 
-    const handleAcceptReview = useCallback(async () => {
+    const acceptReview = useCallback(async () => {
         // User clicked "Accept & Create Stream" in REVIEW mode
         // Send accept_review action to backend, which will advance to COMPLETE
         // Then create the stream
@@ -412,13 +412,13 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
 
         // Actions
         streamChatMessage,
-        handleSelectSuggestion,
-        handleToggleOption,
-        handleSelectAllOptions,
-        handleDeselectAllOptions,
-        handleContinueWithOptions,
-        handleAcceptReview,
-        handleUpdateField,
+        selectSuggestion,
+        toggleOption,
+        selectAllOptions,
+        deselectAllOptions,
+        continueWithOptions,
+        acceptReview,
+        updateField,
         createStream,
         resetChat,
         clearError,

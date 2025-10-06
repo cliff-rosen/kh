@@ -18,13 +18,13 @@ export default function NewStreamChatPage() {
         responseMode,
         targetField,
         streamChatMessage,
-        handleSelectSuggestion,
-        handleToggleOption,
-        handleSelectAllOptions,
-        handleDeselectAllOptions,
-        handleContinueWithOptions,
-        handleAcceptReview,
-        handleUpdateField,
+        selectSuggestion,
+        toggleOption,
+        selectAllOptions,
+        deselectAllOptions,
+        continueWithOptions,
+        acceptReview,
+        updateField,
         createStream,
         clearError
     } = useStreamChat();
@@ -79,12 +79,12 @@ export default function NewStreamChatPage() {
                         <StreamChatInterface
                             messages={messages}
                             onSendMessage={streamChatMessage}
-                            onSelectSuggestion={handleSelectSuggestion}
-                            onToggleOption={handleToggleOption}
-                            onSelectAllOptions={handleSelectAllOptions}
-                            onDeselectAllOptions={handleDeselectAllOptions}
-                            onContinueWithOptions={handleContinueWithOptions}
-                            onAcceptReview={handleAcceptReview}
+                            onSelectSuggestion={selectSuggestion}
+                            onToggleOption={toggleOption}
+                            onSelectAllOptions={selectAllOptions}
+                            onDeselectAllOptions={deselectAllOptions}
+                            onContinueWithOptions={continueWithOptions}
+                            onAcceptReview={acceptReview}
                             isLoading={isLoading}
                             statusMessage={statusMessage}
                             responseMode={responseMode}
@@ -96,7 +96,7 @@ export default function NewStreamChatPage() {
                         <StreamConfigPreview
                             config={streamConfig}
                             highlightedField={responseMode === 'SUGGESTION' ? targetField : null}
-                            onUpdateField={handleUpdateField}
+                            onUpdateField={updateField}
                         />
                     </div>
                 </div>
