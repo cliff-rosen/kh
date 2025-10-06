@@ -206,8 +206,9 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
     }, [streamConfig, currentStep]);
 
     const selectSuggestion = useCallback((value: string) => {
-        // Update preview area immediately (before backend call)
-        if (targetField) {
+        // For channels, don't update config directly - let LLM extract the channels
+        // For other fields, update preview area immediately (before backend call)
+        if (targetField && targetField !== 'channels') {
             setStreamConfig(prev => ({
                 ...prev,
                 [targetField]: value

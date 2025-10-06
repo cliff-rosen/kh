@@ -607,6 +607,10 @@ class ResearchStreamChatService:
             field_name = user_action.target_field
             value = user_action.selected_value
 
+            # For channels, treat like text_input - LLM will extract the actual channel data
+            if field_name == "channels":
+                return False
+
             if field_name and value:
                 workflow.update_config({field_name: value})
                 # Check if this completes the step

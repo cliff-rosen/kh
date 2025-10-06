@@ -131,7 +131,7 @@ export default function StreamConfigPreview({ config, highlightedField, onUpdate
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Monitoring Channels * {isHighlighted('channels') && <span className="text-blue-600 dark:text-blue-400 text-xs">(selecting...)</span>}
                     </label>
-                    {config.channels && config.channels.length > 0 ? (
+                    {config.channels && Array.isArray(config.channels) && config.channels.length > 0 ? (
                         <div className="space-y-3">
                             {config.channels.map((channel, idx) => (
                                 <div key={idx} className="border border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-750">
