@@ -8,6 +8,7 @@ import {
     MultiSelectOption
 } from '../../types/stream-building';
 import { makeStreamRequest } from './streamUtils';
+import { CanonicalResearchArticle, FilteredArticle } from '../../types/canonical-types';
 
 // ============================================================================
 // Stream Building Chat API
@@ -81,6 +82,51 @@ export interface ResearchStreamUpdateRequest {
     channels?: Channel[];
     report_frequency?: ReportFrequency;
     is_active?: boolean;
+}
+
+// ============================================================================
+// Implementation Configuration API Types (Workflow 2)
+// ============================================================================
+
+export interface QueryGenerationRequest {
+    source_id: string;
+}
+
+export interface QueryGenerationResponse {
+    query_expression: string;
+    reasoning: string;
+}
+
+export interface QueryTestRequest {
+    source_id: string;
+    query_expression: string;
+    max_results?: number;
+}
+
+export interface QueryTestResponse {
+    success: boolean;
+    article_count: number;
+    sample_articles: CanonicalResearchArticle[];
+    error_message?: string;
+}
+
+export interface SemanticFilterTestRequest {
+    articles: CanonicalResearchArticle[];
+    filter_criteria: string;
+    threshold?: number;
+}
+
+export interface SemanticFilterTestResponse {
+    filtered_articles: FilteredArticle[];
+    pass_count: number;
+    fail_count: number;
+    average_confidence: number;
+}
+
+export interface ImplementationConfigProgressUpdate {
+    channel_name: string;
+    completed_steps: string[];
+    configuration_data: Record<string, any>;
 }
 
 export const researchStreamApi = {
@@ -204,5 +250,78 @@ export const researchStreamApi = {
                 debug: { streamError: true }
             } as AgentResponse;
         }
+    },
+
+    // ========================================================================
+    // Implementation Configuration Methods (Workflow 2)
+    // ========================================================================
+
+    /**
+     * Generate a query expression for a channel based on its keywords and focus
+     */
+    async generateChannelQuery(
+        streamId: number,
+        channelName: string,
+        request: QueryGenerationRequest
+    ): Promise<QueryGenerationResponse> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelName)}/generate-query`,
+            request
+        );
+        return response.data;
+    },
+
+    /**
+     * Test a query expression for a channel against a specific source
+     */
+    async testChannelQuery(
+        streamId: number,
+        channelName: string,
+        request: QueryTestRequest
+    ): Promise<QueryTestResponse> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelName)}/test-query`,
+            request
+        );
+        return response.data;
+    },
+
+    /**
+     * Test a semantic filter for a channel on sample articles
+     */
+    async testChannelFilter(
+        streamId: number,
+        channelName: string,
+        request: SemanticFilterTestRequest
+    ): Promise<SemanticFilterTestResponse> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelName)}/test-filter`,
+            request
+        );
+        return response.data;
+    },
+
+    /**
+     * Update implementation configuration progress for a channel
+     */
+    async updateImplementationConfig(
+        streamId: number,
+        update: ImplementationConfigProgressUpdate
+    ): Promise<ResearchStream> {
+        const response = await api.patch(
+            `/api/research-streams/${streamId}/implementation-config`,
+            update
+        );
+        return response.data;
+    },
+
+    /**
+     * Mark implementation configuration as complete
+     */
+    async completeImplementationConfig(streamId: number): Promise<ResearchStream> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/implementation-config/complete`
+        );
+        return response.data;
     }
 };
