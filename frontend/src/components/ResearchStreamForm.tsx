@@ -48,6 +48,43 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
         loadAvailableSources();
     }, [loadAvailableSources]);
 
+    // Sync channel queries when channels change
+    useEffect(() => {
+        if (!form.workflow_config?.sources || form.workflow_config.sources.length === 0) {
+            return;
+        }
+
+        const updatedSources = form.workflow_config.sources.map(source => {
+            // Create a map of existing queries by channel name
+            const existingQueriesMap = new Map(
+                source.channel_queries.map(q => [q.channel_name, q.query_expression])
+            );
+
+            // Update channel queries to match current channels
+            const updatedChannelQueries = form.channels.map(ch => ({
+                channel_name: ch.name,
+                query_expression: existingQueriesMap.get(ch.name) || ch.keywords.join(' OR ')
+            }));
+
+            return {
+                ...source,
+                channel_queries: updatedChannelQueries
+            };
+        });
+
+        // Only update if queries actually changed
+        const queriesChanged = JSON.stringify(form.workflow_config.sources) !== JSON.stringify(updatedSources);
+        if (queriesChanged) {
+            setForm(prev => ({
+                ...prev,
+                workflow_config: {
+                    ...prev.workflow_config,
+                    sources: updatedSources
+                }
+            }));
+        }
+    }, [form.channels]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
