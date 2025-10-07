@@ -1,5 +1,5 @@
 import { api } from './index';
-import { ResearchStream, StreamType, ReportFrequency, Channel, InformationSource } from '../../types';
+import { ResearchStream, ReportFrequency, Channel, InformationSource } from '../../types';
 import {
     StreamInProgress,
     StreamBuildStep,
@@ -8,7 +8,8 @@ import {
     MultiSelectOption
 } from '../../types/stream-building';
 import { makeStreamRequest } from './streamUtils';
-import { CanonicalResearchArticle, FilteredArticle } from '../../types/canonical-types';
+import { CanonicalResearchArticle } from '../../types/canonical_types';
+import { FilteredArticle } from '../../types/smartsearch2';
 
 // ============================================================================
 // Stream Building Chat API

@@ -21,7 +21,7 @@ from schemas.sources import INFORMATION_SOURCES, InformationSource
 from schemas.canonical_types import CanonicalResearchArticle
 from schemas.smart_search import FilteredArticle, SearchPaginationInfo
 from services.research_stream_service import ResearchStreamService
-from services.smart_search_service import SmartSearchService
+from services.implementation_config_service import ImplementationConfigService
 from routers.auth import get_current_user
 
 router = APIRouter(prefix="/api/research-streams", tags=["research-streams"])
@@ -251,60 +251,32 @@ async def generate_channel_query(
     Uses LLM to create source-specific query expressions optimized for the target source
     (PubMed boolean syntax vs Google Scholar natural language).
     """
-    # Verify stream ownership
-    stream_service = ResearchStreamService(db)
-    stream = stream_service.get_research_stream(stream_id, current_user.user_id)
-    if not stream:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Research stream not found"
-        )
-
-    # Find the channel
-    channel = next((ch for ch in stream.channels if ch.get('name') == channel_name), None)
-    if not channel:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Channel '{channel_name}' not found in stream"
-        )
-
-    # Validate source_id
-    valid_sources = [src.source_id for src in INFORMATION_SOURCES]
-    if request.source_id not in valid_sources:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid source_id. Must be one of: {', '.join(valid_sources)}"
-        )
+    service = ImplementationConfigService(db)
 
     try:
-        # Build evidence specification from channel and stream data
-        channel_keywords = channel.get('keywords', [])
-        channel_focus = channel.get('focus', '')
-        stream_purpose = stream.purpose
-
-        # Create evidence specification
-        evidence_spec = f"Find articles that {channel_focus}. "
-        evidence_spec += f"Stream purpose: {stream_purpose}. "
-        evidence_spec += f"Key topics: {', '.join(channel_keywords)}"
-
-        # Use SmartSearchService to generate query
-        search_service = SmartSearchService()
-        query_expression, usage = await search_service.generate_search_keywords(
-            evidence_specification=evidence_spec,
-            selected_sources=[request.source_id]
+        # Verify stream and channel
+        stream, channel = service.verify_stream_and_channel(
+            stream_id, current_user.user_id, channel_name
         )
 
-        # Create reasoning explanation
-        source_name = next((src.name for src in INFORMATION_SOURCES if src.source_id == request.source_id), request.source_id)
-        reasoning = f"Generated {source_name} query based on channel focus '{channel_focus}' and keywords: {', '.join(channel_keywords[:5])}"
-        if len(channel_keywords) > 5:
-            reasoning += f" (and {len(channel_keywords) - 5} more)"
+        # Validate source
+        service.validate_source_id(request.source_id)
+
+        # Generate query expression
+        query_expression, reasoning = await service.generate_query_expression(
+            stream, channel, request.source_id
+        )
 
         return QueryGenerationResponse(
             query_expression=query_expression,
             reasoning=reasoning
         )
 
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND if "not found" in str(e).lower() else status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -326,54 +298,28 @@ async def test_channel_query(
     This endpoint allows testing query expressions during implementation configuration
     to see how many articles would be returned and preview sample results.
     """
-    # Verify stream ownership
-    stream_service = ResearchStreamService(db)
-    stream = stream_service.get_research_stream(stream_id, current_user.user_id)
-    if not stream:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Research stream not found"
-        )
-
-    # Verify channel exists in stream
-    channel_exists = any(ch.get('name') == channel_name for ch in stream.channels)
-    if not channel_exists:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Channel '{channel_name}' not found in stream"
-        )
-
-    # Validate source_id
-    valid_sources = [src.source_id for src in INFORMATION_SOURCES]
-    if request.source_id not in valid_sources:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid source_id. Must be one of: {', '.join(valid_sources)}"
-        )
+    service = ImplementationConfigService(db)
 
     try:
-        # Use SmartSearchService to execute the query
-        search_service = SmartSearchService()
-        result = await search_service.search_articles(
-            search_query=request.query_expression,
-            max_results=request.max_results,
-            offset=0,
-            selected_sources=[request.source_id]
+        # Verify stream and channel
+        service.verify_stream_and_channel(stream_id, current_user.user_id, channel_name)
+
+        # Validate source
+        service.validate_source_id(request.source_id)
+
+        # Test query expression
+        result = await service.test_query_expression(
+            request.source_id,
+            request.query_expression,
+            request.max_results
         )
 
-        return QueryTestResponse(
-            success=True,
-            article_count=result.pagination.total_available,
-            sample_articles=result.articles,
-            error_message=None
-        )
+        return QueryTestResponse(**result)
 
-    except Exception as e:
-        return QueryTestResponse(
-            success=False,
-            article_count=0,
-            sample_articles=[],
-            error_message=str(e)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND if "not found" in str(e).lower() else status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
         )
 
 
@@ -391,59 +337,26 @@ async def test_channel_filter(
     This endpoint applies the semantic filter to test articles and returns
     which articles pass/fail along with confidence scores.
     """
-    # Verify stream ownership
-    stream_service = ResearchStreamService(db)
-    stream = stream_service.get_research_stream(stream_id, current_user.user_id)
-    if not stream:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Research stream not found"
-        )
-
-    # Verify channel exists in stream
-    channel_exists = any(ch.get('name') == channel_name for ch in stream.channels)
-    if not channel_exists:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Channel '{channel_name}' not found in stream"
-        )
-
-    if not request.articles:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one article is required for testing"
-        )
+    service = ImplementationConfigService(db)
 
     try:
-        # Use SmartSearchService to filter articles
-        search_service = SmartSearchService()
-        filtered_articles, usage = await search_service.filter_articles_with_criteria(
-            articles=request.articles,
-            filter_condition=request.filter_criteria
+        # Verify stream and channel
+        service.verify_stream_and_channel(stream_id, current_user.user_id, channel_name)
+
+        # Test semantic filter
+        result = await service.test_semantic_filter(
+            request.articles,
+            request.filter_criteria,
+            request.threshold
         )
 
-        # Apply threshold to determine pass/fail
-        passing_articles = [
-            fa for fa in filtered_articles
-            if fa.passed and fa.confidence >= request.threshold
-        ]
+        return SemanticFilterTestResponse(**result)
 
-        pass_count = len(passing_articles)
-        fail_count = len(filtered_articles) - pass_count
-
-        # Calculate average confidence of passing articles
-        average_confidence = (
-            sum(fa.confidence for fa in passing_articles) / pass_count
-            if pass_count > 0 else 0.0
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND if "not found" in str(e).lower() else status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
         )
-
-        return SemanticFilterTestResponse(
-            filtered_articles=filtered_articles,
-            pass_count=pass_count,
-            fail_count=fail_count,
-            average_confidence=round(average_confidence, 3)
-        )
-
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
