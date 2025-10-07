@@ -16,11 +16,18 @@ export enum ReportFrequency {
     MONTHLY = 'monthly'
 }
 
+export interface SemanticFilter {
+    enabled: boolean;
+    criteria: string | null;
+    threshold: number | null;
+}
+
 export interface Channel {
     name: string;
     focus: string;
     type: StreamType;
     keywords: string[];
+    semantic_filter?: SemanticFilter;
 }
 
 export interface ScoringConfig {
@@ -30,21 +37,21 @@ export interface ScoringConfig {
     max_items_per_report?: number;  // default 10
 }
 
+export interface ChannelSourceQuery {
+    channel_name: string;  // Which channel this query is for
+    query_expression: string;  // Customized query for this source/channel combination
+}
+
+export interface WorkflowSource {
+    source_id: string;  // Reference to authoritative source (e.g., "pubmed", "google_scholar")
+    enabled: boolean;
+    channel_queries: ChannelSourceQuery[];  // Query expressions for each channel
+}
+
 export interface WorkflowConfig {
-    sources: Array<{
-        source_type: 'pubmed' | 'google_scholar';
-        enabled: boolean;
-        config: {
-            query: string;
-        };
-    }>;
-    semantic_filter: string;
-    scoring: {
-        relevance_weight: number;
-        evidence_weight: number;
-        inclusion_threshold: number;
-        max_items_per_report: number;
-    };
+    sources?: WorkflowSource[];
+    search_frequency?: string;
+    article_limit_per_week?: number;
 }
 
 export interface ResearchStream {

@@ -71,6 +71,26 @@ class ScoringConfig(BaseModel):
     )
 
 
+class ChannelSourceQuery(BaseModel):
+    """Query expression for a specific channel and source combination"""
+    channel_name: str = Field(description="Which channel this query is for")
+    query_expression: str = Field(description="Customized query for this source/channel combination")
+
+
+class WorkflowSource(BaseModel):
+    """A data source with channel-specific queries"""
+    source_id: str = Field(description="Reference to authoritative source (e.g., 'pubmed', 'google_scholar')")
+    enabled: bool = Field(default=True, description="Whether this source is enabled")
+    channel_queries: List[ChannelSourceQuery] = Field(description="Query expressions for each channel")
+
+
+class WorkflowConfig(BaseModel):
+    """Configuration for workflow source retrieval"""
+    sources: Optional[List[WorkflowSource]] = Field(None, description="List of data sources with channel queries")
+    search_frequency: Optional[str] = Field(None, description="How often to search (e.g., 'daily', 'weekly')")
+    article_limit_per_week: Optional[int] = Field(None, description="Maximum articles per week")
+
+
 class ResearchStream(BaseModel):
     """Research stream - channel-based structure"""
     stream_id: int
@@ -84,7 +104,7 @@ class ResearchStream(BaseModel):
     updated_at: datetime
 
     # Workflow and scoring configuration
-    workflow_config: Optional[Dict[str, Any]] = Field(None, description="Source retrieval configuration (JSONB)")
+    workflow_config: Optional[WorkflowConfig] = Field(None, description="Source retrieval configuration")
     scoring_config: Optional[ScoringConfig] = None
 
     # Aggregated data (when fetched with counts)
