@@ -13,11 +13,12 @@ from enum import Enum
 # ============================================================================
 
 class ChannelInProgress(BaseModel):
-    """Channel being built within a stream"""
+    """Channel being built within a stream - LLM creates only these 4 fields"""
     name: Optional[str] = None
     focus: Optional[str] = None
     type: Optional[str] = None  # string during building, validated on submission
     keywords: Optional[List[str]] = None
+    # NOTE: semantic_filter is NOT created during workflow - added downstream
 
 
 class StreamInProgress(BaseModel):

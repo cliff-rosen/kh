@@ -25,12 +25,23 @@ class ReportFrequency(str, Enum):
     MONTHLY = "monthly"
 
 
+class SemanticFilter(BaseModel):
+    """Semantic filtering configuration for a channel"""
+    enabled: bool = Field(default=False, description="Whether semantic filtering is enabled")
+    criteria: Optional[str] = Field(None, description="Semantic filtering criteria/prompt")
+    threshold: Optional[float] = Field(None, description="Semantic similarity threshold")
+
+
 class Channel(BaseModel):
     """A channel within a research stream - specific focus with keywords"""
     name: str = Field(description="Channel name")
     focus: str = Field(description="What this channel monitors")
     type: StreamType = Field(description="Type of intelligence for this channel")
     keywords: List[str] = Field(description="Keywords for this channel")
+    semantic_filter: Optional[SemanticFilter] = Field(
+        None,
+        description="Optional semantic filtering configuration (configured downstream, not during creation)"
+    )
 
 
 class ScoringConfig(BaseModel):

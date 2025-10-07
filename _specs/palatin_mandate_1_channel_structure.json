@@ -17,7 +17,12 @@
         "melanocortin pathway",
         "MC1R agonist",
         "MC4R agonist"
-      ]
+      ],
+      "semantic_filter": {
+        "enabled": false,
+        "criteria": null,
+        "threshold": null
+      }
     },
     {
       "name": "Obesity & Metabolic Disease",
@@ -33,7 +38,12 @@
         "PL7737",
         "MC4R agonist peptide",
         "weight loss melanocortin"
-      ]
+      ],
+      "semantic_filter": {
+        "enabled": false,
+        "criteria": null,
+        "threshold": null
+      }
     },
     {
       "name": "Ocular Disease Research",
@@ -50,7 +60,12 @@
         "PL9654",
         "melanocortin ocular",
         "MCR agonist eye"
-      ]
+      ],
+      "semantic_filter": {
+        "enabled": false,
+        "criteria": null,
+        "threshold": null
+      }
     },
     {
       "name": "Gastroenterology & Renal Disease",
@@ -65,7 +80,12 @@
         "melanocortin gastrointestinal",
         "melanocortin renal",
         "inflammatory bowel disease melanocortin"
-      ]
+      ],
+      "semantic_filter": {
+        "enabled": false,
+        "criteria": null,
+        "threshold": null
+      }
     },
     {
       "name": "Sexual Dysfunction (Secondary)",
@@ -79,7 +99,12 @@
         "Vyleesi",
         "male erectile dysfunction",
         "melanocortin sexual function"
-      ]
+      ],
+      "semantic_filter": {
+        "enabled": false,
+        "criteria": null,
+        "threshold": null
+      }
     }
   ],
   "report_frequency": "weekly",
