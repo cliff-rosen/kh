@@ -5,7 +5,7 @@ import {
     ResearchStreamUpdateRequest,
     handleApiError
 } from '../lib/api';
-import { ResearchStream } from '../types';
+import { ResearchStream, InformationSource } from '../types';
 
 interface ResearchStreamContextType {
     // State
@@ -13,6 +13,7 @@ interface ResearchStreamContextType {
     selectedStream: ResearchStream | null;
     isLoading: boolean;
     error: string | null;
+    availableSources: InformationSource[];
 
     // Actions
     loadResearchStreams: () => Promise<void>;
@@ -23,6 +24,7 @@ interface ResearchStreamContextType {
     toggleStreamStatus: (streamId: number, isActive: boolean) => Promise<void>;
     selectStream: (stream: ResearchStream | null) => void;
     clearError: () => void;
+    loadAvailableSources: () => Promise<void>;
 }
 
 const ResearchStreamContext = createContext<ResearchStreamContextType | undefined>(undefined);
@@ -36,6 +38,7 @@ export function ResearchStreamProvider({ children }: ResearchStreamProviderProps
     const [selectedStream, setSelectedStream] = useState<ResearchStream | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [availableSources, setAvailableSources] = useState<InformationSource[]>([]);
 
     const clearError = useCallback(() => {
         setError(null);
@@ -155,12 +158,22 @@ export function ResearchStreamProvider({ children }: ResearchStreamProviderProps
         }
     }, [selectedStream]);
 
+    const loadAvailableSources = useCallback(async () => {
+        try {
+            const sources = await researchStreamApi.getInformationSources();
+            setAvailableSources(sources);
+        } catch (err) {
+            console.error('Failed to load available sources:', err);
+        }
+    }, []);
+
     const value: ResearchStreamContextType = {
         // State
         researchStreams,
         selectedStream,
         isLoading,
         error,
+        availableSources,
 
         // Actions
         loadResearchStreams,
@@ -171,6 +184,7 @@ export function ResearchStreamProvider({ children }: ResearchStreamProviderProps
         toggleStreamStatus,
         selectStream,
         clearError,
+        loadAvailableSources,
     };
 
     return (

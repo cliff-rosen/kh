@@ -163,7 +163,6 @@
         ]
       }
     ],
-    "search_frequency": "daily",
     "article_limit_per_week": 10
   },
   "scoring_config": {

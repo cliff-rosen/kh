@@ -17,8 +17,11 @@ from schemas.research_stream import (
     ReportFrequency,
     ScoringConfig
 )
+from schemas.sources import INFORMATION_SOURCES, InformationSource
 from services.research_stream_service import ResearchStreamService
 from routers.auth import get_current_user
+
+router = APIRouter(prefix="/api/research-streams", tags=["research-streams"])
 
 # Request/Response types (API layer only)
 class ResearchStreamCreateRequest(BaseModel):
@@ -51,7 +54,11 @@ class ResearchStreamsListResponse(BaseModel):
 class ToggleStatusRequest(BaseModel):
     is_active: bool
 
-router = APIRouter(prefix="/api/research-streams", tags=["research-streams"])
+
+@router.get("/metadata/sources", response_model=List[InformationSource])
+async def get_information_sources():
+    """Get the authoritative list of information sources"""
+    return INFORMATION_SOURCES
 
 
 @router.get("", response_model=List[ResearchStream])

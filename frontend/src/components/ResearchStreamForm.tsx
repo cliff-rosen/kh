@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useResearchStream } from '../context/ResearchStreamContext';
 import { StreamType, ReportFrequency, Channel, WorkflowConfig, ScoringConfig } from '../types';
 import { useNavigate } from 'react-router-dom';
@@ -11,7 +11,7 @@ interface ResearchStreamFormProps {
 type TabType = 'stream' | 'workflow';
 
 export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps) {
-    const { createResearchStream, isLoading, error, clearError } = useResearchStream();
+    const { createResearchStream, isLoading, error, clearError, availableSources, loadAvailableSources } = useResearchStream();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<TabType>('stream');
 
@@ -33,14 +33,7 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
         ] as Channel[],
         report_frequency: ReportFrequency.WEEKLY,
         workflow_config: {
-            sources: [
-                {
-                    source_id: 'pubmed',
-                    enabled: true,
-                    channel_queries: []  // Will be populated from channels
-                }
-            ],
-            search_frequency: 'daily',
+            sources: [],
             article_limit_per_week: 10
         } as WorkflowConfig,
         scoring_config: {
@@ -50,6 +43,10 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
             max_items_per_report: 10
         } as ScoringConfig
     });
+
+    useEffect(() => {
+        loadAvailableSources();
+    }, [loadAvailableSources]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -494,14 +491,11 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                                             >
                                                 <option value="">Select a source...</option>
-                                                <option value="pubmed">PubMed</option>
-                                                <option value="google_scholar">Google Scholar</option>
-                                                <option value="arxiv">arXiv</option>
-                                                <option value="biorxiv">bioRxiv</option>
-                                                <option value="medrxiv">medRxiv</option>
-                                                <option value="clinicaltrials_gov">ClinicalTrials.gov</option>
-                                                <option value="patents_google">Google Patents</option>
-                                                <option value="sec_edgar">SEC EDGAR</option>
+                                                {availableSources.map(src => (
+                                                    <option key={src.source_id} value={src.source_id}>
+                                                        {src.name}
+                                                    </option>
+                                                ))}
                                             </select>
                                         </div>
 
@@ -544,47 +538,24 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                             ))}
                         </div>
 
-                        {/* Search Configuration */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Search Frequency
-                                </label>
-                                <select
-                                    value={form.workflow_config?.search_frequency || 'daily'}
-                                    onChange={(e) => setForm({
-                                        ...form,
-                                        workflow_config: {
-                                            ...form.workflow_config,
-                                            search_frequency: e.target.value
-                                        }
-                                    })}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                >
-                                    <option value="hourly">Hourly</option>
-                                    <option value="daily">Daily</option>
-                                    <option value="weekly">Weekly</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Article Limit per Week
-                                </label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    value={form.workflow_config?.article_limit_per_week || 10}
-                                    onChange={(e) => setForm({
-                                        ...form,
-                                        workflow_config: {
-                                            ...form.workflow_config,
-                                            article_limit_per_week: parseInt(e.target.value)
-                                        }
-                                    })}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                />
-                            </div>
+                        {/* Article Limit */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Article Limit per Week
+                            </label>
+                            <input
+                                type="number"
+                                min="1"
+                                value={form.workflow_config?.article_limit_per_week || 10}
+                                onChange={(e) => setForm({
+                                    ...form,
+                                    workflow_config: {
+                                        ...form.workflow_config,
+                                        article_limit_per_week: parseInt(e.target.value)
+                                    }
+                                })}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            />
                         </div>
 
                         {/* Scoring Configuration */}

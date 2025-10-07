@@ -1,5 +1,5 @@
 import { api } from './index';
-import { ResearchStream, StreamType, ReportFrequency, Channel } from '../../types';
+import { ResearchStream, StreamType, ReportFrequency, Channel, InformationSource } from '../../types';
 import {
     StreamInProgress,
     StreamBuildStep,
@@ -128,6 +128,14 @@ export const researchStreamApi = {
      */
     async toggleResearchStreamStatus(streamId: number, isActive: boolean): Promise<ResearchStream> {
         const response = await api.patch(`/api/research-streams/${streamId}/status`, { is_active: isActive });
+        return response.data;
+    },
+
+    /**
+     * Get the authoritative list of information sources
+     */
+    async getInformationSources(): Promise<InformationSource[]> {
+        const response = await api.get('/api/research-streams/metadata/sources');
         return response.data;
     },
 

@@ -50,8 +50,25 @@ export interface WorkflowSource {
 
 export interface WorkflowConfig {
     sources?: WorkflowSource[];
-    search_frequency?: string;
     article_limit_per_week?: number;
+}
+
+export enum SourceType {
+    ACADEMIC_DATABASE = 'academic_database',
+    SEARCH_ENGINE = 'search_engine',
+    PREPRINT_SERVER = 'preprint_server',
+    CLINICAL_TRIALS = 'clinical_trials',
+    PATENT_DATABASE = 'patent_database',
+    REGULATORY_DATABASE = 'regulatory_database'
+}
+
+export interface InformationSource {
+    source_id: string;
+    name: string;
+    source_type: SourceType;
+    description: string;
+    query_syntax: string;
+    url: string;
 }
 
 export interface ResearchStream {
