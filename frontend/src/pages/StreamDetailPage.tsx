@@ -283,9 +283,18 @@ export default function StreamDetailPage() {
             </button>
 
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-                    Edit Research Stream
-                </h1>
+                <div className="flex items-center justify-between mb-6">
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                        Edit Research Stream
+                    </h1>
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/streams/${id}/configure-implementation`)}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors"
+                    >
+                        Configure Implementation
+                    </button>
+                </div>
 
                 {error && (
                     <div className="mb-6 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-700 rounded-lg p-4">
