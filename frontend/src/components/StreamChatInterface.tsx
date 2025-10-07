@@ -29,8 +29,86 @@ export default function StreamChatInterface() {
         scrollToBottom();
     }, [messages]);
 
+    // Parse channels from markdown text
+    const parseChannels = (content: string) => {
+        const channels: Array<{
+            name: string;
+            focus: string;
+            type: string;
+            keywords: string;
+        }> = [];
+
+        const lines = content.split('\n');
+        let currentChannel: any = null;
+
+        for (const line of lines) {
+            // Check for channel header: **Channel N: Name**
+            const headerMatch = line.match(/^\*\*Channel\s+\d+:\s*(.+?)\*\*$/);
+            if (headerMatch) {
+                if (currentChannel) {
+                    channels.push(currentChannel);
+                }
+                currentChannel = { name: headerMatch[1], focus: '', type: '', keywords: '' };
+                continue;
+            }
+
+            // Parse channel details
+            if (currentChannel) {
+                const focusMatch = line.match(/^\s*-\s*Focus:\s*(.+)$/);
+                const typeMatch = line.match(/^\s*-\s*Type:\s*(.+)$/);
+                const keywordsMatch = line.match(/^\s*-\s*Keywords:\s*(.+)$/);
+
+                if (focusMatch) currentChannel.focus = focusMatch[1];
+                if (typeMatch) currentChannel.type = typeMatch[1];
+                if (keywordsMatch) currentChannel.keywords = keywordsMatch[1];
+            }
+        }
+
+        if (currentChannel) {
+            channels.push(currentChannel);
+        }
+
+        return channels.length > 0 ? channels : null;
+    };
+
     // Helper to render message content with markdown formatting
     const renderMessageContent = (content: string) => {
+        // Check if this is a channel proposal
+        const channels = parseChannels(content);
+        if (channels) {
+            return (
+                <div className="space-y-3">
+                    <div className="text-gray-900 dark:text-white mb-3">
+                        Here are the proposed channels for your research stream:
+                    </div>
+                    {channels.map((channel, idx) => (
+                        <div
+                            key={idx}
+                            className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-700/50"
+                        >
+                            <div className="flex items-start justify-between mb-2">
+                                <h3 className="font-bold text-gray-900 dark:text-white">
+                                    {channel.name}
+                                </h3>
+                                <span className="px-2 py-1 text-xs font-medium rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                                    {channel.type}
+                                </span>
+                            </div>
+                            <div className="mt-2 space-y-2">
+                                <div className="text-sm text-gray-700 dark:text-gray-300">
+                                    {channel.focus}
+                                </div>
+                                <div className="text-xs text-gray-600 dark:text-gray-400">
+                                    <span className="font-semibold">Keywords:</span> {channel.keywords}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+
+        // Otherwise, render as regular markdown
         const lines = content.split('\n');
         const elements: JSX.Element[] = [];
 
@@ -43,7 +121,7 @@ export default function StreamChatInterface() {
                 continue;
             }
 
-            // Check for bold text with ** prefix (channel headers)
+            // Check for bold text with ** prefix
             if (line.match(/^\*\*(.+?)\*\*/)) {
                 const boldMatch = line.match(/^\*\*(.+?)\*\*/);
                 if (boldMatch) {
@@ -56,7 +134,7 @@ export default function StreamChatInterface() {
                 }
             }
 
-            // Check for list items with - prefix (channel details)
+            // Check for list items with - prefix
             if (line.match(/^\s*-\s+(.+)/)) {
                 const listMatch = line.match(/^\s*-\s+(.+)/);
                 if (listMatch) {
