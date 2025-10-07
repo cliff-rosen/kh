@@ -134,7 +134,7 @@ export default function StreamConfigPreview({ config, highlightedField, onUpdate
                     {config.channels && Array.isArray(config.channels) && config.channels.length > 0 ? (
                         <div className="space-y-3">
                             {config.channels.map((channel, idx) => (
-                                <div key={idx} className="border border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-750">
+                                <div key={idx} className="border border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700">
                                     <div className="flex items-center justify-between mb-2">
                                         <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
                                             Channel {idx + 1}: {channel.name || <span className="text-gray-400 italic">Unnamed</span>}
