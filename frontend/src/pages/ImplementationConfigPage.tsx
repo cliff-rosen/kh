@@ -300,21 +300,23 @@ export default function ImplementationConfigPage() {
     });
 
     const [isLoading, setIsLoading] = useState(true);
+    const [stream, setStream] = useState<any>(null);
 
     // Load stream data on mount
     useEffect(() => {
         async function loadStream() {
             try {
-                const [stream, sources] = await Promise.all([
+                const [streamData, sources] = await Promise.all([
                     researchStreamApi.getResearchStream(parseInt(streamId || '0')),
                     researchStreamApi.getInformationSources()
                 ]);
 
+                setStream(streamData);
                 dispatch({
                     type: 'LOAD_STREAM',
                     payload: {
-                        stream_name: stream.stream_name,
-                        channels: stream.channels,
+                        stream_name: streamData.stream_name,
+                        channels: streamData.channels,
                         sources
                     }
                 });
@@ -381,14 +383,13 @@ export default function ImplementationConfigPage() {
         <div className="max-w-6xl mx-auto p-6">
             {/* Header */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-6">
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                            Configure Implementation: {state.stream_name}
+                            Implementation Configuration
                         </h1>
-                        <p className="text-gray-600 dark:text-gray-400 mt-1">
-                            Channel {state.current_channel_index + 1} of {state.channels.length}
-                            {currentChannel && `: ${currentChannel.name}`}
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            {state.stream_name}
                         </p>
                     </div>
                     <button
@@ -399,17 +400,68 @@ export default function ImplementationConfigPage() {
                     </button>
                 </div>
 
-                {/* Overall Progress */}
-                <div>
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Overall Progress</span>
-                        <span className="text-sm font-semibold text-gray-900 dark:text-white">{overallProgress}%</span>
+                {/* Current Channel Highlight */}
+                {currentChannel && (
+                    <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">
+                                        Configuring Channel {state.current_channel_index + 1} of {state.channels.length}
+                                    </span>
+                                </div>
+                                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                                    {currentChannel.name}
+                                </h2>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                    {currentChannel.focus}
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                    Channels Remaining
+                                </div>
+                                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                                    {state.channels.length - state.current_channel_index}
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                        <div
-                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${overallProgress}%` }}
-                        ></div>
+                )}
+
+                {/* Channel Progress Indicators */}
+                <div className="mb-6">
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Channel Progress</span>
+                    </div>
+                    <div className="flex gap-2">
+                        {state.channels.map((channel, idx) => {
+                            const channelConfig = state.channel_configs.get(channel.name);
+                            const isComplete = channelConfig?.is_complete || false;
+                            const isCurrent = idx === state.current_channel_index;
+
+                            return (
+                                <div
+                                    key={channel.name}
+                                    className={`flex-1 h-2 rounded-full transition-all ${
+                                        isComplete
+                                            ? 'bg-green-500'
+                                            : isCurrent
+                                            ? 'bg-blue-500'
+                                            : 'bg-gray-200 dark:bg-gray-700'
+                                    }`}
+                                    title={`${channel.name}${isComplete ? ' ✓' : isCurrent ? ' (current)' : ''}`}
+                                />
+                            );
+                        })}
+                    </div>
+                    <div className="flex justify-between mt-2">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {state.channels.filter((ch) => state.channel_configs.get(ch.name)?.is_complete).length} completed
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {overallProgress}% overall
+                        </span>
                     </div>
                 </div>
             </div>
@@ -456,6 +508,8 @@ export default function ImplementationConfigPage() {
                                     return (
                                         <QueryConfigStep
                                             streamId={state.stream_id}
+                                            streamName={state.stream_name}
+                                            streamPurpose={stream?.purpose || ''}
                                             channel={currentChannel}
                                             source={currentSource}
                                             sourceConfig={sourceConfig}
@@ -504,6 +558,51 @@ export default function ImplementationConfigPage() {
                                                     type: 'NEXT_SOURCE',
                                                     payload: { channel_name: currentChannel.name }
                                                 });
+                                            }}
+                                            onStreamUpdated={async (updates) => {
+                                                // Update stream via API
+                                                try {
+                                                    await researchStreamApi.updateResearchStream(state.stream_id, updates);
+                                                    // Reload to get updated data
+                                                    const updatedStream = await researchStreamApi.getResearchStream(state.stream_id);
+                                                    setStream(updatedStream);
+                                                    dispatch({
+                                                        type: 'LOAD_STREAM',
+                                                        payload: {
+                                                            stream_name: updatedStream.stream_name,
+                                                            channels: updatedStream.channels,
+                                                            sources: state.available_sources
+                                                        }
+                                                    });
+                                                } catch (error) {
+                                                    console.error('Failed to update stream:', error);
+                                                    alert('Failed to update stream. Please try again.');
+                                                }
+                                            }}
+                                            onChannelUpdated={async (updates) => {
+                                                // Update channel in stream via API
+                                                try {
+                                                    const updatedChannels = state.channels.map(ch =>
+                                                        ch.name === currentChannel.name ? { ...ch, ...updates } : ch
+                                                    );
+                                                    await researchStreamApi.updateResearchStream(state.stream_id, {
+                                                        channels: updatedChannels
+                                                    });
+                                                    // Reload to get updated data
+                                                    const updatedStream = await researchStreamApi.getResearchStream(state.stream_id);
+                                                    setStream(updatedStream);
+                                                    dispatch({
+                                                        type: 'LOAD_STREAM',
+                                                        payload: {
+                                                            stream_name: updatedStream.stream_name,
+                                                            channels: updatedStream.channels,
+                                                            sources: state.available_sources
+                                                        }
+                                                    });
+                                                } catch (error) {
+                                                    console.error('Failed to update channel:', error);
+                                                    alert('Failed to update channel. Please try again.');
+                                                }
                                             }}
                                             isLastSource={currentChannelConfig.current_source_index === currentChannelConfig.selected_sources.length - 1}
                                         />

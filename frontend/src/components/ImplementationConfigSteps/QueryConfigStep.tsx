@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { SourceQueryConfig } from '../../types/implementation-config';
 import { InformationSource, Channel } from '../../types/research-stream';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
-import { ArrowPathIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, CheckCircleIcon, XCircleIcon, PencilIcon } from '@heroicons/react/24/outline';
 
 interface QueryConfigStepProps {
     streamId: number;
+    streamName: string;
+    streamPurpose: string;
     channel: Channel;
     source: InformationSource;
     sourceConfig: SourceQueryConfig;
@@ -14,11 +16,15 @@ interface QueryConfigStepProps {
     onQueryTested: (result: any) => void;
     onQueryConfirmed: () => void;
     onNextSource: () => void;
+    onStreamUpdated?: (updates: { stream_name?: string; purpose?: string }) => void;
+    onChannelUpdated?: (updates: Partial<Channel>) => void;
     isLastSource: boolean;
 }
 
 export default function QueryConfigStep({
     streamId,
+    streamName,
+    streamPurpose,
     channel,
     source,
     sourceConfig,
@@ -27,16 +33,36 @@ export default function QueryConfigStep({
     onQueryTested,
     onQueryConfirmed,
     onNextSource,
+    onStreamUpdated,
+    onChannelUpdated,
     isLastSource
 }: QueryConfigStepProps) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
     const [editedQuery, setEditedQuery] = useState(sourceConfig.query_expression);
     const [isEditing, setIsEditing] = useState(false);
+    const [isEditingContext, setIsEditingContext] = useState(false);
+    const [contextEdits, setContextEdits] = useState({
+        stream_name: streamName,
+        stream_purpose: streamPurpose,
+        channel_name: channel.name,
+        channel_focus: channel.focus,
+        channel_keywords: channel.keywords.join(', ')
+    });
 
     useEffect(() => {
         setEditedQuery(sourceConfig.query_expression);
     }, [sourceConfig.query_expression]);
+
+    useEffect(() => {
+        setContextEdits({
+            stream_name: streamName,
+            stream_purpose: streamPurpose,
+            channel_name: channel.name,
+            channel_focus: channel.focus,
+            channel_keywords: channel.keywords.join(', ')
+        });
+    }, [streamName, streamPurpose, channel]);
 
     const handleGenerateQuery = async () => {
         setIsGenerating(true);
@@ -88,12 +114,33 @@ export default function QueryConfigStep({
         }
     };
 
-    // Auto-generate on mount if no query exists
-    useEffect(() => {
-        if (!sourceConfig.query_expression && !isGenerating) {
-            handleGenerateQuery();
+    const handleSaveContextEdits = () => {
+        // Save stream updates
+        if (onStreamUpdated && (
+            contextEdits.stream_name !== streamName ||
+            contextEdits.stream_purpose !== streamPurpose
+        )) {
+            onStreamUpdated({
+                stream_name: contextEdits.stream_name,
+                purpose: contextEdits.stream_purpose
+            });
         }
-    }, []);
+
+        // Save channel updates
+        if (onChannelUpdated && (
+            contextEdits.channel_name !== channel.name ||
+            contextEdits.channel_focus !== channel.focus ||
+            contextEdits.channel_keywords !== channel.keywords.join(', ')
+        )) {
+            onChannelUpdated({
+                name: contextEdits.channel_name,
+                focus: contextEdits.channel_focus,
+                keywords: contextEdits.channel_keywords.split(',').map(k => k.trim()).filter(k => k)
+            });
+        }
+
+        setIsEditingContext(false);
+    };
 
     return (
         <div className="space-y-6">
@@ -104,12 +151,147 @@ export default function QueryConfigStep({
                         Configure Query for {source.name}
                     </h2>
                     <span className="text-sm text-gray-500 dark:text-gray-400">
-                        Channel: {channel.name}
+                        Channel: {contextEdits.channel_name}
                     </span>
                 </div>
                 <p className="text-gray-600 dark:text-gray-400">
-                    Generate and test a query expression for this source based on your channel's keywords and focus.
+                    Review the context below, then generate a query expression for this source.
                 </p>
+            </div>
+
+            {/* Context Card - Stream & Channel Info */}
+            <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-gray-50 dark:bg-gray-900">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        Query Generation Context
+                    </h3>
+                    {!isEditingContext && !sourceConfig.query_expression && (
+                        <button
+                            onClick={() => setIsEditingContext(true)}
+                            className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                            <PencilIcon className="h-4 w-4" />
+                            Edit Context
+                        </button>
+                    )}
+                </div>
+
+                {isEditingContext ? (
+                    <div className="space-y-4">
+                        {/* Stream Name */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Stream Name
+                            </label>
+                            <input
+                                type="text"
+                                value={contextEdits.stream_name}
+                                onChange={(e) => setContextEdits({ ...contextEdits, stream_name: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                            />
+                        </div>
+
+                        {/* Stream Purpose */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Stream Purpose
+                            </label>
+                            <textarea
+                                value={contextEdits.stream_purpose}
+                                onChange={(e) => setContextEdits({ ...contextEdits, stream_purpose: e.target.value })}
+                                rows={2}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                            />
+                        </div>
+
+                        {/* Channel Name */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Channel Name
+                            </label>
+                            <input
+                                type="text"
+                                value={contextEdits.channel_name}
+                                onChange={(e) => setContextEdits({ ...contextEdits, channel_name: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                            />
+                        </div>
+
+                        {/* Channel Focus */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Channel Focus
+                            </label>
+                            <textarea
+                                value={contextEdits.channel_focus}
+                                onChange={(e) => setContextEdits({ ...contextEdits, channel_focus: e.target.value })}
+                                rows={2}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                            />
+                        </div>
+
+                        {/* Channel Keywords */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Channel Keywords (comma-separated)
+                            </label>
+                            <textarea
+                                value={contextEdits.channel_keywords}
+                                onChange={(e) => setContextEdits({ ...contextEdits, channel_keywords: e.target.value })}
+                                rows={2}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                placeholder="keyword1, keyword2, keyword3"
+                            />
+                        </div>
+
+                        <div className="flex gap-2 pt-2">
+                            <button
+                                onClick={handleSaveContextEdits}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+                            >
+                                Save Changes
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setContextEdits({
+                                        stream_name: streamName,
+                                        stream_purpose: streamPurpose,
+                                        channel_name: channel.name,
+                                        channel_focus: channel.focus,
+                                        channel_keywords: channel.keywords.join(', ')
+                                    });
+                                    setIsEditingContext(false);
+                                }}
+                                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg text-sm"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="space-y-3 text-sm">
+                        <div>
+                            <span className="font-medium text-gray-700 dark:text-gray-300">Stream:</span>{' '}
+                            <span className="text-gray-900 dark:text-white">{contextEdits.stream_name}</span>
+                        </div>
+                        <div>
+                            <span className="font-medium text-gray-700 dark:text-gray-300">Purpose:</span>{' '}
+                            <span className="text-gray-900 dark:text-white">{contextEdits.stream_purpose}</span>
+                        </div>
+                        <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
+                            <span className="font-medium text-gray-700 dark:text-gray-300">Channel:</span>{' '}
+                            <span className="text-gray-900 dark:text-white">{contextEdits.channel_name}</span>
+                        </div>
+                        <div>
+                            <span className="font-medium text-gray-700 dark:text-gray-300">Focus:</span>{' '}
+                            <span className="text-gray-900 dark:text-white">{contextEdits.channel_focus}</span>
+                        </div>
+                        <div>
+                            <span className="font-medium text-gray-700 dark:text-gray-300">Keywords:</span>{' '}
+                            <span className="text-gray-900 dark:text-white">{contextEdits.channel_keywords}</span>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Query Expression Card */}
@@ -118,27 +300,41 @@ export default function QueryConfigStep({
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                         Query Expression
                     </h3>
-                    {sourceConfig.query_expression && !isEditing && (
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setIsEditing(true)}
-                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                            >
-                                Edit
-                            </button>
+                    <div className="flex gap-2">
+                        {!sourceConfig.query_expression && !isGenerating && (
                             <button
                                 onClick={handleGenerateQuery}
-                                disabled={isGenerating}
-                                className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
                             >
-                                <ArrowPathIcon className={`h-4 w-4 ${isGenerating ? 'animate-spin' : ''}`} />
-                                Regenerate
+                                Generate Query
                             </button>
-                        </div>
-                    )}
+                        )}
+                        {sourceConfig.query_expression && !isEditing && (
+                            <>
+                                <button
+                                    onClick={() => setIsEditing(true)}
+                                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                >
+                                    Edit
+                                </button>
+                                <button
+                                    onClick={handleGenerateQuery}
+                                    disabled={isGenerating}
+                                    className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+                                >
+                                    <ArrowPathIcon className={`h-4 w-4 ${isGenerating ? 'animate-spin' : ''}`} />
+                                    Regenerate
+                                </button>
+                            </>
+                        )}
+                    </div>
                 </div>
 
-                {isGenerating ? (
+                {!sourceConfig.query_expression && !isGenerating ? (
+                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                        Click "Generate Query" to create a query expression based on the context above
+                    </div>
+                ) : isGenerating ? (
                     <div className="flex items-center justify-center py-8">
                         <div className="text-center">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
