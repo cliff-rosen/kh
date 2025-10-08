@@ -12,6 +12,8 @@ import {
     getOverallProgress
 } from '../types/implementation-config';
 import { Channel, InformationSource } from '../types/research-stream';
+import SourceSelectionStep from '../components/ImplementationConfigSteps/SourceSelectionStep';
+import QueryConfigStep from '../components/ImplementationConfigSteps/QueryConfigStep';
 
 // ============================================================================
 // State Reducer
@@ -420,14 +422,116 @@ export default function ImplementationConfigPage() {
                     </div>
                 ) : (
                     <div>
-                        <p className="text-gray-600 dark:text-gray-400 mb-6">
-                            Current Step: <span className="font-semibold">{currentChannelConfig.current_step}</span>
-                        </p>
+                        {/* Source Selection Step */}
+                        {currentChannelConfig.current_step === 'source_selection' && (
+                            <SourceSelectionStep
+                                availableSources={state.available_sources}
+                                selectedSources={currentChannelConfig.selected_sources}
+                                onSourcesSelected={(sourceIds) => {
+                                    dispatch({
+                                        type: 'SELECT_SOURCES',
+                                        payload: {
+                                            channel_name: currentChannel.name,
+                                            source_ids: sourceIds
+                                        }
+                                    });
+                                }}
+                            />
+                        )}
 
-                        {/* Step components will go here */}
-                        <div className="text-center py-12 text-gray-500">
-                            Step components coming soon...
-                        </div>
+                        {/* Query Generation/Testing Steps */}
+                        {(currentChannelConfig.current_step === 'query_generation' ||
+                          currentChannelConfig.current_step === 'query_testing' ||
+                          currentChannelConfig.current_step === 'query_refinement') && (
+                            <>
+                                {(() => {
+                                    const currentSourceId = currentChannelConfig.selected_sources[currentChannelConfig.current_source_index];
+                                    const currentSource = state.available_sources.find(s => s.source_id === currentSourceId);
+                                    const sourceConfig = currentChannelConfig.source_configs.get(currentSourceId);
+
+                                    if (!currentSource || !sourceConfig) {
+                                        return <div className="text-center py-12 text-gray-500">Loading...</div>;
+                                    }
+
+                                    return (
+                                        <QueryConfigStep
+                                            streamId={state.stream_id}
+                                            channel={currentChannel}
+                                            source={currentSource}
+                                            sourceConfig={sourceConfig}
+                                            onQueryGenerated={(query, reasoning) => {
+                                                dispatch({
+                                                    type: 'GENERATE_QUERY_SUCCESS',
+                                                    payload: {
+                                                        channel_name: currentChannel.name,
+                                                        source_id: currentSourceId,
+                                                        query_expression: query,
+                                                        reasoning
+                                                    }
+                                                });
+                                            }}
+                                            onQueryUpdated={(query) => {
+                                                dispatch({
+                                                    type: 'UPDATE_QUERY',
+                                                    payload: {
+                                                        channel_name: currentChannel.name,
+                                                        source_id: currentSourceId,
+                                                        query_expression: query
+                                                    }
+                                                });
+                                            }}
+                                            onQueryTested={(result) => {
+                                                dispatch({
+                                                    type: 'TEST_QUERY_SUCCESS',
+                                                    payload: {
+                                                        channel_name: currentChannel.name,
+                                                        source_id: currentSourceId,
+                                                        result
+                                                    }
+                                                });
+                                            }}
+                                            onQueryConfirmed={() => {
+                                                dispatch({
+                                                    type: 'CONFIRM_QUERY',
+                                                    payload: {
+                                                        channel_name: currentChannel.name,
+                                                        source_id: currentSourceId
+                                                    }
+                                                });
+                                            }}
+                                            onNextSource={() => {
+                                                dispatch({
+                                                    type: 'NEXT_SOURCE',
+                                                    payload: { channel_name: currentChannel.name }
+                                                });
+                                            }}
+                                            isLastSource={currentChannelConfig.current_source_index === currentChannelConfig.selected_sources.length - 1}
+                                        />
+                                    );
+                                })()}
+                            </>
+                        )}
+
+                        {/* Semantic Filter Step - Placeholder */}
+                        {currentChannelConfig.current_step === 'semantic_filter_config' && (
+                            <div className="text-center py-12">
+                                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                                    Semantic Filter Configuration
+                                </p>
+                                <button
+                                    onClick={() => {
+                                        dispatch({
+                                            type: 'COMPLETE_CHANNEL',
+                                            payload: { channel_name: currentChannel.name }
+                                        });
+                                        dispatch({ type: 'NEXT_CHANNEL' });
+                                    }}
+                                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                                >
+                                    Skip for now & Complete Channel
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
