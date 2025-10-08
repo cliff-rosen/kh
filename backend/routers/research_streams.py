@@ -75,6 +75,9 @@ class QueryTestRequest(BaseModel):
     source_id: str = Field(..., description="Source to test against (e.g., 'pubmed', 'google_scholar')")
     query_expression: str = Field(..., description="Query expression to test")
     max_results: int = Field(10, ge=1, le=50, description="Maximum sample articles to return")
+    start_date: Optional[str] = Field(None, description="Start date for filtering (YYYY-MM-DD) - PubMed only")
+    end_date: Optional[str] = Field(None, description="End date for filtering (YYYY-MM-DD) - PubMed only")
+    date_type: Optional[str] = Field('entrez', description="Date type for filtering - PubMed only")
 
 
 class QueryTestResponse(BaseModel):
@@ -311,7 +314,10 @@ async def test_channel_query(
         result = await service.test_query_expression(
             request.source_id,
             request.query_expression,
-            request.max_results
+            request.max_results,
+            request.start_date,
+            request.end_date,
+            request.date_type
         )
 
         return QueryTestResponse(**result)

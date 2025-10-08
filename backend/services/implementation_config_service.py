@@ -242,25 +242,52 @@ class ImplementationConfigService:
         self,
         source_id: str,
         query_expression: str,
-        max_results: int = 10
+        max_results: int = 10,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        date_type: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Test a query expression against a source.
+
+        For PubMed, defaults to trailing 7 days if no dates provided.
 
         Args:
             source_id: Source to test against
             query_expression: Query to test
             max_results: Maximum sample articles to return
+            start_date: Start date for filtering (YYYY-MM-DD) - PubMed only
+            end_date: End date for filtering (YYYY-MM-DD) - PubMed only
+            date_type: Date type for filtering - PubMed only
 
         Returns:
             Dict with success, article_count, sample_articles, error_message
         """
         try:
+            # For PubMed, apply date filtering
+            date_params = {}
+            if source_id == 'pubmed':
+                from datetime import datetime, timedelta
+
+                # Default to 7-day range if not provided
+                if not start_date or not end_date:
+                    end_date_obj = datetime.utcnow()
+                    start_date_obj = end_date_obj - timedelta(days=7)
+                    start_date = start_date_obj.strftime('%Y-%m-%d')
+                    end_date = end_date_obj.strftime('%Y-%m-%d')
+
+                date_params = {
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'date_type': date_type or 'entrez'  # Use entry date for most reliable recent results
+                }
+
             result = await self.search_service.search_articles(
                 search_query=query_expression,
                 max_results=max_results,
                 offset=0,
-                selected_sources=[source_id]
+                selected_sources=[source_id],
+                **date_params
             )
 
             return {

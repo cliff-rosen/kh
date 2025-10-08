@@ -50,6 +50,19 @@ export default function QueryConfigStep({
         channel_keywords: channel.keywords.join(', ')
     });
 
+    // Date range state (default to last 7 days for PubMed)
+    const getDefaultDateRange = () => {
+        const end = new Date();
+        const start = new Date();
+        start.setDate(start.getDate() - 7);
+        return {
+            start: start.toISOString().split('T')[0],
+            end: end.toISOString().split('T')[0]
+        };
+    };
+
+    const [dateRange, setDateRange] = useState(getDefaultDateRange());
+
     useEffect(() => {
         setEditedQuery(sourceConfig.query_expression);
     }, [sourceConfig.query_expression]);
@@ -84,14 +97,23 @@ export default function QueryConfigStep({
     const handleTestQuery = async () => {
         setIsTesting(true);
         try {
+            const testRequest: any = {
+                source_id: source.source_id,
+                query_expression: editedQuery,
+                max_results: 10
+            };
+
+            // Add date range for PubMed
+            if (source.source_id === 'pubmed') {
+                testRequest.start_date = dateRange.start;
+                testRequest.end_date = dateRange.end;
+                testRequest.date_type = 'entrez';
+            }
+
             const result = await researchStreamApi.testChannelQuery(
                 streamId,
                 channel.name,
-                {
-                    source_id: source.source_id,
-                    query_expression: editedQuery,
-                    max_results: 10
-                }
+                testRequest
             );
             onQueryTested(result);
         } catch (error) {
@@ -391,17 +413,61 @@ export default function QueryConfigStep({
             {/* Test Query Section */}
             {sourceConfig.query_expression && !isEditing && (
                 <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-800">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    <div className="mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                             Test Results
                         </h3>
-                        <button
-                            onClick={handleTestQuery}
-                            disabled={isTesting}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-                        >
-                            {isTesting ? 'Testing...' : sourceConfig.is_tested ? 'Retest Query' : 'Test Query'}
-                        </button>
+
+                        {/* Date Range Filter (PubMed only) */}
+                        {source.source_id === 'pubmed' && (
+                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="flex-1">
+                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Start Date
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={dateRange.start}
+                                            onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                        />
+                                    </div>
+                                    <div className="flex-1">
+                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            End Date
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={dateRange.end}
+                                            onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                        />
+                                    </div>
+                                    <div className="pt-5">
+                                        <button
+                                            onClick={() => setDateRange(getDefaultDateRange())}
+                                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+                                        >
+                                            Reset to 7 days
+                                        </button>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+                                    Testing will be limited to articles in this date range. Default is last 7 days.
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="flex justify-end">
+                            <button
+                                onClick={handleTestQuery}
+                                disabled={isTesting}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                            >
+                                {isTesting ? 'Testing...' : sourceConfig.is_tested ? 'Retest Query' : 'Test Query'}
+                            </button>
+                        </div>
                     </div>
 
                     {isTesting ? (

@@ -102,6 +102,9 @@ export interface QueryTestRequest {
     source_id: string;
     query_expression: string;
     max_results?: number;
+    start_date?: string;  // YYYY-MM-DD
+    end_date?: string;    // YYYY-MM-DD
+    date_type?: string;   // 'entrez', 'publication', etc.
 }
 
 export interface QueryTestResponse {

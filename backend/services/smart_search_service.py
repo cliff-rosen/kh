@@ -539,52 +539,86 @@ class SmartSearchService:
             status=status
         )
       
-    async def search_articles(self, search_query: str, max_results: int = 50, offset: int = 0, count_only: bool = False, selected_sources: Optional[List[str]] = None) -> SearchServiceResult:
+    async def search_articles(
+        self,
+        search_query: str,
+        max_results: int = 50,
+        offset: int = 0,
+        count_only: bool = False,
+        selected_sources: Optional[List[str]] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        date_type: Optional[str] = None
+    ) -> SearchServiceResult:
         """
         Search for articles from a single selected source.
+
+        Args:
+            search_query: The search query
+            max_results: Maximum number of results to return
+            offset: Offset for pagination
+            count_only: If True, only return count without fetching articles
+            selected_sources: List of sources to search (only first is used)
+            start_date: Start date for filtering (YYYY-MM-DD) - PubMed only
+            end_date: End date for filtering (YYYY-MM-DD) - PubMed only
+            date_type: Date type for filtering ('publication', 'entrez', etc.) - PubMed only
         """
         # Default to PubMed if not specified
         if not selected_sources:
             selected_sources = ['pubmed']
-        
+
         # We now only support single source searches
         source = selected_sources[0]
-        
+
         # Note: Google Scholar typically returns max 20 results per page via SerpAPI
         # PubMed can return larger batches (up to 100+)
         # We request what the user wants but may get less from some sources
         logger.info(f"Searching {source} - Query: {search_query[:100]}... (max_results={max_results}, offset={offset}, count_only={count_only})")
-        
+
         if source == 'pubmed':
-            return await self._search_pubmed(search_query, max_results, offset, count_only)
+            return await self._search_pubmed(search_query, max_results, offset, count_only, start_date, end_date, date_type)
         elif source == 'google_scholar':
             return await self._search_google_scholar(search_query, max_results, offset, count_only)
         else:
             raise ValueError(f"Unsupported source: {source}")
     
-    async def _search_pubmed(self, search_query: str, max_results: int, offset: int, count_only: bool) -> SearchServiceResult:
+    async def _search_pubmed(
+        self,
+        search_query: str,
+        max_results: int,
+        offset: int,
+        count_only: bool,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        date_type: Optional[str] = None
+    ) -> SearchServiceResult:
         """Search PubMed and return results."""
         try:
             loop = asyncio.get_event_loop()
             results_to_fetch = 1 if count_only else max_results
-            
+
+            # Call search_pubmed_articles with date parameters
             pubmed_articles, metadata = await loop.run_in_executor(
-                None, 
-                search_pubmed_articles,
-                search_query,
-                results_to_fetch,
-                offset
+                None,
+                lambda: search_pubmed_articles(
+                    query=search_query,
+                    max_results=results_to_fetch,
+                    offset=offset,
+                    start_date=start_date,
+                    end_date=end_date,
+                    date_type=date_type
+                )
             )
-            
+
             total_available = metadata.get('total_results', 0)
             articles = []
-            
+
             if not count_only:
                 # pubmed_articles are already CanonicalResearchArticle objects, use them directly
                 articles = pubmed_articles
-            
+
             logger.info(f"PubMed: {len(articles)} articles returned, {total_available} total available")
-            
+
             return SearchServiceResult(
                 articles=articles,
                 pagination=SearchPaginationInfo(
@@ -595,7 +629,7 @@ class SmartSearchService:
                 ),
                 sources_searched=["pubmed"]
             )
-            
+
         except Exception as e:
             logger.error(f"PubMed search failed: {e}")
             return SearchServiceResult(
