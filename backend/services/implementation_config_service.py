@@ -306,6 +306,136 @@ class ImplementationConfigService:
                 'error_message': str(e)
             }
 
+    async def generate_semantic_filter(
+        self,
+        stream: ResearchStream,
+        channel: Dict[str, Any]
+    ) -> Tuple[str, str]:
+        """
+        Generate a semantic filter criteria prompt for a channel.
+
+        This creates a prompt that can be used with an LLM to evaluate whether
+        an article is relevant to the stream/channel purpose.
+
+        Args:
+            stream: The research stream
+            channel: The channel dict
+
+        Returns:
+            Tuple of (filter_criteria, reasoning)
+        """
+        from schemas.chat import ChatMessage, MessageRole
+        from agents.prompts.base_prompt_caller import BasePromptCaller
+        from config.llm_models import get_task_config, supports_reasoning_effort
+        from datetime import datetime
+
+        # Extract channel and stream information
+        channel_keywords = channel.get('keywords', [])
+        channel_focus = channel.get('focus', '')
+        channel_name = channel.get('name', '')
+        stream_purpose = stream.purpose
+
+        system_prompt = """You are an expert at creating semantic filtering criteria for research articles.
+
+Your task is to generate a clear, concise filtering criteria statement that can be used by an LLM to evaluate whether a research article is relevant to a specific research stream and channel.
+
+The filtering criteria should:
+1. Be specific enough to exclude irrelevant articles
+2. Be broad enough to capture all relevant research
+3. Focus on the PURPOSE and FOCUS rather than just keywords
+4. Be written as evaluation criteria (what makes an article relevant?)
+5. Be 2-4 sentences long
+
+GOOD EXAMPLE:
+"Articles should focus on novel CRISPR-based gene editing techniques applied to cancer therapy. Relevant articles discuss mechanisms, clinical trials, or preclinical studies of CRISPR modifications targeting oncogenes or tumor suppressor genes. Exclude articles that only mention CRISPR tangentially or focus on other diseases."
+
+BAD EXAMPLE:
+"Articles about CRISPR and cancer." (too vague)
+
+Respond in JSON format with "filter_criteria" and "reasoning" fields."""
+
+        user_prompt = f"""Generate semantic filtering criteria for this research stream channel:
+
+Stream Purpose: {stream_purpose}
+
+Channel Name: {channel_name}
+Channel Focus: {channel_focus}
+Keywords: {', '.join(channel_keywords)}
+
+Create filtering criteria that will help identify articles truly relevant to this channel's focus within the broader stream purpose."""
+
+        # Response schema
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "filter_criteria": {
+                    "type": "string",
+                    "description": "The semantic filtering criteria statement"
+                },
+                "reasoning": {
+                    "type": "string",
+                    "description": "Explanation of why this criteria was chosen"
+                }
+            },
+            "required": ["filter_criteria", "reasoning"]
+        }
+
+        # Get model config
+        task_config = get_task_config("smart_search", "keyword_generation")
+
+        # Create prompt caller
+        prompt_caller = BasePromptCaller(
+            response_model=response_schema,
+            system_message=system_prompt,
+            model=task_config["model"],
+            temperature=task_config.get("temperature", 0.0),
+            reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(task_config["model"]) else None
+        )
+
+        try:
+            # Get LLM response
+            user_message = ChatMessage(
+                id="temp_id",
+                chat_id="temp_chat",
+                role=MessageRole.USER,
+                content=user_prompt,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+
+            result = await prompt_caller.invoke(
+                messages=[user_message],
+                return_usage=True
+            )
+
+            # Extract result
+            llm_response = result.result
+            if hasattr(llm_response, 'model_dump'):
+                response_data = llm_response.model_dump()
+            elif hasattr(llm_response, 'dict'):
+                response_data = llm_response.dict()
+            else:
+                response_data = llm_response
+
+            filter_criteria = response_data.get('filter_criteria', '')
+            reasoning = response_data.get('reasoning', '')
+
+            if not filter_criteria:
+                # Fallback: simple criteria based on channel focus
+                filter_criteria = f"Articles should be directly relevant to {channel_focus}. They should discuss research, methods, applications, or findings related to: {', '.join(channel_keywords[:5])}. Exclude tangential mentions."
+                reasoning = "Generated fallback criteria based on channel focus and keywords"
+
+            logger.info(f"Generated semantic filter for channel '{channel_name}': {filter_criteria[:100]}")
+
+            return filter_criteria, reasoning
+
+        except Exception as e:
+            logger.error(f"Semantic filter generation failed: {e}")
+            # Fallback to simple criteria
+            filter_criteria = f"Articles should be directly relevant to {channel_focus}. They should discuss research, methods, applications, or findings related to: {', '.join(channel_keywords[:5])}. Exclude tangential mentions."
+            reasoning = f"Generated fallback criteria due to error: {str(e)}"
+            return filter_criteria, reasoning
+
     async def test_semantic_filter(
         self,
         articles: List[CanonicalResearchArticle],

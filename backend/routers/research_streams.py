@@ -88,6 +88,12 @@ class QueryTestResponse(BaseModel):
     error_message: Optional[str] = Field(None, description="Error message if query failed")
 
 
+class SemanticFilterGenerationResponse(BaseModel):
+    """Response from semantic filter generation"""
+    filter_criteria: str = Field(..., description="Generated semantic filter criteria")
+    reasoning: str = Field(..., description="Explanation of why this criteria was generated")
+
+
 class SemanticFilterTestRequest(BaseModel):
     """Request to test semantic filter on articles"""
     articles: List[CanonicalResearchArticle] = Field(..., description="Articles to filter")
@@ -326,6 +332,49 @@ async def test_channel_query(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND if "not found" in str(e).lower() else status.HTTP_400_BAD_REQUEST,
             detail=str(e)
+        )
+
+
+@router.post("/{stream_id}/channels/{channel_name}/generate-filter", response_model=SemanticFilterGenerationResponse)
+async def generate_channel_filter(
+    stream_id: int,
+    channel_name: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate semantic filter criteria for a channel.
+
+    This endpoint generates a prompt/criteria that can be used to evaluate
+    whether articles are relevant to this channel's purpose.
+    """
+    service = ImplementationConfigService(db)
+
+    try:
+        # Verify stream and channel
+        stream, channel = service.verify_stream_and_channel(
+            stream_id, current_user.user_id, channel_name
+        )
+
+        # Generate semantic filter
+        filter_criteria, reasoning = await service.generate_semantic_filter(
+            stream, channel
+        )
+
+        return SemanticFilterGenerationResponse(
+            filter_criteria=filter_criteria,
+            reasoning=reasoning
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND if "not found" in str(e).lower() else status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Filter generation failed: {str(e)}"
         )
 
 

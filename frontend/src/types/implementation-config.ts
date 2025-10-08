@@ -48,6 +48,7 @@ export interface SourceQueryConfig {
 export interface SemanticFilterConfig {
     enabled: boolean;
     criteria: string;
+    reasoning?: string; // Explanation of why this criteria was generated
     threshold: number; // 0.0 to 1.0
     is_tested: boolean;
     test_result?: {
@@ -115,6 +116,7 @@ export type ConfigAction =
     | { type: 'TEST_QUERY_ERROR'; payload: { channel_name: string; source_id: string; error: string } }
     | { type: 'CONFIRM_QUERY'; payload: { channel_name: string; source_id: string } }
     | { type: 'NEXT_SOURCE'; payload: { channel_name: string } }
+    | { type: 'GENERATE_FILTER_SUCCESS'; payload: { channel_name: string; criteria: string; reasoning: string } }
     | { type: 'UPDATE_SEMANTIC_FILTER'; payload: { channel_name: string; filter: Partial<SemanticFilterConfig> } }
     | { type: 'TEST_SEMANTIC_FILTER_START'; payload: { channel_name: string } }
     | { type: 'TEST_SEMANTIC_FILTER_SUCCESS'; payload: { channel_name: string; result: any } }

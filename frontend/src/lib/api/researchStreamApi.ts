@@ -114,6 +114,11 @@ export interface QueryTestResponse {
     error_message?: string;
 }
 
+export interface SemanticFilterGenerationResponse {
+    filter_criteria: string;
+    reasoning: string;
+}
+
 export interface SemanticFilterTestRequest {
     articles: CanonicalResearchArticle[];
     filter_criteria: string;
@@ -286,6 +291,19 @@ export const researchStreamApi = {
         const response = await api.post(
             `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelName)}/test-query`,
             request
+        );
+        return response.data;
+    },
+
+    /**
+     * Generate semantic filter criteria for a channel
+     */
+    async generateChannelFilter(
+        streamId: number,
+        channelName: string
+    ): Promise<SemanticFilterGenerationResponse> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelName)}/generate-filter`
         );
         return response.data;
     },
