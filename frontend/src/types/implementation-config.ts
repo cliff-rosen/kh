@@ -69,8 +69,7 @@ export interface ChannelConfigState {
     source_configs: Map<string, SourceQueryConfig>; // source_id -> config
     current_source_index: number; // Which source we're currently configuring
     semantic_filter?: SemanticFilterConfig;
-    completed_steps: ConfigStep[];
-    current_step: ConfigStep;
+    current_step: string;
     is_complete: boolean;
 }
 
@@ -103,30 +102,6 @@ export interface ConfigWizardProps {
     onComplete: () => void;
     onCancel: () => void;
 }
-
-export type ConfigAction =
-    | { type: 'LOAD_STREAM'; payload: { stream_name: string; channels: Channel[]; sources: InformationSource[] } }
-    | { type: 'SELECT_SOURCES'; payload: { channel_name: string; source_ids: string[] } }
-    | { type: 'GENERATE_QUERY_START'; payload: { channel_name: string; source_id: string } }
-    | { type: 'GENERATE_QUERY_SUCCESS'; payload: { channel_name: string; source_id: string; query_expression: string; reasoning: string } }
-    | { type: 'GENERATE_QUERY_ERROR'; payload: { channel_name: string; source_id: string; error: string } }
-    | { type: 'UPDATE_QUERY'; payload: { channel_name: string; source_id: string; query_expression: string } }
-    | { type: 'TEST_QUERY_START'; payload: { channel_name: string; source_id: string } }
-    | { type: 'TEST_QUERY_SUCCESS'; payload: { channel_name: string; source_id: string; result: any } }
-    | { type: 'TEST_QUERY_ERROR'; payload: { channel_name: string; source_id: string; error: string } }
-    | { type: 'CONFIRM_QUERY'; payload: { channel_name: string; source_id: string } }
-    | { type: 'NEXT_SOURCE'; payload: { channel_name: string } }
-    | { type: 'GENERATE_FILTER_SUCCESS'; payload: { channel_name: string; criteria: string; reasoning: string } }
-    | { type: 'UPDATE_SEMANTIC_FILTER'; payload: { channel_name: string; filter: Partial<SemanticFilterConfig> } }
-    | { type: 'TEST_SEMANTIC_FILTER_START'; payload: { channel_name: string } }
-    | { type: 'TEST_SEMANTIC_FILTER_SUCCESS'; payload: { channel_name: string; result: any } }
-    | { type: 'TEST_SEMANTIC_FILTER_ERROR'; payload: { channel_name: string; error: string } }
-    | { type: 'COMPLETE_CHANNEL'; payload: { channel_name: string } }
-    | { type: 'NEXT_CHANNEL' }
-    | { type: 'SAVE_PROGRESS_START' }
-    | { type: 'SAVE_PROGRESS_SUCCESS' }
-    | { type: 'SAVE_PROGRESS_ERROR'; payload: { error: string } }
-    | { type: 'COMPLETE_WORKFLOW' };
 
 // ============================================================================
 // Helper Functions

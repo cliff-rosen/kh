@@ -1,22 +1,12 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { Channel, InformationSource, ResearchStream } from '../types/research-stream';
 import { CanonicalResearchArticle } from '../types/canonical_types';
-import { SourceQueryConfig, SemanticFilterConfig } from '../types/implementation-config';
+import { SourceQueryConfig, SemanticFilterConfig, ChannelConfigState } from '../types/implementation-config';
 
 // ============================================================================
 // Context Type
 // ============================================================================
-
-interface ChannelConfigState {
-    channel: Channel;
-    selected_sources: string[];
-    source_configs: Map<string, SourceQueryConfig>;
-    current_source_index: number;
-    semantic_filter?: SemanticFilterConfig;
-    current_step: string;
-    is_complete: boolean;
-}
 
 interface ImplementationConfigContextType {
     // State - individual properties

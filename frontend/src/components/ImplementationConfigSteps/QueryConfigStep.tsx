@@ -21,7 +21,7 @@ export default function QueryConfigStep() {
     // Get current source information
     const currentSourceId = currentChannelConfig?.selected_sources[currentChannelConfig.current_source_index];
     const currentSource = availableSources?.find(s => s.source_id === currentSourceId);
-    const sourceConfig = currentChannelConfig?.source_configs.get(currentSourceId);
+    const sourceConfig = currentSourceId ? currentChannelConfig?.source_configs.get(currentSourceId) : undefined;
 
     // Check if this is the last source
     const isLastSource = currentChannelConfig ? currentChannelConfig.current_source_index === currentChannelConfig.selected_sources.length - 1 : false;
