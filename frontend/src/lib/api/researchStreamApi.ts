@@ -324,7 +324,38 @@ export const researchStreamApi = {
     },
 
     /**
-     * Update implementation configuration progress for a channel
+     * Update a source query for a channel (saves to workflow_config)
+     */
+    async updateChannelSourceQuery(
+        streamId: number,
+        channelName: string,
+        sourceId: string,
+        request: { query_expression: string; enabled?: boolean }
+    ): Promise<ResearchStream> {
+        const response = await api.put(
+            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelName)}/sources/${sourceId}/query`,
+            request
+        );
+        return response.data;
+    },
+
+    /**
+     * Update semantic filter for a channel (saves to workflow_config)
+     */
+    async updateChannelSemanticFilter(
+        streamId: number,
+        channelName: string,
+        request: { enabled: boolean; criteria: string; threshold: number }
+    ): Promise<ResearchStream> {
+        const response = await api.put(
+            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelName)}/semantic-filter`,
+            request
+        );
+        return response.data;
+    },
+
+    /**
+     * @deprecated Use updateChannelSourceQuery and updateChannelSemanticFilter instead
      */
     async updateImplementationConfig(
         streamId: number,

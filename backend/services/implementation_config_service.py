@@ -484,23 +484,47 @@ Create filtering criteria that will help identify articles truly relevant to thi
             'average_confidence': round(average_confidence, 3)
         }
 
-    def update_channel_config_progress(
+    def get_channel_workflow_config(
+        self,
+        stream_id: int,
+        user_id: str,
+        channel_name: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get workflow configuration for a specific channel.
+
+        Returns:
+            ChannelWorkflowConfig dict or None if not found
+        """
+        stream = self.stream_service.get_research_stream(stream_id, user_id)
+        if not stream or not stream.workflow_config:
+            return None
+
+        channel_configs = stream.workflow_config.get('channel_configs', [])
+        return next(
+            (cc for cc in channel_configs if cc.get('channel_name') == channel_name),
+            None
+        )
+
+    def update_channel_source_query(
         self,
         stream_id: int,
         user_id: str,
         channel_name: str,
-        completed_steps: List[str],
-        configuration_data: Dict[str, Any]
+        source_id: str,
+        query_expression: str,
+        enabled: bool = True
     ) -> ResearchStream:
         """
-        Update implementation configuration progress for a channel.
+        Add or update a source query for a channel.
 
         Args:
             stream_id: Stream ID
             user_id: User ID
             channel_name: Channel name
-            completed_steps: List of completed step IDs
-            configuration_data: Configuration data for this channel
+            source_id: Source ID
+            query_expression: Query expression
+            enabled: Whether source is enabled
 
         Returns:
             Updated ResearchStream
@@ -508,36 +532,119 @@ Create filtering criteria that will help identify articles truly relevant to thi
         # Verify stream and channel
         stream, channel = self.verify_stream_and_channel(stream_id, user_id, channel_name)
 
-        # Get current workflow_config or create empty one
-        workflow_config = stream.workflow_config or {}
+        # Get or create workflow_config
+        workflow_config = stream.workflow_config or {'channel_configs': []}
+        if 'channel_configs' not in workflow_config:
+            workflow_config['channel_configs'] = []
 
-        # Initialize or update configuration_history
-        config_history = workflow_config.get('configuration_history', [])
+        channel_configs = workflow_config['channel_configs']
 
-        # Find existing entry for this channel or create new one
+        # Find or create channel config
         channel_config = next(
-            (entry for entry in config_history if entry.get('channel_name') == channel_name),
+            (cc for cc in channel_configs if cc.get('channel_name') == channel_name),
             None
         )
 
-        from datetime import datetime
-        if channel_config:
-            # Update existing entry
-            channel_config['completed_steps'] = completed_steps
-            channel_config['configuration_data'] = configuration_data
-            channel_config['last_updated'] = datetime.utcnow().isoformat()
-        else:
-            # Create new entry
-            config_history.append({
+        if not channel_config:
+            # Create new channel config with default semantic filter
+            channel_config = {
                 'channel_name': channel_name,
-                'completed_steps': completed_steps,
-                'configuration_data': configuration_data,
-                'last_updated': datetime.utcnow().isoformat()
+                'source_queries': [],
+                'semantic_filter': {
+                    'enabled': False,
+                    'criteria': '',
+                    'threshold': 0.7
+                }
+            }
+            channel_configs.append(channel_config)
+
+        # Find or create source query
+        source_queries = channel_config.get('source_queries', [])
+        source_query = next(
+            (sq for sq in source_queries if sq.get('source_id') == source_id),
+            None
+        )
+
+        if source_query:
+            # Update existing
+            source_query['query_expression'] = query_expression
+            source_query['enabled'] = enabled
+        else:
+            # Add new
+            source_queries.append({
+                'source_id': source_id,
+                'query_expression': query_expression,
+                'enabled': enabled
             })
 
-        # Update workflow_config
-        workflow_config['configuration_history'] = config_history
-        workflow_config['implementation_config_status'] = 'draft'
+        channel_config['source_queries'] = source_queries
+
+        # Save to database
+        updated_stream = self.stream_service.update_research_stream(
+            stream_id,
+            {'workflow_config': workflow_config}
+        )
+
+        return updated_stream
+
+    def update_channel_semantic_filter(
+        self,
+        stream_id: int,
+        user_id: str,
+        channel_name: str,
+        enabled: bool,
+        criteria: str,
+        threshold: float
+    ) -> ResearchStream:
+        """
+        Update semantic filter for a channel.
+
+        Args:
+            stream_id: Stream ID
+            user_id: User ID
+            channel_name: Channel name
+            enabled: Whether filtering is enabled
+            criteria: Filter criteria text
+            threshold: Confidence threshold (0.0 to 1.0)
+
+        Returns:
+            Updated ResearchStream
+        """
+        # Verify stream and channel
+        stream, channel = self.verify_stream_and_channel(stream_id, user_id, channel_name)
+
+        # Get or create workflow_config
+        workflow_config = stream.workflow_config or {'channel_configs': []}
+        if 'channel_configs' not in workflow_config:
+            workflow_config['channel_configs'] = []
+
+        channel_configs = workflow_config['channel_configs']
+
+        # Find or create channel config
+        channel_config = next(
+            (cc for cc in channel_configs if cc.get('channel_name') == channel_name),
+            None
+        )
+
+        if not channel_config:
+            # Create new channel config
+            channel_config = {
+                'channel_name': channel_name,
+                'source_queries': [],
+                'semantic_filter': {
+                    'enabled': enabled,
+                    'criteria': criteria,
+                    'threshold': threshold
+                }
+            }
+            channel_configs.append(channel_config)
+        else:
+            # Update semantic filter
+            channel_config['semantic_filter'] = {
+                'enabled': enabled,
+                'criteria': criteria,
+                'threshold': threshold
+            }
 
         # Save to database
         updated_stream = self.stream_service.update_research_stream(
@@ -555,7 +662,8 @@ Create filtering criteria that will help identify articles truly relevant to thi
         """
         Mark implementation configuration as complete.
 
-        Validates that all channels have been configured.
+        Validates that all channels have been configured with at least
+        one source query and a semantic filter.
 
         Args:
             stream_id: Stream ID
@@ -574,21 +682,18 @@ Create filtering criteria that will help identify articles truly relevant to thi
 
         # Verify all channels have configuration
         workflow_config = stream.workflow_config or {}
-        config_history = workflow_config.get('configuration_history', [])
+        channel_configs = workflow_config.get('channel_configs', [])
 
-        configured_channels = {entry['channel_name'] for entry in config_history}
-        all_channels = {ch.get('name') for ch in stream.channels}
+        configured_channels = {cc['channel_name'] for cc in channel_configs}
+        all_channels = {ch.name for ch in stream.channels}
 
         missing_channels = all_channels - configured_channels
         if missing_channels:
             raise ValueError(f"Configuration incomplete. Missing channels: {', '.join(missing_channels)}")
 
-        # Mark as complete
-        workflow_config['implementation_config_status'] = 'complete'
+        # Verify each channel has at least one source query
+        for cc in channel_configs:
+            if not cc.get('source_queries'):
+                raise ValueError(f"Channel '{cc['channel_name']}' has no source queries configured")
 
-        updated_stream = self.stream_service.update_research_stream(
-            stream_id,
-            {'workflow_config': workflow_config}
-        )
-
-        return updated_stream
+        return stream

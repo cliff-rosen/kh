@@ -25,23 +25,13 @@ class ReportFrequency(str, Enum):
     MONTHLY = "monthly"
 
 
-class SemanticFilter(BaseModel):
-    """Semantic filtering configuration for a channel"""
-    enabled: bool = Field(default=False, description="Whether semantic filtering is enabled")
-    criteria: Optional[str] = Field(None, description="Semantic filtering criteria/prompt")
-    threshold: Optional[float] = Field(None, description="Semantic similarity threshold")
-
-
 class Channel(BaseModel):
     """A channel within a research stream - specific focus with keywords"""
     name: str = Field(description="Channel name")
     focus: str = Field(description="What this channel monitors")
     type: StreamType = Field(description="Type of intelligence for this channel")
     keywords: List[str] = Field(description="Keywords for this channel")
-    semantic_filter: Optional[SemanticFilter] = Field(
-        None,
-        description="Optional semantic filtering configuration (configured downstream, not during creation)"
-    )
+    # Note: semantic_filter is now in workflow_config.channel_configs, not here
 
 
 class ScoringConfig(BaseModel):
@@ -71,22 +61,37 @@ class ScoringConfig(BaseModel):
     )
 
 
-class ChannelSourceQuery(BaseModel):
-    """Query expression for a specific channel and source combination"""
-    channel_name: str = Field(description="Which channel this query is for")
-    query_expression: str = Field(description="Customized query for this source/channel combination")
+# ============================================================================
+# Channel-Centric Workflow Configuration
+# ============================================================================
+
+class SourceQuery(BaseModel):
+    """Query expression for a specific source within a channel"""
+    source_id: str = Field(description="Reference to information source (e.g., 'pubmed', 'google_scholar')")
+    query_expression: str = Field(description="Source-specific query expression")
+    enabled: bool = Field(default=True, description="Whether this source is active for this channel")
 
 
-class WorkflowSource(BaseModel):
-    """A data source with channel-specific queries"""
-    source_id: str = Field(description="Reference to authoritative source (e.g., 'pubmed', 'google_scholar')")
-    enabled: bool = Field(default=True, description="Whether this source is enabled")
-    channel_queries: List[ChannelSourceQuery] = Field(description="Query expressions for each channel")
+class SemanticFilter(BaseModel):
+    """Semantic filtering configuration for a channel"""
+    enabled: bool = Field(default=False, description="Whether semantic filtering is enabled")
+    criteria: str = Field(description="Text description of what should pass/fail")
+    threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Confidence threshold (0.0 to 1.0)")
+
+
+class ChannelWorkflowConfig(BaseModel):
+    """Complete workflow configuration for a single channel"""
+    channel_name: str = Field(description="Links to Channel.name")
+    source_queries: List[SourceQuery] = Field(default_factory=list, description="All source queries for this channel")
+    semantic_filter: SemanticFilter = Field(description="Semantic filtering for this channel")
 
 
 class WorkflowConfig(BaseModel):
-    """Configuration for workflow source retrieval"""
-    sources: Optional[List[WorkflowSource]] = Field(None, description="List of data sources with channel queries")
+    """Configuration for workflow - organized by channel"""
+    channel_configs: List[ChannelWorkflowConfig] = Field(
+        default_factory=list,
+        description="Configuration organized by channel"
+    )
     article_limit_per_week: Optional[int] = Field(None, description="Maximum articles per week")
 
 

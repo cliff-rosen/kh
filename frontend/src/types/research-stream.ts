@@ -16,18 +16,12 @@ export enum ReportFrequency {
     MONTHLY = 'monthly'
 }
 
-export interface SemanticFilter {
-    enabled: boolean;
-    criteria: string | null;
-    threshold: number | null;
-}
-
 export interface Channel {
     name: string;
     focus: string;
     type: StreamType;
     keywords: string[];
-    semantic_filter?: SemanticFilter;
+    // Note: semantic_filter is now in workflow_config.channel_configs, not here
 }
 
 export interface ScoringConfig {
@@ -37,19 +31,30 @@ export interface ScoringConfig {
     max_items_per_report?: number;  // default 10
 }
 
-export interface ChannelSourceQuery {
-    channel_name: string;  // Which channel this query is for
-    query_expression: string;  // Customized query for this source/channel combination
+// ============================================================================
+// Channel-Centric Workflow Configuration
+// ============================================================================
+
+export interface SourceQuery {
+    source_id: string;  // Reference to information source (e.g., "pubmed", "google_scholar")
+    query_expression: string;  // Source-specific query expression
+    enabled: boolean;  // Whether this source is active for this channel
 }
 
-export interface WorkflowSource {
-    source_id: string;  // Reference to authoritative source (e.g., "pubmed", "google_scholar")
+export interface SemanticFilter {
     enabled: boolean;
-    channel_queries: ChannelSourceQuery[];  // Query expressions for each channel
+    criteria: string;  // Text description of what should pass/fail
+    threshold: number;  // 0.0 to 1.0 confidence threshold
+}
+
+export interface ChannelWorkflowConfig {
+    channel_name: string;  // Links to Channel.name
+    source_queries: SourceQuery[];  // All source queries for this channel
+    semantic_filter: SemanticFilter;  // Semantic filtering for this channel
 }
 
 export interface WorkflowConfig {
-    sources?: WorkflowSource[];
+    channel_configs: ChannelWorkflowConfig[];  // Configuration organized by channel
     article_limit_per_week?: number;
 }
 

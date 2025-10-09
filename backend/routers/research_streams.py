@@ -116,6 +116,19 @@ class ImplementationConfigProgressUpdate(BaseModel):
     configuration_data: Dict[str, Any] = Field(..., description="Configuration data for this channel")
 
 
+class UpdateSourceQueryRequest(BaseModel):
+    """Request to update a source query for a channel"""
+    query_expression: str = Field(..., description="Query expression for the source")
+    enabled: bool = Field(default=True, description="Whether this source is enabled")
+
+
+class UpdateSemanticFilterRequest(BaseModel):
+    """Request to update semantic filter for a channel"""
+    enabled: bool = Field(..., description="Whether semantic filtering is enabled")
+    criteria: str = Field(..., description="Filter criteria text")
+    threshold: float = Field(..., ge=0.0, le=1.0, description="Confidence threshold")
+
+
 @router.get("/metadata/sources", response_model=List[InformationSource])
 async def get_information_sources():
     """Get the authoritative list of information sources"""
@@ -419,6 +432,81 @@ async def test_channel_filter(
         )
 
 
+@router.put("/{stream_id}/channels/{channel_name}/sources/{source_id}/query", response_model=ResearchStream)
+async def update_channel_source_query(
+    stream_id: int,
+    channel_name: str,
+    source_id: str,
+    request: UpdateSourceQueryRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update a source query for a channel.
+
+    This saves the query directly to workflow_config.channel_configs.
+    """
+    service = ImplementationConfigService(db)
+
+    try:
+        updated_stream = service.update_channel_source_query(
+            stream_id=stream_id,
+            user_id=current_user.user_id,
+            channel_name=channel_name,
+            source_id=source_id,
+            query_expression=request.query_expression,
+            enabled=request.enabled
+        )
+        return updated_stream
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND if "not found" in str(e).lower() else status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update source query: {str(e)}"
+        )
+
+
+@router.put("/{stream_id}/channels/{channel_name}/semantic-filter", response_model=ResearchStream)
+async def update_channel_semantic_filter(
+    stream_id: int,
+    channel_name: str,
+    request: UpdateSemanticFilterRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update semantic filter for a channel.
+
+    This saves the filter directly to workflow_config.channel_configs.
+    """
+    service = ImplementationConfigService(db)
+
+    try:
+        updated_stream = service.update_channel_semantic_filter(
+            stream_id=stream_id,
+            user_id=current_user.user_id,
+            channel_name=channel_name,
+            enabled=request.enabled,
+            criteria=request.criteria,
+            threshold=request.threshold
+        )
+        return updated_stream
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND if "not found" in str(e).lower() else status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update semantic filter: {str(e)}"
+        )
+
+
 @router.patch("/{stream_id}/implementation-config", response_model=ResearchStream)
 async def update_implementation_config(
     stream_id: int,
@@ -427,10 +515,11 @@ async def update_implementation_config(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Update implementation configuration progress for a specific channel.
+    DEPRECATED: Update implementation configuration progress for a specific channel.
 
-    This endpoint saves draft progress as the user works through the
-    implementation wizard for each channel.
+    Use the new channel-centric endpoints instead:
+    - PUT /{stream_id}/channels/{channel_name}/sources/{source_id}/query
+    - PUT /{stream_id}/channels/{channel_name}/semantic-filter
     """
     # Verify stream ownership
     stream_service = ResearchStreamService(db)
