@@ -4,7 +4,6 @@ import { ArrowPathIcon, CheckCircleIcon, XCircleIcon, PencilIcon } from '@heroic
 
 export default function QueryConfigStep() {
     const {
-        streamId,
         streamName,
         stream,
         currentChannel,
@@ -502,7 +501,7 @@ export default function QueryConfigStep() {
                                         Sample Articles (showing {sourceConfig.test_result.sample_articles.length})
                                     </h4>
                                     <div className="space-y-3">
-                                        {sourceConfig.test_result.sample_articles.slice(0, 5).map((article, idx) => (
+                                        {sourceConfig.test_result.sample_articles.slice(0, 5).map((article: any, idx: number) => (
                                             <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
                                                 <h5 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
                                                     {article.title}

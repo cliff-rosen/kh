@@ -5,12 +5,10 @@ import { useImplementationConfig } from '../../context/ImplementationConfigConte
 
 export default function SemanticFilterStep() {
     const {
-        streamId,
         streamName,
         stream,
         currentChannel,
         currentChannelConfig,
-        availableSources,
         generateFilter,
         updateFilterCriteria,
         updateFilterThreshold,
