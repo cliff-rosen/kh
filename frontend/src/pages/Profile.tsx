@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { Settings, Sliders, MessageCircle, Building2 } from 'lucide-react';
+
 import { useAuth } from '@/context/AuthContext';
+
 import { FeaturePresetManagementModal } from '@/components/features/workbench';
 import { QuickActionManagementModal } from '@/components/features/workbench/QuickActionManagementModal';
 import { CompanyProfileManagementModal } from '@/components/features/profile/CompanyProfileManagementModal';
 import { Button } from '@/components/ui/button';
-import { Settings, Sliders, MessageCircle, Building2 } from 'lucide-react';
 
 export default function Profile() {
     const { user, isAuthenticated } = useAuth();
