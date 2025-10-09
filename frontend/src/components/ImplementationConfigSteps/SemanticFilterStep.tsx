@@ -5,7 +5,6 @@ import { useImplementationConfig } from '../../context/ImplementationConfigConte
 
 export default function SemanticFilterStep() {
     const {
-        streamName,
         stream,
         currentChannel,
         currentChannelConfig,
@@ -103,7 +102,7 @@ export default function SemanticFilterStep() {
                 <div className="text-sm space-y-1">
                     <div>
                         <span className="font-medium text-gray-700 dark:text-gray-300">Stream:</span>{' '}
-                        <span className="text-gray-900 dark:text-white">{streamName}</span>
+                        <span className="text-gray-900 dark:text-white">{stream?.stream_name || ''}</span>
                     </div>
                     <div>
                         <span className="font-medium text-gray-700 dark:text-gray-300">Purpose:</span>{' '}
@@ -304,11 +303,10 @@ export default function SemanticFilterStep() {
                                         {filterConfig.test_result.filtered_articles.slice(0, 5).map((fa: any, idx: number) => (
                                             <div
                                                 key={idx}
-                                                className={`rounded-lg p-3 border ${
-                                                    fa.passed && fa.confidence >= threshold
-                                                        ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-                                                        : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-                                                }`}
+                                                className={`rounded-lg p-3 border ${fa.passed && fa.confidence >= threshold
+                                                    ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                                                    : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                                                    }`}
                                             >
                                                 <div className="flex items-start gap-2">
                                                     {fa.passed && fa.confidence >= threshold ? (
@@ -321,11 +319,10 @@ export default function SemanticFilterStep() {
                                                             {fa.article.title}
                                                         </h5>
                                                         <div className="flex items-center gap-2 text-xs">
-                                                            <span className={`font-medium ${
-                                                                fa.passed && fa.confidence >= threshold
-                                                                    ? 'text-green-700 dark:text-green-300'
-                                                                    : 'text-red-700 dark:text-red-300'
-                                                            }`}>
+                                                            <span className={`font-medium ${fa.passed && fa.confidence >= threshold
+                                                                ? 'text-green-700 dark:text-green-300'
+                                                                : 'text-red-700 dark:text-red-300'
+                                                                }`}>
                                                                 {(fa.confidence * 100).toFixed(0)}% confidence
                                                             </span>
                                                             {fa.reasoning && (

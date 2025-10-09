@@ -4,7 +4,6 @@ import { ArrowPathIcon, CheckCircleIcon, XCircleIcon, PencilIcon } from '@heroic
 
 export default function QueryConfigStep() {
     const {
-        streamName,
         stream,
         currentChannel,
         currentChannelConfig,
@@ -32,7 +31,7 @@ export default function QueryConfigStep() {
     const [isEditing, setIsEditing] = useState(false);
     const [isEditingContext, setIsEditingContext] = useState(false);
     const [contextEdits, setContextEdits] = useState({
-        stream_name: streamName || '',
+        stream_name: stream?.stream_name || '',
         stream_purpose: stream?.purpose || '',
         channel_name: currentChannel?.name || '',
         channel_focus: currentChannel?.focus || '',
@@ -61,14 +60,14 @@ export default function QueryConfigStep() {
     useEffect(() => {
         if (currentChannel) {
             setContextEdits({
-                stream_name: streamName || '',
+                stream_name: stream?.stream_name || '',
                 stream_purpose: stream?.purpose || '',
                 channel_name: currentChannel.name,
                 channel_focus: currentChannel.focus,
                 channel_keywords: currentChannel.keywords.join(', ')
             });
         }
-    }, [streamName, stream?.purpose, currentChannel]);
+    }, [stream?.stream_name, stream?.purpose, currentChannel]);
 
     // Return null if required data is not available (after all hooks)
     if (!currentChannel || !currentChannelConfig || !currentSource || !sourceConfig) {
@@ -125,7 +124,7 @@ export default function QueryConfigStep() {
 
     const handleSaveContextEdits = async () => {
         // Save stream updates
-        if (contextEdits.stream_name !== streamName ||
+        if (contextEdits.stream_name !== stream?.stream_name ||
             contextEdits.stream_purpose !== stream?.purpose
         ) {
             await updateStream({
@@ -261,7 +260,7 @@ export default function QueryConfigStep() {
                             <button
                                 onClick={() => {
                                     setContextEdits({
-                                        stream_name: streamName || '',
+                                        stream_name: stream?.stream_name || '',
                                         stream_purpose: stream?.purpose || '',
                                         channel_name: currentChannel.name,
                                         channel_focus: currentChannel.focus,
@@ -465,22 +464,20 @@ export default function QueryConfigStep() {
                     ) : sourceConfig.test_result ? (
                         <div className="space-y-4">
                             {/* Test Summary */}
-                            <div className={`flex items-center gap-3 p-4 rounded-lg ${
-                                sourceConfig.test_result.success
-                                    ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
-                                    : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
-                            }`}>
+                            <div className={`flex items-center gap-3 p-4 rounded-lg ${sourceConfig.test_result.success
+                                ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+                                : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+                                }`}>
                                 {sourceConfig.test_result.success ? (
                                     <CheckCircleIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
                                 ) : (
                                     <XCircleIcon className="h-6 w-6 text-red-600 dark:text-red-400" />
                                 )}
                                 <div>
-                                    <p className={`font-medium ${
-                                        sourceConfig.test_result.success
-                                            ? 'text-green-900 dark:text-green-100'
-                                            : 'text-red-900 dark:text-red-100'
-                                    }`}>
+                                    <p className={`font-medium ${sourceConfig.test_result.success
+                                        ? 'text-green-900 dark:text-green-100'
+                                        : 'text-red-900 dark:text-red-100'
+                                        }`}>
                                         {sourceConfig.test_result.success
                                             ? `Found ${sourceConfig.test_result.article_count} articles`
                                             : 'Query failed'
