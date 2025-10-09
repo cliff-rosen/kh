@@ -12,8 +12,10 @@ import {
     getOverallProgress
 } from '../types/implementation-config';
 import { Channel, InformationSource } from '../types/research-stream';
+import { CanonicalResearchArticle } from '../types/canonical_types';
 import SourceSelectionStep from '../components/ImplementationConfigSteps/SourceSelectionStep';
 import QueryConfigStep from '../components/ImplementationConfigSteps/QueryConfigStep';
+import SemanticFilterStep from '../components/ImplementationConfigSteps/SemanticFilterStep';
 
 // ============================================================================
 // State Reducer
@@ -221,6 +223,67 @@ function configReducer(state: ImplementationConfigState, action: ConfigAction): 
                 ...channelConfig,
                 current_source_index: nextIndex,
                 current_step: 'query_generation' as ConfigStep
+            };
+
+            const newConfigs = new Map(state.channel_configs);
+            newConfigs.set(channel_name, updatedChannel);
+
+            return { ...state, channel_configs: newConfigs };
+        }
+
+        case 'GENERATE_FILTER_SUCCESS': {
+            const { channel_name, criteria, reasoning } = action.payload;
+            const channelConfig = state.channel_configs.get(channel_name);
+            if (!channelConfig) return state;
+
+            const updatedChannel = {
+                ...channelConfig,
+                semantic_filter: {
+                    enabled: true,
+                    criteria,
+                    reasoning,
+                    threshold: 0.7,
+                    is_tested: false
+                }
+            };
+
+            const newConfigs = new Map(state.channel_configs);
+            newConfigs.set(channel_name, updatedChannel);
+
+            return { ...state, channel_configs: newConfigs };
+        }
+
+        case 'UPDATE_SEMANTIC_FILTER': {
+            const { channel_name, filter } = action.payload;
+            const channelConfig = state.channel_configs.get(channel_name);
+            if (!channelConfig) return state;
+
+            const updatedChannel = {
+                ...channelConfig,
+                semantic_filter: {
+                    ...channelConfig.semantic_filter!,
+                    ...filter
+                }
+            };
+
+            const newConfigs = new Map(state.channel_configs);
+            newConfigs.set(channel_name, updatedChannel);
+
+            return { ...state, channel_configs: newConfigs };
+        }
+
+        case 'TEST_SEMANTIC_FILTER_SUCCESS': {
+            const { channel_name, result } = action.payload;
+            const channelConfig = state.channel_configs.get(channel_name);
+            if (!channelConfig || !channelConfig.semantic_filter) return state;
+
+            const updatedChannel = {
+                ...channelConfig,
+                semantic_filter: {
+                    ...channelConfig.semantic_filter,
+                    is_tested: true,
+                    test_result: result
+                }
             };
 
             const newConfigs = new Map(state.channel_configs);
@@ -611,25 +674,74 @@ export default function ImplementationConfigPage() {
                             </>
                         )}
 
-                        {/* Semantic Filter Step - Placeholder */}
+                        {/* Semantic Filter Step */}
                         {currentChannelConfig.current_step === 'semantic_filter_config' && (
-                            <div className="text-center py-12">
-                                <p className="text-gray-600 dark:text-gray-400 mb-4">
-                                    Semantic Filter Configuration
-                                </p>
-                                <button
-                                    onClick={() => {
-                                        dispatch({
-                                            type: 'COMPLETE_CHANNEL',
-                                            payload: { channel_name: currentChannel.name }
-                                        });
-                                        dispatch({ type: 'NEXT_CHANNEL' });
-                                    }}
-                                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
-                                >
-                                    Skip for now & Complete Channel
-                                </button>
-                            </div>
+                            <>
+                                {(() => {
+                                    // Collect all sample articles from query test results
+                                    const sampleArticles: CanonicalResearchArticle[] = [];
+                                    currentChannelConfig.source_configs.forEach(config => {
+                                        if (config.test_result?.sample_articles) {
+                                            sampleArticles.push(...config.test_result.sample_articles);
+                                        }
+                                    });
+
+                                    return (
+                                        <SemanticFilterStep
+                                            streamId={state.stream_id}
+                                            streamName={state.stream_name}
+                                            streamPurpose={stream?.purpose || ''}
+                                            channel={currentChannel}
+                                            filterConfig={currentChannelConfig.semantic_filter}
+                                            sampleArticles={sampleArticles}
+                                            onFilterGenerated={(criteria, reasoning) => {
+                                                dispatch({
+                                                    type: 'GENERATE_FILTER_SUCCESS',
+                                                    payload: {
+                                                        channel_name: currentChannel.name,
+                                                        criteria,
+                                                        reasoning
+                                                    }
+                                                });
+                                            }}
+                                            onFilterUpdated={(criteria) => {
+                                                dispatch({
+                                                    type: 'UPDATE_SEMANTIC_FILTER',
+                                                    payload: {
+                                                        channel_name: currentChannel.name,
+                                                        filter: { criteria }
+                                                    }
+                                                });
+                                            }}
+                                            onFilterTested={(result) => {
+                                                dispatch({
+                                                    type: 'TEST_SEMANTIC_FILTER_SUCCESS',
+                                                    payload: {
+                                                        channel_name: currentChannel.name,
+                                                        result
+                                                    }
+                                                });
+                                            }}
+                                            onThresholdChanged={(threshold) => {
+                                                dispatch({
+                                                    type: 'UPDATE_SEMANTIC_FILTER',
+                                                    payload: {
+                                                        channel_name: currentChannel.name,
+                                                        filter: { threshold }
+                                                    }
+                                                });
+                                            }}
+                                            onComplete={() => {
+                                                dispatch({
+                                                    type: 'COMPLETE_CHANNEL',
+                                                    payload: { channel_name: currentChannel.name }
+                                                });
+                                                dispatch({ type: 'NEXT_CHANNEL' });
+                                            }}
+                                        />
+                                    );
+                                })()}
+                            </>
                         )}
                     </div>
                 )}
