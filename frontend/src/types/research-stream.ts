@@ -17,6 +17,7 @@ export enum ReportFrequency {
 }
 
 export interface Channel {
+    channel_id: string; // UUID - stable identifier for this channel
     name: string;
     focus: string;
     type: StreamType;
@@ -48,7 +49,7 @@ export interface SemanticFilter {
 }
 
 export interface ChannelWorkflowConfig {
-    channel_name: string;  // Links to Channel.name
+    channel_id: string;  // Links to Channel.channel_id (UUID)
     source_queries: SourceQuery[];  // All source queries for this channel
     semantic_filter: SemanticFilter;  // Semantic filtering for this channel
 }

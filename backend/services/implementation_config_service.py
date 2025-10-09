@@ -488,7 +488,7 @@ Create filtering criteria that will help identify articles truly relevant to thi
         self,
         stream_id: int,
         user_id: str,
-        channel_name: str
+        channel_id: str
     ) -> Optional[Dict[str, Any]]:
         """
         Get workflow configuration for a specific channel.
@@ -502,7 +502,7 @@ Create filtering criteria that will help identify articles truly relevant to thi
 
         channel_configs = stream.workflow_config.get('channel_configs', [])
         return next(
-            (cc for cc in channel_configs if cc.get('channel_name') == channel_name),
+            (cc for cc in channel_configs if cc.get('channel_id') == channel_id),
             None
         )
 
@@ -510,7 +510,7 @@ Create filtering criteria that will help identify articles truly relevant to thi
         self,
         stream_id: int,
         user_id: str,
-        channel_name: str,
+        channel_id: str,
         source_id: str,
         query_expression: str,
         enabled: bool = True
@@ -521,7 +521,7 @@ Create filtering criteria that will help identify articles truly relevant to thi
         Args:
             stream_id: Stream ID
             user_id: User ID
-            channel_name: Channel name
+            channel_id: Channel ID (UUID)
             source_id: Source ID
             query_expression: Query expression
             enabled: Whether source is enabled
@@ -529,8 +529,15 @@ Create filtering criteria that will help identify articles truly relevant to thi
         Returns:
             Updated ResearchStream
         """
-        # Verify stream and channel
-        stream, channel = self.verify_stream_and_channel(stream_id, user_id, channel_name)
+        # Verify stream
+        stream = self.stream_service.get_research_stream(stream_id, user_id)
+        if not stream:
+            raise ValueError("Research stream not found")
+
+        # Find channel by ID
+        channel = next((ch for ch in stream.channels if ch.channel_id == channel_id), None)
+        if not channel:
+            raise ValueError(f"Channel with ID '{channel_id}' not found in stream")
 
         # Get or create workflow_config
         workflow_config = stream.workflow_config or {'channel_configs': []}
@@ -541,14 +548,14 @@ Create filtering criteria that will help identify articles truly relevant to thi
 
         # Find or create channel config
         channel_config = next(
-            (cc for cc in channel_configs if cc.get('channel_name') == channel_name),
+            (cc for cc in channel_configs if cc.get('channel_id') == channel_id),
             None
         )
 
         if not channel_config:
             # Create new channel config with default semantic filter
             channel_config = {
-                'channel_name': channel_name,
+                'channel_id': channel_id,
                 'source_queries': [],
                 'semantic_filter': {
                     'enabled': False,
@@ -591,7 +598,7 @@ Create filtering criteria that will help identify articles truly relevant to thi
         self,
         stream_id: int,
         user_id: str,
-        channel_name: str,
+        channel_id: str,
         enabled: bool,
         criteria: str,
         threshold: float
@@ -602,7 +609,7 @@ Create filtering criteria that will help identify articles truly relevant to thi
         Args:
             stream_id: Stream ID
             user_id: User ID
-            channel_name: Channel name
+            channel_id: Channel ID (UUID)
             enabled: Whether filtering is enabled
             criteria: Filter criteria text
             threshold: Confidence threshold (0.0 to 1.0)
@@ -610,8 +617,15 @@ Create filtering criteria that will help identify articles truly relevant to thi
         Returns:
             Updated ResearchStream
         """
-        # Verify stream and channel
-        stream, channel = self.verify_stream_and_channel(stream_id, user_id, channel_name)
+        # Verify stream
+        stream = self.stream_service.get_research_stream(stream_id, user_id)
+        if not stream:
+            raise ValueError("Research stream not found")
+
+        # Find channel by ID
+        channel = next((ch for ch in stream.channels if ch.channel_id == channel_id), None)
+        if not channel:
+            raise ValueError(f"Channel with ID '{channel_id}' not found in stream")
 
         # Get or create workflow_config
         workflow_config = stream.workflow_config or {'channel_configs': []}
@@ -622,14 +636,14 @@ Create filtering criteria that will help identify articles truly relevant to thi
 
         # Find or create channel config
         channel_config = next(
-            (cc for cc in channel_configs if cc.get('channel_name') == channel_name),
+            (cc for cc in channel_configs if cc.get('channel_id') == channel_id),
             None
         )
 
         if not channel_config:
             # Create new channel config
             channel_config = {
-                'channel_name': channel_name,
+                'channel_id': channel_id,
                 'source_queries': [],
                 'semantic_filter': {
                     'enabled': enabled,
@@ -684,12 +698,13 @@ Create filtering criteria that will help identify articles truly relevant to thi
         workflow_config = stream.workflow_config or {}
         channel_configs = workflow_config.get('channel_configs', [])
 
-        configured_channels = {cc['channel_name'] for cc in channel_configs}
-        all_channels = {ch.name for ch in stream.channels}
+        configured_channel_ids = {cc['channel_id'] for cc in channel_configs}
+        all_channel_ids = {ch.channel_id for ch in stream.channels}
 
-        missing_channels = all_channels - configured_channels
-        if missing_channels:
-            raise ValueError(f"Configuration incomplete. Missing channels: {', '.join(missing_channels)}")
+        missing_channel_ids = all_channel_ids - configured_channel_ids
+        if missing_channel_ids:
+            missing_names = [ch.name for ch in stream.channels if ch.channel_id in missing_channel_ids]
+            raise ValueError(f"Configuration incomplete. Missing channels: {', '.join(missing_names)}")
 
         # Verify each channel has at least one source query
         for cc in channel_configs:

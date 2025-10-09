@@ -3,14 +3,16 @@
  *
  * This workflow configures query expressions and semantic filters
  * for each channel in a research stream.
+ *
+ * NOTE: This now works directly with workflow_config.channel_configs
+ * instead of maintaining a shadow structure.
  */
 
-import { Channel } from './research-stream';
-import { FilteredArticle } from './smartsearch2';
 import { CanonicalResearchArticle } from './canonical_types';
+import { FilteredArticle } from './smartsearch2';
 
 // ============================================================================
-// Workflow Steps
+// Workflow Steps (UI State Only)
 // ============================================================================
 
 export type ConfigStep =
@@ -23,53 +25,30 @@ export type ConfigStep =
     | 'channel_complete';
 
 // ============================================================================
-// Source Configuration State
+// UI State for Configuration Workflow
 // ============================================================================
 
-export interface SourceQueryConfig {
-    source_id: string;
-    source_name: string;
-    query_expression: string;
-    query_reasoning?: string;
-    is_tested: boolean;
-    test_result?: {
-        success: boolean;
-        article_count: number;
-        sample_articles: CanonicalResearchArticle[];
-        error_message?: string;
-    };
-    is_confirmed: boolean; // User confirmed this query is good
+export interface ChannelConfigUIState {
+    selected_sources: string[]; // source_ids being configured (UI only)
+    current_source_index: number; // Which source we're currently configuring (UI only)
+    current_step: ConfigStep; // Current workflow step (UI only)
 }
 
 // ============================================================================
-// Semantic Filter Configuration State
+// Test Results (Temporary, not persisted to workflow_config)
 // ============================================================================
 
-export interface SemanticFilterConfig {
-    enabled: boolean;
-    criteria: string;
-    reasoning?: string; // Explanation of why this criteria was generated
-    threshold: number; // 0.0 to 1.0
-    is_tested: boolean;
-    test_result?: {
-        filtered_articles: FilteredArticle[];
-        pass_count: number;
-        fail_count: number;
-        average_confidence: number;
-    };
+export interface QueryTestResult {
+    success: boolean;
+    article_count: number;
+    sample_articles: CanonicalResearchArticle[];
+    error_message?: string;
 }
 
-// ============================================================================
-// Channel Configuration State
-// ============================================================================
-
-export interface ChannelConfigState {
-    channel: Channel;
-    selected_sources: string[]; // source_ids
-    source_configs: Map<string, SourceQueryConfig>; // source_id -> config
-    current_source_index: number; // Which source we're currently configuring
-    semantic_filter?: SemanticFilterConfig;
-    current_step: ConfigStep;
-    is_complete: boolean;
+export interface FilterTestResult {
+    filtered_articles: FilteredArticle[];
+    pass_count: number;
+    fail_count: number;
+    average_confidence: number;
 }
 

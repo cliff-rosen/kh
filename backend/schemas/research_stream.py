@@ -27,6 +27,7 @@ class ReportFrequency(str, Enum):
 
 class Channel(BaseModel):
     """A channel within a research stream - specific focus with keywords"""
+    channel_id: str = Field(description="UUID - stable identifier for this channel")
     name: str = Field(description="Channel name")
     focus: str = Field(description="What this channel monitors")
     type: StreamType = Field(description="Type of intelligence for this channel")
@@ -81,7 +82,7 @@ class SemanticFilter(BaseModel):
 
 class ChannelWorkflowConfig(BaseModel):
     """Complete workflow configuration for a single channel"""
-    channel_name: str = Field(description="Links to Channel.name")
+    channel_id: str = Field(description="Links to Channel.channel_id (UUID)")
     source_queries: List[SourceQuery] = Field(default_factory=list, description="All source queries for this channel")
     semantic_filter: SemanticFilter = Field(description="Semantic filtering for this channel")
 

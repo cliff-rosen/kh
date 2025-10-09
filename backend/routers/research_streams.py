@@ -432,10 +432,10 @@ async def test_channel_filter(
         )
 
 
-@router.put("/{stream_id}/channels/{channel_name}/sources/{source_id}/query", response_model=ResearchStream)
+@router.put("/{stream_id}/channels/{channel_id}/sources/{source_id}/query", response_model=ResearchStream)
 async def update_channel_source_query(
     stream_id: int,
-    channel_name: str,
+    channel_id: str,
     source_id: str,
     request: UpdateSourceQueryRequest,
     db: Session = Depends(get_db),
@@ -445,6 +445,7 @@ async def update_channel_source_query(
     Update a source query for a channel.
 
     This saves the query directly to workflow_config.channel_configs.
+    Uses channel_id (UUID) instead of channel_name for stable references.
     """
     service = ImplementationConfigService(db)
 
@@ -452,7 +453,7 @@ async def update_channel_source_query(
         updated_stream = service.update_channel_source_query(
             stream_id=stream_id,
             user_id=current_user.user_id,
-            channel_name=channel_name,
+            channel_id=channel_id,
             source_id=source_id,
             query_expression=request.query_expression,
             enabled=request.enabled
@@ -470,10 +471,10 @@ async def update_channel_source_query(
         )
 
 
-@router.put("/{stream_id}/channels/{channel_name}/semantic-filter", response_model=ResearchStream)
+@router.put("/{stream_id}/channels/{channel_id}/semantic-filter", response_model=ResearchStream)
 async def update_channel_semantic_filter(
     stream_id: int,
-    channel_name: str,
+    channel_id: str,
     request: UpdateSemanticFilterRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -482,6 +483,7 @@ async def update_channel_semantic_filter(
     Update semantic filter for a channel.
 
     This saves the filter directly to workflow_config.channel_configs.
+    Uses channel_id (UUID) instead of channel_name for stable references.
     """
     service = ImplementationConfigService(db)
 
@@ -489,7 +491,7 @@ async def update_channel_semantic_filter(
         updated_stream = service.update_channel_semantic_filter(
             stream_id=stream_id,
             user_id=current_user.user_id,
-            channel_name=channel_name,
+            channel_id=channel_id,
             enabled=request.enabled,
             criteria=request.criteria,
             threshold=request.threshold

@@ -328,12 +328,12 @@ export const researchStreamApi = {
      */
     async updateChannelSourceQuery(
         streamId: number,
-        channelName: string,
+        channelId: string,
         sourceId: string,
         request: { query_expression: string; enabled?: boolean }
     ): Promise<ResearchStream> {
         const response = await api.put(
-            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelName)}/sources/${sourceId}/query`,
+            `/api/research-streams/${streamId}/channels/${channelId}/sources/${sourceId}/query`,
             request
         );
         return response.data;
@@ -344,11 +344,11 @@ export const researchStreamApi = {
      */
     async updateChannelSemanticFilter(
         streamId: number,
-        channelName: string,
+        channelId: string,
         request: { enabled: boolean; criteria: string; threshold: number }
     ): Promise<ResearchStream> {
         const response = await api.put(
-            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelName)}/semantic-filter`,
+            `/api/research-streams/${streamId}/channels/${channelId}/semantic-filter`,
             request
         );
         return response.data;
