@@ -7,6 +7,7 @@
 
 import { Channel } from './research-stream';
 import { FilteredArticle } from './smartsearch2';
+import { CanonicalResearchArticle } from './canonical_types';
 
 // ============================================================================
 // Workflow Steps
