@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, ReactNode 
 import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { Channel, InformationSource, ResearchStream } from '../types/research-stream';
 import { CanonicalResearchArticle } from '../types/canonical_types';
-import { SourceQueryConfig, SemanticFilterConfig, ChannelConfigState } from '../types/implementation-config';
+import { SourceQueryConfig, ChannelConfigState } from '../types/implementation-config';
 
 // ============================================================================
 // Context Type

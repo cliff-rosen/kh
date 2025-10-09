@@ -5,8 +5,7 @@
  * for each channel in a research stream.
  */
 
-import { Channel, InformationSource } from './research-stream';
-import { CanonicalResearchArticle } from './canonical_types';
+import { Channel } from './research-stream';
 import { FilteredArticle } from './smartsearch2';
 
 // ============================================================================
@@ -69,80 +68,7 @@ export interface ChannelConfigState {
     source_configs: Map<string, SourceQueryConfig>; // source_id -> config
     current_source_index: number; // Which source we're currently configuring
     semantic_filter?: SemanticFilterConfig;
-    current_step: string;
+    current_step: ConfigStep;
     is_complete: boolean;
 }
 
-// ============================================================================
-// Overall Workflow State
-// ============================================================================
-
-export interface ImplementationConfigState {
-    stream_id: number;
-    stream_name: string;
-    channels: Channel[];
-    available_sources: InformationSource[];
-
-    // Channel configuration states
-    channel_configs: Map<string, ChannelConfigState>; // channel_name -> config
-    current_channel_index: number; // Which channel we're currently configuring
-
-    // Overall progress
-    is_saving: boolean;
-    is_complete: boolean;
-    error?: string;
-}
-
-// ============================================================================
-// UI State & Actions
-// ============================================================================
-
-export interface ConfigWizardProps {
-    streamId: number;
-    onComplete: () => void;
-    onCancel: () => void;
-}
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-export function getChannelProgress(channelConfig: ChannelConfigState): number {
-    const totalSteps = 7; // source_selection, query gen/test/confirm per source, filter config/test
-    const completedSteps = channelConfig.completed_steps.length;
-    return Math.round((completedSteps / totalSteps) * 100);
-}
-
-export function getOverallProgress(state: ImplementationConfigState): number {
-    const totalChannels = state.channels.length;
-    if (totalChannels === 0) return 0;
-
-    let completedChannels = 0;
-    state.channel_configs.forEach(config => {
-        if (config.is_complete) completedChannels++;
-    });
-
-    return Math.round((completedChannels / totalChannels) * 100);
-}
-
-export function getCurrentChannel(state: ImplementationConfigState): Channel | null {
-    if (state.current_channel_index >= state.channels.length) return null;
-    return state.channels[state.current_channel_index];
-}
-
-export function getCurrentChannelConfig(state: ImplementationConfigState): ChannelConfigState | null {
-    const channel = getCurrentChannel(state);
-    if (!channel) return null;
-    return state.channel_configs.get(channel.name) || null;
-}
-
-export function isAllChannelsComplete(state: ImplementationConfigState): boolean {
-    if (state.channels.length === 0) return false;
-
-    for (const channel of state.channels) {
-        const config = state.channel_configs.get(channel.name);
-        if (!config || !config.is_complete) return false;
-    }
-
-    return true;
-}
