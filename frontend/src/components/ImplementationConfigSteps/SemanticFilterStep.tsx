@@ -43,10 +43,9 @@ export default function SemanticFilterStep() {
     }, [filterConfig?.threshold]);
 
     const handleGenerateFilter = async () => {
-        if (!currentChannel) return;
         setIsGenerating(true);
         try {
-            await generateFilter(currentChannel.name);
+            await generateFilter();
         } catch (error) {
             console.error('Filter generation failed:', error);
             alert('Failed to generate filter. Please try again.');
@@ -56,7 +55,6 @@ export default function SemanticFilterStep() {
     };
 
     const handleTestFilter = async () => {
-        if (!currentChannel) return;
         if (sampleArticles.length === 0) {
             alert('No sample articles available. Please test queries first.');
             return;
@@ -64,7 +62,7 @@ export default function SemanticFilterStep() {
 
         setIsTesting(true);
         try {
-            await testFilter(currentChannel.name, sampleArticles, editedCriteria, threshold);
+            await testFilter(sampleArticles, editedCriteria, threshold);
         } catch (error) {
             console.error('Filter test failed:', error);
             alert('Failed to test filter. Please try again.');
@@ -74,15 +72,13 @@ export default function SemanticFilterStep() {
     };
 
     const handleSaveEdit = () => {
-        if (!currentChannel) return;
-        updateFilterCriteria(currentChannel.name, editedCriteria);
+        updateFilterCriteria(editedCriteria);
         setIsEditing(false);
     };
 
     const handleThresholdChange = (newThreshold: number) => {
-        if (!currentChannel) return;
         setThreshold(newThreshold);
-        updateFilterThreshold(currentChannel.name, newThreshold);
+        updateFilterThreshold(newThreshold);
     };
 
     if (!currentChannel) return null;

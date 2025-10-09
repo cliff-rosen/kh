@@ -9,16 +9,18 @@ import SemanticFilterStep from '../components/ImplementationConfigSteps/Semantic
 function ImplementationConfigContent() {
     const navigate = useNavigate();
     const {
-        streamName,
-        channels,
-        channelConfigs,
+        stream,
         currentChannelIndex,
         isComplete,
         isLoading,
         currentChannel,
         currentChannelConfig,
-        overallProgress
+        overallProgress,
+        isChannelComplete
     } = useImplementationConfig();
+
+    const streamName = stream?.stream_name || '';
+    const channels = stream?.channels || [];
 
     const { streamId } = useParams<{ streamId: string }>();
 
@@ -124,27 +126,26 @@ function ImplementationConfigContent() {
                     </div>
                     <div className="flex gap-2">
                         {channels.map((channel, idx) => {
-                            const channelConfig = channelConfigs.get(channel.name);
-                            const isComplete = channelConfig?.is_complete || false;
+                            const channelComplete = isChannelComplete(channel.name);
                             const isCurrent = idx === currentChannelIndex;
 
                             return (
                                 <div
                                     key={channel.name}
-                                    className={`flex-1 h-2 rounded-full transition-all ${isComplete
+                                    className={`flex-1 h-2 rounded-full transition-all ${channelComplete
                                         ? 'bg-green-500'
                                         : isCurrent
                                             ? 'bg-blue-500'
                                             : 'bg-gray-200 dark:bg-gray-700'
                                         }`}
-                                    title={`${channel.name}${isComplete ? ' ✓' : isCurrent ? ' (current)' : ''}`}
+                                    title={`${channel.name}${channelComplete ? ' ✓' : isCurrent ? ' (current)' : ''}`}
                                 />
                             );
                         })}
                     </div>
                     <div className="flex justify-between mt-2">
                         <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {channels.filter((ch) => channelConfigs.get(ch.name)?.is_complete).length} completed
+                            {channels.filter((ch) => isChannelComplete(ch.name)).length} completed
                         </span>
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                             {overallProgress}% overall

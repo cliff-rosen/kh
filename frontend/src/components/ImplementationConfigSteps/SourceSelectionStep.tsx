@@ -21,8 +21,7 @@ export default function SourceSelectionStep() {
             alert('Please select at least one source');
             return;
         }
-        if (!currentChannel) return;
-        selectSources(currentChannel.name, Array.from(tempSelected));
+        selectSources(Array.from(tempSelected));
     };
 
     return (

@@ -78,7 +78,7 @@ export default function QueryConfigStep() {
     const handleGenerateQuery = async () => {
         setIsGenerating(true);
         try {
-            await generateQuery(currentChannel.name, currentSource.source_id);
+            await generateQuery();
         } catch (error) {
             console.error('Query generation failed:', error);
             alert('Failed to generate query. Please try again.');
@@ -103,7 +103,7 @@ export default function QueryConfigStep() {
                 testRequest.date_type = 'entrez';
             }
 
-            await testQuery(currentChannel.name, currentSource.source_id, testRequest);
+            await testQuery(testRequest);
         } catch (error) {
             console.error('Query test failed:', error);
             alert('Failed to test query. Please try again.');
@@ -113,14 +113,14 @@ export default function QueryConfigStep() {
     };
 
     const handleSaveEdit = () => {
-        updateQuery(currentChannel.name, currentSource.source_id, editedQuery);
+        updateQuery(editedQuery);
         setIsEditing(false);
     };
 
     const handleConfirmAndContinue = () => {
-        confirmQuery(currentChannel.name, currentSource.source_id);
+        confirmQuery();
         // Always call nextSource - it will handle moving to next source or to semantic filter
-        nextSource(currentChannel.name);
+        nextSource();
     };
 
     const handleSaveContextEdits = async () => {
@@ -139,7 +139,7 @@ export default function QueryConfigStep() {
             contextEdits.channel_focus !== currentChannel.focus ||
             contextEdits.channel_keywords !== currentChannel.keywords.join(', ')
         ) {
-            await updateChannel(currentChannel.name, {
+            await updateChannel({
                 name: contextEdits.channel_name,
                 focus: contextEdits.channel_focus,
                 keywords: contextEdits.channel_keywords.split(',').map(k => k.trim()).filter(k => k)
