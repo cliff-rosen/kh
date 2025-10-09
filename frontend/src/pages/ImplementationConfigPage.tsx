@@ -1,404 +1,35 @@
-import { useEffect, useState, useReducer } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-
-import { researchStreamApi } from '../lib/api/researchStreamApi';
-
-import {
-    ImplementationConfigState,
-    ChannelConfigState,
-    ConfigAction,
-    ConfigStep,
-    SourceQueryConfig,
-    getCurrentChannel,
-    getCurrentChannelConfig,
-    getOverallProgress
-} from '../types/implementation-config';
+import { useImplementationConfig } from '../hooks/useImplementationConfig';
 import { CanonicalResearchArticle } from '../types/canonical_types';
-
 import SourceSelectionStep from '../components/ImplementationConfigSteps/SourceSelectionStep';
 import QueryConfigStep from '../components/ImplementationConfigSteps/QueryConfigStep';
 import SemanticFilterStep from '../components/ImplementationConfigSteps/SemanticFilterStep';
-
-// ============================================================================
-// State Reducer
-// ============================================================================
-
-function configReducer(state: ImplementationConfigState, action: ConfigAction): ImplementationConfigState {
-    switch (action.type) {
-        case 'LOAD_STREAM': {
-            const { stream_name, channels, sources } = action.payload;
-
-            // Initialize channel configs
-            const channel_configs = new Map<string, ChannelConfigState>();
-            channels.forEach(channel => {
-                channel_configs.set(channel.name, {
-                    channel,
-                    selected_sources: [],
-                    source_configs: new Map(),
-                    current_source_index: 0,
-                    completed_steps: [],
-                    current_step: 'source_selection',
-                    is_complete: false
-                });
-            });
-
-            return {
-                ...state,
-                stream_name,
-                channels,
-                available_sources: sources,
-                channel_configs,
-                current_channel_index: 0
-            };
-        }
-
-        case 'SELECT_SOURCES': {
-            const { channel_name, source_ids } = action.payload;
-            const channelConfig = state.channel_configs.get(channel_name);
-            if (!channelConfig) return state;
-
-            // Initialize source configs for selected sources
-            const source_configs = new Map<string, SourceQueryConfig>();
-            source_ids.forEach(source_id => {
-                const source = state.available_sources.find(s => s.source_id === source_id);
-                if (source) {
-                    source_configs.set(source_id, {
-                        source_id,
-                        source_name: source.name,
-                        query_expression: '',
-                        is_tested: false,
-                        is_confirmed: false
-                    });
-                }
-            });
-
-            const updated = {
-                ...channelConfig,
-                selected_sources: source_ids,
-                source_configs,
-                current_step: 'query_generation' as ConfigStep,
-                completed_steps: ['source_selection' as ConfigStep]
-            };
-
-            const newConfigs = new Map(state.channel_configs);
-            newConfigs.set(channel_name, updated);
-
-            return { ...state, channel_configs: newConfigs };
-        }
-
-        case 'GENERATE_QUERY_SUCCESS': {
-            const { channel_name, source_id, query_expression, reasoning } = action.payload;
-            const channelConfig = state.channel_configs.get(channel_name);
-            if (!channelConfig) return state;
-
-            const sourceConfig = channelConfig.source_configs.get(source_id);
-            if (!sourceConfig) return state;
-
-            const updatedSourceConfig = {
-                ...sourceConfig,
-                query_expression,
-                query_reasoning: reasoning
-            };
-
-            const newSourceConfigs = new Map(channelConfig.source_configs);
-            newSourceConfigs.set(source_id, updatedSourceConfig);
-
-            const updatedChannel = {
-                ...channelConfig,
-                source_configs: newSourceConfigs,
-                current_step: 'query_testing' as ConfigStep
-            };
-
-            const newConfigs = new Map(state.channel_configs);
-            newConfigs.set(channel_name, updatedChannel);
-
-            return { ...state, channel_configs: newConfigs };
-        }
-
-        case 'UPDATE_QUERY': {
-            const { channel_name, source_id, query_expression } = action.payload;
-            const channelConfig = state.channel_configs.get(channel_name);
-            if (!channelConfig) return state;
-
-            const sourceConfig = channelConfig.source_configs.get(source_id);
-            if (!sourceConfig) return state;
-
-            const updatedSourceConfig = {
-                ...sourceConfig,
-                query_expression,
-                is_tested: false, // Reset test status when query changes
-                test_result: undefined
-            };
-
-            const newSourceConfigs = new Map(channelConfig.source_configs);
-            newSourceConfigs.set(source_id, updatedSourceConfig);
-
-            const updatedChannel = {
-                ...channelConfig,
-                source_configs: newSourceConfigs
-            };
-
-            const newConfigs = new Map(state.channel_configs);
-            newConfigs.set(channel_name, updatedChannel);
-
-            return { ...state, channel_configs: newConfigs };
-        }
-
-        case 'TEST_QUERY_SUCCESS': {
-            const { channel_name, source_id, result } = action.payload;
-            const channelConfig = state.channel_configs.get(channel_name);
-            if (!channelConfig) return state;
-
-            const sourceConfig = channelConfig.source_configs.get(source_id);
-            if (!sourceConfig) return state;
-
-            const updatedSourceConfig = {
-                ...sourceConfig,
-                is_tested: true,
-                test_result: result
-            };
-
-            const newSourceConfigs = new Map(channelConfig.source_configs);
-            newSourceConfigs.set(source_id, updatedSourceConfig);
-
-            const updatedChannel = {
-                ...channelConfig,
-                source_configs: newSourceConfigs,
-                current_step: 'query_refinement' as ConfigStep
-            };
-
-            const newConfigs = new Map(state.channel_configs);
-            newConfigs.set(channel_name, updatedChannel);
-
-            return { ...state, channel_configs: newConfigs };
-        }
-
-        case 'CONFIRM_QUERY': {
-            console.log('CONFIRM_QUERY', action.payload);
-            const { channel_name, source_id } = action.payload;
-            const channelConfig = state.channel_configs.get(channel_name);
-            if (!channelConfig) return state;
-
-            const sourceConfig = channelConfig.source_configs.get(source_id);
-            if (!sourceConfig) return state;
-
-            const updatedSourceConfig = {
-                ...sourceConfig,
-                is_confirmed: true
-            };
-
-            const newSourceConfigs = new Map(channelConfig.source_configs);
-            newSourceConfigs.set(source_id, updatedSourceConfig);
-
-            const updatedChannel = {
-                ...channelConfig,
-                source_configs: newSourceConfigs
-            };
-
-            const newConfigs = new Map(state.channel_configs);
-            newConfigs.set(channel_name, updatedChannel);
-
-            return { ...state, channel_configs: newConfigs };
-        }
-
-        case 'NEXT_SOURCE': {
-            const { channel_name } = action.payload;
-            const channelConfig = state.channel_configs.get(channel_name);
-            if (!channelConfig) return state;
-
-            const nextIndex = channelConfig.current_source_index + 1;
-
-            // If we've configured all sources, move to semantic filter
-            if (nextIndex >= channelConfig.selected_sources.length) {
-                const updatedChannel = {
-                    ...channelConfig,
-                    current_step: 'semantic_filter_config' as ConfigStep
-                };
-
-                const newConfigs = new Map(state.channel_configs);
-                newConfigs.set(channel_name, updatedChannel);
-
-                return { ...state, channel_configs: newConfigs };
-            }
-
-            // Otherwise, move to next source
-            const updatedChannel = {
-                ...channelConfig,
-                current_source_index: nextIndex,
-                current_step: 'query_generation' as ConfigStep
-            };
-
-            const newConfigs = new Map(state.channel_configs);
-            newConfigs.set(channel_name, updatedChannel);
-
-            return { ...state, channel_configs: newConfigs };
-        }
-
-        case 'GENERATE_FILTER_SUCCESS': {
-            const { channel_name, criteria, reasoning } = action.payload;
-            const channelConfig = state.channel_configs.get(channel_name);
-            if (!channelConfig) return state;
-
-            const updatedChannel = {
-                ...channelConfig,
-                semantic_filter: {
-                    enabled: true,
-                    criteria,
-                    reasoning,
-                    threshold: 0.7,
-                    is_tested: false
-                }
-            };
-
-            const newConfigs = new Map(state.channel_configs);
-            newConfigs.set(channel_name, updatedChannel);
-
-            return { ...state, channel_configs: newConfigs };
-        }
-
-        case 'UPDATE_SEMANTIC_FILTER': {
-            const { channel_name, filter } = action.payload;
-            const channelConfig = state.channel_configs.get(channel_name);
-            if (!channelConfig) return state;
-
-            const updatedChannel = {
-                ...channelConfig,
-                semantic_filter: {
-                    ...channelConfig.semantic_filter!,
-                    ...filter
-                }
-            };
-
-            const newConfigs = new Map(state.channel_configs);
-            newConfigs.set(channel_name, updatedChannel);
-
-            return { ...state, channel_configs: newConfigs };
-        }
-
-        case 'TEST_SEMANTIC_FILTER_SUCCESS': {
-            const { channel_name, result } = action.payload;
-            const channelConfig = state.channel_configs.get(channel_name);
-            if (!channelConfig || !channelConfig.semantic_filter) return state;
-
-            const updatedChannel = {
-                ...channelConfig,
-                semantic_filter: {
-                    ...channelConfig.semantic_filter,
-                    is_tested: true,
-                    test_result: result
-                }
-            };
-
-            const newConfigs = new Map(state.channel_configs);
-            newConfigs.set(channel_name, updatedChannel);
-
-            return { ...state, channel_configs: newConfigs };
-        }
-
-        case 'COMPLETE_CHANNEL': {
-            const { channel_name } = action.payload;
-            const channelConfig = state.channel_configs.get(channel_name);
-            if (!channelConfig) return state;
-
-            const updatedChannel = {
-                ...channelConfig,
-                is_complete: true,
-                current_step: 'channel_complete' as ConfigStep
-            };
-
-            const newConfigs = new Map(state.channel_configs);
-            newConfigs.set(channel_name, updatedChannel);
-
-            return { ...state, channel_configs: newConfigs };
-        }
-
-        case 'NEXT_CHANNEL': {
-            const nextIndex = state.current_channel_index + 1;
-
-            // Check if all channels are complete
-            if (nextIndex >= state.channels.length) {
-                return {
-                    ...state,
-                    is_complete: true
-                };
-            }
-
-            return {
-                ...state,
-                current_channel_index: nextIndex
-            };
-        }
-
-        case 'SAVE_PROGRESS_START': {
-            return { ...state, is_saving: true, error: undefined };
-        }
-
-        case 'SAVE_PROGRESS_SUCCESS': {
-            return { ...state, is_saving: false };
-        }
-
-        case 'SAVE_PROGRESS_ERROR': {
-            return { ...state, is_saving: false, error: action.payload.error };
-        }
-
-        default:
-            return state;
-    }
-}
-
-// ============================================================================
-// Main Component
-// ============================================================================
 
 export default function ImplementationConfigPage() {
     const { streamId } = useParams<{ streamId: string }>();
     const navigate = useNavigate();
 
-    const [state, dispatch] = useReducer(configReducer, {
-        stream_id: parseInt(streamId || '0'),
-        stream_name: '',
-        channels: [],
-        available_sources: [],
-        channel_configs: new Map(),
-        current_channel_index: 0,
-        is_saving: false,
-        is_complete: false
-    });
-
-    const [isLoading, setIsLoading] = useState(true);
-    const [stream, setStream] = useState<any>(null);
-
-    // Load stream data on mount
-    useEffect(() => {
-        async function loadStream() {
-            try {
-                const [streamData, sources] = await Promise.all([
-                    researchStreamApi.getResearchStream(parseInt(streamId || '0')),
-                    researchStreamApi.getInformationSources()
-                ]);
-
-                setStream(streamData);
-                dispatch({
-                    type: 'LOAD_STREAM',
-                    payload: {
-                        stream_name: streamData.stream_name,
-                        channels: streamData.channels,
-                        sources
-                    }
-                });
-            } catch (error) {
-                console.error('Failed to load stream:', error);
-            } finally {
-                setIsLoading(false);
-            }
-        }
-
-        loadStream();
-    }, [streamId]);
-
-    const currentChannel = getCurrentChannel(state);
-    const currentChannelConfig = getCurrentChannelConfig(state);
-    const overallProgress = getOverallProgress(state);
+    const {
+        state,
+        stream,
+        isLoading,
+        currentChannel,
+        currentChannelConfig,
+        overallProgress,
+        selectSources,
+        generateQuery,
+        updateQuery,
+        testQuery,
+        confirmQuery,
+        nextSource,
+        generateFilter,
+        updateFilterCriteria,
+        updateFilterThreshold,
+        testFilter,
+        updateStream,
+        updateChannel,
+        completeChannel
+    } = useImplementationConfig(parseInt(streamId || '0'));
 
     if (isLoading) {
         return (
@@ -428,13 +59,13 @@ export default function ImplementationConfigPage() {
                     </p>
                     <div className="flex gap-4 justify-center">
                         <button
-                            onClick={() => navigate(`/research-streams/${streamId}`)}
+                            onClick={() => navigate(`/streams/${streamId}`)}
                             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                         >
                             View Stream
                         </button>
                         <button
-                            onClick={() => navigate('/research-streams')}
+                            onClick={() => navigate('/streams')}
                             className="px-6 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600"
                         >
                             All Streams
@@ -459,7 +90,7 @@ export default function ImplementationConfigPage() {
                         </p>
                     </div>
                     <button
-                        onClick={() => navigate(`/research-streams/${streamId}`)}
+                        onClick={() => navigate(`/streams/${streamId}`)}
                         className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                     >
                         Exit
@@ -544,15 +175,7 @@ export default function ImplementationConfigPage() {
                             <SourceSelectionStep
                                 availableSources={state.available_sources}
                                 selectedSources={currentChannelConfig.selected_sources}
-                                onSourcesSelected={(sourceIds) => {
-                                    dispatch({
-                                        type: 'SELECT_SOURCES',
-                                        payload: {
-                                            channel_name: currentChannel.name,
-                                            source_ids: sourceIds
-                                        }
-                                    });
-                                }}
+                                onSourcesSelected={(sourceIds) => selectSources(currentChannel.name, sourceIds)}
                             />
                         )}
 
@@ -578,96 +201,26 @@ export default function ImplementationConfigPage() {
                                                 channel={currentChannel}
                                                 source={currentSource}
                                                 sourceConfig={sourceConfig}
-                                                onQueryGenerated={(query, reasoning) => {
-                                                    dispatch({
-                                                        type: 'GENERATE_QUERY_SUCCESS',
-                                                        payload: {
-                                                            channel_name: currentChannel.name,
-                                                            source_id: currentSourceId,
-                                                            query_expression: query,
-                                                            reasoning
-                                                        }
-                                                    });
+                                                onQueryGenerated={async (query, reasoning) => {
+                                                    await generateQuery(currentChannel.name, currentSourceId);
                                                 }}
                                                 onQueryUpdated={(query) => {
-                                                    dispatch({
-                                                        type: 'UPDATE_QUERY',
-                                                        payload: {
-                                                            channel_name: currentChannel.name,
-                                                            source_id: currentSourceId,
-                                                            query_expression: query
-                                                        }
-                                                    });
+                                                    updateQuery(currentChannel.name, currentSourceId, query);
                                                 }}
-                                                onQueryTested={(result) => {
-                                                    dispatch({
-                                                        type: 'TEST_QUERY_SUCCESS',
-                                                        payload: {
-                                                            channel_name: currentChannel.name,
-                                                            source_id: currentSourceId,
-                                                            result
-                                                        }
-                                                    });
+                                                onQueryTested={async (testRequest) => {
+                                                    await testQuery(currentChannel.name, currentSourceId, testRequest);
                                                 }}
                                                 onQueryConfirmed={() => {
-                                                    dispatch({
-                                                        type: 'CONFIRM_QUERY',
-                                                        payload: {
-                                                            channel_name: currentChannel.name,
-                                                            source_id: currentSourceId
-                                                        }
-                                                    });
+                                                    confirmQuery(currentChannel.name, currentSourceId);
                                                 }}
                                                 onNextSource={() => {
-                                                    dispatch({
-                                                        type: 'NEXT_SOURCE',
-                                                        payload: { channel_name: currentChannel.name }
-                                                    });
+                                                    nextSource(currentChannel.name);
                                                 }}
                                                 onStreamUpdated={async (updates) => {
-                                                    // Update stream via API
-                                                    try {
-                                                        await researchStreamApi.updateResearchStream(state.stream_id, updates);
-                                                        // Reload to get updated data
-                                                        const updatedStream = await researchStreamApi.getResearchStream(state.stream_id);
-                                                        setStream(updatedStream);
-                                                        dispatch({
-                                                            type: 'LOAD_STREAM',
-                                                            payload: {
-                                                                stream_name: updatedStream.stream_name,
-                                                                channels: updatedStream.channels,
-                                                                sources: state.available_sources
-                                                            }
-                                                        });
-                                                    } catch (error) {
-                                                        console.error('Failed to update stream:', error);
-                                                        alert('Failed to update stream. Please try again.');
-                                                    }
+                                                    await updateStream(updates);
                                                 }}
                                                 onChannelUpdated={async (updates) => {
-                                                    // Update channel in stream via API
-                                                    try {
-                                                        const updatedChannels = state.channels.map(ch =>
-                                                            ch.name === currentChannel.name ? { ...ch, ...updates } : ch
-                                                        );
-                                                        await researchStreamApi.updateResearchStream(state.stream_id, {
-                                                            channels: updatedChannels
-                                                        });
-                                                        // Reload to get updated data
-                                                        const updatedStream = await researchStreamApi.getResearchStream(state.stream_id);
-                                                        setStream(updatedStream);
-                                                        dispatch({
-                                                            type: 'LOAD_STREAM',
-                                                            payload: {
-                                                                stream_name: updatedStream.stream_name,
-                                                                channels: updatedStream.channels,
-                                                                sources: state.available_sources
-                                                            }
-                                                        });
-                                                    } catch (error) {
-                                                        console.error('Failed to update channel:', error);
-                                                        alert('Failed to update channel. Please try again.');
-                                                    }
+                                                    await updateChannel(currentChannel.name, updates);
                                                 }}
                                                 isLastSource={currentChannelConfig.current_source_index === currentChannelConfig.selected_sources.length - 1}
                                             />
@@ -696,49 +249,20 @@ export default function ImplementationConfigPage() {
                                             channel={currentChannel}
                                             filterConfig={currentChannelConfig.semantic_filter}
                                             sampleArticles={sampleArticles}
-                                            onFilterGenerated={(criteria, reasoning) => {
-                                                dispatch({
-                                                    type: 'GENERATE_FILTER_SUCCESS',
-                                                    payload: {
-                                                        channel_name: currentChannel.name,
-                                                        criteria,
-                                                        reasoning
-                                                    }
-                                                });
+                                            onFilterGenerated={async (criteria, reasoning) => {
+                                                await generateFilter(currentChannel.name);
                                             }}
                                             onFilterUpdated={(criteria) => {
-                                                dispatch({
-                                                    type: 'UPDATE_SEMANTIC_FILTER',
-                                                    payload: {
-                                                        channel_name: currentChannel.name,
-                                                        filter: { criteria }
-                                                    }
-                                                });
+                                                updateFilterCriteria(currentChannel.name, criteria);
                                             }}
-                                            onFilterTested={(result) => {
-                                                dispatch({
-                                                    type: 'TEST_SEMANTIC_FILTER_SUCCESS',
-                                                    payload: {
-                                                        channel_name: currentChannel.name,
-                                                        result
-                                                    }
-                                                });
+                                            onFilterTested={async (articles, criteria, threshold) => {
+                                                await testFilter(currentChannel.name, articles, criteria, threshold);
                                             }}
                                             onThresholdChanged={(threshold) => {
-                                                dispatch({
-                                                    type: 'UPDATE_SEMANTIC_FILTER',
-                                                    payload: {
-                                                        channel_name: currentChannel.name,
-                                                        filter: { threshold }
-                                                    }
-                                                });
+                                                updateFilterThreshold(currentChannel.name, threshold);
                                             }}
                                             onComplete={() => {
-                                                dispatch({
-                                                    type: 'COMPLETE_CHANNEL',
-                                                    payload: { channel_name: currentChannel.name }
-                                                });
-                                                dispatch({ type: 'NEXT_CHANNEL' });
+                                                completeChannel();
                                             }}
                                         />
                                     );

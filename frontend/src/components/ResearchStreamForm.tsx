@@ -99,8 +99,9 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
         }
 
         try {
-            await createResearchStream(form);
-            navigate('/dashboard');
+            const newStream = await createResearchStream(form);
+            // Navigate directly to implementation configuration (Workflow 2)
+            navigate(`/streams/${newStream.stream_id}/configure`);
         } catch (err) {
             console.error('Failed to create research stream:', err);
         }
