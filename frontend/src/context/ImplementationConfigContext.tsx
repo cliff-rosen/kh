@@ -1,19 +1,71 @@
-import { useReducer, useCallback, useState, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useState, useEffect, ReactNode } from 'react';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
 import {
-    ImplementationConfigState,
     ConfigAction,
     ConfigStep,
     getCurrentChannel,
     getCurrentChannelConfig,
     getOverallProgress
 } from '../types/implementation-config';
-import { Channel, InformationSource } from '../types/research-stream';
+import { Channel, InformationSource, ResearchStream } from '../types/research-stream';
 import { CanonicalResearchArticle } from '../types/canonical_types';
 
 // ============================================================================
-// Reducer (same as before, but encapsulated in the hook)
+// Context Type
 // ============================================================================
+
+interface ImplementationConfigContextType {
+    // State - individual properties instead of nested "state" object
+    streamId: number;
+    streamName: string;
+    channels: Channel[];
+    availableSources: InformationSource[];
+    channelConfigs: Map<string, any>;
+    currentChannelIndex: number;
+    isSaving: boolean;
+    isComplete: boolean;
+    error?: string;
+
+    // Computed values
+    stream: ResearchStream | null;
+    isLoading: boolean;
+    currentChannel: Channel | null;
+    currentChannelConfig: any | null;
+    overallProgress: number;
+
+    // Actions
+    selectSources: (channelName: string, sourceIds: string[]) => void;
+    generateQuery: (channelName: string, sourceId: string) => Promise<void>;
+    updateQuery: (channelName: string, sourceId: string, query: string) => void;
+    testQuery: (channelName: string, sourceId: string, request: any) => Promise<void>;
+    confirmQuery: (channelName: string, sourceId: string) => void;
+    nextSource: (channelName: string) => void;
+    generateFilter: (channelName: string) => Promise<void>;
+    updateFilterCriteria: (channelName: string, criteria: string) => void;
+    updateFilterThreshold: (channelName: string, threshold: number) => void;
+    testFilter: (channelName: string, articles: CanonicalResearchArticle[], criteria: string, threshold: number) => Promise<void>;
+    updateStream: (updates: { stream_name?: string; purpose?: string }) => Promise<void>;
+    updateChannel: (channelName: string, updates: Partial<Channel>) => Promise<void>;
+    completeChannel: () => void;
+}
+
+const ImplementationConfigContext = createContext<ImplementationConfigContextType | undefined>(undefined);
+
+// ============================================================================
+// Reducer
+// ============================================================================
+
+interface ImplementationConfigState {
+    stream_id: number;
+    stream_name: string;
+    channels: Channel[];
+    available_sources: InformationSource[];
+    channel_configs: Map<string, any>;
+    current_channel_index: number;
+    is_saving: boolean;
+    is_complete: boolean;
+    error?: string;
+}
 
 function configReducer(state: ImplementationConfigState, action: ConfigAction): ImplementationConfigState {
     switch (action.type) {
@@ -321,10 +373,15 @@ function configReducer(state: ImplementationConfigState, action: ConfigAction): 
 }
 
 // ============================================================================
-// Hook
+// Provider
 // ============================================================================
 
-export function useImplementationConfig(streamId: number) {
+interface ImplementationConfigProviderProps {
+    streamId: number;
+    children: ReactNode;
+}
+
+export function ImplementationConfigProvider({ streamId, children }: ImplementationConfigProviderProps) {
     const [state, dispatch] = useReducer(configReducer, {
         stream_id: streamId,
         stream_name: '',
@@ -337,7 +394,7 @@ export function useImplementationConfig(streamId: number) {
     });
 
     const [isLoading, setIsLoading] = useState(true);
-    const [stream, setStream] = useState<any>(null);
+    const [stream, setStream] = useState<ResearchStream | null>(null);
 
     // Load stream data
     const loadStream = useCallback(async () => {
@@ -536,9 +593,19 @@ export function useImplementationConfig(streamId: number) {
     const currentChannelConfig = getCurrentChannelConfig(state);
     const overallProgress = getOverallProgress(state);
 
-    return {
-        // State
-        state,
+    const value: ImplementationConfigContextType = {
+        // State - individual properties
+        streamId: state.stream_id,
+        streamName: state.stream_name,
+        channels: state.channels,
+        availableSources: state.available_sources,
+        channelConfigs: state.channel_configs,
+        currentChannelIndex: state.current_channel_index,
+        isSaving: state.is_saving,
+        isComplete: state.is_complete,
+        error: state.error,
+
+        // Computed values
         stream,
         isLoading,
         currentChannel,
@@ -560,4 +627,18 @@ export function useImplementationConfig(streamId: number) {
         updateChannel,
         completeChannel
     };
+
+    return (
+        <ImplementationConfigContext.Provider value={value}>
+            {children}
+        </ImplementationConfigContext.Provider>
+    );
+}
+
+export function useImplementationConfig(): ImplementationConfigContextType {
+    const context = useContext(ImplementationConfigContext);
+    if (context === undefined) {
+        throw new Error('useImplementationConfig must be used within an ImplementationConfigProvider');
+    }
+    return context;
 }

@@ -1,53 +1,43 @@
 import { useState, useEffect } from 'react';
-import { SourceQueryConfig } from '../../types/implementation-config';
-import { InformationSource, Channel } from '../../types/research-stream';
-import { researchStreamApi } from '../../lib/api/researchStreamApi';
+import { useImplementationConfig } from '../../context/ImplementationConfigContext';
 import { ArrowPathIcon, CheckCircleIcon, XCircleIcon, PencilIcon } from '@heroicons/react/24/outline';
 
-interface QueryConfigStepProps {
-    streamId: number;
-    streamName: string;
-    streamPurpose: string;
-    channel: Channel;
-    source: InformationSource;
-    sourceConfig: SourceQueryConfig;
-    onQueryGenerated: (query: string, reasoning: string) => void;
-    onQueryUpdated: (query: string) => void;
-    onQueryTested: (result: any) => void;
-    onQueryConfirmed: () => void;
-    onNextSource: () => void;
-    onStreamUpdated?: (updates: { stream_name?: string; purpose?: string }) => void;
-    onChannelUpdated?: (updates: Partial<Channel>) => void;
-    isLastSource: boolean;
-}
+export default function QueryConfigStep() {
+    const {
+        streamId,
+        streamName,
+        stream,
+        currentChannel,
+        currentChannelConfig,
+        availableSources,
+        generateQuery,
+        updateQuery,
+        testQuery,
+        confirmQuery,
+        nextSource,
+        updateStream,
+        updateChannel
+    } = useImplementationConfig();
 
-export default function QueryConfigStep({
-    streamId,
-    streamName,
-    streamPurpose,
-    channel,
-    source,
-    sourceConfig,
-    onQueryGenerated,
-    onQueryUpdated,
-    onQueryTested,
-    onQueryConfirmed,
-    onNextSource,
-    onStreamUpdated,
-    onChannelUpdated,
-    isLastSource
-}: QueryConfigStepProps) {
+    // Get current source information
+    const currentSourceId = currentChannelConfig?.selected_sources[currentChannelConfig.current_source_index];
+    const currentSource = availableSources?.find(s => s.source_id === currentSourceId);
+    const sourceConfig = currentChannelConfig?.source_configs.get(currentSourceId);
+
+    // Check if this is the last source
+    const isLastSource = currentChannelConfig ? currentChannelConfig.current_source_index === currentChannelConfig.selected_sources.length - 1 : false;
+
     const [isGenerating, setIsGenerating] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
-    const [editedQuery, setEditedQuery] = useState(sourceConfig.query_expression);
+    const [editedQuery, setEditedQuery] = useState(sourceConfig?.query_expression || '');
     const [isEditing, setIsEditing] = useState(false);
     const [isEditingContext, setIsEditingContext] = useState(false);
     const [contextEdits, setContextEdits] = useState({
-        stream_name: streamName,
-        stream_purpose: streamPurpose,
-        channel_name: channel.name,
-        channel_focus: channel.focus,
-        channel_keywords: channel.keywords.join(', ')
+        stream_name: streamName || '',
+        stream_purpose: stream?.purpose || '',
+        channel_name: currentChannel?.name || '',
+        channel_focus: currentChannel?.focus || '',
+        channel_keywords: currentChannel?.keywords.join(', ') || ''
     });
 
     // Date range state (default to last 7 days for PubMed)
@@ -64,28 +54,32 @@ export default function QueryConfigStep({
     const [dateRange, setDateRange] = useState(getDefaultDateRange());
 
     useEffect(() => {
-        setEditedQuery(sourceConfig.query_expression);
-    }, [sourceConfig.query_expression]);
+        if (sourceConfig) {
+            setEditedQuery(sourceConfig.query_expression);
+        }
+    }, [sourceConfig?.query_expression]);
 
     useEffect(() => {
-        setContextEdits({
-            stream_name: streamName,
-            stream_purpose: streamPurpose,
-            channel_name: channel.name,
-            channel_focus: channel.focus,
-            channel_keywords: channel.keywords.join(', ')
-        });
-    }, [streamName, streamPurpose, channel]);
+        if (currentChannel) {
+            setContextEdits({
+                stream_name: streamName || '',
+                stream_purpose: stream?.purpose || '',
+                channel_name: currentChannel.name,
+                channel_focus: currentChannel.focus,
+                channel_keywords: currentChannel.keywords.join(', ')
+            });
+        }
+    }, [streamName, stream?.purpose, currentChannel]);
+
+    // Return null if required data is not available (after all hooks)
+    if (!currentChannel || !currentChannelConfig || !currentSource || !sourceConfig) {
+        return null;
+    }
 
     const handleGenerateQuery = async () => {
         setIsGenerating(true);
         try {
-            const result = await researchStreamApi.generateChannelQuery(
-                streamId,
-                channel.name,
-                { source_id: source.source_id }
-            );
-            onQueryGenerated(result.query_expression, result.reasoning);
+            await generateQuery(currentChannel.name, currentSource.source_id);
         } catch (error) {
             console.error('Query generation failed:', error);
             alert('Failed to generate query. Please try again.');
@@ -98,24 +92,19 @@ export default function QueryConfigStep({
         setIsTesting(true);
         try {
             const testRequest: any = {
-                source_id: source.source_id,
+                source_id: currentSource.source_id,
                 query_expression: editedQuery,
                 max_results: 10
             };
 
             // Add date range for PubMed
-            if (source.source_id === 'pubmed') {
+            if (currentSource.source_id === 'pubmed') {
                 testRequest.start_date = dateRange.start;
                 testRequest.end_date = dateRange.end;
                 testRequest.date_type = 'entrez';
             }
 
-            const result = await researchStreamApi.testChannelQuery(
-                streamId,
-                channel.name,
-                testRequest
-            );
-            onQueryTested(result);
+            await testQuery(currentChannel.name, currentSource.source_id, testRequest);
         } catch (error) {
             console.error('Query test failed:', error);
             alert('Failed to test query. Please try again.');
@@ -125,35 +114,33 @@ export default function QueryConfigStep({
     };
 
     const handleSaveEdit = () => {
-        onQueryUpdated(editedQuery);
+        updateQuery(currentChannel.name, currentSource.source_id, editedQuery);
         setIsEditing(false);
     };
 
     const handleConfirmAndContinue = () => {
-        onQueryConfirmed();
-        // Always call onNextSource - it will handle moving to next source or to semantic filter
-        onNextSource();
+        confirmQuery(currentChannel.name, currentSource.source_id);
+        // Always call nextSource - it will handle moving to next source or to semantic filter
+        nextSource(currentChannel.name);
     };
 
-    const handleSaveContextEdits = () => {
+    const handleSaveContextEdits = async () => {
         // Save stream updates
-        if (onStreamUpdated && (
-            contextEdits.stream_name !== streamName ||
-            contextEdits.stream_purpose !== streamPurpose
-        )) {
-            onStreamUpdated({
+        if (contextEdits.stream_name !== streamName ||
+            contextEdits.stream_purpose !== stream?.purpose
+        ) {
+            await updateStream({
                 stream_name: contextEdits.stream_name,
                 purpose: contextEdits.stream_purpose
             });
         }
 
         // Save channel updates
-        if (onChannelUpdated && (
-            contextEdits.channel_name !== channel.name ||
-            contextEdits.channel_focus !== channel.focus ||
-            contextEdits.channel_keywords !== channel.keywords.join(', ')
-        )) {
-            onChannelUpdated({
+        if (contextEdits.channel_name !== currentChannel.name ||
+            contextEdits.channel_focus !== currentChannel.focus ||
+            contextEdits.channel_keywords !== currentChannel.keywords.join(', ')
+        ) {
+            await updateChannel(currentChannel.name, {
                 name: contextEdits.channel_name,
                 focus: contextEdits.channel_focus,
                 keywords: contextEdits.channel_keywords.split(',').map(k => k.trim()).filter(k => k)
@@ -169,7 +156,7 @@ export default function QueryConfigStep({
             <div>
                 <div className="flex items-center justify-between mb-2">
                     <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                        Configure Query for {source.name}
+                        Configure Query for {currentSource.name}
                     </h2>
                     <span className="text-sm text-gray-500 dark:text-gray-400">
                         Channel: {contextEdits.channel_name}
@@ -275,11 +262,11 @@ export default function QueryConfigStep({
                             <button
                                 onClick={() => {
                                     setContextEdits({
-                                        stream_name: streamName,
-                                        stream_purpose: streamPurpose,
-                                        channel_name: channel.name,
-                                        channel_focus: channel.focus,
-                                        channel_keywords: channel.keywords.join(', ')
+                                        stream_name: streamName || '',
+                                        stream_purpose: stream?.purpose || '',
+                                        channel_name: currentChannel.name,
+                                        channel_focus: currentChannel.focus,
+                                        channel_keywords: currentChannel.keywords.join(', ')
                                     });
                                     setIsEditingContext(false);
                                 }}
@@ -418,7 +405,7 @@ export default function QueryConfigStep({
                         </h3>
 
                         {/* Date Range Filter (PubMed only) */}
-                        {source.source_id === 'pubmed' && (
+                        {currentSource.source_id === 'pubmed' && (
                             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
                                 <div className="flex items-center gap-4">
                                     <div className="flex-1">

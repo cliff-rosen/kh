@@ -1,35 +1,24 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useImplementationConfig } from '../hooks/useImplementationConfig';
-import { CanonicalResearchArticle } from '../types/canonical_types';
+import { ImplementationConfigProvider, useImplementationConfig } from '../context/ImplementationConfigContext';
 import SourceSelectionStep from '../components/ImplementationConfigSteps/SourceSelectionStep';
 import QueryConfigStep from '../components/ImplementationConfigSteps/QueryConfigStep';
 import SemanticFilterStep from '../components/ImplementationConfigSteps/SemanticFilterStep';
 
-export default function ImplementationConfigPage() {
-    const { streamId } = useParams<{ streamId: string }>();
+function ImplementationConfigContent() {
     const navigate = useNavigate();
-
     const {
-        state,
-        stream,
+        streamName,
+        channels,
+        channelConfigs,
+        currentChannelIndex,
+        isComplete,
         isLoading,
         currentChannel,
         currentChannelConfig,
-        overallProgress,
-        selectSources,
-        generateQuery,
-        updateQuery,
-        testQuery,
-        confirmQuery,
-        nextSource,
-        generateFilter,
-        updateFilterCriteria,
-        updateFilterThreshold,
-        testFilter,
-        updateStream,
-        updateChannel,
-        completeChannel
-    } = useImplementationConfig(parseInt(streamId || '0'));
+        overallProgress
+    } = useImplementationConfig();
+
+    const { streamId } = useParams<{ streamId: string }>();
 
     if (isLoading) {
         return (
@@ -42,7 +31,7 @@ export default function ImplementationConfigPage() {
         );
     }
 
-    if (state.is_complete) {
+    if (isComplete) {
         return (
             <div className="max-w-2xl mx-auto mt-12 p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
                 <div className="text-center">
@@ -55,7 +44,7 @@ export default function ImplementationConfigPage() {
                         Configuration Complete!
                     </h2>
                     <p className="text-gray-600 dark:text-gray-400 mb-6">
-                        All channels have been configured for {state.stream_name}
+                        All channels have been configured for {streamName}
                     </p>
                     <div className="flex gap-4 justify-center">
                         <button
@@ -86,7 +75,7 @@ export default function ImplementationConfigPage() {
                             Implementation Configuration
                         </h1>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                            {state.stream_name}
+                            {streamName}
                         </p>
                     </div>
                     <button
@@ -104,7 +93,7 @@ export default function ImplementationConfigPage() {
                             <div>
                                 <div className="flex items-center gap-2 mb-1">
                                     <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">
-                                        Configuring Channel {state.current_channel_index + 1} of {state.channels.length}
+                                        Configuring Channel {currentChannelIndex + 1} of {channels.length}
                                     </span>
                                 </div>
                                 <h2 className="text-lg font-bold text-gray-900 dark:text-white">
@@ -119,7 +108,7 @@ export default function ImplementationConfigPage() {
                                     Channels Remaining
                                 </div>
                                 <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                                    {state.channels.length - state.current_channel_index}
+                                    {channels.length - currentChannelIndex}
                                 </div>
                             </div>
                         </div>
@@ -132,10 +121,10 @@ export default function ImplementationConfigPage() {
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Channel Progress</span>
                     </div>
                     <div className="flex gap-2">
-                        {state.channels.map((channel, idx) => {
-                            const channelConfig = state.channel_configs.get(channel.name);
+                        {channels.map((channel, idx) => {
+                            const channelConfig = channelConfigs.get(channel.name);
                             const isComplete = channelConfig?.is_complete || false;
-                            const isCurrent = idx === state.current_channel_index;
+                            const isCurrent = idx === currentChannelIndex;
 
                             return (
                                 <div
@@ -153,7 +142,7 @@ export default function ImplementationConfigPage() {
                     </div>
                     <div className="flex justify-between mt-2">
                         <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {state.channels.filter((ch) => state.channel_configs.get(ch.name)?.is_complete).length} completed
+                            {channels.filter((ch) => channelConfigs.get(ch.name)?.is_complete).length} completed
                         </span>
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                             {overallProgress}% overall
@@ -172,106 +161,33 @@ export default function ImplementationConfigPage() {
                     <div>
                         {/* Source Selection Step */}
                         {currentChannelConfig.current_step === 'source_selection' && (
-                            <SourceSelectionStep
-                                availableSources={state.available_sources}
-                                selectedSources={currentChannelConfig.selected_sources}
-                                onSourcesSelected={(sourceIds) => selectSources(currentChannel.name, sourceIds)}
-                            />
+                            <SourceSelectionStep />
                         )}
 
                         {/* Query Generation/Testing Steps */}
                         {(currentChannelConfig.current_step === 'query_generation' ||
                             currentChannelConfig.current_step === 'query_testing' ||
                             currentChannelConfig.current_step === 'query_refinement') && (
-                                <>
-                                    {(() => {
-                                        const currentSourceId = currentChannelConfig.selected_sources[currentChannelConfig.current_source_index];
-                                        const currentSource = state.available_sources.find(s => s.source_id === currentSourceId);
-                                        const sourceConfig = currentChannelConfig.source_configs.get(currentSourceId);
-
-                                        if (!currentSource || !sourceConfig) {
-                                            return <div className="text-center py-12 text-gray-500">Loading...</div>;
-                                        }
-
-                                        return (
-                                            <QueryConfigStep
-                                                streamId={state.stream_id}
-                                                streamName={state.stream_name}
-                                                streamPurpose={stream?.purpose || ''}
-                                                channel={currentChannel}
-                                                source={currentSource}
-                                                sourceConfig={sourceConfig}
-                                                onQueryGenerated={async (query, reasoning) => {
-                                                    await generateQuery(currentChannel.name, currentSourceId);
-                                                }}
-                                                onQueryUpdated={(query) => {
-                                                    updateQuery(currentChannel.name, currentSourceId, query);
-                                                }}
-                                                onQueryTested={async (testRequest) => {
-                                                    await testQuery(currentChannel.name, currentSourceId, testRequest);
-                                                }}
-                                                onQueryConfirmed={() => {
-                                                    confirmQuery(currentChannel.name, currentSourceId);
-                                                }}
-                                                onNextSource={() => {
-                                                    nextSource(currentChannel.name);
-                                                }}
-                                                onStreamUpdated={async (updates) => {
-                                                    await updateStream(updates);
-                                                }}
-                                                onChannelUpdated={async (updates) => {
-                                                    await updateChannel(currentChannel.name, updates);
-                                                }}
-                                                isLastSource={currentChannelConfig.current_source_index === currentChannelConfig.selected_sources.length - 1}
-                                            />
-                                        );
-                                    })()}
-                                </>
+                                <QueryConfigStep />
                             )}
 
                         {/* Semantic Filter Step */}
                         {currentChannelConfig.current_step === 'semantic_filter_config' && (
-                            <>
-                                {(() => {
-                                    // Collect all sample articles from query test results
-                                    const sampleArticles: CanonicalResearchArticle[] = [];
-                                    currentChannelConfig.source_configs.forEach(config => {
-                                        if (config.test_result?.sample_articles) {
-                                            sampleArticles.push(...config.test_result.sample_articles);
-                                        }
-                                    });
-
-                                    return (
-                                        <SemanticFilterStep
-                                            streamId={state.stream_id}
-                                            streamName={state.stream_name}
-                                            streamPurpose={stream?.purpose || ''}
-                                            channel={currentChannel}
-                                            filterConfig={currentChannelConfig.semantic_filter}
-                                            sampleArticles={sampleArticles}
-                                            onFilterGenerated={async (criteria, reasoning) => {
-                                                await generateFilter(currentChannel.name);
-                                            }}
-                                            onFilterUpdated={(criteria) => {
-                                                updateFilterCriteria(currentChannel.name, criteria);
-                                            }}
-                                            onFilterTested={async (articles, criteria, threshold) => {
-                                                await testFilter(currentChannel.name, articles, criteria, threshold);
-                                            }}
-                                            onThresholdChanged={(threshold) => {
-                                                updateFilterThreshold(currentChannel.name, threshold);
-                                            }}
-                                            onComplete={() => {
-                                                completeChannel();
-                                            }}
-                                        />
-                                    );
-                                })()}
-                            </>
+                            <SemanticFilterStep />
                         )}
                     </div>
                 )}
             </div>
         </div>
+    );
+}
+
+export default function ImplementationConfigPage() {
+    const { streamId } = useParams<{ streamId: string }>();
+
+    return (
+        <ImplementationConfigProvider streamId={parseInt(streamId || '0')}>
+            <ImplementationConfigContent />
+        </ImplementationConfigProvider>
     );
 }

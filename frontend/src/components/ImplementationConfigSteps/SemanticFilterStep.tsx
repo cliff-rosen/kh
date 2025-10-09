@@ -1,37 +1,35 @@
 import { useState, useEffect } from 'react';
-import { SemanticFilterConfig } from '../../types/implementation-config';
-import { Channel } from '../../types/research-stream';
-import { researchStreamApi } from '../../lib/api/researchStreamApi';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
 import { ArrowPathIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
+import { useImplementationConfig } from '../../context/ImplementationConfigContext';
 
-interface SemanticFilterStepProps {
-    streamId: number;
-    streamName: string;
-    streamPurpose: string;
-    channel: Channel;
-    filterConfig?: SemanticFilterConfig;
-    sampleArticles: CanonicalResearchArticle[]; // Articles from query testing to use for filter testing
-    onFilterGenerated: (criteria: string, reasoning: string) => void;
-    onFilterUpdated: (criteria: string) => void;
-    onFilterTested: (result: any) => void;
-    onThresholdChanged: (threshold: number) => void;
-    onComplete: () => void;
-}
+export default function SemanticFilterStep() {
+    const {
+        streamId,
+        streamName,
+        stream,
+        currentChannel,
+        currentChannelConfig,
+        availableSources,
+        generateFilter,
+        updateFilterCriteria,
+        updateFilterThreshold,
+        testFilter,
+        completeChannel
+    } = useImplementationConfig();
 
-export default function SemanticFilterStep({
-    streamId,
-    streamName,
-    streamPurpose,
-    channel,
-    filterConfig,
-    sampleArticles,
-    onFilterGenerated,
-    onFilterUpdated,
-    onFilterTested,
-    onThresholdChanged,
-    onComplete
-}: SemanticFilterStepProps) {
+    const filterConfig = currentChannelConfig?.semantic_filter;
+
+    // Collect all sample articles from query test results
+    const sampleArticles: CanonicalResearchArticle[] = [];
+    if (currentChannelConfig) {
+        currentChannelConfig.source_configs.forEach((config: any) => {
+            if (config.test_result?.sample_articles) {
+                sampleArticles.push(...config.test_result.sample_articles);
+            }
+        });
+    }
+
     const [isGenerating, setIsGenerating] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
     const [editedCriteria, setEditedCriteria] = useState(filterConfig?.criteria || '');
@@ -47,13 +45,10 @@ export default function SemanticFilterStep({
     }, [filterConfig?.threshold]);
 
     const handleGenerateFilter = async () => {
+        if (!currentChannel) return;
         setIsGenerating(true);
         try {
-            const result = await researchStreamApi.generateChannelFilter(
-                streamId,
-                channel.name
-            );
-            onFilterGenerated(result.filter_criteria, result.reasoning);
+            await generateFilter(currentChannel.name);
         } catch (error) {
             console.error('Filter generation failed:', error);
             alert('Failed to generate filter. Please try again.');
@@ -63,6 +58,7 @@ export default function SemanticFilterStep({
     };
 
     const handleTestFilter = async () => {
+        if (!currentChannel) return;
         if (sampleArticles.length === 0) {
             alert('No sample articles available. Please test queries first.');
             return;
@@ -70,16 +66,7 @@ export default function SemanticFilterStep({
 
         setIsTesting(true);
         try {
-            const result = await researchStreamApi.testChannelFilter(
-                streamId,
-                channel.name,
-                {
-                    articles: sampleArticles,
-                    filter_criteria: editedCriteria,
-                    threshold: threshold
-                }
-            );
-            onFilterTested(result);
+            await testFilter(currentChannel.name, sampleArticles, editedCriteria, threshold);
         } catch (error) {
             console.error('Filter test failed:', error);
             alert('Failed to test filter. Please try again.');
@@ -89,14 +76,18 @@ export default function SemanticFilterStep({
     };
 
     const handleSaveEdit = () => {
-        onFilterUpdated(editedCriteria);
+        if (!currentChannel) return;
+        updateFilterCriteria(currentChannel.name, editedCriteria);
         setIsEditing(false);
     };
 
     const handleThresholdChange = (newThreshold: number) => {
+        if (!currentChannel) return;
         setThreshold(newThreshold);
-        onThresholdChanged(newThreshold);
+        updateFilterThreshold(currentChannel.name, newThreshold);
     };
+
+    if (!currentChannel) return null;
 
     return (
         <div className="space-y-6">
@@ -122,15 +113,15 @@ export default function SemanticFilterStep({
                     </div>
                     <div>
                         <span className="font-medium text-gray-700 dark:text-gray-300">Purpose:</span>{' '}
-                        <span className="text-gray-900 dark:text-white">{streamPurpose}</span>
+                        <span className="text-gray-900 dark:text-white">{stream?.purpose || ''}</span>
                     </div>
                     <div className="border-t border-blue-200 dark:border-blue-700 pt-2 mt-2">
                         <span className="font-medium text-gray-700 dark:text-gray-300">Channel:</span>{' '}
-                        <span className="text-gray-900 dark:text-white">{channel.name}</span>
+                        <span className="text-gray-900 dark:text-white">{currentChannel.name}</span>
                     </div>
                     <div>
                         <span className="font-medium text-gray-700 dark:text-gray-300">Focus:</span>{' '}
-                        <span className="text-gray-900 dark:text-white">{channel.focus}</span>
+                        <span className="text-gray-900 dark:text-white">{currentChannel.focus}</span>
                     </div>
                 </div>
             </div>
@@ -316,7 +307,7 @@ export default function SemanticFilterStep({
                                         Sample Results (showing first 5)
                                     </h4>
                                     <div className="space-y-2">
-                                        {filterConfig.test_result.filtered_articles.slice(0, 5).map((fa, idx) => (
+                                        {filterConfig.test_result.filtered_articles.slice(0, 5).map((fa: any, idx: number) => (
                                             <div
                                                 key={idx}
                                                 className={`rounded-lg p-3 border ${
@@ -369,7 +360,7 @@ export default function SemanticFilterStep({
             {filterConfig?.is_tested && (
                 <div className="flex justify-end">
                     <button
-                        onClick={onComplete}
+                        onClick={completeChannel}
                         className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
                     >
                         Complete Channel Configuration

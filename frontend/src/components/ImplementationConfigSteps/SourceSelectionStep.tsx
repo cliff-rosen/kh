@@ -1,19 +1,10 @@
 import { useState } from 'react';
-import { InformationSource } from '../../types/research-stream';
 import { CheckIcon } from '@heroicons/react/24/outline';
+import { useImplementationConfig } from '../../context/ImplementationConfigContext';
 
-interface SourceSelectionStepProps {
-    availableSources: InformationSource[];
-    selectedSources: string[];
-    onSourcesSelected: (sourceIds: string[]) => void;
-}
-
-export default function SourceSelectionStep({
-    availableSources,
-    selectedSources,
-    onSourcesSelected
-}: SourceSelectionStepProps) {
-    const [tempSelected, setTempSelected] = useState<Set<string>>(new Set(selectedSources));
+export default function SourceSelectionStep() {
+    const { availableSources, currentChannel, currentChannelConfig, selectSources } = useImplementationConfig();
+    const [tempSelected, setTempSelected] = useState<Set<string>>(new Set(currentChannelConfig?.selected_sources || []));
 
     const toggleSource = (sourceId: string) => {
         const newSelected = new Set(tempSelected);
@@ -30,7 +21,8 @@ export default function SourceSelectionStep({
             alert('Please select at least one source');
             return;
         }
-        onSourcesSelected(Array.from(tempSelected));
+        if (!currentChannel) return;
+        selectSources(currentChannel.name, Array.from(tempSelected));
     };
 
     return (
