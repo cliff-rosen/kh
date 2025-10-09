@@ -131,9 +131,8 @@ export default function QueryConfigStep({
 
     const handleConfirmAndContinue = () => {
         onQueryConfirmed();
-        if (!isLastSource) {
-            onNextSource();
-        }
+        // Always call onNextSource - it will handle moving to next source or to semantic filter
+        onNextSource();
     };
 
     const handleSaveContextEdits = () => {

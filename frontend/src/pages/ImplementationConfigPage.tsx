@@ -1,6 +1,8 @@
 import { useEffect, useState, useReducer } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+
 import { researchStreamApi } from '../lib/api/researchStreamApi';
+
 import {
     ImplementationConfigState,
     ChannelConfigState,
@@ -11,8 +13,8 @@ import {
     getCurrentChannelConfig,
     getOverallProgress
 } from '../types/implementation-config';
-import { Channel, InformationSource } from '../types/research-stream';
 import { CanonicalResearchArticle } from '../types/canonical_types';
+
 import SourceSelectionStep from '../components/ImplementationConfigSteps/SourceSelectionStep';
 import QueryConfigStep from '../components/ImplementationConfigSteps/QueryConfigStep';
 import SemanticFilterStep from '../components/ImplementationConfigSteps/SemanticFilterStep';
@@ -172,6 +174,7 @@ function configReducer(state: ImplementationConfigState, action: ConfigAction): 
         }
 
         case 'CONFIRM_QUERY': {
+            console.log('CONFIRM_QUERY', action.payload);
             const { channel_name, source_id } = action.payload;
             const channelConfig = state.channel_configs.get(channel_name);
             if (!channelConfig) return state;
@@ -506,13 +509,12 @@ export default function ImplementationConfigPage() {
                             return (
                                 <div
                                     key={channel.name}
-                                    className={`flex-1 h-2 rounded-full transition-all ${
-                                        isComplete
-                                            ? 'bg-green-500'
-                                            : isCurrent
+                                    className={`flex-1 h-2 rounded-full transition-all ${isComplete
+                                        ? 'bg-green-500'
+                                        : isCurrent
                                             ? 'bg-blue-500'
                                             : 'bg-gray-200 dark:bg-gray-700'
-                                    }`}
+                                        }`}
                                     title={`${channel.name}${isComplete ? ' ✓' : isCurrent ? ' (current)' : ''}`}
                                 />
                             );
@@ -556,123 +558,123 @@ export default function ImplementationConfigPage() {
 
                         {/* Query Generation/Testing Steps */}
                         {(currentChannelConfig.current_step === 'query_generation' ||
-                          currentChannelConfig.current_step === 'query_testing' ||
-                          currentChannelConfig.current_step === 'query_refinement') && (
-                            <>
-                                {(() => {
-                                    const currentSourceId = currentChannelConfig.selected_sources[currentChannelConfig.current_source_index];
-                                    const currentSource = state.available_sources.find(s => s.source_id === currentSourceId);
-                                    const sourceConfig = currentChannelConfig.source_configs.get(currentSourceId);
+                            currentChannelConfig.current_step === 'query_testing' ||
+                            currentChannelConfig.current_step === 'query_refinement') && (
+                                <>
+                                    {(() => {
+                                        const currentSourceId = currentChannelConfig.selected_sources[currentChannelConfig.current_source_index];
+                                        const currentSource = state.available_sources.find(s => s.source_id === currentSourceId);
+                                        const sourceConfig = currentChannelConfig.source_configs.get(currentSourceId);
 
-                                    if (!currentSource || !sourceConfig) {
-                                        return <div className="text-center py-12 text-gray-500">Loading...</div>;
-                                    }
+                                        if (!currentSource || !sourceConfig) {
+                                            return <div className="text-center py-12 text-gray-500">Loading...</div>;
+                                        }
 
-                                    return (
-                                        <QueryConfigStep
-                                            streamId={state.stream_id}
-                                            streamName={state.stream_name}
-                                            streamPurpose={stream?.purpose || ''}
-                                            channel={currentChannel}
-                                            source={currentSource}
-                                            sourceConfig={sourceConfig}
-                                            onQueryGenerated={(query, reasoning) => {
-                                                dispatch({
-                                                    type: 'GENERATE_QUERY_SUCCESS',
-                                                    payload: {
-                                                        channel_name: currentChannel.name,
-                                                        source_id: currentSourceId,
-                                                        query_expression: query,
-                                                        reasoning
-                                                    }
-                                                });
-                                            }}
-                                            onQueryUpdated={(query) => {
-                                                dispatch({
-                                                    type: 'UPDATE_QUERY',
-                                                    payload: {
-                                                        channel_name: currentChannel.name,
-                                                        source_id: currentSourceId,
-                                                        query_expression: query
-                                                    }
-                                                });
-                                            }}
-                                            onQueryTested={(result) => {
-                                                dispatch({
-                                                    type: 'TEST_QUERY_SUCCESS',
-                                                    payload: {
-                                                        channel_name: currentChannel.name,
-                                                        source_id: currentSourceId,
-                                                        result
-                                                    }
-                                                });
-                                            }}
-                                            onQueryConfirmed={() => {
-                                                dispatch({
-                                                    type: 'CONFIRM_QUERY',
-                                                    payload: {
-                                                        channel_name: currentChannel.name,
-                                                        source_id: currentSourceId
-                                                    }
-                                                });
-                                            }}
-                                            onNextSource={() => {
-                                                dispatch({
-                                                    type: 'NEXT_SOURCE',
-                                                    payload: { channel_name: currentChannel.name }
-                                                });
-                                            }}
-                                            onStreamUpdated={async (updates) => {
-                                                // Update stream via API
-                                                try {
-                                                    await researchStreamApi.updateResearchStream(state.stream_id, updates);
-                                                    // Reload to get updated data
-                                                    const updatedStream = await researchStreamApi.getResearchStream(state.stream_id);
-                                                    setStream(updatedStream);
+                                        return (
+                                            <QueryConfigStep
+                                                streamId={state.stream_id}
+                                                streamName={state.stream_name}
+                                                streamPurpose={stream?.purpose || ''}
+                                                channel={currentChannel}
+                                                source={currentSource}
+                                                sourceConfig={sourceConfig}
+                                                onQueryGenerated={(query, reasoning) => {
                                                     dispatch({
-                                                        type: 'LOAD_STREAM',
+                                                        type: 'GENERATE_QUERY_SUCCESS',
                                                         payload: {
-                                                            stream_name: updatedStream.stream_name,
-                                                            channels: updatedStream.channels,
-                                                            sources: state.available_sources
+                                                            channel_name: currentChannel.name,
+                                                            source_id: currentSourceId,
+                                                            query_expression: query,
+                                                            reasoning
                                                         }
                                                     });
-                                                } catch (error) {
-                                                    console.error('Failed to update stream:', error);
-                                                    alert('Failed to update stream. Please try again.');
-                                                }
-                                            }}
-                                            onChannelUpdated={async (updates) => {
-                                                // Update channel in stream via API
-                                                try {
-                                                    const updatedChannels = state.channels.map(ch =>
-                                                        ch.name === currentChannel.name ? { ...ch, ...updates } : ch
-                                                    );
-                                                    await researchStreamApi.updateResearchStream(state.stream_id, {
-                                                        channels: updatedChannels
-                                                    });
-                                                    // Reload to get updated data
-                                                    const updatedStream = await researchStreamApi.getResearchStream(state.stream_id);
-                                                    setStream(updatedStream);
+                                                }}
+                                                onQueryUpdated={(query) => {
                                                     dispatch({
-                                                        type: 'LOAD_STREAM',
+                                                        type: 'UPDATE_QUERY',
                                                         payload: {
-                                                            stream_name: updatedStream.stream_name,
-                                                            channels: updatedStream.channels,
-                                                            sources: state.available_sources
+                                                            channel_name: currentChannel.name,
+                                                            source_id: currentSourceId,
+                                                            query_expression: query
                                                         }
                                                     });
-                                                } catch (error) {
-                                                    console.error('Failed to update channel:', error);
-                                                    alert('Failed to update channel. Please try again.');
-                                                }
-                                            }}
-                                            isLastSource={currentChannelConfig.current_source_index === currentChannelConfig.selected_sources.length - 1}
-                                        />
-                                    );
-                                })()}
-                            </>
-                        )}
+                                                }}
+                                                onQueryTested={(result) => {
+                                                    dispatch({
+                                                        type: 'TEST_QUERY_SUCCESS',
+                                                        payload: {
+                                                            channel_name: currentChannel.name,
+                                                            source_id: currentSourceId,
+                                                            result
+                                                        }
+                                                    });
+                                                }}
+                                                onQueryConfirmed={() => {
+                                                    dispatch({
+                                                        type: 'CONFIRM_QUERY',
+                                                        payload: {
+                                                            channel_name: currentChannel.name,
+                                                            source_id: currentSourceId
+                                                        }
+                                                    });
+                                                }}
+                                                onNextSource={() => {
+                                                    dispatch({
+                                                        type: 'NEXT_SOURCE',
+                                                        payload: { channel_name: currentChannel.name }
+                                                    });
+                                                }}
+                                                onStreamUpdated={async (updates) => {
+                                                    // Update stream via API
+                                                    try {
+                                                        await researchStreamApi.updateResearchStream(state.stream_id, updates);
+                                                        // Reload to get updated data
+                                                        const updatedStream = await researchStreamApi.getResearchStream(state.stream_id);
+                                                        setStream(updatedStream);
+                                                        dispatch({
+                                                            type: 'LOAD_STREAM',
+                                                            payload: {
+                                                                stream_name: updatedStream.stream_name,
+                                                                channels: updatedStream.channels,
+                                                                sources: state.available_sources
+                                                            }
+                                                        });
+                                                    } catch (error) {
+                                                        console.error('Failed to update stream:', error);
+                                                        alert('Failed to update stream. Please try again.');
+                                                    }
+                                                }}
+                                                onChannelUpdated={async (updates) => {
+                                                    // Update channel in stream via API
+                                                    try {
+                                                        const updatedChannels = state.channels.map(ch =>
+                                                            ch.name === currentChannel.name ? { ...ch, ...updates } : ch
+                                                        );
+                                                        await researchStreamApi.updateResearchStream(state.stream_id, {
+                                                            channels: updatedChannels
+                                                        });
+                                                        // Reload to get updated data
+                                                        const updatedStream = await researchStreamApi.getResearchStream(state.stream_id);
+                                                        setStream(updatedStream);
+                                                        dispatch({
+                                                            type: 'LOAD_STREAM',
+                                                            payload: {
+                                                                stream_name: updatedStream.stream_name,
+                                                                channels: updatedStream.channels,
+                                                                sources: state.available_sources
+                                                            }
+                                                        });
+                                                    } catch (error) {
+                                                        console.error('Failed to update channel:', error);
+                                                        alert('Failed to update channel. Please try again.');
+                                                    }
+                                                }}
+                                                isLastSource={currentChannelConfig.current_source_index === currentChannelConfig.selected_sources.length - 1}
+                                            />
+                                        );
+                                    })()}
+                                </>
+                            )}
 
                         {/* Semantic Filter Step */}
                         {currentChannelConfig.current_step === 'semantic_filter_config' && (

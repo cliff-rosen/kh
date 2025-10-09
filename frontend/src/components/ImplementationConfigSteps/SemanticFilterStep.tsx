@@ -3,7 +3,7 @@ import { SemanticFilterConfig } from '../../types/implementation-config';
 import { Channel } from '../../types/research-stream';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
-import { ArrowPathIcon, CheckCircleIcon, XCircleIcon, PencilIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 
 interface SemanticFilterStepProps {
     streamId: number;
@@ -343,9 +343,9 @@ export default function SemanticFilterStep({
                                                             }`}>
                                                                 {(fa.confidence * 100).toFixed(0)}% confidence
                                                             </span>
-                                                            {fa.explanation && (
+                                                            {fa.reasoning && (
                                                                 <span className="text-gray-600 dark:text-gray-400">
-                                                                    • {fa.explanation}
+                                                                    • {fa.reasoning}
                                                                 </span>
                                                             )}
                                                         </div>
