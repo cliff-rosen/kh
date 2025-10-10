@@ -26,13 +26,14 @@ export type ConfigStep =
 
 // ============================================================================
 // UI State for Configuration Workflow
+// NOTE: We only track current position, not a map per channel
+// The workflow is linear - one channel at a time
 // ============================================================================
 
-export interface ChannelConfigUIState {
-    selected_sources: string[]; // source_ids being configured (UI only)
-    current_source_index: number; // Which source we're currently configuring (UI only)
-    current_step: ConfigStep; // Current workflow step (UI only)
-}
+// No ChannelConfigUIState type needed - just use individual state variables:
+// - currentChannelIndex: number (which channel we're on)
+// - currentStep: ConfigStep (which step in the workflow)
+// - currentSourceIndex: number (which source we're configuring)
 
 // ============================================================================
 // Test Results (Temporary, not persisted to workflow_config)

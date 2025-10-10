@@ -7,7 +7,10 @@ export default function QueryConfigStep() {
         stream,
         currentChannel,
         currentChannelWorkflowConfig,
-        uiState,
+        selectedSources,
+        currentSourceIndex,
+        currentSourceId,
+        currentSourceQuery,
         availableSources,
         generateQuery,
         updateQuery,
@@ -15,21 +18,18 @@ export default function QueryConfigStep() {
         confirmQuery,
         nextSource,
         updateStream,
-        updateChannel,
-        getCurrentSourceQuery
+        updateChannel
     } = useImplementationConfig();
 
     // Get current source information
-    const currentSourceId = uiState?.selected_sources[uiState.current_source_index];
     const currentSource = availableSources?.find(s => s.source_id === currentSourceId);
-    const sourceQuery = getCurrentSourceQuery();
 
     // Check if this is the last source
-    const isLastSource = uiState ? uiState.current_source_index === uiState.selected_sources.length - 1 : false;
+    const isLastSource = currentSourceIndex === selectedSources.length - 1;
 
     const [isGenerating, setIsGenerating] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
-    const [editedQuery, setEditedQuery] = useState(sourceQuery?.query_expression || '');
+    const [editedQuery, setEditedQuery] = useState(currentSourceQuery?.query_expression || '');
     const [isEditing, setIsEditing] = useState(false);
     const [queryReasoning, setQueryReasoning] = useState<string>('');
     const [testResult, setTestResult] = useState<any>(null);
@@ -56,10 +56,10 @@ export default function QueryConfigStep() {
     const [dateRange, setDateRange] = useState(getDefaultDateRange());
 
     useEffect(() => {
-        if (sourceQuery) {
-            setEditedQuery(sourceQuery.query_expression);
+        if (currentSourceQuery) {
+            setEditedQuery(currentSourceQuery.query_expression);
         }
-    }, [sourceQuery?.query_expression]);
+    }, [currentSourceQuery?.query_expression]);
 
     useEffect(() => {
         if (currentChannel) {
@@ -74,7 +74,7 @@ export default function QueryConfigStep() {
     }, [stream?.stream_name, stream?.purpose, currentChannel]);
 
     // Return null if required data is not available (after all hooks)
-    if (!currentChannel || !uiState || !currentSource) {
+    if (!currentChannel || !currentSource) {
         return null;
     }
 
@@ -178,7 +178,7 @@ export default function QueryConfigStep() {
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                         Query Generation Context
                     </h3>
-                    {!isEditingContext && !sourceQuery?.query_expression && (
+                    {!isEditingContext && !currentSourceQuery?.query_expression && (
                         <button
                             onClick={() => setIsEditingContext(true)}
                             className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
@@ -374,7 +374,7 @@ export default function QueryConfigStep() {
                                     </button>
                                     <button
                                         onClick={() => {
-                                            setEditedQuery(sourceQuery?.query_expression || '');
+                                            setEditedQuery(currentSourceQuery?.query_expression || '');
                                             setIsEditing(false);
                                         }}
                                         className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg text-sm"

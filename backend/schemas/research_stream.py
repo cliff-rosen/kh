@@ -81,7 +81,7 @@ class SemanticFilter(BaseModel):
 
 class ChannelWorkflowConfig(BaseModel):
     """Complete workflow configuration for a single channel"""
-    source_queries: Dict[str, SourceQuery] = Field(default_factory=dict, description="Map: source_id -> SourceQuery")
+    source_queries: Dict[str, Optional[SourceQuery]] = Field(default_factory=dict, description="Map: source_id -> SourceQuery (null if selected but not configured yet)")
     semantic_filter: SemanticFilter = Field(description="Semantic filtering for this channel")
 
 

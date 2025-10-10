@@ -16,7 +16,7 @@ function ImplementationConfigContent() {
         currentChannel,
         overallProgress,
         isChannelComplete,
-        uiState
+        currentStep
     } = useImplementationConfig();
 
     const streamName = stream?.stream_name || '';
@@ -156,26 +156,26 @@ function ImplementationConfigContent() {
 
             {/* Main Content */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                {!currentChannel || !uiState ? (
+                {!currentChannel ? (
                     <div className="text-center text-gray-600 dark:text-gray-400 py-12">
                         No channel to configure
                     </div>
                 ) : (
                     <div>
                         {/* Source Selection Step */}
-                        {uiState.current_step === 'source_selection' && (
+                        {currentStep === 'source_selection' && (
                             <SourceSelectionStep />
                         )}
 
                         {/* Query Generation/Testing Steps */}
-                        {(uiState.current_step === 'query_generation' ||
-                            uiState.current_step === 'query_testing' ||
-                            uiState.current_step === 'query_refinement') && (
+                        {(currentStep === 'query_generation' ||
+                            currentStep === 'query_testing' ||
+                            currentStep === 'query_refinement') && (
                                 <QueryConfigStep />
                             )}
 
                         {/* Semantic Filter Step */}
-                        {uiState.current_step === 'semantic_filter_config' && (
+                        {currentStep === 'semantic_filter_config' && (
                             <SemanticFilterStep />
                         )}
                     </div>

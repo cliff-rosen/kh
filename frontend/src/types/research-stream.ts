@@ -48,7 +48,7 @@ export interface SemanticFilter {
 }
 
 export interface ChannelWorkflowConfig {
-    source_queries: Record<string, SourceQuery>;  // Map: source_id -> SourceQuery
+    source_queries: Record<string, SourceQuery | null>;  // Map: source_id -> SourceQuery (null = selected but not configured yet)
     semantic_filter: SemanticFilter;  // Semantic filtering for this channel
 }
 

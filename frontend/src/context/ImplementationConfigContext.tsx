@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, ReactNode 
 import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { Channel, InformationSource, ResearchStream, ChannelWorkflowConfig, SourceQuery } from '../types/research-stream';
 import { CanonicalResearchArticle } from '../types/canonical_types';
-import { ConfigStep, ChannelConfigUIState, QueryTestResult, FilterTestResult } from '../types/implementation-config';
+import { ConfigStep, QueryTestResult, FilterTestResult } from '../types/implementation-config';
 
 // ============================================================================
 // Context Type
@@ -14,24 +14,25 @@ interface ImplementationConfigContextType {
     availableSources: InformationSource[];
     isLoading: boolean;
 
-    // Current workflow position
+    // Current workflow position (simple!)
     currentChannelIndex: number;
     currentChannel: Channel | null;
-    currentChannelWorkflowConfig: ChannelWorkflowConfig | null; // From workflow_config.channel_configs
-
-    // UI state for current channel
-    uiState: ChannelConfigUIState | null;
+    currentChannelWorkflowConfig: ChannelWorkflowConfig | null;
+    currentStep: ConfigStep;
+    currentSourceIndex: number;
 
     // Computed values
     isComplete: boolean;
     overallProgress: number;
+    selectedSources: string[];  // Derived from workflow_config
+    currentSourceId: string | null;
+    currentSourceQuery: SourceQuery | null;
 
     // Helpers
-    isChannelComplete: (channelName: string) => boolean;
-    getCurrentSourceQuery: () => SourceQuery | null;
+    isChannelComplete: (channelId: string) => boolean;
 
     // Actions - these all save directly to workflow_config
-    selectSources: (sourceIds: string[]) => void;
+    selectSources: (sourceIds: string[]) => Promise<void>;
     generateQuery: () => Promise<{ query_expression: string; reasoning: string }>;
     updateQuery: (query: string) => Promise<void>;
     testQuery: (request: any) => Promise<QueryTestResult>;
@@ -63,11 +64,10 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
     const [availableSources, setAvailableSources] = useState<InformationSource[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Workflow position
+    // Current workflow position (simple - no map!)
     const [currentChannelIndex, setCurrentChannelIndex] = useState(0);
-
-    // UI state per channel (not persisted)
-    const [channelUIStates, setChannelUIStates] = useState<Map<string, ChannelConfigUIState>>(new Map());
+    const [currentStep, setCurrentStep] = useState<ConfigStep>('source_selection');
+    const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
 
     // Computed values
     const currentChannel = stream && currentChannelIndex < stream.channels.length
@@ -78,8 +78,14 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         ? stream.workflow_config.channel_configs[currentChannel.channel_id] || null
         : null;
 
-    const uiState = currentChannel
-        ? channelUIStates.get(currentChannel.channel_id) || null
+    // Derive selected sources from workflow_config (keys in source_queries map)
+    const selectedSources = currentChannelWorkflowConfig
+        ? Object.keys(currentChannelWorkflowConfig.source_queries)
+        : [];
+
+    const currentSourceId = selectedSources[currentSourceIndex] || null;
+    const currentSourceQuery = currentSourceId && currentChannelWorkflowConfig
+        ? currentChannelWorkflowConfig.source_queries[currentSourceId]
         : null;
 
     const isComplete = stream ? currentChannelIndex >= stream.channels.length : false;
@@ -94,15 +100,9 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
     const isChannelComplete = useCallback((channelId: string) => {
         if (!stream?.workflow_config?.channel_configs) return false;
         const config = stream.workflow_config.channel_configs[channelId];
-        return config ? Object.keys(config.source_queries).length > 0 : false;
+        // Complete if it has at least one configured (non-null) source query
+        return config ? Object.values(config.source_queries).some(sq => sq !== null) : false;
     }, [stream]);
-
-    // Helper to get current source query
-    const getCurrentSourceQuery = useCallback((): SourceQuery | null => {
-        if (!currentChannelWorkflowConfig || !uiState) return null;
-        const sourceId = uiState.selected_sources[uiState.current_source_index];
-        return currentChannelWorkflowConfig.source_queries[sourceId] || null;
-    }, [currentChannelWorkflowConfig, uiState]);
 
     // Load stream data
     const loadStream = useCallback(async () => {
@@ -116,17 +116,10 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
             setStream(streamData);
             setAvailableSources(sources);
 
-            // Initialize UI states for channels that don't have workflow config yet
-            const uiStates = new Map<string, ChannelConfigUIState>();
-            streamData.channels.forEach(channel => {
-                const hasConfig = streamData.workflow_config?.channel_configs?.[channel.channel_id];
-                uiStates.set(channel.channel_id, {
-                    selected_sources: [],
-                    current_source_index: 0,
-                    current_step: hasConfig ? 'query_generation' : 'source_selection'
-                });
-            });
-            setChannelUIStates(uiStates);
+            // Initialize current step based on whether first channel has config
+            const firstChannel = streamData.channels[0];
+            const hasConfig = firstChannel && streamData.workflow_config?.channel_configs?.[firstChannel.channel_id];
+            setCurrentStep(hasConfig ? 'query_generation' : 'source_selection');
         } catch (error) {
             console.error('Failed to load stream:', error);
         } finally {
@@ -144,57 +137,66 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         setStream(updatedStream);
     }, [streamId]);
 
-    // Source selection - updates UI state only
-    const selectSources = useCallback((sourceIds: string[]) => {
+    // Source selection - creates null entries in workflow_config to store intent
+    const selectSources = useCallback(async (sourceIds: string[]) => {
         if (!currentChannel) return;
 
-        setChannelUIStates(prev => {
-            const newStates = new Map(prev);
-            newStates.set(currentChannel.channel_id, {
-                selected_sources: sourceIds,
-                current_source_index: 0,
-                current_step: 'query_generation'
-            });
-            return newStates;
+        // Create null entries for each selected source
+        const sourceQueriesMap: Record<string, null> = {};
+        sourceIds.forEach(sourceId => {
+            sourceQueriesMap[sourceId] = null;
         });
-    }, [currentChannel]);
+
+        // Get or create workflow_config
+        const workflow_config = stream?.workflow_config || { channel_configs: {} };
+        if (!workflow_config.channel_configs) {
+            workflow_config.channel_configs = {};
+        }
+
+        // Create channel config with null entries for selected sources
+        workflow_config.channel_configs[currentChannel.channel_id] = {
+            source_queries: sourceQueriesMap,
+            semantic_filter: {
+                enabled: false,
+                criteria: '',
+                threshold: 0.7
+            }
+        };
+
+        // Save to database
+        await researchStreamApi.updateResearchStream(streamId, { workflow_config });
+        await reloadStream();
+
+        // Move to query generation step
+        setCurrentSourceIndex(0);
+        setCurrentStep('query_generation');
+    }, [currentChannel, stream, streamId]);
 
     // Generate query - returns result but doesn't save yet
     const generateQuery = useCallback(async (): Promise<{ query_expression: string; reasoning: string }> => {
-        if (!currentChannel || !uiState) throw new Error('No current channel');
-        const sourceId = uiState.selected_sources[uiState.current_source_index];
-        if (!sourceId) throw new Error('No current source');
+        if (!currentChannel || !currentSourceId) throw new Error('No current channel or source');
 
-        const result = await researchStreamApi.generateChannelQuery(streamId, currentChannel.name, { source_id: sourceId });
+        const result = await researchStreamApi.generateChannelQuery(streamId, currentChannel.name, { source_id: currentSourceId });
 
-        // Update UI state to move to testing
-        setChannelUIStates(prev => {
-            const newStates = new Map(prev);
-            newStates.set(currentChannel.channel_id, {
-                ...uiState,
-                current_step: 'query_testing'
-            });
-            return newStates;
-        });
+        // Move to testing step
+        setCurrentStep('query_testing');
 
         return result;
-    }, [currentChannel, uiState, streamId]);
+    }, [currentChannel, currentSourceId, streamId]);
 
     // Update query - saves immediately to workflow_config
     const updateQuery = useCallback(async (query: string) => {
-        if (!currentChannel || !uiState) return;
-        const sourceId = uiState.selected_sources[uiState.current_source_index];
-        if (!sourceId) return;
+        if (!currentChannel || !currentSourceId) return;
 
         await researchStreamApi.updateChannelSourceQuery(
             streamId,
             currentChannel.channel_id,
-            sourceId,
+            currentSourceId,
             { query_expression: query, enabled: true }
         );
 
         await reloadStream();
-    }, [currentChannel, uiState, streamId, reloadStream]);
+    }, [currentChannel, currentSourceId, streamId, reloadStream]);
 
     // Test query - returns test results (not saved)
     const testQuery = useCallback(async (request: any): Promise<QueryTestResult> => {
@@ -202,58 +204,31 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
 
         const result = await researchStreamApi.testChannelQuery(streamId, currentChannel.name, request);
 
-        // Update UI state to move to refinement
-        if (uiState) {
-            setChannelUIStates(prev => {
-                const newStates = new Map(prev);
-                newStates.set(currentChannel.channel_id, {
-                    ...uiState,
-                    current_step: 'query_refinement'
-                });
-                return newStates;
-            });
-        }
+        // Move to refinement step
+        setCurrentStep('query_refinement');
 
         return result;
-    }, [currentChannel, uiState, streamId]);
+    }, [currentChannel, streamId]);
 
-    // Confirm query - saves query to workflow_config
+    // Confirm query - query should already be saved
     const confirmQuery = useCallback(async () => {
-        if (!currentChannel || !uiState) return;
-        const sourceId = uiState.selected_sources[uiState.current_source_index];
-        const currentQuery = getCurrentSourceQuery();
-        if (!sourceId || !currentQuery) return;
-
-        // Query should already be saved, just mark as confirmed in UI
-        // (In future we could add a "confirmed" flag to SourceQuery if needed)
-
-    }, [currentChannel, uiState, getCurrentSourceQuery]);
+        // Query is already saved via updateQuery
+        // This just confirms the user is happy with it
+    }, []);
 
     // Move to next source or semantic filter step
     const nextSource = useCallback(() => {
-        if (!currentChannel || !uiState) return;
+        const nextIndex = currentSourceIndex + 1;
 
-        const nextIndex = uiState.current_source_index + 1;
-
-        setChannelUIStates(prev => {
-            const newStates = new Map(prev);
-            if (nextIndex >= uiState.selected_sources.length) {
-                // Move to semantic filter step
-                newStates.set(currentChannel.channel_id, {
-                    ...uiState,
-                    current_step: 'semantic_filter_config'
-                });
-            } else {
-                // Move to next source
-                newStates.set(currentChannel.channel_id, {
-                    ...uiState,
-                    current_source_index: nextIndex,
-                    current_step: 'query_generation'
-                });
-            }
-            return newStates;
-        });
-    }, [currentChannel, uiState]);
+        if (nextIndex >= selectedSources.length) {
+            // All sources configured, move to semantic filter
+            setCurrentStep('semantic_filter_config');
+        } else {
+            // Move to next source
+            setCurrentSourceIndex(nextIndex);
+            setCurrentStep('query_generation');
+        }
+    }, [currentSourceIndex, selectedSources]);
 
     // Generate filter - returns result but doesn't save yet
     const generateFilter = useCallback(async (): Promise<{ filter_criteria: string; reasoning: string }> => {
@@ -346,11 +321,11 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
 
     // Channel completion
     const completeChannel = useCallback(() => {
-        if (!currentChannel) return;
-
-        // Just move to next channel - configuration is already saved
+        // Move to next channel and reset state
         setCurrentChannelIndex(prev => prev + 1);
-    }, [currentChannel]);
+        setCurrentSourceIndex(0);
+        setCurrentStep('source_selection');
+    }, []);
 
     const value: ImplementationConfigContextType = {
         // Core state
@@ -358,19 +333,22 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         availableSources,
         isLoading,
 
-        // Current position
+        // Current workflow position
         currentChannelIndex,
         currentChannel,
         currentChannelWorkflowConfig,
-        uiState,
+        currentStep,
+        currentSourceIndex,
 
-        // Computed
+        // Computed values
         isComplete,
         overallProgress,
+        selectedSources,
+        currentSourceId,
+        currentSourceQuery,
 
         // Helpers
         isChannelComplete,
-        getCurrentSourceQuery,
 
         // Actions
         selectSources,
