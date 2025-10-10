@@ -125,8 +125,9 @@ export default function QueryConfigStep() {
         setIsEditing(false);
     };
 
-    const handleConfirmAndContinue = () => {
-        // confirmQuery now handles full workflow advancement internally
+    const handleConfirmAndContinue = async () => {
+        // Save the query first, then confirm and advance
+        await updateQuery(editedQuery);
         confirmQuery();
     };
 
