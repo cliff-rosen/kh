@@ -6,7 +6,6 @@ export default function QueryConfigStep() {
     const {
         stream,
         currentChannel,
-        currentChannelWorkflowConfig,
         selectedSources,
         currentSourceIndex,
         currentSourceId,

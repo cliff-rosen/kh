@@ -3,7 +3,7 @@ import { CheckIcon } from '@heroicons/react/24/outline';
 import { useImplementationConfig } from '../../context/ImplementationConfigContext';
 
 export default function SourceSelectionStep() {
-    const { availableSources, currentChannel, selectedSources, selectSources } = useImplementationConfig();
+    const { availableSources, selectedSources, selectSources } = useImplementationConfig();
     const [tempSelected, setTempSelected] = useState<Set<string>>(new Set(selectedSources));
 
     const toggleSource = (sourceId: string) => {
