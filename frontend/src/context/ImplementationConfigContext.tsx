@@ -31,13 +31,12 @@ interface ImplementationConfigContextType {
     // Helpers
     isChannelComplete: (channelId: string) => boolean;
 
-    // Actions - these all save directly to workflow_config
+    // Actions - workflow transitions
     selectSources: (sourceIds: string[]) => Promise<void>;
     generateQuery: () => Promise<{ query_expression: string; reasoning: string }>;
     updateQuery: (query: string) => Promise<void>;
     testQuery: (request: any) => Promise<QueryTestResult>;
-    confirmQuery: () => Promise<void>;
-    nextSource: () => void;
+    confirmQuery: () => void;
     generateFilter: () => Promise<{ filter_criteria: string; reasoning: string }>;
     updateFilterCriteria: (criteria: string) => Promise<void>;
     updateFilterThreshold: (threshold: number) => Promise<void>;
@@ -174,22 +173,30 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         setCurrentStep('query_generation');
     }, [currentChannel, stream, streamId, reloadStream]);
 
-    // Generate query - returns result but doesn't save yet
+    // Generate query - generates but doesn't save, advances to testing step
     const generateQuery = useCallback(async (): Promise<{ query_expression: string; reasoning: string }> => {
         if (!currentChannel || !currentSourceId) throw new Error('No current channel or source');
 
+        // 1. Call API to generate
         const result = await researchStreamApi.generateChannelQuery(streamId, currentChannel.name, { source_id: currentSourceId });
 
-        // Move to testing step
+        // 2. No save - user will review first
+        // 3. No reload - nothing changed in DB
+
+        // 4. Advance to testing step
         setCurrentStep('query_testing');
 
+        // 5. Return result for UI
         return result;
     }, [currentChannel, currentSourceId, streamId]);
 
-    // Update query - saves immediately to workflow_config
+    // Update query - saves to database, no step change (user might edit again)
     const updateQuery = useCallback(async (query: string) => {
         if (!currentChannel || !currentSourceId) return;
 
+        // 1. Validate - already done with guards
+
+        // 2. Call API to save
         await researchStreamApi.updateChannelSourceQuery(
             streamId,
             currentChannel.channel_id,
@@ -197,29 +204,37 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
             { query_expression: query, enabled: true }
         );
 
+        // 3. Reload to get updated data
         await reloadStream();
+
+        // 4. No step change - user might want to edit more
+        // 5. No return value needed
     }, [currentChannel, currentSourceId, streamId, reloadStream]);
 
-    // Test query - returns test results (not saved)
+    // Test query - tests query and advances to refinement step
     const testQuery = useCallback(async (request: any): Promise<QueryTestResult> => {
         if (!currentChannel) throw new Error('No current channel');
 
+        // 1. Validate - already done
+
+        // 2. Call API to test
         const result = await researchStreamApi.testChannelQuery(streamId, currentChannel.name, request);
 
-        // Move to refinement step
+        // 3. No save - just testing
+        // 4. No reload - nothing changed
+
+        // 5. Advance to refinement step
         setCurrentStep('query_refinement');
 
+        // 6. Return result for UI
         return result;
     }, [currentChannel, streamId]);
 
-    // Confirm query - query should already be saved
-    const confirmQuery = useCallback(async () => {
-        // Query is already saved via updateQuery
-        // This just confirms the user is happy with it
-    }, []);
+    // Confirm query and advance to next source or semantic filter
+    const confirmQuery = useCallback(() => {
+        // Query should already be saved via updateQuery
+        // Just advance workflow
 
-    // Move to next source or semantic filter step
-    const nextSource = useCallback(() => {
         const nextIndex = currentSourceIndex + 1;
 
         if (nextIndex >= selectedSources.length) {
@@ -232,13 +247,14 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         }
     }, [currentSourceIndex, selectedSources]);
 
-    // Generate filter - saves immediately and advances to review step
+    // Generate filter - generates, saves, and advances to review step
     const generateFilter = useCallback(async (): Promise<{ filter_criteria: string; reasoning: string }> => {
         if (!currentChannel) throw new Error('No current channel');
 
+        // 1. Call API to generate
         const result = await researchStreamApi.generateChannelFilter(streamId, currentChannel.name);
 
-        // Save filter immediately
+        // 2. Call API to save immediately (filter is ready to use after generation)
         await researchStreamApi.updateChannelSemanticFilter(
             streamId,
             currentChannel.channel_id,
@@ -249,18 +265,23 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
             }
         );
 
+        // 3. Reload to get updated data
         await reloadStream();
 
-        // Move to testing/review step
+        // 4. Advance to testing/review step
         setCurrentStep('semantic_filter_testing');
 
+        // 5. Return result for UI
         return result;
     }, [currentChannel, streamId, reloadStream]);
 
-    // Update filter criteria - saves immediately
+    // Update filter criteria - saves to database, no step change (user might edit again)
     const updateFilterCriteria = useCallback(async (criteria: string) => {
         if (!currentChannel || !currentChannelWorkflowConfig) return;
 
+        // 1. Validate - already done with guards
+
+        // 2. Call API to save
         await researchStreamApi.updateChannelSemanticFilter(
             streamId,
             currentChannel.channel_id,
@@ -271,13 +292,20 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
             }
         );
 
+        // 3. Reload to get updated data
         await reloadStream();
+
+        // 4. No step change - user might want to edit more
+        // 5. No return value needed
     }, [currentChannel, currentChannelWorkflowConfig, streamId, reloadStream]);
 
-    // Update filter threshold - saves immediately
+    // Update filter threshold - saves to database, no step change
     const updateFilterThreshold = useCallback(async (threshold: number) => {
         if (!currentChannel || !currentChannelWorkflowConfig) return;
 
+        // 1. Validate - already done with guards
+
+        // 2. Call API to save
         await researchStreamApi.updateChannelSemanticFilter(
             streamId,
             currentChannel.channel_id,
@@ -288,10 +316,14 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
             }
         );
 
+        // 3. Reload to get updated data
         await reloadStream();
+
+        // 4. No step change - just updating threshold
+        // 5. No return value needed
     }, [currentChannel, currentChannelWorkflowConfig, streamId, reloadStream]);
 
-    // Test filter - returns test results (not saved)
+    // Test filter - tests filter, no save or step change
     const testFilter = useCallback(async (
         articles: CanonicalResearchArticle[],
         criteria: string,
@@ -299,12 +331,20 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
     ): Promise<FilterTestResult> => {
         if (!currentChannel) throw new Error('No current channel');
 
+        // 1. Validate - already done
+
+        // 2. Call API to test
         const result = await researchStreamApi.testChannelFilter(streamId, currentChannel.name, {
             articles,
             filter_criteria: criteria,
             threshold
         });
 
+        // 3. No save - just testing
+        // 4. No reload - nothing changed
+        // 5. No step change - user reviews results
+
+        // 6. Return result for UI
         return result;
     }, [currentChannel, streamId]);
 
@@ -324,12 +364,21 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         await reloadStream();
     }, [streamId, currentChannel, stream, reloadStream]);
 
-    // Channel completion
+    // Complete channel and advance to next channel or finish workflow
     const completeChannel = useCallback(() => {
-        // Move to next channel and reset state
+        // Filter should already be saved via updateFilterCriteria/updateFilterThreshold
+        // Just advance workflow
+
+        // 1. No validation needed
+        // 2. No API call - everything already saved
+        // 3. No reload - nothing new to load
+
+        // 4. Advance to next channel
         setCurrentChannelIndex(prev => prev + 1);
         setCurrentSourceIndex(0);
         setCurrentStep('source_selection');
+
+        // 5. No return value needed
     }, []);
 
     const value: ImplementationConfigContextType = {
@@ -361,7 +410,6 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         updateQuery,
         testQuery,
         confirmQuery,
-        nextSource,
         generateFilter,
         updateFilterCriteria,
         updateFilterThreshold,

@@ -15,7 +15,6 @@ export default function QueryConfigStep() {
         updateQuery,
         testQuery,
         confirmQuery,
-        nextSource,
         updateStream,
         updateChannel
     } = useImplementationConfig();
@@ -122,10 +121,9 @@ export default function QueryConfigStep() {
         setIsEditing(false);
     };
 
-    const handleConfirmAndContinue = async () => {
-        await confirmQuery();
-        // Always call nextSource - it will handle moving to next source or to semantic filter
-        nextSource();
+    const handleConfirmAndContinue = () => {
+        // confirmQuery now handles full workflow advancement internally
+        confirmQuery();
     };
 
     const handleSaveContextEdits = async () => {
