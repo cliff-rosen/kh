@@ -337,32 +337,32 @@ class ImplementationConfigService:
 
         system_prompt = """You are an expert at creating semantic filtering criteria for research articles.
 
-Your task is to generate a clear, concise filtering criteria statement that can be used by an LLM to evaluate whether a research article is relevant to a specific research stream and channel.
+        Your task is to generate a clear, concise filtering criteria statement that can be used by an LLM to evaluate whether a research article is relevant to a specific research stream and channel.
 
-The filtering criteria should:
-1. Be specific enough to exclude irrelevant articles
-2. Be broad enough to capture all relevant research
-3. Focus on the PURPOSE and FOCUS rather than just keywords
-4. Be written as evaluation criteria (what makes an article relevant?)
-5. Be 2-4 sentences long
+        The filtering criteria should:
+        1. Be specific enough to exclude irrelevant articles
+        2. Be broad enough to capture all relevant research
+        3. Focus on the PURPOSE and FOCUS rather than just keywords
+        4. Be written as evaluation criteria (what makes an article relevant?)
+        5. Be 2-4 sentences long
 
-GOOD EXAMPLE:
-"Articles should focus on novel CRISPR-based gene editing techniques applied to cancer therapy. Relevant articles discuss mechanisms, clinical trials, or preclinical studies of CRISPR modifications targeting oncogenes or tumor suppressor genes. Exclude articles that only mention CRISPR tangentially or focus on other diseases."
+        GOOD EXAMPLE:
+        "Articles should focus on novel CRISPR-based gene editing techniques applied to cancer therapy. Relevant articles discuss mechanisms, clinical trials, or preclinical studies of CRISPR modifications targeting oncogenes or tumor suppressor genes. Exclude articles that only mention CRISPR tangentially or focus on other diseases."
 
-BAD EXAMPLE:
-"Articles about CRISPR and cancer." (too vague)
+        BAD EXAMPLE:
+        "Articles about CRISPR and cancer." (too vague)
 
-Respond in JSON format with "filter_criteria" and "reasoning" fields."""
+        Respond in JSON format with "filter_criteria" and "reasoning" fields."""
 
         user_prompt = f"""Generate semantic filtering criteria for this research stream channel:
 
-Stream Purpose: {stream_purpose}
+        Stream Purpose: {stream_purpose}
 
-Channel Name: {channel_name}
-Channel Focus: {channel_focus}
-Keywords: {', '.join(channel_keywords)}
+        Channel Name: {channel_name}
+        Channel Focus: {channel_focus}
+        Keywords: {', '.join(channel_keywords)}
 
-Create filtering criteria that will help identify articles truly relevant to this channel's focus within the broader stream purpose."""
+        Create filtering criteria that will help identify articles truly relevant to this channel's focus within the broader stream purpose."""
 
         # Response schema
         response_schema = {
@@ -500,11 +500,8 @@ Create filtering criteria that will help identify articles truly relevant to thi
         if not stream or not stream.workflow_config:
             return None
 
-        channel_configs = stream.workflow_config.get('channel_configs', [])
-        return next(
-            (cc for cc in channel_configs if cc.get('channel_id') == channel_id),
-            None
-        )
+        channel_configs = stream.workflow_config.get('channel_configs', {})
+        return channel_configs.get(channel_id)
 
     def update_channel_source_query(
         self,
@@ -535,7 +532,7 @@ Create filtering criteria that will help identify articles truly relevant to thi
             raise ValueError("Research stream not found")
 
         # Find channel by ID
-        channel = next((ch for ch in stream.channels if ch.channel_id == channel_id), None)
+        channel = next((ch for ch in stream.channels if ch.get('channel_id') == channel_id), None)
         if not channel:
             raise ValueError(f"Channel with ID '{channel_id}' not found in stream")
 
@@ -607,7 +604,7 @@ Create filtering criteria that will help identify articles truly relevant to thi
             raise ValueError("Research stream not found")
 
         # Find channel by ID
-        channel = next((ch for ch in stream.channels if ch.channel_id == channel_id), None)
+        channel = next((ch for ch in stream.channels if ch.get('channel_id') == channel_id), None)
         if not channel:
             raise ValueError(f"Channel with ID '{channel_id}' not found in stream")
 
@@ -673,19 +670,22 @@ Create filtering criteria that will help identify articles truly relevant to thi
 
         # Verify all channels have configuration
         workflow_config = stream.workflow_config or {}
-        channel_configs = workflow_config.get('channel_configs', [])
+        channel_configs = workflow_config.get('channel_configs', {})
 
-        configured_channel_ids = {cc['channel_id'] for cc in channel_configs}
-        all_channel_ids = {ch.channel_id for ch in stream.channels}
+        configured_channel_ids = set(channel_configs.keys())
+        all_channel_ids = {ch.get('channel_id') for ch in stream.channels}
 
         missing_channel_ids = all_channel_ids - configured_channel_ids
         if missing_channel_ids:
-            missing_names = [ch.name for ch in stream.channels if ch.channel_id in missing_channel_ids]
+            missing_names = [ch.get('name') for ch in stream.channels if ch.get('channel_id') in missing_channel_ids]
             raise ValueError(f"Configuration incomplete. Missing channels: {', '.join(missing_names)}")
 
         # Verify each channel has at least one source query
-        for cc in channel_configs:
+        for channel_id, cc in channel_configs.items():
             if not cc.get('source_queries'):
-                raise ValueError(f"Channel '{cc['channel_name']}' has no source queries configured")
+                # Find channel name for better error message
+                channel = next((ch for ch in stream.channels if ch.get('channel_id') == channel_id), None)
+                channel_name = channel.get('name') if channel else channel_id
+                raise ValueError(f"Channel '{channel_name}' has no source queries configured")
 
         return stream
