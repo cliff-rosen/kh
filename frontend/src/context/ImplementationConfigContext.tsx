@@ -237,6 +237,8 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         if (!currentChannel) throw new Error('No current channel');
 
         const result = await researchStreamApi.generateChannelFilter(streamId, currentChannel.name);
+        console.log('[Context] Generated filter result:', result);
+        console.log('[Context] Saving to channel_id:', currentChannel.channel_id);
 
         // Save filter immediately
         await researchStreamApi.updateChannelSemanticFilter(
@@ -248,14 +250,17 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
                 threshold: 0.7
             }
         );
+        console.log('[Context] Filter saved, reloading stream...');
 
         await reloadStream();
+        console.log('[Context] Stream reloaded');
+        console.log('[Context] Current channel workflow config:', currentChannelWorkflowConfig);
 
         // Move to testing/review step
         setCurrentStep('semantic_filter_testing');
 
         return result;
-    }, [currentChannel, streamId, reloadStream]);
+    }, [currentChannel, streamId, reloadStream, currentChannelWorkflowConfig]);
 
     // Update filter criteria - saves immediately
     const updateFilterCriteria = useCallback(async (criteria: string) => {

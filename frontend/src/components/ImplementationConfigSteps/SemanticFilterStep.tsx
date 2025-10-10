@@ -42,9 +42,12 @@ export default function SemanticFilterStep() {
     const handleGenerateFilter = async () => {
         setIsGenerating(true);
         try {
+            console.log('Calling generateFilter...');
             const result = await generateFilter();
+            console.log('Filter generated:', result);
             setEditedCriteria(result.filter_criteria);
             setFilterReasoning(result.reasoning);
+            console.log('Updated local state with filter criteria');
         } catch (error) {
             console.error('Filter generation failed:', error);
             alert('Failed to generate filter. Please try again.');
