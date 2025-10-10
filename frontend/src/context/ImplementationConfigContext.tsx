@@ -88,6 +88,18 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         ? currentChannelWorkflowConfig.source_queries[currentSourceId]
         : null;
 
+    // Debug logging
+    if (currentStep === 'query_generation') {
+        console.log('[ImplementationConfig] Query Generation Step:', {
+            currentChannelId: currentChannel?.channel_id,
+            hasWorkflowConfig: !!currentChannelWorkflowConfig,
+            selectedSources,
+            currentSourceIndex,
+            currentSourceId,
+            currentSourceQuery
+        });
+    }
+
     const isComplete = stream ? currentChannelIndex >= stream.channels.length : false;
 
     const overallProgress = stream && stream.channels.length > 0
@@ -163,14 +175,15 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
             }
         };
 
-        // Save to database
+        // Save to database and reload stream
         await researchStreamApi.updateResearchStream(streamId, { workflow_config });
         await reloadStream();
 
-        // Move to query generation step
+        // IMPORTANT: Move to query generation step AFTER reload completes
+        // so that selectedSources is properly derived from updated workflow_config
         setCurrentSourceIndex(0);
         setCurrentStep('query_generation');
-    }, [currentChannel, stream, streamId]);
+    }, [currentChannel, stream, streamId, reloadStream]);
 
     // Generate query - returns result but doesn't save yet
     const generateQuery = useCallback(async (): Promise<{ query_expression: string; reasoning: string }> => {

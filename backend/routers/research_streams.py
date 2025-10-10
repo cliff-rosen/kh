@@ -44,6 +44,7 @@ class ResearchStreamUpdateRequest(BaseModel):
     report_frequency: Optional[ReportFrequency] = None
     is_active: Optional[bool] = None
     scoring_config: Optional[ScoringConfig] = None
+    workflow_config: Optional[Dict[str, Any]] = None
 
 class ResearchStreamResponse(BaseModel):
     data: ResearchStream
