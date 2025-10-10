@@ -241,15 +241,21 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         console.log('[Context] Saving to channel_id:', currentChannel.channel_id);
 
         // Save filter immediately
-        await researchStreamApi.updateChannelSemanticFilter(
-            streamId,
-            currentChannel.channel_id,
-            {
-                enabled: true,
-                criteria: result.filter_criteria,
-                threshold: 0.7
-            }
-        );
+        try {
+            const saveResult = await researchStreamApi.updateChannelSemanticFilter(
+                streamId,
+                currentChannel.channel_id,
+                {
+                    enabled: true,
+                    criteria: result.filter_criteria,
+                    threshold: 0.7
+                }
+            );
+            console.log('[Context] Filter save result:', saveResult);
+        } catch (error) {
+            console.error('[Context] Filter save FAILED:', error);
+            throw error;
+        }
         console.log('[Context] Filter saved, reloading stream...');
 
         await reloadStream();

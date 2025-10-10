@@ -91,6 +91,7 @@ class ResearchStreamService:
         update_data: Dict[str, Any]
     ) -> ResearchStream:
         """Update an existing research stream"""
+        from sqlalchemy.orm.attributes import flag_modified
 
         research_stream = self.db.query(ResearchStream).filter(
             ResearchStream.stream_id == stream_id
@@ -103,6 +104,9 @@ class ResearchStreamService:
         for field, value in update_data.items():
             if hasattr(research_stream, field):
                 setattr(research_stream, field, value)
+                # Flag mutable fields (like JSON/dict) as modified so SQLAlchemy tracks them
+                if field in ['workflow_config', 'channels', 'scoring_config']:
+                    flag_modified(research_stream, field)
 
         research_stream.updated_at = datetime.utcnow()
 
