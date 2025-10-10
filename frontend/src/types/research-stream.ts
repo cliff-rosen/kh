@@ -37,7 +37,6 @@ export interface ScoringConfig {
 // ============================================================================
 
 export interface SourceQuery {
-    source_id: string;  // Reference to information source (e.g., "pubmed", "google_scholar")
     query_expression: string;  // Source-specific query expression
     enabled: boolean;  // Whether this source is active for this channel
 }
@@ -49,13 +48,12 @@ export interface SemanticFilter {
 }
 
 export interface ChannelWorkflowConfig {
-    channel_id: string;  // Links to Channel.channel_id (UUID)
-    source_queries: SourceQuery[];  // All source queries for this channel
+    source_queries: Record<string, SourceQuery>;  // Map: source_id -> SourceQuery
     semantic_filter: SemanticFilter;  // Semantic filtering for this channel
 }
 
 export interface WorkflowConfig {
-    channel_configs: ChannelWorkflowConfig[];  // Configuration organized by channel
+    channel_configs: Record<string, ChannelWorkflowConfig>;  // Map: channel_id -> ChannelWorkflowConfig
     article_limit_per_week?: number;
 }
 

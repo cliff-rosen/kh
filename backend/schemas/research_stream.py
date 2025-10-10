@@ -68,7 +68,6 @@ class ScoringConfig(BaseModel):
 
 class SourceQuery(BaseModel):
     """Query expression for a specific source within a channel"""
-    source_id: str = Field(description="Reference to information source (e.g., 'pubmed', 'google_scholar')")
     query_expression: str = Field(description="Source-specific query expression")
     enabled: bool = Field(default=True, description="Whether this source is active for this channel")
 
@@ -82,16 +81,15 @@ class SemanticFilter(BaseModel):
 
 class ChannelWorkflowConfig(BaseModel):
     """Complete workflow configuration for a single channel"""
-    channel_id: str = Field(description="Links to Channel.channel_id (UUID)")
-    source_queries: List[SourceQuery] = Field(default_factory=list, description="All source queries for this channel")
+    source_queries: Dict[str, SourceQuery] = Field(default_factory=dict, description="Map: source_id -> SourceQuery")
     semantic_filter: SemanticFilter = Field(description="Semantic filtering for this channel")
 
 
 class WorkflowConfig(BaseModel):
     """Configuration for workflow - organized by channel"""
-    channel_configs: List[ChannelWorkflowConfig] = Field(
-        default_factory=list,
-        description="Configuration organized by channel"
+    channel_configs: Dict[str, ChannelWorkflowConfig] = Field(
+        default_factory=dict,
+        description="Map: channel_id -> ChannelWorkflowConfig"
     )
     article_limit_per_week: Optional[int] = Field(None, description="Maximum articles per week")
 

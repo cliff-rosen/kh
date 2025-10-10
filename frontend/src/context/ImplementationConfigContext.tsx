@@ -75,7 +75,7 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         : null;
 
     const currentChannelWorkflowConfig = currentChannel && stream?.workflow_config?.channel_configs
-        ? stream.workflow_config.channel_configs.find(cc => cc.channel_id === currentChannel.channel_id) || null
+        ? stream.workflow_config.channel_configs[currentChannel.channel_id] || null
         : null;
 
     const uiState = currentChannel
@@ -85,23 +85,23 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
     const isComplete = stream ? currentChannelIndex >= stream.channels.length : false;
 
     const overallProgress = stream && stream.channels.length > 0
-        ? Math.round((stream.workflow_config?.channel_configs?.filter(cc =>
-            cc.source_queries.length > 0
+        ? Math.round((Object.values(stream.workflow_config?.channel_configs || {}).filter(cc =>
+            Object.keys(cc.source_queries).length > 0
         ).length || 0) / stream.channels.length * 100)
         : 0;
 
     // Helper to check if a channel is complete
     const isChannelComplete = useCallback((channelId: string) => {
         if (!stream?.workflow_config?.channel_configs) return false;
-        const config = stream.workflow_config.channel_configs.find(cc => cc.channel_id === channelId);
-        return config ? config.source_queries.length > 0 : false;
+        const config = stream.workflow_config.channel_configs[channelId];
+        return config ? Object.keys(config.source_queries).length > 0 : false;
     }, [stream]);
 
     // Helper to get current source query
     const getCurrentSourceQuery = useCallback((): SourceQuery | null => {
         if (!currentChannelWorkflowConfig || !uiState) return null;
         const sourceId = uiState.selected_sources[uiState.current_source_index];
-        return currentChannelWorkflowConfig.source_queries.find(sq => sq.source_id === sourceId) || null;
+        return currentChannelWorkflowConfig.source_queries[sourceId] || null;
     }, [currentChannelWorkflowConfig, uiState]);
 
     // Load stream data
@@ -119,7 +119,7 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
             // Initialize UI states for channels that don't have workflow config yet
             const uiStates = new Map<string, ChannelConfigUIState>();
             streamData.channels.forEach(channel => {
-                const hasConfig = streamData.workflow_config?.channel_configs?.some(cc => cc.channel_id === channel.channel_id);
+                const hasConfig = streamData.workflow_config?.channel_configs?.[channel.channel_id];
                 uiStates.set(channel.channel_id, {
                     selected_sources: [],
                     current_source_index: 0,

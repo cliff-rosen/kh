@@ -540,51 +540,35 @@ Create filtering criteria that will help identify articles truly relevant to thi
             raise ValueError(f"Channel with ID '{channel_id}' not found in stream")
 
         # Get or create workflow_config
-        workflow_config = stream.workflow_config or {'channel_configs': []}
+        workflow_config = stream.workflow_config or {'channel_configs': {}}
         if 'channel_configs' not in workflow_config:
-            workflow_config['channel_configs'] = []
+            workflow_config['channel_configs'] = {}
 
         channel_configs = workflow_config['channel_configs']
 
-        # Find or create channel config
-        channel_config = next(
-            (cc for cc in channel_configs if cc.get('channel_id') == channel_id),
-            None
-        )
-
-        if not channel_config:
+        # Get or create channel config
+        if channel_id not in channel_configs:
             # Create new channel config with default semantic filter
-            channel_config = {
-                'channel_id': channel_id,
-                'source_queries': [],
+            channel_configs[channel_id] = {
+                'source_queries': {},
                 'semantic_filter': {
                     'enabled': False,
                     'criteria': '',
                     'threshold': 0.7
                 }
             }
-            channel_configs.append(channel_config)
 
-        # Find or create source query
-        source_queries = channel_config.get('source_queries', [])
-        source_query = next(
-            (sq for sq in source_queries if sq.get('source_id') == source_id),
-            None
-        )
+        channel_config = channel_configs[channel_id]
 
-        if source_query:
-            # Update existing
-            source_query['query_expression'] = query_expression
-            source_query['enabled'] = enabled
-        else:
-            # Add new
-            source_queries.append({
-                'source_id': source_id,
-                'query_expression': query_expression,
-                'enabled': enabled
-            })
+        # Get or create source_queries map
+        if 'source_queries' not in channel_config:
+            channel_config['source_queries'] = {}
 
-        channel_config['source_queries'] = source_queries
+        # Update or create source query - direct map access O(1)
+        channel_config['source_queries'][source_id] = {
+            'query_expression': query_expression,
+            'enabled': enabled
+        }
 
         # Save to database
         updated_stream = self.stream_service.update_research_stream(
@@ -628,33 +612,26 @@ Create filtering criteria that will help identify articles truly relevant to thi
             raise ValueError(f"Channel with ID '{channel_id}' not found in stream")
 
         # Get or create workflow_config
-        workflow_config = stream.workflow_config or {'channel_configs': []}
+        workflow_config = stream.workflow_config or {'channel_configs': {}}
         if 'channel_configs' not in workflow_config:
-            workflow_config['channel_configs'] = []
+            workflow_config['channel_configs'] = {}
 
         channel_configs = workflow_config['channel_configs']
 
-        # Find or create channel config
-        channel_config = next(
-            (cc for cc in channel_configs if cc.get('channel_id') == channel_id),
-            None
-        )
-
-        if not channel_config:
+        # Get or create channel config
+        if channel_id not in channel_configs:
             # Create new channel config
-            channel_config = {
-                'channel_id': channel_id,
-                'source_queries': [],
+            channel_configs[channel_id] = {
+                'source_queries': {},
                 'semantic_filter': {
                     'enabled': enabled,
                     'criteria': criteria,
                     'threshold': threshold
                 }
             }
-            channel_configs.append(channel_config)
         else:
-            # Update semantic filter
-            channel_config['semantic_filter'] = {
+            # Update semantic filter - direct map access O(1)
+            channel_configs[channel_id]['semantic_filter'] = {
                 'enabled': enabled,
                 'criteria': criteria,
                 'threshold': threshold
