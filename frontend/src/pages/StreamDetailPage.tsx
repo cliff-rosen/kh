@@ -1,10 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useResearchStream } from '../context/ResearchStreamContext';
-import { StreamType, ReportFrequency, Channel, WorkflowConfig, ScoringConfig } from '../types';
+import { StreamType, ReportFrequency, Channel, WorkflowConfig, ScoringConfig, ChannelWorkflowConfig, SourceQuery, SemanticFilter } from '../types/research-stream';
 import { ArrowLeftIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 type TabType = 'stream' | 'workflow';
+
+// Browser-compatible UUID generator
+function generateUUID(): string {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
 
 export default function StreamDetailPage() {
     const { id } = useParams<{ id: string }>();
@@ -18,21 +27,17 @@ export default function StreamDetailPage() {
         purpose: '',
         channels: [
             {
+                channel_id: generateUUID(),
                 name: '',
                 focus: '',
                 type: StreamType.COMPETITIVE,
-                keywords: [] as string[],
-                semantic_filter: {
-                    enabled: false,
-                    criteria: null,
-                    threshold: null
-                }
+                keywords: [] as string[]
             }
         ] as Channel[],
         report_frequency: ReportFrequency.WEEKLY,
         is_active: true,
         workflow_config: {
-            sources: [],
+            channel_configs: {},
             article_limit_per_week: 10
         } as WorkflowConfig,
         scoring_config: {
@@ -57,20 +62,16 @@ export default function StreamDetailPage() {
                     stream_name: foundStream.stream_name,
                     purpose: foundStream.purpose || '',
                     channels: foundStream.channels || [{
+                        channel_id: generateUUID(),
                         name: '',
                         focus: '',
                         type: StreamType.COMPETITIVE,
-                        keywords: [],
-                        semantic_filter: {
-                            enabled: false,
-                            criteria: null,
-                            threshold: null
-                        }
+                        keywords: []
                     }],
                     report_frequency: foundStream.report_frequency,
                     is_active: foundStream.is_active,
                     workflow_config: foundStream.workflow_config || {
-                        sources: [],
+                        channel_configs: {},
                         article_limit_per_week: 10
                     },
                     scoring_config: foundStream.scoring_config || {
@@ -84,55 +85,19 @@ export default function StreamDetailPage() {
         }
     }, [id, researchStreams]);
 
-    // Sync channel queries when channels change
-    useEffect(() => {
-        if (!form.workflow_config?.sources || form.workflow_config.sources.length === 0) {
-            return;
-        }
-
-        const updatedSources = form.workflow_config.sources.map(source => {
-            const existingQueriesMap = new Map(
-                source.channel_queries.map(q => [q.channel_name, q.query_expression])
-            );
-
-            const updatedChannelQueries = form.channels.map(ch => ({
-                channel_name: ch.name,
-                query_expression: existingQueriesMap.get(ch.name) || ch.keywords.join(' OR ')
-            }));
-
-            return {
-                ...source,
-                channel_queries: updatedChannelQueries
-            };
-        });
-
-        const queriesChanged = JSON.stringify(form.workflow_config.sources) !== JSON.stringify(updatedSources);
-        if (queriesChanged) {
-            setForm(prev => ({
-                ...prev,
-                workflow_config: {
-                    ...prev.workflow_config,
-                    sources: updatedSources
-                }
-            }));
-        }
-    }, [form.channels]);
 
     const addChannel = () => {
+        const newChannelId = generateUUID();
         setForm({
             ...form,
             channels: [
                 ...form.channels,
                 {
+                    channel_id: newChannelId,
                     name: '',
                     focus: '',
                     type: StreamType.COMPETITIVE,
-                    keywords: [],
-                    semantic_filter: {
-                        enabled: false,
-                        criteria: null,
-                        threshold: null
-                    }
+                    keywords: []
                 }
             ]
         });
@@ -143,9 +108,21 @@ export default function StreamDetailPage() {
             alert('At least one channel is required');
             return;
         }
+
+        const removedChannel = form.channels[index];
+        const updatedChannels = form.channels.filter((_, i) => i !== index);
+
+        // Also remove from workflow_config.channel_configs
+        const updatedChannelConfigs = { ...form.workflow_config.channel_configs };
+        delete updatedChannelConfigs[removedChannel.channel_id];
+
         setForm({
             ...form,
-            channels: form.channels.filter((_, i) => i !== index)
+            channels: updatedChannels,
+            workflow_config: {
+                ...form.workflow_config,
+                channel_configs: updatedChannelConfigs
+            }
         });
     };
 
@@ -155,74 +132,98 @@ export default function StreamDetailPage() {
         setForm({ ...form, channels: updated });
     };
 
-    const updateSemanticFilter = (index: number, field: 'enabled' | 'criteria' | 'threshold', value: any) => {
-        const updated = [...form.channels];
-        updated[index] = {
-            ...updated[index],
-            semantic_filter: {
-                ...updated[index].semantic_filter!,
-                [field]: value
-            }
-        };
-        setForm({ ...form, channels: updated });
-    };
-
     const handleKeywordsChange = (index: number, value: string) => {
         const keywords = value.split(',').map(s => s.trim()).filter(s => s);
         updateChannel(index, 'keywords', keywords);
     };
 
-    const addWorkflowSource = () => {
+    // New workflow config functions for channel-based structure
+    const addSourceToChannel = (channelId: string, sourceId: string) => {
+        const channelConfig = form.workflow_config.channel_configs[channelId] || {
+            source_queries: {},
+            semantic_filter: { enabled: false, criteria: '', threshold: 0.7 }
+        };
+
         setForm({
             ...form,
             workflow_config: {
                 ...form.workflow_config,
-                sources: [
-                    ...(form.workflow_config?.sources || []),
-                    {
-                        source_id: '',
-                        enabled: true,
-                        channel_queries: form.channels.map(ch => ({
-                            channel_name: ch.name,
-                            query_expression: ch.keywords.join(' OR ')
-                        }))
+                channel_configs: {
+                    ...form.workflow_config.channel_configs,
+                    [channelId]: {
+                        ...channelConfig,
+                        source_queries: {
+                            ...channelConfig.source_queries,
+                            [sourceId]: null // null = selected but not configured
+                        }
                     }
-                ]
+                }
             }
         });
     };
 
-    const removeWorkflowSource = (index: number) => {
-        const sources = form.workflow_config?.sources || [];
+    const removeSourceFromChannel = (channelId: string, sourceId: string) => {
+        const channelConfig = form.workflow_config.channel_configs[channelId];
+        if (!channelConfig) return;
+
+        const updatedSourceQueries = { ...channelConfig.source_queries };
+        delete updatedSourceQueries[sourceId];
+
         setForm({
             ...form,
             workflow_config: {
                 ...form.workflow_config,
-                sources: sources.filter((_, i) => i !== index)
+                channel_configs: {
+                    ...form.workflow_config.channel_configs,
+                    [channelId]: {
+                        ...channelConfig,
+                        source_queries: updatedSourceQueries
+                    }
+                }
             }
         });
     };
 
-    const updateWorkflowSource = (index: number, field: string, value: any) => {
-        const sources = [...(form.workflow_config?.sources || [])];
-        sources[index] = { ...sources[index], [field]: value };
+    const updateSourceQuery = (channelId: string, sourceId: string, queryExpression: string, enabled: boolean = true) => {
+        const channelConfig = form.workflow_config.channel_configs[channelId];
+        if (!channelConfig) return;
+
         setForm({
             ...form,
             workflow_config: {
                 ...form.workflow_config,
-                sources
+                channel_configs: {
+                    ...form.workflow_config.channel_configs,
+                    [channelId]: {
+                        ...channelConfig,
+                        source_queries: {
+                            ...channelConfig.source_queries,
+                            [sourceId]: { query_expression: queryExpression, enabled }
+                        }
+                    }
+                }
             }
         });
     };
 
-    const updateChannelQuery = (sourceIndex: number, channelIndex: number, queryExpression: string) => {
-        const sources = [...(form.workflow_config?.sources || [])];
-        sources[sourceIndex].channel_queries[channelIndex].query_expression = queryExpression;
+    const updateSemanticFilter = (channelId: string, updates: Partial<SemanticFilter>) => {
+        const channelConfig = form.workflow_config.channel_configs[channelId];
+        if (!channelConfig) return;
+
         setForm({
             ...form,
             workflow_config: {
                 ...form.workflow_config,
-                sources
+                channel_configs: {
+                    ...form.workflow_config.channel_configs,
+                    [channelId]: {
+                        ...channelConfig,
+                        semantic_filter: {
+                            ...channelConfig.semantic_filter,
+                            ...updates
+                        }
+                    }
+                }
             }
         });
     };
@@ -461,52 +462,6 @@ export default function StreamDetailPage() {
                                                 required
                                             />
                                         </div>
-
-                                        {/* Semantic Filter */}
-                                        <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <input
-                                                    type="checkbox"
-                                                    id={`semantic-${index}`}
-                                                    checked={channel.semantic_filter?.enabled || false}
-                                                    onChange={(e) => updateSemanticFilter(index, 'enabled', e.target.checked)}
-                                                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                                />
-                                                <label htmlFor={`semantic-${index}`} className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                    Enable Semantic Filtering
-                                                </label>
-                                            </div>
-                                            {channel.semantic_filter?.enabled && (
-                                                <div className="space-y-2 ml-6">
-                                                    <div>
-                                                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                                            Filter Criteria
-                                                        </label>
-                                                        <textarea
-                                                            rows={2}
-                                                            value={channel.semantic_filter.criteria || ''}
-                                                            onChange={(e) => updateSemanticFilter(index, 'criteria', e.target.value)}
-                                                            placeholder="Describe what content should match semantically"
-                                                            className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                                            Similarity Threshold (0-1)
-                                                        </label>
-                                                        <input
-                                                            type="number"
-                                                            min="0"
-                                                            max="1"
-                                                            step="0.1"
-                                                            value={channel.semantic_filter.threshold || 0.7}
-                                                            onChange={(e) => updateSemanticFilter(index, 'threshold', parseFloat(e.target.value))}
-                                                            className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -546,95 +501,146 @@ export default function StreamDetailPage() {
                     {/* Workflow & Scoring Tab */}
                     {activeTab === 'workflow' && (
                         <div className="space-y-6">
-                            {/* Information Sources */}
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        Information Sources
-                                    </label>
-                                    <button
-                                        type="button"
-                                        onClick={addWorkflowSource}
-                                        className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                                    >
-                                        <PlusIcon className="h-4 w-4" />
-                                        Add Source
-                                    </button>
-                                </div>
+                            {/* Channel Workflow Configuration */}
+                            <div>
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                                    Channel Workflow Configuration
+                                </h3>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                    Configure information sources and semantic filters for each channel. For full implementation config, use the "Configure Implementation" button above.
+                                </p>
 
-                                {form.workflow_config?.sources?.map((source, index) => (
-                                    <div key={index} className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                                                Source {index + 1}
-                                            </h4>
-                                            {(form.workflow_config?.sources?.length || 0) > 1 && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeWorkflowSource(index)}
-                                                    className="text-red-600 dark:text-red-400 hover:text-red-700"
-                                                >
-                                                    <TrashIcon className="h-5 w-5" />
-                                                </button>
-                                            )}
-                                        </div>
+                                {form.channels.map((channel, channelIndex) => {
+                                    const channelConfig = form.workflow_config.channel_configs[channel.channel_id];
+                                    const sourceQueries = channelConfig?.source_queries || {};
+                                    const semanticFilter = channelConfig?.semantic_filter || { enabled: false, criteria: '', threshold: 0.7 };
 
-                                        <div className="grid grid-cols-2 gap-4">
+                                    return (
+                                        <div key={channel.channel_id} className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 space-y-4 mb-4">
                                             <div>
-                                                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                                    Source ID
-                                                </label>
-                                                <select
-                                                    value={source.source_id}
-                                                    onChange={(e) => updateWorkflowSource(index, 'source_id', e.target.value)}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                                >
-                                                    <option value="">Select a source...</option>
-                                                    {availableSources.map(src => (
-                                                        <option key={src.source_id} value={src.source_id}>
-                                                            {src.name}
-                                                        </option>
-                                                    ))}
-                                                </select>
+                                                <h4 className="text-md font-semibold text-gray-900 dark:text-white">
+                                                    {channel.name}
+                                                </h4>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">{channel.focus}</p>
                                             </div>
 
-                                            <div className="flex items-center">
-                                                <label className="flex items-center gap-2 cursor-pointer">
+                                            {/* Source Queries */}
+                                            <div>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                                        Information Sources
+                                                    </label>
+                                                    <select
+                                                        onChange={(e) => {
+                                                            if (e.target.value) {
+                                                                addSourceToChannel(channel.channel_id, e.target.value);
+                                                                e.target.value = '';
+                                                            }
+                                                        }}
+                                                        value=""
+                                                        className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                    >
+                                                        <option value="">+ Add Source</option>
+                                                        {availableSources
+                                                            .filter(src => !sourceQueries[src.source_id])
+                                                            .map(src => (
+                                                                <option key={src.source_id} value={src.source_id}>
+                                                                    {src.name}
+                                                                </option>
+                                                            ))}
+                                                    </select>
+                                                </div>
+
+                                                {Object.keys(sourceQueries).length === 0 ? (
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 italic py-2">
+                                                        No sources configured. Add a source above.
+                                                    </p>
+                                                ) : (
+                                                    <div className="space-y-2">
+                                                        {Object.entries(sourceQueries).map(([sourceId, sourceQuery]) => {
+                                                            const source = availableSources.find(s => s.source_id === sourceId);
+                                                            return (
+                                                                <div key={sourceId} className="bg-gray-50 dark:bg-gray-900 rounded p-2">
+                                                                    <div className="flex items-center justify-between mb-1">
+                                                                        <span className="text-xs font-medium text-gray-900 dark:text-white">
+                                                                            {source?.name || sourceId}
+                                                                        </span>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => removeSourceFromChannel(channel.channel_id, sourceId)}
+                                                                            className="text-red-600 dark:text-red-400 hover:text-red-700"
+                                                                        >
+                                                                            <TrashIcon className="h-4 w-4" />
+                                                                        </button>
+                                                                    </div>
+                                                                    {sourceQuery && (
+                                                                        <div className="space-y-1">
+                                                                            <input
+                                                                                type="text"
+                                                                                value={sourceQuery.query_expression}
+                                                                                onChange={(e) => updateSourceQuery(channel.channel_id, sourceId, e.target.value, sourceQuery.enabled)}
+                                                                                placeholder="Query expression"
+                                                                                className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                                            />
+                                                                            <label className="flex items-center gap-1">
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    checked={sourceQuery.enabled}
+                                                                                    onChange={(e) => updateSourceQuery(channel.channel_id, sourceId, sourceQuery.query_expression, e.target.checked)}
+                                                                                    className="w-3 h-3 text-blue-600 border-gray-300 rounded"
+                                                                                />
+                                                                                <span className="text-xs text-gray-600 dark:text-gray-400">Enabled</span>
+                                                                            </label>
+                                                                        </div>
+                                                                    )}
+                                                                    {!sourceQuery && (
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 italic">Not configured</p>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Semantic Filter */}
+                                            <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+                                                <div className="flex items-center gap-2 mb-2">
                                                     <input
                                                         type="checkbox"
-                                                        checked={source.enabled}
-                                                        onChange={(e) => updateWorkflowSource(index, 'enabled', e.target.checked)}
-                                                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                                        id={`semantic-workflow-${channelIndex}`}
+                                                        checked={semanticFilter.enabled}
+                                                        onChange={(e) => updateSemanticFilter(channel.channel_id, { enabled: e.target.checked })}
+                                                        className="w-4 h-4 text-blue-600 border-gray-300 rounded"
                                                     />
-                                                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                                                        Enabled
-                                                    </span>
-                                                </label>
+                                                    <label htmlFor={`semantic-workflow-${channelIndex}`} className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                                        Semantic Filtering
+                                                    </label>
+                                                </div>
+                                                {semanticFilter.enabled && (
+                                                    <div className="space-y-2 ml-6">
+                                                        <textarea
+                                                            rows={2}
+                                                            value={semanticFilter.criteria}
+                                                            onChange={(e) => updateSemanticFilter(channel.channel_id, { criteria: e.target.value })}
+                                                            placeholder="Filter criteria"
+                                                            className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                        />
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            max="1"
+                                                            step="0.05"
+                                                            value={semanticFilter.threshold}
+                                                            onChange={(e) => updateSemanticFilter(channel.channel_id, { threshold: parseFloat(e.target.value) })}
+                                                            className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                        />
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
-
-                                        {/* Channel Queries */}
-                                        <div className="mt-4 space-y-2">
-                                            <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                                                Channel Queries
-                                            </h5>
-                                            {source.channel_queries.map((cq, cqIndex) => (
-                                                <div key={cqIndex} className="pl-3 border-l-2 border-gray-200 dark:border-gray-700">
-                                                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                                        {cq.channel_name}
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Query expression for this channel"
-                                                        value={cq.query_expression}
-                                                        onChange={(e) => updateChannelQuery(index, cqIndex, e.target.value)}
-                                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs"
-                                                    />
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
 
                             {/* Article Limit */}
