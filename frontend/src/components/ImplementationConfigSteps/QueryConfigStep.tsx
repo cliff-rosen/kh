@@ -53,11 +53,15 @@ export default function QueryConfigStep() {
 
     const [dateRange, setDateRange] = useState(getDefaultDateRange());
 
+    // Reset all state when source changes
     useEffect(() => {
-        if (currentSourceQuery) {
-            setEditedQuery(currentSourceQuery.query_expression);
-        }
-    }, [currentSourceQuery?.query_expression]);
+        setEditedQuery(currentSourceQuery?.query_expression || '');
+        setQueryReasoning('');
+        setTestResult(null);
+        setIsEditing(false);
+        setIsGenerating(false);
+        setIsTesting(false);
+    }, [currentSourceId, currentSourceQuery?.query_expression]);
 
     useEffect(() => {
         if (currentChannel) {
