@@ -88,17 +88,6 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         ? currentChannelWorkflowConfig.source_queries[currentSourceId]
         : null;
 
-    // Debug logging
-    if (currentStep === 'query_generation') {
-        console.log('[ImplementationConfig] Query Generation Step:', {
-            currentChannelId: currentChannel?.channel_id,
-            hasWorkflowConfig: !!currentChannelWorkflowConfig,
-            selectedSources,
-            currentSourceIndex,
-            currentSourceId,
-            currentSourceQuery
-        });
-    }
 
     const isComplete = stream ? currentChannelIndex >= stream.channels.length : false;
 
@@ -243,7 +232,7 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         }
     }, [currentSourceIndex, selectedSources]);
 
-    // Generate filter - returns result but doesn't save yet
+    // Generate filter - saves immediately and advances to review step
     const generateFilter = useCallback(async (): Promise<{ filter_criteria: string; reasoning: string }> => {
         if (!currentChannel) throw new Error('No current channel');
 
@@ -261,6 +250,9 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         );
 
         await reloadStream();
+
+        // Move to testing/review step
+        setCurrentStep('semantic_filter_testing');
 
         return result;
     }, [currentChannel, streamId, reloadStream]);

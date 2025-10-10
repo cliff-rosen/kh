@@ -8,6 +8,7 @@ export default function SemanticFilterStep() {
         stream,
         currentChannel,
         currentChannelWorkflowConfig,
+        currentStep,
         generateFilter,
         updateFilterCriteria,
         updateFilterThreshold,
@@ -126,7 +127,8 @@ export default function SemanticFilterStep() {
                         Filter Criteria
                     </h3>
                     <div className="flex gap-2">
-                        {!filterConfig?.criteria && !isGenerating && (
+                        {/* Show Generate button only on config step */}
+                        {currentStep === 'semantic_filter_config' && !isGenerating && (
                             <button
                                 onClick={handleGenerateFilter}
                                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
@@ -134,7 +136,8 @@ export default function SemanticFilterStep() {
                                 Generate Filter
                             </button>
                         )}
-                        {filterConfig?.criteria && !isEditing && (
+                        {/* Show Edit/Regenerate only on testing step */}
+                        {currentStep === 'semantic_filter_testing' && !isEditing && (
                             <>
                                 <button
                                     onClick={() => setIsEditing(true)}
@@ -155,7 +158,7 @@ export default function SemanticFilterStep() {
                     </div>
                 </div>
 
-                {!filterConfig?.criteria && !isGenerating ? (
+                {currentStep === 'semantic_filter_config' && !isGenerating ? (
                     <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                         Click "Generate Filter" to create semantic filtering criteria based on the channel context
                     </div>
@@ -347,14 +350,14 @@ export default function SemanticFilterStep() {
                 </div>
             )}
 
-            {/* Complete Channel Button */}
-            {filterConfig?.criteria && (
+            {/* Complete Channel Button - only show on testing step */}
+            {currentStep === 'semantic_filter_testing' && filterConfig?.criteria && (
                 <div className="flex justify-end">
                     <button
                         onClick={completeChannel}
                         className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
                     >
-                        Complete Channel Configuration
+                        Accept and Complete Channel
                     </button>
                 </div>
             )}

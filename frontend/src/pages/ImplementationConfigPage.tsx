@@ -174,8 +174,9 @@ function ImplementationConfigContent() {
                                 <QueryConfigStep />
                             )}
 
-                        {/* Semantic Filter Step */}
-                        {currentStep === 'semantic_filter_config' && (
+                        {/* Semantic Filter Steps */}
+                        {(currentStep === 'semantic_filter_config' ||
+                            currentStep === 'semantic_filter_testing') && (
                             <SemanticFilterStep />
                         )}
                     </div>
