@@ -598,8 +598,6 @@ class ImplementationConfigService:
         Returns:
             Updated ResearchStream
         """
-        logger.info(f"update_channel_semantic_filter called: stream={stream_id}, channel={channel_id}, enabled={enabled}, criteria length={len(criteria)}, threshold={threshold}")
-
         # Verify stream
         stream = self.stream_service.get_research_stream(stream_id, user_id)
         if not stream:
@@ -616,9 +614,6 @@ class ImplementationConfigService:
             workflow_config['channel_configs'] = {}
 
         channel_configs = workflow_config['channel_configs']
-
-        logger.info(f"Before update - channel_configs keys: {list(channel_configs.keys())}")
-        logger.info(f"Before update - existing filter for {channel_id}: {channel_configs.get(channel_id, {}).get('semantic_filter')}")
 
         # Get or create channel config
         if channel_id not in channel_configs:
@@ -639,15 +634,11 @@ class ImplementationConfigService:
                 'threshold': threshold
             }
 
-        logger.info(f"After update - filter for {channel_id}: {channel_configs[channel_id]['semantic_filter']}")
-
         # Save to database
         updated_stream = self.stream_service.update_research_stream(
             stream_id,
             {'workflow_config': workflow_config}
         )
-
-        logger.info(f"Database updated, returning stream")
 
         return updated_stream
 
