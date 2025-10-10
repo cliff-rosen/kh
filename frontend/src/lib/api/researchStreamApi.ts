@@ -1,5 +1,5 @@
 import { api } from './index';
-import { ResearchStream, ReportFrequency, Channel, InformationSource } from '../../types';
+import { ResearchStream, ReportFrequency, Channel, InformationSource, WorkflowConfig } from '../../types';
 import {
     StreamInProgress,
     StreamBuildStep,
@@ -83,6 +83,7 @@ export interface ResearchStreamUpdateRequest {
     channels?: Channel[];
     report_frequency?: ReportFrequency;
     is_active?: boolean;
+    workflow_config?: WorkflowConfig;
 }
 
 // ============================================================================
