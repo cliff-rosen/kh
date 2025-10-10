@@ -169,10 +169,18 @@ async def create_research_stream(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new research stream with channel-based structure"""
+    import uuid
     service = ResearchStreamService(db)
 
-    # Convert Pydantic models to dicts
-    channels_dict = [ch.dict() if hasattr(ch, 'dict') else ch for ch in request.channels]
+    # Convert Pydantic models to dicts and add channel_id if missing
+    channels_dict = []
+    for ch in request.channels:
+        ch_dict = ch.dict() if hasattr(ch, 'dict') else ch
+        # Add channel_id if it doesn't exist
+        if 'channel_id' not in ch_dict or not ch_dict['channel_id']:
+            ch_dict['channel_id'] = str(uuid.uuid4())
+        channels_dict.append(ch_dict)
+
     scoring_dict = request.scoring_config.dict() if request.scoring_config else None
 
     return service.create_research_stream(

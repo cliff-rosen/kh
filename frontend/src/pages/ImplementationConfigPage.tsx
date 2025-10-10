@@ -14,9 +14,9 @@ function ImplementationConfigContent() {
         isComplete,
         isLoading,
         currentChannel,
-        currentChannelConfig,
         overallProgress,
-        isChannelComplete
+        isChannelComplete,
+        uiState
     } = useImplementationConfig();
 
     const streamName = stream?.stream_name || '';
@@ -126,12 +126,12 @@ function ImplementationConfigContent() {
                     </div>
                     <div className="flex gap-2">
                         {channels.map((channel, idx) => {
-                            const channelComplete = isChannelComplete(channel.name);
+                            const channelComplete = channel.channel_id ? isChannelComplete(channel.channel_id) : false;
                             const isCurrent = idx === currentChannelIndex;
 
                             return (
                                 <div
-                                    key={channel.name}
+                                    key={channel.channel_id || channel.name}
                                     className={`flex-1 h-2 rounded-full transition-all ${channelComplete
                                         ? 'bg-green-500'
                                         : isCurrent
@@ -145,7 +145,7 @@ function ImplementationConfigContent() {
                     </div>
                     <div className="flex justify-between mt-2">
                         <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {channels.filter((ch) => isChannelComplete(ch.name)).length} completed
+                            {channels.filter((ch) => ch.channel_id && isChannelComplete(ch.channel_id)).length} completed
                         </span>
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                             {overallProgress}% overall
@@ -156,26 +156,26 @@ function ImplementationConfigContent() {
 
             {/* Main Content */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                {!currentChannel || !currentChannelConfig ? (
+                {!currentChannel || !uiState ? (
                     <div className="text-center text-gray-600 dark:text-gray-400 py-12">
                         No channel to configure
                     </div>
                 ) : (
                     <div>
                         {/* Source Selection Step */}
-                        {currentChannelConfig.current_step === 'source_selection' && (
+                        {uiState.current_step === 'source_selection' && (
                             <SourceSelectionStep />
                         )}
 
                         {/* Query Generation/Testing Steps */}
-                        {(currentChannelConfig.current_step === 'query_generation' ||
-                            currentChannelConfig.current_step === 'query_testing' ||
-                            currentChannelConfig.current_step === 'query_refinement') && (
+                        {(uiState.current_step === 'query_generation' ||
+                            uiState.current_step === 'query_testing' ||
+                            uiState.current_step === 'query_refinement') && (
                                 <QueryConfigStep />
                             )}
 
                         {/* Semantic Filter Step */}
-                        {currentChannelConfig.current_step === 'semantic_filter_config' && (
+                        {uiState.current_step === 'semantic_filter_config' && (
                             <SemanticFilterStep />
                         )}
                     </div>

@@ -27,7 +27,7 @@ class ReportFrequency(str, Enum):
 
 class Channel(BaseModel):
     """A channel within a research stream - specific focus with keywords"""
-    channel_id: str = Field(description="UUID - stable identifier for this channel")
+    channel_id: Optional[str] = Field(None, description="UUID - stable identifier for this channel (auto-generated if not provided)")
     name: str = Field(description="Channel name")
     focus: str = Field(description="What this channel monitors")
     type: StreamType = Field(description="Type of intelligence for this channel")

@@ -7,7 +7,7 @@ export default function SemanticFilterStep() {
     const {
         stream,
         currentChannel,
-        currentChannelConfig,
+        currentChannelWorkflowConfig,
         generateFilter,
         updateFilterCriteria,
         updateFilterThreshold,
@@ -15,23 +15,20 @@ export default function SemanticFilterStep() {
         completeChannel
     } = useImplementationConfig();
 
-    const filterConfig = currentChannelConfig?.semantic_filter;
+    const filterConfig = currentChannelWorkflowConfig?.semantic_filter;
 
-    // Collect all sample articles from query test results
+    // Collect all sample articles from query test results (stored in local state)
+    // Note: In the new structure, we don't have test results in workflow_config
+    // We'll need to pass sample articles from the previous test results
     const sampleArticles: CanonicalResearchArticle[] = [];
-    if (currentChannelConfig) {
-        currentChannelConfig.source_configs.forEach((config: any) => {
-            if (config.test_result?.sample_articles) {
-                sampleArticles.push(...config.test_result.sample_articles);
-            }
-        });
-    }
 
     const [isGenerating, setIsGenerating] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
     const [editedCriteria, setEditedCriteria] = useState(filterConfig?.criteria || '');
     const [isEditing, setIsEditing] = useState(false);
     const [threshold, setThreshold] = useState(filterConfig?.threshold || 0.7);
+    const [filterReasoning, setFilterReasoning] = useState<string>('');
+    const [testResult, setTestResult] = useState<any>(null);
 
     useEffect(() => {
         setEditedCriteria(filterConfig?.criteria || '');
@@ -44,7 +41,9 @@ export default function SemanticFilterStep() {
     const handleGenerateFilter = async () => {
         setIsGenerating(true);
         try {
-            await generateFilter();
+            const result = await generateFilter();
+            setEditedCriteria(result.filter_criteria);
+            setFilterReasoning(result.reasoning);
         } catch (error) {
             console.error('Filter generation failed:', error);
             alert('Failed to generate filter. Please try again.');
@@ -61,7 +60,8 @@ export default function SemanticFilterStep() {
 
         setIsTesting(true);
         try {
-            await testFilter(sampleArticles, editedCriteria, threshold);
+            const result = await testFilter(sampleArticles, editedCriteria, threshold);
+            setTestResult(result);
         } catch (error) {
             console.error('Filter test failed:', error);
             alert('Failed to test filter. Please try again.');
@@ -70,14 +70,14 @@ export default function SemanticFilterStep() {
         }
     };
 
-    const handleSaveEdit = () => {
-        updateFilterCriteria(editedCriteria);
+    const handleSaveEdit = async () => {
+        await updateFilterCriteria(editedCriteria);
         setIsEditing(false);
     };
 
-    const handleThresholdChange = (newThreshold: number) => {
+    const handleThresholdChange = async (newThreshold: number) => {
         setThreshold(newThreshold);
-        updateFilterThreshold(newThreshold);
+        await updateFilterThreshold(newThreshold);
     };
 
     if (!currentChannel) return null;
@@ -202,9 +202,9 @@ export default function SemanticFilterStep() {
                                         {filterConfig?.criteria || 'No filter criteria generated yet'}
                                     </p>
                                 </div>
-                                {filterConfig?.reasoning && (
+                                {filterReasoning && (
                                     <div className="text-sm text-gray-600 dark:text-gray-400 italic">
-                                        {filterConfig.reasoning}
+                                        {filterReasoning}
                                     </div>
                                 )}
                             </>
@@ -254,7 +254,7 @@ export default function SemanticFilterStep() {
                                 disabled={isTesting || sampleArticles.length === 0}
                                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
                             >
-                                {isTesting ? 'Testing...' : filterConfig?.is_tested ? 'Retest Filter' : 'Test Filter'}
+                                {isTesting ? 'Testing...' : testResult ? 'Retest Filter' : 'Test Filter'}
                             </button>
                         </div>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -269,38 +269,38 @@ export default function SemanticFilterStep() {
                                 <p className="text-sm text-gray-600 dark:text-gray-400">Testing filter...</p>
                             </div>
                         </div>
-                    ) : filterConfig?.test_result ? (
+                    ) : testResult ? (
                         <div className="space-y-4">
                             {/* Test Summary */}
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                                     <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                                        {filterConfig.test_result.pass_count}
+                                        {testResult.pass_count}
                                     </div>
                                     <div className="text-sm text-gray-600 dark:text-gray-400">Passed</div>
                                 </div>
                                 <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
                                     <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                                        {filterConfig.test_result.fail_count}
+                                        {testResult.fail_count}
                                     </div>
                                     <div className="text-sm text-gray-600 dark:text-gray-400">Filtered</div>
                                 </div>
                                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                                     <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                                        {(filterConfig.test_result.average_confidence * 100).toFixed(0)}%
+                                        {(testResult.average_confidence * 100).toFixed(0)}%
                                     </div>
                                     <div className="text-sm text-gray-600 dark:text-gray-400">Avg Confidence</div>
                                 </div>
                             </div>
 
                             {/* Sample Filtered Articles */}
-                            {filterConfig.test_result.filtered_articles.length > 0 && (
+                            {testResult.filtered_articles.length > 0 && (
                                 <div>
                                     <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                         Sample Results (showing first 5)
                                     </h4>
                                     <div className="space-y-2">
-                                        {filterConfig.test_result.filtered_articles.slice(0, 5).map((fa: any, idx: number) => (
+                                        {testResult.filtered_articles.slice(0, 5).map((fa: any, idx: number) => (
                                             <div
                                                 key={idx}
                                                 className={`rounded-lg p-3 border ${fa.passed && fa.confidence >= threshold
@@ -348,7 +348,7 @@ export default function SemanticFilterStep() {
             )}
 
             {/* Complete Channel Button */}
-            {filterConfig?.is_tested && (
+            {filterConfig?.criteria && (
                 <div className="flex justify-end">
                     <button
                         onClick={completeChannel}

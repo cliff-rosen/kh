@@ -6,7 +6,8 @@ export default function QueryConfigStep() {
     const {
         stream,
         currentChannel,
-        currentChannelConfig,
+        currentChannelWorkflowConfig,
+        uiState,
         availableSources,
         generateQuery,
         updateQuery,
@@ -14,21 +15,24 @@ export default function QueryConfigStep() {
         confirmQuery,
         nextSource,
         updateStream,
-        updateChannel
+        updateChannel,
+        getCurrentSourceQuery
     } = useImplementationConfig();
 
     // Get current source information
-    const currentSourceId = currentChannelConfig?.selected_sources[currentChannelConfig.current_source_index];
+    const currentSourceId = uiState?.selected_sources[uiState.current_source_index];
     const currentSource = availableSources?.find(s => s.source_id === currentSourceId);
-    const sourceConfig = currentSourceId ? currentChannelConfig?.source_configs.get(currentSourceId) : undefined;
+    const sourceQuery = getCurrentSourceQuery();
 
     // Check if this is the last source
-    const isLastSource = currentChannelConfig ? currentChannelConfig.current_source_index === currentChannelConfig.selected_sources.length - 1 : false;
+    const isLastSource = uiState ? uiState.current_source_index === uiState.selected_sources.length - 1 : false;
 
     const [isGenerating, setIsGenerating] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
-    const [editedQuery, setEditedQuery] = useState(sourceConfig?.query_expression || '');
+    const [editedQuery, setEditedQuery] = useState(sourceQuery?.query_expression || '');
     const [isEditing, setIsEditing] = useState(false);
+    const [queryReasoning, setQueryReasoning] = useState<string>('');
+    const [testResult, setTestResult] = useState<any>(null);
     const [isEditingContext, setIsEditingContext] = useState(false);
     const [contextEdits, setContextEdits] = useState({
         stream_name: stream?.stream_name || '',
@@ -52,10 +56,10 @@ export default function QueryConfigStep() {
     const [dateRange, setDateRange] = useState(getDefaultDateRange());
 
     useEffect(() => {
-        if (sourceConfig) {
-            setEditedQuery(sourceConfig.query_expression);
+        if (sourceQuery) {
+            setEditedQuery(sourceQuery.query_expression);
         }
-    }, [sourceConfig?.query_expression]);
+    }, [sourceQuery?.query_expression]);
 
     useEffect(() => {
         if (currentChannel) {
@@ -70,14 +74,16 @@ export default function QueryConfigStep() {
     }, [stream?.stream_name, stream?.purpose, currentChannel]);
 
     // Return null if required data is not available (after all hooks)
-    if (!currentChannel || !currentChannelConfig || !currentSource || !sourceConfig) {
+    if (!currentChannel || !uiState || !currentSource) {
         return null;
     }
 
     const handleGenerateQuery = async () => {
         setIsGenerating(true);
         try {
-            await generateQuery();
+            const result = await generateQuery();
+            setEditedQuery(result.query_expression);
+            setQueryReasoning(result.reasoning);
         } catch (error) {
             console.error('Query generation failed:', error);
             alert('Failed to generate query. Please try again.');
@@ -102,7 +108,8 @@ export default function QueryConfigStep() {
                 testRequest.date_type = 'entrez';
             }
 
-            await testQuery(testRequest);
+            const result = await testQuery(testRequest);
+            setTestResult(result);
         } catch (error) {
             console.error('Query test failed:', error);
             alert('Failed to test query. Please try again.');
@@ -111,13 +118,13 @@ export default function QueryConfigStep() {
         }
     };
 
-    const handleSaveEdit = () => {
-        updateQuery(editedQuery);
+    const handleSaveEdit = async () => {
+        await updateQuery(editedQuery);
         setIsEditing(false);
     };
 
-    const handleConfirmAndContinue = () => {
-        confirmQuery();
+    const handleConfirmAndContinue = async () => {
+        await confirmQuery();
         // Always call nextSource - it will handle moving to next source or to semantic filter
         nextSource();
     };
@@ -171,7 +178,7 @@ export default function QueryConfigStep() {
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                         Query Generation Context
                     </h3>
-                    {!isEditingContext && !sourceConfig.query_expression && (
+                    {!isEditingContext && !sourceQuery?.query_expression && (
                         <button
                             onClick={() => setIsEditingContext(true)}
                             className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
@@ -307,7 +314,7 @@ export default function QueryConfigStep() {
                         Query Expression
                     </h3>
                     <div className="flex gap-2">
-                        {!sourceConfig.query_expression && !isGenerating && (
+                        {!editedQuery && !isGenerating && (
                             <button
                                 onClick={handleGenerateQuery}
                                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
@@ -315,7 +322,7 @@ export default function QueryConfigStep() {
                                 Generate Query
                             </button>
                         )}
-                        {sourceConfig.query_expression && !isEditing && (
+                        {editedQuery && !isEditing && (
                             <>
                                 <button
                                     onClick={() => setIsEditing(true)}
@@ -336,7 +343,7 @@ export default function QueryConfigStep() {
                     </div>
                 </div>
 
-                {!sourceConfig.query_expression && !isGenerating ? (
+                {!editedQuery && !isGenerating ? (
                     <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                         Click "Generate Query" to create a query expression based on the context above
                     </div>
@@ -367,7 +374,7 @@ export default function QueryConfigStep() {
                                     </button>
                                     <button
                                         onClick={() => {
-                                            setEditedQuery(sourceConfig.query_expression);
+                                            setEditedQuery(sourceQuery?.query_expression || '');
                                             setIsEditing(false);
                                         }}
                                         className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg text-sm"
@@ -380,12 +387,12 @@ export default function QueryConfigStep() {
                             <>
                                 <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 mb-3">
                                     <code className="text-sm text-gray-900 dark:text-white break-all">
-                                        {sourceConfig.query_expression || 'No query generated yet'}
+                                        {editedQuery || 'No query generated yet'}
                                     </code>
                                 </div>
-                                {sourceConfig.query_reasoning && (
+                                {queryReasoning && (
                                     <div className="text-sm text-gray-600 dark:text-gray-400 italic">
-                                        {sourceConfig.query_reasoning}
+                                        {queryReasoning}
                                     </div>
                                 )}
                             </>
@@ -395,7 +402,7 @@ export default function QueryConfigStep() {
             </div>
 
             {/* Test Query Section */}
-            {sourceConfig.query_expression && !isEditing && (
+            {editedQuery && !isEditing && (
                 <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-800">
                     <div className="mb-4">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
@@ -449,7 +456,7 @@ export default function QueryConfigStep() {
                                 disabled={isTesting}
                                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
                             >
-                                {isTesting ? 'Testing...' : sourceConfig.is_tested ? 'Retest Query' : 'Test Query'}
+                                {isTesting ? 'Testing...' : testResult ? 'Retest Query' : 'Test Query'}
                             </button>
                         </div>
                     </div>
@@ -461,44 +468,44 @@ export default function QueryConfigStep() {
                                 <p className="text-sm text-gray-600 dark:text-gray-400">Testing query...</p>
                             </div>
                         </div>
-                    ) : sourceConfig.test_result ? (
+                    ) : testResult ? (
                         <div className="space-y-4">
                             {/* Test Summary */}
-                            <div className={`flex items-center gap-3 p-4 rounded-lg ${sourceConfig.test_result.success
+                            <div className={`flex items-center gap-3 p-4 rounded-lg ${testResult.success
                                 ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
                                 : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
                                 }`}>
-                                {sourceConfig.test_result.success ? (
+                                {testResult.success ? (
                                     <CheckCircleIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
                                 ) : (
                                     <XCircleIcon className="h-6 w-6 text-red-600 dark:text-red-400" />
                                 )}
                                 <div>
-                                    <p className={`font-medium ${sourceConfig.test_result.success
+                                    <p className={`font-medium ${testResult.success
                                         ? 'text-green-900 dark:text-green-100'
                                         : 'text-red-900 dark:text-red-100'
                                         }`}>
-                                        {sourceConfig.test_result.success
-                                            ? `Found ${sourceConfig.test_result.article_count} articles`
+                                        {testResult.success
+                                            ? `Found ${testResult.article_count} articles`
                                             : 'Query failed'
                                         }
                                     </p>
-                                    {sourceConfig.test_result.error_message && (
+                                    {testResult.error_message && (
                                         <p className="text-sm text-red-700 dark:text-red-300 mt-1">
-                                            {sourceConfig.test_result.error_message}
+                                            {testResult.error_message}
                                         </p>
                                     )}
                                 </div>
                             </div>
 
                             {/* Sample Articles */}
-                            {sourceConfig.test_result.success && sourceConfig.test_result.sample_articles.length > 0 && (
+                            {testResult.success && testResult.sample_articles.length > 0 && (
                                 <div>
                                     <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Sample Articles (showing {sourceConfig.test_result.sample_articles.length})
+                                        Sample Articles (showing {testResult.sample_articles.length})
                                     </h4>
                                     <div className="space-y-3">
-                                        {sourceConfig.test_result.sample_articles.slice(0, 5).map((article: any, idx: number) => (
+                                        {testResult.sample_articles.slice(0, 5).map((article: any, idx: number) => (
                                             <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
                                                 <h5 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
                                                     {article.title}
@@ -529,13 +536,10 @@ export default function QueryConfigStep() {
             )}
 
             {/* Action Buttons */}
-            {sourceConfig.is_tested && (
+            {testResult && testResult.success && (
                 <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                     <div className="text-sm text-gray-600 dark:text-gray-400">
-                        {sourceConfig.is_confirmed
-                            ? '✓ Query confirmed and ready'
-                            : 'Test looks good? Confirm to continue.'
-                        }
+                        Test looks good? Confirm to continue.
                     </div>
                     <button
                         onClick={handleConfirmAndContinue}
