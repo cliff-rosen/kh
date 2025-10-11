@@ -57,6 +57,9 @@ export default function SemanticFilterStep() {
 
         setIsTesting(true);
         try {
+            // Save threshold before testing
+            await handleSaveThreshold();
+
             const result = await testFilter(sampleArticles, editedCriteria, threshold);
             setTestResult(result);
         } catch (error) {
@@ -72,9 +75,13 @@ export default function SemanticFilterStep() {
         setIsEditing(false);
     };
 
-    const handleThresholdChange = async (newThreshold: number) => {
+    const handleThresholdChange = (newThreshold: number) => {
+        // Just update local state - save happens when user tests or completes
         setThreshold(newThreshold);
-        await updateFilterThreshold(newThreshold);
+    };
+
+    const handleSaveThreshold = async () => {
+        await updateFilterThreshold(threshold);
     };
 
     if (!currentChannel) return null;
@@ -272,24 +279,34 @@ export default function SemanticFilterStep() {
                         <div className="space-y-4">
                             {/* Test Summary */}
                             <div className="grid grid-cols-3 gap-4">
-                                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                                        {testResult.pass_count}
-                                    </div>
-                                    <div className="text-sm text-gray-600 dark:text-gray-400">Passed</div>
-                                </div>
-                                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                                    <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                                        {testResult.fail_count}
-                                    </div>
-                                    <div className="text-sm text-gray-600 dark:text-gray-400">Filtered</div>
-                                </div>
-                                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                                        {(testResult.average_confidence * 100).toFixed(0)}%
-                                    </div>
-                                    <div className="text-sm text-gray-600 dark:text-gray-400">Avg Confidence</div>
-                                </div>
+                                {(() => {
+                                    // Recalculate pass/fail counts based on current threshold
+                                    const passCount = testResult.filtered_articles.filter((fa: any) => fa.confidence >= threshold).length;
+                                    const failCount = testResult.filtered_articles.length - passCount;
+
+                                    return (
+                                        <>
+                                            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                                                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                                                    {passCount}
+                                                </div>
+                                                <div className="text-sm text-gray-600 dark:text-gray-400">Passed</div>
+                                            </div>
+                                            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                                                <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+                                                    {failCount}
+                                                </div>
+                                                <div className="text-sm text-gray-600 dark:text-gray-400">Filtered</div>
+                                            </div>
+                                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                                                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                                                    {(testResult.average_confidence * 100).toFixed(0)}%
+                                                </div>
+                                                <div className="text-sm text-gray-600 dark:text-gray-400">Avg Confidence</div>
+                                            </div>
+                                        </>
+                                    );
+                                })()}
                             </div>
 
                             {/* Sample Filtered Articles */}
@@ -299,41 +316,44 @@ export default function SemanticFilterStep() {
                                         Sample Results (showing first 5)
                                     </h4>
                                     <div className="space-y-2">
-                                        {testResult.filtered_articles.slice(0, 5).map((fa: any, idx: number) => (
-                                            <div
-                                                key={idx}
-                                                className={`rounded-lg p-3 border ${fa.passed && fa.confidence >= threshold
-                                                    ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-                                                    : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-                                                    }`}
-                                            >
-                                                <div className="flex items-start gap-2">
-                                                    {fa.passed && fa.confidence >= threshold ? (
-                                                        <CheckCircleIcon className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-                                                    ) : (
-                                                        <XCircleIcon className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                                                    )}
-                                                    <div className="flex-1 min-w-0">
-                                                        <h5 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
-                                                            {fa.article.title}
-                                                        </h5>
-                                                        <div className="flex items-center gap-2 text-xs">
-                                                            <span className={`font-medium ${fa.passed && fa.confidence >= threshold
-                                                                ? 'text-green-700 dark:text-green-300'
-                                                                : 'text-red-700 dark:text-red-300'
-                                                                }`}>
-                                                                {(fa.confidence * 100).toFixed(0)}% confidence
-                                                            </span>
-                                                            {fa.reasoning && (
-                                                                <span className="text-gray-600 dark:text-gray-400">
-                                                                    • {fa.reasoning}
+                                        {testResult.filtered_articles.slice(0, 5).map((fa: any, idx: number) => {
+                                            const passesThreshold = fa.confidence >= threshold;
+                                            return (
+                                                <div
+                                                    key={idx}
+                                                    className={`rounded-lg p-3 border ${passesThreshold
+                                                        ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                                                        : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                                                        }`}
+                                                >
+                                                    <div className="flex items-start gap-2">
+                                                        {passesThreshold ? (
+                                                            <CheckCircleIcon className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+                                                        ) : (
+                                                            <XCircleIcon className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                                                        )}
+                                                        <div className="flex-1 min-w-0">
+                                                            <h5 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
+                                                                {fa.article.title}
+                                                            </h5>
+                                                            <div className="flex items-center gap-2 text-xs">
+                                                                <span className={`font-medium ${passesThreshold
+                                                                    ? 'text-green-700 dark:text-green-300'
+                                                                    : 'text-red-700 dark:text-red-300'
+                                                                    }`}>
+                                                                    {(fa.confidence * 100).toFixed(0)}% confidence
                                                                 </span>
-                                                            )}
+                                                                {fa.reasoning && (
+                                                                    <span className="text-gray-600 dark:text-gray-400">
+                                                                        • {fa.reasoning}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
