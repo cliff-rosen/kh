@@ -5,6 +5,7 @@ import { ImplementationConfigProvider, useImplementationConfig } from '../contex
 import SourceSelectionStep from '../components/ImplementationConfigSteps/SourceSelectionStep';
 import QueryConfigStep from '../components/ImplementationConfigSteps/QueryConfigStep';
 import SemanticFilterStep from '../components/ImplementationConfigSteps/SemanticFilterStep';
+import WorkflowProgressSidebar from '../components/ImplementationConfigSteps/WorkflowProgressSidebar';
 
 function ImplementationConfigContent() {
     const navigate = useNavigate();
@@ -70,9 +71,14 @@ function ImplementationConfigContent() {
     }
 
     return (
-        <div className="max-w-6xl mx-auto p-6">
-            {/* Header */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+        <div className="flex min-h-screen bg-gray-100 dark:bg-gray-950">
+            {/* Sidebar */}
+            <WorkflowProgressSidebar />
+
+            {/* Main Content */}
+            <div className="flex-1 p-6">
+                {/* Header */}
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -181,6 +187,7 @@ function ImplementationConfigContent() {
                         )}
                     </div>
                 )}
+            </div>
             </div>
         </div>
     );
