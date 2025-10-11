@@ -27,6 +27,7 @@ interface ImplementationConfigContextType {
     selectedSources: string[];  // Derived from workflow_config
     currentSourceId: string | null;
     currentSourceQuery: SourceQuery | null;
+    sampleArticles: CanonicalResearchArticle[];  // Sample articles from query tests
 
     // Helpers
     isChannelComplete: (channelId: string) => boolean;
@@ -67,6 +68,9 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
     const [currentChannelIndex, setCurrentChannelIndex] = useState(0);
     const [currentStep, setCurrentStep] = useState<ConfigStep>('source_selection');
     const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
+
+    // Sample articles collected from query tests (for filter testing)
+    const [sampleArticles, setSampleArticles] = useState<CanonicalResearchArticle[]>([]);
 
     // Computed values
     const currentChannel = stream && currentChannelIndex < stream.channels.length
@@ -220,13 +224,27 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         // 2. Call API to test
         const result = await researchStreamApi.testChannelQuery(streamId, currentChannel.name, request);
 
-        // 3. No save - just testing
-        // 4. No reload - nothing changed
+        // 3. Collect sample articles (first 5) for filter testing
+        if (result.success && result.sample_articles && result.sample_articles.length > 0) {
+            setSampleArticles(prev => {
+                // Add new articles, limit to first 5 per source (total max ~25 for 5 sources)
+                const newArticles = result.sample_articles.slice(0, 5);
+                // Keep unique articles by title
+                const combined = [...prev, ...newArticles];
+                const unique = combined.filter((article, index, self) =>
+                    index === self.findIndex(a => a.title === article.title)
+                );
+                return unique;
+            });
+        }
 
-        // 5. Advance to refinement step
+        // 4. No save - just testing
+        // 5. No reload - nothing changed
+
+        // 6. Advance to refinement step
         setCurrentStep('query_refinement');
 
-        // 6. Return result for UI
+        // 7. Return result for UI
         return result;
     }, [currentChannel, streamId]);
 
@@ -373,10 +391,11 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         // 2. No API call - everything already saved
         // 3. No reload - nothing new to load
 
-        // 4. Advance to next channel
+        // 4. Advance to next channel and clear sample articles
         setCurrentChannelIndex(prev => prev + 1);
         setCurrentSourceIndex(0);
         setCurrentStep('source_selection');
+        setSampleArticles([]); // Clear for next channel
 
         // 5. No return value needed
     }, []);
@@ -400,6 +419,7 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         selectedSources,
         currentSourceId,
         currentSourceQuery,
+        sampleArticles,
 
         // Helpers
         isChannelComplete,

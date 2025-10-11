@@ -9,6 +9,7 @@ export default function SemanticFilterStep() {
         currentChannel,
         currentChannelWorkflowConfig,
         currentStep,
+        sampleArticles,
         generateFilter,
         updateFilterCriteria,
         updateFilterThreshold,
@@ -17,11 +18,6 @@ export default function SemanticFilterStep() {
     } = useImplementationConfig();
 
     const filterConfig = currentChannelWorkflowConfig?.semantic_filter;
-
-    // Collect all sample articles from query test results (stored in local state)
-    // Note: In the new structure, we don't have test results in workflow_config
-    // We'll need to pass sample articles from the previous test results
-    const sampleArticles: CanonicalResearchArticle[] = [];
 
     const [isGenerating, setIsGenerating] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
