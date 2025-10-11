@@ -41,7 +41,7 @@ export default function WorkflowProgressSidebar() {
     };
 
     return (
-        <div className="w-80 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 p-6 overflow-y-auto">
+        <div className="w-80 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 p-6 overflow-y-auto h-screen fixed left-0 top-0">
             <div className="mb-6">
                 <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-1">
                     Implementation Configuration
