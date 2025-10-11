@@ -118,69 +118,6 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         return config ? Object.values(config.source_queries).some(sq => sq !== null) : false;
     }, [stream]);
 
-    // Load stream data
-    const loadStream = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const [streamData, sources] = await Promise.all([
-                researchStreamApi.getResearchStream(streamId),
-                researchStreamApi.getInformationSources()
-            ]);
-
-            setStream(streamData);
-            setAvailableSources(sources);
-
-            // Initialize current step and sub-states based on existing configuration
-            const firstChannel = streamData.channels[0];
-            const channelConfig = firstChannel && streamData.workflow_config?.channel_configs?.[firstChannel.channel_id];
-
-            // Note: Can't call initializeChannelState here because it's defined after loadStream
-            // So we inline the logic
-            if (!channelConfig || Object.keys(channelConfig.source_queries).length === 0) {
-                // No config - start at source selection
-                setCurrentStep('source_selection');
-                setCurrentSourceIndex(0);
-                setQuerySubState('awaiting_generation');
-                setFilterSubState('awaiting_generation');
-            } else {
-                // Has config - check what's configured
-                const sourceQueries = Object.values(channelConfig.source_queries);
-                const hasAllQueries = sourceQueries.every(sq => sq !== null);
-                const hasFilter = channelConfig.semantic_filter?.criteria && channelConfig.semantic_filter.criteria.length > 0;
-
-                if (!hasAllQueries) {
-                    // Some queries missing - go to query definition
-                    setCurrentStep('query_definition');
-                    const firstNullIndex = sourceQueries.findIndex(sq => sq === null);
-                    setCurrentSourceIndex(firstNullIndex >= 0 ? firstNullIndex : 0);
-
-                    // Check if current source has a query
-                    const sourceIds = Object.keys(channelConfig.source_queries);
-                    const currentSourceId = sourceIds[firstNullIndex >= 0 ? firstNullIndex : 0];
-                    const currentQuery = channelConfig.source_queries[currentSourceId];
-                    setQuerySubState(currentQuery?.query_expression ? 'query_generated' : 'awaiting_generation');
-                } else if (!hasFilter) {
-                    // All queries done, filter missing - go to filter definition
-                    setCurrentStep('semantic_filter_definition');
-                    setCurrentSourceIndex(0);
-                    setFilterSubState(channelConfig.semantic_filter?.criteria ? 'filter_generated' : 'awaiting_generation');
-                } else {
-                    // Everything configured - go to channel testing
-                    setCurrentStep('channel_testing');
-                    setCurrentSourceIndex(0);
-                }
-            }
-        } catch (error) {
-            console.error('Failed to load stream:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [streamId]);
-
-    useEffect(() => {
-        loadStream();
-    }, [loadStream]);
-
     // Helper function to initialize workflow state for a channel based on its configuration
     const initializeChannelState = useCallback((channelConfig: ChannelWorkflowConfig | null | undefined) => {
         if (!channelConfig || Object.keys(channelConfig.source_queries).length === 0) {
@@ -219,6 +156,35 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
             setCurrentSourceIndex(0);
         }
     }, []);
+
+    // Load stream data
+    const loadStream = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const [streamData, sources] = await Promise.all([
+                researchStreamApi.getResearchStream(streamId),
+                researchStreamApi.getInformationSources()
+            ]);
+
+            setStream(streamData);
+            setAvailableSources(sources);
+
+            // Initialize current step and sub-states based on existing configuration
+            const firstChannel = streamData.channels[0];
+            const channelConfig = firstChannel && streamData.workflow_config?.channel_configs?.[firstChannel.channel_id];
+
+            // Use the helper to initialize state
+            initializeChannelState(channelConfig);
+        } catch (error) {
+            console.error('Failed to load stream:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [streamId, initializeChannelState]);
+
+    useEffect(() => {
+        loadStream();
+    }, [loadStream]);
 
     // Reinitialize sub-states when channel or source changes (e.g., user navigates back)
     useEffect(() => {
