@@ -5,6 +5,7 @@ import { ImplementationConfigProvider, useImplementationConfig } from '../contex
 import SourceSelectionStep from '../components/ImplementationConfigSteps/SourceSelectionStep';
 import QueryConfigStep from '../components/ImplementationConfigSteps/QueryConfigStep';
 import SemanticFilterStep from '../components/ImplementationConfigSteps/SemanticFilterStep';
+import ChannelTestingStep from '../components/ImplementationConfigSteps/ChannelTestingStep';
 import WorkflowProgressSidebar from '../components/ImplementationConfigSteps/WorkflowProgressSidebar';
 
 function ImplementationConfigContent() {
@@ -118,7 +119,7 @@ function ImplementationConfigContent() {
 
                         {/* Channel Testing Step */}
                         {currentStep === 'channel_testing' && (
-                            <div>Channel Testing - TODO</div>
+                            <ChannelTestingStep />
                         )}
                     </div>
                 )}
