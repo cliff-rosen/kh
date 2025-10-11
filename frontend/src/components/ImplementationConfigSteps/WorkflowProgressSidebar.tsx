@@ -9,7 +9,8 @@ export default function WorkflowProgressSidebar() {
         currentStep,
         currentSourceIndex,
         availableSources,
-        isChannelComplete
+        isChannelComplete,
+        navigateToChannel
     } = useImplementationConfig();
 
     const channels = stream?.channels || [];
@@ -17,23 +18,20 @@ export default function WorkflowProgressSidebar() {
     // Map of step names for display
     const stepNames: Record<ConfigStep, string> = {
         'source_selection': 'Select Sources',
-        'query_generation': 'Generate Query',
-        'query_testing': 'Test Query',
-        'query_refinement': 'Refine Query',
-        'semantic_filter_config': 'Configure Filter',
-        'semantic_filter_testing': 'Test Filter',
-        'channel_complete': 'Channel Complete'
+        'query_definition': 'Define Query',
+        'semantic_filter_definition': 'Define Filter',
+        'channel_testing': 'Test Channel',
+        'channel_complete': 'Complete'
     };
 
     // Determine if a step is completed for current source
     const isStepComplete = (step: ConfigStep): boolean => {
         const stepOrder: ConfigStep[] = [
             'source_selection',
-            'query_generation',
-            'query_testing',
-            'query_refinement',
-            'semantic_filter_config',
-            'semantic_filter_testing'
+            'query_definition',
+            'semantic_filter_definition',
+            'channel_testing',
+            'channel_complete'
         ];
         const currentStepIndex = stepOrder.indexOf(currentStep);
         const checkStepIndex = stepOrder.indexOf(step);
@@ -54,20 +52,26 @@ export default function WorkflowProgressSidebar() {
             <div className="space-y-4">
                 {channels.map((channel, channelIdx) => {
                     const isCurrent = channelIdx === currentChannelIndex;
-                    const isComplete = channel.channel_id ? isChannelComplete(channel.channel_id) : false;
-                    const isPast = channelIdx < currentChannelIndex;
                     const channelConfig = stream?.workflow_config?.channel_configs?.[channel.channel_id];
                     const channelSources = channelConfig ? Object.keys(channelConfig.source_queries) : [];
 
+                    // Determine channel completion status based on configuration
+                    const hasConfig = channelConfig && Object.keys(channelConfig.source_queries).length > 0;
+                    const hasAllQueries = hasConfig ? Object.values(channelConfig.source_queries).every(sq => sq !== null) : false;
+                    const hasFilter = hasConfig && channelConfig.semantic_filter?.criteria && channelConfig.semantic_filter.criteria.length > 0;
+                    const isComplete = hasAllQueries && hasFilter;
+                    const isInProgress = hasConfig && !isComplete;
+
                     return (
-                        <div
+                        <button
                             key={channel.channel_id || channelIdx}
-                            className={`rounded-lg p-3 ${
+                            onClick={() => navigateToChannel(channelIdx)}
+                            className={`w-full text-left rounded-lg p-3 transition-all ${
                                 isCurrent
                                     ? 'bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-500'
-                                    : isComplete || isPast
-                                    ? 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
-                                    : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 opacity-50'
+                                    : isComplete || isInProgress
+                                    ? 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 cursor-pointer'
+                                    : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 opacity-50 hover:opacity-70 cursor-pointer'
                             }`}
                         >
                             <div className="flex items-center gap-2 mb-2">
@@ -75,6 +79,10 @@ export default function WorkflowProgressSidebar() {
                                     <CheckCircleIcon className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
                                 ) : isCurrent ? (
                                     <ArrowRightIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                                ) : isInProgress ? (
+                                    <div className="h-5 w-5 rounded-full border-2 border-yellow-500 dark:border-yellow-400 flex-shrink-0 relative">
+                                        <div className="absolute inset-0 rounded-full border-2 border-yellow-500 dark:border-yellow-400 animate-ping opacity-75" />
+                                    </div>
                                 ) : (
                                     <div className="h-5 w-5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0" />
                                 )}
@@ -92,8 +100,8 @@ export default function WorkflowProgressSidebar() {
                                 </div>
                             </div>
 
-                            {/* Show sources if this is current or past channel */}
-                            {(isCurrent || isPast) && channelSources.length > 0 && (
+                            {/* Show sources if this channel has configuration */}
+                            {(isCurrent || isInProgress || isComplete) && channelSources.length > 0 && (
                                 <div className="ml-7 mt-2 space-y-2 border-l-2 border-gray-200 dark:border-gray-700 pl-3">
                                     {channelSources.map((sourceId, sourceIdx) => {
                                         const source = availableSources.find(s => s.source_id === sourceId);
@@ -120,48 +128,16 @@ export default function WorkflowProgressSidebar() {
                                                     )}
                                                     <span>{source?.name || sourceId}</span>
                                                 </div>
-
-                                                {/* Show steps for current source */}
-                                                {isCurrentSource && currentStep !== 'source_selection' && (
-                                                    <div className="ml-4 mt-1 space-y-1">
-                                                        {(['query_generation', 'query_testing', 'query_refinement'] as ConfigStep[]).map(step => {
-                                                            const completed = isStepComplete(step);
-                                                            const active = step === currentStep;
-
-                                                            return (
-                                                                <div
-                                                                    key={step}
-                                                                    className={`flex items-center gap-1 ${
-                                                                        active
-                                                                            ? 'text-blue-600 dark:text-blue-400 font-medium'
-                                                                            : completed
-                                                                            ? 'text-green-600 dark:text-green-400'
-                                                                            : 'text-gray-400 dark:text-gray-600'
-                                                                    }`}
-                                                                >
-                                                                    {completed ? (
-                                                                        <CheckCircleIcon className="h-3 w-3" />
-                                                                    ) : active ? (
-                                                                        <div className="h-2 w-2 rounded-full bg-current" />
-                                                                    ) : (
-                                                                        <div className="h-2 w-2 rounded-full border border-current" />
-                                                                    )}
-                                                                    <span className="text-xs">{stepNames[step]}</span>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
                                             </div>
                                         );
                                     })}
 
-                                    {/* Semantic filter indicator */}
-                                    {isCurrent && (currentStep === 'semantic_filter_config' || currentStep === 'semantic_filter_testing') && (
-                                        <div className="text-xs font-semibold text-blue-900 dark:text-blue-100">
+                                    {/* Channel-level steps */}
+                                    {isCurrent && (currentStep === 'semantic_filter_definition' || currentStep === 'channel_testing') && (
+                                        <div className="text-xs font-semibold text-blue-900 dark:text-blue-100 mt-2">
                                             <div className="flex items-center gap-1">
                                                 <div className="h-2 w-2 rounded-full bg-blue-600 dark:bg-blue-400" />
-                                                <span>Semantic Filter</span>
+                                                <span>{stepNames[currentStep]}</span>
                                             </div>
                                         </div>
                                     )}
@@ -174,7 +150,7 @@ export default function WorkflowProgressSidebar() {
                                     Select information sources...
                                 </div>
                             )}
-                        </div>
+                        </button>
                     );
                 })}
             </div>

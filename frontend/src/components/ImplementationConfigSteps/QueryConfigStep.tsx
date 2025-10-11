@@ -11,6 +11,7 @@ export default function QueryConfigStep() {
         currentSourceId,
         currentSourceQuery,
         availableSources,
+        querySubState,
         generateQuery,
         updateQuery,
         testQuery,
@@ -22,16 +23,9 @@ export default function QueryConfigStep() {
     // Get current source information
     const currentSource = availableSources?.find(s => s.source_id === currentSourceId);
 
-    // Check if this is the last source
-    const isLastSource = currentSourceIndex === selectedSources.length - 1;
-
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [isTesting, setIsTesting] = useState(false);
     const [editedQuery, setEditedQuery] = useState(currentSourceQuery?.query_expression || '');
-    const [isEditing, setIsEditing] = useState(false);
     const [queryReasoning, setQueryReasoning] = useState<string>('');
     const [testResult, setTestResult] = useState<any>(null);
-    const [isEditingContext, setIsEditingContext] = useState(false);
     const [contextEdits, setContextEdits] = useState({
         stream_name: stream?.stream_name || '',
         stream_purpose: stream?.purpose || '',
@@ -39,6 +33,14 @@ export default function QueryConfigStep() {
         channel_focus: currentChannel?.focus || '',
         channel_keywords: currentChannel?.keywords.join(', ') || ''
     });
+
+
+    const isLastSource = currentSourceIndex === selectedSources.length - 1;
+
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [isTesting, setIsTesting] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [isEditingContext, setIsEditingContext] = useState(false);
 
     // Date range state (default to last 7 days for PubMed)
     const getDefaultDateRange = () => {
@@ -316,7 +318,7 @@ export default function QueryConfigStep() {
                         Query Expression
                     </h3>
                     <div className="flex gap-2">
-                        {!editedQuery && !isGenerating && (
+                        {querySubState === 'awaiting_generation' && !isGenerating && (
                             <button
                                 onClick={handleGenerateQuery}
                                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
@@ -324,7 +326,7 @@ export default function QueryConfigStep() {
                                 Generate Query
                             </button>
                         )}
-                        {editedQuery && !isEditing && (
+                        {(querySubState === 'query_generated' || querySubState === 'query_tested') && !isEditing && (
                             <>
                                 <button
                                     onClick={() => setIsEditing(true)}
@@ -345,7 +347,7 @@ export default function QueryConfigStep() {
                     </div>
                 </div>
 
-                {!editedQuery && !isGenerating ? (
+                {querySubState === 'awaiting_generation' && !isGenerating ? (
                     <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                         Click "Generate Query" to create a query expression based on the context above
                     </div>
@@ -403,8 +405,8 @@ export default function QueryConfigStep() {
                 )}
             </div>
 
-            {/* Test Query Section */}
-            {editedQuery && !isEditing && (
+            {/* Test Query Section - only show when query is generated or tested */}
+            {(querySubState === 'query_generated' || querySubState === 'query_tested') && !isEditing && (
                 <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-800">
                     <div className="mb-4">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
@@ -537,8 +539,8 @@ export default function QueryConfigStep() {
                 </div>
             )}
 
-            {/* Action Buttons */}
-            {testResult && testResult.success && (
+            {/* Action Buttons - only show when query is tested successfully */}
+            {querySubState === 'query_tested' && testResult && testResult.success && (
                 <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                     <div className="text-sm text-gray-600 dark:text-gray-400">
                         Test looks good? Confirm to continue.

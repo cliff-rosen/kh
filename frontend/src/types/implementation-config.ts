@@ -17,12 +17,21 @@ import { FilteredArticle } from './smartsearch2';
 
 export type ConfigStep =
     | 'source_selection'
-    | 'query_generation'
-    | 'query_testing'
-    | 'query_refinement'
-    | 'semantic_filter_config'
-    | 'semantic_filter_testing'
+    | 'query_definition'  // Combined generation + testing (count only)
+    | 'semantic_filter_definition'
+    | 'channel_testing'
     | 'channel_complete';
+
+// Sub-states for query_definition step
+export type QueryDefinitionSubState =
+    | 'awaiting_generation'  // No query yet
+    | 'query_generated'      // Query generated, can edit/test
+    | 'query_tested'         // Query tested, can confirm
+
+// Sub-states for semantic_filter_definition step
+export type FilterDefinitionSubState =
+    | 'awaiting_generation'  // No filter yet
+    | 'filter_generated'     // Filter generated, can edit
 
 // ============================================================================
 // UI State for Configuration Workflow

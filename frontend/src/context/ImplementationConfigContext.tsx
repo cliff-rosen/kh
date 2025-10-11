@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, ReactNode 
 import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { Channel, InformationSource, ResearchStream, ChannelWorkflowConfig, SourceQuery } from '../types/research-stream';
 import { CanonicalResearchArticle } from '../types/canonical_types';
-import { ConfigStep, QueryTestResult, FilterTestResult } from '../types/implementation-config';
+import { ConfigStep, QueryTestResult, FilterTestResult, QueryDefinitionSubState, FilterDefinitionSubState } from '../types/implementation-config';
 
 // ============================================================================
 // Context Type
@@ -20,6 +20,10 @@ interface ImplementationConfigContextType {
     currentChannelWorkflowConfig: ChannelWorkflowConfig | null;
     currentStep: ConfigStep;
     currentSourceIndex: number;
+
+    // Sub-states for steps (explicit state machine)
+    querySubState: QueryDefinitionSubState;
+    filterSubState: FilterDefinitionSubState;
 
     // Computed values
     isComplete: boolean;
@@ -41,10 +45,12 @@ interface ImplementationConfigContextType {
     generateFilter: () => Promise<{ filter_criteria: string; reasoning: string }>;
     updateFilterCriteria: (criteria: string) => Promise<void>;
     updateFilterThreshold: (threshold: number) => Promise<void>;
+    completeFilterDefinition: () => void;
     testFilter: (articles: CanonicalResearchArticle[], criteria: string, threshold: number) => Promise<FilterTestResult>;
     updateStream: (updates: { stream_name?: string; purpose?: string }) => Promise<void>;
     updateChannel: (updates: Partial<Channel>) => Promise<void>;
     completeChannel: () => void;
+    navigateToChannel: (channelIndex: number) => void;
 }
 
 const ImplementationConfigContext = createContext<ImplementationConfigContextType | undefined>(undefined);
@@ -68,6 +74,10 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
     const [currentChannelIndex, setCurrentChannelIndex] = useState(0);
     const [currentStep, setCurrentStep] = useState<ConfigStep>('source_selection');
     const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
+
+    // Sub-states for explicit state machine
+    const [querySubState, setQuerySubState] = useState<QueryDefinitionSubState>('awaiting_generation');
+    const [filterSubState, setFilterSubState] = useState<FilterDefinitionSubState>('awaiting_generation');
 
     // Sample articles collected from query tests (for filter testing)
     const [sampleArticles, setSampleArticles] = useState<CanonicalResearchArticle[]>([]);
@@ -120,10 +130,46 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
             setStream(streamData);
             setAvailableSources(sources);
 
-            // Initialize current step based on whether first channel has config
+            // Initialize current step and sub-states based on existing configuration
             const firstChannel = streamData.channels[0];
-            const hasConfig = firstChannel && streamData.workflow_config?.channel_configs?.[firstChannel.channel_id];
-            setCurrentStep(hasConfig ? 'query_generation' : 'source_selection');
+            const channelConfig = firstChannel && streamData.workflow_config?.channel_configs?.[firstChannel.channel_id];
+
+            // Note: Can't call initializeChannelState here because it's defined after loadStream
+            // So we inline the logic
+            if (!channelConfig || Object.keys(channelConfig.source_queries).length === 0) {
+                // No config - start at source selection
+                setCurrentStep('source_selection');
+                setCurrentSourceIndex(0);
+                setQuerySubState('awaiting_generation');
+                setFilterSubState('awaiting_generation');
+            } else {
+                // Has config - check what's configured
+                const sourceQueries = Object.values(channelConfig.source_queries);
+                const hasAllQueries = sourceQueries.every(sq => sq !== null);
+                const hasFilter = channelConfig.semantic_filter?.criteria && channelConfig.semantic_filter.criteria.length > 0;
+
+                if (!hasAllQueries) {
+                    // Some queries missing - go to query definition
+                    setCurrentStep('query_definition');
+                    const firstNullIndex = sourceQueries.findIndex(sq => sq === null);
+                    setCurrentSourceIndex(firstNullIndex >= 0 ? firstNullIndex : 0);
+
+                    // Check if current source has a query
+                    const sourceIds = Object.keys(channelConfig.source_queries);
+                    const currentSourceId = sourceIds[firstNullIndex >= 0 ? firstNullIndex : 0];
+                    const currentQuery = channelConfig.source_queries[currentSourceId];
+                    setQuerySubState(currentQuery?.query_expression ? 'query_generated' : 'awaiting_generation');
+                } else if (!hasFilter) {
+                    // All queries done, filter missing - go to filter definition
+                    setCurrentStep('semantic_filter_definition');
+                    setCurrentSourceIndex(0);
+                    setFilterSubState(channelConfig.semantic_filter?.criteria ? 'filter_generated' : 'awaiting_generation');
+                } else {
+                    // Everything configured - go to channel testing
+                    setCurrentStep('channel_testing');
+                    setCurrentSourceIndex(0);
+                }
+            }
         } catch (error) {
             console.error('Failed to load stream:', error);
         } finally {
@@ -134,6 +180,68 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
     useEffect(() => {
         loadStream();
     }, [loadStream]);
+
+    // Helper function to initialize workflow state for a channel based on its configuration
+    const initializeChannelState = useCallback((channelConfig: ChannelWorkflowConfig | null | undefined) => {
+        if (!channelConfig || Object.keys(channelConfig.source_queries).length === 0) {
+            // No config - start at source selection
+            setCurrentStep('source_selection');
+            setCurrentSourceIndex(0);
+            setQuerySubState('awaiting_generation');
+            setFilterSubState('awaiting_generation');
+            return;
+        }
+
+        // Has config - check what's configured
+        const sourceQueries = Object.values(channelConfig.source_queries);
+        const hasAllQueries = sourceQueries.every(sq => sq !== null);
+        const hasFilter = channelConfig.semantic_filter?.criteria && channelConfig.semantic_filter.criteria.length > 0;
+
+        if (!hasAllQueries) {
+            // Some queries missing - go to query definition
+            setCurrentStep('query_definition');
+            const firstNullIndex = sourceQueries.findIndex(sq => sq === null);
+            setCurrentSourceIndex(firstNullIndex >= 0 ? firstNullIndex : 0);
+
+            // Check if current source has a query
+            const sourceIds = Object.keys(channelConfig.source_queries);
+            const currentSourceId = sourceIds[firstNullIndex >= 0 ? firstNullIndex : 0];
+            const currentQuery = channelConfig.source_queries[currentSourceId];
+            setQuerySubState(currentQuery?.query_expression ? 'query_generated' : 'awaiting_generation');
+        } else if (!hasFilter) {
+            // All queries done, filter missing - go to filter definition
+            setCurrentStep('semantic_filter_definition');
+            setCurrentSourceIndex(0);
+            setFilterSubState(channelConfig.semantic_filter?.criteria ? 'filter_generated' : 'awaiting_generation');
+        } else {
+            // Everything configured - go to channel testing
+            setCurrentStep('channel_testing');
+            setCurrentSourceIndex(0);
+        }
+    }, []);
+
+    // Reinitialize sub-states when channel or source changes (e.g., user navigates back)
+    useEffect(() => {
+        if (!currentChannel || !currentChannelWorkflowConfig) return;
+
+        // Reinitialize query sub-state based on current source query
+        if (currentStep === 'query_definition') {
+            if (currentSourceQuery?.query_expression) {
+                setQuerySubState('query_generated');
+            } else {
+                setQuerySubState('awaiting_generation');
+            }
+        }
+
+        // Reinitialize filter sub-state based on existing filter
+        if (currentStep === 'semantic_filter_definition') {
+            if (currentChannelWorkflowConfig.semantic_filter?.criteria) {
+                setFilterSubState('filter_generated');
+            } else {
+                setFilterSubState('awaiting_generation');
+            }
+        }
+    }, [currentChannelIndex, currentSourceIndex, currentStep, currentChannel, currentChannelWorkflowConfig, currentSourceQuery]);
 
     // Reload stream after any mutation
     const reloadStream = useCallback(async () => {
@@ -171,13 +279,14 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         await researchStreamApi.updateResearchStream(streamId, { workflow_config });
         await reloadStream();
 
-        // IMPORTANT: Move to query generation step AFTER reload completes
+        // IMPORTANT: Move to query definition step AFTER reload completes
         // so that selectedSources is properly derived from updated workflow_config
         setCurrentSourceIndex(0);
-        setCurrentStep('query_generation');
+        setCurrentStep('query_definition');
+        setQuerySubState('awaiting_generation');
     }, [currentChannel, stream, streamId, reloadStream]);
 
-    // Generate query - generates but doesn't save, advances to testing step
+    // Generate query - generates but doesn't save
     const generateQuery = useCallback(async (): Promise<{ query_expression: string; reasoning: string }> => {
         if (!currentChannel || !currentSourceId) throw new Error('No current channel or source');
 
@@ -186,11 +295,10 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
 
         // 2. No save - user will review first
         // 3. No reload - nothing changed in DB
-
-        // 4. Advance to testing step
-        setCurrentStep('query_testing');
-
-        // 5. Return result for UI
+        // 4. Update sub-state to indicate query is generated
+        setQuerySubState('query_generated');
+        // 5. No step change - stay on query_definition
+        // 6. Return result for UI
         return result;
     }, [currentChannel, currentSourceId, streamId]);
 
@@ -215,7 +323,7 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         // 5. No return value needed
     }, [currentChannel, currentSourceId, streamId, reloadStream]);
 
-    // Test query - tests query and advances to refinement step
+    // Test query - tests query to get count (no step change)
     const testQuery = useCallback(async (request: any): Promise<QueryTestResult> => {
         if (!currentChannel) throw new Error('No current channel');
 
@@ -224,7 +332,7 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         // 2. Call API to test
         const result = await researchStreamApi.testChannelQuery(streamId, currentChannel.name, request);
 
-        // 3. Collect sample articles (first 5) for filter testing
+        // 3. Collect sample articles (first 5) for later channel testing
         if (result.success && result.sample_articles && result.sample_articles.length > 0) {
             setSampleArticles(prev => {
                 // Add new articles, limit to first 5 per source (total max ~25 for 5 sources)
@@ -238,13 +346,12 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
             });
         }
 
-        // 4. No save - just testing
-        // 5. No reload - nothing changed
-
-        // 6. Advance to refinement step
-        setCurrentStep('query_refinement');
-
-        // 7. Return result for UI
+        // 4. Update sub-state to indicate query has been tested
+        setQuerySubState('query_tested');
+        // 5. No save - just testing
+        // 6. No reload - nothing changed
+        // 7. No step change - stay on query_definition
+        // 8. Return result for UI
         return result;
     }, [currentChannel, streamId]);
 
@@ -256,23 +363,39 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         const nextIndex = currentSourceIndex + 1;
 
         if (nextIndex >= selectedSources.length) {
-            // All sources configured, move to semantic filter
-            setCurrentStep('semantic_filter_config');
+            // All sources configured, move to semantic filter definition
+            setCurrentStep('semantic_filter_definition');
+
+            // Initialize filter sub-state based on existing filter
+            if (currentChannelWorkflowConfig?.semantic_filter?.criteria) {
+                setFilterSubState('filter_generated');
+            } else {
+                setFilterSubState('awaiting_generation');
+            }
         } else {
             // Move to next source
             setCurrentSourceIndex(nextIndex);
-            setCurrentStep('query_generation');
-        }
-    }, [currentSourceIndex, selectedSources]);
+            setCurrentStep('query_definition');
 
-    // Generate filter - generates, saves, and advances to review step
+            // Initialize query sub-state based on existing query for next source
+            const nextSourceId = selectedSources[nextIndex];
+            const nextSourceQuery = currentChannelWorkflowConfig?.source_queries[nextSourceId];
+            if (nextSourceQuery?.query_expression) {
+                setQuerySubState('query_generated');
+            } else {
+                setQuerySubState('awaiting_generation');
+            }
+        }
+    }, [currentSourceIndex, selectedSources, currentChannelWorkflowConfig]);
+
+    // Generate filter - generates and saves (no testing here)
     const generateFilter = useCallback(async (): Promise<{ filter_criteria: string; reasoning: string }> => {
         if (!currentChannel) throw new Error('No current channel');
 
         // 1. Call API to generate
         const result = await researchStreamApi.generateChannelFilter(streamId, currentChannel.name);
 
-        // 2. Call API to save immediately (filter is ready to use after generation)
+        // 2. Call API to save immediately
         await researchStreamApi.updateChannelSemanticFilter(
             streamId,
             currentChannel.channel_id,
@@ -286,10 +409,10 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         // 3. Reload to get updated data
         await reloadStream();
 
-        // 4. Advance to testing/review step
-        setCurrentStep('semantic_filter_testing');
-
-        // 5. Return result for UI
+        // 4. Update sub-state to indicate filter is generated
+        setFilterSubState('filter_generated');
+        // 5. No step change - stay on semantic_filter_definition
+        // 6. Return result for UI
         return result;
     }, [currentChannel, streamId, reloadStream]);
 
@@ -341,7 +464,14 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         // 5. No return value needed
     }, [currentChannel, currentChannelWorkflowConfig, streamId, reloadStream]);
 
-    // Test filter - tests filter, no save or step change
+    // Complete filter definition and move to channel testing
+    const completeFilterDefinition = useCallback(() => {
+        // Filter should already be saved
+        // Move to channel testing step
+        setCurrentStep('channel_testing');
+    }, []);
+
+    // Test filter - tests filter, no save or step change (used in channel_testing step)
     const testFilter = useCallback(async (
         articles: CanonicalResearchArticle[],
         criteria: string,
@@ -387,18 +517,39 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         // Filter should already be saved via updateFilterCriteria/updateFilterThreshold
         // Just advance workflow
 
-        // 1. No validation needed
-        // 2. No API call - everything already saved
-        // 3. No reload - nothing new to load
+        const nextChannelIndex = currentChannelIndex + 1;
 
-        // 4. Advance to next channel and clear sample articles
-        setCurrentChannelIndex(prev => prev + 1);
-        setCurrentSourceIndex(0);
-        setCurrentStep('source_selection');
+        // Check if there's a next channel and initialize its state
+        if (stream && nextChannelIndex < stream.channels.length) {
+            const nextChannel = stream.channels[nextChannelIndex];
+            const nextChannelConfig = stream.workflow_config?.channel_configs?.[nextChannel.channel_id];
+            initializeChannelState(nextChannelConfig);
+        }
+
+        // Advance to next channel and clear sample articles
+        setCurrentChannelIndex(nextChannelIndex);
         setSampleArticles([]); // Clear for next channel
+    }, [currentChannelIndex, stream, initializeChannelState]);
 
-        // 5. No return value needed
-    }, []);
+    // Navigate to any channel by index
+    const navigateToChannel = useCallback((channelIndex: number) => {
+        if (!stream || channelIndex < 0 || channelIndex >= stream.channels.length) {
+            console.warn('Invalid channel index:', channelIndex);
+            return;
+        }
+
+        const targetChannel = stream.channels[channelIndex];
+        const targetChannelConfig = stream.workflow_config?.channel_configs?.[targetChannel.channel_id];
+
+        // Set the channel index
+        setCurrentChannelIndex(channelIndex);
+
+        // Initialize state for this channel
+        initializeChannelState(targetChannelConfig);
+
+        // Clear sample articles when switching channels
+        setSampleArticles([]);
+    }, [stream, initializeChannelState]);
 
     const value: ImplementationConfigContextType = {
         // Core state
@@ -412,6 +563,10 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         currentChannelWorkflowConfig,
         currentStep,
         currentSourceIndex,
+
+        // Sub-states for steps (explicit state machine)
+        querySubState,
+        filterSubState,
 
         // Computed values
         isComplete,
@@ -433,10 +588,12 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         generateFilter,
         updateFilterCriteria,
         updateFilterThreshold,
+        completeFilterDefinition,
         testFilter,
         updateStream,
         updateChannel,
-        completeChannel
+        completeChannel,
+        navigateToChannel
     };
 
     return (

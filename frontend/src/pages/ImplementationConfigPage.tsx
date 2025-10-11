@@ -106,17 +106,19 @@ function ImplementationConfigContent() {
                             <SourceSelectionStep />
                         )}
 
-                        {/* Query Generation/Testing Steps */}
-                        {(currentStep === 'query_generation' ||
-                            currentStep === 'query_testing' ||
-                            currentStep === 'query_refinement') && (
-                                <QueryConfigStep />
-                            )}
+                        {/* Query Definition Step */}
+                        {currentStep === 'query_definition' && (
+                            <QueryConfigStep />
+                        )}
 
-                        {/* Semantic Filter Steps */}
-                        {(currentStep === 'semantic_filter_config' ||
-                            currentStep === 'semantic_filter_testing') && (
+                        {/* Semantic Filter Definition Step */}
+                        {currentStep === 'semantic_filter_definition' && (
                             <SemanticFilterStep />
+                        )}
+
+                        {/* Channel Testing Step */}
+                        {currentStep === 'channel_testing' && (
+                            <div>Channel Testing - TODO</div>
                         )}
                     </div>
                 )}
