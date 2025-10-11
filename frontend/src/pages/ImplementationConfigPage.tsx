@@ -67,12 +67,12 @@ function ImplementationConfigContent() {
     }
 
     return (
-        <div className="flex min-h-screen bg-gray-100 dark:bg-gray-950">
+        <div className="min-h-screen bg-gray-100 dark:bg-gray-950">
             {/* Sidebar */}
             <WorkflowProgressSidebar />
 
             {/* Main Content */}
-            <div className="flex-1 p-6">
+            <div className="ml-80 p-6">
                 {/* Header */}
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
                     <div className="flex items-center justify-between">
