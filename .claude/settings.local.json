@@ -6,7 +6,8 @@
       "Bash(python -c \"from database import engine; from sqlalchemy import inspect; inspector = inspect(engine); print(''Columns in reports table:''); print([col[''name''] for col in inspector.get_columns(''reports'')])\")",
       "Bash(python:*)",
       "Bash(npm run lint:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)"
     ],
     "deny": [],
     "ask": [],

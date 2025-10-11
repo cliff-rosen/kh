@@ -6,11 +6,8 @@ export default function WorkflowProgressSidebar() {
     const {
         stream,
         currentChannelIndex,
-        currentChannel,
         currentStep,
         currentSourceIndex,
-        selectedSources,
-        currentSourceId,
         availableSources,
         isChannelComplete
     } = useImplementationConfig();
@@ -24,7 +21,8 @@ export default function WorkflowProgressSidebar() {
         'query_testing': 'Test Query',
         'query_refinement': 'Refine Query',
         'semantic_filter_config': 'Configure Filter',
-        'semantic_filter_testing': 'Test Filter'
+        'semantic_filter_testing': 'Test Filter',
+        'channel_complete': 'Channel Complete'
     };
 
     // Determine if a step is completed for current source
@@ -44,9 +42,14 @@ export default function WorkflowProgressSidebar() {
 
     return (
         <div className="w-80 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 p-6 overflow-y-auto">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 uppercase tracking-wide">
-                Workflow Progress
-            </h3>
+            <div className="mb-6">
+                <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-1">
+                    Implementation Configuration
+                </div>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                    Channel Workflow Progress
+                </h3>
+            </div>
 
             <div className="space-y-4">
                 {channels.map((channel, channelIdx) => {
