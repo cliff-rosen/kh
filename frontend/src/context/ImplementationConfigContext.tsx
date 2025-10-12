@@ -485,16 +485,16 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
 
         const nextChannelIndex = currentChannelIndex + 1;
 
-        // Check if there's a next channel and initialize its state
+        // Advance to next channel first
+        setCurrentChannelIndex(nextChannelIndex);
+        setSampleArticles([]); // Clear for next channel
+
+        // Then check if there's a next channel and initialize its state
         if (stream && nextChannelIndex < stream.channels.length) {
             const nextChannel = stream.channels[nextChannelIndex];
             const nextChannelConfig = stream.workflow_config?.channel_configs?.[nextChannel.channel_id];
             initializeChannelState(nextChannelConfig);
         }
-
-        // Advance to next channel and clear sample articles
-        setCurrentChannelIndex(nextChannelIndex);
-        setSampleArticles([]); // Clear for next channel
     }, [currentChannelIndex, stream, initializeChannelState]);
 
     // Navigate to any channel by index
