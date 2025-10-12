@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { useImplementationConfig } from '../../context/ImplementationConfigContext';
-import { CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
 export default function SummaryReportStep() {
     const {
@@ -9,6 +10,19 @@ export default function SummaryReportStep() {
     } = useImplementationConfig();
 
     const channels = stream?.channels || [];
+    const [expandedChannels, setExpandedChannels] = useState<Set<string>>(new Set());
+
+    const toggleChannel = (channelId: string) => {
+        setExpandedChannels(prev => {
+            const next = new Set(prev);
+            if (next.has(channelId)) {
+                next.delete(channelId);
+            } else {
+                next.add(channelId);
+            }
+            return next;
+        });
+    };
 
     // Calculate overall stats
     const testedChannels = channels.filter(ch => channelTestResults[ch.channel_id]);
@@ -67,205 +81,219 @@ export default function SummaryReportStep() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div>
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                    Summary Report
+            <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+                    Channel Configuration Test Report
                 </h2>
-                <p className="text-gray-600 dark:text-gray-400">
-                    Aggregated test results across all channels
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {stream?.stream_name} • Generated {new Date().toLocaleDateString()}
                 </p>
             </div>
 
-            {/* Overall Stats */}
-            <div className="grid grid-cols-4 gap-4">
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Channels Tested</div>
-                    <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                        {testedChannels.length} / {channels.length}
+            {/* Executive Summary */}
+            <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                    Executive Summary
+                </h3>
+                <div className="grid grid-cols-4 gap-6">
+                    <div>
+                        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                            Channels Tested
+                        </div>
+                        <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                            {testedChannels.length}<span className="text-lg text-gray-500 dark:text-gray-400">/{channels.length}</span>
+                        </div>
                     </div>
-                </div>
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Articles Retrieved</div>
-                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                        {totalArticlesRetrieved}
+                    <div>
+                        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                            Articles Retrieved
+                        </div>
+                        <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                            {totalArticlesRetrieved}
+                        </div>
                     </div>
-                </div>
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Passed Filter</div>
-                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                        {totalPassedArticles}
+                    <div>
+                        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                            Passed Filter
+                        </div>
+                        <div className="text-3xl font-bold text-green-600 dark:text-green-400">
+                            {totalPassedArticles}
+                        </div>
                     </div>
-                </div>
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Failed Filter</div>
-                    <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                        {totalFailedArticles}
+                    <div>
+                        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                            Failed Filter
+                        </div>
+                        <div className="text-3xl font-bold text-red-600 dark:text-red-400">
+                            {totalFailedArticles}
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Channel Results */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        Channel Results
-                    </h3>
-                </div>
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {channels.map((channel, idx) => {
-                        const results = channelTestResults[channel.channel_id];
-                        const hasResults = !!results;
+            {/* Channel Details */}
+            <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Channel Details
+                </h3>
 
-                        if (!hasResults) {
-                            return (
-                                <div key={channel.channel_id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-900/50">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <XCircleIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                                            <div>
-                                                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                                                    {channel.name}
-                                                </h4>
-                                                <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                    Not tested yet
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={() => navigateToChannel(idx)}
-                                            className="px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                                        >
-                                            Configure & Test
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        }
+                {channels.map((channel, idx) => {
+                    const results = channelTestResults[channel.channel_id];
+                    const hasResults = !!results;
+                    const isExpanded = expandedChannels.has(channel.channel_id);
 
-                        const passedCount = results.filterResults?.filtered_articles.filter(
-                            fa => fa.confidence >= results.threshold
-                        ).length || 0;
-                        const failedCount = results.filterResults?.filtered_articles.filter(
-                            fa => fa.confidence < results.threshold
-                        ).length || 0;
-                        const retrievedCount = results.sourceResults.reduce((sum, sr) => sum + sr.actualRetrieved, 0);
-
+                    if (!hasResults) {
                         return (
-                            <div key={channel.channel_id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-900/50">
-                                <div className="flex items-start justify-between">
-                                    <div className="flex items-start gap-3 flex-1">
-                                        <CheckCircleIcon className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-                                        <div className="flex-1 min-w-0">
-                                            <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                            <div key={channel.channel_id} className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg">
+                                <div className="px-6 py-4 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <XCircleIcon className="h-6 w-6 text-gray-400 flex-shrink-0" />
+                                        <div>
+                                            <h4 className="text-base font-semibold text-gray-900 dark:text-white">
                                                 {channel.name}
                                             </h4>
-
-                                            {/* Stats */}
-                                            <div className="grid grid-cols-3 gap-4 mb-3">
-                                                <div>
-                                                    <div className="text-xs text-gray-600 dark:text-gray-400">Retrieved</div>
-                                                    <div className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                                                        {retrievedCount}
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-xs text-gray-600 dark:text-gray-400">Passed</div>
-                                                    <div className="text-sm font-semibold text-green-600 dark:text-green-400">
-                                                        {passedCount}
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-xs text-gray-600 dark:text-gray-400">Failed</div>
-                                                    <div className="text-sm font-semibold text-red-600 dark:text-red-400">
-                                                        {failedCount}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Sources */}
-                                            <div className="flex flex-wrap gap-2">
-                                                {results.sourceResults.map(sr => (
-                                                    <div
-                                                        key={sr.sourceId}
-                                                        className="px-2 py-1 bg-gray-100 dark:bg-gray-900 rounded text-xs text-gray-700 dark:text-gray-300"
-                                                    >
-                                                        {sr.sourceName}: {sr.actualRetrieved}
-                                                    </div>
-                                                ))}
-                                            </div>
-
-                                            {/* Test Config Info */}
-                                            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                                Threshold: {(results.threshold * 100).toFixed(0)}%
-                                                {results.dateRange && (
-                                                    <span className="ml-3">
-                                                        Date Range: {results.dateRange.start} to {results.dateRange.end}
-                                                    </span>
-                                                )}
-                                            </div>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                Not tested yet
+                                            </p>
                                         </div>
                                     </div>
                                     <button
                                         onClick={() => navigateToChannel(idx)}
-                                        className="ml-4 px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:underline flex-shrink-0"
+                                        className="px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
                                     >
-                                        View Details
+                                        Configure & Test →
                                     </button>
                                 </div>
                             </div>
                         );
-                    })}
-                </div>
-            </div>
+                    }
 
-            {/* Accepted Articles Summary */}
-            {totalPassedArticles > 0 && (
-                <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                        Accepted Articles Summary
-                    </h3>
-                    <div className="space-y-3">
-                        {testedChannels.map(channel => {
-                            const results = channelTestResults[channel.channel_id];
-                            if (!results?.filterResults) return null;
+                    const passedArticles = results.filterResults?.filtered_articles.filter(
+                        fa => fa.confidence >= results.threshold
+                    ) || [];
+                    const failedCount = results.filterResults?.filtered_articles.filter(
+                        fa => fa.confidence < results.threshold
+                    ).length || 0;
+                    const retrievedCount = results.sourceResults.reduce((sum, sr) => sum + sr.actualRetrieved, 0);
 
-                            const passedArticles = results.filterResults.filtered_articles.filter(
-                                fa => fa.confidence >= results.threshold
-                            );
+                    return (
+                        <div key={channel.channel_id} className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                            {/* Channel Header */}
+                            <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3 flex-1">
+                                        <CheckCircleIcon className="h-6 w-6 text-green-600 dark:text-green-400 flex-shrink-0" />
+                                        <div className="flex-1">
+                                            <h4 className="text-base font-bold text-gray-900 dark:text-white">
+                                                {channel.name}
+                                            </h4>
+                                            <div className="flex items-center gap-4 mt-1 text-sm">
+                                                <span className="text-blue-600 dark:text-blue-400 font-semibold">
+                                                    {retrievedCount} retrieved
+                                                </span>
+                                                <span className="text-green-600 dark:text-green-400 font-semibold">
+                                                    {passedArticles.length} passed
+                                                </span>
+                                                <span className="text-red-600 dark:text-red-400 font-semibold">
+                                                    {failedCount} failed
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => toggleChannel(channel.channel_id)}
+                                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
+                                    >
+                                        {isExpanded ? (
+                                            <>
+                                                <ChevronDownIcon className="h-4 w-4" />
+                                                Hide Articles
+                                            </>
+                                        ) : (
+                                            <>
+                                                <ChevronRightIcon className="h-4 w-4" />
+                                                Show Articles
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
 
-                            if (passedArticles.length === 0) return null;
+                                {/* Channel Metadata */}
+                                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600 dark:text-gray-400">
+                                    <div>
+                                        <span className="font-medium">Sources:</span>{' '}
+                                        {results.sourceResults.map(sr => sr.sourceName).join(', ')}
+                                    </div>
+                                    <div>
+                                        <span className="font-medium">Threshold:</span> {(results.threshold * 100).toFixed(0)}%
+                                    </div>
+                                    {results.dateRange && (
+                                        <div>
+                                            <span className="font-medium">Date Range:</span> {results.dateRange.start} to {results.dateRange.end}
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={() => navigateToChannel(idx)}
+                                        className="text-blue-600 dark:text-blue-400 hover:underline ml-auto"
+                                    >
+                                        View Test Details →
+                                    </button>
+                                </div>
+                            </div>
 
-                            return (
-                                <div key={channel.channel_id} className="border-l-4 border-green-500 pl-4">
-                                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                                        {channel.name} ({passedArticles.length} articles)
-                                    </h4>
-                                    <div className="space-y-2">
-                                        {passedArticles.slice(0, 3).map((fa, idx) => (
-                                            <div key={idx} className="text-sm">
-                                                <div className="font-medium text-gray-900 dark:text-white">
+                            {/* Accepted Articles (Collapsible) */}
+                            {isExpanded && passedArticles.length > 0 && (
+                                <div className="px-6 py-4">
+                                    <h5 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 uppercase tracking-wide">
+                                        Accepted Articles ({passedArticles.length})
+                                    </h5>
+                                    <div className="space-y-3">
+                                        {passedArticles.map((fa, idx) => (
+                                            <div key={idx} className="border-l-2 border-green-500 pl-4 py-2">
+                                                <div className="font-medium text-gray-900 dark:text-white mb-1">
                                                     {fa.article.title}
                                                 </div>
-                                                <div className="text-xs text-gray-600 dark:text-gray-400">
-                                                    {(fa.confidence * 100).toFixed(0)}% confidence
+                                                {fa.article.abstract && (
+                                                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                                                        {fa.article.abstract}
+                                                    </p>
+                                                )}
+                                                <div className="flex items-center gap-3 text-xs">
+                                                    <span className="font-semibold text-green-700 dark:text-green-300">
+                                                        {(fa.confidence * 100).toFixed(0)}% confidence
+                                                    </span>
+                                                    {fa.article.authors && fa.article.authors.length > 0 && (
+                                                        <span className="text-gray-500 dark:text-gray-400">
+                                                            {fa.article.authors.slice(0, 3).join(', ')}
+                                                            {fa.article.authors.length > 3 && ' et al.'}
+                                                        </span>
+                                                    )}
+                                                    {fa.article.publication_date && (
+                                                        <span className="text-gray-500 dark:text-gray-400">
+                                                            {fa.article.publication_date}
+                                                        </span>
+                                                    )}
                                                 </div>
+                                                {fa.reasoning && (
+                                                    <div className="mt-2 text-xs text-gray-600 dark:text-gray-400 italic">
+                                                        {fa.reasoning}
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
-                                        {passedArticles.length > 3 && (
-                                            <button
-                                                onClick={() => navigateToChannel(channels.indexOf(channel))}
-                                                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                                            >
-                                                View all {passedArticles.length} articles
-                                            </button>
-                                        )}
                                     </div>
                                 </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
+                            )}
+
+                            {isExpanded && passedArticles.length === 0 && (
+                                <div className="px-6 py-4 text-center text-gray-500 dark:text-gray-400 text-sm">
+                                    No articles passed the filter for this channel.
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 }
