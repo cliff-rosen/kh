@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useImplementationConfig } from '../../context/ImplementationConfigContext';
 import { ArrowPathIcon, CheckCircleIcon, XCircleIcon, PencilIcon } from '@heroicons/react/24/outline';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
@@ -50,11 +50,21 @@ export default function ChannelTestingStep() {
     const [isTesting, setIsTesting] = useState(false);
     const [testResults, setTestResults] = useState<TestResults | null>(null);
     const [selectedTab, setSelectedTab] = useState<'summary' | 'results'>('summary');
+    const [lastTestedChannelId, setLastTestedChannelId] = useState<string | null>(null);
 
     // Test configuration
     const [dateRange, setDateRange] = useState(getDefaultDateRange());
     const [maxResults] = useState(10); // Fixed cap at 10
     const [threshold, setThreshold] = useState(currentChannelWorkflowConfig?.semantic_filter?.threshold || 0.7);
+
+    // Clear test results when channel changes
+    useEffect(() => {
+        if (currentChannel && currentChannel.channel_id !== lastTestedChannelId) {
+            setTestResults(null);
+            setSelectedTab('summary');
+            setLastTestedChannelId(currentChannel.channel_id);
+        }
+    }, [currentChannel]);
 
     const filterConfig = currentChannelWorkflowConfig?.semantic_filter;
     const sourceQueries = currentChannelWorkflowConfig?.source_queries || {};
