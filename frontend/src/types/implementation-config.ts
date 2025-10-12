@@ -90,3 +90,20 @@ export interface ChannelTestResults {
     };
 }
 
+// ============================================================================
+// Executive Summary
+// ============================================================================
+
+export interface ChannelHighlight {
+    channel_name: string;
+    highlight: string;
+}
+
+export interface ExecutiveSummary {
+    overview: string;
+    key_themes: string[];
+    channel_highlights: ChannelHighlight[];
+    recommendations: string;
+    generated_at: string;
+}
+

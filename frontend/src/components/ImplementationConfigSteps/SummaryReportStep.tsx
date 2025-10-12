@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useImplementationConfig } from '../../context/ImplementationConfigContext';
 import { CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon, ChevronDownIcon, ChevronRightIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
+import { ExecutiveSummary } from '../../types/implementation-config';
 
 export default function SummaryReportStep() {
     const {
@@ -12,7 +13,7 @@ export default function SummaryReportStep() {
 
     const channels = stream?.channels || [];
     const [expandedChannels, setExpandedChannels] = useState<Set<string>>(new Set());
-    const [executiveSummary, setExecutiveSummary] = useState<any>(null);
+    const [executiveSummary, setExecutiveSummary] = useState<ExecutiveSummary | null>(null);
     const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
     const toggleChannel = (channelId: string) => {

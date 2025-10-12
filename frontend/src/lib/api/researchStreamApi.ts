@@ -389,16 +389,7 @@ export const researchStreamApi = {
             channel_name: string;
             accepted_articles: any[];
         }>
-    ): Promise<{
-        overview: string;
-        key_themes: string[];
-        channel_highlights: Array<{
-            channel_name: string;
-            highlight: string;
-        }>;
-        recommendations: string;
-        generated_at: string;
-    }> {
+    ): Promise<import('../../types/implementation-config').ExecutiveSummary> {
         const response = await api.post(
             `/api/research-streams/${streamId}/generate-executive-summary`,
             { channel_test_data: channelTestData }
