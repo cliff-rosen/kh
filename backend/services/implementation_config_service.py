@@ -9,7 +9,7 @@ import logging
 from typing import List, Dict, Any, Tuple, Optional
 from sqlalchemy.orm import Session
 
-from schemas.research_stream import ResearchStream
+from schemas.research_stream import ResearchStream, ExecutiveSummary
 from schemas.sources import INFORMATION_SOURCES
 from schemas.canonical_types import CanonicalResearchArticle
 from schemas.smart_search import FilteredArticle
@@ -695,7 +695,7 @@ class ImplementationConfigService:
         stream_id: int,
         user_id: str,
         channel_test_data: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    ) -> ExecutiveSummary:
         """
         Generate an AI-powered executive summary analyzing test results across all channels.
 

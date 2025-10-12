@@ -36,7 +36,6 @@ class ResearchStreamCreateRequest(BaseModel):
     report_frequency: ReportFrequency
     scoring_config: Optional[ScoringConfig] = None
 
-
 class ResearchStreamUpdateRequest(BaseModel):
     """Request schema for updating a research stream"""
     stream_name: Optional[str] = Field(None, min_length=1, max_length=255)
@@ -65,12 +64,10 @@ class QueryGenerationRequest(BaseModel):
     """Request to generate a query expression for a channel and source"""
     source_id: str = Field(..., description="Source to generate query for (e.g., 'pubmed', 'google_scholar')")
 
-
 class QueryGenerationResponse(BaseModel):
     """Response from query generation"""
     query_expression: str = Field(..., description="Generated query expression")
     reasoning: str = Field(..., description="Explanation of why this expression was generated")
-
 
 class QueryTestRequest(BaseModel):
     """Request to test a query expression against a source"""
@@ -81,7 +78,6 @@ class QueryTestRequest(BaseModel):
     end_date: Optional[str] = Field(None, description="End date for filtering (YYYY-MM-DD) - PubMed only")
     date_type: Optional[str] = Field('entrez', description="Date type for filtering - PubMed only")
 
-
 class QueryTestResponse(BaseModel):
     """Response from query testing"""
     success: bool = Field(..., description="Whether query executed successfully")
@@ -89,19 +85,16 @@ class QueryTestResponse(BaseModel):
     sample_articles: List[CanonicalResearchArticle] = Field(..., description="Sample articles")
     error_message: Optional[str] = Field(None, description="Error message if query failed")
 
-
 class SemanticFilterGenerationResponse(BaseModel):
     """Response from semantic filter generation"""
     filter_criteria: str = Field(..., description="Generated semantic filter criteria")
     reasoning: str = Field(..., description="Explanation of why this criteria was generated")
-
 
 class SemanticFilterTestRequest(BaseModel):
     """Request to test semantic filter on articles"""
     articles: List[CanonicalResearchArticle] = Field(..., description="Articles to filter")
     filter_criteria: str = Field(..., description="Semantic filter criteria")
     threshold: float = Field(0.7, ge=0.0, le=1.0, description="Confidence threshold for filtering")
-
 
 class SemanticFilterTestResponse(BaseModel):
     """Response from semantic filter testing"""
@@ -110,19 +103,16 @@ class SemanticFilterTestResponse(BaseModel):
     fail_count: int = Field(..., description="Number of articles failing filter")
     average_confidence: float = Field(..., description="Average confidence of passing articles")
 
-
 class ImplementationConfigProgressUpdate(BaseModel):
     """Update implementation configuration progress"""
     channel_name: str = Field(..., description="Channel being configured")
     completed_steps: List[str] = Field(..., description="List of completed step IDs")
     configuration_data: Dict[str, Any] = Field(..., description="Configuration data for this channel")
 
-
 class UpdateSourceQueryRequest(BaseModel):
     """Request to update a source query for a channel"""
     query_expression: str = Field(..., description="Query expression for the source")
     enabled: bool = Field(default=True, description="Whether this source is enabled")
-
 
 class UpdateSemanticFilterRequest(BaseModel):
     """Request to update semantic filter for a channel"""
