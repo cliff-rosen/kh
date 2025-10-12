@@ -685,7 +685,7 @@ async def generate_executive_summary(
 
         summary = await config_service.generate_executive_summary(
             stream_id=stream_id,
-            user_id=str(current_user.id),
+            user_id=current_user.user_id,
             channel_test_data=channel_test_data
         )
 

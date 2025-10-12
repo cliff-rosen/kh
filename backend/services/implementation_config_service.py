@@ -709,6 +709,7 @@ class ImplementationConfigService:
         """
         from datetime import datetime
         from agents.prompts.base_prompt_caller import BasePromptCaller
+        from schemas.chat import ChatMessage, MessageRole
 
         # Verify stream
         stream = self.stream_service.get_research_stream(stream_id, user_id)
@@ -790,16 +791,37 @@ class ImplementationConfigService:
 
         # Call LLM
         caller = BasePromptCaller(
-            system_prompt=system_prompt,
-            response_schema=response_schema
+            response_model=response_schema,
+            system_message=system_prompt
         )
 
-        result, usage = await caller.call(user_prompt)
+        user_message = ChatMessage(
+            id="temp_id",
+            chat_id="temp_chat",
+            role=MessageRole.USER,
+            content=user_prompt,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+
+        result = await caller.invoke(
+            messages=[user_message],
+            return_usage=True
+        )
+
+        # Extract result
+        llm_response = result.result
+        if hasattr(llm_response, 'model_dump'):
+            response_data = llm_response.model_dump()
+        elif hasattr(llm_response, 'dict'):
+            response_data = llm_response.dict()
+        else:
+            response_data = llm_response
 
         # Add timestamp
-        result['generated_at'] = datetime.utcnow().isoformat()
+        response_data['generated_at'] = datetime.utcnow().isoformat()
 
-        return result
+        return response_data
 
     def _format_channel_data_for_prompt(self, channel_summaries: List[Dict[str, Any]]) -> str:
         """Format channel data for inclusion in prompt"""
