@@ -125,3 +125,22 @@ class ResearchStream(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ============================================================================
+# Executive Summary
+# ============================================================================
+
+class ChannelHighlight(BaseModel):
+    """Notable finding for a specific channel"""
+    channel_name: str = Field(description="Name of the channel")
+    highlight: str = Field(description="Key finding or insight from this channel")
+
+
+class ExecutiveSummary(BaseModel):
+    """AI-generated executive summary of test results across all channels"""
+    overview: str = Field(description="High-level summary of what was found across all channels")
+    key_themes: List[str] = Field(description="Main themes/topics identified across accepted articles")
+    channel_highlights: List[ChannelHighlight] = Field(description="Notable findings per channel")
+    recommendations: str = Field(description="Suggested next steps or insights based on the findings")
+    generated_at: datetime = Field(description="When this summary was generated")

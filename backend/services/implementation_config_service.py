@@ -689,3 +689,125 @@ class ImplementationConfigService:
                 raise ValueError(f"Channel '{channel_name}' has no source queries configured")
 
         return stream
+
+    async def generate_executive_summary(
+        self,
+        stream_id: int,
+        user_id: str,
+        channel_test_data: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Generate an AI-powered executive summary analyzing test results across all channels.
+
+        Args:
+            stream_id: Stream ID
+            user_id: User ID
+            channel_test_data: List of dicts with channel_id, channel_name, and accepted_articles
+
+        Returns:
+            Dict with overview, key_themes, channel_highlights, recommendations, generated_at
+        """
+        from datetime import datetime
+        from agents.prompts.base_prompt_caller import BasePromptCaller
+
+        # Verify stream
+        stream = self.stream_service.get_research_stream(stream_id, user_id)
+        if not stream:
+            raise ValueError("Research stream not found")
+
+        # Prepare article summaries by channel
+        channel_summaries = []
+        for channel_data in channel_test_data:
+            channel_name = channel_data.get('channel_name', 'Unknown')
+            articles = channel_data.get('accepted_articles', [])
+
+            article_summaries = []
+            for article in articles[:10]:  # Limit to first 10 per channel to avoid token limits
+                article_summaries.append({
+                    'title': article.get('title', ''),
+                    'abstract': article.get('abstract', '')[:300] if article.get('abstract') else ''  # Truncate abstracts
+                })
+
+            channel_summaries.append({
+                'channel_name': channel_name,
+                'article_count': len(articles),
+                'sample_articles': article_summaries
+            })
+
+        # Build prompt
+        system_prompt = """You are an expert research analyst generating executive summaries for scientific literature reviews.
+
+        Your task is to analyze accepted articles across multiple research channels and provide:
+        1. A concise overview of key findings
+        2. Identified themes across the literature
+        3. Notable highlights per channel
+        4. Recommendations for next steps
+
+        Be specific, insightful, and actionable. Focus on patterns and insights that span multiple articles."""
+
+        user_prompt = f"""Generate an executive summary for this research stream:
+
+        Stream Name: {stream.stream_name}
+        Stream Purpose: {stream.purpose}
+
+        Channel Results:
+        {self._format_channel_data_for_prompt(channel_summaries)}
+
+        Provide a comprehensive executive summary analyzing these results."""
+
+        # Response schema
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "overview": {
+                    "type": "string",
+                    "description": "2-3 sentence high-level summary of what was found across all channels"
+                },
+                "key_themes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of 3-5 main themes or topics identified across the literature"
+                },
+                "channel_highlights": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "channel_name": {"type": "string"},
+                            "highlight": {"type": "string", "description": "1-2 sentence notable finding from this channel"}
+                        },
+                        "required": ["channel_name", "highlight"]
+                    },
+                    "description": "Notable findings per channel"
+                },
+                "recommendations": {
+                    "type": "string",
+                    "description": "2-3 sentences of suggested next steps or insights"
+                }
+            },
+            "required": ["overview", "key_themes", "channel_highlights", "recommendations"]
+        }
+
+        # Call LLM
+        caller = BasePromptCaller(
+            system_prompt=system_prompt,
+            response_schema=response_schema
+        )
+
+        result, usage = await caller.call(user_prompt)
+
+        # Add timestamp
+        result['generated_at'] = datetime.utcnow().isoformat()
+
+        return result
+
+    def _format_channel_data_for_prompt(self, channel_summaries: List[Dict[str, Any]]) -> str:
+        """Format channel data for inclusion in prompt"""
+        formatted = []
+        for channel in channel_summaries:
+            formatted.append(f"\n**{channel['channel_name']}** ({channel['article_count']} articles accepted)")
+            for i, article in enumerate(channel['sample_articles'], 1):
+                formatted.append(f"  {i}. {article['title']}")
+                if article['abstract']:
+                    formatted.append(f"     {article['abstract']}")
+        return '\n'.join(formatted)

@@ -377,5 +377,32 @@ export const researchStreamApi = {
             `/api/research-streams/${streamId}/implementation-config/complete`
         );
         return response.data;
+    },
+
+    /**
+     * Generate an executive summary from channel test results
+     */
+    async generateExecutiveSummary(
+        streamId: number,
+        channelTestData: Array<{
+            channel_id: string;
+            channel_name: string;
+            accepted_articles: any[];
+        }>
+    ): Promise<{
+        overview: string;
+        key_themes: string[];
+        channel_highlights: Array<{
+            channel_name: string;
+            highlight: string;
+        }>;
+        recommendations: string;
+        generated_at: string;
+    }> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/generate-executive-summary`,
+            { channel_test_data: channelTestData }
+        );
+        return response.data;
     }
 };

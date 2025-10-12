@@ -633,3 +633,67 @@ async def complete_implementation_config(
     )
 
     return updated_stream
+
+
+# ============================================================================
+# Executive Summary Generation
+# ============================================================================
+
+class ChannelTestData(BaseModel):
+    """Test data for a single channel"""
+    channel_id: str
+    channel_name: str
+    accepted_articles: List[Dict[str, Any]]
+
+
+class GenerateExecutiveSummaryRequest(BaseModel):
+    """Request to generate an executive summary"""
+    channel_test_data: List[ChannelTestData]
+
+
+@router.post("/{stream_id}/generate-executive-summary")
+async def generate_executive_summary(
+    stream_id: int,
+    request: GenerateExecutiveSummaryRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate an AI-powered executive summary analyzing test results across all channels.
+
+    Args:
+        stream_id: Research stream ID
+        request: Channel test data for all channels
+        current_user: Authenticated user
+        db: Database session
+
+    Returns:
+        ExecutiveSummary with overview, key_themes, channel_highlights, recommendations, generated_at
+    """
+    try:
+        config_service = ImplementationConfigService(db)
+
+        # Convert Pydantic models to dicts
+        channel_test_data = [
+            {
+                'channel_id': channel.channel_id,
+                'channel_name': channel.channel_name,
+                'accepted_articles': channel.accepted_articles
+            }
+            for channel in request.channel_test_data
+        ]
+
+        summary = await config_service.generate_executive_summary(
+            stream_id=stream_id,
+            user_id=str(current_user.id),
+            channel_test_data=channel_test_data
+        )
+
+        return summary
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate executive summary: {str(e)}"
+        )

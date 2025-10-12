@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useImplementationConfig } from '../../context/ImplementationConfigContext';
-import { CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon, ChevronDownIcon, ChevronRightIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import { researchStreamApi } from '../../lib/api/researchStreamApi';
 
 export default function SummaryReportStep() {
     const {
@@ -11,6 +12,8 @@ export default function SummaryReportStep() {
 
     const channels = stream?.channels || [];
     const [expandedChannels, setExpandedChannels] = useState<Set<string>>(new Set());
+    const [executiveSummary, setExecutiveSummary] = useState<any>(null);
+    const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
     const toggleChannel = (channelId: string) => {
         setExpandedChannels(prev => {
@@ -22,6 +25,41 @@ export default function SummaryReportStep() {
             }
             return next;
         });
+    };
+
+    const handleGenerateExecutiveSummary = async () => {
+        if (!stream) return;
+
+        setIsGeneratingSummary(true);
+        try {
+            // Prepare channel test data from channelTestResults
+            const channelTestData = channels
+                .filter(channel => channelTestResults[channel.channel_id])
+                .map(channel => {
+                    const results = channelTestResults[channel.channel_id];
+                    const acceptedArticles = results.filterResults?.filtered_articles
+                        .filter(fa => fa.confidence >= results.threshold)
+                        .map(fa => fa.article) || [];
+
+                    return {
+                        channel_id: channel.channel_id,
+                        channel_name: channel.name,
+                        accepted_articles: acceptedArticles
+                    };
+                });
+
+            const summary = await researchStreamApi.generateExecutiveSummary(
+                stream.stream_id,
+                channelTestData
+            );
+
+            setExecutiveSummary(summary);
+        } catch (error) {
+            console.error('Failed to generate executive summary:', error);
+            alert('Failed to generate executive summary. Please try again.');
+        } finally {
+            setIsGeneratingSummary(false);
+        }
     };
 
     // Calculate overall stats
@@ -90,7 +128,115 @@ export default function SummaryReportStep() {
                 </p>
             </div>
 
-            {/* Executive Summary */}
+            {/* AI Executive Summary */}
+            {testedChannels.length > 0 && (
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-6">
+                    {!executiveSummary ? (
+                        <div className="text-center">
+                            <SparklesIcon className="h-12 w-12 text-purple-600 dark:text-purple-400 mx-auto mb-4" />
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                                AI Executive Summary
+                            </h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                Get AI-powered insights and themes from your accepted articles
+                            </p>
+                            <button
+                                onClick={handleGenerateExecutiveSummary}
+                                disabled={isGeneratingSummary}
+                                className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2 mx-auto"
+                            >
+                                {isGeneratingSummary ? (
+                                    <>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                        Generating...
+                                    </>
+                                ) : (
+                                    <>
+                                        <SparklesIcon className="h-5 w-5" />
+                                        Generate Executive Summary
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    ) : (
+                        <div>
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2">
+                                    <SparklesIcon className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                        AI Executive Summary
+                                    </h3>
+                                </div>
+                                <button
+                                    onClick={handleGenerateExecutiveSummary}
+                                    disabled={isGeneratingSummary}
+                                    className="text-sm text-purple-600 dark:text-purple-400 hover:underline"
+                                >
+                                    Regenerate
+                                </button>
+                            </div>
+
+                            {/* Overview */}
+                            <div className="mb-4">
+                                <p className="text-gray-900 dark:text-white leading-relaxed">
+                                    {executiveSummary.overview}
+                                </p>
+                            </div>
+
+                            {/* Key Themes */}
+                            <div className="mb-4">
+                                <h4 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-2">
+                                    Key Themes
+                                </h4>
+                                <ul className="list-disc list-inside space-y-1">
+                                    {executiveSummary.key_themes.map((theme: string, idx: number) => (
+                                        <li key={idx} className="text-gray-700 dark:text-gray-300 text-sm">
+                                            {theme}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+
+                            {/* Channel Highlights */}
+                            {executiveSummary.channel_highlights.length > 0 && (
+                                <div className="mb-4">
+                                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-2">
+                                        Channel Highlights
+                                    </h4>
+                                    <div className="space-y-2">
+                                        {executiveSummary.channel_highlights.map((highlight: any, idx: number) => (
+                                            <div key={idx} className="bg-white/50 dark:bg-gray-800/50 rounded p-3">
+                                                <div className="font-medium text-gray-900 dark:text-white text-sm mb-1">
+                                                    {highlight.channel_name}
+                                                </div>
+                                                <div className="text-gray-700 dark:text-gray-300 text-sm">
+                                                    {highlight.highlight}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Recommendations */}
+                            <div>
+                                <h4 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-2">
+                                    Recommendations
+                                </h4>
+                                <p className="text-gray-700 dark:text-gray-300 text-sm">
+                                    {executiveSummary.recommendations}
+                                </p>
+                            </div>
+
+                            <div className="mt-4 pt-4 border-t border-purple-200 dark:border-purple-800 text-xs text-gray-500 dark:text-gray-400">
+                                Generated {new Date(executiveSummary.generated_at).toLocaleString()}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Executive Statistics Summary */}
             <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                     Executive Summary
