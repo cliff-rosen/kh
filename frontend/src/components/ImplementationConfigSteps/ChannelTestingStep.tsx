@@ -1,30 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useImplementationConfig } from '../../context/ImplementationConfigContext';
 import { ArrowPathIcon, CheckCircleIcon, XCircleIcon, PencilIcon } from '@heroicons/react/24/outline';
-import { CanonicalResearchArticle } from '../../types/canonical_types';
-
-interface TestResults {
-    sourceResults: {
-        sourceId: string;
-        sourceName: string;
-        totalAvailable: number;    // Total available from source
-        maxRequested: number;      // Cap we requested (10)
-        actualRetrieved: number;   // Actually retrieved (min of available and cap)
-        sampleArticles: CanonicalResearchArticle[];
-        error?: string;
-    }[];
-    filterResults: {
-        filtered_articles: Array<{
-            article: CanonicalResearchArticle;
-            confidence: number;
-            reasoning: string;
-            passed: boolean;
-        }>;
-        pass_count: number;
-        fail_count: number;
-        average_confidence: number;
-    } | null;
-}
+import { ChannelTestResults } from '../../types/implementation-config';
 
 // Helper to get default date range (last 7 days)
 const getDefaultDateRange = () => {
@@ -44,11 +21,12 @@ export default function ChannelTestingStep() {
         availableSources,
         testQuery,
         testFilter,
+        saveChannelTestResults,
         completeChannel,
     } = useImplementationConfig();
 
     const [isTesting, setIsTesting] = useState(false);
-    const [testResults, setTestResults] = useState<TestResults | null>(null);
+    const [testResults, setTestResults] = useState<ChannelTestResults | null>(null);
     const [selectedTab, setSelectedTab] = useState<'summary' | 'results'>('summary');
     const [lastTestedChannelId, setLastTestedChannelId] = useState<string | null>(null);
 
@@ -131,10 +109,20 @@ export default function ChannelTestingStep() {
                 );
             }
 
-            setTestResults({
+            const results: ChannelTestResults = {
                 sourceResults,
-                filterResults
-            });
+                filterResults,
+                threshold,
+                dateRange: configuredSources.some(([sourceId]) => sourceId === 'pubmed') ? dateRange : undefined
+            };
+
+            setTestResults(results);
+
+            // Save to context
+            if (currentChannel) {
+                saveChannelTestResults(currentChannel.channel_id, results);
+            }
+
             setSelectedTab('results');
         } catch (error) {
             console.error('Channel test failed:', error);

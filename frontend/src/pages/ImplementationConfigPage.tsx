@@ -6,6 +6,7 @@ import SourceSelectionStep from '../components/ImplementationConfigSteps/SourceS
 import QueryConfigStep from '../components/ImplementationConfigSteps/QueryConfigStep';
 import SemanticFilterStep from '../components/ImplementationConfigSteps/SemanticFilterStep';
 import ChannelTestingStep from '../components/ImplementationConfigSteps/ChannelTestingStep';
+import SummaryReportStep from '../components/ImplementationConfigSteps/SummaryReportStep';
 import WorkflowProgressSidebar from '../components/ImplementationConfigSteps/WorkflowProgressSidebar';
 
 function ImplementationConfigContent() {
@@ -15,7 +16,8 @@ function ImplementationConfigContent() {
         isComplete,
         isLoading,
         currentChannel,
-        currentStep
+        currentStep,
+        isViewingSummary
     } = useImplementationConfig();
 
     const streamName = stream?.stream_name || '';
@@ -96,7 +98,9 @@ function ImplementationConfigContent() {
 
             {/* Main Content */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                {!currentChannel ? (
+                {isViewingSummary ? (
+                    <SummaryReportStep />
+                ) : !currentChannel ? (
                     <div className="text-center text-gray-600 dark:text-gray-400 py-12">
                         No channel to configure
                     </div>

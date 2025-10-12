@@ -62,3 +62,31 @@ export interface FilterTestResult {
     average_confidence: number;
 }
 
+export interface ChannelTestResults {
+    sourceResults: {
+        sourceId: string;
+        sourceName: string;
+        totalAvailable: number;    // Total available from source
+        maxRequested: number;      // Cap we requested (10)
+        actualRetrieved: number;   // Actually retrieved (min of available and cap)
+        sampleArticles: CanonicalResearchArticle[];
+        error?: string;
+    }[];
+    filterResults: {
+        filtered_articles: Array<{
+            article: CanonicalResearchArticle;
+            confidence: number;
+            reasoning: string;
+            passed: boolean;
+        }>;
+        pass_count: number;
+        fail_count: number;
+        average_confidence: number;
+    } | null;
+    threshold: number;  // Threshold used for this test
+    dateRange?: {       // Date range used (if applicable)
+        start: string;
+        end: string;
+    };
+}
+

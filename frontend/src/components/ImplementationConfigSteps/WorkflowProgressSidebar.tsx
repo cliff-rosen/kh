@@ -1,5 +1,5 @@
 import { useImplementationConfig } from '../../context/ImplementationConfigContext';
-import { CheckCircleIcon, ArrowRightIcon } from '@heroicons/react/24/solid';
+import { CheckCircleIcon, ArrowRightIcon, DocumentChartBarIcon } from '@heroicons/react/24/solid';
 import { ConfigStep } from '../../types/implementation-config';
 
 export default function WorkflowProgressSidebar() {
@@ -9,7 +9,10 @@ export default function WorkflowProgressSidebar() {
         currentStep,
         currentSourceIndex,
         availableSources,
-        navigateToChannel
+        isViewingSummary,
+        channelTestResults,
+        navigateToChannel,
+        viewSummaryReport
     } = useImplementationConfig();
 
     const channels = stream?.channels || [];
@@ -135,6 +138,36 @@ export default function WorkflowProgressSidebar() {
                         </button>
                     );
                 })}
+            </div>
+
+            {/* Summary Report Button */}
+            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <button
+                    onClick={viewSummaryReport}
+                    className={`w-full text-left rounded-lg p-3 transition-all ${
+                        isViewingSummary
+                            ? 'bg-purple-100 dark:bg-purple-900/30 border-2 border-purple-500'
+                            : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 cursor-pointer'
+                    }`}
+                >
+                    <div className="flex items-center gap-2">
+                        <DocumentChartBarIcon className={`h-5 w-5 flex-shrink-0 ${
+                            isViewingSummary ? 'text-purple-600 dark:text-purple-400' : 'text-gray-600 dark:text-gray-400'
+                        }`} />
+                        <div className="flex-1 min-w-0">
+                            <h4 className={`text-sm font-semibold ${
+                                isViewingSummary ? 'text-purple-900 dark:text-purple-100' : 'text-gray-900 dark:text-white'
+                            }`}>
+                                Summary Report
+                            </h4>
+                            <p className={`text-xs ${
+                                isViewingSummary ? 'text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400'
+                            }`}>
+                                {Object.keys(channelTestResults).length} / {channels.length} tested
+                            </p>
+                        </div>
+                    </div>
+                </button>
             </div>
         </div>
     );

@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, ReactNode 
 import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { Channel, InformationSource, ResearchStream, ChannelWorkflowConfig, SourceQuery } from '../types/research-stream';
 import { CanonicalResearchArticle } from '../types/canonical_types';
-import { ConfigStep, QueryTestResult, FilterTestResult, QueryDefinitionSubState, FilterDefinitionSubState } from '../types/implementation-config';
+import { ConfigStep, QueryTestResult, FilterTestResult, QueryDefinitionSubState, FilterDefinitionSubState, ChannelTestResults } from '../types/implementation-config';
 
 // ============================================================================
 // Context Type
@@ -20,6 +20,7 @@ interface ImplementationConfigContextType {
     currentChannelWorkflowConfig: ChannelWorkflowConfig | null;
     currentStep: ConfigStep;
     currentSourceIndex: number;
+    isViewingSummary: boolean;
 
     // Sub-states for steps (explicit state machine)
     querySubState: QueryDefinitionSubState;
@@ -31,7 +32,8 @@ interface ImplementationConfigContextType {
     selectedSources: string[];  // Derived from workflow_config
     currentSourceId: string | null;
     currentSourceQuery: SourceQuery | null;
-    sampleArticles: CanonicalResearchArticle[];  // Sample articles from query tests
+    sampleArticles: CanonicalResearchArticle[];  // Sample articles from query tests (legacy)
+    channelTestResults: Record<string, ChannelTestResults>;  // Test results per channel (by channel_id)
 
     // Helpers
     isChannelComplete: (channelId: string) => boolean;
@@ -49,8 +51,10 @@ interface ImplementationConfigContextType {
     testFilter: (articles: CanonicalResearchArticle[], criteria: string, threshold: number) => Promise<FilterTestResult>;
     updateStream: (updates: { stream_name?: string; purpose?: string }) => Promise<void>;
     updateChannel: (updates: Partial<Channel>) => Promise<void>;
+    saveChannelTestResults: (channelId: string, results: ChannelTestResults) => void;
     completeChannel: () => void;
     navigateToChannel: (channelIndex: number) => void;
+    viewSummaryReport: () => void;
 }
 
 const ImplementationConfigContext = createContext<ImplementationConfigContextType | undefined>(undefined);
@@ -74,13 +78,17 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
     const [currentChannelIndex, setCurrentChannelIndex] = useState(0);
     const [currentStep, setCurrentStep] = useState<ConfigStep>('source_selection');
     const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
+    const [isViewingSummary, setIsViewingSummary] = useState(false);
 
     // Sub-states for explicit state machine
     const [querySubState, setQuerySubState] = useState<QueryDefinitionSubState>('awaiting_generation');
     const [filterSubState, setFilterSubState] = useState<FilterDefinitionSubState>('awaiting_generation');
 
-    // Sample articles collected from query tests (for filter testing)
+    // Sample articles collected from query tests (for filter testing) - legacy
     const [sampleArticles, setSampleArticles] = useState<CanonicalResearchArticle[]>([]);
+
+    // Test results per channel (by channel_id)
+    const [channelTestResults, setChannelTestResults] = useState<Record<string, ChannelTestResults>>({});
 
     // Computed values
     const currentChannel = stream && currentChannelIndex < stream.channels.length
@@ -478,6 +486,14 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         await reloadStream();
     }, [streamId, currentChannel, stream, reloadStream]);
 
+    // Save test results for a channel
+    const saveChannelTestResults = useCallback((channelId: string, results: ChannelTestResults) => {
+        setChannelTestResults(prev => ({
+            ...prev,
+            [channelId]: results
+        }));
+    }, []);
+
     // Complete channel and advance to next channel or finish workflow
     const completeChannel = useCallback(() => {
         // Filter should already be saved via updateFilterCriteria/updateFilterThreshold
@@ -507,6 +523,9 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         const targetChannel = stream.channels[channelIndex];
         const targetChannelConfig = stream.workflow_config?.channel_configs?.[targetChannel.channel_id];
 
+        // Exit summary view
+        setIsViewingSummary(false);
+
         // Set the channel index
         setCurrentChannelIndex(channelIndex);
 
@@ -516,6 +535,11 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         // Clear sample articles when switching channels
         setSampleArticles([]);
     }, [stream, initializeChannelState]);
+
+    // View summary report
+    const viewSummaryReport = useCallback(() => {
+        setIsViewingSummary(true);
+    }, []);
 
     const value: ImplementationConfigContextType = {
         // Core state
@@ -529,6 +553,7 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         currentChannelWorkflowConfig,
         currentStep,
         currentSourceIndex,
+        isViewingSummary,
 
         // Sub-states for steps (explicit state machine)
         querySubState,
@@ -541,6 +566,7 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         currentSourceId,
         currentSourceQuery,
         sampleArticles,
+        channelTestResults,
 
         // Helpers
         isChannelComplete,
@@ -558,8 +584,10 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         testFilter,
         updateStream,
         updateChannel,
+        saveChannelTestResults,
         completeChannel,
-        navigateToChannel
+        navigateToChannel,
+        viewSummaryReport
     };
 
     return (
