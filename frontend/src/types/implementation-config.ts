@@ -103,7 +103,6 @@ export interface ExecutiveSummary {
     overview: string;
     key_themes: string[];
     channel_highlights: ChannelHighlight[];
-    recommendations: string;
     generated_at: string;
 }
 

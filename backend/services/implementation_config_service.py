@@ -742,7 +742,6 @@ class ImplementationConfigService:
         1. A concise overview of key findings
         2. Identified themes across the literature
         3. Notable highlights per channel
-        4. Recommendations for next steps
 
         Be specific, insightful, and actionable. Focus on patterns and insights that span multiple articles."""
 
@@ -780,13 +779,9 @@ class ImplementationConfigService:
                         "required": ["channel_name", "highlight"]
                     },
                     "description": "Notable findings per channel"
-                },
-                "recommendations": {
-                    "type": "string",
-                    "description": "2-3 sentences of suggested next steps or insights"
                 }
             },
-            "required": ["overview", "key_themes", "channel_highlights", "recommendations"]
+            "required": ["overview", "key_themes", "channel_highlights"]
         }
 
         # Call LLM

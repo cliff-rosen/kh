@@ -219,16 +219,6 @@ export default function SummaryReportStep() {
                                 </div>
                             )}
 
-                            {/* Recommendations */}
-                            <div>
-                                <h4 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide mb-2">
-                                    Recommendations
-                                </h4>
-                                <p className="text-gray-700 dark:text-gray-300 text-sm">
-                                    {executiveSummary.recommendations}
-                                </p>
-                            </div>
-
                             <div className="mt-4 pt-4 border-t border-purple-200 dark:border-purple-800 text-xs text-gray-500 dark:text-gray-400">
                                 Generated {new Date(executiveSummary.generated_at).toLocaleString()}
                             </div>

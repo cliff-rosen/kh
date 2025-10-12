@@ -15,7 +15,8 @@ from schemas.research_stream import (
     Channel,
     StreamType,
     ReportFrequency,
-    ScoringConfig
+    ScoringConfig,
+    ExecutiveSummary
 )
 from schemas.sources import INFORMATION_SOURCES, InformationSource
 from schemas.canonical_types import CanonicalResearchArticle
@@ -651,13 +652,13 @@ class GenerateExecutiveSummaryRequest(BaseModel):
     channel_test_data: List[ChannelTestData]
 
 
-@router.post("/{stream_id}/generate-executive-summary")
+@router.post("/{stream_id}/generate-executive-summary", response_model=ExecutiveSummary)
 async def generate_executive_summary(
     stream_id: int,
     request: GenerateExecutiveSummaryRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
-):
+) -> ExecutiveSummary:
     """
     Generate an AI-powered executive summary analyzing test results across all channels.
 
