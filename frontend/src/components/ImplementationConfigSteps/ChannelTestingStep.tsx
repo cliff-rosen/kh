@@ -416,76 +416,101 @@ export default function ChannelTestingStep() {
                                 </p>
                             </div>
 
-                            {/* Statistics Summary */}
-                            <div className="grid grid-cols-3 gap-4">
-                                <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-white dark:bg-gray-800">
-                                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                                        {testResults.sourceResults.reduce((sum, r) => sum + r.totalAvailable, 0)}
-                                    </div>
-                                    <div className="text-sm text-gray-600 dark:text-gray-400">Total Available</div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                                        Retrieved: {testResults.sourceResults.reduce((sum, r) => sum + r.actualRetrieved, 0)}
-                                    </div>
-                                </div>
-                                <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-white dark:bg-gray-800">
-                                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                                        {testResults.filterResults?.filtered_articles.filter(fa => fa.confidence >= threshold).length || 0}
-                                    </div>
-                                    <div className="text-sm text-gray-600 dark:text-gray-400">Passed Filter</div>
-                                </div>
-                                <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-white dark:bg-gray-800">
-                                    <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                                        {testResults.filterResults?.average_confidence
-                                            ? `${(testResults.filterResults.average_confidence * 100).toFixed(0)}%`
-                                            : 'N/A'
-                                        }
-                                    </div>
-                                    <div className="text-sm text-gray-600 dark:text-gray-400">Avg Confidence</div>
-                                </div>
-                            </div>
+                            {/* Source Results Table */}
+                            <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                                            <tr>
+                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                                    Source
+                                                </th>
+                                                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                                    Total Available
+                                                </th>
+                                                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                                    Max Requested
+                                                </th>
+                                                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                                    Actually Retrieved
+                                                </th>
+                                                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                                    Failed Filter
+                                                </th>
+                                                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                                    Passed Filter
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                            {testResults.sourceResults.map((result) => {
+                                                // Calculate how many articles from this source passed/failed the filter
+                                                const sourceArticles = testResults.filterResults?.filtered_articles.filter(
+                                                    fa => result.sampleArticles.some(sa => sa.title === fa.article.title)
+                                                ) || [];
+                                                const passedCount = sourceArticles.filter(fa => fa.confidence >= threshold).length;
+                                                const failedCount = sourceArticles.length - passedCount;
 
-                            {/* Source Results */}
-                            <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-800">
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                                    Source Results
-                                </h3>
-                                <div className="space-y-3">
-                                    {testResults.sourceResults.map((result) => (
-                                        <div key={result.sourceId} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                                            <div className="flex items-start justify-between mb-2">
-                                                <div className="flex items-center gap-3">
-                                                    {result.error ? (
-                                                        <XCircleIcon className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0" />
-                                                    ) : (
-                                                        <CheckCircleIcon className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
-                                                    )}
-                                                    <span className="font-medium text-gray-900 dark:text-white">
-                                                        {result.sourceName}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            {result.error ? (
-                                                <div className="ml-8 text-sm text-red-600 dark:text-red-400">
-                                                    {result.error}
-                                                </div>
-                                            ) : (
-                                                <div className="ml-8 space-y-1 text-sm">
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-gray-600 dark:text-gray-400">Total Available:</span>
-                                                        <span className="font-medium text-gray-900 dark:text-white">{result.totalAvailable}</span>
-                                                    </div>
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-gray-600 dark:text-gray-400">Maximum Requested:</span>
-                                                        <span className="font-medium text-gray-900 dark:text-white">{result.maxRequested}</span>
-                                                    </div>
-                                                    <div className="flex items-center justify-between pt-1 border-t border-gray-200 dark:border-gray-700">
-                                                        <span className="text-gray-600 dark:text-gray-400">Actually Retrieved:</span>
-                                                        <span className="font-semibold text-blue-600 dark:text-blue-400">{result.actualRetrieved}</span>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
+                                                return (
+                                                    <tr key={result.sourceId} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
+                                                        <td className="px-4 py-3">
+                                                            <div className="flex items-center gap-2">
+                                                                {result.error ? (
+                                                                    <XCircleIcon className="h-4 w-4 text-red-600 dark:text-red-400 flex-shrink-0" />
+                                                                ) : (
+                                                                    <CheckCircleIcon className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                                                                )}
+                                                                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                                                    {result.sourceName}
+                                                                </span>
+                                                            </div>
+                                                            {result.error && (
+                                                                <div className="ml-6 text-xs text-red-600 dark:text-red-400 mt-1">
+                                                                    {result.error}
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right text-sm text-gray-900 dark:text-white">
+                                                            {result.error ? '-' : result.totalAvailable.toLocaleString()}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right text-sm text-gray-600 dark:text-gray-400">
+                                                            {result.maxRequested}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right text-sm font-medium text-blue-600 dark:text-blue-400">
+                                                            {result.error ? '-' : result.actualRetrieved}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right text-sm font-semibold text-red-600 dark:text-red-400">
+                                                            {result.error ? '-' : failedCount}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right text-sm font-semibold text-green-600 dark:text-green-400">
+                                                            {result.error ? '-' : passedCount}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            {/* Totals Row */}
+                                            <tr className="bg-gray-100 dark:bg-gray-800 font-semibold border-t-2 border-gray-300 dark:border-gray-600">
+                                                <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
+                                                    TOTAL
+                                                </td>
+                                                <td className="px-4 py-3 text-right text-sm text-gray-900 dark:text-white">
+                                                    {testResults.sourceResults.reduce((sum, r) => sum + (r.error ? 0 : r.totalAvailable), 0).toLocaleString()}
+                                                </td>
+                                                <td className="px-4 py-3 text-right text-sm text-gray-600 dark:text-gray-400">
+                                                    {testResults.sourceResults.reduce((sum, r) => sum + (r.error ? 0 : r.maxRequested), 0)}
+                                                </td>
+                                                <td className="px-4 py-3 text-right text-sm text-blue-600 dark:text-blue-400">
+                                                    {testResults.sourceResults.reduce((sum, r) => sum + (r.error ? 0 : r.actualRetrieved), 0)}
+                                                </td>
+                                                <td className="px-4 py-3 text-right text-sm text-red-600 dark:text-red-400">
+                                                    {testResults.filterResults?.filtered_articles.filter(fa => fa.confidence < threshold).length || 0}
+                                                </td>
+                                                <td className="px-4 py-3 text-right text-sm text-green-600 dark:text-green-400">
+                                                    {testResults.filterResults?.filtered_articles.filter(fa => fa.confidence >= threshold).length || 0}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
 
