@@ -7,7 +7,9 @@ interface TestResults {
     sourceResults: {
         sourceId: string;
         sourceName: string;
-        articleCount: number;
+        totalAvailable: number;    // Total available from source
+        maxRequested: number;      // Cap we requested (10)
+        actualRetrieved: number;   // Actually retrieved (min of available and cap)
         sampleArticles: CanonicalResearchArticle[];
         error?: string;
     }[];
@@ -23,6 +25,17 @@ interface TestResults {
         average_confidence: number;
     } | null;
 }
+
+// Helper to get default date range (last 7 days)
+const getDefaultDateRange = () => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 7);
+    return {
+        start: start.toISOString().split('T')[0],
+        end: end.toISOString().split('T')[0]
+    };
+};
 
 export default function ChannelTestingStep() {
     const {
@@ -41,6 +54,11 @@ export default function ChannelTestingStep() {
     const [testResults, setTestResults] = useState<TestResults | null>(null);
     const [selectedTab, setSelectedTab] = useState<'summary' | 'results'>('summary');
 
+    // Test configuration
+    const [dateRange, setDateRange] = useState(getDefaultDateRange());
+    const [maxResults] = useState(10); // Fixed cap at 10
+    const [threshold, setThreshold] = useState(currentChannelWorkflowConfig?.semantic_filter?.threshold || 0.7);
+
     const filterConfig = currentChannelWorkflowConfig?.semantic_filter;
     const sourceQueries = currentChannelWorkflowConfig?.source_queries || {};
     const configuredSources = Object.entries(sourceQueries).filter(([_, query]) => query !== null);
@@ -55,16 +73,27 @@ export default function ChannelTestingStep() {
                 configuredSources.map(async ([sourceId, sourceQuery]) => {
                     const source = availableSources.find(s => s.source_id === sourceId);
                     try {
-                        const result = await testQuery({
+                        const testRequest: any = {
                             source_id: sourceId,
                             query_expression: sourceQuery?.query_expression || '',
-                            max_results: 10
-                        });
+                            max_results: maxResults
+                        };
+
+                        // Add date range for PubMed
+                        if (sourceId === 'pubmed') {
+                            testRequest.start_date = dateRange.start;
+                            testRequest.end_date = dateRange.end;
+                            testRequest.date_type = 'entrez';
+                        }
+
+                        const result = await testQuery(testRequest);
 
                         return {
                             sourceId,
                             sourceName: source?.name || sourceId,
-                            articleCount: result.article_count,
+                            totalAvailable: result.article_count,
+                            maxRequested: maxResults,
+                            actualRetrieved: result.sample_articles?.length || 0,
                             sampleArticles: result.sample_articles || [],
                             error: result.success ? undefined : result.error_message
                         };
@@ -72,7 +101,9 @@ export default function ChannelTestingStep() {
                         return {
                             sourceId,
                             sourceName: source?.name || sourceId,
-                            articleCount: 0,
+                            totalAvailable: 0,
+                            maxRequested: maxResults,
+                            actualRetrieved: 0,
                             sampleArticles: [],
                             error: error instanceof Error ? error.message : 'Failed to test query'
                         };
@@ -85,11 +116,11 @@ export default function ChannelTestingStep() {
 
             // Test filter if enabled and we have articles
             let filterResults = null;
-            if (filterConfig?.enabled && filterConfig.criteria && allArticles.length > 0) {
+            if (filterConfig?.criteria && allArticles.length > 0) {
                 filterResults = await testFilter(
                     allArticles,
                     filterConfig.criteria,
-                    filterConfig.threshold
+                    threshold  // Use threshold from state, not config
                 );
             }
 
@@ -168,6 +199,93 @@ export default function ChannelTestingStep() {
             {/* Summary Tab */}
             {selectedTab === 'summary' && (
                 <div className="space-y-6">
+                    {/* Test Configuration */}
+                    <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-800">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                            Test Configuration
+                        </h3>
+
+                        <div className="space-y-4">
+                            {/* Max Results */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Maximum Results per Source
+                                </label>
+                                <div className="flex items-center gap-2">
+                                    <div className="px-4 py-2 bg-gray-100 dark:bg-gray-900 rounded border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white font-medium">
+                                        {maxResults}
+                                    </div>
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                                        articles (capped for testing performance)
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Date Range for PubMed */}
+                            {configuredSources.some(([sourceId]) => sourceId === 'pubmed') && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                        Date Range (PubMed only)
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                                Start Date
+                                            </label>
+                                            <input
+                                                type="date"
+                                                value={dateRange.start}
+                                                onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                                End Date
+                                            </label>
+                                            <input
+                                                type="date"
+                                                value={dateRange.end}
+                                                onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => setDateRange(getDefaultDateRange())}
+                                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-2"
+                                    >
+                                        Reset to last 7 days
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Threshold Slider */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Filter Confidence Threshold
+                                </label>
+                                <div className="flex items-center gap-4">
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.05"
+                                        value={threshold}
+                                        onChange={(e) => setThreshold(parseFloat(e.target.value))}
+                                        className="flex-1"
+                                    />
+                                    <span className="text-lg font-semibold text-gray-900 dark:text-white min-w-[4rem] text-right">
+                                        {(threshold * 100).toFixed(0)}%
+                                    </span>
+                                </div>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                    Articles with confidence scores below this threshold will be filtered out
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Source Queries Summary */}
                     <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-800">
                         <div className="flex items-center justify-between mb-4">
@@ -274,17 +392,44 @@ export default function ChannelTestingStep() {
                         </div>
                     ) : (
                         <>
+                            {/* Threshold Slider - Interactive */}
+                            <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-800">
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                                    Adjust Filter Threshold
+                                </h3>
+                                <div className="flex items-center gap-4">
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.05"
+                                        value={threshold}
+                                        onChange={(e) => setThreshold(parseFloat(e.target.value))}
+                                        className="flex-1"
+                                    />
+                                    <span className="text-lg font-semibold text-gray-900 dark:text-white min-w-[4rem] text-right">
+                                        {(threshold * 100).toFixed(0)}%
+                                    </span>
+                                </div>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                    Move the slider to see how different thresholds affect the pass/fail counts below
+                                </p>
+                            </div>
+
                             {/* Statistics Summary */}
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-white dark:bg-gray-800">
                                     <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                                        {testResults.sourceResults.reduce((sum, r) => sum + r.articleCount, 0)}
+                                        {testResults.sourceResults.reduce((sum, r) => sum + r.totalAvailable, 0)}
                                     </div>
-                                    <div className="text-sm text-gray-600 dark:text-gray-400">Total Articles Found</div>
+                                    <div className="text-sm text-gray-600 dark:text-gray-400">Total Available</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                        Retrieved: {testResults.sourceResults.reduce((sum, r) => sum + r.actualRetrieved, 0)}
+                                    </div>
                                 </div>
                                 <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-white dark:bg-gray-800">
                                     <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                                        {testResults.filterResults?.pass_count || 0}
+                                        {testResults.filterResults?.filtered_articles.filter(fa => fa.confidence >= threshold).length || 0}
                                     </div>
                                     <div className="text-sm text-gray-600 dark:text-gray-400">Passed Filter</div>
                                 </div>
@@ -306,24 +451,39 @@ export default function ChannelTestingStep() {
                                 </h3>
                                 <div className="space-y-3">
                                     {testResults.sourceResults.map((result) => (
-                                        <div key={result.sourceId} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900 rounded">
-                                            <div className="flex items-center gap-3">
-                                                {result.error ? (
-                                                    <XCircleIcon className="h-5 w-5 text-red-600 dark:text-red-400" />
-                                                ) : (
-                                                    <CheckCircleIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
-                                                )}
-                                                <span className="font-medium text-gray-900 dark:text-white">
-                                                    {result.sourceName}
-                                                </span>
+                                        <div key={result.sourceId} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                            <div className="flex items-start justify-between mb-2">
+                                                <div className="flex items-center gap-3">
+                                                    {result.error ? (
+                                                        <XCircleIcon className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0" />
+                                                    ) : (
+                                                        <CheckCircleIcon className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                                                    )}
+                                                    <span className="font-medium text-gray-900 dark:text-white">
+                                                        {result.sourceName}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div className="text-sm text-gray-600 dark:text-gray-400">
-                                                {result.error ? (
-                                                    <span className="text-red-600 dark:text-red-400">{result.error}</span>
-                                                ) : (
-                                                    <span>{result.articleCount} articles</span>
-                                                )}
-                                            </div>
+                                            {result.error ? (
+                                                <div className="ml-8 text-sm text-red-600 dark:text-red-400">
+                                                    {result.error}
+                                                </div>
+                                            ) : (
+                                                <div className="ml-8 space-y-1 text-sm">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-gray-600 dark:text-gray-400">Total Available:</span>
+                                                        <span className="font-medium text-gray-900 dark:text-white">{result.totalAvailable}</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-gray-600 dark:text-gray-400">Maximum Requested:</span>
+                                                        <span className="font-medium text-gray-900 dark:text-white">{result.maxRequested}</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between pt-1 border-t border-gray-200 dark:border-gray-700">
+                                                        <span className="text-gray-600 dark:text-gray-400">Actually Retrieved:</span>
+                                                        <span className="font-semibold text-blue-600 dark:text-blue-400">{result.actualRetrieved}</span>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
@@ -337,7 +497,7 @@ export default function ChannelTestingStep() {
                                     </h3>
                                     <div className="space-y-3">
                                         {testResults.filterResults.filtered_articles.slice(0, 10).map((fa, idx) => {
-                                            const passesThreshold = fa.confidence >= (filterConfig?.threshold || 0.7);
+                                            const passesThreshold = fa.confidence >= threshold;
                                             return (
                                                 <div
                                                     key={idx}
