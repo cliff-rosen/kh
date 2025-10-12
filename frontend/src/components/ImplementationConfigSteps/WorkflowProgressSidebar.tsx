@@ -9,7 +9,6 @@ export default function WorkflowProgressSidebar() {
         currentStep,
         currentSourceIndex,
         availableSources,
-        isChannelComplete,
         navigateToChannel
     } = useImplementationConfig();
 
@@ -24,19 +23,6 @@ export default function WorkflowProgressSidebar() {
         'channel_complete': 'Complete'
     };
 
-    // Determine if a step is completed for current source
-    const isStepComplete = (step: ConfigStep): boolean => {
-        const stepOrder: ConfigStep[] = [
-            'source_selection',
-            'query_definition',
-            'semantic_filter_definition',
-            'channel_testing',
-            'channel_complete'
-        ];
-        const currentStepIndex = stepOrder.indexOf(currentStep);
-        const checkStepIndex = stepOrder.indexOf(step);
-        return checkStepIndex < currentStepIndex;
-    };
 
     return (
         <div className="w-80 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 p-6 overflow-y-auto h-screen fixed left-0 top-0">
@@ -66,13 +52,12 @@ export default function WorkflowProgressSidebar() {
                         <button
                             key={channel.channel_id || channelIdx}
                             onClick={() => navigateToChannel(channelIdx)}
-                            className={`w-full text-left rounded-lg p-3 transition-all ${
-                                isCurrent
+                            className={`w-full text-left rounded-lg p-3 transition-all ${isCurrent
                                     ? 'bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-500'
                                     : isComplete || isInProgress
-                                    ? 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 cursor-pointer'
-                                    : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 opacity-50 hover:opacity-70 cursor-pointer'
-                            }`}
+                                        ? 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 cursor-pointer'
+                                        : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 opacity-50 hover:opacity-70 cursor-pointer'
+                                }`}
                         >
                             <div className="flex items-center gap-2 mb-2">
                                 {isComplete ? (
@@ -87,14 +72,12 @@ export default function WorkflowProgressSidebar() {
                                     <div className="h-5 w-5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0" />
                                 )}
                                 <div className="flex-1 min-w-0">
-                                    <h4 className={`text-sm font-semibold truncate ${
-                                        isCurrent ? 'text-blue-900 dark:text-blue-100' : 'text-gray-900 dark:text-white'
-                                    }`}>
+                                    <h4 className={`text-sm font-semibold truncate ${isCurrent ? 'text-blue-900 dark:text-blue-100' : 'text-gray-900 dark:text-white'
+                                        }`}>
                                         {channel.name}
                                     </h4>
-                                    <p className={`text-xs truncate ${
-                                        isCurrent ? 'text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400'
-                                    }`}>
+                                    <p className={`text-xs truncate ${isCurrent ? 'text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400'
+                                        }`}>
                                         Channel {channelIdx + 1} of {channels.length}
                                     </p>
                                 </div>
@@ -112,11 +95,10 @@ export default function WorkflowProgressSidebar() {
                                         return (
                                             <div
                                                 key={sourceId}
-                                                className={`text-xs ${
-                                                    isCurrentSource
+                                                className={`text-xs ${isCurrentSource
                                                         ? 'font-semibold text-blue-900 dark:text-blue-100'
                                                         : 'text-gray-600 dark:text-gray-400'
-                                                }`}
+                                                    }`}
                                             >
                                                 <div className="flex items-center gap-1">
                                                     {isSourceComplete ? (
