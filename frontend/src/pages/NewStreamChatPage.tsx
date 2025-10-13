@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+
 import StreamChatInterface from '../components/StreamChatInterface';
 import StreamConfigPreview from '../components/StreamConfigPreview';
+
 import { useStreamChat } from '../context/StreamChatContext';
 import { useToast } from '../components/ui/use-toast';
 

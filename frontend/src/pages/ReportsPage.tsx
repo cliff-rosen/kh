@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useResearchStream } from '../context/ResearchStreamContext';
-import { reportApi } from '../lib/api/reportApi';
-import { Report, ReportWithArticles, ReportArticle } from '../types';
 import { CalendarIcon, DocumentTextIcon, StarIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
+
+import { reportApi } from '../lib/api/reportApi';
+import { useResearchStream } from '../context/ResearchStreamContext';
+import { Report, ReportWithArticles, ReportArticle } from '../types';
 
 export default function ReportsPage() {
     const [searchParams] = useSearchParams();
@@ -203,11 +204,10 @@ export default function ReportsPage() {
                             <div
                                 key={report.report_id}
                                 onClick={() => handleReportClick(report)}
-                                className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 cursor-pointer transition-all ${
-                                    selectedReport?.report_id === report.report_id
-                                        ? 'ring-2 ring-blue-600'
-                                        : 'hover:shadow-md'
-                                }`}
+                                className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 cursor-pointer transition-all ${selectedReport?.report_id === report.report_id
+                                    ? 'ring-2 ring-blue-600'
+                                    : 'hover:shadow-md'
+                                    }`}
                             >
                                 <div className="flex items-start justify-between mb-2">
                                     <div>

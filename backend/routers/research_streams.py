@@ -21,8 +21,10 @@ from schemas.research_stream import (
 from schemas.sources import INFORMATION_SOURCES, InformationSource
 from schemas.canonical_types import CanonicalResearchArticle
 from schemas.smart_search import FilteredArticle, SearchPaginationInfo
+
 from services.research_stream_service import ResearchStreamService
 from services.implementation_config_service import ImplementationConfigService
+
 from routers.auth import get_current_user
 
 router = APIRouter(prefix="/api/research-streams", tags=["research-streams"])

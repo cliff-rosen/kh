@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useResearchStream } from '../context/ResearchStreamContext';
 import { PlusIcon, BeakerIcon, PencilIcon } from '@heroicons/react/24/outline';
+
+import { useResearchStream } from '../context/ResearchStreamContext';
 
 export default function StreamsPage() {
     const navigate = useNavigate();

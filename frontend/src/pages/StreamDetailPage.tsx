@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useResearchStream } from '../context/ResearchStreamContext';
-import { StreamType, ReportFrequency, Channel, WorkflowConfig, ScoringConfig, ChannelWorkflowConfig, SourceQuery, SemanticFilter } from '../types/research-stream';
 import { ArrowLeftIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+
+import { StreamType, ReportFrequency, Channel, WorkflowConfig, ScoringConfig, SemanticFilter } from '../types/research-stream';
+
+import { useResearchStream } from '../context/ResearchStreamContext';
 
 type TabType = 'stream' | 'workflow';
 
 // Browser-compatible UUID generator
 function generateUUID(): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
         const r = Math.random() * 16 | 0;
         const v = c === 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
@@ -315,22 +317,20 @@ export default function StreamDetailPage() {
                         <button
                             type="button"
                             onClick={() => setActiveTab('stream')}
-                            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                                activeTab === 'stream'
-                                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-                            }`}
+                            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'stream'
+                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                                }`}
                         >
                             Stream Configuration
                         </button>
                         <button
                             type="button"
                             onClick={() => setActiveTab('workflow')}
-                            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                                activeTab === 'workflow'
-                                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-                            }`}
+                            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'workflow'
+                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                                }`}
                         >
                             Workflow & Scoring
                         </button>

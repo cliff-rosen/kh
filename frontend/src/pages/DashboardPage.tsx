@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { useResearchStream } from '../context/ResearchStreamContext';
 import { useNavigate } from 'react-router-dom';
 import { PencilIcon } from '@heroicons/react/24/outline';
+
+import { useAuth } from '../context/AuthContext';
+import { useResearchStream } from '../context/ResearchStreamContext';
 
 export default function DashboardPage() {
     const { user } = useAuth();
@@ -205,11 +206,10 @@ export default function DashboardPage() {
                                             )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                stream.is_active
+                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${stream.is_active
                                                     ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                                                     : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                                            }`}>
+                                                }`}>
                                                 <span className={`w-2 h-2 rounded-full mr-1.5 ${stream.is_active ? 'bg-green-500' : 'bg-gray-400'}`}></span>
                                                 {stream.is_active ? 'Active' : 'Inactive'}
                                             </span>
