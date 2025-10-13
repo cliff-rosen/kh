@@ -1,8 +1,8 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { researchStreamApi } from '../lib/api/researchStreamApi';
+import { researchStreamApi, QueryTestResponse, SemanticFilterTestResponse } from '../lib/api/researchStreamApi';
 import { Channel, InformationSource, ResearchStream, ChannelWorkflowConfig, SourceQuery } from '../types/research-stream';
 import { CanonicalResearchArticle } from '../types/canonical_types';
-import { ConfigStep, QueryTestResult, FilterTestResult, QueryDefinitionSubState, FilterDefinitionSubState, ChannelTestResults } from '../types/implementation-config';
+import { ConfigStep, QueryDefinitionSubState, FilterDefinitionSubState, ChannelTestResults } from '../types/implementation-config';
 
 // ============================================================================
 // Context Type
@@ -42,13 +42,13 @@ interface ImplementationConfigContextType {
     selectSources: (sourceIds: string[]) => Promise<void>;
     generateQuery: () => Promise<{ query_expression: string; reasoning: string }>;
     updateQuery: (query: string) => Promise<void>;
-    testQuery: (request: any) => Promise<QueryTestResult>;
+    testQuery: (request: any) => Promise<QueryTestResponse>;
     confirmQuery: () => void;
     generateFilter: () => Promise<{ filter_criteria: string; reasoning: string }>;
     updateFilterCriteria: (criteria: string) => Promise<void>;
     updateFilterThreshold: (threshold: number) => Promise<void>;
     completeFilterDefinition: () => void;
-    testFilter: (articles: CanonicalResearchArticle[], criteria: string, threshold: number) => Promise<FilterTestResult>;
+    testFilter: (articles: CanonicalResearchArticle[], criteria: string, threshold: number) => Promise<SemanticFilterTestResponse>;
     updateStream: (updates: { stream_name?: string; purpose?: string }) => Promise<void>;
     updateChannel: (updates: Partial<Channel>) => Promise<void>;
     saveChannelTestResults: (channelId: string, results: ChannelTestResults) => void;
@@ -298,7 +298,7 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
     }, [currentChannel, currentSourceId, streamId, reloadStream]);
 
     // Test query - tests query to get count (no step change)
-    const testQuery = useCallback(async (request: any): Promise<QueryTestResult> => {
+    const testQuery = useCallback(async (request: any): Promise<QueryTestResponse> => {
         if (!currentChannel) throw new Error('No current channel');
 
         // 1. Validate - already done
@@ -450,7 +450,7 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         articles: CanonicalResearchArticle[],
         criteria: string,
         threshold: number
-    ): Promise<FilterTestResult> => {
+    ): Promise<SemanticFilterTestResponse> => {
         if (!currentChannel) throw new Error('No current channel');
 
         // 1. Validate - already done

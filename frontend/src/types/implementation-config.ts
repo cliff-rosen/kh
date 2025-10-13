@@ -9,7 +9,6 @@
  */
 
 import { CanonicalResearchArticle } from './canonical_types';
-import { FilteredArticle } from './smartsearch2';
 
 // ============================================================================
 // Workflow Steps (UI State Only)
@@ -47,20 +46,7 @@ export type FilterDefinitionSubState =
 // ============================================================================
 // Test Results (Temporary, not persisted to workflow_config)
 // ============================================================================
-
-export interface QueryTestResult {
-    success: boolean;
-    article_count: number;
-    sample_articles: CanonicalResearchArticle[];
-    error_message?: string;
-}
-
-export interface FilterTestResult {
-    filtered_articles: FilteredArticle[];
-    pass_count: number;
-    fail_count: number;
-    average_confidence: number;
-}
+// Note: QueryTestResponse and SemanticFilterTestResponse are imported from API types
 
 export interface ChannelTestResults {
     sourceResults: {

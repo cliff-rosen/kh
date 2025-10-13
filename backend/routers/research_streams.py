@@ -126,6 +126,9 @@ async def get_information_sources():
     """Get the authoritative list of information sources"""
     return INFORMATION_SOURCES
 
+# ============================================================================
+# Research Stream CRUD Endpoints
+# ============================================================================
  
 @router.get("", response_model=List[ResearchStream])
 async def get_research_streams(
