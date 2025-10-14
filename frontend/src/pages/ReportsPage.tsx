@@ -3,9 +3,10 @@ import { useSearchParams } from 'react-router-dom';
 import { CalendarIcon, DocumentTextIcon, StarIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
+import { Report, ReportWithArticles, ReportArticle } from '../types';
+
 import { reportApi } from '../lib/api/reportApi';
 import { useResearchStream } from '../context/ResearchStreamContext';
-import { Report, ReportWithArticles, ReportArticle } from '../types';
 
 export default function ReportsPage() {
     const [searchParams] = useSearchParams();

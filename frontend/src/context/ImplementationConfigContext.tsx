@@ -265,7 +265,7 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         if (!currentChannel || !currentSourceId) throw new Error('No current channel or source');
 
         // 1. Call API to generate
-        const result = await researchStreamApi.generateChannelQuery(streamId, currentChannel.name, { source_id: currentSourceId });
+        const result = await researchStreamApi.generateChannelQuery(streamId, currentChannel.channel_id, { source_id: currentSourceId });
 
         // 2. No save - user will review first
         // 3. No reload - nothing changed in DB
@@ -304,7 +304,7 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         // 1. Validate - already done
 
         // 2. Call API to test
-        const result = await researchStreamApi.testChannelQuery(streamId, currentChannel.name, request);
+        const result = await researchStreamApi.testChannelQuery(streamId, currentChannel.channel_id, request);
 
         // 3. Collect sample articles (first 5) for later channel testing
         if (result.success && result.sample_articles && result.sample_articles.length > 0) {
@@ -367,7 +367,7 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         if (!currentChannel) throw new Error('No current channel');
 
         // 1. Call API to generate
-        const result = await researchStreamApi.generateChannelFilter(streamId, currentChannel.name);
+        const result = await researchStreamApi.generateChannelFilter(streamId, currentChannel.channel_id);
 
         // 2. Call API to save immediately
         await researchStreamApi.updateChannelSemanticFilter(
@@ -456,7 +456,7 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
         // 1. Validate - already done
 
         // 2. Call API to test
-        const result = await researchStreamApi.testChannelFilter(streamId, currentChannel.name, {
+        const result = await researchStreamApi.testChannelFilter(streamId, currentChannel.channel_id, {
             articles,
             filter_criteria: criteria,
             threshold

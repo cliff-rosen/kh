@@ -29,7 +29,16 @@ from routers.auth import get_current_user
 
 router = APIRouter(prefix="/api/research-streams", tags=["research-streams"])
 
-# Request/Response types (API layer only)
+
+@router.get("/metadata/sources", response_model=List[InformationSource])
+async def get_information_sources():
+    """Get the authoritative list of information sources"""
+    return INFORMATION_SOURCES
+
+# ============================================================================
+# Research Stream CRUD Endpoints
+# ============================================================================
+
 class ResearchStreamCreateRequest(BaseModel):
     """Request schema for creating a research stream - channel-based"""
     stream_name: str = Field(..., min_length=1, max_length=255)
@@ -48,11 +57,6 @@ class ResearchStreamUpdateRequest(BaseModel):
     scoring_config: Optional[ScoringConfig] = None
     workflow_config: Optional[Dict[str, Any]] = None
 
-class ResearchStreamResponse(BaseModel):
-    data: ResearchStream
-    message: str = None
-
-class ResearchStreamsListResponse(BaseModel):
     data: List[ResearchStream]
     message: str = None
     total: int
@@ -61,77 +65,6 @@ class ToggleStatusRequest(BaseModel):
     is_active: bool
 
 
-# Implementation Configuration Request/Response types
-class QueryGenerationRequest(BaseModel):
-    """Request to generate a query expression for a channel and source"""
-    source_id: str = Field(..., description="Source to generate query for (e.g., 'pubmed', 'google_scholar')")
-
-class QueryGenerationResponse(BaseModel):
-    """Response from query generation"""
-    query_expression: str = Field(..., description="Generated query expression")
-    reasoning: str = Field(..., description="Explanation of why this expression was generated")
-
-class QueryTestRequest(BaseModel):
-    """Request to test a query expression against a source"""
-    source_id: str = Field(..., description="Source to test against (e.g., 'pubmed', 'google_scholar')")
-    query_expression: str = Field(..., description="Query expression to test")
-    max_results: int = Field(10, ge=1, le=50, description="Maximum sample articles to return")
-    start_date: Optional[str] = Field(None, description="Start date for filtering (YYYY-MM-DD) - PubMed only")
-    end_date: Optional[str] = Field(None, description="End date for filtering (YYYY-MM-DD) - PubMed only")
-    date_type: Optional[str] = Field('entrez', description="Date type for filtering - PubMed only")
-
-class QueryTestResponse(BaseModel):
-    """Response from query testing"""
-    success: bool = Field(..., description="Whether query executed successfully")
-    article_count: int = Field(..., description="Total number of articles found")
-    sample_articles: List[CanonicalResearchArticle] = Field(..., description="Sample articles")
-    error_message: Optional[str] = Field(None, description="Error message if query failed")
-
-class SemanticFilterGenerationResponse(BaseModel):
-    """Response from semantic filter generation"""
-    filter_criteria: str = Field(..., description="Generated semantic filter criteria")
-    reasoning: str = Field(..., description="Explanation of why this criteria was generated")
-
-class SemanticFilterTestRequest(BaseModel):
-    """Request to test semantic filter on articles"""
-    articles: List[CanonicalResearchArticle] = Field(..., description="Articles to filter")
-    filter_criteria: str = Field(..., description="Semantic filter criteria")
-    threshold: float = Field(0.7, ge=0.0, le=1.0, description="Confidence threshold for filtering")
-
-class SemanticFilterTestResponse(BaseModel):
-    """Response from semantic filter testing"""
-    filtered_articles: List[FilteredArticle] = Field(..., description="Articles with filter results")
-    pass_count: int = Field(..., description="Number of articles passing filter")
-    fail_count: int = Field(..., description="Number of articles failing filter")
-    average_confidence: float = Field(..., description="Average confidence of passing articles")
-
-class ImplementationConfigProgressUpdate(BaseModel):
-    """Update implementation configuration progress"""
-    channel_name: str = Field(..., description="Channel being configured")
-    completed_steps: List[str] = Field(..., description="List of completed step IDs")
-    configuration_data: Dict[str, Any] = Field(..., description="Configuration data for this channel")
-
-class UpdateSourceQueryRequest(BaseModel):
-    """Request to update a source query for a channel"""
-    query_expression: str = Field(..., description="Query expression for the source")
-    enabled: bool = Field(default=True, description="Whether this source is enabled")
-
-class UpdateSemanticFilterRequest(BaseModel):
-    """Request to update semantic filter for a channel"""
-    enabled: bool = Field(..., description="Whether semantic filtering is enabled")
-    criteria: str = Field(..., description="Filter criteria text")
-    threshold: float = Field(..., ge=0.0, le=1.0, description="Confidence threshold")
-
-
-@router.get("/metadata/sources", response_model=List[InformationSource])
-async def get_information_sources():
-    """Get the authoritative list of information sources"""
-    return INFORMATION_SOURCES
-
-# ============================================================================
-# Research Stream CRUD Endpoints
-# ============================================================================
- 
 @router.get("", response_model=List[ResearchStream])
 async def get_research_streams(
     db: Session = Depends(get_db),
@@ -264,10 +197,72 @@ async def toggle_research_stream_status(
 # Implementation Configuration Endpoints (Workflow 2)
 # ============================================================================
 
-@router.post("/{stream_id}/channels/{channel_name}/generate-query", response_model=QueryGenerationResponse)
+# Implementation Configuration Request/Response types
+class QueryGenerationRequest(BaseModel):
+    """Request to generate a query expression for a channel and source"""
+    source_id: str = Field(..., description="Source to generate query for (e.g., 'pubmed', 'google_scholar')")
+
+class QueryGenerationResponse(BaseModel):
+    """Response from query generation"""
+    query_expression: str = Field(..., description="Generated query expression")
+    reasoning: str = Field(..., description="Explanation of why this expression was generated")
+
+class QueryTestRequest(BaseModel):
+    """Request to test a query expression against a source"""
+    source_id: str = Field(..., description="Source to test against (e.g., 'pubmed', 'google_scholar')")
+    query_expression: str = Field(..., description="Query expression to test")
+    max_results: int = Field(10, ge=1, le=50, description="Maximum sample articles to return")
+    start_date: Optional[str] = Field(None, description="Start date for filtering (YYYY-MM-DD) - PubMed only")
+    end_date: Optional[str] = Field(None, description="End date for filtering (YYYY-MM-DD) - PubMed only")
+    date_type: Optional[str] = Field('entrez', description="Date type for filtering - PubMed only")
+
+class QueryTestResponse(BaseModel):
+    """Response from query testing"""
+    success: bool = Field(..., description="Whether query executed successfully")
+    article_count: int = Field(..., description="Total number of articles found")
+    sample_articles: List[CanonicalResearchArticle] = Field(..., description="Sample articles")
+    error_message: Optional[str] = Field(None, description="Error message if query failed")
+
+class SemanticFilterGenerationResponse(BaseModel):
+    """Response from semantic filter generation"""
+    filter_criteria: str = Field(..., description="Generated semantic filter criteria")
+    reasoning: str = Field(..., description="Explanation of why this criteria was generated")
+
+class SemanticFilterTestRequest(BaseModel):
+    """Request to test semantic filter on articles"""
+    articles: List[CanonicalResearchArticle] = Field(..., description="Articles to filter")
+    filter_criteria: str = Field(..., description="Semantic filter criteria")
+    threshold: float = Field(0.7, ge=0.0, le=1.0, description="Confidence threshold for filtering")
+
+class SemanticFilterTestResponse(BaseModel):
+    """Response from semantic filter testing"""
+    filtered_articles: List[FilteredArticle] = Field(..., description="Articles with filter results")
+    pass_count: int = Field(..., description="Number of articles passing filter")
+    fail_count: int = Field(..., description="Number of articles failing filter")
+    average_confidence: float = Field(..., description="Average confidence of passing articles")
+
+class ImplementationConfigProgressUpdate(BaseModel):
+    """Update implementation configuration progress"""
+    channel_name: str = Field(..., description="Channel being configured")
+    completed_steps: List[str] = Field(..., description="List of completed step IDs")
+    configuration_data: Dict[str, Any] = Field(..., description="Configuration data for this channel")
+
+class UpdateSourceQueryRequest(BaseModel):
+    """Request to update a source query for a channel"""
+    query_expression: str = Field(..., description="Query expression for the source")
+    enabled: bool = Field(default=True, description="Whether this source is enabled")
+
+class UpdateSemanticFilterRequest(BaseModel):
+    """Request to update semantic filter for a channel"""
+    enabled: bool = Field(..., description="Whether semantic filtering is enabled")
+    criteria: str = Field(..., description="Filter criteria text")
+    threshold: float = Field(..., ge=0.0, le=1.0, description="Confidence threshold")
+
+
+@router.post("/{stream_id}/channels/{channel_id}/generate-query", response_model=QueryGenerationResponse)
 async def generate_channel_query(
     stream_id: int,
-    channel_name: str,
+    channel_id: str,
     request: QueryGenerationRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -283,7 +278,7 @@ async def generate_channel_query(
     try:
         # Verify stream and channel
         stream, channel = service.verify_stream_and_channel(
-            stream_id, current_user.user_id, channel_name
+            stream_id, current_user.user_id, channel_id
         )
 
         # Validate source
@@ -311,10 +306,10 @@ async def generate_channel_query(
         )
 
 
-@router.post("/{stream_id}/channels/{channel_name}/test-query", response_model=QueryTestResponse)
+@router.post("/{stream_id}/channels/{channel_id}/test-query", response_model=QueryTestResponse)
 async def test_channel_query(
     stream_id: int,
-    channel_name: str,
+    channel_id: str,
     request: QueryTestRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -329,7 +324,7 @@ async def test_channel_query(
 
     try:
         # Verify stream and channel
-        service.verify_stream_and_channel(stream_id, current_user.user_id, channel_name)
+        service.verify_stream_and_channel(stream_id, current_user.user_id, channel_id)
 
         # Validate source
         service.validate_source_id(request.source_id)
@@ -353,10 +348,10 @@ async def test_channel_query(
         )
 
 
-@router.post("/{stream_id}/channels/{channel_name}/generate-filter", response_model=SemanticFilterGenerationResponse)
+@router.post("/{stream_id}/channels/{channel_id}/generate-filter", response_model=SemanticFilterGenerationResponse)
 async def generate_channel_filter(
     stream_id: int,
-    channel_name: str,
+    channel_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -371,7 +366,7 @@ async def generate_channel_filter(
     try:
         # Verify stream and channel
         stream, channel = service.verify_stream_and_channel(
-            stream_id, current_user.user_id, channel_name
+            stream_id, current_user.user_id, channel_id
         )
 
         # Generate semantic filter
@@ -396,10 +391,10 @@ async def generate_channel_filter(
         )
 
 
-@router.post("/{stream_id}/channels/{channel_name}/test-filter", response_model=SemanticFilterTestResponse)
+@router.post("/{stream_id}/channels/{channel_id}/test-filter", response_model=SemanticFilterTestResponse)
 async def test_channel_filter(
     stream_id: int,
-    channel_name: str,
+    channel_id: str,
     request: SemanticFilterTestRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -414,7 +409,7 @@ async def test_channel_filter(
 
     try:
         # Verify stream and channel
-        service.verify_stream_and_channel(stream_id, current_user.user_id, channel_name)
+        service.verify_stream_and_channel(stream_id, current_user.user_id, channel_id)
 
         # Test semantic filter
         result = await service.test_semantic_filter(

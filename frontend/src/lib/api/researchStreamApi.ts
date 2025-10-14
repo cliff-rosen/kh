@@ -271,11 +271,11 @@ export const researchStreamApi = {
      */
     async generateChannelQuery(
         streamId: number,
-        channelName: string,
+        channelId: string,
         request: QueryGenerationRequest
     ): Promise<QueryGenerationResponse> {
         const response = await api.post(
-            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelName)}/generate-query`,
+            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelId)}/generate-query`,
             request
         );
         return response.data;
@@ -286,11 +286,11 @@ export const researchStreamApi = {
      */
     async testChannelQuery(
         streamId: number,
-        channelName: string,
+        channelId: string,
         request: QueryTestRequest
     ): Promise<QueryTestResponse> {
         const response = await api.post(
-            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelName)}/test-query`,
+            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelId)}/test-query`,
             request
         );
         return response.data;
@@ -301,10 +301,10 @@ export const researchStreamApi = {
      */
     async generateChannelFilter(
         streamId: number,
-        channelName: string
+        channelId: string
     ): Promise<SemanticFilterGenerationResponse> {
         const response = await api.post(
-            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelName)}/generate-filter`
+            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelId)}/generate-filter`
         );
         return response.data;
     },
@@ -314,11 +314,11 @@ export const researchStreamApi = {
      */
     async testChannelFilter(
         streamId: number,
-        channelName: string,
+        channelId: string,
         request: SemanticFilterTestRequest
     ): Promise<SemanticFilterTestResponse> {
         const response = await api.post(
-            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelName)}/test-filter`,
+            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelId)}/test-filter`,
             request
         );
         return response.data;

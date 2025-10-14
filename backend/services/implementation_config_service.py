@@ -32,7 +32,7 @@ class ImplementationConfigService:
         self,
         stream_id: int,
         user_id: str,
-        channel_name: str
+        channel_id: str
     ) -> Tuple[ResearchStream, Dict[str, Any]]:
         """
         Verify stream ownership and channel existence.
@@ -48,9 +48,9 @@ class ImplementationConfigService:
         if not stream:
             raise ValueError("Research stream not found")
 
-        channel = next((ch for ch in stream.channels if ch.get('name') == channel_name), None)
+        channel = next((ch for ch in stream.channels if ch.get('channel_id') == channel_id), None)
         if not channel:
-            raise ValueError(f"Channel '{channel_name}' not found in stream")
+            raise ValueError(f"Channel '{channel_id}' not found in stream")
 
         return stream, channel
 
