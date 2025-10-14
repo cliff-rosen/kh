@@ -501,23 +501,18 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
 
         const nextChannelIndex = currentChannelIndex + 1;
 
-        // Check if this was the last channel
-        if (stream && nextChannelIndex >= stream.channels.length) {
-            // All channels complete - go to summary report
-            setIsViewingSummary(true);
-            return;
-        }
-
         // Advance to next channel
         setCurrentChannelIndex(nextChannelIndex);
         setSampleArticles([]); // Clear for next channel
 
-        // Initialize next channel state
-        if (stream) {
+        // Check if there's a next channel and initialize its state
+        if (stream && nextChannelIndex < stream.channels.length) {
             const nextChannel = stream.channels[nextChannelIndex];
             const nextChannelConfig = stream.workflow_config?.channel_configs?.[nextChannel.channel_id];
             initializeChannelState(nextChannelConfig);
         }
+        // If nextChannelIndex >= channels.length, isComplete will become true
+        // and ImplementationConfigPage will show the completion screen
     }, [currentChannelIndex, stream, initializeChannelState]);
 
     // Navigate to any channel by index

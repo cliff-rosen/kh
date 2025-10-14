@@ -17,7 +17,8 @@ function ImplementationConfigContent() {
         isLoading,
         currentChannel,
         currentStep,
-        isViewingSummary
+        isViewingSummary,
+        viewSummaryReport
     } = useImplementationConfig();
 
     const streamName = stream?.stream_name || '';
@@ -48,20 +49,20 @@ function ImplementationConfigContent() {
                         Configuration Complete!
                     </h2>
                     <p className="text-gray-600 dark:text-gray-400 mb-6">
-                        All channels have been configured for {streamName}
+                        All channels have been configured for {streamName}. Review your configuration and accept it to activate the stream.
                     </p>
                     <div className="flex gap-4 justify-center">
                         <button
-                            onClick={() => navigate(`/streams/${streamId}`)}
+                            onClick={viewSummaryReport}
                             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                         >
-                            View Stream
+                            View Summary Report
                         </button>
                         <button
-                            onClick={() => navigate('/streams')}
+                            onClick={() => navigate(`/streams/${streamId}`)}
                             className="px-6 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600"
                         >
-                            All Streams
+                            Cancel
                         </button>
                     </div>
                 </div>

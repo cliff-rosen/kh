@@ -1,14 +1,17 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useImplementationConfig } from '../../context/ImplementationConfigContext';
 import { CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon, ChevronDownIcon, ChevronRightIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
 import { ExecutiveSummary } from '../../types/implementation-config';
 
 export default function SummaryReportStep() {
+    const navigate = useNavigate();
     const {
         stream,
         channelTestResults,
-        navigateToChannel
+        navigateToChannel,
+        isComplete
     } = useImplementationConfig();
 
     const channels = stream?.channels || [];
@@ -431,6 +434,25 @@ export default function SummaryReportStep() {
                     );
                 })}
             </div>
+
+            {/* Accept Configuration Button */}
+            {isComplete && testedChannels.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                        Configuration Complete
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                        All channels have been configured and tested. Accept this configuration to activate your research stream.
+                    </p>
+                    <button
+                        onClick={() => navigate(`/streams/${stream?.stream_id}`)}
+                        className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors inline-flex items-center gap-2"
+                    >
+                        <CheckCircleIcon className="h-5 w-5" />
+                        Accept Configuration
+                    </button>
+                </div>
+            )}
         </div>
     );
 }
