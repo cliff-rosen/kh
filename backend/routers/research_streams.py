@@ -57,10 +57,6 @@ class ResearchStreamUpdateRequest(BaseModel):
     scoring_config: Optional[ScoringConfig] = None
     workflow_config: Optional[Dict[str, Any]] = None
 
-    data: List[ResearchStream]
-    message: str = None
-    total: int
-
 class ToggleStatusRequest(BaseModel):
     is_active: bool
 
