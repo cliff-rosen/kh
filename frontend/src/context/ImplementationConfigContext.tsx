@@ -501,12 +501,19 @@ export function ImplementationConfigProvider({ streamId, children }: Implementat
 
         const nextChannelIndex = currentChannelIndex + 1;
 
-        // Advance to next channel first
+        // Check if this was the last channel
+        if (stream && nextChannelIndex >= stream.channels.length) {
+            // All channels complete - go to summary report
+            setIsViewingSummary(true);
+            return;
+        }
+
+        // Advance to next channel
         setCurrentChannelIndex(nextChannelIndex);
         setSampleArticles([]); // Clear for next channel
 
-        // Then check if there's a next channel and initialize its state
-        if (stream && nextChannelIndex < stream.channels.length) {
+        // Initialize next channel state
+        if (stream) {
             const nextChannel = stream.channels[nextChannelIndex];
             const nextChannelConfig = stream.workflow_config?.channel_configs?.[nextChannel.channel_id];
             initializeChannelState(nextChannelConfig);
