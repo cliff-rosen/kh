@@ -36,7 +36,8 @@ function ImplementationConfigContent() {
         );
     }
 
-    if (isComplete) {
+    // Check isComplete but NOT isViewingSummary - show completion screen
+    if (isComplete && !isViewingSummary) {
         return (
             <div className="max-w-2xl mx-auto mt-12 p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
                 <div className="text-center">
