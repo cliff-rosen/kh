@@ -142,5 +142,4 @@ class ExecutiveSummary(BaseModel):
     overview: str = Field(description="High-level summary of what was found across all channels")
     key_themes: List[str] = Field(description="Main themes/topics identified across accepted articles")
     channel_highlights: List[ChannelHighlight] = Field(description="Notable findings per channel")
-    recommendations: str = Field(description="Suggested next steps or insights based on the findings")
     generated_at: datetime = Field(description="When this summary was generated")
