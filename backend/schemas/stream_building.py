@@ -12,20 +12,23 @@ from enum import Enum
 # Stream being built (all fields optional as they're filled in progressively)
 # ============================================================================
 
-class ChannelInProgress(BaseModel):
-    """Channel being built within a stream - LLM creates only these 4 fields"""
+class CategoryInProgress(BaseModel):
+    """Category being built within a stream - LLM creates these fields"""
+    id: Optional[str] = None  # Generated from name
     name: Optional[str] = None
-    focus: Optional[str] = None
-    type: Optional[str] = None  # string during building, validated on submission
-    keywords: Optional[List[str]] = None
-    # NOTE: semantic_filter is NOT created during workflow - added downstream
+    topics: Optional[List[str]] = None
+    specific_inclusions: Optional[List[str]] = None
 
 
 class StreamInProgress(BaseModel):
     """Stream being built - all fields optional as they're filled progressively"""
     stream_name: Optional[str] = None
     purpose: Optional[str] = None
-    channels: Optional[List[ChannelInProgress]] = None
+    audience: Optional[List[str]] = None
+    intended_guidance: Optional[List[str]] = None
+    global_inclusion: Optional[List[str]] = None
+    global_exclusion: Optional[List[str]] = None
+    categories: Optional[List[CategoryInProgress]] = None
     report_frequency: Optional[str] = None  # string during building, validated on submission
     scoring_config: Optional[dict] = None
 
@@ -39,7 +42,11 @@ class StreamBuildStep(str, Enum):
     EXPLORATION = "exploration"
     STREAM_NAME = "stream_name"
     PURPOSE = "purpose"
-    CHANNELS = "channels"  # Collect all channels
+    AUDIENCE = "audience"
+    INTENDED_GUIDANCE = "intended_guidance"
+    GLOBAL_INCLUSION = "global_inclusion"
+    GLOBAL_EXCLUSION = "global_exclusion"
+    CATEGORIES = "categories"  # Collect all categories
     REPORT_FREQUENCY = "report_frequency"
     REVIEW = "review"
     COMPLETE = "complete"

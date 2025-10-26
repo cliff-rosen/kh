@@ -11,11 +11,15 @@ from schemas.stream_building import StreamInProgress
 
 
 class WorkflowStep(str, Enum):
-    """Steps in the research stream creation workflow - channel-based"""
+    """Steps in the research stream creation workflow - scope-based"""
     EXPLORATION = "exploration"  # Initial context gathering
     STREAM_NAME = "stream_name"  # Name the stream
     PURPOSE = "purpose"  # Why this stream exists (REQUIRED)
-    CHANNELS = "channels"  # Collect monitoring channels (name, focus, type, keywords)
+    AUDIENCE = "audience"  # Who uses this stream
+    INTENDED_GUIDANCE = "intended_guidance"  # What decisions this informs
+    GLOBAL_INCLUSION = "global_inclusion"  # Stream-wide inclusion criteria
+    GLOBAL_EXCLUSION = "global_exclusion"  # Stream-wide exclusion criteria
+    CATEGORIES = "categories"  # Collect research categories
     REPORT_FREQUENCY = "report_frequency"  # How often to generate reports
     REVIEW = "review"  # Review all configuration
     COMPLETE = "complete"  # Stream created
@@ -46,17 +50,25 @@ class ResearchStreamCreationWorkflow:
         WorkflowStep.EXPLORATION: [],  # No data - just conversational context gathering
         WorkflowStep.STREAM_NAME: ["stream_name"],
         WorkflowStep.PURPOSE: ["purpose"],  # REQUIRED
-        WorkflowStep.CHANNELS: ["channels"],  # At least one complete channel
+        WorkflowStep.AUDIENCE: ["audience"],
+        WorkflowStep.INTENDED_GUIDANCE: ["intended_guidance"],
+        WorkflowStep.GLOBAL_INCLUSION: ["global_inclusion"],
+        WorkflowStep.GLOBAL_EXCLUSION: ["global_exclusion"],
+        WorkflowStep.CATEGORIES: ["categories"],  # At least one complete category
         WorkflowStep.REPORT_FREQUENCY: ["report_frequency"],
-        WorkflowStep.REVIEW: ["stream_name", "purpose", "channels", "report_frequency"],
-        WorkflowStep.COMPLETE: ["stream_name", "purpose", "channels", "report_frequency"]
+        WorkflowStep.REVIEW: ["stream_name", "purpose", "categories", "report_frequency"],
+        WorkflowStep.COMPLETE: ["stream_name", "purpose", "categories", "report_frequency"]
     }
 
     # Mapping of steps to field names (for data steps only)
     STEP_TO_FIELD_MAPPING = {
         WorkflowStep.STREAM_NAME: "stream_name",
         WorkflowStep.PURPOSE: "purpose",
-        WorkflowStep.CHANNELS: "channels",
+        WorkflowStep.AUDIENCE: "audience",
+        WorkflowStep.INTENDED_GUIDANCE: "intended_guidance",
+        WorkflowStep.GLOBAL_INCLUSION: "global_inclusion",
+        WorkflowStep.GLOBAL_EXCLUSION: "global_exclusion",
+        WorkflowStep.CATEGORIES: "categories",
         WorkflowStep.REPORT_FREQUENCY: "report_frequency"
     }
 
@@ -64,7 +76,11 @@ class ResearchStreamCreationWorkflow:
     DATA_STEPS = [
         WorkflowStep.STREAM_NAME,
         WorkflowStep.PURPOSE,
-        WorkflowStep.CHANNELS,
+        WorkflowStep.AUDIENCE,
+        WorkflowStep.INTENDED_GUIDANCE,
+        WorkflowStep.GLOBAL_INCLUSION,
+        WorkflowStep.GLOBAL_EXCLUSION,
+        WorkflowStep.CATEGORIES,
         WorkflowStep.REPORT_FREQUENCY
     ]
 
@@ -73,12 +89,16 @@ class ResearchStreamCreationWorkflow:
         WorkflowStep.EXPLORATION: [],
         WorkflowStep.STREAM_NAME: [WorkflowStep.EXPLORATION],
         WorkflowStep.PURPOSE: [WorkflowStep.STREAM_NAME],
-        WorkflowStep.CHANNELS: [WorkflowStep.PURPOSE],  # Channels after purpose
-        WorkflowStep.REPORT_FREQUENCY: [WorkflowStep.CHANNELS],
+        WorkflowStep.AUDIENCE: [WorkflowStep.PURPOSE],
+        WorkflowStep.INTENDED_GUIDANCE: [WorkflowStep.AUDIENCE],
+        WorkflowStep.GLOBAL_INCLUSION: [WorkflowStep.INTENDED_GUIDANCE],
+        WorkflowStep.GLOBAL_EXCLUSION: [WorkflowStep.GLOBAL_INCLUSION],
+        WorkflowStep.CATEGORIES: [WorkflowStep.GLOBAL_EXCLUSION],
+        WorkflowStep.REPORT_FREQUENCY: [WorkflowStep.CATEGORIES],
         WorkflowStep.REVIEW: [
             WorkflowStep.STREAM_NAME,
             WorkflowStep.PURPOSE,
-            WorkflowStep.CHANNELS,
+            WorkflowStep.CATEGORIES,
             WorkflowStep.REPORT_FREQUENCY
         ],
         WorkflowStep.COMPLETE: [WorkflowStep.REVIEW]
@@ -89,7 +109,11 @@ class ResearchStreamCreationWorkflow:
         WorkflowStep.EXPLORATION,
         WorkflowStep.STREAM_NAME,
         WorkflowStep.PURPOSE,
-        WorkflowStep.CHANNELS,
+        WorkflowStep.AUDIENCE,
+        WorkflowStep.INTENDED_GUIDANCE,
+        WorkflowStep.GLOBAL_INCLUSION,
+        WorkflowStep.GLOBAL_EXCLUSION,
+        WorkflowStep.CATEGORIES,
         WorkflowStep.REPORT_FREQUENCY,
         WorkflowStep.REVIEW,
         WorkflowStep.COMPLETE
