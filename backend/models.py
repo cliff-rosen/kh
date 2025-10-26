@@ -83,7 +83,7 @@ class CompanyProfile(Base):
 
 
 class ResearchStream(Base):
-    """Research stream with channel-based structure"""
+    """Research stream with scope-based structure"""
     __tablename__ = "research_streams"
 
     stream_id = Column(Integer, primary_key=True, index=True)
@@ -94,9 +94,15 @@ class ResearchStream(Base):
     stream_name = Column(String(255), nullable=False)
     purpose = Column(Text, nullable=False)  # Why this stream exists, what questions it answers
 
-    # Channels: independent monitoring channels with focus, type, and keywords
-    # Format: [{"name": "...", "focus": "...", "type": "competitive", "keywords": [...]}]
-    channels = Column(JSON, nullable=False)
+    # Scope definition - new structure
+    audience = Column(JSON, default=list)  # List of audience types (who uses this stream)
+    intended_guidance = Column(JSON, default=list)  # List of use cases (what decisions this informs)
+    global_inclusion = Column(JSON, default=list)  # Stream-wide inclusion criteria
+    global_exclusion = Column(JSON, default=list)  # Stream-wide exclusion criteria
+
+    # Categories: structured topic organization
+    # Format: [{"id": "...", "name": "...", "topics": [...], "specific_inclusions": [...]}]
+    categories = Column(JSON, nullable=False)
 
     # Report scheduling
     report_frequency = Column(Enum(ReportFrequency), default=ReportFrequency.WEEKLY)

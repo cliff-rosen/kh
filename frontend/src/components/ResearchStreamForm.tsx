@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useResearchStream } from '../context/ResearchStreamContext';
-import { StreamType, ReportFrequency, Channel, WorkflowConfig, ScoringConfig } from '../types';
+import { ReportFrequency, Category, WorkflowConfig, ScoringConfig } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 
@@ -18,22 +18,21 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
     const [form, setForm] = useState({
         stream_name: '',
         purpose: '',
-        channels: [
+        audience: [''] as string[],
+        intended_guidance: [''] as string[],
+        global_inclusion: [''] as string[],
+        global_exclusion: [''] as string[],
+        categories: [
             {
+                id: '',
                 name: '',
-                focus: '',
-                type: StreamType.COMPETITIVE,
-                keywords: [] as string[],
-                semantic_filter: {
-                    enabled: false,
-                    criteria: null,
-                    threshold: null
-                }
+                topics: [] as string[],
+                specific_inclusions: [] as string[]
             }
-        ] as Channel[],
+        ] as Category[],
         report_frequency: ReportFrequency.WEEKLY,
         workflow_config: {
-            sources: [],
+            category_configs: {},
             article_limit_per_week: 10
         } as WorkflowConfig,
         scoring_config: {
@@ -48,58 +47,41 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
         loadAvailableSources();
     }, [loadAvailableSources]);
 
-    // Sync channel queries when channels change
-    useEffect(() => {
-        if (!form.workflow_config?.sources || form.workflow_config.sources.length === 0) {
-            return;
-        }
-
-        const updatedSources = form.workflow_config.sources.map(source => {
-            // Create a map of existing queries by channel name
-            const existingQueriesMap = new Map(
-                source.channel_queries.map(q => [q.channel_name, q.query_expression])
-            );
-
-            // Update channel queries to match current channels
-            const updatedChannelQueries = form.channels.map(ch => ({
-                channel_name: ch.name,
-                query_expression: existingQueriesMap.get(ch.name) || ch.keywords.join(' OR ')
-            }));
-
-            return {
-                ...source,
-                channel_queries: updatedChannelQueries
-            };
-        });
-
-        // Only update if queries actually changed
-        const queriesChanged = JSON.stringify(form.workflow_config.sources) !== JSON.stringify(updatedSources);
-        if (queriesChanged) {
-            setForm(prev => ({
-                ...prev,
-                workflow_config: {
-                    ...prev.workflow_config,
-                    sources: updatedSources
-                }
-            }));
-        }
-    }, [form.channels]);
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Validate that all channels are complete
-        const incompleteChannel = form.channels.find(ch =>
-            !ch.name || !ch.focus || !ch.type || ch.keywords.length === 0
+        // Validate that all categories are complete
+        const incompleteCategory = form.categories.find(cat =>
+            !cat.id || !cat.name || cat.topics.length === 0
         );
 
-        if (incompleteChannel) {
-            alert('Please complete all channel fields before submitting');
+        if (incompleteCategory) {
+            alert('Please complete all category fields before submitting');
             return;
         }
 
+        // Prepare clean data for submission
+        const cleanedForm = {
+            stream_name: form.stream_name,
+            purpose: form.purpose,
+            audience: form.audience.filter(s => s.trim()),
+            intended_guidance: form.intended_guidance.filter(s => s.trim()),
+            global_inclusion: form.global_inclusion.filter(s => s.trim()),
+            global_exclusion: form.global_exclusion.filter(s => s.trim()),
+            categories: form.categories.map(cat => ({
+                id: cat.id,
+                name: cat.name,
+                topics: cat.topics,
+                specific_inclusions: cat.specific_inclusions
+            })),
+            report_frequency: form.report_frequency,
+            scoring_config: form.scoring_config
+        };
+
+        console.log('Submitting form data:', cleanedForm);
+
         try {
-            const newStream = await createResearchStream(form);
+            const newStream = await createResearchStream(cleanedForm);
             // Navigate directly to implementation configuration (Workflow 2)
             navigate(`/streams/${newStream.stream_id}/configure`);
         } catch (err) {
@@ -107,113 +89,85 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
         }
     };
 
-    const addChannel = () => {
+    // Category management functions
+    const addCategory = () => {
         setForm({
             ...form,
-            channels: [
-                ...form.channels,
+            categories: [
+                ...form.categories,
                 {
+                    id: '',
                     name: '',
-                    focus: '',
-                    type: StreamType.COMPETITIVE,
-                    keywords: [],
-                    semantic_filter: {
-                        enabled: false,
-                        criteria: null,
-                        threshold: null
-                    }
+                    topics: [],
+                    specific_inclusions: []
                 }
             ]
         });
     };
 
-    const removeChannel = (index: number) => {
-        if (form.channels.length === 1) {
-            alert('At least one channel is required');
+    const removeCategory = (index: number) => {
+        if (form.categories.length === 1) {
+            alert('At least one category is required');
             return;
         }
         setForm({
             ...form,
-            channels: form.channels.filter((_, i) => i !== index)
+            categories: form.categories.filter((_, i) => i !== index)
         });
     };
 
-    const updateChannel = (index: number, field: keyof Channel, value: any) => {
-        const updated = [...form.channels];
+    const updateCategory = (index: number, field: keyof Category, value: any) => {
+        const updated = [...form.categories];
         updated[index] = { ...updated[index], [field]: value };
-        setForm({ ...form, channels: updated });
+        setForm({ ...form, categories: updated });
     };
 
-    const updateSemanticFilter = (index: number, field: 'enabled' | 'criteria' | 'threshold', value: any) => {
-        const updated = [...form.channels];
+    const handleTopicsChange = (index: number, value: string) => {
+        const topics = value.split(',').map(s => s.trim()).filter(s => s);
+        updateCategory(index, 'topics', topics);
+    };
+
+    const handleSpecificInclusionsChange = (index: number, value: string) => {
+        const inclusions = value.split('\n').map(s => s.trim()).filter(s => s);
+        updateCategory(index, 'specific_inclusions', inclusions);
+    };
+
+    // Array field management
+    const addArrayItem = (field: 'audience' | 'intended_guidance' | 'global_inclusion' | 'global_exclusion') => {
+        setForm({
+            ...form,
+            [field]: [...form[field], '']
+        });
+    };
+
+    const removeArrayItem = (field: 'audience' | 'intended_guidance' | 'global_inclusion' | 'global_exclusion', index: number) => {
+        const arr = form[field];
+        if (arr.length === 1) return;
+        setForm({
+            ...form,
+            [field]: arr.filter((_, i) => i !== index)
+        });
+    };
+
+    const updateArrayItem = (field: 'audience' | 'intended_guidance' | 'global_inclusion' | 'global_exclusion', index: number, value: string) => {
+        const updated = [...form[field]];
+        updated[index] = value;
+        setForm({ ...form, [field]: updated });
+    };
+
+    // Generate category ID from name
+    const generateCategoryId = (name: string): string => {
+        return name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    };
+
+    const handleCategoryNameChange = (index: number, value: string) => {
+        const updated = [...form.categories];
         updated[index] = {
             ...updated[index],
-            semantic_filter: {
-                ...updated[index].semantic_filter!,
-                [field]: value
-            }
+            name: value,
+            id: generateCategoryId(value)
         };
-        setForm({ ...form, channels: updated });
-    };
-
-    const handleKeywordsChange = (index: number, value: string) => {
-        const keywords = value.split(',').map(s => s.trim()).filter(s => s);
-        updateChannel(index, 'keywords', keywords);
-    };
-
-    const addWorkflowSource = () => {
-        setForm({
-            ...form,
-            workflow_config: {
-                ...form.workflow_config,
-                sources: [
-                    ...(form.workflow_config?.sources || []),
-                    {
-                        source_id: '',
-                        enabled: true,
-                        channel_queries: form.channels.map(ch => ({
-                            channel_name: ch.name,
-                            query_expression: ch.keywords.join(' OR ')
-                        }))
-                    }
-                ]
-            }
-        });
-    };
-
-    const removeWorkflowSource = (index: number) => {
-        const sources = form.workflow_config?.sources || [];
-        setForm({
-            ...form,
-            workflow_config: {
-                ...form.workflow_config,
-                sources: sources.filter((_, i) => i !== index)
-            }
-        });
-    };
-
-    const updateWorkflowSource = (index: number, field: 'source_id' | 'enabled', value: any) => {
-        const sources = [...(form.workflow_config?.sources || [])];
-        sources[index] = { ...sources[index], [field]: value };
-        setForm({
-            ...form,
-            workflow_config: {
-                ...form.workflow_config,
-                sources
-            }
-        });
-    };
-
-    const updateChannelQuery = (sourceIndex: number, channelIndex: number, queryExpression: string) => {
-        const sources = [...(form.workflow_config?.sources || [])];
-        sources[sourceIndex].channel_queries[channelIndex].query_expression = queryExpression;
-        setForm({
-            ...form,
-            workflow_config: {
-                ...form.workflow_config,
-                sources
-            }
-        });
+        setForm({ ...form, categories: updated });
     };
 
     return (
@@ -223,7 +177,7 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                     Create Research Stream
                 </h2>
                 <p className="text-gray-600 dark:text-gray-400">
-                    Set up monitoring channels to track different areas of research.
+                    Define a comprehensive research scope with categories and inclusion criteria.
                 </p>
             </div>
 
@@ -251,7 +205,7 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
                         }`}
                     >
-                        Stream Configuration
+                        Scope Definition
                     </button>
                     <button
                         type="button"
@@ -268,7 +222,7 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Stream Configuration Tab */}
+                {/* Scope Definition Tab */}
                 {activeTab === 'stream' && (
                     <div className="space-y-6">
                         {/* Stream Name */}
@@ -278,7 +232,7 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                             </label>
                             <input
                                 type="text"
-                                placeholder="e.g., Oncology Competitive Intelligence"
+                                placeholder="e.g., Asbestos (Non-Talc) Literature"
                                 value={form.stream_name}
                                 onChange={(e) => setForm({ ...form, stream_name: e.target.value })}
                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -300,39 +254,199 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                                 required
                             />
                             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                Example: Track competitive landscape in melanocortin receptor drug development to inform strategic decisions
+                                Example: Enable comprehensive scientific awareness in less than 15 minutes per weekly review
                             </p>
                         </div>
 
-                        {/* Channels */}
-                        <div className="space-y-4">
+                        {/* Audience */}
+                        <div className="space-y-3">
                             <div className="flex items-center justify-between">
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Monitoring Channels *
+                                    Audience
                                 </label>
                                 <button
                                     type="button"
-                                    onClick={addChannel}
+                                    onClick={() => addArrayItem('audience')}
                                     className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
                                 >
                                     <PlusIcon className="h-4 w-4" />
-                                    Add Channel
+                                    Add
                                 </button>
                             </div>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Each channel monitors a specific area with its own focus and keywords
+                                Who will use this research stream?
+                            </p>
+                            {form.audience.map((item, index) => (
+                                <div key={index} className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder="e.g., Inside counsel, Litigation support staff"
+                                        value={item}
+                                        onChange={(e) => updateArrayItem('audience', index, e.target.value)}
+                                        className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    />
+                                    {form.audience.length > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => removeArrayItem('audience', index)}
+                                            className="text-red-600 dark:text-red-400 hover:text-red-700"
+                                        >
+                                            <TrashIcon className="h-5 w-5" />
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Intended Guidance */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Intended Guidance
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => addArrayItem('intended_guidance')}
+                                    className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                >
+                                    <PlusIcon className="h-4 w-4" />
+                                    Add
+                                </button>
+                            </div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                What decisions will this stream inform?
+                            </p>
+                            {form.intended_guidance.map((item, index) => (
+                                <div key={index} className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder="e.g., Case strategy development, Daubert challenges"
+                                        value={item}
+                                        onChange={(e) => updateArrayItem('intended_guidance', index, e.target.value)}
+                                        className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    />
+                                    {form.intended_guidance.length > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => removeArrayItem('intended_guidance', index)}
+                                            className="text-red-600 dark:text-red-400 hover:text-red-700"
+                                        >
+                                            <TrashIcon className="h-5 w-5" />
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Global Inclusion Criteria */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Global Inclusion Criteria
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => addArrayItem('global_inclusion')}
+                                    className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                >
+                                    <PlusIcon className="h-4 w-4" />
+                                    Add
+                                </button>
+                            </div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Stream-wide criteria for what should be included
+                            </p>
+                            {form.global_inclusion.map((item, index) => (
+                                <div key={index} className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder="e.g., Asbestos exposure assessment or measurement"
+                                        value={item}
+                                        onChange={(e) => updateArrayItem('global_inclusion', index, e.target.value)}
+                                        className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    />
+                                    {form.global_inclusion.length > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => removeArrayItem('global_inclusion', index)}
+                                            className="text-red-600 dark:text-red-400 hover:text-red-700"
+                                        >
+                                            <TrashIcon className="h-5 w-5" />
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Global Exclusion Criteria */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Global Exclusion Criteria
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => addArrayItem('global_exclusion')}
+                                    className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                >
+                                    <PlusIcon className="h-4 w-4" />
+                                    Add
+                                </button>
+                            </div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Stream-wide criteria for what should be excluded
+                            </p>
+                            {form.global_exclusion.map((item, index) => (
+                                <div key={index} className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder="e.g., Legal case decisions, trial transcripts"
+                                        value={item}
+                                        onChange={(e) => updateArrayItem('global_exclusion', index, e.target.value)}
+                                        className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    />
+                                    {form.global_exclusion.length > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => removeArrayItem('global_exclusion', index)}
+                                            className="text-red-600 dark:text-red-400 hover:text-red-700"
+                                        >
+                                            <TrashIcon className="h-5 w-5" />
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Categories */}
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Research Categories *
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={addCategory}
+                                    className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                >
+                                    <PlusIcon className="h-4 w-4" />
+                                    Add Category
+                                </button>
+                            </div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Define structured topic categories for your research stream
                             </p>
 
-                            {form.channels.map((channel, index) => (
+                            {form.categories.map((category, index) => (
                                 <div key={index} className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 space-y-4">
                                     <div className="flex items-center justify-between mb-2">
                                         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                                            Channel {index + 1}
+                                            Category {index + 1}
                                         </h3>
-                                        {form.channels.length > 1 && (
+                                        {form.categories.length > 1 && (
                                             <button
                                                 type="button"
-                                                onClick={() => removeChannel(index)}
+                                                onClick={() => removeCategory(index)}
                                                 className="text-red-600 dark:text-red-400 hover:text-red-700"
                                             >
                                                 <TrashIcon className="h-5 w-5" />
@@ -340,124 +454,59 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                                         )}
                                     </div>
 
-                                    {/* Channel Name */}
+                                    {/* Category Name */}
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                            Channel Name *
+                                            Category Name *
                                         </label>
                                         <input
                                             type="text"
-                                            placeholder="e.g., Melanocortin Pathways"
-                                            value={channel.name}
-                                            onChange={(e) => updateChannel(index, 'name', e.target.value)}
+                                            placeholder="e.g., Medical & Health Sciences"
+                                            value={category.name}
+                                            onChange={(e) => handleCategoryNameChange(index, e.target.value)}
                                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                             required
                                         />
+                                        {category.id && (
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                ID: {category.id}
+                                            </p>
+                                        )}
                                     </div>
 
-                                    {/* Channel Focus */}
+                                    {/* Topics */}
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                            What to Monitor *
+                                            Topics *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g., Mesothelioma research, Lung cancer research, Disease pathology"
+                                            value={category.topics.join(', ')}
+                                            onChange={(e) => handleTopicsChange(index, e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            required
+                                        />
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                            Topics covered by this category (comma-separated)
+                                        </p>
+                                    </div>
+
+                                    {/* Specific Inclusions */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Specific Inclusion Criteria
                                         </label>
                                         <textarea
-                                            placeholder="What specifically do you want to track in this channel?"
-                                            rows={2}
-                                            value={channel.focus}
-                                            onChange={(e) => updateChannel(index, 'focus', e.target.value)}
+                                            placeholder="One criterion per line, e.g.:\nAny peer-reviewed research on disease mechanisms\nPopulation-based exposure studies"
+                                            rows={3}
+                                            value={category.specific_inclusions.join('\n')}
+                                            onChange={(e) => handleSpecificInclusionsChange(index, e.target.value)}
                                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                            required
                                         />
                                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                            Example: Track competitor drug development activities and clinical trial progress
+                                            Category-specific inclusion rules (one per line)
                                         </p>
-                                    </div>
-
-                                    {/* Channel Type */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                            Intelligence Type *
-                                        </label>
-                                        <select
-                                            value={channel.type}
-                                            onChange={(e) => updateChannel(index, 'type', e.target.value as StreamType)}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                            required
-                                        >
-                                            <option value={StreamType.COMPETITIVE}>Competitive Intelligence</option>
-                                            <option value={StreamType.REGULATORY}>Regulatory Updates</option>
-                                            <option value={StreamType.CLINICAL}>Clinical Research</option>
-                                            <option value={StreamType.MARKET}>Market Analysis</option>
-                                            <option value={StreamType.SCIENTIFIC}>Scientific Literature</option>
-                                        </select>
-                                    </div>
-
-                                    {/* Channel Keywords */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                            Search Keywords *
-                                        </label>
-                                        <input
-                                            type="text"
-                                            placeholder="e.g., melanocortin, MCR1, MCR4, bremelanotide"
-                                            value={channel.keywords.join(', ')}
-                                            onChange={(e) => handleKeywordsChange(index, e.target.value)}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                            required
-                                        />
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                            Keywords to search for in this channel (comma-separated)
-                                        </p>
-                                    </div>
-
-                                    {/* Semantic Filter */}
-                                    <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-                                        <div className="flex items-center justify-between mb-3">
-                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                Semantic Filter (Advanced)
-                                            </label>
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={channel.semantic_filter?.enabled || false}
-                                                    onChange={(e) => updateSemanticFilter(index, 'enabled', e.target.checked)}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                                            </label>
-                                        </div>
-
-                                        {channel.semantic_filter?.enabled && (
-                                            <div className="space-y-3">
-                                                <div>
-                                                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                                        Filter Criteria
-                                                    </label>
-                                                    <textarea
-                                                        placeholder="Describe what content should be included/excluded semantically..."
-                                                        rows={2}
-                                                        value={channel.semantic_filter?.criteria || ''}
-                                                        onChange={(e) => updateSemanticFilter(index, 'criteria', e.target.value)}
-                                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                                        Similarity Threshold (0-1)
-                                                    </label>
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        max="1"
-                                                        step="0.05"
-                                                        placeholder="0.75"
-                                                        value={channel.semantic_filter?.threshold || ''}
-                                                        onChange={(e) => updateSemanticFilter(index, 'threshold', parseFloat(e.target.value))}
-                                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
                             ))}
@@ -485,115 +534,10 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                 {/* Workflow & Scoring Tab */}
                 {activeTab === 'workflow' && (
                     <div className="space-y-6">
-                        {/* Information Sources */}
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Information Sources
-                                </label>
-                                <button
-                                    type="button"
-                                    onClick={addWorkflowSource}
-                                    className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                                >
-                                    <PlusIcon className="h-4 w-4" />
-                                    Add Source
-                                </button>
-                            </div>
-
-                            {form.workflow_config?.sources?.map((source, index) => (
-                                <div key={index} className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                                            Source {index + 1}
-                                        </h4>
-                                        {(form.workflow_config?.sources?.length || 0) > 1 && (
-                                            <button
-                                                type="button"
-                                                onClick={() => removeWorkflowSource(index)}
-                                                className="text-red-600 dark:text-red-400 hover:text-red-700"
-                                            >
-                                                <TrashIcon className="h-5 w-5" />
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                                Source ID
-                                            </label>
-                                            <select
-                                                value={source.source_id}
-                                                onChange={(e) => updateWorkflowSource(index, 'source_id', e.target.value)}
-                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                            >
-                                                <option value="">Select a source...</option>
-                                                {availableSources.map(src => (
-                                                    <option key={src.source_id} value={src.source_id}>
-                                                        {src.name}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div className="flex items-center">
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={source.enabled}
-                                                    onChange={(e) => updateWorkflowSource(index, 'enabled', e.target.checked)}
-                                                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                                />
-                                                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                                                    Enabled
-                                                </span>
-                                            </label>
-                                        </div>
-                                    </div>
-
-                                    {/* Channel Queries */}
-                                    <div className="mt-4 space-y-2">
-                                        <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                                            Channel Queries
-                                        </h5>
-                                        {source.channel_queries.map((cq, cqIndex) => (
-                                            <div key={cqIndex} className="pl-3 border-l-2 border-gray-200 dark:border-gray-700">
-                                                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                                    {cq.channel_name}
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    placeholder="Query expression for this channel"
-                                                    value={cq.query_expression}
-                                                    onChange={(e) => updateChannelQuery(index, cqIndex, e.target.value)}
-                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs"
-                                                />
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Article Limit */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Article Limit per Week
-                            </label>
-                            <input
-                                type="number"
-                                min="1"
-                                value={form.workflow_config?.article_limit_per_week || 10}
-                                onChange={(e) => setForm({
-                                    ...form,
-                                    workflow_config: {
-                                        ...form.workflow_config,
-                                        article_limit_per_week: parseInt(e.target.value)
-                                    }
-                                })}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                            />
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                            <p className="text-sm text-blue-800 dark:text-blue-200">
+                                Workflow configuration will be available after creating the stream. You'll be guided through source selection and query configuration for each category.
+                            </p>
                         </div>
 
                         {/* Scoring Configuration */}

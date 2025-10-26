@@ -16,13 +16,11 @@ export enum ReportFrequency {
     MONTHLY = 'monthly'
 }
 
-export interface Channel {
-    channel_id: string; // UUID - stable identifier for this channel
-    name: string;
-    focus: string;
-    type: StreamType;
-    keywords: string[];
-    // Note: semantic_filter is now in workflow_config.channel_configs, not here
+export interface Category {
+    id: string; // Unique identifier for this category (e.g., 'medical_health')
+    name: string; // Display name for the category
+    topics: string[]; // List of topics covered by this category
+    specific_inclusions: string[]; // Category-specific inclusion criteria
 }
 
 export interface ScoringConfig {
@@ -47,13 +45,13 @@ export interface SemanticFilter {
     threshold: number;  // 0.0 to 1.0 confidence threshold
 }
 
-export interface ChannelWorkflowConfig {
+export interface CategoryWorkflowConfig {
     source_queries: Record<string, SourceQuery | null>;  // Map: source_id -> SourceQuery (null = selected but not configured yet)
-    semantic_filter: SemanticFilter;  // Semantic filtering for this channel
+    semantic_filter: SemanticFilter;  // Semantic filtering for this category
 }
 
 export interface WorkflowConfig {
-    channel_configs: Record<string, ChannelWorkflowConfig>;  // Map: channel_id -> ChannelWorkflowConfig
+    category_configs: Record<string, CategoryWorkflowConfig>;  // Map: category_id -> CategoryWorkflowConfig
     article_limit_per_week?: number;
 }
 
@@ -80,14 +78,18 @@ export interface ResearchStream {
     user_id: number;
     stream_name: string;
     purpose: string;
-    channels: Channel[];
+
+    // Scope definition
+    audience: string[];
+    intended_guidance: string[];
+    global_inclusion: string[];
+    global_exclusion: string[];
+    categories: Category[];
+
     report_frequency: ReportFrequency;
     is_active: boolean;
     created_at: string;
     updated_at: string;
-
-    // Computed from channels
-    stream_type: StreamType;
 
     // Configuration
     workflow_config?: WorkflowConfig;

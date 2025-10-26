@@ -12,7 +12,7 @@ from models import User
 
 from schemas.research_stream import (
     ResearchStream,
-    Channel,
+    Category,
     StreamType,
     ReportFrequency,
     ScoringConfig,
@@ -40,10 +40,14 @@ async def get_information_sources():
 # ============================================================================
 
 class ResearchStreamCreateRequest(BaseModel):
-    """Request schema for creating a research stream - channel-based"""
+    """Request schema for creating a research stream - scope-based"""
     stream_name: str = Field(..., min_length=1, max_length=255)
     purpose: str = Field(..., min_length=1, description="Why this stream exists")
-    channels: List[Channel] = Field(..., min_items=1, description="Monitoring channels")
+    audience: List[str] = Field(default_factory=list, description="Who uses this stream")
+    intended_guidance: List[str] = Field(default_factory=list, description="What decisions this informs")
+    global_inclusion: List[str] = Field(default_factory=list, description="Stream-wide inclusion criteria")
+    global_exclusion: List[str] = Field(default_factory=list, description="Stream-wide exclusion criteria")
+    categories: List[Category] = Field(..., min_items=1, description="Research categories")
     report_frequency: ReportFrequency
     scoring_config: Optional[ScoringConfig] = None
 
@@ -51,7 +55,11 @@ class ResearchStreamUpdateRequest(BaseModel):
     """Request schema for updating a research stream"""
     stream_name: Optional[str] = Field(None, min_length=1, max_length=255)
     purpose: Optional[str] = None
-    channels: Optional[List[Channel]] = None
+    audience: Optional[List[str]] = None
+    intended_guidance: Optional[List[str]] = None
+    global_inclusion: Optional[List[str]] = None
+    global_exclusion: Optional[List[str]] = None
+    categories: Optional[List[Category]] = None
     report_frequency: Optional[ReportFrequency] = None
     is_active: Optional[bool] = None
     scoring_config: Optional[ScoringConfig] = None
@@ -94,18 +102,14 @@ async def create_research_stream(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Create a new research stream with channel-based structure"""
-    import uuid
+    """Create a new research stream with scope-based structure"""
     service = ResearchStreamService(db)
 
-    # Convert Pydantic models to dicts and add channel_id if missing
-    channels_dict = []
-    for ch in request.channels:
-        ch_dict = ch.dict() if hasattr(ch, 'dict') else ch
-        # Add channel_id if it doesn't exist
-        if 'channel_id' not in ch_dict or not ch_dict['channel_id']:
-            ch_dict['channel_id'] = str(uuid.uuid4())
-        channels_dict.append(ch_dict)
+    # Convert Pydantic models to dicts
+    categories_dict = []
+    for cat in request.categories:
+        cat_dict = cat.dict() if hasattr(cat, 'dict') else cat
+        categories_dict.append(cat_dict)
 
     scoring_dict = request.scoring_config.dict() if request.scoring_config else None
 
@@ -113,7 +117,11 @@ async def create_research_stream(
         user_id=current_user.user_id,
         stream_name=request.stream_name,
         purpose=request.purpose,
-        channels=channels_dict,
+        audience=request.audience,
+        intended_guidance=request.intended_guidance,
+        global_inclusion=request.global_inclusion,
+        global_exclusion=request.global_exclusion,
+        categories=categories_dict,
         report_frequency=request.report_frequency,
         scoring_config=scoring_dict
     )

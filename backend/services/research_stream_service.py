@@ -61,20 +61,28 @@ class ResearchStreamService:
         user_id: int,
         stream_name: str,
         purpose: str,
-        channels: List[Dict[str, Any]],
+        audience: List[str],
+        intended_guidance: List[str],
+        global_inclusion: List[str],
+        global_exclusion: List[str],
+        categories: List[Dict[str, Any]],
         report_frequency: ReportFrequency = ReportFrequency.WEEKLY,
         scoring_config: Optional[Dict[str, Any]] = None
     ) -> ResearchStream:
-        """Create a new research stream with channel-based structure"""
+        """Create a new research stream with scope-based structure"""
 
         research_stream = ResearchStream(
             user_id=user_id,
             stream_name=stream_name,
             purpose=purpose,
-            channels=channels,
+            audience=audience,
+            intended_guidance=intended_guidance,
+            global_inclusion=global_inclusion,
+            global_exclusion=global_exclusion,
+            categories=categories,
             report_frequency=report_frequency,
             scoring_config=scoring_config,
-            workflow_config=None,  # Auto-generated on first report
+            workflow_config=None,  # Configured after creation via Workflow 2
             is_active=True,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
@@ -105,7 +113,7 @@ class ResearchStreamService:
             if hasattr(research_stream, field):
                 setattr(research_stream, field, value)
                 # Flag mutable fields (like JSON/dict) as modified so SQLAlchemy tracks them
-                if field in ['workflow_config', 'channels', 'scoring_config']:
+                if field in ['workflow_config', 'scoring_config', 'categories', 'audience', 'intended_guidance', 'global_inclusion', 'global_exclusion']:
                     flag_modified(research_stream, field)
 
         research_stream.updated_at = datetime.utcnow()

@@ -1,0 +1,233 @@
+2025-10-13 08:30:28,571 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251013.log
+2025-10-13 08:30:28,573 - INFO - [-] - config.logging_config - Including routers...
+2025-10-13 08:30:28,649 - INFO - [-] - config.logging_config - Routers included
+2025-10-13 08:30:28,649 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-13 08:30:28,650 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-13 08:30:28,650 - INFO - [-] - database - Initializing database...
+2025-10-13 08:30:29,646 - INFO - [-] - database - Database initialized successfully
+2025-10-13 08:30:29,646 - INFO - [-] - config.logging_config - Database initialized
+2025-10-13 08:30:29,670 - INFO - [323181a5-31a6-4743-8e73-ddd53b33ce36] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-13 08:30:29,671 - INFO - [5ef384ac-d4c8-4cf7-aa88-d3a5c58cdd29] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-13 08:30:29,673 - INFO - [5ef384ac-d4c8-4cf7-aa88-d3a5c58cdd29] - services.auth_service - validate_token called
+2025-10-13 08:30:29,673 - INFO - [5ef384ac-d4c8-4cf7-aa88-d3a5c58cdd29] - services.auth_service - Getting token from credentials
+2025-10-13 08:30:29,674 - INFO - [5ef384ac-d4c8-4cf7-aa88-d3a5c58cdd29] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 08:30:29,704 - INFO - [5ef384ac-d4c8-4cf7-aa88-d3a5c58cdd29] - services.auth_service - Token expires in 35049 seconds
+2025-10-13 08:30:29,704 - INFO - [5ef384ac-d4c8-4cf7-aa88-d3a5c58cdd29] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 08:30:29,854 - INFO - [5ef384ac-d4c8-4cf7-aa88-d3a5c58cdd29] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 08:30:29,927 - INFO - [5ef384ac-d4c8-4cf7-aa88-d3a5c58cdd29] - services.auth_service - validate_token called
+2025-10-13 08:30:29,929 - INFO - [5ef384ac-d4c8-4cf7-aa88-d3a5c58cdd29] - services.auth_service - Getting token from credentials
+2025-10-13 08:30:29,929 - INFO - [5ef384ac-d4c8-4cf7-aa88-d3a5c58cdd29] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 08:30:29,930 - INFO - [5ef384ac-d4c8-4cf7-aa88-d3a5c58cdd29] - services.auth_service - Token expires in 35049 seconds
+2025-10-13 08:30:29,931 - INFO - [5ef384ac-d4c8-4cf7-aa88-d3a5c58cdd29] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 08:30:30,191 - INFO - [5ef384ac-d4c8-4cf7-aa88-d3a5c58cdd29] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 08:30:30,315 - WARNING - [323181a5-31a6-4743-8e73-ddd53b33ce36] - middleware.logging_middleware - Slow response: 200 - 644.96ms
+2025-10-13 08:30:30,319 - WARNING - [5ef384ac-d4c8-4cf7-aa88-d3a5c58cdd29] - middleware.logging_middleware - Slow response: 200 - 646.98ms
+2025-10-13 08:57:33,150 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251013.log
+2025-10-13 08:57:33,151 - INFO - [-] - config.logging_config - Including routers...
+2025-10-13 08:57:33,209 - INFO - [-] - config.logging_config - Routers included
+2025-10-13 08:57:33,210 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-13 08:57:33,210 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-13 08:57:33,211 - INFO - [-] - database - Initializing database...
+2025-10-13 08:57:34,218 - INFO - [-] - database - Database initialized successfully
+2025-10-13 08:57:34,218 - INFO - [-] - config.logging_config - Database initialized
+2025-10-13 08:57:36,552 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251013.log
+2025-10-13 08:57:36,552 - INFO - [-] - config.logging_config - Including routers...
+2025-10-13 08:57:36,615 - INFO - [-] - config.logging_config - Routers included
+2025-10-13 08:57:36,615 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-13 08:57:36,616 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-13 08:57:36,616 - INFO - [-] - database - Initializing database...
+2025-10-13 08:57:37,529 - INFO - [-] - database - Database initialized successfully
+2025-10-13 08:57:37,530 - INFO - [-] - config.logging_config - Database initialized
+2025-10-13 09:57:18,249 - INFO - [c26d1d4a-6fea-4650-9fea-7a96a0d67eb0] - middleware.logging_middleware - Request: GET /api/profiles/completeness
+2025-10-13 09:57:18,250 - INFO - [ae5ba962-36f2-40ed-b36d-73fd4c55e6ab] - middleware.logging_middleware - Request: GET /api/profiles/completeness
+2025-10-13 09:57:18,252 - INFO - [ae5ba962-36f2-40ed-b36d-73fd4c55e6ab] - services.auth_service - validate_token called
+2025-10-13 09:57:18,252 - INFO - [ae5ba962-36f2-40ed-b36d-73fd4c55e6ab] - services.auth_service - Getting token from credentials
+2025-10-13 09:57:18,252 - INFO - [ae5ba962-36f2-40ed-b36d-73fd4c55e6ab] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 09:57:18,257 - INFO - [ae5ba962-36f2-40ed-b36d-73fd4c55e6ab] - services.auth_service - Token expires in 29840 seconds
+2025-10-13 09:57:18,258 - INFO - [ae5ba962-36f2-40ed-b36d-73fd4c55e6ab] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 09:57:18,618 - INFO - [ae5ba962-36f2-40ed-b36d-73fd4c55e6ab] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 09:57:18,699 - INFO - [ae5ba962-36f2-40ed-b36d-73fd4c55e6ab] - services.auth_service - validate_token called
+2025-10-13 09:57:18,699 - INFO - [ae5ba962-36f2-40ed-b36d-73fd4c55e6ab] - services.auth_service - Getting token from credentials
+2025-10-13 09:57:18,700 - INFO - [ae5ba962-36f2-40ed-b36d-73fd4c55e6ab] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 09:57:18,700 - INFO - [ae5ba962-36f2-40ed-b36d-73fd4c55e6ab] - services.auth_service - Token expires in 29840 seconds
+2025-10-13 09:57:18,700 - INFO - [ae5ba962-36f2-40ed-b36d-73fd4c55e6ab] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 09:57:18,953 - INFO - [ae5ba962-36f2-40ed-b36d-73fd4c55e6ab] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 09:57:19,099 - WARNING - [c26d1d4a-6fea-4650-9fea-7a96a0d67eb0] - middleware.logging_middleware - Slow response: 200 - 850.45ms
+2025-10-13 09:57:19,104 - WARNING - [ae5ba962-36f2-40ed-b36d-73fd4c55e6ab] - middleware.logging_middleware - Slow response: 200 - 854.60ms
+2025-10-13 09:57:24,192 - INFO - [ce87f778-6e1e-45f8-95ab-e9c72c0cd08f] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-13 09:57:24,193 - INFO - [55043a59-c1bd-4c2d-b9d4-5f33ef15cb93] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-13 09:57:24,195 - INFO - [ce87f778-6e1e-45f8-95ab-e9c72c0cd08f] - middleware.logging_middleware - Response: 200 - 4.13ms
+2025-10-13 09:57:24,197 - INFO - [55043a59-c1bd-4c2d-b9d4-5f33ef15cb93] - middleware.logging_middleware - Response: 200 - 4.01ms
+2025-10-13 10:07:15,899 - INFO - [59498543-b4ce-4b8d-a6ea-47bda0b3cc7c] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-13 10:07:15,902 - INFO - [59498543-b4ce-4b8d-a6ea-47bda0b3cc7c] - services.auth_service - validate_token called
+2025-10-13 10:07:15,902 - INFO - [59498543-b4ce-4b8d-a6ea-47bda0b3cc7c] - services.auth_service - Getting token from credentials
+2025-10-13 10:07:15,902 - INFO - [59498543-b4ce-4b8d-a6ea-47bda0b3cc7c] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 10:07:15,903 - INFO - [59498543-b4ce-4b8d-a6ea-47bda0b3cc7c] - services.auth_service - Token expires in 29243 seconds
+2025-10-13 10:07:15,903 - INFO - [59498543-b4ce-4b8d-a6ea-47bda0b3cc7c] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 10:07:15,983 - INFO - [59498543-b4ce-4b8d-a6ea-47bda0b3cc7c] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 10:07:16,033 - INFO - [e21879b8-91c2-44c8-ac05-5ecb4514b746] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-13 10:07:16,034 - INFO - [e21879b8-91c2-44c8-ac05-5ecb4514b746] - services.auth_service - validate_token called
+2025-10-13 10:07:16,035 - INFO - [e21879b8-91c2-44c8-ac05-5ecb4514b746] - services.auth_service - Getting token from credentials
+2025-10-13 10:07:16,035 - INFO - [e21879b8-91c2-44c8-ac05-5ecb4514b746] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 10:07:16,035 - INFO - [e21879b8-91c2-44c8-ac05-5ecb4514b746] - services.auth_service - Token expires in 29242 seconds
+2025-10-13 10:07:16,035 - INFO - [e21879b8-91c2-44c8-ac05-5ecb4514b746] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 10:07:16,112 - INFO - [e21879b8-91c2-44c8-ac05-5ecb4514b746] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 10:07:16,156 - INFO - [59498543-b4ce-4b8d-a6ea-47bda0b3cc7c] - middleware.logging_middleware - Response: 200 - 256.78ms
+2025-10-13 10:07:16,231 - INFO - [e21879b8-91c2-44c8-ac05-5ecb4514b746] - middleware.logging_middleware - Response: 200 - 198.46ms
+2025-10-13 10:09:21,083 - INFO - [03fbc913-bfa8-44ed-8b66-d2267d2f3890] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-13 10:09:21,085 - INFO - [1892c565-3847-4cd7-96c9-b836f0ecf96a] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-13 10:09:21,087 - INFO - [1892c565-3847-4cd7-96c9-b836f0ecf96a] - services.auth_service - validate_token called
+2025-10-13 10:09:21,087 - INFO - [1892c565-3847-4cd7-96c9-b836f0ecf96a] - services.auth_service - Getting token from credentials
+2025-10-13 10:09:21,087 - INFO - [1892c565-3847-4cd7-96c9-b836f0ecf96a] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 10:09:21,087 - INFO - [1892c565-3847-4cd7-96c9-b836f0ecf96a] - services.auth_service - Token expires in 29117 seconds
+2025-10-13 10:09:21,088 - INFO - [1892c565-3847-4cd7-96c9-b836f0ecf96a] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 10:09:21,163 - INFO - [1892c565-3847-4cd7-96c9-b836f0ecf96a] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 10:09:21,217 - INFO - [1892c565-3847-4cd7-96c9-b836f0ecf96a] - services.auth_service - validate_token called
+2025-10-13 10:09:21,217 - INFO - [1892c565-3847-4cd7-96c9-b836f0ecf96a] - services.auth_service - Getting token from credentials
+2025-10-13 10:09:21,217 - INFO - [1892c565-3847-4cd7-96c9-b836f0ecf96a] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 10:09:21,218 - INFO - [1892c565-3847-4cd7-96c9-b836f0ecf96a] - services.auth_service - Token expires in 29117 seconds
+2025-10-13 10:09:21,218 - INFO - [1892c565-3847-4cd7-96c9-b836f0ecf96a] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 10:09:21,296 - INFO - [1892c565-3847-4cd7-96c9-b836f0ecf96a] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 10:09:21,340 - INFO - [03fbc913-bfa8-44ed-8b66-d2267d2f3890] - middleware.logging_middleware - Response: 200 - 256.41ms
+2025-10-13 10:09:21,415 - INFO - [1892c565-3847-4cd7-96c9-b836f0ecf96a] - middleware.logging_middleware - Response: 200 - 330.02ms
+2025-10-13 10:12:10,194 - INFO - [a3c719a0-befd-434f-8a52-394ede5ca76b] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-13 10:12:10,196 - INFO - [a3c719a0-befd-434f-8a52-394ede5ca76b] - services.auth_service - validate_token called
+2025-10-13 10:12:10,197 - INFO - [a3c719a0-befd-434f-8a52-394ede5ca76b] - services.auth_service - Getting token from credentials
+2025-10-13 10:12:10,197 - INFO - [a3c719a0-befd-434f-8a52-394ede5ca76b] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 10:12:10,197 - INFO - [a3c719a0-befd-434f-8a52-394ede5ca76b] - services.auth_service - Token expires in 28948 seconds
+2025-10-13 10:12:10,197 - INFO - [a3c719a0-befd-434f-8a52-394ede5ca76b] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 10:12:10,277 - INFO - [a3c719a0-befd-434f-8a52-394ede5ca76b] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 10:12:10,404 - INFO - [a3c719a0-befd-434f-8a52-394ede5ca76b] - middleware.logging_middleware - Response: 200 - 209.19ms
+2025-10-13 10:12:24,302 - INFO - [2abc07fa-1c2e-4c74-b97c-436e90e6a58d] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-13 10:12:24,303 - INFO - [2abc07fa-1c2e-4c74-b97c-436e90e6a58d] - services.auth_service - validate_token called
+2025-10-13 10:12:24,305 - INFO - [2abc07fa-1c2e-4c74-b97c-436e90e6a58d] - services.auth_service - Getting token from credentials
+2025-10-13 10:12:24,305 - INFO - [2abc07fa-1c2e-4c74-b97c-436e90e6a58d] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 10:12:24,306 - INFO - [2abc07fa-1c2e-4c74-b97c-436e90e6a58d] - services.auth_service - Token expires in 28934 seconds
+2025-10-13 10:12:24,306 - INFO - [2abc07fa-1c2e-4c74-b97c-436e90e6a58d] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 10:12:24,386 - INFO - [2abc07fa-1c2e-4c74-b97c-436e90e6a58d] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 10:12:24,501 - INFO - [2abc07fa-1c2e-4c74-b97c-436e90e6a58d] - middleware.logging_middleware - Response: 200 - 197.73ms
+2025-10-13 10:14:07,387 - INFO - [0a027bc1-5bbf-4644-bf8d-a06fce0981c5] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-13 10:14:07,389 - INFO - [0a027bc1-5bbf-4644-bf8d-a06fce0981c5] - services.auth_service - validate_token called
+2025-10-13 10:14:07,390 - INFO - [0a027bc1-5bbf-4644-bf8d-a06fce0981c5] - services.auth_service - Getting token from credentials
+2025-10-13 10:14:07,390 - INFO - [0a027bc1-5bbf-4644-bf8d-a06fce0981c5] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 10:14:07,391 - INFO - [0a027bc1-5bbf-4644-bf8d-a06fce0981c5] - services.auth_service - Token expires in 28831 seconds
+2025-10-13 10:14:07,391 - INFO - [0a027bc1-5bbf-4644-bf8d-a06fce0981c5] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 10:14:07,468 - INFO - [0a027bc1-5bbf-4644-bf8d-a06fce0981c5] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 10:14:07,509 - INFO - [04a3709b-e583-4c58-bcea-40492c1ed5fe] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-13 10:14:07,512 - INFO - [04a3709b-e583-4c58-bcea-40492c1ed5fe] - services.auth_service - validate_token called
+2025-10-13 10:14:07,513 - INFO - [04a3709b-e583-4c58-bcea-40492c1ed5fe] - services.auth_service - Getting token from credentials
+2025-10-13 10:14:07,513 - INFO - [04a3709b-e583-4c58-bcea-40492c1ed5fe] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 10:14:07,513 - INFO - [04a3709b-e583-4c58-bcea-40492c1ed5fe] - services.auth_service - Token expires in 28831 seconds
+2025-10-13 10:14:07,514 - INFO - [04a3709b-e583-4c58-bcea-40492c1ed5fe] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 10:14:07,592 - INFO - [04a3709b-e583-4c58-bcea-40492c1ed5fe] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 10:14:07,636 - INFO - [0a027bc1-5bbf-4644-bf8d-a06fce0981c5] - middleware.logging_middleware - Response: 200 - 249.45ms
+2025-10-13 10:14:07,710 - INFO - [04a3709b-e583-4c58-bcea-40492c1ed5fe] - middleware.logging_middleware - Response: 200 - 200.99ms
+2025-10-13 10:14:10,506 - INFO - [fba41181-5e51-4205-bdcf-d150f2ef7653] - middleware.logging_middleware - Request: GET /api/reports/stream/4
+2025-10-13 10:14:10,507 - INFO - [fba41181-5e51-4205-bdcf-d150f2ef7653] - services.auth_service - validate_token called
+2025-10-13 10:14:10,507 - INFO - [fba41181-5e51-4205-bdcf-d150f2ef7653] - services.auth_service - Getting token from credentials
+2025-10-13 10:14:10,507 - INFO - [fba41181-5e51-4205-bdcf-d150f2ef7653] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 10:14:10,507 - INFO - [fba41181-5e51-4205-bdcf-d150f2ef7653] - services.auth_service - Token expires in 28828 seconds
+2025-10-13 10:14:10,508 - INFO - [fba41181-5e51-4205-bdcf-d150f2ef7653] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 10:14:10,583 - INFO - [fba41181-5e51-4205-bdcf-d150f2ef7653] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 10:14:10,778 - INFO - [fba41181-5e51-4205-bdcf-d150f2ef7653] - middleware.logging_middleware - Response: 200 - 272.38ms
+2025-10-13 10:14:10,785 - INFO - [8e4f87b6-6c5a-4071-9438-af1a8479fe7b] - middleware.logging_middleware - Request: GET /api/reports/2
+2025-10-13 10:14:10,787 - INFO - [8e4f87b6-6c5a-4071-9438-af1a8479fe7b] - services.auth_service - validate_token called
+2025-10-13 10:14:10,787 - INFO - [8e4f87b6-6c5a-4071-9438-af1a8479fe7b] - services.auth_service - Getting token from credentials
+2025-10-13 10:14:10,787 - INFO - [8e4f87b6-6c5a-4071-9438-af1a8479fe7b] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 10:14:10,787 - INFO - [8e4f87b6-6c5a-4071-9438-af1a8479fe7b] - services.auth_service - Token expires in 28828 seconds
+2025-10-13 10:14:10,787 - INFO - [8e4f87b6-6c5a-4071-9438-af1a8479fe7b] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 10:14:10,866 - INFO - [8e4f87b6-6c5a-4071-9438-af1a8479fe7b] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 10:14:11,058 - INFO - [8e4f87b6-6c5a-4071-9438-af1a8479fe7b] - middleware.logging_middleware - Response: 200 - 273.42ms
+2025-10-13 10:14:12,108 - INFO - [b0714396-dcab-40d7-bd1e-b178b9a9c156] - middleware.logging_middleware - Request: GET /api/reports/1
+2025-10-13 10:14:12,109 - INFO - [b0714396-dcab-40d7-bd1e-b178b9a9c156] - services.auth_service - validate_token called
+2025-10-13 10:14:12,109 - INFO - [b0714396-dcab-40d7-bd1e-b178b9a9c156] - services.auth_service - Getting token from credentials
+2025-10-13 10:14:12,109 - INFO - [b0714396-dcab-40d7-bd1e-b178b9a9c156] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 10:14:12,110 - INFO - [b0714396-dcab-40d7-bd1e-b178b9a9c156] - services.auth_service - Token expires in 28826 seconds
+2025-10-13 10:14:12,110 - INFO - [b0714396-dcab-40d7-bd1e-b178b9a9c156] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 10:14:12,185 - INFO - [b0714396-dcab-40d7-bd1e-b178b9a9c156] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 10:14:12,386 - INFO - [b0714396-dcab-40d7-bd1e-b178b9a9c156] - middleware.logging_middleware - Response: 200 - 278.22ms
+2025-10-13 10:38:38,096 - INFO - [a1adc318-b22b-43d6-aaf3-25288a574a39] - middleware.logging_middleware - Request: GET /api/research-streams/6
+2025-10-13 10:38:38,098 - INFO - [a1adc318-b22b-43d6-aaf3-25288a574a39] - services.auth_service - validate_token called
+2025-10-13 10:38:38,098 - INFO - [a1adc318-b22b-43d6-aaf3-25288a574a39] - services.auth_service - Getting token from credentials
+2025-10-13 10:38:38,098 - INFO - [a1adc318-b22b-43d6-aaf3-25288a574a39] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 10:38:38,099 - ERROR - [a1adc318-b22b-43d6-aaf3-25288a574a39] - services.auth_service - ############## JWT validation error ##############
+2025-10-13 10:38:38,099 - ERROR - [a1adc318-b22b-43d6-aaf3-25288a574a39] - services.auth_service - JWT validation error: Signature has expired.
+2025-10-13 10:38:38,100 - ERROR - [a1adc318-b22b-43d6-aaf3-25288a574a39] - services.auth_service - Traceback (most recent call last):
+  File "C:\code\kh\backend\services\auth_service.py", line 222, in validate_token
+    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\code\kh\backend\venv\Lib\site-packages\jose\jwt.py", line 157, in decode
+    _validate_claims(
+  File "C:\code\kh\backend\venv\Lib\site-packages\jose\jwt.py", line 481, in _validate_claims
+    _validate_exp(claims, leeway=leeway)
+  File "C:\code\kh\backend\venv\Lib\site-packages\jose\jwt.py", line 314, in _validate_exp
+    raise ExpiredSignatureError("Signature has expired.")
+jose.exceptions.ExpiredSignatureError: Signature has expired.
+
+2025-10-13 10:38:38,101 - WARNING - [a1adc318-b22b-43d6-aaf3-25288a574a39] - middleware.logging_middleware - Response: 401 - 5.14ms
+2025-10-13 10:38:38,102 - INFO - [94db3036-0595-4e56-bb10-346e9777766d] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-13 10:38:38,102 - INFO - [94db3036-0595-4e56-bb10-346e9777766d] - middleware.logging_middleware - Response: 200 - 0.00ms
+2025-10-13 14:02:10,514 - INFO - [8d5accc9-85fa-4179-a19f-28fea92c736b] - middleware.logging_middleware - Request: GET /api/reports/2
+2025-10-13 14:02:10,518 - INFO - [8d5accc9-85fa-4179-a19f-28fea92c736b] - services.auth_service - validate_token called
+2025-10-13 14:02:10,518 - INFO - [8d5accc9-85fa-4179-a19f-28fea92c736b] - services.auth_service - Getting token from credentials
+2025-10-13 14:02:10,518 - INFO - [8d5accc9-85fa-4179-a19f-28fea92c736b] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 14:02:10,519 - INFO - [8d5accc9-85fa-4179-a19f-28fea92c736b] - services.auth_service - Token expires in 15148 seconds
+2025-10-13 14:02:10,519 - INFO - [8d5accc9-85fa-4179-a19f-28fea92c736b] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 14:02:10,832 - INFO - [8d5accc9-85fa-4179-a19f-28fea92c736b] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 14:02:11,031 - WARNING - [8d5accc9-85fa-4179-a19f-28fea92c736b] - middleware.logging_middleware - Slow response: 200 - 517.12ms
+2025-10-13 14:17:19,909 - INFO - [f8d1fe73-1d47-4495-93ac-0d898aea0df2] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-13 14:17:19,910 - INFO - [698b2f82-ecf6-4a68-a5f5-b80319e016d4] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-13 14:17:19,912 - INFO - [698b2f82-ecf6-4a68-a5f5-b80319e016d4] - services.auth_service - validate_token called
+2025-10-13 14:17:19,912 - INFO - [698b2f82-ecf6-4a68-a5f5-b80319e016d4] - services.auth_service - Getting token from credentials
+2025-10-13 14:17:19,912 - INFO - [698b2f82-ecf6-4a68-a5f5-b80319e016d4] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 14:17:19,913 - INFO - [698b2f82-ecf6-4a68-a5f5-b80319e016d4] - services.auth_service - Token expires in 14239 seconds
+2025-10-13 14:17:19,913 - INFO - [698b2f82-ecf6-4a68-a5f5-b80319e016d4] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 14:17:20,234 - INFO - [698b2f82-ecf6-4a68-a5f5-b80319e016d4] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 14:17:20,280 - INFO - [698b2f82-ecf6-4a68-a5f5-b80319e016d4] - services.auth_service - validate_token called
+2025-10-13 14:17:20,280 - INFO - [698b2f82-ecf6-4a68-a5f5-b80319e016d4] - services.auth_service - Getting token from credentials
+2025-10-13 14:17:20,280 - INFO - [698b2f82-ecf6-4a68-a5f5-b80319e016d4] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 14:17:20,281 - INFO - [698b2f82-ecf6-4a68-a5f5-b80319e016d4] - services.auth_service - Token expires in 14238 seconds
+2025-10-13 14:17:20,281 - INFO - [698b2f82-ecf6-4a68-a5f5-b80319e016d4] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 14:17:20,361 - INFO - [698b2f82-ecf6-4a68-a5f5-b80319e016d4] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 14:17:20,473 - WARNING - [698b2f82-ecf6-4a68-a5f5-b80319e016d4] - middleware.logging_middleware - Slow response: 200 - 563.01ms
+2025-10-13 14:17:20,474 - WARNING - [f8d1fe73-1d47-4495-93ac-0d898aea0df2] - middleware.logging_middleware - Slow response: 200 - 566.13ms
+2025-10-13 14:17:42,098 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251013.log
+2025-10-13 14:17:42,099 - INFO - [-] - config.logging_config - Including routers...
+2025-10-13 14:17:42,200 - INFO - [-] - config.logging_config - Routers included
+2025-10-13 14:17:42,201 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-13 14:17:42,203 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-13 14:17:42,204 - INFO - [-] - database - Initializing database...
+2025-10-13 14:17:43,147 - INFO - [-] - database - Database initialized successfully
+2025-10-13 14:17:43,148 - INFO - [-] - config.logging_config - Database initialized
+2025-10-13 14:17:43,169 - INFO - [791e04cb-0ad8-449b-ac97-4600fb9119f4] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-13 14:17:43,172 - INFO - [4ca02cdd-8441-4a46-80f9-fe6b4a23225a] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-13 14:17:43,176 - INFO - [4ca02cdd-8441-4a46-80f9-fe6b4a23225a] - services.auth_service - validate_token called
+2025-10-13 14:17:43,176 - INFO - [4ca02cdd-8441-4a46-80f9-fe6b4a23225a] - services.auth_service - Getting token from credentials
+2025-10-13 14:17:43,177 - INFO - [4ca02cdd-8441-4a46-80f9-fe6b4a23225a] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 14:17:43,203 - INFO - [4ca02cdd-8441-4a46-80f9-fe6b4a23225a] - services.auth_service - Token expires in 14215 seconds
+2025-10-13 14:17:43,204 - INFO - [4ca02cdd-8441-4a46-80f9-fe6b4a23225a] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 14:17:43,309 - INFO - [4ca02cdd-8441-4a46-80f9-fe6b4a23225a] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 14:17:43,368 - INFO - [4ca02cdd-8441-4a46-80f9-fe6b4a23225a] - services.auth_service - validate_token called
+2025-10-13 14:17:43,369 - INFO - [4ca02cdd-8441-4a46-80f9-fe6b4a23225a] - services.auth_service - Getting token from credentials
+2025-10-13 14:17:43,369 - INFO - [4ca02cdd-8441-4a46-80f9-fe6b4a23225a] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 14:17:43,370 - INFO - [4ca02cdd-8441-4a46-80f9-fe6b4a23225a] - services.auth_service - Token expires in 14215 seconds
+2025-10-13 14:17:43,370 - INFO - [4ca02cdd-8441-4a46-80f9-fe6b4a23225a] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 14:17:43,626 - INFO - [4ca02cdd-8441-4a46-80f9-fe6b4a23225a] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 14:17:43,741 - WARNING - [791e04cb-0ad8-449b-ac97-4600fb9119f4] - middleware.logging_middleware - Slow response: 200 - 571.66ms
+2025-10-13 14:17:43,742 - WARNING - [4ca02cdd-8441-4a46-80f9-fe6b4a23225a] - middleware.logging_middleware - Slow response: 200 - 569.72ms
+2025-10-13 14:17:53,464 - INFO - [8cf0c551-4a8f-486c-acca-903e11cb70a0] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-13 14:17:53,466 - INFO - [dad9c46e-64fe-41c5-b15c-0694b12496e2] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-13 14:17:53,467 - INFO - [dad9c46e-64fe-41c5-b15c-0694b12496e2] - services.auth_service - validate_token called
+2025-10-13 14:17:53,468 - INFO - [dad9c46e-64fe-41c5-b15c-0694b12496e2] - services.auth_service - Getting token from credentials
+2025-10-13 14:17:53,468 - INFO - [dad9c46e-64fe-41c5-b15c-0694b12496e2] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 14:17:53,469 - INFO - [dad9c46e-64fe-41c5-b15c-0694b12496e2] - services.auth_service - Token expires in 14205 seconds
+2025-10-13 14:17:53,469 - INFO - [dad9c46e-64fe-41c5-b15c-0694b12496e2] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 14:17:53,542 - INFO - [dad9c46e-64fe-41c5-b15c-0694b12496e2] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 14:17:53,585 - INFO - [dad9c46e-64fe-41c5-b15c-0694b12496e2] - services.auth_service - validate_token called
+2025-10-13 14:17:53,585 - INFO - [dad9c46e-64fe-41c5-b15c-0694b12496e2] - services.auth_service - Getting token from credentials
+2025-10-13 14:17:53,586 - INFO - [dad9c46e-64fe-41c5-b15c-0694b12496e2] - services.auth_service - Token: eyJhbGciOi...
+2025-10-13 14:17:53,586 - INFO - [dad9c46e-64fe-41c5-b15c-0694b12496e2] - services.auth_service - Token expires in 14205 seconds
+2025-10-13 14:17:53,587 - INFO - [dad9c46e-64fe-41c5-b15c-0694b12496e2] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-13 14:17:53,661 - INFO - [dad9c46e-64fe-41c5-b15c-0694b12496e2] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-13 14:17:53,781 - INFO - [8cf0c551-4a8f-486c-acca-903e11cb70a0] - middleware.logging_middleware - Response: 200 - 316.37ms
+2025-10-13 14:17:53,782 - INFO - [dad9c46e-64fe-41c5-b15c-0694b12496e2] - middleware.logging_middleware - Response: 200 - 315.86ms

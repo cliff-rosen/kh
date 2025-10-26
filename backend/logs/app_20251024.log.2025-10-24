@@ -1,0 +1,24 @@
+2025-10-24 18:31:17,904 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251024.log
+2025-10-24 18:31:17,906 - INFO - [-] - config.logging_config - Including routers...
+2025-10-24 18:31:17,984 - INFO - [-] - config.logging_config - Routers included
+2025-10-24 18:31:17,984 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-24 18:31:17,987 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-24 18:31:17,987 - INFO - [-] - database - Initializing database...
+2025-10-24 18:31:18,959 - INFO - [-] - database - Database initialized successfully
+2025-10-24 18:31:18,960 - INFO - [-] - config.logging_config - Database initialized
+2025-10-24 18:31:18,996 - INFO - [ea69a4c3-cd0b-4918-9d37-3d334175968d] - middleware.logging_middleware - Request: GET /api/profiles/completeness
+2025-10-24 18:31:18,998 - INFO - [2ab7368f-794f-41cf-8140-38e051c44300] - middleware.logging_middleware - Request: GET /api/profiles/completeness
+2025-10-24 18:31:19,000 - INFO - [2ab7368f-794f-41cf-8140-38e051c44300] - services.auth_service - validate_token called
+2025-10-24 18:31:19,001 - INFO - [2ab7368f-794f-41cf-8140-38e051c44300] - services.auth_service - Getting token from credentials
+2025-10-24 18:31:19,001 - INFO - [2ab7368f-794f-41cf-8140-38e051c44300] - services.auth_service - Token: eyJhbGciOi...
+2025-10-24 18:31:19,024 - INFO - [2ab7368f-794f-41cf-8140-38e051c44300] - services.auth_service - Token expires in 35587 seconds
+2025-10-24 18:31:19,024 - INFO - [2ab7368f-794f-41cf-8140-38e051c44300] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-24 18:31:19,141 - INFO - [2ab7368f-794f-41cf-8140-38e051c44300] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-24 18:31:19,237 - INFO - [2ab7368f-794f-41cf-8140-38e051c44300] - services.auth_service - validate_token called
+2025-10-24 18:31:19,237 - INFO - [2ab7368f-794f-41cf-8140-38e051c44300] - services.auth_service - Getting token from credentials
+2025-10-24 18:31:19,237 - INFO - [2ab7368f-794f-41cf-8140-38e051c44300] - services.auth_service - Token: eyJhbGciOi...
+2025-10-24 18:31:19,237 - INFO - [2ab7368f-794f-41cf-8140-38e051c44300] - services.auth_service - Token expires in 35587 seconds
+2025-10-24 18:31:19,238 - INFO - [2ab7368f-794f-41cf-8140-38e051c44300] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-24 18:31:19,492 - INFO - [2ab7368f-794f-41cf-8140-38e051c44300] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-24 18:31:19,649 - WARNING - [2ab7368f-794f-41cf-8140-38e051c44300] - middleware.logging_middleware - Slow response: 200 - 649.65ms
+2025-10-24 18:31:19,651 - WARNING - [ea69a4c3-cd0b-4918-9d37-3d334175968d] - middleware.logging_middleware - Slow response: 200 - 654.64ms

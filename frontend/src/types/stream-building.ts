@@ -1,20 +1,24 @@
-import { ScoringConfig, Channel } from './research-stream';
+import { ScoringConfig, Category } from './research-stream';
 
 // ============================================================================
 // Stream being built (all fields optional as they're filled in progressively)
 // ============================================================================
 
-export interface ChannelInProgress {
+export interface CategoryInProgress {
+    id?: string;  // Unique identifier
     name?: string;
-    focus?: string;
-    type?: string;  // string during building, validated on submission
-    keywords?: string[];
+    topics?: string[];
+    specific_inclusions?: string[];
 }
 
 export interface StreamInProgress {
     stream_name?: string;
     purpose?: string;
-    channels?: ChannelInProgress[];
+    audience?: string[];
+    intended_guidance?: string[];
+    global_inclusion?: string[];
+    global_exclusion?: string[];
+    categories?: CategoryInProgress[];
     report_frequency?: string;  // string during building, validated on submission
     scoring_config?: ScoringConfig;
 }
@@ -27,7 +31,11 @@ export type StreamBuildStep =
     | 'exploration'
     | 'stream_name'
     | 'purpose'
-    | 'channels'       // Collect all channels
+    | 'audience'           // Who uses this stream
+    | 'intended_guidance'  // What decisions this informs
+    | 'global_inclusion'   // Stream-wide inclusion criteria
+    | 'global_exclusion'   // Stream-wide exclusion criteria
+    | 'categories'         // Collect all categories
     | 'report_frequency'
     | 'review'
     | 'complete';

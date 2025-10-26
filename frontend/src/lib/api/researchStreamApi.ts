@@ -1,5 +1,5 @@
 import { api } from './index';
-import { ResearchStream, ReportFrequency, Channel, InformationSource, WorkflowConfig } from '../../types';
+import { ResearchStream, ReportFrequency, Category, InformationSource, WorkflowConfig, ScoringConfig } from '../../types';
 import {
     StreamInProgress,
     StreamBuildStep,
@@ -73,17 +73,27 @@ export type StreamResponse = AgentResponse | StatusResponse;
 export interface ResearchStreamCreateRequest {
     stream_name: string;
     purpose: string;
-    channels: Channel[];
+    audience: string[];
+    intended_guidance: string[];
+    global_inclusion: string[];
+    global_exclusion: string[];
+    categories: Category[];
     report_frequency: ReportFrequency;
+    scoring_config?: ScoringConfig;
 }
 
 export interface ResearchStreamUpdateRequest {
     stream_name?: string;
     purpose?: string;
-    channels?: Channel[];
+    audience?: string[];
+    intended_guidance?: string[];
+    global_inclusion?: string[];
+    global_exclusion?: string[];
+    categories?: Category[];
     report_frequency?: ReportFrequency;
     is_active?: boolean;
     workflow_config?: WorkflowConfig;
+    scoring_config?: ScoringConfig;
 }
 
 // ============================================================================

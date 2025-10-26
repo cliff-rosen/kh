@@ -47,4 +47,5 @@ yarn-error.log*
 
 # Logs
 *.log
-logs/ 
+nul
+ 

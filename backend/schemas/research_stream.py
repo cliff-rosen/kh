@@ -25,14 +25,12 @@ class ReportFrequency(str, Enum):
     MONTHLY = "monthly"
 
 
-class Channel(BaseModel):
-    """A channel within a research stream - specific focus with keywords"""
-    channel_id: Optional[str] = Field(None, description="UUID - stable identifier for this channel (auto-generated if not provided)")
-    name: str = Field(description="Channel name")
-    focus: str = Field(description="What this channel monitors")
-    type: StreamType = Field(description="Type of intelligence for this channel")
-    keywords: List[str] = Field(description="Keywords for this channel")
-    # Note: semantic_filter is now in workflow_config.channel_configs, not here
+class Category(BaseModel):
+    """A category within a research stream - structured topic organization"""
+    id: str = Field(description="Unique identifier for this category (e.g., 'medical_health')")
+    name: str = Field(description="Display name for the category")
+    topics: List[str] = Field(description="List of topics covered by this category")
+    specific_inclusions: List[str] = Field(default_factory=list, description="Category-specific inclusion criteria")
 
 
 class ScoringConfig(BaseModel):
@@ -79,28 +77,35 @@ class SemanticFilter(BaseModel):
     threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Confidence threshold (0.0 to 1.0)")
 
 
-class ChannelWorkflowConfig(BaseModel):
-    """Complete workflow configuration for a single channel"""
+class CategoryWorkflowConfig(BaseModel):
+    """Complete workflow configuration for a single category"""
     source_queries: Dict[str, Optional[SourceQuery]] = Field(default_factory=dict, description="Map: source_id -> SourceQuery (null if selected but not configured yet)")
-    semantic_filter: SemanticFilter = Field(description="Semantic filtering for this channel")
+    semantic_filter: SemanticFilter = Field(description="Semantic filtering for this category")
 
 
 class WorkflowConfig(BaseModel):
-    """Configuration for workflow - organized by channel"""
-    channel_configs: Dict[str, ChannelWorkflowConfig] = Field(
+    """Configuration for workflow - organized by category"""
+    category_configs: Dict[str, CategoryWorkflowConfig] = Field(
         default_factory=dict,
-        description="Map: channel_id -> ChannelWorkflowConfig"
+        description="Map: category_id -> CategoryWorkflowConfig"
     )
     article_limit_per_week: Optional[int] = Field(None, description="Maximum articles per week")
 
 
 class ResearchStream(BaseModel):
-    """Research stream - channel-based structure"""
+    """Research stream - scope-based structure with categories"""
     stream_id: int
     user_id: int
     stream_name: str
     purpose: str = Field(description="Why this stream exists, what questions it answers")
-    channels: List[Channel] = Field(description="Independent channels with focus, type, and keywords")
+
+    # Scope definition
+    audience: List[str] = Field(default_factory=list, description="Who uses this stream")
+    intended_guidance: List[str] = Field(default_factory=list, description="What decisions this informs")
+    global_inclusion: List[str] = Field(default_factory=list, description="Stream-wide inclusion criteria")
+    global_exclusion: List[str] = Field(default_factory=list, description="Stream-wide exclusion criteria")
+    categories: List[Category] = Field(description="Structured topic categories")
+
     report_frequency: ReportFrequency
     is_active: bool = True
     created_at: datetime
@@ -114,15 +119,6 @@ class ResearchStream(BaseModel):
     report_count: Optional[int] = 0
     latest_report_date: Optional[str] = None
 
-    @computed_field
-    @property
-    def stream_type(self) -> StreamType:
-        """Derived from channels: homogeneous = that type, heterogeneous = mixed"""
-        if not self.channels:
-            return StreamType.MIXED
-        channel_types = {ch.type for ch in self.channels}
-        return list(channel_types)[0] if len(channel_types) == 1 else StreamType.MIXED
-
     class Config:
         from_attributes = True
 
@@ -131,15 +127,15 @@ class ResearchStream(BaseModel):
 # Executive Summary
 # ============================================================================
 
-class ChannelHighlight(BaseModel):
-    """Notable finding for a specific channel"""
-    channel_name: str = Field(description="Name of the channel")
-    highlight: str = Field(description="Key finding or insight from this channel")
+class CategoryHighlight(BaseModel):
+    """Notable finding for a specific category"""
+    category_name: str = Field(description="Name of the category")
+    highlight: str = Field(description="Key finding or insight from this category")
 
 
 class ExecutiveSummary(BaseModel):
-    """AI-generated executive summary of test results across all channels"""
-    overview: str = Field(description="High-level summary of what was found across all channels")
+    """AI-generated executive summary of test results across all categories"""
+    overview: str = Field(description="High-level summary of what was found across all categories")
     key_themes: List[str] = Field(description="Main themes/topics identified across accepted articles")
-    channel_highlights: List[ChannelHighlight] = Field(description="Notable findings per channel")
+    category_highlights: List[CategoryHighlight] = Field(description="Notable findings per category")
     generated_at: datetime = Field(description="When this summary was generated")

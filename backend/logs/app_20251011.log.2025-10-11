@@ -1,0 +1,403 @@
+2025-10-11 21:41:03,175 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251011.log
+2025-10-11 21:41:03,177 - INFO - [-] - config.logging_config - Including routers...
+2025-10-11 21:41:03,354 - INFO - [-] - config.logging_config - Routers included
+2025-10-11 21:41:03,355 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-11 21:41:03,356 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-11 21:41:03,356 - INFO - [-] - database - Initializing database...
+2025-10-11 21:41:04,309 - INFO - [-] - database - Database initialized successfully
+2025-10-11 21:41:04,310 - INFO - [-] - config.logging_config - Database initialized
+2025-10-11 21:41:04,379 - INFO - [eb4752ef-d56a-43c2-814e-ffaa50fd741e] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-11 21:41:04,383 - INFO - [5c4d3c2f-2cf7-44a3-b6c7-9133b1ffc3c7] - middleware.logging_middleware - Request: GET /api/research-streams/7
+2025-10-11 21:41:04,384 - INFO - [4ca20912-4a46-4e78-aa9f-dfbdce3973e6] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-11 21:41:04,385 - INFO - [f7667ec5-907e-477b-a4be-d6f3f33fefbb] - middleware.logging_middleware - Request: GET /api/research-streams/7
+2025-10-11 21:41:04,387 - INFO - [eb4752ef-d56a-43c2-814e-ffaa50fd741e] - middleware.logging_middleware - Response: 200 - 8.53ms
+2025-10-11 21:41:04,388 - INFO - [4ca20912-4a46-4e78-aa9f-dfbdce3973e6] - middleware.logging_middleware - Response: 200 - 3.53ms
+2025-10-11 21:41:04,391 - INFO - [-] - services.auth_service - validate_token called
+2025-10-11 21:41:04,392 - INFO - [-] - services.auth_service - Getting token from credentials
+2025-10-11 21:41:04,392 - INFO - [-] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:41:04,433 - INFO - [-] - services.auth_service - Token expires in 26524 seconds
+2025-10-11 21:41:04,434 - INFO - [-] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:41:04,602 - INFO - [-] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:41:04,667 - INFO - [-] - services.auth_service - validate_token called
+2025-10-11 21:41:04,667 - INFO - [-] - services.auth_service - Getting token from credentials
+2025-10-11 21:41:04,667 - INFO - [-] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:41:04,668 - INFO - [-] - services.auth_service - Token expires in 26524 seconds
+2025-10-11 21:41:04,668 - INFO - [-] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:41:04,938 - INFO - [-] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:41:05,055 - WARNING - [5c4d3c2f-2cf7-44a3-b6c7-9133b1ffc3c7] - middleware.logging_middleware - Slow response: 200 - 671.10ms
+2025-10-11 21:41:05,062 - WARNING - [f7667ec5-907e-477b-a4be-d6f3f33fefbb] - middleware.logging_middleware - Slow response: 200 - 676.12ms
+2025-10-11 21:45:45,857 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251011.log
+2025-10-11 21:45:45,857 - INFO - [-] - config.logging_config - Including routers...
+2025-10-11 21:45:45,922 - INFO - [-] - config.logging_config - Routers included
+2025-10-11 21:45:45,922 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-11 21:45:45,923 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-11 21:45:45,923 - INFO - [-] - database - Initializing database...
+2025-10-11 21:45:46,870 - INFO - [-] - database - Database initialized successfully
+2025-10-11 21:45:46,871 - INFO - [-] - config.logging_config - Database initialized
+2025-10-11 21:45:50,233 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251011.log
+2025-10-11 21:45:50,234 - INFO - [-] - config.logging_config - Including routers...
+2025-10-11 21:45:50,289 - INFO - [-] - config.logging_config - Routers included
+2025-10-11 21:45:50,290 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-11 21:45:50,291 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-11 21:45:50,291 - INFO - [-] - database - Initializing database...
+2025-10-11 21:45:51,205 - INFO - [-] - database - Database initialized successfully
+2025-10-11 21:45:51,206 - INFO - [-] - config.logging_config - Database initialized
+2025-10-11 21:47:06,609 - INFO - [c015c0fb-0181-4e29-b717-17c1a2098ab3] - middleware.logging_middleware - Request: POST /api/research-streams/7/channels/Clinical Trials & Research/test-query
+2025-10-11 21:47:06,610 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - middleware.logging_middleware - Request: POST /api/research-streams/7/channels/Clinical Trials & Research/test-query
+2025-10-11 21:47:06,614 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.auth_service - validate_token called
+2025-10-11 21:47:06,614 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.auth_service - Getting token from credentials
+2025-10-11 21:47:06,615 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:47:06,617 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.auth_service - Token expires in 26162 seconds
+2025-10-11 21:47:06,618 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:47:06,733 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:47:06,782 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.smart_search_service - Searching pubmed - Query: (("peripheral neuropathy"[Title/Abstract] OR "neuropathic pain"[Title/Abstract] OR "diabetic neuropa... (max_results=10, offset=0, count_only=False)
+2025-10-11 21:47:06,782 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.auth_service - validate_token called
+2025-10-11 21:47:06,782 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.auth_service - Getting token from credentials
+2025-10-11 21:47:06,782 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:47:06,782 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.auth_service - Token expires in 26162 seconds
+2025-10-11 21:47:06,782 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:47:06,792 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.pubmed_service - PubMed search: query='(("peripheral neuropathy"[Title/Abstract] OR "neuropathic pain"[Title/Abstract] OR "diabetic neuropathy"[Title/Abstract] OR "chemotherapy-induced neuropathy"[Title/Abstract])) AND ("clinical trial"[Publication Type] OR "clinical trials as topic"[MeSH Terms] OR "randomized controlled trial"[Publication Type] OR "interventional study"[Title/Abstract])', max_results=10, offset=0
+2025-10-11 21:47:06,792 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.pubmed_service - Retrieving article IDs for query: (("peripheral neuropathy"[Title/Abstract] OR "neuropathic pain"[Title/Abstract] OR "diabetic neuropathy"[Title/Abstract] OR "chemotherapy-induced neuropathy"[Title/Abstract])) AND ("clinical trial"[Publication Type] OR "clinical trials as topic"[MeSH Terms] OR "randomized controlled trial"[Publication Type] OR "interventional study"[Title/Abstract])
+2025-10-11 21:47:07,032 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.pubmed_service - Found 3 articles, returning 3 IDs
+2025-10-11 21:47:07,032 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.pubmed_service - Found 3 total results, retrieved 3 IDs
+2025-10-11 21:47:07,032 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.pubmed_service - Fetching article data for 3 articles
+2025-10-11 21:47:07,032 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.pubmed_service - Processing articles 0 to 100
+2025-10-11 21:47:07,092 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:47:07,132 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.smart_search_service - Searching google_scholar - Query: "clinical trial" "peripheral neuropathy" pain treatment... (max_results=10, offset=0, count_only=False)
+2025-10-11 21:47:07,132 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.google_scholar_service - Starting Google Scholar search for 10 results (will require ~1 API calls at 20 results per call)
+2025-10-11 21:47:07,301 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.pubmed_service - Retrieved 3 articles
+2025-10-11 21:47:07,301 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - schemas.research_article_converters - Converting PubMed article 41074991
+2025-10-11 21:47:07,302 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - schemas.research_article_converters - Converting PubMed article 41058457
+2025-10-11 21:47:07,302 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - schemas.research_article_converters - Converting PubMed article 41057173
+2025-10-11 21:47:07,302 - INFO - [c316529b-dbd3-4282-b65d-05ebe895237f] - services.smart_search_service - PubMed: 3 articles returned, 3 total available
+2025-10-11 21:47:07,372 - WARNING - [c015c0fb-0181-4e29-b717-17c1a2098ab3] - middleware.logging_middleware - Slow response: 200 - 762.99ms
+2025-10-11 21:47:08,357 - INFO - [-] - services.google_scholar_service - Search metadata: {'id': '68eb24bcf607a9e34c57aca1', 'status': 'Success', 'json_endpoint': 'https://serpapi.com/searches/c3ef809360040d2d/68eb24bcf607a9e34c57aca1.json', 'created_at': '2025-10-12 03:47:08 UTC', 'processed_at': '2025-10-12 03:47:08 UTC', 'google_scholar_url': 'https://scholar.google.com/scholar?q=%22clinical+trial%22+%22peripheral+neuropathy%22+pain+treatment&hl=en&num=10', 'raw_html_file': 'https://serpapi.com/searches/c3ef809360040d2d/68eb24bcf607a9e34c57aca1.html', 'total_time_taken': 1.03}
+2025-10-11 21:47:08,357 - INFO - [-] - services.google_scholar_service - Google Scholar API returned 10 organic results (requested 10)
+2025-10-11 21:47:08,357 - WARNING - [-] - services.google_scholar_service - SerpAPI used different num parameter: requested 10, used 10
+2025-10-11 21:47:08,357 - INFO - [-] - services.google_scholar_service - Organic results state: Results for exact spelling
+2025-10-11 21:47:08,357 - INFO - [-] - services.google_scholar_service - Total results available: 65700
+2025-10-11 21:47:08,359 - INFO - [-] - services.google_scholar_service - Found 10 articles from Google Scholar, 10 with snippets
+2025-10-11 21:47:08,359 - INFO - [-] - services.google_scholar_service - API call 1: Requested 10 articles starting at index 0, got 10 articles back
+2025-10-11 21:47:08,359 - INFO - [-] - services.google_scholar_service - Total available results from API: 65700
+2025-10-11 21:47:08,359 - INFO - [-] - services.google_scholar_service - Google Scholar search completed: 10 articles retrieved in 1 API calls
+2025-10-11 21:47:08,359 - INFO - [-] - services.smart_search_service - Google Scholar: 10 articles returned, 65700 total available
+2025-10-11 21:47:08,434 - WARNING - [c316529b-dbd3-4282-b65d-05ebe895237f] - middleware.logging_middleware - Slow response: 200 - 1823.85ms
+2025-10-11 21:47:08,444 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - middleware.logging_middleware - Request: POST /api/research-streams/7/channels/Clinical Trials & Research/test-filter
+2025-10-11 21:47:08,447 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - services.auth_service - validate_token called
+2025-10-11 21:47:08,447 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - services.auth_service - Getting token from credentials
+2025-10-11 21:47:08,447 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:47:08,448 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - services.auth_service - Token expires in 26160 seconds
+2025-10-11 21:47:08,448 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:47:08,519 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:47:08,564 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - services.smart_search_service - Starting clean filtering of 13 articles with criteria: Articles should report on clinical trials or original research studies that investigate new or emerg...
+2025-10-11 21:47:08,564 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - services.smart_search_service - Executing 13 evaluations in parallel (max 500 concurrent)
+2025-10-11 21:47:13,362 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:47:13,962 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:47:13,988 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:47:14,030 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:47:14,033 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:47:14,253 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:47:14,322 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:47:14,442 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:47:14,562 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:47:14,670 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:47:14,688 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:47:14,724 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:47:15,812 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:47:15,813 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - services.smart_search_service - Clean filtering completed in 7.25 seconds
+2025-10-11 21:47:15,813 - INFO - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - services.smart_search_service - Clean filtering results: 11 accepted, 2 rejected
+2025-10-11 21:47:15,882 - WARNING - [b5a4a2e2-c221-4621-bae9-5eb0d7eb760a] - middleware.logging_middleware - Slow response: 200 - 7437.61ms
+2025-10-11 21:47:26,548 - INFO - [2fa4359a-5a8f-4563-914a-f9c80d0e9064] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-11 21:47:26,549 - INFO - [104786c7-8e35-47b2-8526-7a89ae93c1bf] - middleware.logging_middleware - Request: GET /api/research-streams/7
+2025-10-11 21:47:26,552 - INFO - [fc65e0f7-84e3-4a6c-ad16-96f933107a78] - middleware.logging_middleware - Request: GET /api/research-streams/7
+2025-10-11 21:47:26,553 - INFO - [2fa4359a-5a8f-4563-914a-f9c80d0e9064] - middleware.logging_middleware - Response: 200 - 4.53ms
+2025-10-11 21:47:26,556 - INFO - [-] - services.auth_service - validate_token called
+2025-10-11 21:47:26,556 - INFO - [-] - services.auth_service - Getting token from credentials
+2025-10-11 21:47:26,556 - INFO - [-] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:47:26,556 - INFO - [-] - services.auth_service - Token expires in 26142 seconds
+2025-10-11 21:47:26,557 - INFO - [-] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:47:26,645 - INFO - [-] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:47:26,685 - INFO - [-] - services.auth_service - validate_token called
+2025-10-11 21:47:26,685 - INFO - [-] - services.auth_service - Getting token from credentials
+2025-10-11 21:47:26,685 - INFO - [-] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:47:26,686 - INFO - [-] - services.auth_service - Token expires in 26142 seconds
+2025-10-11 21:47:26,686 - INFO - [-] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:47:26,761 - INFO - [-] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:47:26,804 - INFO - [d4d0c7b0-e5f3-47ea-a74e-3296cf3458d3] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-11 21:47:26,806 - INFO - [104786c7-8e35-47b2-8526-7a89ae93c1bf] - middleware.logging_middleware - Response: 200 - 257.14ms
+2025-10-11 21:47:26,808 - INFO - [d4d0c7b0-e5f3-47ea-a74e-3296cf3458d3] - middleware.logging_middleware - Response: 200 - 3.52ms
+2025-10-11 21:47:26,875 - INFO - [fc65e0f7-84e3-4a6c-ad16-96f933107a78] - middleware.logging_middleware - Response: 200 - 323.61ms
+2025-10-11 21:48:16,173 - INFO - [62f17ccd-dad4-4c47-ba9b-8f2f78add1a6] - middleware.logging_middleware - Request: GET /api/research-streams/7
+2025-10-11 21:48:16,174 - INFO - [c5e1be7c-67db-471b-bf40-ee5a11323d33] - middleware.logging_middleware - Request: GET /api/research-streams/7
+2025-10-11 21:48:16,175 - INFO - [57266bf1-f162-48e2-8c8b-50efd0a1fd97] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-11 21:48:16,177 - INFO - [57266bf1-f162-48e2-8c8b-50efd0a1fd97] - services.auth_service - validate_token called
+2025-10-11 21:48:16,177 - INFO - [57266bf1-f162-48e2-8c8b-50efd0a1fd97] - services.auth_service - Getting token from credentials
+2025-10-11 21:48:16,178 - INFO - [57266bf1-f162-48e2-8c8b-50efd0a1fd97] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:48:16,178 - INFO - [57266bf1-f162-48e2-8c8b-50efd0a1fd97] - services.auth_service - Token expires in 26092 seconds
+2025-10-11 21:48:16,179 - INFO - [57266bf1-f162-48e2-8c8b-50efd0a1fd97] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:48:16,261 - INFO - [57266bf1-f162-48e2-8c8b-50efd0a1fd97] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:48:16,306 - INFO - [57266bf1-f162-48e2-8c8b-50efd0a1fd97] - middleware.logging_middleware - Response: 200 - 131.37ms
+2025-10-11 21:48:16,307 - INFO - [-] - services.auth_service - validate_token called
+2025-10-11 21:48:16,307 - INFO - [-] - services.auth_service - Getting token from credentials
+2025-10-11 21:48:16,307 - INFO - [-] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:48:16,308 - INFO - [-] - services.auth_service - Token expires in 26092 seconds
+2025-10-11 21:48:16,308 - INFO - [-] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:48:16,384 - INFO - [-] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:48:16,427 - INFO - [62f17ccd-dad4-4c47-ba9b-8f2f78add1a6] - middleware.logging_middleware - Response: 200 - 253.63ms
+2025-10-11 21:48:16,428 - INFO - [031685d4-3caf-48ab-8350-9ec8be3c9b18] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-11 21:48:16,429 - INFO - [031685d4-3caf-48ab-8350-9ec8be3c9b18] - middleware.logging_middleware - Response: 200 - 0.99ms
+2025-10-11 21:48:16,500 - INFO - [c5e1be7c-67db-471b-bf40-ee5a11323d33] - middleware.logging_middleware - Response: 200 - 326.30ms
+2025-10-11 21:49:32,782 - INFO - [279bcf02-ba3b-4a89-bf62-be38d5eb08e6] - middleware.logging_middleware - Request: GET /api/research-streams/7
+2025-10-11 21:49:32,790 - INFO - [279bcf02-ba3b-4a89-bf62-be38d5eb08e6] - services.auth_service - validate_token called
+2025-10-11 21:49:32,791 - INFO - [279bcf02-ba3b-4a89-bf62-be38d5eb08e6] - services.auth_service - Getting token from credentials
+2025-10-11 21:49:32,791 - INFO - [279bcf02-ba3b-4a89-bf62-be38d5eb08e6] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:49:32,792 - INFO - [279bcf02-ba3b-4a89-bf62-be38d5eb08e6] - services.auth_service - Token expires in 26016 seconds
+2025-10-11 21:49:32,792 - INFO - [279bcf02-ba3b-4a89-bf62-be38d5eb08e6] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:49:32,869 - INFO - [279bcf02-ba3b-4a89-bf62-be38d5eb08e6] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:49:32,910 - INFO - [1e98e0c0-57a2-4c19-86cf-852607365d6c] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-11 21:49:32,911 - INFO - [1e98e0c0-57a2-4c19-86cf-852607365d6c] - middleware.logging_middleware - Response: 200 - 1.00ms
+2025-10-11 21:49:32,912 - INFO - [03504828-92bb-4ce3-96f0-a50104672015] - middleware.logging_middleware - Request: GET /api/research-streams/7
+2025-10-11 21:49:32,914 - INFO - [03504828-92bb-4ce3-96f0-a50104672015] - services.auth_service - validate_token called
+2025-10-11 21:49:32,914 - INFO - [03504828-92bb-4ce3-96f0-a50104672015] - services.auth_service - Getting token from credentials
+2025-10-11 21:49:32,915 - INFO - [03504828-92bb-4ce3-96f0-a50104672015] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:49:32,915 - INFO - [03504828-92bb-4ce3-96f0-a50104672015] - services.auth_service - Token expires in 26016 seconds
+2025-10-11 21:49:32,916 - INFO - [03504828-92bb-4ce3-96f0-a50104672015] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:49:32,993 - INFO - [03504828-92bb-4ce3-96f0-a50104672015] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:49:33,034 - INFO - [731daed1-5860-4247-890b-3f1853ada2e2] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-11 21:49:33,037 - INFO - [279bcf02-ba3b-4a89-bf62-be38d5eb08e6] - middleware.logging_middleware - Response: 200 - 254.15ms
+2025-10-11 21:49:33,039 - INFO - [731daed1-5860-4247-890b-3f1853ada2e2] - middleware.logging_middleware - Response: 200 - 4.83ms
+2025-10-11 21:49:33,116 - INFO - [03504828-92bb-4ce3-96f0-a50104672015] - middleware.logging_middleware - Response: 200 - 203.89ms
+2025-10-11 21:49:34,612 - INFO - [d6cf5821-65ee-410a-b95d-d0845ac1e480] - middleware.logging_middleware - Request: GET /api/research-streams/7
+2025-10-11 21:49:34,613 - INFO - [ff70f056-24ae-4ebf-8a04-0351f50d9102] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-11 21:49:34,617 - INFO - [75eb43a8-5209-44c1-a01b-4557ee798b92] - middleware.logging_middleware - Request: GET /api/research-streams/7
+2025-10-11 21:49:34,623 - INFO - [dc683ef6-5480-44f7-b953-8283830e3494] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-11 21:49:34,625 - INFO - [ff70f056-24ae-4ebf-8a04-0351f50d9102] - middleware.logging_middleware - Response: 200 - 12.09ms
+2025-10-11 21:49:34,627 - INFO - [-] - services.auth_service - validate_token called
+2025-10-11 21:49:34,627 - INFO - [-] - services.auth_service - Getting token from credentials
+2025-10-11 21:49:34,627 - INFO - [-] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:49:34,628 - INFO - [-] - services.auth_service - Token expires in 26014 seconds
+2025-10-11 21:49:34,629 - INFO - [-] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:49:34,703 - INFO - [-] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:49:34,748 - INFO - [-] - services.auth_service - validate_token called
+2025-10-11 21:49:34,748 - INFO - [-] - services.auth_service - Getting token from credentials
+2025-10-11 21:49:34,748 - INFO - [-] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:49:34,748 - INFO - [-] - services.auth_service - Token expires in 26014 seconds
+2025-10-11 21:49:34,749 - INFO - [-] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:49:34,827 - INFO - [-] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:49:34,868 - INFO - [dc683ef6-5480-44f7-b953-8283830e3494] - middleware.logging_middleware - Response: 200 - 245.36ms
+2025-10-11 21:49:34,938 - INFO - [75eb43a8-5209-44c1-a01b-4557ee798b92] - middleware.logging_middleware - Response: 200 - 321.60ms
+2025-10-11 21:49:34,949 - INFO - [d6cf5821-65ee-410a-b95d-d0845ac1e480] - middleware.logging_middleware - Response: 200 - 337.23ms
+2025-10-11 21:49:36,554 - INFO - [a2ed1aa3-c9a9-4a2a-a3f1-cd2a2c5c5bc8] - middleware.logging_middleware - Request: GET /api/research-streams/7
+2025-10-11 21:49:36,558 - INFO - [b5c65c32-8dd1-4269-9ee0-219851123e40] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-11 21:49:36,565 - INFO - [b5c65c32-8dd1-4269-9ee0-219851123e40] - middleware.logging_middleware - Response: 200 - 7.01ms
+2025-10-11 21:49:36,567 - INFO - [-] - services.auth_service - validate_token called
+2025-10-11 21:49:36,568 - INFO - [-] - services.auth_service - Getting token from credentials
+2025-10-11 21:49:36,568 - INFO - [-] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:49:36,569 - INFO - [-] - services.auth_service - Token expires in 26012 seconds
+2025-10-11 21:49:36,570 - INFO - [-] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:49:36,646 - INFO - [-] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:49:36,692 - INFO - [d0e0fc78-bf89-4f38-a0be-a90f7030c6b8] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-11 21:49:36,695 - INFO - [e5641336-f802-48ee-9df4-d614e959bdec] - middleware.logging_middleware - Request: GET /api/research-streams/7
+2025-10-11 21:49:36,697 - INFO - [d0e0fc78-bf89-4f38-a0be-a90f7030c6b8] - middleware.logging_middleware - Response: 200 - 5.00ms
+2025-10-11 21:49:36,699 - INFO - [-] - services.auth_service - validate_token called
+2025-10-11 21:49:36,699 - INFO - [-] - services.auth_service - Getting token from credentials
+2025-10-11 21:49:36,699 - INFO - [-] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:49:36,701 - INFO - [-] - services.auth_service - Token expires in 26012 seconds
+2025-10-11 21:49:36,701 - INFO - [-] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:49:36,775 - INFO - [-] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:49:36,819 - INFO - [a2ed1aa3-c9a9-4a2a-a3f1-cd2a2c5c5bc8] - middleware.logging_middleware - Response: 200 - 265.50ms
+2025-10-11 21:49:36,900 - INFO - [e5641336-f802-48ee-9df4-d614e959bdec] - middleware.logging_middleware - Response: 200 - 205.55ms
+2025-10-11 21:49:58,337 - INFO - [3227d90e-ce5f-4497-a048-0eaddfad7779] - middleware.logging_middleware - Request: POST /api/research-streams/7/channels/Clinical Trials & Research/test-query
+2025-10-11 21:49:58,337 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - middleware.logging_middleware - Request: POST /api/research-streams/7/channels/Clinical Trials & Research/test-query
+2025-10-11 21:49:58,339 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.auth_service - validate_token called
+2025-10-11 21:49:58,339 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.auth_service - Getting token from credentials
+2025-10-11 21:49:58,339 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:49:58,339 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.auth_service - Token expires in 25990 seconds
+2025-10-11 21:49:58,339 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:49:58,414 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:49:58,452 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.smart_search_service - Searching pubmed - Query: (("peripheral neuropathy"[Title/Abstract] OR "neuropathic pain"[Title/Abstract] OR "diabetic neuropa... (max_results=10, offset=0, count_only=False)
+2025-10-11 21:49:58,453 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.auth_service - validate_token called
+2025-10-11 21:49:58,453 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.pubmed_service - PubMed search: query='(("peripheral neuropathy"[Title/Abstract] OR "neuropathic pain"[Title/Abstract] OR "diabetic neuropathy"[Title/Abstract] OR "chemotherapy-induced neuropathy"[Title/Abstract])) AND ("clinical trial"[Publication Type] OR "clinical trials as topic"[MeSH Terms] OR "randomized controlled trial"[Publication Type] OR "interventional study"[Title/Abstract])', max_results=10, offset=0
+2025-10-11 21:49:58,453 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.auth_service - Getting token from credentials
+2025-10-11 21:49:58,453 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.pubmed_service - Retrieving article IDs for query: (("peripheral neuropathy"[Title/Abstract] OR "neuropathic pain"[Title/Abstract] OR "diabetic neuropathy"[Title/Abstract] OR "chemotherapy-induced neuropathy"[Title/Abstract])) AND ("clinical trial"[Publication Type] OR "clinical trials as topic"[MeSH Terms] OR "randomized controlled trial"[Publication Type] OR "interventional study"[Title/Abstract])
+2025-10-11 21:49:58,453 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:49:58,454 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.auth_service - Token expires in 25990 seconds
+2025-10-11 21:49:58,455 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:49:58,531 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:49:58,606 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.smart_search_service - Searching google_scholar - Query: "clinical trial" "peripheral neuropathy" pain treatment... (max_results=10, offset=0, count_only=False)
+2025-10-11 21:49:58,606 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.google_scholar_service - Starting Google Scholar search for 10 results (will require ~1 API calls at 20 results per call)
+2025-10-11 21:49:58,654 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.google_scholar_service - Search metadata: {'id': '68eb24bcf607a9e34c57aca1', 'status': 'Success', 'json_endpoint': 'https://serpapi.com/searches/c3ef809360040d2d/68eb24bcf607a9e34c57aca1.json', 'created_at': '2025-10-12 03:47:08 UTC', 'processed_at': '2025-10-12 03:47:08 UTC', 'google_scholar_url': 'https://scholar.google.com/scholar?q=%22clinical+trial%22+%22peripheral+neuropathy%22+pain+treatment&hl=en&num=10', 'raw_html_file': 'https://serpapi.com/searches/c3ef809360040d2d/68eb24bcf607a9e34c57aca1.html', 'total_time_taken': 1.03}
+2025-10-11 21:49:58,655 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.google_scholar_service - Google Scholar API returned 10 organic results (requested 10)
+2025-10-11 21:49:58,656 - WARNING - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.google_scholar_service - SerpAPI used different num parameter: requested 10, used 10
+2025-10-11 21:49:58,656 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.google_scholar_service - Organic results state: Results for exact spelling
+2025-10-11 21:49:58,658 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.google_scholar_service - Total results available: 65700
+2025-10-11 21:49:58,660 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.google_scholar_service - Found 10 articles from Google Scholar, 10 with snippets
+2025-10-11 21:49:58,661 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.google_scholar_service - API call 1: Requested 10 articles starting at index 0, got 10 articles back
+2025-10-11 21:49:58,662 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.google_scholar_service - Total available results from API: 65700
+2025-10-11 21:49:58,662 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.google_scholar_service - Google Scholar search completed: 10 articles retrieved in 1 API calls
+2025-10-11 21:49:58,663 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.smart_search_service - Google Scholar: 10 articles returned, 65700 total available
+2025-10-11 21:49:58,709 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.pubmed_service - Found 3 articles, returning 3 IDs
+2025-10-11 21:49:58,709 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.pubmed_service - Found 3 total results, retrieved 3 IDs
+2025-10-11 21:49:58,710 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.pubmed_service - Fetching article data for 3 articles
+2025-10-11 21:49:58,710 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - services.pubmed_service - Processing articles 0 to 100
+2025-10-11 21:49:58,745 - INFO - [ab8d3603-6cd8-4a14-a232-35b4e7fdeca6] - middleware.logging_middleware - Response: 200 - 407.32ms
+2025-10-11 21:49:58,959 - INFO - [-] - services.pubmed_service - Retrieved 3 articles
+2025-10-11 21:49:58,959 - INFO - [-] - schemas.research_article_converters - Converting PubMed article 41074991
+2025-10-11 21:49:58,959 - INFO - [-] - schemas.research_article_converters - Converting PubMed article 41058457
+2025-10-11 21:49:58,960 - INFO - [-] - schemas.research_article_converters - Converting PubMed article 41057173
+2025-10-11 21:49:58,960 - INFO - [-] - services.smart_search_service - PubMed: 3 articles returned, 3 total available
+2025-10-11 21:49:59,033 - WARNING - [3227d90e-ce5f-4497-a048-0eaddfad7779] - middleware.logging_middleware - Slow response: 200 - 695.80ms
+2025-10-11 21:49:59,045 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - middleware.logging_middleware - Request: POST /api/research-streams/7/channels/Clinical Trials & Research/test-filter
+2025-10-11 21:49:59,047 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - services.auth_service - validate_token called
+2025-10-11 21:49:59,047 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - services.auth_service - Getting token from credentials
+2025-10-11 21:49:59,047 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:49:59,048 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - services.auth_service - Token expires in 25989 seconds
+2025-10-11 21:49:59,048 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:49:59,123 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:49:59,165 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - services.smart_search_service - Starting clean filtering of 13 articles with criteria: Articles should report on clinical trials or original research studies that investigate new or emerg...
+2025-10-11 21:49:59,165 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - services.smart_search_service - Executing 13 evaluations in parallel (max 500 concurrent)
+2025-10-11 21:50:00,466 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:50:00,626 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:50:00,697 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:50:00,783 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:50:00,800 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:50:00,916 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:50:01,009 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:50:01,050 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:50:01,066 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:50:01,249 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:50:01,303 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:50:01,354 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:50:01,430 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 21:50:01,437 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - services.smart_search_service - Clean filtering completed in 2.27 seconds
+2025-10-11 21:50:01,439 - INFO - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - services.smart_search_service - Clean filtering results: 11 accepted, 2 rejected
+2025-10-11 21:50:01,518 - WARNING - [5d31d9d6-a86b-4455-a9ad-9e8d35db74f7] - middleware.logging_middleware - Slow response: 200 - 2473.62ms
+2025-10-11 21:50:29,073 - INFO - [a3bffecf-c7af-46c1-b59b-0609509c63a0] - middleware.logging_middleware - Request: POST /api/research-streams/7/generate-executive-summary
+2025-10-11 21:50:29,076 - INFO - [a3bffecf-c7af-46c1-b59b-0609509c63a0] - services.auth_service - validate_token called
+2025-10-11 21:50:29,076 - INFO - [a3bffecf-c7af-46c1-b59b-0609509c63a0] - services.auth_service - Getting token from credentials
+2025-10-11 21:50:29,076 - INFO - [a3bffecf-c7af-46c1-b59b-0609509c63a0] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:50:29,077 - INFO - [a3bffecf-c7af-46c1-b59b-0609509c63a0] - services.auth_service - Token expires in 25959 seconds
+2025-10-11 21:50:29,077 - INFO - [a3bffecf-c7af-46c1-b59b-0609509c63a0] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:50:29,151 - INFO - [a3bffecf-c7af-46c1-b59b-0609509c63a0] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:50:29,228 - ERROR - [a3bffecf-c7af-46c1-b59b-0609509c63a0] - middleware.logging_middleware - Response: 500 - 155.37ms
+2025-10-11 21:52:02,906 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251011.log
+2025-10-11 21:52:02,907 - INFO - [-] - config.logging_config - Including routers...
+2025-10-11 21:52:02,974 - INFO - [-] - config.logging_config - Routers included
+2025-10-11 21:52:02,974 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-11 21:52:02,975 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-11 21:52:02,975 - INFO - [-] - database - Initializing database...
+2025-10-11 21:52:03,919 - INFO - [-] - database - Database initialized successfully
+2025-10-11 21:52:03,919 - INFO - [-] - config.logging_config - Database initialized
+2025-10-11 21:52:03,923 - INFO - [b84d08ba-e729-4b7e-aa01-0fdcce982515] - middleware.logging_middleware - Request: POST /api/research-streams/7/generate-executive-summary
+2025-10-11 21:52:03,925 - INFO - [b84d08ba-e729-4b7e-aa01-0fdcce982515] - services.auth_service - validate_token called
+2025-10-11 21:52:03,925 - INFO - [b84d08ba-e729-4b7e-aa01-0fdcce982515] - services.auth_service - Getting token from credentials
+2025-10-11 21:52:03,925 - INFO - [b84d08ba-e729-4b7e-aa01-0fdcce982515] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:52:03,927 - INFO - [b84d08ba-e729-4b7e-aa01-0fdcce982515] - services.auth_service - Token expires in 25865 seconds
+2025-10-11 21:52:03,927 - INFO - [b84d08ba-e729-4b7e-aa01-0fdcce982515] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:52:04,029 - INFO - [b84d08ba-e729-4b7e-aa01-0fdcce982515] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:52:04,144 - ERROR - [b84d08ba-e729-4b7e-aa01-0fdcce982515] - middleware.logging_middleware - Response: 500 - 221.89ms
+2025-10-11 21:56:01,971 - INFO - [c5ced08e-57dd-4103-bdba-d1dc31fbff31] - middleware.logging_middleware - Request: POST /api/research-streams/7/generate-executive-summary
+2025-10-11 21:56:01,974 - INFO - [c5ced08e-57dd-4103-bdba-d1dc31fbff31] - services.auth_service - validate_token called
+2025-10-11 21:56:01,975 - INFO - [c5ced08e-57dd-4103-bdba-d1dc31fbff31] - services.auth_service - Getting token from credentials
+2025-10-11 21:56:01,975 - INFO - [c5ced08e-57dd-4103-bdba-d1dc31fbff31] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:56:01,976 - INFO - [c5ced08e-57dd-4103-bdba-d1dc31fbff31] - services.auth_service - Token expires in 25627 seconds
+2025-10-11 21:56:01,976 - INFO - [c5ced08e-57dd-4103-bdba-d1dc31fbff31] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:56:02,053 - INFO - [c5ced08e-57dd-4103-bdba-d1dc31fbff31] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:56:02,163 - ERROR - [c5ced08e-57dd-4103-bdba-d1dc31fbff31] - middleware.logging_middleware - Response: 500 - 192.25ms
+2025-10-11 21:56:05,536 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251011.log
+2025-10-11 21:56:05,536 - INFO - [-] - config.logging_config - Including routers...
+2025-10-11 21:56:05,625 - INFO - [-] - config.logging_config - Routers included
+2025-10-11 21:56:05,625 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-11 21:56:05,626 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-11 21:56:05,626 - INFO - [-] - database - Initializing database...
+2025-10-11 21:56:06,538 - INFO - [-] - database - Database initialized successfully
+2025-10-11 21:56:06,539 - INFO - [-] - config.logging_config - Database initialized
+2025-10-11 21:56:09,453 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251011.log
+2025-10-11 21:56:09,454 - INFO - [-] - config.logging_config - Including routers...
+2025-10-11 21:56:09,514 - INFO - [-] - config.logging_config - Routers included
+2025-10-11 21:56:09,515 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-11 21:56:09,516 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-11 21:56:09,517 - INFO - [-] - database - Initializing database...
+2025-10-11 21:56:10,401 - INFO - [-] - database - Database initialized successfully
+2025-10-11 21:56:10,401 - INFO - [-] - config.logging_config - Database initialized
+2025-10-11 21:56:13,618 - INFO - [e088bfa4-90dc-44de-b650-2ad00d78bf1b] - middleware.logging_middleware - Request: POST /api/research-streams/7/generate-executive-summary
+2025-10-11 21:56:13,621 - INFO - [e088bfa4-90dc-44de-b650-2ad00d78bf1b] - services.auth_service - validate_token called
+2025-10-11 21:56:13,622 - INFO - [e088bfa4-90dc-44de-b650-2ad00d78bf1b] - services.auth_service - Getting token from credentials
+2025-10-11 21:56:13,622 - INFO - [e088bfa4-90dc-44de-b650-2ad00d78bf1b] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 21:56:13,628 - INFO - [e088bfa4-90dc-44de-b650-2ad00d78bf1b] - services.auth_service - Token expires in 25615 seconds
+2025-10-11 21:56:13,628 - INFO - [e088bfa4-90dc-44de-b650-2ad00d78bf1b] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 21:56:13,740 - INFO - [e088bfa4-90dc-44de-b650-2ad00d78bf1b] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 21:56:13,854 - ERROR - [e088bfa4-90dc-44de-b650-2ad00d78bf1b] - middleware.logging_middleware - Response: 500 - 236.21ms
+2025-10-11 21:58:42,333 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251011.log
+2025-10-11 21:58:42,334 - INFO - [-] - config.logging_config - Including routers...
+2025-10-11 21:58:42,397 - INFO - [-] - config.logging_config - Routers included
+2025-10-11 21:58:42,397 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-11 21:58:42,398 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-11 21:58:42,398 - INFO - [-] - database - Initializing database...
+2025-10-11 21:58:43,373 - INFO - [-] - database - Database initialized successfully
+2025-10-11 21:58:43,373 - INFO - [-] - config.logging_config - Database initialized
+2025-10-11 22:41:51,954 - INFO - [ea87b896-dcd8-4a09-afb1-455b3936a04b] - middleware.logging_middleware - Request: POST /api/research-streams/7/generate-executive-summary
+2025-10-11 22:41:51,958 - INFO - [ea87b896-dcd8-4a09-afb1-455b3936a04b] - services.auth_service - validate_token called
+2025-10-11 22:41:51,958 - INFO - [ea87b896-dcd8-4a09-afb1-455b3936a04b] - services.auth_service - Getting token from credentials
+2025-10-11 22:41:51,959 - INFO - [ea87b896-dcd8-4a09-afb1-455b3936a04b] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 22:41:51,962 - INFO - [ea87b896-dcd8-4a09-afb1-455b3936a04b] - services.auth_service - Token expires in 22877 seconds
+2025-10-11 22:41:51,962 - INFO - [ea87b896-dcd8-4a09-afb1-455b3936a04b] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 22:41:52,322 - INFO - [ea87b896-dcd8-4a09-afb1-455b3936a04b] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 22:41:52,652 - ERROR - [ea87b896-dcd8-4a09-afb1-455b3936a04b] - middleware.logging_middleware - Response: 500 - 698.17ms
+2025-10-11 22:43:41,586 - INFO - [10379604-c556-480b-8529-83e7c5b85b11] - middleware.logging_middleware - Request: POST /api/research-streams/7/generate-executive-summary
+2025-10-11 22:43:41,589 - INFO - [10379604-c556-480b-8529-83e7c5b85b11] - services.auth_service - validate_token called
+2025-10-11 22:43:41,590 - INFO - [10379604-c556-480b-8529-83e7c5b85b11] - services.auth_service - Getting token from credentials
+2025-10-11 22:43:41,590 - INFO - [10379604-c556-480b-8529-83e7c5b85b11] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 22:43:41,592 - INFO - [10379604-c556-480b-8529-83e7c5b85b11] - services.auth_service - Token expires in 22767 seconds
+2025-10-11 22:43:41,592 - INFO - [10379604-c556-480b-8529-83e7c5b85b11] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 22:43:41,671 - INFO - [10379604-c556-480b-8529-83e7c5b85b11] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 22:43:41,783 - ERROR - [10379604-c556-480b-8529-83e7c5b85b11] - middleware.logging_middleware - Response: 500 - 197.23ms
+2025-10-11 22:43:44,532 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251011.log
+2025-10-11 22:43:44,533 - INFO - [-] - config.logging_config - Including routers...
+2025-10-11 22:43:44,612 - INFO - [-] - config.logging_config - Routers included
+2025-10-11 22:43:44,612 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-11 22:43:44,613 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-11 22:43:44,613 - INFO - [-] - database - Initializing database...
+2025-10-11 22:43:45,562 - INFO - [-] - database - Database initialized successfully
+2025-10-11 22:43:45,562 - INFO - [-] - config.logging_config - Database initialized
+2025-10-11 22:43:49,191 - INFO - [aea3d958-ea75-49b2-afe1-3ca8ea58291b] - middleware.logging_middleware - Request: POST /api/research-streams/7/generate-executive-summary
+2025-10-11 22:43:49,194 - INFO - [aea3d958-ea75-49b2-afe1-3ca8ea58291b] - services.auth_service - validate_token called
+2025-10-11 22:43:49,194 - INFO - [aea3d958-ea75-49b2-afe1-3ca8ea58291b] - services.auth_service - Getting token from credentials
+2025-10-11 22:43:49,194 - INFO - [aea3d958-ea75-49b2-afe1-3ca8ea58291b] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 22:43:49,199 - INFO - [aea3d958-ea75-49b2-afe1-3ca8ea58291b] - services.auth_service - Token expires in 22759 seconds
+2025-10-11 22:43:49,199 - INFO - [aea3d958-ea75-49b2-afe1-3ca8ea58291b] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 22:43:49,342 - INFO - [aea3d958-ea75-49b2-afe1-3ca8ea58291b] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 22:43:49,671 - ERROR - [aea3d958-ea75-49b2-afe1-3ca8ea58291b] - middleware.logging_middleware - Response: 500 - 480.01ms
+2025-10-11 22:45:42,296 - INFO - [613e7970-74a4-4bc8-8dc1-b07abffeb7dc] - middleware.logging_middleware - Request: POST /api/research-streams/7/generate-executive-summary
+2025-10-11 22:45:42,297 - INFO - [613e7970-74a4-4bc8-8dc1-b07abffeb7dc] - services.auth_service - validate_token called
+2025-10-11 22:45:42,298 - INFO - [613e7970-74a4-4bc8-8dc1-b07abffeb7dc] - services.auth_service - Getting token from credentials
+2025-10-11 22:45:42,298 - INFO - [613e7970-74a4-4bc8-8dc1-b07abffeb7dc] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 22:45:42,298 - INFO - [613e7970-74a4-4bc8-8dc1-b07abffeb7dc] - services.auth_service - Token expires in 22646 seconds
+2025-10-11 22:45:42,298 - INFO - [613e7970-74a4-4bc8-8dc1-b07abffeb7dc] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 22:45:42,371 - INFO - [613e7970-74a4-4bc8-8dc1-b07abffeb7dc] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 22:45:42,482 - ERROR - [613e7970-74a4-4bc8-8dc1-b07abffeb7dc] - middleware.logging_middleware - Response: 500 - 186.72ms
+2025-10-11 22:45:45,158 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251011.log
+2025-10-11 22:45:45,158 - INFO - [-] - config.logging_config - Including routers...
+2025-10-11 22:45:45,223 - INFO - [-] - config.logging_config - Routers included
+2025-10-11 22:45:45,223 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-11 22:45:45,224 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-11 22:45:45,225 - INFO - [-] - database - Initializing database...
+2025-10-11 22:45:46,212 - INFO - [-] - database - Database initialized successfully
+2025-10-11 22:45:46,212 - INFO - [-] - config.logging_config - Database initialized
+2025-10-11 22:45:48,810 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251011.log
+2025-10-11 22:45:48,811 - INFO - [-] - config.logging_config - Including routers...
+2025-10-11 22:45:48,886 - INFO - [-] - config.logging_config - Routers included
+2025-10-11 22:45:48,886 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-11 22:45:48,887 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-11 22:45:48,887 - INFO - [-] - database - Initializing database...
+2025-10-11 22:45:49,824 - INFO - [-] - database - Database initialized successfully
+2025-10-11 22:45:49,825 - INFO - [-] - config.logging_config - Database initialized
+2025-10-11 22:45:50,184 - INFO - [9840f56f-bdfd-4f0a-8f56-33dd13e84e26] - middleware.logging_middleware - Request: POST /api/research-streams/7/generate-executive-summary
+2025-10-11 22:45:50,186 - INFO - [9840f56f-bdfd-4f0a-8f56-33dd13e84e26] - services.auth_service - validate_token called
+2025-10-11 22:45:50,187 - INFO - [9840f56f-bdfd-4f0a-8f56-33dd13e84e26] - services.auth_service - Getting token from credentials
+2025-10-11 22:45:50,187 - INFO - [9840f56f-bdfd-4f0a-8f56-33dd13e84e26] - services.auth_service - Token: eyJhbGciOi...
+2025-10-11 22:45:50,190 - INFO - [9840f56f-bdfd-4f0a-8f56-33dd13e84e26] - services.auth_service - Token expires in 22638 seconds
+2025-10-11 22:45:50,190 - INFO - [9840f56f-bdfd-4f0a-8f56-33dd13e84e26] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-11 22:45:50,299 - INFO - [9840f56f-bdfd-4f0a-8f56-33dd13e84e26] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-11 22:46:12,748 - INFO - [9840f56f-bdfd-4f0a-8f56-33dd13e84e26] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-11 22:46:12,831 - WARNING - [9840f56f-bdfd-4f0a-8f56-33dd13e84e26] - middleware.logging_middleware - Slow response: 200 - 22647.37ms

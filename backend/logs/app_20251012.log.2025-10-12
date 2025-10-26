@@ -1,0 +1,325 @@
+2025-10-12 09:27:02,499 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251012.log
+2025-10-12 09:27:02,500 - INFO - [-] - config.logging_config - Including routers...
+2025-10-12 09:27:02,566 - INFO - [-] - config.logging_config - Routers included
+2025-10-12 09:27:02,566 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-12 09:27:02,568 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-12 09:27:02,568 - INFO - [-] - database - Initializing database...
+2025-10-12 09:27:03,594 - INFO - [-] - database - Database initialized successfully
+2025-10-12 09:27:03,594 - INFO - [-] - config.logging_config - Database initialized
+2025-10-12 09:27:06,733 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251012.log
+2025-10-12 09:27:06,733 - INFO - [-] - config.logging_config - Including routers...
+2025-10-12 09:27:06,790 - INFO - [-] - config.logging_config - Routers included
+2025-10-12 09:27:06,791 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-12 09:27:06,791 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-12 09:27:06,792 - INFO - [-] - database - Initializing database...
+2025-10-12 09:27:07,668 - INFO - [-] - database - Database initialized successfully
+2025-10-12 09:27:07,668 - INFO - [-] - config.logging_config - Database initialized
+2025-10-12 09:27:07,674 - INFO - [b66445ac-78c0-48c4-aeb5-9c5c65fec57e] - middleware.logging_middleware - Request: POST /api/auth/login
+2025-10-12 09:27:07,676 - INFO - [b66445ac-78c0-48c4-aeb5-9c5c65fec57e] - services.auth_service - Login attempt for email: cliff.rosen@gmail.com
+2025-10-12 09:27:08,060 - INFO - [b66445ac-78c0-48c4-aeb5-9c5c65fec57e] - services.auth_service - Creating access token with data: {'sub': 'cliff.rosen@gmail.com', 'user_id': 22, 'username': 'cliff.rosen', 'role': 'user'}
+2025-10-12 09:27:08,063 - INFO - [b66445ac-78c0-48c4-aeb5-9c5c65fec57e] - services.auth_service - Access token created successfully
+2025-10-12 09:27:08,063 - INFO - [b66445ac-78c0-48c4-aeb5-9c5c65fec57e] - services.auth_service - Successfully logged in user: cliff.rosen@gmail.com
+2025-10-12 09:27:08,136 - INFO - [b66445ac-78c0-48c4-aeb5-9c5c65fec57e] - middleware.logging_middleware - Response: 200 - 461.00ms
+2025-10-12 09:27:08,276 - INFO - [5fbb90f3-25dd-4f5d-83c0-0c84ce91a5d3] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-12 09:27:08,277 - INFO - [4e9ce441-25a1-4f89-b6f0-979182253721] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-12 09:27:08,279 - INFO - [4e9ce441-25a1-4f89-b6f0-979182253721] - services.auth_service - validate_token called
+2025-10-12 09:27:08,279 - INFO - [4e9ce441-25a1-4f89-b6f0-979182253721] - services.auth_service - Getting token from credentials
+2025-10-12 09:27:08,280 - INFO - [4e9ce441-25a1-4f89-b6f0-979182253721] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:27:08,280 - INFO - [4e9ce441-25a1-4f89-b6f0-979182253721] - services.auth_service - Token expires in 36000 seconds
+2025-10-12 09:27:08,281 - INFO - [4e9ce441-25a1-4f89-b6f0-979182253721] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:27:08,353 - INFO - [4e9ce441-25a1-4f89-b6f0-979182253721] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:27:08,416 - INFO - [4e9ce441-25a1-4f89-b6f0-979182253721] - services.auth_service - validate_token called
+2025-10-12 09:27:08,416 - INFO - [4e9ce441-25a1-4f89-b6f0-979182253721] - services.auth_service - Getting token from credentials
+2025-10-12 09:27:08,416 - INFO - [4e9ce441-25a1-4f89-b6f0-979182253721] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:27:08,416 - INFO - [4e9ce441-25a1-4f89-b6f0-979182253721] - services.auth_service - Token expires in 36000 seconds
+2025-10-12 09:27:08,416 - INFO - [4e9ce441-25a1-4f89-b6f0-979182253721] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:27:08,721 - INFO - [4e9ce441-25a1-4f89-b6f0-979182253721] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:27:08,829 - WARNING - [5fbb90f3-25dd-4f5d-83c0-0c84ce91a5d3] - middleware.logging_middleware - Slow response: 200 - 552.66ms
+2025-10-12 09:27:08,834 - WARNING - [4e9ce441-25a1-4f89-b6f0-979182253721] - middleware.logging_middleware - Slow response: 200 - 556.23ms
+2025-10-12 09:27:12,281 - INFO - [ddd7beeb-dcc0-4f39-9f44-e2c83776d7b6] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-12 09:27:12,283 - INFO - [ddd7beeb-dcc0-4f39-9f44-e2c83776d7b6] - services.auth_service - validate_token called
+2025-10-12 09:27:12,283 - INFO - [ddd7beeb-dcc0-4f39-9f44-e2c83776d7b6] - services.auth_service - Getting token from credentials
+2025-10-12 09:27:12,283 - INFO - [ddd7beeb-dcc0-4f39-9f44-e2c83776d7b6] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:27:12,283 - INFO - [ddd7beeb-dcc0-4f39-9f44-e2c83776d7b6] - services.auth_service - Token expires in 35996 seconds
+2025-10-12 09:27:12,283 - INFO - [ddd7beeb-dcc0-4f39-9f44-e2c83776d7b6] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:27:12,362 - INFO - [ddd7beeb-dcc0-4f39-9f44-e2c83776d7b6] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:27:12,402 - INFO - [377baeb6-d4e7-49a5-8fa2-dfef5ee59bff] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-12 09:27:12,404 - INFO - [377baeb6-d4e7-49a5-8fa2-dfef5ee59bff] - services.auth_service - validate_token called
+2025-10-12 09:27:12,404 - INFO - [377baeb6-d4e7-49a5-8fa2-dfef5ee59bff] - services.auth_service - Getting token from credentials
+2025-10-12 09:27:12,404 - INFO - [377baeb6-d4e7-49a5-8fa2-dfef5ee59bff] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:27:12,404 - INFO - [377baeb6-d4e7-49a5-8fa2-dfef5ee59bff] - services.auth_service - Token expires in 35996 seconds
+2025-10-12 09:27:12,404 - INFO - [377baeb6-d4e7-49a5-8fa2-dfef5ee59bff] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:27:12,478 - INFO - [377baeb6-d4e7-49a5-8fa2-dfef5ee59bff] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:27:12,523 - INFO - [ddd7beeb-dcc0-4f39-9f44-e2c83776d7b6] - middleware.logging_middleware - Response: 200 - 242.17ms
+2025-10-12 09:27:12,602 - INFO - [377baeb6-d4e7-49a5-8fa2-dfef5ee59bff] - middleware.logging_middleware - Response: 200 - 199.29ms
+2025-10-12 09:27:25,399 - INFO - [2b1b9fb1-b815-48db-be92-c597db2cd0bb] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-12 09:27:25,402 - INFO - [01039fb7-2ad8-44b5-b8c7-3ef1fcc85a5f] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-12 09:27:25,404 - INFO - [9a010e36-fc20-468b-be91-54ba066a9acc] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-12 09:27:25,407 - INFO - [2f16dab4-a22b-4370-be4e-1cc1da3677b6] - middleware.logging_middleware - Request: GET /api/research-streams
+2025-10-12 09:27:25,409 - INFO - [2f16dab4-a22b-4370-be4e-1cc1da3677b6] - services.auth_service - validate_token called
+2025-10-12 09:27:25,409 - INFO - [2f16dab4-a22b-4370-be4e-1cc1da3677b6] - services.auth_service - Getting token from credentials
+2025-10-12 09:27:25,410 - INFO - [2f16dab4-a22b-4370-be4e-1cc1da3677b6] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:27:25,410 - INFO - [2f16dab4-a22b-4370-be4e-1cc1da3677b6] - services.auth_service - Token expires in 35983 seconds
+2025-10-12 09:27:25,410 - INFO - [2f16dab4-a22b-4370-be4e-1cc1da3677b6] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:27:25,484 - INFO - [2f16dab4-a22b-4370-be4e-1cc1da3677b6] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:27:25,524 - INFO - [01039fb7-2ad8-44b5-b8c7-3ef1fcc85a5f] - middleware.logging_middleware - Response: 200 - 120.61ms
+2025-10-12 09:27:25,524 - INFO - [9a010e36-fc20-468b-be91-54ba066a9acc] - middleware.logging_middleware - Response: 200 - 119.63ms
+2025-10-12 09:27:25,525 - INFO - [-] - services.auth_service - validate_token called
+2025-10-12 09:27:25,525 - INFO - [-] - services.auth_service - Getting token from credentials
+2025-10-12 09:27:25,525 - INFO - [-] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:27:25,526 - INFO - [-] - services.auth_service - Token expires in 35983 seconds
+2025-10-12 09:27:25,526 - INFO - [-] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:27:25,602 - INFO - [-] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:27:25,643 - INFO - [2b1b9fb1-b815-48db-be92-c597db2cd0bb] - middleware.logging_middleware - Response: 200 - 243.92ms
+2025-10-12 09:27:25,720 - INFO - [2f16dab4-a22b-4370-be4e-1cc1da3677b6] - middleware.logging_middleware - Response: 200 - 313.33ms
+2025-10-12 09:27:32,766 - INFO - [c280e35d-a59f-45bd-8761-bde04b3c0ee0] - middleware.logging_middleware - Request: GET /api/research-streams/4
+2025-10-12 09:27:32,768 - INFO - [c280e35d-a59f-45bd-8761-bde04b3c0ee0] - services.auth_service - validate_token called
+2025-10-12 09:27:32,768 - INFO - [c280e35d-a59f-45bd-8761-bde04b3c0ee0] - services.auth_service - Getting token from credentials
+2025-10-12 09:27:32,768 - INFO - [c280e35d-a59f-45bd-8761-bde04b3c0ee0] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:27:32,768 - INFO - [c280e35d-a59f-45bd-8761-bde04b3c0ee0] - services.auth_service - Token expires in 35976 seconds
+2025-10-12 09:27:32,769 - INFO - [c280e35d-a59f-45bd-8761-bde04b3c0ee0] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:27:32,843 - INFO - [c280e35d-a59f-45bd-8761-bde04b3c0ee0] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:27:32,895 - INFO - [54d36e92-c0b2-4ebe-adec-8f40a971c68c] - middleware.logging_middleware - Request: GET /api/research-streams/4
+2025-10-12 09:27:32,896 - INFO - [6c96450d-e318-438c-9b05-6ed22a84666f] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-12 09:27:32,897 - INFO - [59fc7234-9620-4946-bb14-344012860496] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-12 09:27:32,900 - INFO - [59fc7234-9620-4946-bb14-344012860496] - services.auth_service - validate_token called
+2025-10-12 09:27:32,901 - INFO - [59fc7234-9620-4946-bb14-344012860496] - services.auth_service - Getting token from credentials
+2025-10-12 09:27:32,901 - INFO - [59fc7234-9620-4946-bb14-344012860496] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:27:32,903 - INFO - [59fc7234-9620-4946-bb14-344012860496] - services.auth_service - Token expires in 35976 seconds
+2025-10-12 09:27:32,903 - INFO - [59fc7234-9620-4946-bb14-344012860496] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:27:32,981 - INFO - [59fc7234-9620-4946-bb14-344012860496] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:27:33,029 - INFO - [6c96450d-e318-438c-9b05-6ed22a84666f] - middleware.logging_middleware - Response: 200 - 132.41ms
+2025-10-12 09:27:33,030 - INFO - [59fc7234-9620-4946-bb14-344012860496] - middleware.logging_middleware - Response: 200 - 132.29ms
+2025-10-12 09:27:33,031 - INFO - [c280e35d-a59f-45bd-8761-bde04b3c0ee0] - middleware.logging_middleware - Response: 200 - 264.57ms
+2025-10-12 09:27:33,108 - INFO - [54d36e92-c0b2-4ebe-adec-8f40a971c68c] - middleware.logging_middleware - Response: 200 - 214.12ms
+2025-10-12 09:27:37,506 - INFO - [3614d9cc-3d51-40c8-83e9-34c521672ed0] - middleware.logging_middleware - Request: PUT /api/research-streams/4
+2025-10-12 09:27:37,507 - INFO - [3614d9cc-3d51-40c8-83e9-34c521672ed0] - services.auth_service - validate_token called
+2025-10-12 09:27:37,507 - INFO - [3614d9cc-3d51-40c8-83e9-34c521672ed0] - services.auth_service - Getting token from credentials
+2025-10-12 09:27:37,507 - INFO - [3614d9cc-3d51-40c8-83e9-34c521672ed0] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:27:37,508 - INFO - [3614d9cc-3d51-40c8-83e9-34c521672ed0] - services.auth_service - Token expires in 35971 seconds
+2025-10-12 09:27:37,508 - INFO - [3614d9cc-3d51-40c8-83e9-34c521672ed0] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:27:37,582 - INFO - [3614d9cc-3d51-40c8-83e9-34c521672ed0] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:27:37,932 - INFO - [3614d9cc-3d51-40c8-83e9-34c521672ed0] - middleware.logging_middleware - Response: 200 - 425.73ms
+2025-10-12 09:27:37,939 - INFO - [64f91d9d-1473-444d-8de3-419beec83307] - middleware.logging_middleware - Request: GET /api/research-streams/4
+2025-10-12 09:27:37,941 - INFO - [64f91d9d-1473-444d-8de3-419beec83307] - services.auth_service - validate_token called
+2025-10-12 09:27:37,941 - INFO - [64f91d9d-1473-444d-8de3-419beec83307] - services.auth_service - Getting token from credentials
+2025-10-12 09:27:37,941 - INFO - [64f91d9d-1473-444d-8de3-419beec83307] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:27:37,942 - INFO - [64f91d9d-1473-444d-8de3-419beec83307] - services.auth_service - Token expires in 35971 seconds
+2025-10-12 09:27:37,942 - INFO - [64f91d9d-1473-444d-8de3-419beec83307] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:27:38,014 - INFO - [64f91d9d-1473-444d-8de3-419beec83307] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:27:38,127 - INFO - [64f91d9d-1473-444d-8de3-419beec83307] - middleware.logging_middleware - Response: 200 - 188.17ms
+2025-10-12 09:27:40,277 - INFO - [7acda700-d28f-41f3-be4d-48ae72c20343] - middleware.logging_middleware - Request: POST /api/research-streams/4/channels/Melanocortin Pathway Research/generate-query
+2025-10-12 09:27:40,280 - INFO - [7acda700-d28f-41f3-be4d-48ae72c20343] - services.auth_service - validate_token called
+2025-10-12 09:27:40,280 - INFO - [7acda700-d28f-41f3-be4d-48ae72c20343] - services.auth_service - Getting token from credentials
+2025-10-12 09:27:40,280 - INFO - [7acda700-d28f-41f3-be4d-48ae72c20343] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:27:40,281 - INFO - [7acda700-d28f-41f3-be4d-48ae72c20343] - services.auth_service - Token expires in 35968 seconds
+2025-10-12 09:27:40,281 - INFO - [7acda700-d28f-41f3-be4d-48ae72c20343] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:27:40,364 - INFO - [7acda700-d28f-41f3-be4d-48ae72c20343] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:27:48,128 - INFO - [7acda700-d28f-41f3-be4d-48ae72c20343] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-12 09:27:48,134 - INFO - [7acda700-d28f-41f3-be4d-48ae72c20343] - services.implementation_config_service - Generated query for channel 'Melanocortin Pathway Research' on pubmed: (melanocortin OR "melanocortin receptor" OR "melanocortin pathway" OR MCR1 OR MC1R OR MCR4 OR MC4R O
+2025-10-12 09:27:48,211 - WARNING - [7acda700-d28f-41f3-be4d-48ae72c20343] - middleware.logging_middleware - Slow response: 200 - 7934.29ms
+2025-10-12 09:27:56,428 - INFO - [a731ebe4-5e68-4c1a-8e58-faec8bb49865] - middleware.logging_middleware - Request: POST /api/research-streams/4/channels/Melanocortin Pathway Research/test-query
+2025-10-12 09:27:56,431 - INFO - [a731ebe4-5e68-4c1a-8e58-faec8bb49865] - services.auth_service - validate_token called
+2025-10-12 09:27:56,431 - INFO - [a731ebe4-5e68-4c1a-8e58-faec8bb49865] - services.auth_service - Getting token from credentials
+2025-10-12 09:27:56,431 - INFO - [a731ebe4-5e68-4c1a-8e58-faec8bb49865] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:27:56,431 - INFO - [a731ebe4-5e68-4c1a-8e58-faec8bb49865] - services.auth_service - Token expires in 35952 seconds
+2025-10-12 09:27:56,432 - INFO - [a731ebe4-5e68-4c1a-8e58-faec8bb49865] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:27:56,503 - INFO - [a731ebe4-5e68-4c1a-8e58-faec8bb49865] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:27:56,553 - INFO - [a731ebe4-5e68-4c1a-8e58-faec8bb49865] - services.smart_search_service - Searching pubmed - Query: (melanocortin OR "melanocortin receptor" OR "melanocortin pathway" OR MCR1 OR MC1R OR MCR4 OR MC4R O... (max_results=10, offset=0, count_only=False)
+2025-10-12 09:27:56,555 - INFO - [a731ebe4-5e68-4c1a-8e58-faec8bb49865] - services.pubmed_service - PubMed search: query='(melanocortin OR "melanocortin receptor" OR "melanocortin pathway" OR MCR1 OR MC1R OR MCR4 OR MC4R OR MCR5 OR MC5R OR "alpha-MSH" OR "alpha melanocyte stimulating hormone" OR "melanocyte stimulating hormone" OR "MC1R agonist" OR "MC4R agonist") AND (obesity OR "ocular disease" OR "eye disease" OR "gastrointestinal disease" OR "renal disease" OR "kidney disease" OR "sexual dysfunction")', max_results=10, offset=0
+2025-10-12 09:27:56,556 - INFO - [a731ebe4-5e68-4c1a-8e58-faec8bb49865] - services.pubmed_service - Retrieving article IDs for query: (melanocortin OR "melanocortin receptor" OR "melanocortin pathway" OR MCR1 OR MC1R OR MCR4 OR MC4R OR MCR5 OR MC5R OR "alpha-MSH" OR "alpha melanocyte stimulating hormone" OR "melanocyte stimulating hormone" OR "MC1R agonist" OR "MC4R agonist") AND (obesity OR "ocular disease" OR "eye disease" OR "gastrointestinal disease" OR "renal disease" OR "kidney disease" OR "sexual dysfunction")
+2025-10-12 09:27:56,812 - INFO - [a731ebe4-5e68-4c1a-8e58-faec8bb49865] - services.pubmed_service - Found 1 articles, returning 1 IDs
+2025-10-12 09:27:56,813 - INFO - [a731ebe4-5e68-4c1a-8e58-faec8bb49865] - services.pubmed_service - Found 1 total results, retrieved 1 IDs
+2025-10-12 09:27:56,813 - INFO - [a731ebe4-5e68-4c1a-8e58-faec8bb49865] - services.pubmed_service - Fetching article data for 1 articles
+2025-10-12 09:27:56,813 - INFO - [a731ebe4-5e68-4c1a-8e58-faec8bb49865] - services.pubmed_service - Processing articles 0 to 100
+2025-10-12 09:27:57,108 - INFO - [a731ebe4-5e68-4c1a-8e58-faec8bb49865] - services.pubmed_service - Retrieved 1 articles
+2025-10-12 09:27:57,109 - INFO - [a731ebe4-5e68-4c1a-8e58-faec8bb49865] - schemas.research_article_converters - Converting PubMed article 41062462
+2025-10-12 09:27:57,109 - INFO - [a731ebe4-5e68-4c1a-8e58-faec8bb49865] - services.smart_search_service - PubMed: 1 articles returned, 1 total available
+2025-10-12 09:27:57,180 - WARNING - [a731ebe4-5e68-4c1a-8e58-faec8bb49865] - middleware.logging_middleware - Slow response: 200 - 752.22ms
+2025-10-12 09:29:07,467 - INFO - [e53d2ca5-db15-4cfb-829b-6ac921a544de] - middleware.logging_middleware - Request: POST /api/research-streams/4/channels/Melanocortin Pathway Research/generate-query
+2025-10-12 09:29:07,470 - INFO - [e53d2ca5-db15-4cfb-829b-6ac921a544de] - services.auth_service - validate_token called
+2025-10-12 09:29:07,471 - INFO - [e53d2ca5-db15-4cfb-829b-6ac921a544de] - services.auth_service - Getting token from credentials
+2025-10-12 09:29:07,472 - INFO - [e53d2ca5-db15-4cfb-829b-6ac921a544de] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:29:07,472 - INFO - [e53d2ca5-db15-4cfb-829b-6ac921a544de] - services.auth_service - Token expires in 35881 seconds
+2025-10-12 09:29:07,473 - INFO - [e53d2ca5-db15-4cfb-829b-6ac921a544de] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:29:07,548 - INFO - [e53d2ca5-db15-4cfb-829b-6ac921a544de] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:29:11,612 - INFO - [e53d2ca5-db15-4cfb-829b-6ac921a544de] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-12 09:29:11,616 - INFO - [e53d2ca5-db15-4cfb-829b-6ac921a544de] - services.implementation_config_service - Generated query for channel 'Melanocortin Pathway Research' on pubmed: (melanocortin OR "melanocortin receptor" OR "melanocortin pathway" OR MCR1 OR MC1R OR MCR4 OR MC4R O
+2025-10-12 09:29:11,691 - WARNING - [e53d2ca5-db15-4cfb-829b-6ac921a544de] - middleware.logging_middleware - Slow response: 200 - 4225.00ms
+2025-10-12 09:29:16,648 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - middleware.logging_middleware - Request: POST /api/research-streams/4/channels/Melanocortin Pathway Research/test-query
+2025-10-12 09:29:16,649 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - services.auth_service - validate_token called
+2025-10-12 09:29:16,649 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - services.auth_service - Getting token from credentials
+2025-10-12 09:29:16,649 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:29:16,650 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - services.auth_service - Token expires in 35872 seconds
+2025-10-12 09:29:16,650 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:29:16,721 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:29:16,758 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - services.smart_search_service - Searching pubmed - Query: (melanocortin OR "melanocortin receptor" OR "melanocortin pathway" OR MCR1 OR MC1R OR MCR4 OR MC4R O... (max_results=10, offset=0, count_only=False)
+2025-10-12 09:29:16,759 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - services.pubmed_service - PubMed search: query='(melanocortin OR "melanocortin receptor" OR "melanocortin pathway" OR MCR1 OR MC1R OR MCR4 OR MC4R OR MCR5 OR MC5R OR "alpha-MSH" OR "alpha melanocyte stimulating hormone" OR "melanocyte stimulating hormone" OR "MC1R agonist" OR "MC4R agonist") AND (receptor OR pathway OR signaling OR mechanism OR therapeutic OR agonist OR antagonist)', max_results=10, offset=0
+2025-10-12 09:29:16,759 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - services.pubmed_service - Retrieving article IDs for query: (melanocortin OR "melanocortin receptor" OR "melanocortin pathway" OR MCR1 OR MC1R OR MCR4 OR MC4R OR MCR5 OR MC5R OR "alpha-MSH" OR "alpha melanocyte stimulating hormone" OR "melanocyte stimulating hormone" OR "MC1R agonist" OR "MC4R agonist") AND (receptor OR pathway OR signaling OR mechanism OR therapeutic OR agonist OR antagonist)
+2025-10-12 09:29:17,064 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - services.pubmed_service - Found 4 articles, returning 4 IDs
+2025-10-12 09:29:17,064 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - services.pubmed_service - Found 4 total results, retrieved 4 IDs
+2025-10-12 09:29:17,064 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - services.pubmed_service - Fetching article data for 4 articles
+2025-10-12 09:29:17,065 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - services.pubmed_service - Processing articles 0 to 100
+2025-10-12 09:29:17,329 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - services.pubmed_service - Retrieved 4 articles
+2025-10-12 09:29:17,329 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - schemas.research_article_converters - Converting PubMed article 41062462
+2025-10-12 09:29:17,330 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - schemas.research_article_converters - Converting PubMed article 41061299
+2025-10-12 09:29:17,330 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - schemas.research_article_converters - Converting PubMed article 40879378
+2025-10-12 09:29:17,331 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - schemas.research_article_converters - Converting PubMed article 40682986
+2025-10-12 09:29:17,332 - INFO - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - services.smart_search_service - PubMed: 4 articles returned, 4 total available
+2025-10-12 09:29:17,404 - WARNING - [c08f4b4e-ed9e-4237-b9ca-0eb9198a6b09] - middleware.logging_middleware - Slow response: 200 - 756.01ms
+2025-10-12 09:31:14,857 - INFO - [53c06b9d-7109-4117-bc1c-82aee8cc8689] - middleware.logging_middleware - Request: PUT /api/research-streams/4/channels/f02d87c6-c8bb-45cf-b4e4-3b377f936bbc/sources/pubmed/query
+2025-10-12 09:31:14,859 - INFO - [53c06b9d-7109-4117-bc1c-82aee8cc8689] - services.auth_service - validate_token called
+2025-10-12 09:31:14,859 - INFO - [53c06b9d-7109-4117-bc1c-82aee8cc8689] - services.auth_service - Getting token from credentials
+2025-10-12 09:31:14,859 - INFO - [53c06b9d-7109-4117-bc1c-82aee8cc8689] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:31:14,859 - INFO - [53c06b9d-7109-4117-bc1c-82aee8cc8689] - services.auth_service - Token expires in 35754 seconds
+2025-10-12 09:31:14,860 - INFO - [53c06b9d-7109-4117-bc1c-82aee8cc8689] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:31:14,944 - INFO - [53c06b9d-7109-4117-bc1c-82aee8cc8689] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:31:15,322 - INFO - [53c06b9d-7109-4117-bc1c-82aee8cc8689] - middleware.logging_middleware - Response: 200 - 465.09ms
+2025-10-12 09:31:15,329 - INFO - [9eb3f13e-f259-47f0-b433-40420a3e119a] - middleware.logging_middleware - Request: GET /api/research-streams/4
+2025-10-12 09:31:15,330 - INFO - [9eb3f13e-f259-47f0-b433-40420a3e119a] - services.auth_service - validate_token called
+2025-10-12 09:31:15,331 - INFO - [9eb3f13e-f259-47f0-b433-40420a3e119a] - services.auth_service - Getting token from credentials
+2025-10-12 09:31:15,331 - INFO - [9eb3f13e-f259-47f0-b433-40420a3e119a] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:31:15,331 - INFO - [9eb3f13e-f259-47f0-b433-40420a3e119a] - services.auth_service - Token expires in 35753 seconds
+2025-10-12 09:31:15,331 - INFO - [9eb3f13e-f259-47f0-b433-40420a3e119a] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:31:15,406 - INFO - [9eb3f13e-f259-47f0-b433-40420a3e119a] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:31:15,520 - INFO - [9eb3f13e-f259-47f0-b433-40420a3e119a] - middleware.logging_middleware - Response: 200 - 191.48ms
+2025-10-12 09:31:19,907 - INFO - [29fda917-2f96-491b-b55b-49f29adf2982] - middleware.logging_middleware - Request: POST /api/research-streams/4/channels/Melanocortin Pathway Research/generate-filter
+2025-10-12 09:31:19,909 - INFO - [29fda917-2f96-491b-b55b-49f29adf2982] - services.auth_service - validate_token called
+2025-10-12 09:31:19,909 - INFO - [29fda917-2f96-491b-b55b-49f29adf2982] - services.auth_service - Getting token from credentials
+2025-10-12 09:31:19,909 - INFO - [29fda917-2f96-491b-b55b-49f29adf2982] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:31:19,910 - INFO - [29fda917-2f96-491b-b55b-49f29adf2982] - services.auth_service - Token expires in 35749 seconds
+2025-10-12 09:31:19,910 - INFO - [29fda917-2f96-491b-b55b-49f29adf2982] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:31:19,983 - INFO - [29fda917-2f96-491b-b55b-49f29adf2982] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:31:24,942 - INFO - [29fda917-2f96-491b-b55b-49f29adf2982] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-12 09:31:24,950 - INFO - [29fda917-2f96-491b-b55b-49f29adf2982] - services.implementation_config_service - Generated semantic filter for channel 'Melanocortin Pathway Research': Articles should primarily investigate the biology, signaling mechanisms, or pharmacological modulati
+2025-10-12 09:31:25,021 - WARNING - [29fda917-2f96-491b-b55b-49f29adf2982] - middleware.logging_middleware - Slow response: 200 - 5113.97ms
+2025-10-12 09:31:25,028 - INFO - [38ff7a7d-e5a3-4c5d-a262-157ab14da92e] - middleware.logging_middleware - Request: PUT /api/research-streams/4/channels/f02d87c6-c8bb-45cf-b4e4-3b377f936bbc/semantic-filter
+2025-10-12 09:31:25,030 - INFO - [38ff7a7d-e5a3-4c5d-a262-157ab14da92e] - services.auth_service - validate_token called
+2025-10-12 09:31:25,030 - INFO - [38ff7a7d-e5a3-4c5d-a262-157ab14da92e] - services.auth_service - Getting token from credentials
+2025-10-12 09:31:25,030 - INFO - [38ff7a7d-e5a3-4c5d-a262-157ab14da92e] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:31:25,031 - INFO - [38ff7a7d-e5a3-4c5d-a262-157ab14da92e] - services.auth_service - Token expires in 35743 seconds
+2025-10-12 09:31:25,031 - INFO - [38ff7a7d-e5a3-4c5d-a262-157ab14da92e] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:31:25,107 - INFO - [38ff7a7d-e5a3-4c5d-a262-157ab14da92e] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:31:25,461 - INFO - [38ff7a7d-e5a3-4c5d-a262-157ab14da92e] - middleware.logging_middleware - Response: 200 - 433.55ms
+2025-10-12 09:31:25,473 - INFO - [ae0519a2-fff6-4d8b-aec0-927da310c565] - middleware.logging_middleware - Request: GET /api/research-streams/4
+2025-10-12 09:31:25,474 - INFO - [ae0519a2-fff6-4d8b-aec0-927da310c565] - services.auth_service - validate_token called
+2025-10-12 09:31:25,474 - INFO - [ae0519a2-fff6-4d8b-aec0-927da310c565] - services.auth_service - Getting token from credentials
+2025-10-12 09:31:25,475 - INFO - [ae0519a2-fff6-4d8b-aec0-927da310c565] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:31:25,475 - INFO - [ae0519a2-fff6-4d8b-aec0-927da310c565] - services.auth_service - Token expires in 35743 seconds
+2025-10-12 09:31:25,475 - INFO - [ae0519a2-fff6-4d8b-aec0-927da310c565] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:31:25,556 - INFO - [ae0519a2-fff6-4d8b-aec0-927da310c565] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:31:25,696 - INFO - [ae0519a2-fff6-4d8b-aec0-927da310c565] - middleware.logging_middleware - Response: 200 - 223.35ms
+2025-10-12 09:31:32,812 - INFO - [b6cf276b-2539-45e1-a754-1fb73216099e] - middleware.logging_middleware - Request: PUT /api/research-streams/4/channels/f02d87c6-c8bb-45cf-b4e4-3b377f936bbc/semantic-filter
+2025-10-12 09:31:32,814 - INFO - [b6cf276b-2539-45e1-a754-1fb73216099e] - services.auth_service - validate_token called
+2025-10-12 09:31:32,814 - INFO - [b6cf276b-2539-45e1-a754-1fb73216099e] - services.auth_service - Getting token from credentials
+2025-10-12 09:31:32,814 - INFO - [b6cf276b-2539-45e1-a754-1fb73216099e] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:31:32,814 - INFO - [b6cf276b-2539-45e1-a754-1fb73216099e] - services.auth_service - Token expires in 35736 seconds
+2025-10-12 09:31:32,816 - INFO - [b6cf276b-2539-45e1-a754-1fb73216099e] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:31:32,889 - INFO - [b6cf276b-2539-45e1-a754-1fb73216099e] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:31:33,231 - INFO - [b6cf276b-2539-45e1-a754-1fb73216099e] - middleware.logging_middleware - Response: 200 - 419.19ms
+2025-10-12 09:31:33,239 - INFO - [cb52be3c-af46-42e6-84fd-fb0af5430a18] - middleware.logging_middleware - Request: GET /api/research-streams/4
+2025-10-12 09:31:33,241 - INFO - [cb52be3c-af46-42e6-84fd-fb0af5430a18] - services.auth_service - validate_token called
+2025-10-12 09:31:33,241 - INFO - [cb52be3c-af46-42e6-84fd-fb0af5430a18] - services.auth_service - Getting token from credentials
+2025-10-12 09:31:33,242 - INFO - [cb52be3c-af46-42e6-84fd-fb0af5430a18] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:31:33,242 - INFO - [cb52be3c-af46-42e6-84fd-fb0af5430a18] - services.auth_service - Token expires in 35735 seconds
+2025-10-12 09:31:33,242 - INFO - [cb52be3c-af46-42e6-84fd-fb0af5430a18] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:31:33,320 - INFO - [cb52be3c-af46-42e6-84fd-fb0af5430a18] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:31:33,427 - INFO - [cb52be3c-af46-42e6-84fd-fb0af5430a18] - middleware.logging_middleware - Response: 200 - 188.78ms
+2025-10-12 09:31:39,288 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - middleware.logging_middleware - Request: POST /api/research-streams/4/channels/Melanocortin Pathway Research/test-query
+2025-10-12 09:31:39,288 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - services.auth_service - validate_token called
+2025-10-12 09:31:39,289 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - services.auth_service - Getting token from credentials
+2025-10-12 09:31:39,289 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:31:39,289 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - services.auth_service - Token expires in 35729 seconds
+2025-10-12 09:31:39,289 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:31:39,363 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:31:39,403 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - services.smart_search_service - Searching pubmed - Query: (melanocortin OR "melanocortin receptor" OR "melanocortin pathway" OR MCR1 OR MC1R OR MCR4 OR MC4R O... (max_results=10, offset=0, count_only=False)
+2025-10-12 09:31:39,404 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - services.pubmed_service - PubMed search: query='(melanocortin OR "melanocortin receptor" OR "melanocortin pathway" OR MCR1 OR MC1R OR MCR4 OR MC4R OR MCR5 OR MC5R OR "alpha-MSH" OR "alpha melanocyte stimulating hormone" OR "melanocyte stimulating hormone" OR "MC1R agonist" OR "MC4R agonist") AND (receptor OR pathway OR signaling OR mechanism OR therapeutic OR agonist OR antagonist)', max_results=10, offset=0
+2025-10-12 09:31:39,405 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - services.pubmed_service - Retrieving article IDs for query: (melanocortin OR "melanocortin receptor" OR "melanocortin pathway" OR MCR1 OR MC1R OR MCR4 OR MC4R OR MCR5 OR MC5R OR "alpha-MSH" OR "alpha melanocyte stimulating hormone" OR "melanocyte stimulating hormone" OR "MC1R agonist" OR "MC4R agonist") AND (receptor OR pathway OR signaling OR mechanism OR therapeutic OR agonist OR antagonist)
+2025-10-12 09:31:39,681 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - services.pubmed_service - Found 4 articles, returning 4 IDs
+2025-10-12 09:31:39,682 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - services.pubmed_service - Found 4 total results, retrieved 4 IDs
+2025-10-12 09:31:39,682 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - services.pubmed_service - Fetching article data for 4 articles
+2025-10-12 09:31:39,682 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - services.pubmed_service - Processing articles 0 to 100
+2025-10-12 09:31:39,992 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - services.pubmed_service - Retrieved 4 articles
+2025-10-12 09:31:39,993 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - schemas.research_article_converters - Converting PubMed article 41062462
+2025-10-12 09:31:39,993 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - schemas.research_article_converters - Converting PubMed article 41061299
+2025-10-12 09:31:39,993 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - schemas.research_article_converters - Converting PubMed article 40879378
+2025-10-12 09:31:39,994 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - schemas.research_article_converters - Converting PubMed article 40682986
+2025-10-12 09:31:39,994 - INFO - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - services.smart_search_service - PubMed: 4 articles returned, 4 total available
+2025-10-12 09:31:40,066 - WARNING - [cd841d48-4f7b-4509-8de2-06e4a7f8a30c] - middleware.logging_middleware - Slow response: 200 - 778.53ms
+2025-10-12 09:31:40,073 - INFO - [7dd3cacf-af00-4542-a63f-988a6b115ce4] - middleware.logging_middleware - Request: POST /api/research-streams/4/channels/Melanocortin Pathway Research/test-filter
+2025-10-12 09:31:40,075 - INFO - [7dd3cacf-af00-4542-a63f-988a6b115ce4] - services.auth_service - validate_token called
+2025-10-12 09:31:40,075 - INFO - [7dd3cacf-af00-4542-a63f-988a6b115ce4] - services.auth_service - Getting token from credentials
+2025-10-12 09:31:40,075 - INFO - [7dd3cacf-af00-4542-a63f-988a6b115ce4] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:31:40,076 - INFO - [7dd3cacf-af00-4542-a63f-988a6b115ce4] - services.auth_service - Token expires in 35728 seconds
+2025-10-12 09:31:40,076 - INFO - [7dd3cacf-af00-4542-a63f-988a6b115ce4] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:31:40,161 - INFO - [7dd3cacf-af00-4542-a63f-988a6b115ce4] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:31:40,200 - INFO - [7dd3cacf-af00-4542-a63f-988a6b115ce4] - services.smart_search_service - Starting clean filtering of 4 articles with criteria: Articles should primarily investigate the biology, signaling mechanisms, or pharmacological modulati...
+2025-10-12 09:31:40,201 - INFO - [7dd3cacf-af00-4542-a63f-988a6b115ce4] - services.smart_search_service - Executing 4 evaluations in parallel (max 500 concurrent)
+2025-10-12 09:31:42,605 - INFO - [7dd3cacf-af00-4542-a63f-988a6b115ce4] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-12 09:31:43,225 - INFO - [7dd3cacf-af00-4542-a63f-988a6b115ce4] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-12 09:31:43,473 - INFO - [7dd3cacf-af00-4542-a63f-988a6b115ce4] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-12 09:31:43,690 - INFO - [7dd3cacf-af00-4542-a63f-988a6b115ce4] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-12 09:31:43,693 - INFO - [7dd3cacf-af00-4542-a63f-988a6b115ce4] - services.smart_search_service - Clean filtering completed in 3.49 seconds
+2025-10-12 09:31:43,694 - INFO - [7dd3cacf-af00-4542-a63f-988a6b115ce4] - services.smart_search_service - Clean filtering results: 0 accepted, 4 rejected
+2025-10-12 09:31:43,764 - WARNING - [7dd3cacf-af00-4542-a63f-988a6b115ce4] - middleware.logging_middleware - Slow response: 200 - 3691.52ms
+2025-10-12 09:32:11,444 - INFO - [80ca4a44-184f-493f-944a-e7cdaa3b319a] - middleware.logging_middleware - Request: POST /api/research-streams/4/generate-executive-summary
+2025-10-12 09:32:11,446 - INFO - [80ca4a44-184f-493f-944a-e7cdaa3b319a] - services.auth_service - validate_token called
+2025-10-12 09:32:11,446 - INFO - [80ca4a44-184f-493f-944a-e7cdaa3b319a] - services.auth_service - Getting token from credentials
+2025-10-12 09:32:11,446 - INFO - [80ca4a44-184f-493f-944a-e7cdaa3b319a] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:32:11,447 - INFO - [80ca4a44-184f-493f-944a-e7cdaa3b319a] - services.auth_service - Token expires in 35697 seconds
+2025-10-12 09:32:11,447 - INFO - [80ca4a44-184f-493f-944a-e7cdaa3b319a] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:32:11,540 - INFO - [80ca4a44-184f-493f-944a-e7cdaa3b319a] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:32:35,955 - INFO - [80ca4a44-184f-493f-944a-e7cdaa3b319a] - httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-12 09:32:36,038 - WARNING - [80ca4a44-184f-493f-944a-e7cdaa3b319a] - middleware.logging_middleware - Slow response: 200 - 24594.22ms
+2025-10-12 09:34:15,401 - INFO - [6b1ffa67-a5e4-4995-86d5-dcf4bdeae5c4] - middleware.logging_middleware - Request: GET /api/research-streams/4
+2025-10-12 09:34:15,403 - INFO - [6b1ffa67-a5e4-4995-86d5-dcf4bdeae5c4] - services.auth_service - validate_token called
+2025-10-12 09:34:15,403 - INFO - [6b1ffa67-a5e4-4995-86d5-dcf4bdeae5c4] - services.auth_service - Getting token from credentials
+2025-10-12 09:34:15,403 - INFO - [6b1ffa67-a5e4-4995-86d5-dcf4bdeae5c4] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:34:15,404 - INFO - [6b1ffa67-a5e4-4995-86d5-dcf4bdeae5c4] - services.auth_service - Token expires in 35573 seconds
+2025-10-12 09:34:15,404 - INFO - [6b1ffa67-a5e4-4995-86d5-dcf4bdeae5c4] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:34:15,481 - INFO - [6b1ffa67-a5e4-4995-86d5-dcf4bdeae5c4] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:34:15,530 - INFO - [746e43c0-eb3c-4793-bc5c-4d922d44bc4f] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-12 09:34:15,535 - INFO - [7ec1347a-c628-43b6-8c97-3595ae1ad3d1] - middleware.logging_middleware - Request: GET /api/research-streams/4
+2025-10-12 09:34:15,544 - INFO - [746e43c0-eb3c-4793-bc5c-4d922d44bc4f] - middleware.logging_middleware - Response: 200 - 13.18ms
+2025-10-12 09:34:15,550 - INFO - [-] - services.auth_service - validate_token called
+2025-10-12 09:34:15,550 - INFO - [-] - services.auth_service - Getting token from credentials
+2025-10-12 09:34:15,550 - INFO - [-] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 09:34:15,551 - INFO - [-] - services.auth_service - Token expires in 35573 seconds
+2025-10-12 09:34:15,552 - INFO - [-] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 09:34:15,639 - INFO - [-] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 09:34:15,701 - INFO - [4abcefd0-eacd-44de-9edc-b6089ce7b133] - middleware.logging_middleware - Request: GET /api/research-streams/metadata/sources
+2025-10-12 09:34:15,708 - INFO - [4abcefd0-eacd-44de-9edc-b6089ce7b133] - middleware.logging_middleware - Response: 200 - 6.37ms
+2025-10-12 09:34:15,710 - INFO - [6b1ffa67-a5e4-4995-86d5-dcf4bdeae5c4] - middleware.logging_middleware - Response: 200 - 309.02ms
+2025-10-12 09:34:15,782 - INFO - [7ec1347a-c628-43b6-8c97-3595ae1ad3d1] - middleware.logging_middleware - Response: 200 - 246.42ms
+2025-10-12 09:53:44,733 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251012.log
+2025-10-12 09:53:44,734 - INFO - [-] - config.logging_config - Including routers...
+2025-10-12 09:53:44,791 - INFO - [-] - config.logging_config - Routers included
+2025-10-12 09:53:44,792 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-12 09:53:44,793 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-12 09:53:44,793 - INFO - [-] - database - Initializing database...
+2025-10-12 09:53:45,752 - INFO - [-] - database - Database initialized successfully
+2025-10-12 09:53:45,753 - INFO - [-] - config.logging_config - Database initialized
+2025-10-12 09:53:51,620 - INFO - [startup] - config.logging_config - Logging setup complete. Writing to logs\app_20251012.log
+2025-10-12 09:53:51,621 - INFO - [-] - config.logging_config - Including routers...
+2025-10-12 09:53:51,689 - INFO - [-] - config.logging_config - Routers included
+2025-10-12 09:53:51,690 - INFO - [-] - config.logging_config - Application startup complete
+2025-10-12 09:53:51,691 - INFO - [-] - config.logging_config - Application starting up...
+2025-10-12 09:53:51,691 - INFO - [-] - database - Initializing database...
+2025-10-12 09:53:52,641 - INFO - [-] - database - Database initialized successfully
+2025-10-12 09:53:52,641 - INFO - [-] - config.logging_config - Database initialized
+2025-10-12 11:17:05,113 - INFO - [e0b8d244-1864-4b87-a861-45b1a729e721] - middleware.logging_middleware - Request: PUT /api/research-streams/4
+2025-10-12 11:17:05,117 - INFO - [e0b8d244-1864-4b87-a861-45b1a729e721] - services.auth_service - validate_token called
+2025-10-12 11:17:05,118 - INFO - [e0b8d244-1864-4b87-a861-45b1a729e721] - services.auth_service - Getting token from credentials
+2025-10-12 11:17:05,118 - INFO - [e0b8d244-1864-4b87-a861-45b1a729e721] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 11:17:05,144 - INFO - [e0b8d244-1864-4b87-a861-45b1a729e721] - services.auth_service - Token expires in 29403 seconds
+2025-10-12 11:17:05,144 - INFO - [e0b8d244-1864-4b87-a861-45b1a729e721] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 11:17:05,490 - INFO - [e0b8d244-1864-4b87-a861-45b1a729e721] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 11:17:05,843 - WARNING - [e0b8d244-1864-4b87-a861-45b1a729e721] - middleware.logging_middleware - Slow response: 200 - 730.08ms
+2025-10-12 11:17:05,847 - INFO - [1476a5dd-3121-48e8-ba55-0e62c614017d] - middleware.logging_middleware - Request: GET /api/research-streams/4
+2025-10-12 11:17:05,848 - INFO - [1476a5dd-3121-48e8-ba55-0e62c614017d] - services.auth_service - validate_token called
+2025-10-12 11:17:05,848 - INFO - [1476a5dd-3121-48e8-ba55-0e62c614017d] - services.auth_service - Getting token from credentials
+2025-10-12 11:17:05,848 - INFO - [1476a5dd-3121-48e8-ba55-0e62c614017d] - services.auth_service - Token: eyJhbGciOi...
+2025-10-12 11:17:05,848 - INFO - [1476a5dd-3121-48e8-ba55-0e62c614017d] - services.auth_service - Token expires in 29403 seconds
+2025-10-12 11:17:05,849 - INFO - [1476a5dd-3121-48e8-ba55-0e62c614017d] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: user
+2025-10-12 11:17:05,922 - INFO - [1476a5dd-3121-48e8-ba55-0e62c614017d] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-10-12 11:17:06,033 - INFO - [1476a5dd-3121-48e8-ba55-0e62c614017d] - middleware.logging_middleware - Response: 200 - 185.85ms

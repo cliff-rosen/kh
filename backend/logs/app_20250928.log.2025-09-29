@@ -1,0 +1,60 @@
+2025-09-29 12:59:36,428 - INFO - [2fce2118-1dfd-4662-8999-2c1c5ff2d897] - middleware.logging_middleware - Request: GET /api/sessions/active
+2025-09-29 12:59:36,439 - INFO - [2fce2118-1dfd-4662-8999-2c1c5ff2d897] - services.auth_service - validate_token called
+2025-09-29 12:59:36,439 - INFO - [2fce2118-1dfd-4662-8999-2c1c5ff2d897] - services.auth_service - Getting token from credentials
+2025-09-29 12:59:36,440 - INFO - [2fce2118-1dfd-4662-8999-2c1c5ff2d897] - services.auth_service - Token: eyJhbGciOi...
+2025-09-29 12:59:36,440 - ERROR - [2fce2118-1dfd-4662-8999-2c1c5ff2d897] - services.auth_service - ############## JWT validation error ##############
+2025-09-29 12:59:36,441 - ERROR - [2fce2118-1dfd-4662-8999-2c1c5ff2d897] - services.auth_service - JWT validation error: Signature has expired.
+2025-09-29 12:59:36,511 - ERROR - [2fce2118-1dfd-4662-8999-2c1c5ff2d897] - services.auth_service - Traceback (most recent call last):
+  File "C:\code\kh\backend\services\auth_service.py", line 279, in validate_token
+    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\code\kh\backend\venv\Lib\site-packages\jose\jwt.py", line 157, in decode
+    _validate_claims(
+  File "C:\code\kh\backend\venv\Lib\site-packages\jose\jwt.py", line 481, in _validate_claims
+    _validate_exp(claims, leeway=leeway)
+  File "C:\code\kh\backend\venv\Lib\site-packages\jose\jwt.py", line 314, in _validate_exp
+    raise ExpiredSignatureError("Signature has expired.")
+jose.exceptions.ExpiredSignatureError: Signature has expired.
+
+2025-09-29 12:59:36,520 - WARNING - [2fce2118-1dfd-4662-8999-2c1c5ff2d897] - middleware.logging_middleware - Response: 401 - 92.34ms
+2025-09-29 12:59:36,992 - INFO - [05fa2a4e-3b85-4239-8f67-c852515dada8] - middleware.logging_middleware - Request: GET /api/sessions/active
+2025-09-29 12:59:36,994 - INFO - [05fa2a4e-3b85-4239-8f67-c852515dada8] - services.auth_service - validate_token called
+2025-09-29 12:59:36,994 - INFO - [05fa2a4e-3b85-4239-8f67-c852515dada8] - services.auth_service - Getting token from credentials
+2025-09-29 12:59:36,994 - INFO - [05fa2a4e-3b85-4239-8f67-c852515dada8] - services.auth_service - Token: eyJhbGciOi...
+2025-09-29 12:59:36,994 - ERROR - [05fa2a4e-3b85-4239-8f67-c852515dada8] - services.auth_service - ############## JWT validation error ##############
+2025-09-29 12:59:36,996 - ERROR - [05fa2a4e-3b85-4239-8f67-c852515dada8] - services.auth_service - JWT validation error: Signature has expired.
+2025-09-29 12:59:36,997 - ERROR - [05fa2a4e-3b85-4239-8f67-c852515dada8] - services.auth_service - Traceback (most recent call last):
+  File "C:\code\kh\backend\services\auth_service.py", line 279, in validate_token
+    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\code\kh\backend\venv\Lib\site-packages\jose\jwt.py", line 157, in decode
+    _validate_claims(
+  File "C:\code\kh\backend\venv\Lib\site-packages\jose\jwt.py", line 481, in _validate_claims
+    _validate_exp(claims, leeway=leeway)
+  File "C:\code\kh\backend\venv\Lib\site-packages\jose\jwt.py", line 314, in _validate_exp
+    raise ExpiredSignatureError("Signature has expired.")
+jose.exceptions.ExpiredSignatureError: Signature has expired.
+
+2025-09-29 12:59:37,001 - WARNING - [05fa2a4e-3b85-4239-8f67-c852515dada8] - middleware.logging_middleware - Response: 401 - 8.55ms
+2025-09-29 13:38:58,728 - INFO - [c56f701a-e6a8-4d58-b1f0-dd9054407d3a] - middleware.logging_middleware - Request: POST /api/auth/login
+2025-09-29 13:38:58,731 - INFO - [c56f701a-e6a8-4d58-b1f0-dd9054407d3a] - services.auth_service - Login attempt for email: cliff.rosen@gmail.com
+2025-09-29 13:38:59,280 - INFO - [c56f701a-e6a8-4d58-b1f0-dd9054407d3a] - services.auth_service - Creating access token with data: {'sub': 'cliff.rosen@gmail.com', 'user_id': 3, 'username': 'cliff.rosen', 'role': 'admin'}
+2025-09-29 13:38:59,280 - INFO - [c56f701a-e6a8-4d58-b1f0-dd9054407d3a] - services.auth_service - Access token created successfully
+2025-09-29 13:39:00,092 - INFO - [c56f701a-e6a8-4d58-b1f0-dd9054407d3a] - services.auth_service - Successfully logged in user: cliff.rosen@gmail.com with session: 39e717b1-9a05-4057-a744-e109ce12dfb8
+2025-09-29 13:39:00,209 - WARNING - [c56f701a-e6a8-4d58-b1f0-dd9054407d3a] - middleware.logging_middleware - Slow response: 200 - 1481.36ms
+2025-09-29 13:39:06,564 - INFO - [f70e5838-11e5-43ec-b07d-aed10c4b8bda] - middleware.logging_middleware - Request: GET /api/workbench/groups
+2025-09-29 13:39:06,566 - INFO - [55e5830b-8e6f-4ea2-a19e-07d1a6a28d0e] - middleware.logging_middleware - Request: GET /api/workbench/groups
+2025-09-29 13:39:06,568 - INFO - [55e5830b-8e6f-4ea2-a19e-07d1a6a28d0e] - services.auth_service - validate_token called
+2025-09-29 13:39:06,569 - INFO - [55e5830b-8e6f-4ea2-a19e-07d1a6a28d0e] - services.auth_service - Getting token from credentials
+2025-09-29 13:39:06,569 - INFO - [55e5830b-8e6f-4ea2-a19e-07d1a6a28d0e] - services.auth_service - Token: eyJhbGciOi...
+2025-09-29 13:39:06,569 - INFO - [55e5830b-8e6f-4ea2-a19e-07d1a6a28d0e] - services.auth_service - Token expires in 35993 seconds
+2025-09-29 13:39:06,569 - INFO - [55e5830b-8e6f-4ea2-a19e-07d1a6a28d0e] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: admin
+2025-09-29 13:39:06,641 - INFO - [55e5830b-8e6f-4ea2-a19e-07d1a6a28d0e] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-09-29 13:39:06,741 - INFO - [55e5830b-8e6f-4ea2-a19e-07d1a6a28d0e] - services.auth_service - validate_token called
+2025-09-29 13:39:06,741 - INFO - [55e5830b-8e6f-4ea2-a19e-07d1a6a28d0e] - services.auth_service - Getting token from credentials
+2025-09-29 13:39:06,742 - INFO - [55e5830b-8e6f-4ea2-a19e-07d1a6a28d0e] - services.auth_service - Token: eyJhbGciOi...
+2025-09-29 13:39:06,742 - INFO - [55e5830b-8e6f-4ea2-a19e-07d1a6a28d0e] - services.auth_service - Token expires in 35993 seconds
+2025-09-29 13:39:06,742 - INFO - [55e5830b-8e6f-4ea2-a19e-07d1a6a28d0e] - services.auth_service - Token decoded, email: cliff.rosen@gmail.com, username: cliff.rosen, role: admin
+2025-09-29 13:39:06,821 - INFO - [55e5830b-8e6f-4ea2-a19e-07d1a6a28d0e] - services.auth_service - Successfully validated token for user: cliff.rosen@gmail.com
+2025-09-29 13:39:06,970 - INFO - [f70e5838-11e5-43ec-b07d-aed10c4b8bda] - middleware.logging_middleware - Response: 200 - 405.97ms
+2025-09-29 13:39:06,971 - INFO - [55e5830b-8e6f-4ea2-a19e-07d1a6a28d0e] - middleware.logging_middleware - Response: 200 - 404.43ms
