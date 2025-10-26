@@ -82,6 +82,7 @@
       {
         "id": "epidemiology",
         "name": "Epidemiology",
+        
         "topics": [
           "Cohort and case-control studies",
           "Risk assessment and quantification",

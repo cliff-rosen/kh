@@ -151,26 +151,21 @@ export default function DashboardPage() {
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="text-sm text-gray-900 dark:text-white capitalize">
-                                                {stream.stream_type}
-                                            </span>
-                                        </td>
                                         <td className="px-6 py-4">
                                             <div className="flex flex-wrap gap-1 max-w-xs">
-                                                {stream.channels && stream.channels.length > 0 ? (
+                                                {stream.categories && stream.categories.length > 0 ? (
                                                     <>
-                                                        {stream.channels.slice(0, 2).map((channel, idx) => (
+                                                        {stream.categories.slice(0, 2).map((category, idx) => (
                                                             <span
                                                                 key={idx}
                                                                 className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded"
                                                             >
-                                                                {channel.name}
+                                                                {category.name}
                                                             </span>
                                                         ))}
-                                                        {stream.channels.length > 2 && (
+                                                        {stream.categories.length > 2 && (
                                                             <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
-                                                                +{stream.channels.length - 2}
+                                                                +{stream.categories.length - 2}
                                                             </span>
                                                         )}
                                                     </>
