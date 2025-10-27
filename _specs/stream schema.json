@@ -3,13 +3,11 @@
     "stream_id": "stream_1",
     "stream_name": "Asbestos (Non-Talc) Literature",
     "purpose": "Enable comprehensive scientific awareness in <15 minutes per weekly review",
-    
     "audience": [
       "Inside and outside counsel for asbestos defendants (non-talc products)",
       "Litigation support staff for asbestos-only cases",
       "Case strategy teams for asbestos-only cases"
     ],
-    
     "intended_guidance": [
       "Case strategy development",
       "Cross-examination preparation",
@@ -18,7 +16,6 @@
       "Knowledge/awareness obligations",
       "Settlement analysis"
     ],
-    
     "global_inclusion": [
       "Asbestos or talc exposure assessment or measurement",
       "Health effects causally or allegedly linked to asbestos or talc",
@@ -37,7 +34,6 @@
       "Corrections or retractions to prior research",
       "Medicolegal aspects (expert testimony, causation frameworks, evidentiary standards)"
     ],
-    
     "global_exclusion": [
       "Legal case decisions, trial transcripts, courtroom proceedings",
       "General occupational health topics unrelated to asbestos or talc",
@@ -48,7 +44,6 @@
       "Purely theoretical modeling without empirical validation",
       "Duplicate publications or restatements of previously covered research"
     ],
-    
     "categories": [
       {
         "id": "medical_health",
@@ -63,7 +58,9 @@
           "Disease progression and prognosis",
           "Biomarkers for exposure or disease"
         ],
-        "specific_inclusions": ["Any peer-reviewed research on asbestos-related disease mechanisms or outcomes"]
+        "specific_inclusions": [
+          "Any peer-reviewed research on asbestos-related disease mechanisms or outcomes"
+        ]
       },
       {
         "id": "exposure_science",
@@ -77,12 +74,14 @@
           "Fiber type and potency research",
           "Background exposure levels"
         ],
-        "specific_inclusions": ["Any quantitative or qualitative exposure data", "Modeling approaches"]
+        "specific_inclusions": [
+          "Any quantitative or qualitative exposure data",
+          "Modeling approaches"
+        ]
       },
       {
         "id": "epidemiology",
         "name": "Epidemiology",
-        
         "topics": [
           "Cohort and case-control studies",
           "Risk assessment and quantification",
@@ -90,7 +89,9 @@
           "Occupational epidemiology",
           "Meta-analyses and systematic reviews"
         ],
-        "specific_inclusions": ["Any population-based study examining asbestos exposure and health outcomes"]
+        "specific_inclusions": [
+          "Any population-based study examining asbestos exposure and health outcomes"
+        ]
       },
       {
         "id": "regulatory_standards",
@@ -102,7 +103,9 @@
           "Testing and analytical methods",
           "Product standards and specifications"
         ],
-        "specific_inclusions": ["Government publications, agency guidance, proposed rules (need not be peer-reviewed research)"]
+        "specific_inclusions": [
+          "Government publications, agency guidance, proposed rules (need not be peer-reviewed research)"
+        ]
       },
       {
         "id": "historical_documentation",
@@ -113,7 +116,9 @@
           "State-of-the-art analyses for specific time periods",
           "Historical exposure documentation"
         ],
-        "specific_inclusions": ["Industry documents, historical reports (need not be peer-reviewed)"]
+        "specific_inclusions": [
+          "Industry documents, historical reports (need not be peer-reviewed)"
+        ]
       },
       {
         "id": "causation_attribution",
@@ -124,7 +129,9 @@
           "Attribution studies",
           "Alternative causation research"
         ],
-        "specific_inclusions": ["Any research addressing causal inference methodology"]
+        "specific_inclusions": [
+          "Any research addressing causal inference methodology"
+        ]
       },
       {
         "id": "diagnostic_biomarkers",
@@ -135,7 +142,9 @@
           "Pathological classification systems",
           "Fiber burden analysis techniques"
         ],
-        "specific_inclusions": ["Any diagnostic or biomarker development/validation studies"]
+        "specific_inclusions": [
+          "Any diagnostic or biomarker development/validation studies"
+        ]
       },
       {
         "id": "analytical_methods",
@@ -146,7 +155,9 @@
           "Mineralogical analysis",
           "Quality control and proficiency testing"
         ],
-        "specific_inclusions": ["Methods development, validation, or comparison studies"]
+        "specific_inclusions": [
+          "Methods development, validation, or comparison studies"
+        ]
       },
       {
         "id": "experimental_studies",
@@ -156,7 +167,9 @@
           "In vitro studies of disease mechanisms",
           "Toxicological studies"
         ],
-        "specific_inclusions": ["Any laboratory-based mechanistic research"]
+        "specific_inclusions": [
+          "Any laboratory-based mechanistic research"
+        ]
       },
       {
         "id": "reviews_commentary",
@@ -167,7 +180,9 @@
           "Expert commentary on significant studies",
           "Editorial perspectives on controversial topics"
         ],
-        "specific_inclusions": ["Any synthesis or expert opinion piece"]
+        "specific_inclusions": [
+          "Any synthesis or expert opinion piece"
+        ]
       },
       {
         "id": "corrections_retractions",
@@ -176,7 +191,9 @@
           "Retractions or corrections to prior publications",
           "Updates to previously published research"
         ],
-        "specific_inclusions": ["ALL corrections and retractions regardless of study quality (high impeachment value)"]
+        "specific_inclusions": [
+          "ALL corrections and retractions regardless of study quality (high impeachment value)"
+        ]
       },
       {
         "id": "medicolegal",
@@ -188,8 +205,75 @@
           "Pathology texts addressing legal aspects",
           "Evidentiary standards and approaches"
         ],
-        "specific_inclusions": ["Legal textbooks, practice guides (need not be peer-reviewed scientific literature)"]
+        "specific_inclusions": [
+          "Legal textbooks, practice guides (need not be peer-reviewed scientific literature)"
+        ]
       }
     ]
+  }
+}
+
+{
+  "search_strategy": {
+    "derived_from": [
+      "purpose",
+      "global_inclusion_criteria",
+      "category_definitions"
+    ],
+    "search_terms": {
+      "core_terms": [
+        "asbestos",
+        "mesothelioma",
+        "asbestosis",
+        "lung cancer",
+        "pleural disease",
+        "pleural plaques",
+        "chrysotile",
+        "amphibole",
+        "crocidolite",
+        "amosite",
+        "tremolite",
+        "actinolite",
+        "anthophyllite"
+      ],
+      "exposure_terms": [
+        "occupational exposure",
+        "environmental exposure",
+        "fiber exposure",
+        "dust exposure",
+        "workplace exposure",
+        "bystander exposure",
+        "take-home exposure",
+        "background exposure"
+      ],
+      "disease_mechanism_terms": [
+        "pathogenesis",
+        "carcinogenesis",
+        "fiber pathology",
+        "inflammation",
+        "oxidative stress"
+      ],
+      "exposure_assessment_terms": [
+        "exposure reconstruction",
+        "industrial hygiene",
+        "air sampling",
+        "fiber counting",
+        "exposure modeling"
+      ],
+      "epidemiology_terms": [
+        "cohort study",
+        "case-control",
+        "risk assessment",
+        "dose-response",
+        "latency",
+        "attribution"
+      ],
+      "causation_terms": [
+        "Bradford Hill",
+        "causation",
+        "differential diagnosis",
+        "attribution methodology"
+      ]
+    }
   }
 }
