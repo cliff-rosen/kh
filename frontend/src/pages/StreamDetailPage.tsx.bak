@@ -485,55 +485,200 @@ export default function StreamDetailPage() {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    {/* Layer 1: Semantic Space Tab */}
-                    {activeTab === 'semantic' && (
+                    {/* Scope Definition Tab */}
+                    {activeTab === 'stream' && (
                         <div className="space-y-6">
-                            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4 mb-6">
-                                <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-200 mb-2">
-                                    Layer 1: Semantic Space
-                                </h3>
-                                <p className="text-sm text-purple-800 dark:text-purple-300">
-                                    Define the canonical, source-agnostic representation of what information matters. This is the ground truth that both retrieval strategies and presentation categories will derive from.
-                                </p>
+                            {/* Stream Name */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Stream Name *
+                                </label>
+                                <input
+                                    type="text"
+                                    value={form.stream_name}
+                                    onChange={(e) => setForm({ ...form, stream_name: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    required
+                                />
                             </div>
 
-                            <SemanticSpaceForm
-                                semanticSpace={form.semantic_space}
-                                onChange={(updated) => setForm({ ...form, semantic_space: updated })}
-                            />
-                        </div>
-                    )}
+                            {/* Purpose */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Purpose *
+                                </label>
+                                <textarea
+                                    rows={3}
+                                    value={form.purpose}
+                                    onChange={(e) => setForm({ ...form, purpose: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    required
+                                />
+                            </div>
 
-                    {/* Layer 3: Presentation Taxonomy Tab */}
-                    {activeTab === 'presentation' && (
-                        <div className="space-y-6">
-                            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
-                                <h3 className="text-sm font-semibold text-green-900 dark:text-green-200 mb-2">
-                                    Layer 3: Presentation Taxonomy
-                                </h3>
-                                <p className="text-sm text-green-800 dark:text-green-300">
-                                    Define categories for organizing results in reports. These should be derived from your semantic space and optimized for how users consume information.
-                                </p>
+                            {/* Audience */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        Audience
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => addArrayItem('audience')}
+                                        className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                    >
+                                        <PlusIcon className="h-4 w-4" />
+                                        Add
+                                    </button>
+                                </div>
+                                {form.audience.map((item, index) => (
+                                    <div key={index} className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            placeholder="e.g., Inside counsel, Litigation support staff"
+                                            value={item}
+                                            onChange={(e) => updateArrayItem('audience', index, e.target.value)}
+                                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        />
+                                        {form.audience.length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => removeArrayItem('audience', index)}
+                                                className="text-red-600 dark:text-red-400 hover:text-red-700"
+                                            >
+                                                <TrashIcon className="h-5 w-5" />
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Intended Guidance */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        Intended Guidance
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => addArrayItem('intended_guidance')}
+                                        className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                    >
+                                        <PlusIcon className="h-4 w-4" />
+                                        Add
+                                    </button>
+                                </div>
+                                {form.intended_guidance.map((item, index) => (
+                                    <div key={index} className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            placeholder="e.g., Case strategy development"
+                                            value={item}
+                                            onChange={(e) => updateArrayItem('intended_guidance', index, e.target.value)}
+                                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        />
+                                        {form.intended_guidance.length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => removeArrayItem('intended_guidance', index)}
+                                                className="text-red-600 dark:text-red-400 hover:text-red-700"
+                                            >
+                                                <TrashIcon className="h-5 w-5" />
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Global Inclusion */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        Global Inclusion Criteria
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => addArrayItem('global_inclusion')}
+                                        className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                    >
+                                        <PlusIcon className="h-4 w-4" />
+                                        Add
+                                    </button>
+                                </div>
+                                {form.global_inclusion.map((item, index) => (
+                                    <div key={index} className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            placeholder="e.g., Asbestos exposure assessment"
+                                            value={item}
+                                            onChange={(e) => updateArrayItem('global_inclusion', index, e.target.value)}
+                                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        />
+                                        {form.global_inclusion.length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => removeArrayItem('global_inclusion', index)}
+                                                className="text-red-600 dark:text-red-400 hover:text-red-700"
+                                            >
+                                                <TrashIcon className="h-5 w-5" />
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Global Exclusion */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        Global Exclusion Criteria
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => addArrayItem('global_exclusion')}
+                                        className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                    >
+                                        <PlusIcon className="h-4 w-4" />
+                                        Add
+                                    </button>
+                                </div>
+                                {form.global_exclusion.map((item, index) => (
+                                    <div key={index} className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            placeholder="e.g., Legal case decisions"
+                                            value={item}
+                                            onChange={(e) => updateArrayItem('global_exclusion', index, e.target.value)}
+                                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        />
+                                        {form.global_exclusion.length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => removeArrayItem('global_exclusion', index)}
+                                                className="text-red-600 dark:text-red-400 hover:text-red-700"
+                                            >
+                                                <TrashIcon className="h-5 w-5" />
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
                             </div>
 
                             {/* Categories */}
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        Presentation Categories *
+                                        Research Categories *
                                     </label>
                                     <button
                                         type="button"
                                         onClick={addCategory}
-                                        className="flex items-center gap-1 px-3 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-md transition-colors"
+                                        className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
                                     >
                                         <PlusIcon className="h-4 w-4" />
                                         Add Category
                                     </button>
                                 </div>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    Categories organize results for user consumption and decision-making
-                                </p>
 
                                 {form.categories.map((category, index) => (
                                     <div key={index} className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 space-y-4">
@@ -606,18 +751,46 @@ export default function StreamDetailPage() {
                                     </div>
                                 ))}
                             </div>
+
+                            {/* Report Frequency */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Report Frequency *
+                                </label>
+                                <select
+                                    value={form.report_frequency}
+                                    onChange={(e) => setForm({ ...form, report_frequency: e.target.value as ReportFrequency })}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                >
+                                    <option value={ReportFrequency.DAILY}>Daily</option>
+                                    <option value={ReportFrequency.WEEKLY}>Weekly</option>
+                                    <option value={ReportFrequency.BIWEEKLY}>Bi-weekly</option>
+                                    <option value={ReportFrequency.MONTHLY}>Monthly</option>
+                                </select>
+                            </div>
+
+                            {/* Active Status */}
+                            <div className="flex items-center">
+                                <input
+                                    type="checkbox"
+                                    id="is_active"
+                                    checked={form.is_active}
+                                    onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
+                                    className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                                />
+                                <label htmlFor="is_active" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                                    Stream is active
+                                </label>
+                            </div>
                         </div>
                     )}
 
-                    {/* Layer 2: Retrieval & Scoring Tab */}
+                    {/* Workflow & Scoring Tab */}
                     {activeTab === 'workflow' && (
                         <div className="space-y-6">
-                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
-                                <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
-                                    Layer 2: Retrieval & Scoring
-                                </h3>
+                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                                 <p className="text-sm text-blue-800 dark:text-blue-200">
-                                    Configure how content is retrieved and filtered. This should be derived from your semantic space to ensure comprehensive coverage.
+                                    To configure workflow settings (sources and semantic filters), please use the dedicated Implementation Configuration page for this stream.
                                 </p>
                             </div>
 
