@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProfile } from '../context/ProfileContext';
 import ProfileCompletion from '../components/ProfileCompletion';
-import ResearchStreamForm from '../components/ResearchStreamForm';
+import CreateStreamPage from './CreateStreamPage';
 import { ChatBubbleLeftRightIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 
 export default function NewStreamPage() {
@@ -148,7 +148,7 @@ export default function NewStreamPage() {
                     >
                         ← Back to options
                     </button>
-                    <ResearchStreamForm />
+                    <CreateStreamPage />
                 </div>
             )}
         </div>

@@ -14,15 +14,15 @@ import {
 } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
-import SemanticSpaceForm from './SemanticSpaceForm';
+import SemanticSpaceForm from '../components/SemanticSpaceForm';
 
-interface ResearchStreamFormProps {
+interface CreateStreamPageProps {
     onCancel?: () => void;
 }
 
 type TabType = 'semantic' | 'presentation' | 'workflow';
 
-export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps) {
+export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
     const { createResearchStream, isLoading, error, clearError, availableSources, loadAvailableSources } = useResearchStream();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<TabType>('semantic');

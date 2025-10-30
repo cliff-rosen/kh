@@ -76,7 +76,7 @@ export default function StreamsPage() {
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                navigate(`/streams/${stream.stream_id}`);
+                                                navigate(`/streams/${stream.stream_id}/edit`);
                                             }}
                                             className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                                             title="Edit stream"

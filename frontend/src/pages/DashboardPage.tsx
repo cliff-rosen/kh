@@ -211,7 +211,7 @@ export default function DashboardPage() {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                                             <button
-                                                onClick={() => navigate(`/streams/${stream.stream_id}`)}
+                                                onClick={() => navigate(`/streams/${stream.stream_id}/edit`)}
                                                 className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
                                                 title="Edit stream"
                                             >

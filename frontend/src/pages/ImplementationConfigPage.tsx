@@ -60,7 +60,7 @@ function ImplementationConfigContent() {
                             View Summary Report
                         </button>
                         <button
-                            onClick={() => navigate(`/streams/${streamId}`)}
+                            onClick={() => navigate(`/streams/${streamId}/edit`)}
                             className="px-6 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600"
                         >
                             Cancel
@@ -90,7 +90,7 @@ function ImplementationConfigContent() {
                             </p>
                         </div>
                         <button
-                            onClick={() => navigate(`/streams/${streamId}`)}
+                            onClick={() => navigate(`/streams/${streamId}/edit`)}
                             className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                         >
                             Exit

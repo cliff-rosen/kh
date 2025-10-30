@@ -445,7 +445,7 @@ export default function SummaryReportStep() {
                         All channels have been configured and tested. Accept this configuration to activate your research stream.
                     </p>
                     <button
-                        onClick={() => navigate(`/streams/${stream?.stream_id}`)}
+                        onClick={() => navigate(`/streams/${stream?.stream_id}/edit`)}
                         className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors inline-flex items-center gap-2"
                     >
                         <CheckCircleIcon className="h-5 w-5" />

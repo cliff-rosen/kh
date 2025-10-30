@@ -19,7 +19,7 @@ import SemanticSpaceForm from '../components/SemanticSpaceForm';
 
 type TabType = 'semantic' | 'presentation' | 'workflow';
 
-export default function StreamDetailPage() {
+export default function EditStreamPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { researchStreams, loadResearchStreams, updateResearchStream, deleteResearchStream, isLoading, error, clearError } = useResearchStream();

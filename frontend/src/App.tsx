@@ -24,7 +24,7 @@ import NewStreamPage from './pages/NewStreamPage';
 import NewStreamChatPage from './pages/NewStreamChatPage';
 import DashboardPage from './pages/DashboardPage';
 import StreamsPage from './pages/StreamsPage';
-import StreamDetailPage from './pages/StreamDetailPage';
+import EditStreamPage from './pages/EditStreamPage';
 import ImplementationConfigPage from './pages/ImplementationConfigPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
@@ -52,7 +52,7 @@ function AppContent() {
             <Route path="/" element={<Navigate to={defaultRoute} />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/streams" element={<StreamsPage />} />
-            <Route path="/streams/:id" element={<StreamDetailPage />} />
+            <Route path="/streams/:id/edit" element={<EditStreamPage />} />
             <Route path="/streams/:streamId/configure-implementation" element={<ImplementationConfigPage />} />
             <Route path="/new-stream" element={<NewStreamPage />} />
             <Route path="/new-stream/chat" element={<NewStreamChatPage />} />
