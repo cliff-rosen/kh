@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, computed_field
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
+from schemas.semantic_space import SemanticSpace
 
 
 class StreamType(str, Enum):
@@ -99,11 +100,21 @@ class ResearchStream(BaseModel):
     stream_name: str
     purpose: str = Field(description="Why this stream exists, what questions it answers")
 
-    # Scope definition
+    # === LAYER 1: SEMANTIC SPACE ===
+    # The canonical, source-agnostic representation of what information matters
+    semantic_space: Optional[SemanticSpace] = Field(
+        None,
+        description="Layer 1: Semantic space definition (ground truth)"
+    )
+
+    # Legacy scope definition (to be deprecated in favor of semantic_space)
     audience: List[str] = Field(default_factory=list, description="Who uses this stream")
     intended_guidance: List[str] = Field(default_factory=list, description="What decisions this informs")
     global_inclusion: List[str] = Field(default_factory=list, description="Stream-wide inclusion criteria")
     global_exclusion: List[str] = Field(default_factory=list, description="Stream-wide exclusion criteria")
+
+    # === LAYER 3: PRESENTATION TAXONOMY ===
+    # Categories for presenting results (derived from semantic space)
     categories: List[Category] = Field(description="Structured topic categories")
 
     report_frequency: ReportFrequency
@@ -111,7 +122,8 @@ class ResearchStream(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    # Workflow and scoring configuration
+    # === LAYER 2: RETRIEVAL TAXONOMY ===
+    # Workflow configuration (derived from semantic space)
     workflow_config: Optional[WorkflowConfig] = Field(None, description="Source retrieval configuration")
     scoring_config: Optional[ScoringConfig] = None
 

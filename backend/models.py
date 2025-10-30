@@ -94,12 +94,18 @@ class ResearchStream(Base):
     stream_name = Column(String(255), nullable=False)
     purpose = Column(Text, nullable=False)  # Why this stream exists, what questions it answers
 
-    # Scope definition - new structure
+    # === LAYER 1: SEMANTIC SPACE ===
+    # The canonical, source-agnostic representation of what information matters
+    # Stores complete SemanticSpace schema as JSON
+    semantic_space = Column(JSON, nullable=True)  # Layer 1: Semantic space definition
+
+    # Legacy scope definition (to be deprecated in favor of semantic_space)
     audience = Column(JSON, default=list)  # List of audience types (who uses this stream)
     intended_guidance = Column(JSON, default=list)  # List of use cases (what decisions this informs)
     global_inclusion = Column(JSON, default=list)  # Stream-wide inclusion criteria
     global_exclusion = Column(JSON, default=list)  # Stream-wide exclusion criteria
 
+    # === LAYER 3: PRESENTATION TAXONOMY ===
     # Categories: structured topic organization
     # Format: [{"id": "...", "name": "...", "topics": [...], "specific_inclusions": [...]}]
     categories = Column(JSON, nullable=False)
@@ -107,6 +113,7 @@ class ResearchStream(Base):
     # Report scheduling
     report_frequency = Column(Enum(ReportFrequency), default=ReportFrequency.WEEKLY)
 
+    # === LAYER 2: RETRIEVAL TAXONOMY ===
     # Workflow and scoring configuration (JSONB)
     workflow_config = Column(JSON, nullable=True)  # Source retrieval configuration
     scoring_config = Column(JSON, nullable=True)  # Relevance scoring and filtering config

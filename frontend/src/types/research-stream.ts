@@ -1,5 +1,7 @@
 // Research Stream domain types - Channel-based structure
 
+import { SemanticSpace } from './semantic-space';
+
 export enum StreamType {
     COMPETITIVE = 'competitive',
     REGULATORY = 'regulatory',
@@ -79,11 +81,18 @@ export interface ResearchStream {
     stream_name: string;
     purpose: string;
 
-    // Scope definition
+    // === LAYER 1: SEMANTIC SPACE ===
+    // The canonical, source-agnostic representation of what information matters
+    semantic_space?: SemanticSpace;
+
+    // Legacy scope definition (to be deprecated in favor of semantic_space)
     audience: string[];
     intended_guidance: string[];
     global_inclusion: string[];
     global_exclusion: string[];
+
+    // === LAYER 3: PRESENTATION TAXONOMY ===
+    // Categories for presenting results (derived from semantic space)
     categories: Category[];
 
     report_frequency: ReportFrequency;
@@ -91,7 +100,8 @@ export interface ResearchStream {
     created_at: string;
     updated_at: string;
 
-    // Configuration
+    // === LAYER 2: RETRIEVAL TAXONOMY ===
+    // Workflow configuration (derived from semantic space)
     workflow_config?: WorkflowConfig;
     scoring_config?: ScoringConfig;
 

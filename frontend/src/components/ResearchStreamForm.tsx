@@ -1,14 +1,26 @@
 import { useState, useEffect } from 'react';
 import { useResearchStream } from '../context/ResearchStreamContext';
-import { ReportFrequency, Category, WorkflowConfig, ScoringConfig } from '../types';
+import {
+    ReportFrequency,
+    Category,
+    WorkflowConfig,
+    ScoringConfig,
+    SemanticSpace,
+    Topic,
+    Entity,
+    ImportanceLevel,
+    EntityType,
+    PriorityLevel
+} from '../types';
 import { useNavigate } from 'react-router-dom';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import SemanticSpaceForm from './SemanticSpaceForm';
 
 interface ResearchStreamFormProps {
     onCancel?: () => void;
 }
 
-type TabType = 'stream' | 'workflow';
+type TabType = 'stream' | 'semantic' | 'workflow';
 
 export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps) {
     const { createResearchStream, isLoading, error, clearError, availableSources, loadAvailableSources } = useResearchStream();
@@ -40,7 +52,53 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
             evidence_weight: 0.4,
             inclusion_threshold: 7.0,
             max_items_per_report: 10
-        } as ScoringConfig
+        } as ScoringConfig,
+        semantic_space: {
+            domain: {
+                name: '',
+                description: ''
+            },
+            topics: [] as Topic[],
+            entities: [] as Entity[],
+            relationships: [],
+            context: {
+                business_context: '',
+                decision_types: [''],
+                stakeholders: [''],
+                time_sensitivity: ''
+            },
+            coverage: {
+                signal_types: [],
+                temporal_scope: {
+                    start_date: undefined,
+                    end_date: 'present',
+                    focus_periods: [],
+                    recency_weight: 0.7,
+                    rationale: ''
+                },
+                quality_criteria: {
+                    peer_review_required: true,
+                    minimum_citation_count: undefined,
+                    journal_quality: [],
+                    study_types: [],
+                    exclude_predatory: true,
+                    language_restrictions: ['English'],
+                    other_criteria: []
+                },
+                completeness_requirement: 'Comprehensive'
+            },
+            boundaries: {
+                inclusions: [],
+                exclusions: [],
+                edge_cases: []
+            },
+            extraction_metadata: {
+                extracted_from: 'manual_entry',
+                extracted_at: new Date().toISOString(),
+                human_reviewed: true,
+                derivation_method: 'manual' as const
+            }
+        } as SemanticSpace | undefined
     });
 
     useEffect(() => {
@@ -75,7 +133,8 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                 specific_inclusions: cat.specific_inclusions
             })),
             report_frequency: form.report_frequency,
-            scoring_config: form.scoring_config
+            scoring_config: form.scoring_config,
+            semantic_space: form.semantic_space
         };
 
         console.log('Submitting form data:', cleanedForm);
@@ -206,6 +265,17 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                         }`}
                     >
                         Scope Definition
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('semantic')}
+                        className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                            activeTab === 'semantic'
+                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                        }`}
+                    >
+                        Semantic Space
                     </button>
                     <button
                         type="button"
@@ -528,6 +598,25 @@ export default function ResearchStreamForm({ onCancel }: ResearchStreamFormProps
                                 <option value={ReportFrequency.MONTHLY}>Monthly</option>
                             </select>
                         </div>
+                    </div>
+                )}
+
+                {/* Semantic Space Tab */}
+                {activeTab === 'semantic' && (
+                    <div className="space-y-6">
+                        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4 mb-6">
+                            <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-200 mb-2">
+                                Layer 1: Semantic Space
+                            </h3>
+                            <p className="text-sm text-purple-800 dark:text-purple-300">
+                                Define the canonical, source-agnostic representation of what information matters. This is the ground truth that both retrieval strategies and presentation categories will derive from.
+                            </p>
+                        </div>
+
+                        <SemanticSpaceForm
+                            semanticSpace={form.semantic_space}
+                            onChange={(updated) => setForm({ ...form, semantic_space: updated })}
+                        />
                     </div>
                 )}
 
