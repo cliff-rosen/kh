@@ -1,2 +1,0 @@
-2025-10-22 08:03:06,758 - INFO - [ef01eaba-bb73-4bf8-9f70-fa73611002e1] - middleware.logging_middleware - Request: GET /docs
-2025-10-22 08:03:06,772 - INFO - [ef01eaba-bb73-4bf8-9f70-fa73611002e1] - middleware.logging_middleware - Response: 200 - 17.04ms
