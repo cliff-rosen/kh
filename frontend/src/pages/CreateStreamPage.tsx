@@ -294,7 +294,9 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                 {activeTab === 'workflow' && (
                     <RetrievalScoringForm
                         scoringConfig={form.scoring_config}
-                        onChange={(updated) => setForm({ ...form, scoring_config: updated })}
+                        workflowConfig={form.workflow_config}
+                        onScoringChange={(updated) => setForm({ ...form, scoring_config: updated })}
+                        onWorkflowChange={(updated) => setForm({ ...form, workflow_config: updated })}
                     />
                 )}
 
