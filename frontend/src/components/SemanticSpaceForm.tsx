@@ -30,7 +30,6 @@ export default function SemanticSpaceForm({ semanticSpace, onChange }: SemanticS
             topic_id: `topic_${Date.now()}`,
             name: '',
             description: '',
-            synonyms: [],
             importance: ImportanceLevel.RELEVANT,
             rationale: ''
         };
@@ -312,19 +311,6 @@ export default function SemanticSpaceForm({ semanticSpace, onChange }: SemanticS
                                 placeholder="Why this topic matters"
                                 value={topic.rationale}
                                 onChange={(e) => updateTopic(index, 'rationale', e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Synonyms (comma-separated)
-                            </label>
-                            <input
-                                type="text"
-                                placeholder="e.g., asbestos pathophysiology, asbestos toxicity"
-                                value={topic.synonyms.join(', ')}
-                                onChange={(e) => updateTopic(index, 'synonyms', e.target.value.split(',').map(s => s.trim()).filter(s => s))}
                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                             />
                         </div>

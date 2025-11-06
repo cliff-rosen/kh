@@ -6,7 +6,7 @@
     "topics": [
       {
         "topic_id": "t001",
-        "name": "Mesothelioma Genomics",
+        "name": "Mesothelioma - Genomic Predisposition",
         "description": "Genetic and genomic factors in mesothelioma development, including susceptibility genes, somatic mutations, and molecular pathways",
         "synonyms": [
           "mesothelioma genetics",
@@ -120,7 +120,7 @@
           "molecular exposure markers",
           "genomic exposure assessment"
         ],
-        "importance": "important",
+        "importance": "critical",
         "rationale": "Helps establish or refute exposure claims through biological evidence"
       },
       {
@@ -550,7 +550,7 @@
         "rationale": "Genomic science advances rapidly. Recent publications (2020-present) are most relevant for current litigation, but 2015-2020 literature establishes the knowledge baseline that experts should reasonably have. Earlier literature primarily provides historical context."
       },
       "quality_criteria": {
-        "peer_review_required": true,
+        "peer_review_required": false,
         "minimum_citation_count": null,
         "journal_quality": [
           "High-impact medical journals (NEJM, Lancet, JAMA)",
@@ -568,7 +568,7 @@
           "Regulatory documents and risk assessments",
           "Expert consensus statements"
         ],
-        "exclude_predatory": true,
+        "exclude_predatory": false,
         "language_restrictions": [
           "English"
         ],
@@ -615,7 +615,7 @@
         {
           "criterion_id": "i003",
           "description": "Studies examining individual susceptibility to asbestos or talc at genetic level",
-          "rationale": "May support arguments that disease results from individual susceptibility rather than exposure per se",
+          "rationale": "May support arguments that disease results from individual genetic susceptibility to asbestos-related cancer rather than exposure per se",
           "mandatory": true,
           "related_topics": [
             "t002",
@@ -719,27 +719,6 @@
           ]
         },
         {
-          "criterion_id": "x004",
-          "description": "Case reports and small case series (n<10) unless exceptional",
-          "rationale": "Limited statistical power and generalizability",
-          "strict": false,
-          "exceptions": [
-            "Reports of rare germline mutations",
-            "Unusual familial clustering",
-            "Novel disease mechanisms"
-          ]
-        },
-        {
-          "criterion_id": "x005",
-          "description": "Non-peer-reviewed preprints and conference abstracts",
-          "rationale": "Quality not assured; findings may change upon peer review",
-          "strict": false,
-          "exceptions": [
-            "High-profile preprints from reputable researchers with clear litigation relevance",
-            "Abstracts from major conferences announcing significant findings later tracked to publication"
-          ]
-        },
-        {
           "criterion_id": "x006",
           "description": "Studies of occupational exposures unrelated to asbestos or talc",
           "rationale": "Outside core focus area",
@@ -826,4 +805,6 @@
       "review_notes": "Configuration tailored for legal defense context with emphasis on genomic alternative causation theories. Balanced coverage of both asbestos and talc litigation needs.",
       "derivation_method": "hybrid"
     }
-  }
+}
+ 
+ 

@@ -63,7 +63,6 @@ export interface Topic {
     topic_id: string;
     name: string;
     description: string;
-    synonyms: string[];
     parent_topic?: string;
     importance: ImportanceLevel;
     rationale: string;

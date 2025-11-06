@@ -62,7 +62,6 @@ class Topic(BaseModel):
     topic_id: str = Field(description="Unique identifier for this topic")
     name: str = Field(description="Topic name")
     description: str = Field(description="What this topic encompasses")
-    synonyms: List[str] = Field(default_factory=list, description="Alternative names/terms")
     parent_topic: Optional[str] = Field(None, description="Parent topic ID for hierarchy")
     importance: ImportanceLevel = Field(description="Relative importance")
     rationale: str = Field(description="Why this topic matters to the user")
