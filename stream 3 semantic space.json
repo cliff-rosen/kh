@@ -1,0 +1,869 @@
+{
+    "domain": {
+        "name": "Asbestos/Talc Litigation - Mesothelioma Genetics",
+        "description": "Scientific and technical literature relevant to genetic and genomic factors in mesothelioma causation, predisposition, and susceptibility for asbestos and talc litigation defense"
+    },
+    "topics": [
+        {
+            "topic_id": "T001",
+            "name": "Mesothelioma Genetic Predisposition",
+            "description": "Inherited genetic variants that increase susceptibility to developing mesothelioma",
+            "synonyms": [
+                "genetic susceptibility to mesothelioma",
+                "hereditary mesothelioma risk",
+                "germline mutations and mesothelioma"
+            ],
+            "importance": "critical",
+            "rationale": "Directly impacts alternative causation arguments and apportionment of liability in litigation"
+        },
+        {
+            "topic_id": "T002",
+            "name": "BAP1 Mutations and Mesothelioma",
+            "description": "Role of BAP1 (BRCA1-associated protein 1) germline mutations in mesothelioma development",
+            "synonyms": [
+                "BAP1 tumor predisposition syndrome",
+                "BAP1-associated mesothelioma",
+                "BAP1 germline variants"
+            ],
+            "parent_topic": "T001",
+            "importance": "critical",
+            "rationale": "BAP1 is the most well-established genetic risk factor for mesothelioma, creating significant alternative causation potential"
+        },
+        {
+            "topic_id": "T003",
+            "name": "Somatic Mutations in Mesothelioma",
+            "description": "Acquired genetic alterations in mesothelioma tumors that drive cancer development",
+            "synonyms": [
+                "tumor-specific mutations",
+                "acquired mutations in mesothelioma",
+                "mesothelioma genomic landscape"
+            ],
+            "importance": "important",
+            "rationale": "Helps distinguish between exposure-related and spontaneous genetic mechanisms of disease"
+        },
+        {
+            "topic_id": "T004",
+            "name": "Gene-Environment Interactions",
+            "description": "How genetic variants modify the relationship between asbestos/talc exposure and mesothelioma risk",
+            "synonyms": [
+                "genetic modifiers of exposure risk",
+                "gene-exposure interactions",
+                "susceptibility genes"
+            ],
+            "importance": "critical",
+            "rationale": "Critical for understanding individual variation in disease risk at similar exposure levels"
+        },
+        {
+            "topic_id": "T005",
+            "name": "DNA Repair Mechanisms",
+            "description": "Genetic pathways involved in repairing DNA damage from asbestos/talc exposure",
+            "synonyms": [
+                "DNA damage response",
+                "nucleotide excision repair",
+                "DNA repair capacity"
+            ],
+            "importance": "important",
+            "rationale": "Deficiencies in DNA repair can increase susceptibility independent of exposure intensity"
+        },
+        {
+            "topic_id": "T006",
+            "name": "Familial Mesothelioma Clustering",
+            "description": "Cases of multiple mesothelioma diagnoses within families suggesting genetic factors",
+            "synonyms": [
+                "family history of mesothelioma",
+                "hereditary mesothelioma clusters",
+                "familial cancer syndromes"
+            ],
+            "parent_topic": "T001",
+            "importance": "critical",
+            "rationale": "Strong evidence of genetic contribution to disease that may reduce causation attribution to defendants' products"
+        },
+        {
+            "topic_id": "T007",
+            "name": "Mesothelioma Without Asbestos Exposure",
+            "description": "Cases and mechanisms of mesothelioma development in individuals with no documented exposure history",
+            "synonyms": [
+                "spontaneous mesothelioma",
+                "idiopathic mesothelioma",
+                "background mesothelioma rates"
+            ],
+            "importance": "critical",
+            "rationale": "Establishes baseline risk and supports alternative causation defense strategies"
+        },
+        {
+            "topic_id": "T008",
+            "name": "Genomic Biomarkers for Exposure vs Genetic Etiology",
+            "description": "Molecular signatures that distinguish exposure-related from genetically-driven mesothelioma",
+            "synonyms": [
+                "mutational signatures",
+                "molecular fingerprints",
+                "genomic classifiers"
+            ],
+            "importance": "critical",
+            "rationale": "Potential to determine causation in individual cases based on tumor genomics"
+        },
+        {
+            "topic_id": "T009",
+            "name": "Population Genetics and Ethnic Variations",
+            "description": "Genetic variants that vary by ancestry and affect mesothelioma risk",
+            "synonyms": [
+                "ethnic susceptibility differences",
+                "population-specific risk alleles",
+                "ancestry and cancer risk"
+            ],
+            "importance": "relevant",
+            "rationale": "May explain differential disease rates across populations beyond exposure patterns"
+        },
+        {
+            "topic_id": "T010",
+            "name": "Epigenetic Factors in Mesothelioma",
+            "description": "Non-sequence DNA modifications that influence mesothelioma development",
+            "synonyms": [
+                "DNA methylation",
+                "histone modifications",
+                "chromatin remodeling"
+            ],
+            "importance": "important",
+            "rationale": "Emerging area that may reveal non-exposure-related disease mechanisms"
+        },
+        {
+            "topic_id": "T011",
+            "name": "Talc-Specific Mesothelioma Mechanisms",
+            "description": "Proposed biological pathways by which talc exposure might cause mesothelioma",
+            "synonyms": [
+                "talc carcinogenicity mechanisms",
+                "talc-induced oncogenesis",
+                "cosmetic talc and cancer"
+            ],
+            "importance": "critical",
+            "rationale": "Direct relevance to talc defendant litigation and causation arguments"
+        },
+        {
+            "topic_id": "T012",
+            "name": "Asbestos Fiber Biology and Carcinogenesis",
+            "description": "Molecular mechanisms by which asbestos fibers cause cellular damage and cancer",
+            "synonyms": [
+                "asbestos-induced mutagenesis",
+                "fiber carcinogenicity",
+                "asbestos molecular toxicology"
+            ],
+            "importance": "important",
+            "rationale": "Establishes scientific foundation for exposure-related causation claims"
+        }
+    ],
+    "entities": [
+        {
+            "entity_id": "E001",
+            "entity_type": "gene",
+            "name": "BAP1",
+            "canonical_forms": [
+                "BAP1",
+                "BRCA1-associated protein 1",
+                "BRCA1 associated protein-1 (ubiquitin carboxy-terminal hydrolase)"
+            ],
+            "context": "Tumor suppressor gene; germline mutations confer high mesothelioma risk"
+        },
+        {
+            "entity_id": "E002",
+            "entity_type": "gene",
+            "name": "NF2",
+            "canonical_forms": [
+                "NF2",
+                "neurofibromin 2",
+                "merlin"
+            ],
+            "context": "Frequently mutated in mesothelioma tumors; some germline cases reported"
+        },
+        {
+            "entity_id": "E003",
+            "entity_type": "gene",
+            "name": "CDKN2A",
+            "canonical_forms": [
+                "CDKN2A",
+                "p16",
+                "cyclin-dependent kinase inhibitor 2A"
+            ],
+            "context": "Tumor suppressor frequently deleted in mesothelioma; familial cases with germline mutations"
+        },
+        {
+            "entity_id": "E004",
+            "entity_type": "gene",
+            "name": "TP53",
+            "canonical_forms": [
+                "TP53",
+                "p53",
+                "tumor protein p53"
+            ],
+            "context": "Key tumor suppressor; mutations in subset of mesothelioma cases"
+        },
+        {
+            "entity_id": "E005",
+            "entity_type": "disease",
+            "name": "Malignant Mesothelioma",
+            "canonical_forms": [
+                "malignant mesothelioma",
+                "mesothelioma",
+                "pleural mesothelioma",
+                "peritoneal mesothelioma"
+            ],
+            "context": "Primary disease of interest; cancer of mesothelial cells lining body cavities"
+        },
+        {
+            "entity_id": "E006",
+            "entity_type": "disease",
+            "name": "BAP1 Tumor Predisposition Syndrome",
+            "canonical_forms": [
+                "BAP1-TPDS",
+                "BAP1 cancer syndrome",
+                "BAP1 tumor predisposition syndrome"
+            ],
+            "context": "Inherited cancer syndrome including mesothelioma, uveal melanoma, and other cancers"
+        },
+        {
+            "entity_id": "E007",
+            "entity_type": "substance",
+            "name": "Asbestos",
+            "canonical_forms": [
+                "asbestos",
+                "asbestos fibers",
+                "chrysotile",
+                "amphibole asbestos",
+                "crocidolite",
+                "amosite"
+            ],
+            "context": "Mineral fiber; established cause of mesothelioma through occupational and environmental exposure"
+        },
+        {
+            "entity_id": "E008",
+            "entity_type": "substance",
+            "name": "Talc",
+            "canonical_forms": [
+                "talc",
+                "talcum powder",
+                "cosmetic talc",
+                "industrial talc"
+            ],
+            "context": "Mineral used in consumer products; alleged cause of mesothelioma in litigation"
+        },
+        {
+            "entity_id": "E009",
+            "entity_type": "biomarker",
+            "name": "Mutational Signature",
+            "canonical_forms": [
+                "mutational signature",
+                "mutation pattern",
+                "SBS signature",
+                "COSMIC signature"
+            ],
+            "context": "Patterns of mutations that indicate causative processes (e.g., exposure vs spontaneous)"
+        },
+        {
+            "entity_id": "E010",
+            "entity_type": "methodology",
+            "name": "Whole Genome Sequencing",
+            "canonical_forms": [
+                "WGS",
+                "whole genome sequencing",
+                "complete genome sequencing"
+            ],
+            "context": "Comprehensive genomic analysis technique used to identify all mutations in tumor"
+        },
+        {
+            "entity_id": "E011",
+            "entity_type": "methodology",
+            "name": "Genome-Wide Association Study",
+            "canonical_forms": [
+                "GWAS",
+                "genome-wide association study",
+                "genetic association study"
+            ],
+            "context": "Study design to identify genetic variants associated with disease risk in populations"
+        },
+        {
+            "entity_id": "E012",
+            "entity_type": "pathway",
+            "name": "DNA Damage Response Pathway",
+            "canonical_forms": [
+                "DDR pathway",
+                "DNA damage response",
+                "DNA repair pathway"
+            ],
+            "context": "Cellular mechanisms for detecting and repairing DNA damage; defects increase cancer risk"
+        },
+        {
+            "entity_id": "E013",
+            "entity_type": "organization",
+            "name": "International Agency for Research on Cancer",
+            "canonical_forms": [
+                "IARC",
+                "International Agency for Research on Cancer"
+            ],
+            "context": "WHO agency that classifies carcinogenicity of substances; classified asbestos as Group 1"
+        },
+        {
+            "entity_id": "E014",
+            "entity_type": "population",
+            "name": "Turkish Cappadocian Villages",
+            "canonical_forms": [
+                "Cappadocia region",
+                "Turkish mesothelioma villages",
+                "erionite-exposed populations"
+            ],
+            "context": "Population with high mesothelioma rates due to environmental erionite exposure and potential genetic susceptibility"
+        }
+    ],
+    "relationships": [
+        {
+            "relationship_id": "R001",
+            "type": "causal",
+            "subject": "E001",
+            "object": "E005",
+            "description": "Germline BAP1 mutations cause increased susceptibility to malignant mesothelioma",
+            "strength": "strong"
+        },
+        {
+            "relationship_id": "R002",
+            "type": "causal",
+            "subject": "E007",
+            "object": "E005",
+            "description": "Asbestos exposure causes malignant mesothelioma through direct fiber toxicity",
+            "strength": "strong"
+        },
+        {
+            "relationship_id": "R003",
+            "type": "interactive",
+            "subject": "E001",
+            "object": "E007",
+            "description": "BAP1 mutations may interact with asbestos exposure to modify mesothelioma risk",
+            "strength": "moderate"
+        },
+        {
+            "relationship_id": "R004",
+            "type": "methodological",
+            "subject": "E010",
+            "object": "E009",
+            "description": "Whole genome sequencing is used to identify mutational signatures in tumors",
+            "strength": "strong"
+        },
+        {
+            "relationship_id": "R005",
+            "type": "hierarchical",
+            "subject": "E006",
+            "object": "E001",
+            "description": "BAP1 Tumor Predisposition Syndrome is caused by germline BAP1 mutations",
+            "strength": "strong"
+        },
+        {
+            "relationship_id": "R006",
+            "type": "correlational",
+            "subject": "E008",
+            "object": "E005",
+            "description": "Talc exposure has alleged but disputed correlation with mesothelioma",
+            "strength": "weak"
+        },
+        {
+            "relationship_id": "R007",
+            "type": "regulatory",
+            "subject": "E013",
+            "object": "E007",
+            "description": "IARC classifies and regulates carcinogen designations including asbestos",
+            "strength": "strong"
+        },
+        {
+            "relationship_id": "R008",
+            "type": "causal",
+            "subject": "E003",
+            "object": "E005",
+            "description": "CDKN2A germline mutations increase mesothelioma susceptibility in some families",
+            "strength": "moderate"
+        },
+        {
+            "relationship_id": "R009",
+            "type": "methodological",
+            "subject": "E011",
+            "object": "T001",
+            "description": "GWAS studies are used to identify genetic predisposition factors for mesothelioma",
+            "strength": "strong"
+        },
+        {
+            "relationship_id": "R010",
+            "type": "inhibitory",
+            "subject": "E012",
+            "object": "E005",
+            "description": "Functional DNA damage response pathways protect against mesothelioma development",
+            "strength": "strong"
+        }
+    ],
+    "context": {
+        "business_context": "Legal defense for asbestos and talc manufacturers and distributors in mesothelioma litigation, requiring scientific evidence to support alternative causation, genetic predisposition, and apportionment arguments",
+        "decision_types": [
+            "Expert witness selection and testimony preparation",
+            "Case strategy regarding causation arguments",
+            "Settlement vs trial decisions based on genetic evidence",
+            "Motion preparation citing scientific literature",
+            "Daubert challenges to plaintiff expert testimony",
+            "Cross-examination strategies for plaintiff experts"
+        ],
+        "stakeholders": [
+            "Inside counsel for asbestos defendants",
+            "Inside counsel for talc defendants",
+            "Outside litigation counsel",
+            "Expert witnesses (genetics/genomics)",
+            "Expert witnesses (medical causation)",
+            "Case strategy teams",
+            "Risk management teams"
+        ],
+        "time_sensitivity": "High - new publications may impact ongoing trials, expert reports, and case valuations; monthly monitoring with immediate alerts for breakthrough findings"
+    },
+    "coverage": {
+        "signal_types": [
+            {
+                "signal_id": "S001",
+                "name": "Novel Genetic Risk Factors",
+                "description": "Discovery of new genes or variants associated with mesothelioma susceptibility",
+                "priority": "must_have",
+                "examples": [
+                    "New germline mutations in previously unidentified genes",
+                    "Rare variants identified through exome sequencing",
+                    "Polygenic risk scores for mesothelioma"
+                ]
+            },
+            {
+                "signal_id": "S002",
+                "name": "Gene-Environment Interaction Studies",
+                "description": "Research examining how genetic factors modify exposure-disease relationships",
+                "priority": "must_have",
+                "examples": [
+                    "BAP1 carriers with low-dose asbestos exposure",
+                    "DNA repair gene variants and exposure thresholds",
+                    "Pharmacogenomic interactions with treatment"
+                ]
+            },
+            {
+                "signal_id": "S003",
+                "name": "Mechanistic Studies of Genetic Causation",
+                "description": "Molecular and cellular studies explaining how genetic factors cause mesothelioma",
+                "priority": "must_have",
+                "examples": [
+                    "BAP1 functional studies in mesothelial cells",
+                    "Animal models of genetic predisposition",
+                    "Pathway analysis of susceptibility genes"
+                ]
+            },
+            {
+                "signal_id": "S004",
+                "name": "Familial Clustering and Pedigree Studies",
+                "description": "Case reports and studies of mesothelioma occurrence in families",
+                "priority": "must_have",
+                "examples": [
+                    "Multi-generational mesothelioma families",
+                    "Penetrance estimates for BAP1 mutations",
+                    "Segregation analysis in high-risk families"
+                ]
+            },
+            {
+                "signal_id": "S005",
+                "name": "Spontaneous Mesothelioma Cases",
+                "description": "Reports of mesothelioma without documented exposure history",
+                "priority": "must_have",
+                "examples": [
+                    "Case series of unexposed patients",
+                    "Background incidence rates",
+                    "Genetic characterization of spontaneous cases"
+                ]
+            },
+            {
+                "signal_id": "S006",
+                "name": "Mutational Signature Analysis",
+                "description": "Genomic patterns distinguishing exposure-related from genetic etiology",
+                "priority": "must_have",
+                "examples": [
+                    "Signature differences between exposed and unexposed patients",
+                    "Validation of exposure-specific signatures",
+                    "New computational methods for signature detection"
+                ]
+            },
+            {
+                "signal_id": "S007",
+                "name": "Talc-Specific Research",
+                "description": "Studies specifically examining talc exposure and mesothelioma",
+                "priority": "must_have",
+                "examples": [
+                    "Epidemiological studies of talc workers or users",
+                    "Mechanistic studies of talc carcinogenicity",
+                    "Regulatory assessments of talc safety"
+                ]
+            },
+            {
+                "signal_id": "S008",
+                "name": "Population Genetics Studies",
+                "description": "Research on genetic variation across populations affecting mesothelioma risk",
+                "priority": "should_have",
+                "examples": [
+                    "Ethnic differences in susceptibility alleles",
+                    "Founder mutations in isolated populations",
+                    "Migration studies and genetic ancestry"
+                ]
+            },
+            {
+                "signal_id": "S009",
+                "name": "Clinical Genetic Testing Guidelines",
+                "description": "Recommendations for genetic testing in mesothelioma patients",
+                "priority": "should_have",
+                "examples": [
+                    "Professional society guidelines for BAP1 testing",
+                    "Criteria for germline testing referral",
+                    "Cascade testing recommendations for families"
+                ]
+            },
+            {
+                "signal_id": "S010",
+                "name": "Forensic Exposure Assessment Methods",
+                "description": "New techniques for retrospective exposure determination",
+                "priority": "nice_to_have",
+                "examples": [
+                    "Biomarkers of historical exposure",
+                    "Fiber burden analysis in tissue",
+                    "Occupational hygiene reconstruction methods"
+                ]
+            }
+        ],
+        "temporal_scope": {
+            "start_date": "2015-01-01",
+            "end_date": "present",
+            "focus_periods": [
+                "Last 3 years (highest priority for novel findings)",
+                "2018-present (BAP1 and genetic predisposition expansion)",
+                "2015-2018 (foundational genomic studies)"
+            ],
+            "recency_weight": 0.75,
+            "rationale": "Genomic technologies advanced significantly around 2015; recent studies have highest litigation relevance; historical context needed for expert testimony credibility"
+        },
+        "quality_criteria": {
+            "peer_review_required": true,
+            "minimum_citation_count": null,
+            "journal_quality": [
+                "High-impact general science (Nature, Science, Cell)",
+                "Top-tier cancer journals (Nature Cancer, Cancer Cell, Journal of Clinical Oncology)",
+                "Specialized genetics journals (Nature Genetics, American Journal of Human Genetics)",
+                "Mesothelioma-focused publications",
+                "Occupational/environmental health journals"
+            ],
+            "study_types": [
+                "Prospective cohort studies",
+                "Case-control studies with genetic data",
+                "Whole genome/exome sequencing studies",
+                "GWAS and genetic association studies",
+                "Functional genomics and mechanistic studies",
+                "Family-based genetic studies",
+                "Case reports of genetic predisposition (if well-documented)",
+                "Systematic reviews and meta-analyses"
+            ],
+            "exclude_predatory": true,
+            "language_restrictions": [
+                "English (primary)",
+                "Include abstracts from major non-English journals if significant"
+            ],
+            "other_criteria": [
+                "Original research and data (not just commentary)",
+                "Clear methodology and statistical analysis",
+                "Sufficient sample size for genetic claims",
+                "Disclosure of conflicts of interest",
+                "Availability of supplementary genetic data",
+                "Replication studies given weight for litigation purposes"
+            ]
+        },
+        "completeness_requirement": "Comprehensive monitoring of all peer-reviewed literature meeting quality criteria; aim for >95% capture of relevant high-quality publications in the genetic predisposition space"
+    },
+    "boundaries": {
+        "inclusions": [
+            {
+                "criterion_id": "I001",
+                "description": "All studies examining germline genetic variants and mesothelioma risk",
+                "rationale": "Core focus area for establishing alternative causation through genetic predisposition",
+                "mandatory": true,
+                "related_topics": [
+                    "T001",
+                    "T002",
+                    "T006"
+                ],
+                "related_entities": [
+                    "E001",
+                    "E003",
+                    "E005"
+                ]
+            },
+            {
+                "criterion_id": "I002",
+                "description": "Studies of mesothelioma cases without documented asbestos or talc exposure",
+                "rationale": "Establishes background disease rate and supports spontaneous occurrence arguments",
+                "mandatory": true,
+                "related_topics": [
+                    "T007"
+                ],
+                "related_entities": [
+                    "E005"
+                ]
+            },
+            {
+                "criterion_id": "I003",
+                "description": "Research on gene-environment interactions between genetic variants and asbestos/talc exposure",
+                "rationale": "Critical for apportionment arguments and understanding individual susceptibility",
+                "mandatory": true,
+                "related_topics": [
+                    "T004"
+                ],
+                "related_entities": [
+                    "E001",
+                    "E007",
+                    "E008"
+                ]
+            },
+            {
+                "criterion_id": "I004",
+                "description": "Studies identifying mutational signatures or genomic biomarkers distinguishing exposure etiology",
+                "rationale": "May enable case-specific causation determination through tumor genomic analysis",
+                "mandatory": true,
+                "related_topics": [
+                    "T008"
+                ],
+                "related_entities": [
+                    "E009",
+                    "E010"
+                ]
+            },
+            {
+                "criterion_id": "I005",
+                "description": "Family-based studies and pedigree analyses of mesothelioma clustering",
+                "rationale": "Strong evidence of genetic component reduces exposure causation weight",
+                "mandatory": true,
+                "related_topics": [
+                    "T006"
+                ],
+                "related_entities": [
+                    "E005",
+                    "E006"
+                ]
+            },
+            {
+                "criterion_id": "I006",
+                "description": "Mechanistic studies explaining how genetic defects cause mesothelioma independent of exposure",
+                "rationale": "Provides biological plausibility for alternative causation arguments",
+                "mandatory": true,
+                "related_topics": [
+                    "T003",
+                    "T005"
+                ],
+                "related_entities": [
+                    "E001",
+                    "E002",
+                    "E012"
+                ]
+            },
+            {
+                "criterion_id": "I007",
+                "description": "All talc-specific studies regardless of findings (positive, negative, or null)",
+                "rationale": "Direct litigation relevance to talc defendants; need complete picture including exculpatory evidence",
+                "mandatory": true,
+                "related_topics": [
+                    "T011"
+                ],
+                "related_entities": [
+                    "E008"
+                ]
+            },
+            {
+                "criterion_id": "I008",
+                "description": "Population genetics studies showing ethnic or geographic variation in mesothelioma susceptibility",
+                "rationale": "May explain differential disease rates beyond exposure patterns",
+                "mandatory": false,
+                "related_topics": [
+                    "T009"
+                ],
+                "related_entities": [
+                    "E014"
+                ]
+            },
+            {
+                "criterion_id": "I009",
+                "description": "Epigenetic studies in mesothelioma if they address heritable or constitutional factors",
+                "rationale": "Emerging area that may reveal non-exposure disease mechanisms",
+                "mandatory": false,
+                "related_topics": [
+                    "T010"
+                ],
+                "related_entities": [
+                    "E005"
+                ]
+            },
+            {
+                "criterion_id": "I010",
+                "description": "Clinical guidelines for genetic testing and counseling in mesothelioma",
+                "rationale": "Establishes standard of care and supports expert testimony credibility",
+                "mandatory": false,
+                "related_topics": [
+                    "T001"
+                ],
+                "related_entities": [
+                    "E001",
+                    "E006"
+                ]
+            }
+        ],
+        "exclusions": [
+            {
+                "criterion_id": "X001",
+                "description": "Treatment and therapeutic studies unless they provide genetic/mechanistic insights",
+                "rationale": "Treatment outcomes not directly relevant to causation litigation; focus resources on etiology",
+                "strict": true,
+                "exceptions": [
+                    "Studies where treatment response reveals genetic subtype information",
+                    "Pharmacogenomic studies that inform disease mechanisms"
+                ]
+            },
+            {
+                "criterion_id": "X002",
+                "description": "Purely prognostic biomarkers without etiologic implications",
+                "rationale": "Survival and prognosis not central to causation determination",
+                "strict": true,
+                "exceptions": [
+                    "Prognostic markers that also indicate genetic vs exposure etiology"
+                ]
+            },
+            {
+                "criterion_id": "X003",
+                "description": "Animal model studies unless directly testing genetic predisposition or gene-exposure interactions",
+                "rationale": "Focus on human evidence for litigation; animal models only if mechanistically informative",
+                "strict": false,
+                "exceptions": [
+                    "Genetically engineered mouse models of BAP1 or other susceptibility genes",
+                    "Studies testing exposure thresholds in genetically susceptible animals"
+                ]
+            },
+            {
+                "criterion_id": "X004",
+                "description": "Asbestos-related diseases other than mesothelioma (lung cancer, asbestosis, pleural plaques)",
+                "rationale": "Different pathophysiology and legal context; maintain focused scope",
+                "strict": true,
+                "exceptions": [
+                    "Studies that compare genetic factors across asbestos-related diseases",
+                    "Research on shared genetic susceptibility mechanisms"
+                ]
+            },
+            {
+                "criterion_id": "X005",
+                "description": "Historical/review papers more than 5 years old unless seminal",
+                "rationale": "Focus on current evidence; genomic field evolves rapidly",
+                "strict": false,
+                "exceptions": [
+                    "Landmark studies establishing key genetic associations",
+                    "Historical papers cited in current litigation"
+                ]
+            },
+            {
+                "criterion_id": "X006",
+                "description": "Conference abstracts without full publications",
+                "rationale": "Insufficient detail for litigation use; wait for peer-reviewed publication",
+                "strict": true,
+                "exceptions": [
+                    "Major conference presentations of breakthrough findings can be monitored for anticipation"
+                ]
+            },
+            {
+                "criterion_id": "X007",
+                "description": "Non-genetic epidemiological studies of asbestos/talc exposure",
+                "rationale": "Outside the genetic predisposition monitoring mandate",
+                "strict": false,
+                "exceptions": [
+                    "Studies that include genetic subgroup analyses",
+                    "Research specifically comparing exposed genetic carriers vs non-carriers"
+                ]
+            },
+            {
+                "criterion_id": "X008",
+                "description": "Occupational hygiene and exposure assessment studies without genetic component",
+                "rationale": "Separate monitoring stream; this service focuses on genetic factors",
+                "strict": true,
+                "exceptions": [
+                    "Studies correlating genetic markers with fiber burden or exposure biomarkers"
+                ]
+            }
+        ],
+        "edge_cases": [
+            {
+                "case_id": "EC001",
+                "description": "Studies of peritoneal mesothelioma (vs. pleural)",
+                "resolution": "include",
+                "rationale": "Both subtypes relevant to litigation; may have different genetic profiles"
+            },
+            {
+                "case_id": "EC002",
+                "description": "Studies in pediatric or young-onset mesothelioma",
+                "resolution": "include",
+                "conditions": "Age <40 at diagnosis",
+                "rationale": "Young onset strongly suggests genetic predisposition; high litigation value"
+            },
+            {
+                "case_id": "EC003",
+                "description": "Studies of erionite exposure (similar mineral to asbestos)",
+                "resolution": "conditional",
+                "conditions": "Include if study examines genetic susceptibility to mineral fibers generally",
+                "rationale": "Erionite research in Cappadocia has revealed genetic factors applicable to asbestos cases"
+            },
+            {
+                "case_id": "EC004",
+                "description": "Somatic mutation studies in tumors without germline analysis",
+                "resolution": "conditional",
+                "conditions": "Include if mutations occur in known germline susceptibility genes (BAP1, CDKN2A, etc.)",
+                "rationale": "May inform which genes to investigate for germline contribution"
+            },
+            {
+                "case_id": "EC005",
+                "description": "Studies combining mesothelioma with other BAP1-associated cancers (uveal melanoma, renal cell carcinoma)",
+                "resolution": "include",
+                "rationale": "BAP1 syndrome studies inform mesothelioma genetic susceptibility even if not exclusively focused on mesothelioma"
+            },
+            {
+                "case_id": "EC006",
+                "description": "Case reports of mesothelioma in BAP1 carriers",
+                "resolution": "include",
+                "rationale": "Individual cases build body of evidence for genetic causation; useful for expert testimony"
+            },
+            {
+                "case_id": "EC007",
+                "description": "Studies of inflammatory response genes and asbestos",
+                "resolution": "conditional",
+                "conditions": "Include if study examines genetic variation in inflammatory response affecting disease risk",
+                "rationale": "Genetic differences in inflammation could represent alternative susceptibility mechanism"
+            },
+            {
+                "case_id": "EC008",
+                "description": "Computational or bioinformatics studies without new experimental data",
+                "resolution": "conditional",
+                "conditions": "Include if re-analysis provides novel insights into genetic etiology",
+                "rationale": "New analytical approaches to existing data may reveal previously unrecognized genetic patterns"
+            },
+            {
+                "case_id": "EC009",
+                "description": "Studies of benign mesothelioma or mesothelial hyperplasia",
+                "resolution": "exclude",
+                "rationale": "Different disease entity; not relevant to malignant mesothelioma litigation"
+            },
+            {
+                "case_id": "EC010",
+                "description": "Studies examining SV40 virus and mesothelioma",
+                "resolution": "conditional",
+                "conditions": "Include only if study examines interaction between viral factors and genetic susceptibility",
+                "rationale": "Viral causation is separate alternative causation theory; only relevant if combined with genetic analysis"
+            }
+        ]
+    },
+    "extraction_metadata": {
+        "extracted_from": "Legal literature monitoring service goal document for asbestos/talc litigation defense",
+        "extracted_at": "2025-11-06",
+        "confidence_score": 0.95,
+        "human_reviewed": false,
+        "review_notes": "Requires legal team review to confirm comprehensiveness and litigation strategy alignment",
+        "derivation_method": "ai_generated"
+    }
+}

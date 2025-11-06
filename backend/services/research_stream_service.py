@@ -61,28 +61,21 @@ class ResearchStreamService:
         user_id: int,
         stream_name: str,
         purpose: str,
-        audience: List[str],
-        intended_guidance: List[str],
-        global_inclusion: List[str],
-        global_exclusion: List[str],
-        categories: List[Dict[str, Any]],
-        report_frequency: ReportFrequency = ReportFrequency.WEEKLY,
-        scoring_config: Optional[Dict[str, Any]] = None
+        report_frequency: ReportFrequency,
+        semantic_space: Dict[str, Any],
+        retrieval_config: Dict[str, Any],
+        presentation_config: Dict[str, Any]
     ) -> ResearchStream:
-        """Create a new research stream with scope-based structure"""
+        """Create a new research stream with three-layer architecture"""
 
         research_stream = ResearchStream(
             user_id=user_id,
             stream_name=stream_name,
             purpose=purpose,
-            audience=audience,
-            intended_guidance=intended_guidance,
-            global_inclusion=global_inclusion,
-            global_exclusion=global_exclusion,
-            categories=categories,
             report_frequency=report_frequency,
-            scoring_config=scoring_config,
-            workflow_config=None,  # Configured after creation via Workflow 2
+            semantic_space=semantic_space,
+            retrieval_config=retrieval_config,
+            presentation_config=presentation_config,
             is_active=True,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()

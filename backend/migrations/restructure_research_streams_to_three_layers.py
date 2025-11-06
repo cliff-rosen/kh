@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Migration: Restructure research_streams to clean three-layer architecture
 
@@ -8,25 +9,52 @@ This migration:
    categories, workflow_config, scoring_config
 """
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from sqlalchemy import text
-from database import engine
+from database import SessionLocal, engine
 import json
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def migrate():
     """Execute the migration"""
     with engine.begin() as connection:
 
-        print("Step 1: Adding new columns (nullable initially)...")
+        logger.info("Step 1: Adding new columns (nullable initially)...")
 
-        # Add new columns as nullable first
-        connection.execute(text("""
-            ALTER TABLE research_streams
-            ADD COLUMN semantic_space JSON NULL,
-            ADD COLUMN retrieval_config JSON NULL,
-            ADD COLUMN presentation_config JSON NULL
+        # Check if semantic_space already exists (from previous migration)
+        result = connection.execute(text("""
+            SELECT COUNT(*) as count
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'research_streams'
+            AND COLUMN_NAME = 'semantic_space'
         """))
+        semantic_space_exists = result.fetchone()[0] > 0
 
-        print("Step 2: Migrating data from legacy fields to new structure...")
+        if semantic_space_exists:
+            logger.info("  semantic_space column already exists, skipping...")
+            # Only add retrieval_config and presentation_config
+            connection.execute(text("""
+                ALTER TABLE research_streams
+                ADD COLUMN retrieval_config JSON NULL,
+                ADD COLUMN presentation_config JSON NULL
+            """))
+        else:
+            # Add all three columns
+            connection.execute(text("""
+                ALTER TABLE research_streams
+                ADD COLUMN semantic_space JSON NULL,
+                ADD COLUMN retrieval_config JSON NULL,
+                ADD COLUMN presentation_config JSON NULL
+            """))
+
+        logger.info("Step 2: Migrating data from legacy fields to new structure...")
 
         # Fetch all research streams
         result = connection.execute(text("""
@@ -44,7 +72,7 @@ def migrate():
         """))
 
         streams = result.fetchall()
-        print(f"Found {len(streams)} research streams to migrate")
+        logger.info(f"Found {len(streams)} research streams to migrate")
 
         for stream in streams:
             stream_id = stream[0]
@@ -161,9 +189,9 @@ def migrate():
                 }
             )
 
-            print(f"  Migrated stream_id={stream_id}")
+            logger.info(f"  Migrated stream_id={stream_id}")
 
-        print("Step 3: Making new columns NOT NULL...")
+        logger.info("Step 3: Making new columns NOT NULL...")
 
         connection.execute(text("""
             ALTER TABLE research_streams
@@ -172,7 +200,7 @@ def migrate():
             MODIFY COLUMN presentation_config JSON NOT NULL
         """))
 
-        print("Step 4: Dropping legacy columns...")
+        logger.info("Step 4: Dropping legacy columns...")
 
         connection.execute(text("""
             ALTER TABLE research_streams
@@ -185,15 +213,15 @@ def migrate():
             DROP COLUMN scoring_config
         """))
 
-        print("Migration completed successfully!")
+        logger.info("Migration completed successfully!")
 
 
 def rollback():
     """Rollback the migration (restore legacy structure)"""
     with engine.begin() as connection:
-        print("Rolling back migration...")
+        logger.info("Rolling back migration...")
 
-        print("Step 1: Adding back legacy columns...")
+        logger.info("Step 1: Adding back legacy columns...")
 
         connection.execute(text("""
             ALTER TABLE research_streams
@@ -206,7 +234,7 @@ def rollback():
             ADD COLUMN scoring_config JSON NULL
         """))
 
-        print("Step 2: Migrating data back to legacy fields...")
+        logger.info("Step 2: Migrating data back to legacy fields...")
 
         result = connection.execute(text("""
             SELECT
@@ -269,7 +297,7 @@ def rollback():
                 }
             )
 
-        print("Step 3: Dropping new columns...")
+        logger.info("Step 3: Dropping new columns...")
 
         connection.execute(text("""
             ALTER TABLE research_streams
@@ -278,7 +306,7 @@ def rollback():
             DROP COLUMN presentation_config
         """))
 
-        print("Rollback completed successfully!")
+        logger.info("Rollback completed successfully!")
 
 
 if __name__ == "__main__":

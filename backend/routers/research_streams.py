@@ -16,8 +16,11 @@ from schemas.research_stream import (
     StreamType,
     ReportFrequency,
     ScoringConfig,
-    ExecutiveSummary
+    ExecutiveSummary,
+    RetrievalConfig,
+    PresentationConfig
 )
+from schemas.semantic_space import SemanticSpace
 from schemas.sources import INFORMATION_SOURCES, InformationSource
 from schemas.canonical_types import CanonicalResearchArticle
 from schemas.smart_search import FilteredArticle, SearchPaginationInfo
@@ -40,30 +43,25 @@ async def get_information_sources():
 # ============================================================================
 
 class ResearchStreamCreateRequest(BaseModel):
-    """Request schema for creating a research stream - scope-based"""
+    """Request schema for creating a research stream - three-layer architecture"""
     stream_name: str = Field(..., min_length=1, max_length=255)
     purpose: str = Field(..., min_length=1, description="Why this stream exists")
-    audience: List[str] = Field(default_factory=list, description="Who uses this stream")
-    intended_guidance: List[str] = Field(default_factory=list, description="What decisions this informs")
-    global_inclusion: List[str] = Field(default_factory=list, description="Stream-wide inclusion criteria")
-    global_exclusion: List[str] = Field(default_factory=list, description="Stream-wide exclusion criteria")
-    categories: List[Category] = Field(..., min_items=1, description="Research categories")
     report_frequency: ReportFrequency
-    scoring_config: Optional[ScoringConfig] = None
+    # Three-layer architecture
+    semantic_space: SemanticSpace = Field(..., description="Layer 1: What information matters")
+    retrieval_config: RetrievalConfig = Field(..., description="Layer 2: How to find & filter")
+    presentation_config: PresentationConfig = Field(..., description="Layer 3: How to organize results")
 
 class ResearchStreamUpdateRequest(BaseModel):
-    """Request schema for updating a research stream"""
+    """Request schema for updating a research stream - three-layer architecture"""
     stream_name: Optional[str] = Field(None, min_length=1, max_length=255)
     purpose: Optional[str] = None
-    audience: Optional[List[str]] = None
-    intended_guidance: Optional[List[str]] = None
-    global_inclusion: Optional[List[str]] = None
-    global_exclusion: Optional[List[str]] = None
-    categories: Optional[List[Category]] = None
     report_frequency: Optional[ReportFrequency] = None
     is_active: Optional[bool] = None
-    scoring_config: Optional[ScoringConfig] = None
-    workflow_config: Optional[Dict[str, Any]] = None
+    # Three-layer architecture
+    semantic_space: Optional[SemanticSpace] = None
+    retrieval_config: Optional[RetrievalConfig] = None
+    presentation_config: Optional[PresentationConfig] = None
 
 class ToggleStatusRequest(BaseModel):
     is_active: bool
@@ -102,28 +100,22 @@ async def create_research_stream(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Create a new research stream with scope-based structure"""
+    """Create a new research stream with three-layer architecture"""
     service = ResearchStreamService(db)
 
     # Convert Pydantic models to dicts
-    categories_dict = []
-    for cat in request.categories:
-        cat_dict = cat.dict() if hasattr(cat, 'dict') else cat
-        categories_dict.append(cat_dict)
-
-    scoring_dict = request.scoring_config.dict() if request.scoring_config else None
+    semantic_space_dict = request.semantic_space.dict() if hasattr(request.semantic_space, 'dict') else request.semantic_space
+    retrieval_config_dict = request.retrieval_config.dict() if hasattr(request.retrieval_config, 'dict') else request.retrieval_config
+    presentation_config_dict = request.presentation_config.dict() if hasattr(request.presentation_config, 'dict') else request.presentation_config
 
     return service.create_research_stream(
         user_id=current_user.user_id,
         stream_name=request.stream_name,
         purpose=request.purpose,
-        audience=request.audience,
-        intended_guidance=request.intended_guidance,
-        global_inclusion=request.global_inclusion,
-        global_exclusion=request.global_exclusion,
-        categories=categories_dict,
         report_frequency=request.report_frequency,
-        scoring_config=scoring_dict
+        semantic_space=semantic_space_dict,
+        retrieval_config=retrieval_config_dict,
+        presentation_config=presentation_config_dict
     )
 
 
