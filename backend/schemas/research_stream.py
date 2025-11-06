@@ -93,43 +93,49 @@ class WorkflowConfig(BaseModel):
     article_limit_per_week: Optional[int] = Field(None, description="Maximum articles per week")
 
 
+# ============================================================================
+# Three-Layer Architecture Configuration
+# ============================================================================
+
+class RetrievalConfig(BaseModel):
+    """Layer 2: Configuration for content retrieval and filtering"""
+    workflow: WorkflowConfig = Field(description="Source queries and semantic filtering per category")
+    scoring: ScoringConfig = Field(description="Relevance and evidence scoring configuration")
+
+
+class PresentationConfig(BaseModel):
+    """Layer 3: Configuration for organizing and presenting results"""
+    categories: List[Category] = Field(description="How to organize results in reports")
+
+
 class ResearchStream(BaseModel):
-    """Research stream - scope-based structure with categories"""
+    """Research stream with clean three-layer architecture"""
+    # === CORE IDENTITY ===
     stream_id: int
     user_id: int
     stream_name: str
-    purpose: str = Field(description="Why this stream exists, what questions it answers")
+    purpose: str = Field(description="High-level why this stream exists")
 
-    # === LAYER 1: SEMANTIC SPACE ===
-    # The canonical, source-agnostic representation of what information matters
-    semantic_space: Optional[SemanticSpace] = Field(
-        None,
-        description="Layer 1: Semantic space definition (ground truth)"
-    )
+    # === THREE-LAYER ARCHITECTURE ===
 
-    # Legacy scope definition (to be deprecated in favor of semantic_space)
-    audience: List[str] = Field(default_factory=list, description="Who uses this stream")
-    intended_guidance: List[str] = Field(default_factory=list, description="What decisions this informs")
-    global_inclusion: List[str] = Field(default_factory=list, description="Stream-wide inclusion criteria")
-    global_exclusion: List[str] = Field(default_factory=list, description="Stream-wide exclusion criteria")
+    # Layer 1: SEMANTIC SPACE - What information matters (source-agnostic ground truth)
+    semantic_space: SemanticSpace = Field(description="Layer 1: Semantic space definition (ground truth)")
 
-    # === LAYER 3: PRESENTATION TAXONOMY ===
-    # Categories for presenting results (derived from semantic space)
-    categories: List[Category] = Field(description="Structured topic categories")
+    # Layer 2: RETRIEVAL CONFIG - How to find & filter content
+    retrieval_config: RetrievalConfig = Field(description="Layer 2: Content retrieval and filtering configuration")
 
+    # Layer 3: PRESENTATION CONFIG - How to organize results for users
+    presentation_config: PresentationConfig = Field(description="Layer 3: Result organization and presentation")
+
+    # === METADATA ===
     report_frequency: ReportFrequency
     is_active: bool = True
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime = Field(description="ISO 8601 datetime")
+    updated_at: datetime = Field(description="ISO 8601 datetime")
 
-    # === LAYER 2: RETRIEVAL TAXONOMY ===
-    # Workflow configuration (derived from semantic space)
-    workflow_config: Optional[WorkflowConfig] = Field(None, description="Source retrieval configuration")
-    scoring_config: Optional[ScoringConfig] = None
-
-    # Aggregated data (when fetched with counts)
-    report_count: Optional[int] = 0
-    latest_report_date: Optional[str] = None
+    # === AGGREGATED DATA ===
+    report_count: Optional[int] = Field(0, description="Number of reports generated")
+    latest_report_date: Optional[str] = Field(None, description="ISO 8601 date string of latest report")
 
     class Config:
         from_attributes = True

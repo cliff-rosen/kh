@@ -57,6 +57,23 @@ export interface WorkflowConfig {
     article_limit_per_week?: number;
 }
 
+// ============================================================================
+// Three-Layer Architecture Configuration
+// ============================================================================
+
+export interface RetrievalConfig {
+    workflow: WorkflowConfig;  // Source queries and semantic filtering per category
+    scoring: ScoringConfig;    // Relevance and evidence scoring configuration
+}
+
+export interface PresentationConfig {
+    categories: Category[];    // How to organize results in reports
+}
+
+// ============================================================================
+// Information Sources
+// ============================================================================
+
 export enum SourceType {
     ACADEMIC_DATABASE = 'academic_database',
     SEARCH_ENGINE = 'search_engine',
@@ -76,36 +93,30 @@ export interface InformationSource {
 }
 
 export interface ResearchStream {
+    // === CORE IDENTITY ===
     stream_id: number;
     user_id: number;
     stream_name: string;
-    purpose: string;
+    purpose: string;  // High-level "why this stream exists"
 
-    // === LAYER 1: SEMANTIC SPACE ===
-    // The canonical, source-agnostic representation of what information matters
-    semantic_space?: SemanticSpace;
+    // === THREE-LAYER ARCHITECTURE ===
 
-    // Legacy scope definition (to be deprecated in favor of semantic_space)
-    audience: string[];
-    intended_guidance: string[];
-    global_inclusion: string[];
-    global_exclusion: string[];
+    // Layer 1: SEMANTIC SPACE - What information matters (source-agnostic ground truth)
+    semantic_space: SemanticSpace;
 
-    // === LAYER 3: PRESENTATION TAXONOMY ===
-    // Categories for presenting results (derived from semantic space)
-    categories: Category[];
+    // Layer 2: RETRIEVAL CONFIG - How to find & filter content
+    retrieval_config: RetrievalConfig;
 
+    // Layer 3: PRESENTATION CONFIG - How to organize results for users
+    presentation_config: PresentationConfig;
+
+    // === METADATA ===
     report_frequency: ReportFrequency;
     is_active: boolean;
-    created_at: string;
-    updated_at: string;
+    created_at: string;  // ISO 8601 datetime string
+    updated_at: string;  // ISO 8601 datetime string
 
-    // === LAYER 2: RETRIEVAL TAXONOMY ===
-    // Workflow configuration (derived from semantic space)
-    workflow_config?: WorkflowConfig;
-    scoring_config?: ScoringConfig;
-
-    // Aggregated data
+    // === AGGREGATED DATA ===
     report_count?: number;
-    latest_report_date?: string | null;
+    latest_report_date?: string | null;  // ISO 8601 date string
 }

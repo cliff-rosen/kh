@@ -6,6 +6,8 @@ import {
     WorkflowConfig,
     ScoringConfig,
     SemanticSpace,
+    RetrievalConfig,
+    PresentationConfig,
     Topic,
     Entity,
     ImportanceLevel,
@@ -79,27 +81,31 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
             }
         } as SemanticSpace,
 
-        // === LAYER 3: PRESENTATION TAXONOMY ===
-        categories: [
-            {
-                id: '',
-                name: '',
-                topics: [] as string[],
-                specific_inclusions: [] as string[]
-            }
-        ] as Category[],
+        // === LAYER 2: RETRIEVAL CONFIG ===
+        retrieval_config: {
+            workflow: {
+                category_configs: {},
+                article_limit_per_week: 10
+            } as WorkflowConfig,
+            scoring: {
+                relevance_weight: 0.6,
+                evidence_weight: 0.4,
+                inclusion_threshold: 7.0,
+                max_items_per_report: 10
+            } as ScoringConfig
+        } as RetrievalConfig,
 
-        // === LAYER 2: RETRIEVAL TAXONOMY ===
-        workflow_config: {
-            category_configs: {},
-            article_limit_per_week: 10
-        } as WorkflowConfig,
-        scoring_config: {
-            relevance_weight: 0.6,
-            evidence_weight: 0.4,
-            inclusion_threshold: 7.0,
-            max_items_per_report: 10
-        } as ScoringConfig
+        // === LAYER 3: PRESENTATION CONFIG ===
+        presentation_config: {
+            categories: [
+                {
+                    id: '',
+                    name: '',
+                    topics: [] as string[],
+                    specific_inclusions: [] as string[]
+                }
+            ] as Category[]
+        } as PresentationConfig
     });
 
     useEffect(() => {
@@ -110,7 +116,7 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
         e.preventDefault();
 
         // Validate that all categories are complete
-        const incompleteCategory = form.categories.find(cat =>
+        const incompleteCategory = form.presentation_config.categories.find(cat =>
             !cat.id || !cat.name || cat.topics.length === 0
         );
 
@@ -119,34 +125,18 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
             return;
         }
 
-        // Derive legacy fields from semantic_space for backward compatibility
-        const legacyAudience = form.semantic_space.context.stakeholders.filter(s => s.trim());
-        const legacyIntendedGuidance = form.semantic_space.context.decision_types.filter(s => s.trim());
-        const legacyGlobalInclusion = form.semantic_space.boundaries.inclusions.map(inc => inc.description);
-        const legacyGlobalExclusion = form.semantic_space.boundaries.exclusions.map(exc => exc.description);
+        // Derive purpose from semantic space
         const purpose = form.semantic_space.domain.description || form.semantic_space.context.business_context;
 
-        // Prepare clean data for submission
+        // Prepare clean data for submission (new three-layer structure)
         const cleanedForm = {
             stream_name: form.stream_name,
             purpose: purpose,
-            // Legacy fields derived from semantic space
-            audience: legacyAudience,
-            intended_guidance: legacyIntendedGuidance,
-            global_inclusion: legacyGlobalInclusion,
-            global_exclusion: legacyGlobalExclusion,
-            // Layer 3: Presentation taxonomy
-            categories: form.categories.map(cat => ({
-                id: cat.id,
-                name: cat.name,
-                topics: cat.topics,
-                specific_inclusions: cat.specific_inclusions
-            })),
             report_frequency: form.report_frequency,
-            // Layer 2: Retrieval taxonomy
-            scoring_config: form.scoring_config,
-            // Layer 1: Semantic space (ground truth)
-            semantic_space: form.semantic_space
+            // Three-layer architecture
+            semantic_space: form.semantic_space,
+            retrieval_config: form.retrieval_config,
+            presentation_config: form.presentation_config
         };
 
         console.log('Submitting form data:', cleanedForm);
@@ -282,21 +272,30 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                     </div>
                 )}
 
-                {/* Layer 3: Presentation Taxonomy Tab */}
+                {/* Layer 3: Presentation Config Tab */}
                 {activeTab === 'presentation' && (
                     <PresentationForm
-                        categories={form.categories}
-                        onChange={(updated) => setForm({ ...form, categories: updated })}
+                        categories={form.presentation_config.categories}
+                        onChange={(updated) => setForm({
+                            ...form,
+                            presentation_config: { ...form.presentation_config, categories: updated }
+                        })}
                     />
                 )}
 
                 {/* Layer 2: Retrieval & Scoring Tab */}
                 {activeTab === 'workflow' && (
                     <RetrievalScoringForm
-                        scoringConfig={form.scoring_config}
-                        workflowConfig={form.workflow_config}
-                        onScoringChange={(updated) => setForm({ ...form, scoring_config: updated })}
-                        onWorkflowChange={(updated) => setForm({ ...form, workflow_config: updated })}
+                        scoringConfig={form.retrieval_config.scoring}
+                        workflowConfig={form.retrieval_config.workflow}
+                        onScoringChange={(updated) => setForm({
+                            ...form,
+                            retrieval_config: { ...form.retrieval_config, scoring: updated }
+                        })}
+                        onWorkflowChange={(updated) => setForm({
+                            ...form,
+                            retrieval_config: { ...form.retrieval_config, workflow: updated }
+                        })}
                     />
                 )}
 

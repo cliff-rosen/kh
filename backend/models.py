@@ -83,41 +83,35 @@ class CompanyProfile(Base):
 
 
 class ResearchStream(Base):
-    """Research stream with scope-based structure"""
+    """Research stream with clean three-layer architecture"""
     __tablename__ = "research_streams"
 
+    # === CORE IDENTITY ===
     stream_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
     profile_id = Column(Integer, ForeignKey("company_profiles.profile_id"))
 
-    # Core stream configuration
     stream_name = Column(String(255), nullable=False)
-    purpose = Column(Text, nullable=False)  # Why this stream exists, what questions it answers
+    purpose = Column(Text, nullable=False)  # High-level why this stream exists
 
-    # === LAYER 1: SEMANTIC SPACE ===
-    # The canonical, source-agnostic representation of what information matters
+    # === THREE-LAYER ARCHITECTURE ===
+
+    # Layer 1: SEMANTIC SPACE - What information matters (source-agnostic ground truth)
     # Stores complete SemanticSpace schema as JSON
-    semantic_space = Column(JSON, nullable=True)  # Layer 1: Semantic space definition
+    semantic_space = Column(JSON, nullable=False)
 
-    # Legacy scope definition (to be deprecated in favor of semantic_space)
-    audience = Column(JSON, default=list)  # List of audience types (who uses this stream)
-    intended_guidance = Column(JSON, default=list)  # List of use cases (what decisions this informs)
-    global_inclusion = Column(JSON, default=list)  # Stream-wide inclusion criteria
-    global_exclusion = Column(JSON, default=list)  # Stream-wide exclusion criteria
+    # Layer 2: RETRIEVAL CONFIG - How to find & filter content
+    # Stores RetrievalConfig (workflow + scoring) as JSON
+    # Format: {"workflow": {...}, "scoring": {...}}
+    retrieval_config = Column(JSON, nullable=False)
 
-    # === LAYER 3: PRESENTATION TAXONOMY ===
-    # Categories: structured topic organization
-    # Format: [{"id": "...", "name": "...", "topics": [...], "specific_inclusions": [...]}]
-    categories = Column(JSON, nullable=False)
+    # Layer 3: PRESENTATION CONFIG - How to organize results for users
+    # Stores PresentationConfig (categories) as JSON
+    # Format: {"categories": [{...}, {...}]}
+    presentation_config = Column(JSON, nullable=False)
 
-    # Report scheduling
+    # === METADATA ===
     report_frequency = Column(Enum(ReportFrequency), default=ReportFrequency.WEEKLY)
-
-    # === LAYER 2: RETRIEVAL TAXONOMY ===
-    # Workflow and scoring configuration (JSONB)
-    workflow_config = Column(JSON, nullable=True)  # Source retrieval configuration
-    scoring_config = Column(JSON, nullable=True)  # Relevance scoring and filtering config
-
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
