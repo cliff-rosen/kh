@@ -46,20 +46,19 @@ def setup_logging():
     if not os.path.exists(settings.LOG_DIR):
         os.makedirs(settings.LOG_DIR)
 
-    # Generate filename with timestamp
-    current_time = datetime.now().strftime("%Y%m%d")
+    # Base log filename without date (TimedRotatingFileHandler manages dates)
     log_filename = os.path.join(
-        settings.LOG_DIR, 
-        f"{settings.LOG_FILENAME_PREFIX}_{current_time}.log"
+        settings.LOG_DIR,
+        f"{settings.LOG_FILENAME_PREFIX}.log"
     )
 
     # Create formatters
     standard_formatter = logging.Formatter(
         '%(asctime)s - %(levelname)s - [%(request_id)s] - %(name)s - %(message)s'
     )
-    
+
     json_formatter = JsonFormatter() if settings.LOG_FORMAT == 'json' else None
-    
+
     # Get the root logger
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, settings.LOG_LEVEL))
@@ -77,6 +76,21 @@ def setup_logging():
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(json_formatter if settings.LOG_FORMAT == 'json' else standard_formatter)
     file_handler.addFilter(request_id_filter)
+
+    # Custom namer to ensure rotated files end in .log
+    # Transforms: app.log.2025-11-02 -> app_2025-11-02.log
+    def custom_namer(default_name):
+        """Custom naming function for rotated log files."""
+        # Extract the date suffix that TimedRotatingFileHandler added
+        # default_name looks like: /path/to/app.log.2025-11-02
+        base_filename = default_name.replace('.log', '')
+        parts = base_filename.rsplit('.', 1)
+        if len(parts) == 2:
+            # parts[0] is '/path/to/app', parts[1] is '2025-11-02'
+            return f"{parts[0]}_{parts[1]}.log"
+        return default_name
+
+    file_handler.namer = custom_namer
 
     # Create console handler with UTF-8 encoding for Windows compatibility
     import sys
