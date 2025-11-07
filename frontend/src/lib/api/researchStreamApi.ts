@@ -405,5 +405,38 @@ export const researchStreamApi = {
             { channel_test_data: channelTestData }
         );
         return response.data;
+    },
+
+    // ========================================================================
+    // Topic-Based Query Generation (Layer 2: Retrieval Config)
+    // ========================================================================
+
+    /**
+     * Generate a query for a specific topic from the semantic space
+     */
+    async generateQueryForTopic(
+        streamId: number,
+        topicId: string,
+        sourceId: string
+    ): Promise<QueryGenerationResponse> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/topics/generate-query`,
+            { topic_id: topicId, source_id: sourceId }
+        );
+        return response.data;
+    },
+
+    /**
+     * Test a query for a topic
+     */
+    async testQueryForTopic(
+        streamId: number,
+        request: QueryTestRequest
+    ): Promise<QueryTestResponse> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/topics/test-query`,
+            request
+        );
+        return response.data;
     }
 };

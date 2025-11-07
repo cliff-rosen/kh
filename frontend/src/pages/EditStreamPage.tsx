@@ -449,6 +449,7 @@ export default function EditStreamPage() {
                     {/* Layer 2: Retrieval & Scoring Tab */}
                     {activeTab === 'workflow' && (
                         <RetrievalScoringForm
+                            streamId={Number(id)}
                             scoringConfig={form.scoring_config}
                             workflowConfig={form.workflow_config}
                             onScoringChange={(updated) => setForm({ ...form, scoring_config: updated })}

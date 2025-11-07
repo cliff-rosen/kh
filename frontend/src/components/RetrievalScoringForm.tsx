@@ -1,6 +1,9 @@
+import { useNavigate } from 'react-router-dom';
+import { CogIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 import { ScoringConfig, WorkflowConfig } from '../types';
 
 interface RetrievalScoringFormProps {
+    streamId?: number; // Optional - only available after stream creation
     scoringConfig: ScoringConfig;
     workflowConfig: WorkflowConfig;
     onScoringChange: (updated: ScoringConfig) => void;
@@ -8,11 +11,13 @@ interface RetrievalScoringFormProps {
 }
 
 export default function RetrievalScoringForm({
+    streamId,
     scoringConfig,
     workflowConfig,
     onScoringChange,
     onWorkflowChange
 }: RetrievalScoringFormProps) {
+    const navigate = useNavigate();
     const updateScoringField = (field: keyof ScoringConfig, value: number) => {
         onScoringChange({
             ...scoringConfig,
@@ -29,13 +34,32 @@ export default function RetrievalScoringForm({
 
     return (
         <div className="space-y-6">
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
-                <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
-                    Layer 2: Retrieval & Scoring
-                </h3>
-                <p className="text-sm text-blue-800 dark:text-blue-200">
-                    Configure how content is retrieved and filtered. This should be derived from your semantic space to ensure comprehensive coverage.
-                </p>
+            {/* Quick Config vs Advanced Config */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6 mb-6">
+                <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                        <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
+                            Layer 2: Retrieval & Scoring {streamId ? '- Quick Configuration' : ''}
+                        </h3>
+                        <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
+                            {streamId
+                                ? 'Configure basic retrieval settings here. For comprehensive query generation, source selection, and semantic filtering per category, use the advanced configuration.'
+                                : 'Configure basic retrieval settings. After creating the stream, you can access advanced configuration for query generation and semantic filtering per category.'
+                            }
+                        </p>
+                        {streamId && (
+                            <button
+                                type="button"
+                                onClick={() => navigate(`/streams/${streamId}/configure-retrieval`)}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors shadow-sm"
+                            >
+                                <CogIcon className="h-5 w-5" />
+                                Open Advanced Retrieval Configuration
+                                <ArrowRightIcon className="h-4 w-4" />
+                            </button>
+                        )}
+                    </div>
+                </div>
             </div>
 
             {/* Workflow Configuration */}
