@@ -1,5 +1,5 @@
 """
-Research stream schemas for Knowledge Horizon - Channel-based structure
+Research stream schemas for Knowledge Horizon - Category-based structure
 Domain/Business objects only - no request/response types
 """
 
@@ -62,17 +62,17 @@ class ScoringConfig(BaseModel):
 
 
 # ============================================================================
-# Channel-Centric Workflow Configuration
+# Category-Centric Workflow Configuration
 # ============================================================================
 
 class SourceQuery(BaseModel):
-    """Query expression for a specific source within a channel"""
+    """Query expression for a specific source within a category"""
     query_expression: str = Field(description="Source-specific query expression")
-    enabled: bool = Field(default=True, description="Whether this source is active for this channel")
+    enabled: bool = Field(default=True, description="Whether this source is active for this category")
 
 
 class SemanticFilter(BaseModel):
-    """Semantic filtering configuration for a channel"""
+    """Semantic filtering configuration for a category"""
     enabled: bool = Field(default=False, description="Whether semantic filtering is enabled")
     criteria: str = Field(description="Text description of what should pass/fail")
     threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Confidence threshold (0.0 to 1.0)")

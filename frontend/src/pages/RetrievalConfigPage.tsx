@@ -39,7 +39,6 @@ export default function RetrievalConfigPage() {
     const [error, setError] = useState<string | null>(null);
 
     // UI state
-    const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
     // Load stream data
@@ -70,16 +69,6 @@ export default function RetrievalConfigPage() {
         } catch (err) {
             console.error('Failed to load sources:', err);
         }
-    };
-
-    const toggleCategory = (categoryId: string) => {
-        const newExpanded = new Set(expandedCategories);
-        if (newExpanded.has(categoryId)) {
-            newExpanded.delete(categoryId);
-        } else {
-            newExpanded.add(categoryId);
-        }
-        setExpandedCategories(newExpanded);
     };
 
     const handleSave = async () => {
@@ -148,59 +137,46 @@ export default function RetrievalConfigPage() {
 
             {/* Three-column layout */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Column 1: Categories & Topics */}
+                {/* Column 1: Categories */}
                 <div className="lg:col-span-1 space-y-4">
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                            Categories & Topics
+                            Categories
                         </h2>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                            Categories group topics from your semantic space for presentation
+                        </p>
 
                         <div className="space-y-2">
                             {categories.map((category) => {
-                                const isExpanded = expandedCategories.has(category.id);
                                 const categoryTopics = semanticSpace.topics.filter(t =>
                                     category.topics.includes(t.topic_id)
                                 );
 
                                 return (
-                                    <div key={category.id} className="border border-gray-200 dark:border-gray-700 rounded-md">
-                                        <button
-                                            onClick={() => {
-                                                toggleCategory(category.id);
-                                                setSelectedCategory(category.id);
-                                            }}
-                                            className={`w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors ${
-                                                selectedCategory === category.id
-                                                    ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-600'
-                                                    : ''
-                                            }`}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                {isExpanded ? (
-                                                    <ChevronDownIcon className="h-4 w-4" />
-                                                ) : (
-                                                    <ChevronRightIcon className="h-4 w-4" />
-                                                )}
-                                                <span className="font-medium text-sm">{category.name}</span>
-                                                <span className="text-xs text-gray-500">
-                                                    ({categoryTopics.length} topics)
-                                                </span>
+                                    <button
+                                        key={category.id}
+                                        onClick={() => setSelectedCategory(category.id)}
+                                        className={`w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors text-left border ${
+                                            selectedCategory === category.id
+                                                ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500 dark:border-blue-600'
+                                                : 'border-gray-200 dark:border-gray-700'
+                                        }`}
+                                    >
+                                        <div className="flex-1">
+                                            <div className="font-medium text-sm text-gray-900 dark:text-white">
+                                                {category.name}
                                             </div>
-                                        </button>
-
-                                        {isExpanded && (
-                                            <div className="px-3 py-2 space-y-1 bg-gray-50 dark:bg-gray-900/50">
-                                                {categoryTopics.map((topic) => (
-                                                    <div
-                                                        key={topic.topic_id}
-                                                        className="text-sm text-gray-700 dark:text-gray-300 pl-6 py-1"
-                                                    >
-                                                        • {topic.name}
-                                                    </div>
-                                                ))}
+                                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                {categoryTopics.length} topic{categoryTopics.length !== 1 ? 's' : ''}
+                                            </div>
+                                        </div>
+                                        {selectedCategory === category.id && (
+                                            <div className="ml-2">
+                                                <ChevronRightIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                                             </div>
                                         )}
-                                    </div>
+                                    </button>
                                 );
                             })}
                         </div>
@@ -223,15 +199,15 @@ export default function RetrievalConfigPage() {
                         <div className="space-y-2 text-sm">
                             <div className="flex items-center justify-between">
                                 <span className="text-gray-600 dark:text-gray-400">Topics</span>
-                                <span className="font-medium">{semanticSpace.topics.length}</span>
+                                <span className="font-medium text-gray-900 dark:text-white">{semanticSpace.topics.length}</span>
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-gray-600 dark:text-gray-400">Categories</span>
-                                <span className="font-medium">{categories.length}</span>
+                                <span className="font-medium text-gray-900 dark:text-white">{categories.length}</span>
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-gray-600 dark:text-gray-400">Entities</span>
-                                <span className="font-medium">{semanticSpace.entities.length}</span>
+                                <span className="font-medium text-gray-900 dark:text-white">{semanticSpace.entities.length}</span>
                             </div>
                         </div>
                     </div>
