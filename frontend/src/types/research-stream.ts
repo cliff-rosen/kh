@@ -21,24 +21,17 @@ export enum ReportFrequency {
 export interface Category {
     id: string; // Unique identifier for this category (e.g., 'medical_health')
     name: string; // Display name for the category
-    topics: string[]; // List of topics covered by this category
+    topics: string[]; // List of topic_ids from semantic space covered by this category
     specific_inclusions: string[]; // Category-specific inclusion criteria
 }
 
-export interface ScoringConfig {
-    relevance_weight: number;  // 0-1, default 0.6
-    evidence_weight: number;   // 0-1, default 0.4
-    inclusion_threshold: number;  // 1-10 scale, default 7.0
-    max_items_per_report?: number;  // default 10
-}
-
 // ============================================================================
-// Channel-Centric Workflow Configuration
+// Retrieval Configuration - Group-Based
 // ============================================================================
 
 export interface SourceQuery {
     query_expression: string;  // Source-specific query expression
-    enabled: boolean;  // Whether this source is active for this channel
+    enabled: boolean;  // Whether this source is active
 }
 
 export interface SemanticFilter {
@@ -47,23 +40,32 @@ export interface SemanticFilter {
     threshold: number;  // 0.0 to 1.0 confidence threshold
 }
 
-export interface CategoryWorkflowConfig {
-    source_queries: Record<string, SourceQuery | null>;  // Map: source_id -> SourceQuery (null = selected but not configured yet)
-    semantic_filter: SemanticFilter;  // Semantic filtering for this category
+export interface GenerationMetadata {
+    generated_at: string;  // ISO 8601 datetime
+    generated_by: string;  // Who/what generated this (e.g., 'llm:gpt-4', 'user:manual')
+    reasoning: string;  // Explanation of why this was generated
+    confidence?: number;  // 0-1 confidence score
+    inputs_considered: string[];  // topic_ids, entity_ids considered
+    human_edited: boolean;  // Has a human edited this
 }
 
-export interface WorkflowConfig {
-    category_configs: Record<string, CategoryWorkflowConfig>;  // Map: category_id -> CategoryWorkflowConfig
-    article_limit_per_week?: number;
-}
+export interface RetrievalGroup {
+    group_id: string;  // Unique identifier for this retrieval group
+    name: string;  // Display name for the group
+    covered_topics: string[];  // List of topic_ids from semantic space covered by this group
+    rationale: string;  // Why these topics are grouped together for retrieval
 
-// ============================================================================
-// Three-Layer Architecture Configuration
-// ============================================================================
+    // Retrieval configuration embedded directly
+    source_queries: Record<string, SourceQuery | null>;  // Map: source_id -> SourceQuery
+    semantic_filter: SemanticFilter;  // Semantic filtering for this group
+
+    // Metadata for auditability
+    metadata?: GenerationMetadata;
+}
 
 export interface RetrievalConfig {
-    workflow: WorkflowConfig;  // Source queries and semantic filtering per category
-    scoring: ScoringConfig;    // Relevance and evidence scoring configuration
+    retrieval_groups: RetrievalGroup[];  // Retrieval groups organizing topics for efficient search
+    article_limit_per_week?: number;  // Maximum articles per week
 }
 
 export interface PresentationConfig {

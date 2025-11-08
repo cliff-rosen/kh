@@ -1,5 +1,5 @@
 import { api } from './index';
-import { ResearchStream, ReportFrequency, Category, InformationSource, WorkflowConfig, ScoringConfig } from '../../types';
+import { ResearchStream, ReportFrequency, Category, InformationSource, RetrievalGroup, RetrievalConfig } from '../../types';
 import {
     StreamInProgress,
     StreamBuildStep,
@@ -79,7 +79,6 @@ export interface ResearchStreamCreateRequest {
     global_exclusion: string[];
     categories: Category[];
     report_frequency: ReportFrequency;
-    scoring_config?: ScoringConfig;
 }
 
 export interface ResearchStreamUpdateRequest {
@@ -92,8 +91,7 @@ export interface ResearchStreamUpdateRequest {
     categories?: Category[];
     report_frequency?: ReportFrequency;
     is_active?: boolean;
-    workflow_config?: WorkflowConfig;
-    scoring_config?: ScoringConfig;
+    retrieval_config?: RetrievalConfig;
 }
 
 // ============================================================================
@@ -431,10 +429,93 @@ export const researchStreamApi = {
      */
     async testQueryForTopic(
         streamId: number,
-        request: QueryTestRequest
+        request: QueryTestRequest & { topic_id: string }
     ): Promise<QueryTestResponse> {
         const response = await api.post(
             `/api/research-streams/${streamId}/topics/test-query`,
+            request
+        );
+        return response.data;
+    },
+
+    // ========================================================================
+    // Retrieval Group Wizard (Layer 2: Group-Based Configuration)
+    // ========================================================================
+
+    /**
+     * Propose retrieval groups based on semantic space analysis
+     */
+    async proposeRetrievalGroups(streamId: number): Promise<{
+        proposed_groups: any[];
+        coverage_analysis: any;
+        overall_reasoning: string;
+    }> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/retrieval/propose-groups`
+        );
+        return response.data;
+    },
+
+    /**
+     * Generate queries for a retrieval group
+     */
+    async generateGroupQueries(
+        streamId: number,
+        request: {
+            group_id: string;
+            source_id: string;
+            covered_topics: string[];
+        }
+    ): Promise<{
+        query_expression: string;
+        reasoning: string;
+    }> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/retrieval/generate-group-queries`,
+            request
+        );
+        return response.data;
+    },
+
+    /**
+     * Generate semantic filter for a retrieval group
+     */
+    async generateSemanticFilter(
+        streamId: number,
+        request: {
+            group_id: string;
+            topics: Array<{ topic_id: string; name: string; description: string }>;
+            rationale: string;
+        }
+    ): Promise<{
+        criteria: string;
+        threshold: number;
+        reasoning: string;
+    }> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/retrieval/generate-semantic-filter`,
+            request
+        );
+        return response.data;
+    },
+
+    /**
+     * Validate retrieval groups for completeness and readiness
+     */
+    async validateRetrievalGroups(
+        streamId: number,
+        request: {
+            groups: RetrievalGroup[];
+        }
+    ): Promise<{
+        is_complete: boolean;
+        coverage: any;
+        configuration_status: any;
+        warnings: string[];
+        ready_to_activate: boolean;
+    }> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/retrieval/validate`,
             request
         );
         return response.data;

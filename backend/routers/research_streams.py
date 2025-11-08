@@ -18,7 +18,6 @@ from schemas.research_stream import (
     Category,
     StreamType,
     ReportFrequency,
-    ScoringConfig,
     ExecutiveSummary,
     RetrievalConfig,
     PresentationConfig
@@ -885,7 +884,7 @@ async def propose_retrieval_groups(
 
 class ValidateGroupsRequest(BaseModel):
     """Request to validate retrieval groups"""
-    retrieval_groups: List[Dict[str, Any]]
+    groups: List[Dict[str, Any]]
 
 
 @router.post("/{stream_id}/retrieval/validate")
@@ -919,7 +918,7 @@ async def validate_retrieval_groups(
 
         # Parse groups from request
         from schemas.research_stream import RetrievalGroup
-        groups = [RetrievalGroup(**g) for g in request.retrieval_groups]
+        groups = [RetrievalGroup(**g) for g in request.groups]
 
         # Validate
         result = service.validate_groups(semantic_space, groups)
@@ -938,8 +937,9 @@ async def validate_retrieval_groups(
 
 class GenerateGroupQueriesRequest(BaseModel):
     """Request to generate queries for a retrieval group"""
-    group: Dict[str, Any]
-    sources: List[str]
+    group_id: str
+    source_id: str
+    covered_topics: List[str]
 
 
 @router.post("/{stream_id}/retrieval/generate-group-queries")
@@ -966,17 +966,14 @@ async def generate_group_queries(
                 detail="Research stream not found"
             )
 
-        # Parse semantic space and group
+        # Parse semantic space
         semantic_space_dict = stream.semantic_space
         semantic_space = SemanticSpace(**semantic_space_dict)
-
-        from schemas.research_stream import RetrievalGroup
-        group = RetrievalGroup(**request.group)
 
         # Get topics for this group
         group_topics = [
             t for t in semantic_space.topics
-            if t.topic_id in group.covered_topics
+            if t.topic_id in request.covered_topics
         ]
 
         if not group_topics:
@@ -985,27 +982,20 @@ async def generate_group_queries(
                 detail="Group has no valid topics"
             )
 
-        # Generate queries for each source
-        queries = []
-        for source_id in request.sources:
-            # Use first topic as representative (could be enhanced to use all)
-            representative_topic = group_topics[0]
+        # Use first topic as representative (could be enhanced to use all)
+        representative_topic = group_topics[0]
 
-            query_expression, reasoning = await query_service.generate_query_for_topic(
-                topic=representative_topic,
-                source_id=source_id,
-                semantic_space=semantic_space,
-                related_entities=None  # Will find automatically
-            )
+        query_expression, reasoning = await query_service.generate_query_for_topic(
+            topic=representative_topic,
+            source_id=request.source_id,
+            semantic_space=semantic_space,
+            related_entities=None  # Will find automatically
+        )
 
-            queries.append({
-                'source_id': source_id,
-                'query_expression': query_expression,
-                'reasoning': reasoning,
-                'topics_covered': group.covered_topics
-            })
-
-        return {'queries': queries}
+        return {
+            'query_expression': query_expression,
+            'reasoning': reasoning
+        }
 
     except HTTPException:
         raise
@@ -1014,4 +1004,138 @@ async def generate_group_queries(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Query generation failed: {str(e)}"
+        )
+
+
+class GenerateSemanticFilterRequest(BaseModel):
+    """Request to generate semantic filter for a retrieval group"""
+    group_id: str
+    topics: List[Dict[str, str]]
+    rationale: str
+
+
+@router.post("/{stream_id}/retrieval/generate-semantic-filter")
+async def generate_semantic_filter(
+    stream_id: int,
+    request: GenerateSemanticFilterRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Phase 3: Generate semantic filter criteria for a retrieval group.
+
+    Uses LLM to create filter criteria based on group topics and rationale.
+    """
+    stream_service = ResearchStreamService(db)
+
+    try:
+        # Verify stream ownership
+        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+        if not stream:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found"
+            )
+
+        # Build prompt for LLM
+        from schemas.chat import ChatMessage, MessageRole
+        from agents.prompts.base_prompt_caller import BasePromptCaller
+        from config.llm_models import get_task_config, supports_reasoning_effort
+        from datetime import datetime
+
+        topics_summary = "\n".join([
+            f"- {t['name']}: {t['description']}"
+            for t in request.topics
+        ])
+
+        system_prompt = """You are an expert at creating semantic filter criteria for research article screening.
+
+        Your task is to define clear, specific criteria that distinguish relevant articles from irrelevant ones for a given topic group.
+
+        Good filter criteria:
+        - Are specific and actionable
+        - Focus on key concepts and relationships
+        - Consider what makes an article truly relevant vs tangentially related
+        - Are written in clear, natural language
+
+        OUTPUT FORMAT:
+        Return JSON with:
+        {
+        "criteria": "Clear description of what makes an article relevant...",
+        "threshold": 0.7,
+        "reasoning": "Why this filter will work well..."
+        }
+
+        Threshold should be between 0.5 (permissive) and 0.9 (strict). Default to 0.7."""
+
+        user_prompt = f"""Create semantic filter criteria for this retrieval group:
+
+        GROUP RATIONALE:
+        {request.rationale}
+
+        TOPICS COVERED:
+        {topics_summary}
+
+        Define filter criteria that will help identify articles truly relevant to these topics."""
+
+        # Response schema
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "criteria": {"type": "string"},
+                "threshold": {"type": "number", "minimum": 0, "maximum": 1},
+                "reasoning": {"type": "string"}
+            },
+            "required": ["criteria", "threshold", "reasoning"]
+        }
+
+        # Get model config
+        task_config = get_task_config("smart_search", "keyword_generation")
+
+        # Create prompt caller
+        prompt_caller = BasePromptCaller(
+            response_model=response_schema,
+            system_message=system_prompt,
+            model=task_config["model"],
+            temperature=task_config.get("temperature", 0.3),
+            reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(task_config["model"]) else None
+        )
+
+        # Get LLM response
+        user_message = ChatMessage(
+            id="temp_id",
+            chat_id="temp_chat",
+            role=MessageRole.USER,
+            content=user_prompt,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+
+        result = await prompt_caller.invoke(
+            messages=[user_message],
+            return_usage=True
+        )
+
+        # Extract result
+        llm_response = result.result
+        if hasattr(llm_response, 'model_dump'):
+            response_data = llm_response.model_dump()
+        elif hasattr(llm_response, 'dict'):
+            response_data = llm_response.dict()
+        else:
+            response_data = llm_response
+
+        return {
+            'criteria': response_data.get('criteria', ''),
+            'threshold': response_data.get('threshold', 0.7),
+            'reasoning': response_data.get('reasoning', '')
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Semantic filter generation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Semantic filter generation failed: {str(e)}"
         )

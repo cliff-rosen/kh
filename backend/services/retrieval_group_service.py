@@ -82,7 +82,7 @@ class RetrievalGroupService:
 
         Ensure ALL topics are covered by at least one group."""
 
-                user_prompt = f"""Analyze this semantic space and propose retrieval groups:
+        user_prompt = f"""Analyze this semantic space and propose retrieval groups:
 
         DOMAIN: {semantic_space.domain.name}
         {semantic_space.domain.description}
