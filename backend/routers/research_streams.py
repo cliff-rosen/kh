@@ -1064,11 +1064,11 @@ async def generate_semantic_filter(
 
         OUTPUT FORMAT:
         Return JSON with:
-        {
+        {{
         "criteria": "Clear description of what makes an article relevant...",
         "threshold": 0.7,
         "reasoning": "Why this filter will work well..."
-        }
+        }}
 
         Threshold should be between 0.5 (permissive) and 0.9 (strict). Default to 0.7."""
 

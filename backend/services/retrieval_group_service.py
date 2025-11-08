@@ -68,17 +68,17 @@ class RetrievalGroupService:
 
         OUTPUT FORMAT:
         Return JSON with:
-        {
+        {{
         "proposed_groups": [
-            {
+            {{
             "name": "Short descriptive name",
             "covered_topics": ["topic_id_1", "topic_id_2"],
             "rationale": "Why these topics retrieve well together",
             "confidence": 0.85
-            }
+            }}
         ],
         "reasoning": "Overall strategy explanation"
-        }
+        }}
 
         Ensure ALL topics are covered by at least one group."""
 
