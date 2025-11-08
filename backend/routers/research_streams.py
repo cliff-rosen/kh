@@ -870,12 +870,16 @@ async def propose_retrieval_groups(
         # Propose groups
         result = await service.propose_groups(semantic_space)
 
+        # Check if there was an error in the result
+        if 'error' in result:
+            logger.warning(f"Group proposal returned with fallback: {result.get('error')}")
+
         return result
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Group proposal failed: {e}")
+        logger.error(f"Group proposal failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Group proposal failed: {str(e)}"

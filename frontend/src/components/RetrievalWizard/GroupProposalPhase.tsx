@@ -46,6 +46,11 @@ export default function GroupProposalPhase({
         try {
             const result = await researchStreamApi.proposeRetrievalGroups(streamId);
 
+            // Check if there was an error (fallback used)
+            if (result.error) {
+                alert(`AI generation encountered an issue. Using fallback grouping (one group per topic).\n\nError: ${result.error}`);
+            }
+
             // Convert proposed groups to RetrievalGroup objects
             const proposedGroups: RetrievalGroup[] = result.proposed_groups.map((g: any) => ({
                 ...g,

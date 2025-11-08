@@ -449,6 +449,7 @@ export const researchStreamApi = {
         proposed_groups: any[];
         coverage_analysis: any;
         overall_reasoning: string;
+        error?: string;
     }> {
         const response = await api.post(
             `/api/research-streams/${streamId}/retrieval/propose-groups`

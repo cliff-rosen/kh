@@ -156,16 +156,36 @@ class RetrievalGroupService:
 
             # Extract result
             llm_response = result.result
+            logger.info(f"LLM response type: {type(llm_response)}")
+            logger.info(f"LLM response: {llm_response}")
+
             if hasattr(llm_response, 'model_dump'):
                 response_data = llm_response.model_dump()
             elif hasattr(llm_response, 'dict'):
                 response_data = llm_response.dict()
+            elif isinstance(llm_response, str):
+                # Try to parse as JSON if it's a string
+                import json
+                try:
+                    response_data = json.loads(llm_response)
+                except json.JSONDecodeError:
+                    logger.error(f"Failed to parse LLM response as JSON: {llm_response[:200]}")
+                    raise ValueError(f"LLM returned invalid JSON: {llm_response[:200]}")
             else:
                 response_data = llm_response
 
+            logger.info(f"Parsed response_data type: {type(response_data)}")
+
+            # Ensure response_data is a dict
+            if not isinstance(response_data, dict):
+                raise ValueError(f"Expected dict from LLM, got {type(response_data)}: {response_data}")
+
             # Convert to RetrievalGroup objects with metadata
             proposed_groups = []
-            for idx, group_data in enumerate(response_data.get('proposed_groups', [])):
+            groups_list = response_data.get('proposed_groups', [])
+            logger.info(f"Found {len(groups_list)} proposed groups")
+
+            for idx, group_data in enumerate(groups_list):
                 metadata = GenerationMetadata(
                     generated_at=datetime.utcnow(),
                     generated_by=f"llm:{task_config['model']}",
@@ -198,7 +218,7 @@ class RetrievalGroupService:
             }
 
         except Exception as e:
-            logger.error(f"Group proposal failed: {e}")
+            logger.error(f"Group proposal failed: {e}", exc_info=True)
             # Fallback: one group per topic
             fallback_groups = self._create_fallback_groups(semantic_space)
             return {
