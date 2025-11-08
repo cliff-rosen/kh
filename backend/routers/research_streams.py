@@ -31,6 +31,7 @@ from schemas.smart_search import FilteredArticle, SearchPaginationInfo
 from services.research_stream_service import ResearchStreamService
 from services.implementation_config_service import ImplementationConfigService
 from services.retrieval_query_service import RetrievalQueryService
+from services.retrieval_group_service import RetrievalGroupService
 
 from routers.auth import get_current_user
 
@@ -832,4 +833,185 @@ async def test_query_for_topic(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Query test failed: {str(e)}"
+        )
+
+
+# ============================================================================
+# Retrieval Group Workflow (New Group-Based Architecture)
+# ============================================================================
+
+@router.post("/{stream_id}/retrieval/propose-groups")
+async def propose_retrieval_groups(
+    stream_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Phase 1: Propose retrieval groups based on semantic space analysis.
+
+    Uses LLM to analyze the semantic space and suggest optimal groupings
+    for retrieval configuration.
+    """
+    service = RetrievalGroupService(db)
+    stream_service = ResearchStreamService(db)
+
+    try:
+        # Verify stream ownership
+        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+        if not stream:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found"
+            )
+
+        # Parse semantic space
+        semantic_space_dict = stream.semantic_space
+        semantic_space = SemanticSpace(**semantic_space_dict)
+
+        # Propose groups
+        result = await service.propose_groups(semantic_space)
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Group proposal failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Group proposal failed: {str(e)}"
+        )
+
+
+class ValidateGroupsRequest(BaseModel):
+    """Request to validate retrieval groups"""
+    retrieval_groups: List[Dict[str, Any]]
+
+
+@router.post("/{stream_id}/retrieval/validate")
+async def validate_retrieval_groups(
+    stream_id: int,
+    request: ValidateGroupsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Phase 4: Validate retrieval groups for completeness and readiness.
+
+    Checks coverage, configuration status, and whether the retrieval
+    config is ready to activate.
+    """
+    service = RetrievalGroupService(db)
+    stream_service = ResearchStreamService(db)
+
+    try:
+        # Verify stream ownership
+        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+        if not stream:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found"
+            )
+
+        # Parse semantic space
+        semantic_space_dict = stream.semantic_space
+        semantic_space = SemanticSpace(**semantic_space_dict)
+
+        # Parse groups from request
+        from schemas.research_stream import RetrievalGroup
+        groups = [RetrievalGroup(**g) for g in request.retrieval_groups]
+
+        # Validate
+        result = service.validate_groups(semantic_space, groups)
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Group validation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Group validation failed: {str(e)}"
+        )
+
+
+class GenerateGroupQueriesRequest(BaseModel):
+    """Request to generate queries for a retrieval group"""
+    group: Dict[str, Any]
+    sources: List[str]
+
+
+@router.post("/{stream_id}/retrieval/generate-group-queries")
+async def generate_group_queries(
+    stream_id: int,
+    request: GenerateGroupQueriesRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Phase 2: Generate queries for a retrieval group.
+
+    Uses topics in the group to generate optimized source-specific queries.
+    """
+    query_service = RetrievalQueryService(db)
+    stream_service = ResearchStreamService(db)
+
+    try:
+        # Verify stream ownership
+        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+        if not stream:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found"
+            )
+
+        # Parse semantic space and group
+        semantic_space_dict = stream.semantic_space
+        semantic_space = SemanticSpace(**semantic_space_dict)
+
+        from schemas.research_stream import RetrievalGroup
+        group = RetrievalGroup(**request.group)
+
+        # Get topics for this group
+        group_topics = [
+            t for t in semantic_space.topics
+            if t.topic_id in group.covered_topics
+        ]
+
+        if not group_topics:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Group has no valid topics"
+            )
+
+        # Generate queries for each source
+        queries = []
+        for source_id in request.sources:
+            # Use first topic as representative (could be enhanced to use all)
+            representative_topic = group_topics[0]
+
+            query_expression, reasoning = await query_service.generate_query_for_topic(
+                topic=representative_topic,
+                source_id=source_id,
+                semantic_space=semantic_space,
+                related_entities=None  # Will find automatically
+            )
+
+            queries.append({
+                'source_id': source_id,
+                'query_expression': query_expression,
+                'reasoning': reasoning,
+                'topics_covered': group.covered_topics
+            })
+
+        return {'queries': queries}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Query generation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Query generation failed: {str(e)}"
         )

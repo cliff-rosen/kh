@@ -27,80 +27,68 @@ class ReportFrequency(str, Enum):
 
 
 class Category(BaseModel):
-    """A category within a research stream - structured topic organization"""
+    """A category within a research stream - structured topic organization for presentation"""
     id: str = Field(description="Unique identifier for this category (e.g., 'medical_health')")
     name: str = Field(description="Display name for the category")
-    topics: List[str] = Field(description="List of topics covered by this category")
+    topics: List[str] = Field(description="List of topic_ids from semantic space covered by this category")
     specific_inclusions: List[str] = Field(default_factory=list, description="Category-specific inclusion criteria")
 
 
-class ScoringConfig(BaseModel):
-    """Configuration for content relevance scoring and filtering"""
-    relevance_weight: float = Field(
-        default=0.6,
-        ge=0.0,
-        le=1.0,
-        description="Weight for relevance score (0-1)"
-    )
-    evidence_weight: float = Field(
-        default=0.4,
-        ge=0.0,
-        le=1.0,
-        description="Weight for evidence quality score (0-1)"
-    )
-    inclusion_threshold: float = Field(
-        default=7.0,
-        ge=0.0,
-        le=10.0,
-        description="Minimum integrated score (1-10 scale) for content inclusion"
-    )
-    max_items_per_report: Optional[int] = Field(
-        default=10,
-        ge=1,
-        description="Maximum items per report"
-    )
-
-
 # ============================================================================
-# Category-Centric Workflow Configuration
+# Retrieval Configuration - Group-Based
 # ============================================================================
 
 class SourceQuery(BaseModel):
-    """Query expression for a specific source within a category"""
+    """Query expression for a specific source"""
     query_expression: str = Field(description="Source-specific query expression")
-    enabled: bool = Field(default=True, description="Whether this source is active for this category")
+    enabled: bool = Field(default=True, description="Whether this source is active")
 
 
 class SemanticFilter(BaseModel):
-    """Semantic filtering configuration for a category"""
+    """Semantic filtering configuration"""
     enabled: bool = Field(default=False, description="Whether semantic filtering is enabled")
-    criteria: str = Field(description="Text description of what should pass/fail")
+    criteria: str = Field(default="", description="Text description of what should pass/fail")
     threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Confidence threshold (0.0 to 1.0)")
 
 
-class CategoryWorkflowConfig(BaseModel):
-    """Complete workflow configuration for a single category"""
-    source_queries: Dict[str, Optional[SourceQuery]] = Field(default_factory=dict, description="Map: source_id -> SourceQuery (null if selected but not configured yet)")
-    semantic_filter: SemanticFilter = Field(description="Semantic filtering for this category")
+class GenerationMetadata(BaseModel):
+    """Metadata about how a configuration element was generated"""
+    generated_at: datetime = Field(description="When this was generated")
+    generated_by: str = Field(description="Who/what generated this (e.g., 'llm:gpt-4', 'user:manual')")
+    reasoning: str = Field(default="", description="Explanation of why this was generated")
+    confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence score (0-1)")
+    inputs_considered: List[str] = Field(default_factory=list, description="topic_ids, entity_ids considered")
+    human_edited: bool = Field(default=False, description="Has a human edited this")
 
 
-class WorkflowConfig(BaseModel):
-    """Configuration for workflow - organized by category"""
-    category_configs: Dict[str, CategoryWorkflowConfig] = Field(
+class RetrievalGroup(BaseModel):
+    """A grouping of topics for retrieval optimization"""
+    group_id: str = Field(description="Unique identifier for this retrieval group")
+    name: str = Field(description="Display name for the group")
+    covered_topics: List[str] = Field(description="List of topic_ids from semantic space covered by this group")
+    rationale: str = Field(description="Why these topics are grouped together for retrieval")
+
+    # Retrieval configuration embedded directly
+    source_queries: Dict[str, Optional[SourceQuery]] = Field(
         default_factory=dict,
-        description="Map: category_id -> CategoryWorkflowConfig"
+        description="Map: source_id -> SourceQuery configuration"
     )
-    article_limit_per_week: Optional[int] = Field(None, description="Maximum articles per week")
+    semantic_filter: SemanticFilter = Field(
+        default_factory=lambda: SemanticFilter(),
+        description="Semantic filtering for this group"
+    )
 
+    # Metadata for auditability
+    metadata: Optional[GenerationMetadata] = Field(None, description="Generation metadata")
 
-# ============================================================================
-# Three-Layer Architecture Configuration
-# ============================================================================
 
 class RetrievalConfig(BaseModel):
     """Layer 2: Configuration for content retrieval and filtering"""
-    workflow: WorkflowConfig = Field(description="Source queries and semantic filtering per category")
-    scoring: ScoringConfig = Field(description="Relevance and evidence scoring configuration")
+    retrieval_groups: List[RetrievalGroup] = Field(
+        default_factory=list,
+        description="Retrieval groups organizing topics for efficient search"
+    )
+    article_limit_per_week: Optional[int] = Field(None, description="Maximum articles per week")
 
 
 class PresentationConfig(BaseModel):
