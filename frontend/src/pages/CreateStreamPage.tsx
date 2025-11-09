@@ -102,8 +102,13 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Validate that all categories are complete
-        const incompleteCategory = form.presentation_config.categories.find(cat =>
+        // Filter out empty categories (ones that haven't been filled out)
+        const filledCategories = form.presentation_config.categories.filter(cat =>
+            cat.id || cat.name || cat.topics.length > 0
+        );
+
+        // Validate that all filled categories are complete
+        const incompleteCategory = filledCategories.find(cat =>
             !cat.id || !cat.name || cat.topics.length === 0
         );
 
@@ -123,7 +128,9 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
             // Three-layer architecture
             semantic_space: form.semantic_space,
             retrieval_config: form.retrieval_config,
-            presentation_config: form.presentation_config
+            presentation_config: {
+                categories: filledCategories
+            }
         };
 
         console.log('Submitting form data:', cleanedForm);

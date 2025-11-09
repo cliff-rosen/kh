@@ -4,7 +4,6 @@ import {
     ExclamationTriangleIcon,
     ArrowLeftIcon,
     ArrowPathIcon,
-    SparklesIcon,
     XCircleIcon
 } from '@heroicons/react/24/outline';
 import { SemanticSpace, RetrievalGroup } from '../../types';

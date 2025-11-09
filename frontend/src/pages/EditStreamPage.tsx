@@ -14,7 +14,7 @@ import { useResearchStream } from '../context/ResearchStreamContext';
 import SemanticSpaceForm from '../components/SemanticSpaceForm';
 import PresentationForm from '../components/PresentationForm';
 
-type TabType = 'semantic' | 'presentation';
+type TabType = 'semantic' | 'retrieval' | 'presentation';
 
 export default function EditStreamPage() {
     const { id } = useParams<{ id: string }>();
@@ -98,84 +98,20 @@ export default function EditStreamPage() {
             if (foundStream) {
                 setStream(foundStream);
 
-                // Initialize semantic_space from existing data or legacy fields
-                let semanticSpace: SemanticSpace;
-                if (foundStream.semantic_space) {
-                    semanticSpace = foundStream.semantic_space;
-                } else {
-                    // Migrate from legacy fields to semantic space structure
-                    semanticSpace = {
-                        domain: {
-                            name: foundStream.stream_name || '',
-                            description: foundStream.purpose || ''
-                        },
-                        topics: [],
-                        entities: [],
-                        relationships: [],
-                        context: {
-                            business_context: foundStream.purpose || '',
-                            decision_types: foundStream.intended_guidance || [''],
-                            stakeholders: foundStream.audience || [''],
-                            time_sensitivity: 'Weekly review'
-                        },
-                        coverage: {
-                            signal_types: [],
-                            temporal_scope: {
-                                start_date: undefined,
-                                end_date: 'present',
-                                focus_periods: [],
-                                recency_weight: 0.7,
-                                rationale: 'Recent research prioritized'
-                            },
-                            quality_criteria: {
-                                peer_review_required: true,
-                                minimum_citation_count: undefined,
-                                journal_quality: [],
-                                study_types: [],
-                                exclude_predatory: true,
-                                language_restrictions: ['English'],
-                                other_criteria: []
-                            },
-                            completeness_requirement: 'Comprehensive coverage'
-                        },
-                        boundaries: {
-                            inclusions: (foundStream.global_inclusion || []).map((desc: string, idx: number) => ({
-                                criterion_id: `inc_${idx}`,
-                                description: desc,
-                                rationale: '',
-                                mandatory: true,
-                                related_topics: [],
-                                related_entities: []
-                            })),
-                            exclusions: (foundStream.global_exclusion || []).map((desc: string, idx: number) => ({
-                                criterion_id: `exc_${idx}`,
-                                description: desc,
-                                rationale: '',
-                                strict: true,
-                                exceptions: []
-                            })),
-                            edge_cases: []
-                        },
-                        extraction_metadata: {
-                            extracted_from: 'legacy_migration',
-                            extracted_at: new Date().toISOString(),
-                            human_reviewed: false,
-                            derivation_method: 'manual' as const
-                        }
-                    };
-                }
-
+                // Use current three-layer architecture
                 setForm({
                     stream_name: foundStream.stream_name,
                     report_frequency: foundStream.report_frequency,
                     is_active: foundStream.is_active,
-                    semantic_space: semanticSpace,
-                    categories: foundStream.categories || [{
-                        id: '',
-                        name: '',
-                        topics: [],
-                        specific_inclusions: []
-                    }]
+                    semantic_space: foundStream.semantic_space,
+                    categories: foundStream.presentation_config.categories.length > 0
+                        ? foundStream.presentation_config.categories
+                        : [{
+                            id: '',
+                            name: '',
+                            topics: [],
+                            specific_inclusions: []
+                        }]
                 });
             }
         }
@@ -186,7 +122,13 @@ export default function EditStreamPage() {
         e.preventDefault();
         if (!id) return;
 
-        const incompleteCategory = form.categories.find(cat =>
+        // Filter out empty categories (ones that haven't been filled out)
+        const filledCategories = form.categories.filter(cat =>
+            cat.id || cat.name || cat.topics.length > 0
+        );
+
+        // Check if any filled category is incomplete
+        const incompleteCategory = filledCategories.find(cat =>
             !cat.id || !cat.name || cat.topics.length === 0
         );
 
@@ -203,7 +145,7 @@ export default function EditStreamPage() {
             semantic_space: form.semantic_space,
             // Layer 3: Presentation config
             presentation_config: {
-                categories: form.categories
+                categories: filledCategories
             }
         };
 
@@ -351,6 +293,19 @@ export default function EditStreamPage() {
                         </button>
                         <button
                             type="button"
+                            onClick={() => setActiveTab('retrieval')}
+                            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'retrieval'
+                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                                }`}
+                        >
+                            <div className="flex flex-col items-start">
+                                <span>Layer 2: Retrieval Config</span>
+                                <span className="text-xs font-normal text-gray-500 dark:text-gray-400">How to find & filter</span>
+                            </div>
+                        </button>
+                        <button
+                            type="button"
                             onClick={() => setActiveTab('presentation')}
                             className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'presentation'
                                 ? 'border-green-500 text-green-600 dark:text-green-400'
@@ -363,30 +318,6 @@ export default function EditStreamPage() {
                             </div>
                         </button>
                     </nav>
-                </div>
-
-                {/* Layer 2: Retrieval Configuration - Launch Wizard */}
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6 mb-6">
-                    <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                            <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-200 mb-2">
-                                Layer 2: Retrieval Configuration
-                            </h3>
-                            <p className="text-sm text-blue-800 dark:text-blue-300 mb-4">
-                                Configure how to find and filter content using AI-assisted retrieval group setup.
-                                The wizard will help you organize topics into optimal groups, generate queries, and set up filters.
-                            </p>
-                            <button
-                                type="button"
-                                onClick={() => navigate(`/streams/${id}/configure-retrieval`)}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium shadow-sm"
-                            >
-                                <CogIcon className="h-5 w-5" />
-                                Open Retrieval Configuration Wizard
-                                <ArrowRightIcon className="h-4 w-4" />
-                            </button>
-                        </div>
-                    </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
@@ -409,6 +340,34 @@ export default function EditStreamPage() {
                         </div>
                     )}
 
+                    {/* Layer 2: Retrieval Configuration Tab */}
+                    {activeTab === 'retrieval' && (
+                        <div className="space-y-6">
+                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
+                                <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                        <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-200 mb-2">
+                                            Retrieval Configuration Wizard
+                                        </h3>
+                                        <p className="text-sm text-blue-800 dark:text-blue-300 mb-4">
+                                            Configure how to find and filter content using AI-assisted retrieval group setup.
+                                            The wizard will help you organize topics into optimal groups, generate queries, and set up filters.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate(`/streams/${id}/configure-retrieval`)}
+                                            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium shadow-sm"
+                                        >
+                                            <CogIcon className="h-5 w-5" />
+                                            Open Retrieval Configuration Wizard
+                                            <ArrowRightIcon className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Layer 3: Presentation Taxonomy Tab */}
                     {activeTab === 'presentation' && (
                         <PresentationForm
@@ -416,7 +375,6 @@ export default function EditStreamPage() {
                             onChange={(updated) => setForm({ ...form, categories: updated })}
                         />
                     )}
-
 
                     {/* Form Actions */}
                     <div className="flex justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
