@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import {
     SparklesIcon,
     ArrowPathIcon,
-    PlusIcon,
     PencilIcon,
     CheckCircleIcon,
     BeakerIcon,
@@ -10,7 +9,7 @@ import {
     ArrowLeftIcon,
     ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
-import { SemanticSpace, RetrievalGroup, InformationSource, SourceQuery } from '../../types';
+import { SemanticSpace, RetrievalGroup, InformationSource } from '../../types';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
 
 interface QueryConfigPhaseProps {
@@ -28,7 +27,6 @@ interface QueryTestResult {
     source_id: string;
     article_count: number;
     sample_titles: string[];
-    execution_time_ms: number;
 }
 
 export default function QueryConfigPhase({
@@ -105,7 +103,9 @@ export default function QueryConfigPhase({
 
         try {
             const group = groups.find(g => g.group_id === groupId);
-            const query = group?.source_queries[sourceId];
+            if (!group) return;
+
+            const query = group.source_queries[sourceId];
             if (!query?.query_expression) return;
 
             const result = await researchStreamApi.testQueryForTopic(streamId, {
@@ -114,13 +114,15 @@ export default function QueryConfigPhase({
                 topic_id: group.covered_topics[0] // Use first topic for testing
             });
 
+            // Extract titles from sample_articles
+            const sampleTitles = result.sample_articles?.map(article => article.title || 'Untitled') || [];
+
             setTestResults({
                 ...testResults,
                 [key]: {
                     source_id: sourceId,
                     article_count: result.article_count,
-                    sample_titles: result.sample_titles,
-                    execution_time_ms: result.execution_time_ms
+                    sample_titles: sampleTitles
                 }
             });
         } catch (err) {
@@ -376,7 +378,7 @@ export default function QueryConfigPhase({
                                                                         <CheckCircleIcon className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
                                                                         <div className="flex-1">
                                                                             <p className="text-sm font-medium text-green-900 dark:text-green-200">
-                                                                                Found {testResult.article_count} articles ({testResult.execution_time_ms}ms)
+                                                                                Found {testResult.article_count} articles
                                                                             </p>
                                                                             {testResult.sample_titles.length > 0 && (
                                                                                 <div className="mt-2">

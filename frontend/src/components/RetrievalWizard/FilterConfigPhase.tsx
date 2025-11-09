@@ -6,7 +6,6 @@ import {
     CheckCircleIcon,
     ArrowRightIcon,
     ArrowLeftIcon,
-    ExclamationTriangleIcon,
     XMarkIcon
 } from '@heroicons/react/24/outline';
 import { SemanticSpace, RetrievalGroup, SemanticFilter } from '../../types';
@@ -56,14 +55,16 @@ export default function FilterConfigPhase({
             if (!group) return;
 
             // Get topic details for context
-            const topics = group.covered_topics.map(topicId => {
-                const topic = semanticSpace.topics.find(t => t.topic_id === topicId);
-                return topic ? {
-                    topic_id: topic.topic_id,
-                    name: topic.name,
-                    description: topic.description
-                } : null;
-            }).filter(t => t !== null);
+            const topics = group.covered_topics
+                .map(topicId => {
+                    const topic = semanticSpace.topics.find(t => t.topic_id === topicId);
+                    return topic ? {
+                        topic_id: topic.topic_id,
+                        name: topic.name,
+                        description: topic.description
+                    } : null;
+                })
+                .filter((t): t is { topic_id: string; name: string; description: string } => t !== null);
 
             // Call LLM to generate filter criteria
             const result = await researchStreamApi.generateSemanticFilter(streamId, {

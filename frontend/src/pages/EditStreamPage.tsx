@@ -1,25 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeftIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, CogIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 
 import {
     ReportFrequency,
     Category,
-    WorkflowConfig,
-    ScoringConfig,
     SemanticSpace,
     Topic,
-    Entity,
-    ImportanceLevel,
-    EntityType
+    Entity
 } from '../types';
 
 import { useResearchStream } from '../context/ResearchStreamContext';
 import SemanticSpaceForm from '../components/SemanticSpaceForm';
-import RetrievalScoringForm from '../components/RetrievalScoringForm';
 import PresentationForm from '../components/PresentationForm';
 
-type TabType = 'semantic' | 'presentation' | 'workflow';
+type TabType = 'semantic' | 'presentation';
 
 export default function EditStreamPage() {
     const { id } = useParams<{ id: string }>();
@@ -91,17 +86,6 @@ export default function EditStreamPage() {
             }
         ] as Category[],
 
-        // === LAYER 2: RETRIEVAL TAXONOMY ===
-        workflow_config: {
-            category_configs: {},
-            article_limit_per_week: 10
-        } as WorkflowConfig,
-        scoring_config: {
-            relevance_weight: 0.6,
-            evidence_weight: 0.4,
-            inclusion_threshold: 7.0,
-            max_items_per_report: 10
-        } as ScoringConfig
     });
 
     useEffect(() => {
@@ -191,17 +175,7 @@ export default function EditStreamPage() {
                         name: '',
                         topics: [],
                         specific_inclusions: []
-                    }],
-                    workflow_config: foundStream.workflow_config || {
-                        category_configs: {},
-                        article_limit_per_week: 10
-                    },
-                    scoring_config: foundStream.scoring_config || {
-                        relevance_weight: 0.6,
-                        evidence_weight: 0.4,
-                        inclusion_threshold: 7.0,
-                        max_items_per_report: 10
-                    }
+                    }]
                 });
             }
         }
@@ -221,30 +195,16 @@ export default function EditStreamPage() {
             return;
         }
 
-        // Derive legacy fields from semantic_space for backward compatibility
-        const legacyAudience = form.semantic_space.context.stakeholders.filter(s => s.trim());
-        const legacyIntendedGuidance = form.semantic_space.context.decision_types.filter(s => s.trim());
-        const legacyGlobalInclusion = form.semantic_space.boundaries.inclusions.map(inc => inc.description);
-        const legacyGlobalExclusion = form.semantic_space.boundaries.exclusions.map(exc => exc.description);
-        const purpose = form.semantic_space.domain.description || form.semantic_space.context.business_context;
-
         const updates = {
             stream_name: form.stream_name,
-            purpose: purpose,
-            // Legacy fields derived from semantic space
-            audience: legacyAudience,
-            intended_guidance: legacyIntendedGuidance,
-            global_inclusion: legacyGlobalInclusion,
-            global_exclusion: legacyGlobalExclusion,
-            // Layer 3: Presentation taxonomy
-            categories: form.categories,
             report_frequency: form.report_frequency,
             is_active: form.is_active,
-            // Layer 2: Retrieval taxonomy
-            workflow_config: form.workflow_config,
-            scoring_config: form.scoring_config,
             // Layer 1: Semantic space (ground truth)
-            semantic_space: form.semantic_space
+            semantic_space: form.semantic_space,
+            // Layer 3: Presentation config
+            presentation_config: {
+                categories: form.categories
+            }
         };
 
         try {
@@ -391,19 +351,6 @@ export default function EditStreamPage() {
                         </button>
                         <button
                             type="button"
-                            onClick={() => setActiveTab('workflow')}
-                            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'workflow'
-                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                                }`}
-                        >
-                            <div className="flex flex-col items-start">
-                                <span>Layer 2: Retrieval & Scoring</span>
-                                <span className="text-xs font-normal text-gray-500 dark:text-gray-400">How to find & filter</span>
-                            </div>
-                        </button>
-                        <button
-                            type="button"
                             onClick={() => setActiveTab('presentation')}
                             className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'presentation'
                                 ? 'border-green-500 text-green-600 dark:text-green-400'
@@ -416,6 +363,30 @@ export default function EditStreamPage() {
                             </div>
                         </button>
                     </nav>
+                </div>
+
+                {/* Layer 2: Retrieval Configuration - Launch Wizard */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6 mb-6">
+                    <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                            <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-200 mb-2">
+                                Layer 2: Retrieval Configuration
+                            </h3>
+                            <p className="text-sm text-blue-800 dark:text-blue-300 mb-4">
+                                Configure how to find and filter content using AI-assisted retrieval group setup.
+                                The wizard will help you organize topics into optimal groups, generate queries, and set up filters.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => navigate(`/streams/${id}/configure-retrieval`)}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium shadow-sm"
+                            >
+                                <CogIcon className="h-5 w-5" />
+                                Open Retrieval Configuration Wizard
+                                <ArrowRightIcon className="h-4 w-4" />
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
@@ -446,16 +417,6 @@ export default function EditStreamPage() {
                         />
                     )}
 
-                    {/* Layer 2: Retrieval & Scoring Tab */}
-                    {activeTab === 'workflow' && (
-                        <RetrievalScoringForm
-                            streamId={Number(id)}
-                            scoringConfig={form.scoring_config}
-                            workflowConfig={form.workflow_config}
-                            onScoringChange={(updated) => setForm({ ...form, scoring_config: updated })}
-                            onWorkflowChange={(updated) => setForm({ ...form, workflow_config: updated })}
-                        />
-                    )}
 
                     {/* Form Actions */}
                     <div className="flex justify-between pt-4 border-t border-gray-200 dark:border-gray-700">

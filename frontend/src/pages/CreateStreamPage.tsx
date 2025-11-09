@@ -3,19 +3,14 @@ import { useResearchStream } from '../context/ResearchStreamContext';
 import {
     ReportFrequency,
     Category,
-    WorkflowConfig,
-    ScoringConfig,
     SemanticSpace,
     RetrievalConfig,
     PresentationConfig,
     Topic,
-    Entity,
-    ImportanceLevel,
-    EntityType
+    Entity
 } from '../types';
 import { useNavigate } from 'react-router-dom';
 import SemanticSpaceForm from '../components/SemanticSpaceForm';
-import RetrievalScoringForm from '../components/RetrievalScoringForm';
 import PresentationForm from '../components/PresentationForm';
 
 interface CreateStreamPageProps {
@@ -83,16 +78,8 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
 
         // === LAYER 2: RETRIEVAL CONFIG ===
         retrieval_config: {
-            workflow: {
-                category_configs: {},
-                article_limit_per_week: 10
-            } as WorkflowConfig,
-            scoring: {
-                relevance_weight: 0.6,
-                evidence_weight: 0.4,
-                inclusion_threshold: 7.0,
-                max_items_per_report: 10
-            } as ScoringConfig
+            retrieval_groups: [],
+            article_limit_per_week: 10
         } as RetrievalConfig,
 
         // === LAYER 3: PRESENTATION CONFIG ===
@@ -225,19 +212,6 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                     </button>
                     <button
                         type="button"
-                        onClick={() => setActiveTab('workflow')}
-                        className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'workflow'
-                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                            }`}
-                    >
-                        <div className="flex flex-col items-start">
-                            <span>Layer 2: Retrieval & Scoring</span>
-                            <span className="text-xs font-normal text-gray-500 dark:text-gray-400">How to find & filter</span>
-                        </div>
-                    </button>
-                    <button
-                        type="button"
                         onClick={() => setActiveTab('presentation')}
                         className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'presentation'
                                 ? 'border-green-500 text-green-600 dark:text-green-400'
@@ -283,21 +257,6 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                     />
                 )}
 
-                {/* Layer 2: Retrieval & Scoring Tab */}
-                {activeTab === 'workflow' && (
-                    <RetrievalScoringForm
-                        scoringConfig={form.retrieval_config.scoring}
-                        workflowConfig={form.retrieval_config.workflow}
-                        onScoringChange={(updated) => setForm({
-                            ...form,
-                            retrieval_config: { ...form.retrieval_config, scoring: updated }
-                        })}
-                        onWorkflowChange={(updated) => setForm({
-                            ...form,
-                            retrieval_config: { ...form.retrieval_config, workflow: updated }
-                        })}
-                    />
-                )}
 
                 {/* Form Actions */}
                 <div className="flex justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
