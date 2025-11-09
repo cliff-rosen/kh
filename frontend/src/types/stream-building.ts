@@ -1,4 +1,4 @@
-import { ScoringConfig, Category } from './research-stream';
+import { Category } from './research-stream';
 
 // ============================================================================
 // Stream being built (all fields optional as they're filled in progressively)
@@ -20,7 +20,6 @@ export interface StreamInProgress {
     global_exclusion?: string[];
     categories?: CategoryInProgress[];
     report_frequency?: string;  // string during building, validated on submission
-    scoring_config?: ScoringConfig;
 }
 
 // ============================================================================

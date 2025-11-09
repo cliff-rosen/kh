@@ -92,9 +92,9 @@ export default function StreamsPage() {
                                         <span className="font-medium mr-2">Frequency:</span>
                                         <span className="capitalize">{stream.report_frequency}</span>
                                     </div>
-                                    {stream.categories && stream.categories.length > 0 && (
+                                    {stream.presentation_config.categories && stream.presentation_config.categories.length > 0 && (
                                         <div className="flex flex-wrap gap-1 mt-3">
-                                            {stream.categories.slice(0, 3).map((category, idx) => (
+                                            {stream.presentation_config.categories.slice(0, 3).map((category, idx) => (
                                                 <span
                                                     key={idx}
                                                     className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded"
@@ -102,9 +102,9 @@ export default function StreamsPage() {
                                                     {category.name}
                                                 </span>
                                             ))}
-                                            {stream.categories.length > 3 && (
+                                            {stream.presentation_config.categories.length > 3 && (
                                                 <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
-                                                    +{stream.categories.length - 3} more
+                                                    +{stream.presentation_config.categories.length - 3} more
                                                 </span>
                                             )}
                                         </div>

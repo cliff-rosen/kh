@@ -17,10 +17,10 @@ interface CreateStreamPageProps {
     onCancel?: () => void;
 }
 
-type TabType = 'semantic' | 'presentation' | 'workflow';
+type TabType = 'semantic' | 'presentation';
 
 export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
-    const { createResearchStream, isLoading, error, clearError, availableSources, loadAvailableSources } = useResearchStream();
+    const { createResearchStream, isLoading, error, clearError, loadAvailableSources } = useResearchStream();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<TabType>('semantic');
 

@@ -130,23 +130,6 @@ export default function FilterConfigPhase({
         setEditForm({ enabled: false, criteria: '', threshold: 0.7 });
     };
 
-    const handleToggleFilter = (groupId: string) => {
-        const updatedGroups = groups.map(g => {
-            if (g.group_id === groupId) {
-                return {
-                    ...g,
-                    semantic_filter: {
-                        ...g.semantic_filter,
-                        enabled: !g.semantic_filter.enabled
-                    }
-                };
-            }
-            return g;
-        });
-
-        onGroupsChange(updatedGroups);
-    };
-
     const handleDisableFilter = (groupId: string) => {
         const updatedGroups = groups.map(g => {
             if (g.group_id === groupId) {

@@ -26,7 +26,6 @@ import DashboardPage from './pages/DashboardPage';
 import StreamsPage from './pages/StreamsPage';
 import EditStreamPage from './pages/EditStreamPage';
 import ImplementationConfigPage from './pages/ImplementationConfigPage';
-import RetrievalConfigPage from './pages/RetrievalConfigPage';
 import RetrievalWizardPage from './pages/RetrievalWizardPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';

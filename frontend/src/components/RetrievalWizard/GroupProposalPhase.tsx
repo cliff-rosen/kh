@@ -130,32 +130,6 @@ export default function GroupProposalPhase({
         }
     };
 
-    const toggleTopicInGroup = (groupId: string, topicId: string) => {
-        const updatedGroups = groups.map(g => {
-            if (g.group_id === groupId) {
-                const covered_topics = g.covered_topics.includes(topicId)
-                    ? g.covered_topics.filter(t => t !== topicId)
-                    : [...g.covered_topics, topicId];
-
-                return {
-                    ...g,
-                    covered_topics,
-                    metadata: {
-                        ...g.metadata,
-                        generated_at: g.metadata?.generated_at || new Date().toISOString(),
-                        generated_by: g.metadata?.generated_by || 'user:manual',
-                        reasoning: g.metadata?.reasoning || '',
-                        inputs_considered: g.metadata?.inputs_considered || [],
-                        human_edited: true
-                    }
-                };
-            }
-            return g;
-        });
-
-        onGroupsChange(updatedGroups);
-    };
-
     return (
         <div className="space-y-6">
             {/* Phase Header */}

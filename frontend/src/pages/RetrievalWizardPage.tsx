@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ArrowLeftIcon,
-    ArrowRightIcon,
     CheckCircleIcon,
     SparklesIcon
 } from '@heroicons/react/24/outline';

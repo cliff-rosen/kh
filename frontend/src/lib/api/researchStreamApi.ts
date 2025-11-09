@@ -1,5 +1,5 @@
 import { api } from './index';
-import { ResearchStream, ReportFrequency, Category, InformationSource, RetrievalGroup, RetrievalConfig } from '../../types';
+import { ResearchStream, ReportFrequency, Category, InformationSource, RetrievalGroup, RetrievalConfig, SemanticSpace, PresentationConfig } from '../../types';
 import {
     StreamInProgress,
     StreamBuildStep,
@@ -73,25 +73,20 @@ export type StreamResponse = AgentResponse | StatusResponse;
 export interface ResearchStreamCreateRequest {
     stream_name: string;
     purpose: string;
-    audience: string[];
-    intended_guidance: string[];
-    global_inclusion: string[];
-    global_exclusion: string[];
-    categories: Category[];
     report_frequency: ReportFrequency;
+    semantic_space: SemanticSpace;
+    retrieval_config: RetrievalConfig;
+    presentation_config: PresentationConfig;
 }
 
 export interface ResearchStreamUpdateRequest {
     stream_name?: string;
     purpose?: string;
-    audience?: string[];
-    intended_guidance?: string[];
-    global_inclusion?: string[];
-    global_exclusion?: string[];
-    categories?: Category[];
     report_frequency?: ReportFrequency;
     is_active?: boolean;
+    semantic_space?: SemanticSpace;
     retrieval_config?: RetrievalConfig;
+    presentation_config?: PresentationConfig;
 }
 
 // ============================================================================
