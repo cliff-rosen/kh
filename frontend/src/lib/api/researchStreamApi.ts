@@ -1,5 +1,5 @@
 import { api } from './index';
-import { ResearchStream, ReportFrequency, Category, InformationSource, RetrievalGroup, RetrievalConfig, SemanticSpace, PresentationConfig } from '../../types';
+import { ResearchStream, ReportFrequency, InformationSource, RetrievalGroup, RetrievalConfig, SemanticSpace, PresentationConfig } from '../../types';
 import {
     StreamInProgress,
     StreamBuildStep,
@@ -9,7 +9,6 @@ import {
 } from '../../types/stream-building';
 import { makeStreamRequest } from './streamUtils';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
-import { FilteredArticle } from '../../types/smartsearch2';
 
 // ============================================================================
 // Stream Building Chat API
@@ -90,12 +89,8 @@ export interface ResearchStreamUpdateRequest {
 }
 
 // ============================================================================
-// Implementation Configuration API Types (Workflow 2)
+// Shared Retrieval API Types
 // ============================================================================
-
-export interface QueryGenerationRequest {
-    source_id: string;
-}
 
 export interface QueryGenerationResponse {
     query_expression: string;
@@ -116,30 +111,6 @@ export interface QueryTestResponse {
     article_count: number;
     sample_articles: CanonicalResearchArticle[];
     error_message?: string;
-}
-
-export interface SemanticFilterGenerationResponse {
-    filter_criteria: string;
-    reasoning: string;
-}
-
-export interface SemanticFilterTestRequest {
-    articles: CanonicalResearchArticle[];
-    filter_criteria: string;
-    threshold?: number;
-}
-
-export interface SemanticFilterTestResponse {
-    filtered_articles: FilteredArticle[];
-    pass_count: number;
-    fail_count: number;
-    average_confidence: number;
-}
-
-export interface ImplementationConfigProgressUpdate {
-    channel_name: string;
-    completed_steps: string[];
-    configuration_data: Record<string, any>;
 }
 
 export const researchStreamApi = {
@@ -263,141 +234,6 @@ export const researchStreamApi = {
                 debug: { streamError: true }
             } as AgentResponse;
         }
-    },
-
-    // ========================================================================
-    // Implementation Configuration Methods (Workflow 2)
-    // ========================================================================
-
-    /**
-     * Generate a query expression for a channel based on its keywords and focus
-     */
-    async generateChannelQuery(
-        streamId: number,
-        channelId: string,
-        request: QueryGenerationRequest
-    ): Promise<QueryGenerationResponse> {
-        const response = await api.post(
-            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelId)}/generate-query`,
-            request
-        );
-        return response.data;
-    },
-
-    /**
-     * Test a query expression for a channel against a specific source
-     */
-    async testChannelQuery(
-        streamId: number,
-        channelId: string,
-        request: QueryTestRequest
-    ): Promise<QueryTestResponse> {
-        const response = await api.post(
-            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelId)}/test-query`,
-            request
-        );
-        return response.data;
-    },
-
-    /**
-     * Generate semantic filter criteria for a channel
-     */
-    async generateChannelFilter(
-        streamId: number,
-        channelId: string
-    ): Promise<SemanticFilterGenerationResponse> {
-        const response = await api.post(
-            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelId)}/generate-filter`
-        );
-        return response.data;
-    },
-
-    /**
-     * Test a semantic filter for a channel on sample articles
-     */
-    async testChannelFilter(
-        streamId: number,
-        channelId: string,
-        request: SemanticFilterTestRequest
-    ): Promise<SemanticFilterTestResponse> {
-        const response = await api.post(
-            `/api/research-streams/${streamId}/channels/${encodeURIComponent(channelId)}/test-filter`,
-            request
-        );
-        return response.data;
-    },
-
-    /**
-     * Update a source query for a channel (saves to workflow_config)
-     */
-    async updateChannelSourceQuery(
-        streamId: number,
-        channelId: string,
-        sourceId: string,
-        request: { query_expression: string; enabled?: boolean }
-    ): Promise<ResearchStream> {
-        const response = await api.put(
-            `/api/research-streams/${streamId}/channels/${channelId}/sources/${sourceId}/query`,
-            request
-        );
-        return response.data;
-    },
-
-    /**
-     * Update semantic filter for a channel (saves to workflow_config)
-     */
-    async updateChannelSemanticFilter(
-        streamId: number,
-        channelId: string,
-        request: { enabled: boolean; criteria: string; threshold: number }
-    ): Promise<ResearchStream> {
-        const response = await api.put(
-            `/api/research-streams/${streamId}/channels/${channelId}/semantic-filter`,
-            request
-        );
-        return response.data;
-    },
-
-    /**
-     * @deprecated Use updateChannelSourceQuery and updateChannelSemanticFilter instead
-     */
-    async updateImplementationConfig(
-        streamId: number,
-        update: ImplementationConfigProgressUpdate
-    ): Promise<ResearchStream> {
-        const response = await api.patch(
-            `/api/research-streams/${streamId}/implementation-config`,
-            update
-        );
-        return response.data;
-    },
-
-    /**
-     * Mark implementation configuration as complete
-     */
-    async completeImplementationConfig(streamId: number): Promise<ResearchStream> {
-        const response = await api.post(
-            `/api/research-streams/${streamId}/implementation-config/complete`
-        );
-        return response.data;
-    },
-
-    /**
-     * Generate an executive summary from channel test results
-     */
-    async generateExecutiveSummary(
-        streamId: number,
-        channelTestData: Array<{
-            channel_id: string;
-            channel_name: string;
-            accepted_articles: any[];
-        }>
-    ): Promise<import('../../types/implementation-config').ExecutiveSummary> {
-        const response = await api.post(
-            `/api/research-streams/${streamId}/generate-executive-summary`,
-            { channel_test_data: channelTestData }
-        );
-        return response.data;
     },
 
     // ========================================================================

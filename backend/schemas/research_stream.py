@@ -132,16 +132,3 @@ class ResearchStream(BaseModel):
 # ============================================================================
 # Executive Summary
 # ============================================================================
-
-class CategoryHighlight(BaseModel):
-    """Notable finding for a specific category"""
-    category_name: str = Field(description="Name of the category")
-    highlight: str = Field(description="Key finding or insight from this category")
-
-
-class ExecutiveSummary(BaseModel):
-    """AI-generated executive summary of test results across all categories"""
-    overview: str = Field(description="High-level summary of what was found across all categories")
-    key_themes: List[str] = Field(description="Main themes/topics identified across accepted articles")
-    category_highlights: List[CategoryHighlight] = Field(description="Notable findings per category")
-    generated_at: datetime = Field(description="When this summary was generated")

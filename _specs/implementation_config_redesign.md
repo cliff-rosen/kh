@@ -1,7 +1,8 @@
-# Implementation Config Flow Redesign
+# Implementation Config Flow Redesign *(Legacy)*
+> **Status:** The channel-based implementation configuration workflow described below was fully removed on 2025-11-09 in favor of the retrieval group wizard. This document remains for historical context only.
 ## From Channel-Based to Category-Based Structure
 
-## Current Flow (Channel-Based)
+## Legacy Flow (Channel-Based)
 
 ### Data Structure
 ```typescript
