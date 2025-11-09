@@ -7,12 +7,15 @@ import {
     Category,
     SemanticSpace,
     Topic,
-    Entity
+    Entity,
+    RetrievalConfig,
+    RetrievalGroup
 } from '../types';
 
 import { useResearchStream } from '../context/ResearchStreamContext';
 import SemanticSpaceForm from '../components/SemanticSpaceForm';
 import PresentationForm from '../components/PresentationForm';
+import RetrievalConfigDisplay from '../components/RetrievalConfigDisplay';
 
 type TabType = 'semantic' | 'retrieval' | 'presentation';
 
@@ -76,6 +79,12 @@ export default function EditStreamPage() {
             }
         } as SemanticSpace,
 
+        // === LAYER 2: RETRIEVAL CONFIG ===
+        retrieval_config: {
+            retrieval_groups: [] as RetrievalGroup[],
+            article_limit_per_week: 10
+        } as RetrievalConfig,
+
         // === LAYER 3: PRESENTATION TAXONOMY ===
         categories: [
             {
@@ -104,6 +113,10 @@ export default function EditStreamPage() {
                     report_frequency: foundStream.report_frequency,
                     is_active: foundStream.is_active,
                     semantic_space: foundStream.semantic_space,
+                    retrieval_config: foundStream.retrieval_config || {
+                        retrieval_groups: [],
+                        article_limit_per_week: 10
+                    },
                     categories: foundStream.presentation_config.categories.length > 0
                         ? foundStream.presentation_config.categories
                         : [{
@@ -143,6 +156,8 @@ export default function EditStreamPage() {
             is_active: form.is_active,
             // Layer 1: Semantic space (ground truth)
             semantic_space: form.semantic_space,
+            // Layer 2: Retrieval config (edited via wizard)
+            retrieval_config: form.retrieval_config,
             // Layer 3: Presentation config
             presentation_config: {
                 categories: filledCategories
@@ -359,12 +374,20 @@ export default function EditStreamPage() {
                                             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium shadow-sm"
                                         >
                                             <CogIcon className="h-5 w-5" />
-                                            Open Retrieval Configuration Wizard
+                                            {form.retrieval_config.retrieval_groups.length > 0
+                                                ? 'Edit Retrieval Configuration'
+                                                : 'Open Retrieval Configuration Wizard'}
                                             <ArrowRightIcon className="h-4 w-4" />
                                         </button>
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Display configured retrieval groups if they exist */}
+                            <RetrievalConfigDisplay
+                                retrievalConfig={form.retrieval_config}
+                                semanticSpace={form.semantic_space}
+                            />
                         </div>
                     )}
 
