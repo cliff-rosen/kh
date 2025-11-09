@@ -5,12 +5,27 @@ Research Stream service for managing research streams
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, date
 from fastapi import HTTPException, status
 
 from models import ResearchStream, Report
 from schemas.research_stream import ResearchStream as ResearchStreamSchema
 from schemas.research_stream import StreamType, ReportFrequency
+
+
+def serialize_json_data(data: Any) -> Any:
+    """
+    Recursively serialize datetime objects to ISO format strings in nested structures.
+    This is needed for JSON columns that may contain datetime objects.
+    """
+    if isinstance(data, (datetime, date)):
+        return data.isoformat()
+    elif isinstance(data, dict):
+        return {key: serialize_json_data(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [serialize_json_data(item) for item in data]
+    else:
+        return data
 
 
 class ResearchStreamService:
@@ -82,6 +97,11 @@ class ResearchStreamService:
     ) -> ResearchStream:
         """Create a new research stream with three-layer architecture"""
 
+        # Serialize datetime objects in JSON fields
+        semantic_space = serialize_json_data(semantic_space)
+        retrieval_config = serialize_json_data(retrieval_config)
+        presentation_config = serialize_json_data(presentation_config)
+
         research_stream = ResearchStream(
             user_id=user_id,
             stream_name=stream_name,
@@ -115,12 +135,31 @@ class ResearchStreamService:
         if not research_stream:
             raise ValueError(f"Research stream with ID {stream_id} not found")
 
+        # JSON fields that need datetime serialization
+        json_fields = [
+            'semantic_space',
+            'retrieval_config',
+            'presentation_config',
+            'workflow_config',
+            'scoring_config',
+            'categories',
+            'audience',
+            'intended_guidance',
+            'global_inclusion',
+            'global_exclusion'
+        ]
+
         # Update fields
         for field, value in update_data.items():
             if hasattr(research_stream, field):
+                # Serialize datetime objects in JSON fields
+                if field in json_fields and value is not None:
+                    value = serialize_json_data(value)
+
                 setattr(research_stream, field, value)
+
                 # Flag mutable fields (like JSON/dict) as modified so SQLAlchemy tracks them
-                if field in ['workflow_config', 'scoring_config', 'categories', 'audience', 'intended_guidance', 'global_inclusion', 'global_exclusion']:
+                if field in json_fields:
                     flag_modified(research_stream, field)
 
         research_stream.updated_at = datetime.utcnow()
