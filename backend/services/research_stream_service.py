@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+from fastapi import HTTPException, status
 
 from models import ResearchStream, Report
 from schemas.research_stream import ResearchStream as ResearchStreamSchema
@@ -47,14 +48,27 @@ class ResearchStreamService:
 
         return result
 
-    def get_research_stream(self, stream_id: int, user_id: int) -> Optional[ResearchStream]:
-        """Get a specific research stream by ID for a user"""
-        return self.db.query(ResearchStream).filter(
+    def get_research_stream(self, stream_id: int, user_id: int) -> ResearchStream:
+        """
+        Get a specific research stream by ID for a user.
+
+        Raises:
+            HTTPException: 404 if stream not found or user doesn't have access
+        """
+        stream = self.db.query(ResearchStream).filter(
             and_(
                 ResearchStream.stream_id == stream_id,
                 ResearchStream.user_id == user_id
             )
         ).first()
+
+        if not stream:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found"
+            )
+
+        return stream
 
     def create_research_stream(
         self,

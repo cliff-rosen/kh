@@ -89,13 +89,8 @@ async def get_research_stream(
 ):
     """Get a specific research stream by ID"""
     service = ResearchStreamService(db)
-    stream = service.get_research_stream(stream_id, current_user.user_id)
-    if not stream:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Research stream not found"
-        )
-    return stream
+    # Service raises 404 if not found or not authorized
+    return service.get_research_stream(stream_id, current_user.user_id)
 
 
 @router.post("", response_model=ResearchStream, status_code=status.HTTP_201_CREATED)
@@ -523,14 +518,9 @@ async def update_implementation_config(
     - PUT /{stream_id}/channels/{channel_name}/sources/{source_id}/query
     - PUT /{stream_id}/channels/{channel_name}/semantic-filter
     """
-    # Verify stream ownership
+    # Get stream (raises 404 if not found or not authorized)
     stream_service = ResearchStreamService(db)
     stream = stream_service.get_research_stream(stream_id, current_user.user_id)
-    if not stream:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Research stream not found"
-        )
 
     # Verify channel exists
     channel_exists = any(ch.get('name') == request.channel_name for ch in stream.channels)
@@ -592,14 +582,9 @@ async def complete_implementation_config(
     This endpoint validates that all channels have been configured and
     marks the implementation config as complete.
     """
-    # Verify stream ownership
+    # Get stream (raises 404 if not found or not authorized)
     stream_service = ResearchStreamService(db)
     stream = stream_service.get_research_stream(stream_id, current_user.user_id)
-    if not stream:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Research stream not found"
-        )
 
     # Verify all channels have configuration
     workflow_config = stream.workflow_config or {}
@@ -727,13 +712,8 @@ async def generate_query_for_topic(
     stream_service = ResearchStreamService(db)
 
     try:
-        # Verify stream ownership
+        # Get stream (raises 404 if not found or not authorized)
         stream = stream_service.get_research_stream(stream_id, current_user.user_id)
-        if not stream:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Research stream not found"
-            )
 
         # Parse semantic space
         semantic_space_dict = stream.semantic_space
@@ -797,13 +777,8 @@ async def test_query_for_topic(
     stream_service = ResearchStreamService(db)
 
     try:
-        # Verify stream ownership
+        # Get stream (raises 404 if not found or not authorized)
         stream = stream_service.get_research_stream(stream_id, current_user.user_id)
-        if not stream:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Research stream not found"
-            )
 
         # Validate source
         valid_sources = [src.source_id for src in INFORMATION_SOURCES]
@@ -855,13 +830,8 @@ async def propose_retrieval_groups(
     stream_service = ResearchStreamService(db)
 
     try:
-        # Verify stream ownership
+        # Get stream (raises 404 if not found or not authorized)
         stream = stream_service.get_research_stream(stream_id, current_user.user_id)
-        if not stream:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Research stream not found"
-            )
 
         # Parse semantic space
         semantic_space_dict = stream.semantic_space
@@ -908,13 +878,8 @@ async def validate_retrieval_groups(
     stream_service = ResearchStreamService(db)
 
     try:
-        # Verify stream ownership
+        # Get stream (raises 404 if not found or not authorized)
         stream = stream_service.get_research_stream(stream_id, current_user.user_id)
-        if not stream:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Research stream not found"
-            )
 
         # Parse semantic space
         semantic_space_dict = stream.semantic_space
@@ -962,13 +927,8 @@ async def generate_group_queries(
     stream_service = ResearchStreamService(db)
 
     try:
-        # Verify stream ownership
+        # Get stream (raises 404 if not found or not authorized)
         stream = stream_service.get_research_stream(stream_id, current_user.user_id)
-        if not stream:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Research stream not found"
-            )
 
         # Parse semantic space
         semantic_space_dict = stream.semantic_space
@@ -1033,13 +993,8 @@ async def generate_semantic_filter(
     stream_service = ResearchStreamService(db)
 
     try:
-        # Verify stream ownership
+        # Get stream (raises 404 if not found or not authorized)
         stream = stream_service.get_research_stream(stream_id, current_user.user_id)
-        if not stream:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Research stream not found"
-            )
 
         # Build prompt for LLM
         from schemas.chat import ChatMessage, MessageRole

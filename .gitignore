@@ -46,6 +46,7 @@ yarn-error.log*
 *.db
 
 # Logs
+logs/
 *.log
 nul
  
