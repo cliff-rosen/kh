@@ -12,12 +12,13 @@ import {
 import { useNavigate } from 'react-router-dom';
 import SemanticSpaceForm from '../components/SemanticSpaceForm';
 import PresentationForm from '../components/PresentationForm';
+import RetrievalConfigForm from '../components/RetrievalConfigForm';
 
 interface CreateStreamPageProps {
     onCancel?: () => void;
 }
 
-type TabType = 'semantic' | 'presentation';
+type TabType = 'semantic' | 'retrieval' | 'presentation';
 
 export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
     const { createResearchStream, isLoading, error, clearError, loadAvailableSources } = useResearchStream();
@@ -219,6 +220,19 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                     </button>
                     <button
                         type="button"
+                        onClick={() => setActiveTab('retrieval')}
+                        className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'retrieval'
+                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                            }`}
+                    >
+                        <div className="flex flex-col items-start">
+                            <span>Layer 2: Retrieval Config</span>
+                            <span className="text-xs font-normal text-gray-500 dark:text-gray-400">How to find & filter</span>
+                        </div>
+                    </button>
+                    <button
+                        type="button"
                         onClick={() => setActiveTab('presentation')}
                         className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'presentation'
                                 ? 'border-green-500 text-green-600 dark:text-green-400'
@@ -251,6 +265,15 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                             onChange={(updated) => setForm({ ...form, semantic_space: updated })}
                         />
                     </div>
+                )}
+
+                {/* Layer 2: Retrieval Config Tab */}
+                {activeTab === 'retrieval' && (
+                    <RetrievalConfigForm
+                        retrievalConfig={form.retrieval_config}
+                        semanticSpace={form.semantic_space}
+                        onChange={(updated) => setForm({ ...form, retrieval_config: updated })}
+                    />
                 )}
 
                 {/* Layer 3: Presentation Config Tab */}

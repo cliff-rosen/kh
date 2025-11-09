@@ -15,7 +15,7 @@ import {
 import { useResearchStream } from '../context/ResearchStreamContext';
 import SemanticSpaceForm from '../components/SemanticSpaceForm';
 import PresentationForm from '../components/PresentationForm';
-import RetrievalConfigDisplay from '../components/RetrievalConfigDisplay';
+import RetrievalConfigForm from '../components/RetrievalConfigForm';
 
 type TabType = 'semantic' | 'retrieval' | 'presentation';
 
@@ -358,35 +358,34 @@ export default function EditStreamPage() {
                     {/* Layer 2: Retrieval Configuration Tab */}
                     {activeTab === 'retrieval' && (
                         <div className="space-y-6">
-                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
+                            {/* Wizard Option */}
+                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">
-                                        <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-200 mb-2">
-                                            Retrieval Configuration Wizard
+                                        <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-1">
+                                            AI-Assisted Wizard Available
                                         </h3>
-                                        <p className="text-sm text-blue-800 dark:text-blue-300 mb-4">
-                                            Configure how to find and filter content using AI-assisted retrieval group setup.
-                                            The wizard will help you organize topics into optimal groups, generate queries, and set up filters.
+                                        <p className="text-xs text-blue-800 dark:text-blue-300 mb-3">
+                                            Use the wizard for AI-assisted retrieval group setup, query generation, and filter configuration.
                                         </p>
                                         <button
                                             type="button"
                                             onClick={() => navigate(`/streams/${id}/configure-retrieval`)}
-                                            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium shadow-sm"
+                                            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium shadow-sm"
                                         >
-                                            <CogIcon className="h-5 w-5" />
-                                            {form.retrieval_config.retrieval_groups.length > 0
-                                                ? 'Edit Retrieval Configuration'
-                                                : 'Open Retrieval Configuration Wizard'}
-                                            <ArrowRightIcon className="h-4 w-4" />
+                                            <CogIcon className="h-4 w-4" />
+                                            Open Wizard
+                                            <ArrowRightIcon className="h-3 w-3" />
                                         </button>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Display configured retrieval groups if they exist */}
-                            <RetrievalConfigDisplay
+                            {/* Manual Form */}
+                            <RetrievalConfigForm
                                 retrievalConfig={form.retrieval_config}
                                 semanticSpace={form.semantic_space}
+                                onChange={(updated) => setForm({ ...form, retrieval_config: updated })}
                             />
                         </div>
                     )}
