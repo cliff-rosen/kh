@@ -36,7 +36,8 @@ export default function GroupProposalPhase({
         const hasValidGroups = groups.length > 0 &&
             groups.every(g => g.covered_topics && g.covered_topics.length > 0);
         onComplete(hasValidGroups);
-    }, [groups, coverage, onComplete]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [groups, coverage]);
 
     const handleGenerate = async () => {
         // Confirm before regenerating if groups already exist
