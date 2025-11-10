@@ -27,6 +27,7 @@ from schemas.research_stream import RetrievalConfig, PresentationConfig
 from services.pubmed_service import PubMedService
 from services.semantic_filter_service import SemanticFilterService
 from services.article_categorization_service import ArticleCategorizationService
+from services.research_stream_service import ResearchStreamService
 
 
 class PipelineStatus:
@@ -55,6 +56,7 @@ class PipelineService:
 
     def __init__(self, db: Session):
         self.db = db
+        self.research_stream_service = ResearchStreamService(db)
         self.pubmed_service = PubMedService()
         self.filter_service = SemanticFilterService()
         self.categorization_service = ArticleCategorizationService()
@@ -62,6 +64,7 @@ class PipelineService:
     async def run_pipeline(
         self,
         research_stream_id: int,
+        user_id: int,
         run_type: RunType = RunType.TEST
     ) -> AsyncGenerator[PipelineStatus, None]:
         """
@@ -79,6 +82,7 @@ class PipelineService:
 
         Args:
             research_stream_id: ID of the research stream to execute
+            user_id: ID of the user executing the pipeline (for authorization)
             run_type: Type of run (TEST, SCHEDULED, MANUAL)
 
         Yields:
@@ -88,12 +92,11 @@ class PipelineService:
             # === STAGE 1: Load Configuration ===
             yield PipelineStatus("init", "Loading research stream configuration...")
 
-            stream = self.db.query(ResearchStream).filter(
-                ResearchStream.stream_id == research_stream_id
-            ).first()
-
-            if not stream:
-                raise ValueError(f"Research stream {research_stream_id} not found")
+            # Use research_stream_service to get stream (handles authorization)
+            stream = self.research_stream_service.get_research_stream(
+                stream_id=research_stream_id,
+                user_id=user_id
+            )
 
             semantic_space = SemanticSpace(**stream.semantic_space)
             retrieval_config = RetrievalConfig(**stream.retrieval_config)

@@ -618,6 +618,7 @@ async def execute_pipeline(
             try:
                 async for status in pipeline_service.run_pipeline(
                     research_stream_id=stream_id,
+                    user_id=current_user.user_id,
                     run_type=run_type_value
                 ):
                     # Format as SSE event
