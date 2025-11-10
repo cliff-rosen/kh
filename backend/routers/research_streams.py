@@ -497,7 +497,7 @@ async def generate_semantic_filter(
 # Topic-Based Query Testing (Layer 2: Retrieval Config)
 # ============================================================================
 
-class TopicQueryTestRequest(BaseModel):
+class QueryTestRequest(BaseModel):
     """Request to test a query for a topic"""
     source_id: str = Field(..., description="Source to test against")
     query_expression: str = Field(..., description="Query expression to test")
@@ -508,9 +508,9 @@ class TopicQueryTestRequest(BaseModel):
 
 
 @router.post("/{stream_id}/topics/test-query", response_model=QueryTestResponse)
-async def test_query_for_topic(
+async def test_query_for_source(
     stream_id: int,
-    request: TopicQueryTestRequest,
+    request: QueryTestRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -536,7 +536,7 @@ async def test_query_for_topic(
             )
 
         # Test query
-        result = await service.test_query_for_topic(
+        result = await service.test_query_for_source(
             query_expression=request.query_expression,
             source_id=request.source_id,
             max_results=request.max_results,

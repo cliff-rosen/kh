@@ -336,7 +336,7 @@ class RetrievalQueryService:
             all_terms = topic_names[:3] + entity_terms[:3]
             return ' '.join(f'"{term}"' for term in all_terms)
 
-    async def test_query_for_topic(
+    async def test_query_for_source(
         self,
         query_expression: str,
         source_id: str,
