@@ -218,8 +218,9 @@ export default function EditStreamPage() {
     }
 
     return (
-        <div className="max-w-7xl mx-auto p-6">
-            <div className="mb-6">
+        <div className="h-[calc(100vh-4rem)] flex flex-col max-w-7xl mx-auto">
+            {/* Header - Fixed */}
+            <div className="p-6 pb-0">
                 <button
                     onClick={() => navigate('/streams')}
                     className="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline mb-4"
@@ -233,7 +234,7 @@ export default function EditStreamPage() {
             </div>
 
             {error && (
-                <div className="mb-4 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-700 rounded-lg p-4">
+                <div className="mx-6 mt-4 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-700 rounded-lg p-4">
                     <p className="text-red-800 dark:text-red-200">{error}</p>
                     <button
                         onClick={clearError}
@@ -244,7 +245,9 @@ export default function EditStreamPage() {
                 </div>
             )}
 
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8">
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto px-6 py-6">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8">
                 {/* Basic Stream Info */}
                 <div className="space-y-4 mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
                     <div>
@@ -335,7 +338,7 @@ export default function EditStreamPage() {
                     </nav>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form id="edit-stream-form" onSubmit={handleSubmit} className="space-y-6">
                     {/* Layer 1: Semantic Space Tab */}
                     {activeTab === 'semantic' && (
                         <div className="space-y-6">
@@ -398,33 +401,38 @@ export default function EditStreamPage() {
                         />
                     )}
 
-                    {/* Form Actions */}
-                    <div className="flex justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                </form>
+                </div>
+            </div>
+
+            {/* Pinned Footer Actions */}
+            <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-4">
+                <div className="max-w-7xl mx-auto flex justify-between">
+                    <button
+                        type="button"
+                        onClick={handleDelete}
+                        className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                        Delete Stream
+                    </button>
+                    <div className="flex gap-3">
                         <button
                             type="button"
-                            onClick={handleDelete}
-                            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                            onClick={() => navigate('/streams')}
+                            className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                         >
-                            Delete Stream
+                            Cancel
                         </button>
-                        <div className="flex gap-3">
-                            <button
-                                type="button"
-                                onClick={() => navigate('/streams')}
-                                className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={isLoading}
-                                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                            >
-                                {isLoading ? 'Saving...' : 'Save Changes'}
-                            </button>
-                        </div>
+                        <button
+                            type="submit"
+                            form="edit-stream-form"
+                            disabled={isLoading}
+                            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                        >
+                            {isLoading ? 'Saving...' : 'Save Changes'}
+                        </button>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
     );

@@ -147,8 +147,9 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
 
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8">
-            <div className="mb-6">
+        <div className="h-[calc(100vh-4rem)] flex flex-col max-w-7xl mx-auto">
+            {/* Header - Fixed */}
+            <div className="p-6 pb-0">
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                     Create Research Stream
                 </h2>
@@ -158,7 +159,7 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
             </div>
 
             {error && (
-                <div className="mb-4 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-700 rounded-lg p-4">
+                <div className="mx-6 mt-4 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-700 rounded-lg p-4">
                     <p className="text-red-800 dark:text-red-200">{error}</p>
                     <button
                         onClick={clearError}
@@ -168,6 +169,10 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                     </button>
                 </div>
             )}
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto px-6 py-6">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8">
 
             {/* Basic Stream Info - Outside tabs */}
             <div className="space-y-4 mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
@@ -247,7 +252,7 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                 </nav>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form id="create-stream-form" onSubmit={handleSubmit} className="space-y-6">
                 {/* Layer 1: Semantic Space Tab */}
                 {activeTab === 'semantic' && (
                     <div className="space-y-6">
@@ -287,9 +292,13 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                     />
                 )}
 
+            </form>
+                </div>
+            </div>
 
-                {/* Form Actions */}
-                <div className="flex justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+            {/* Pinned Footer Actions */}
+            <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-4">
+                <div className="max-w-7xl mx-auto flex justify-end gap-3">
                     <button
                         type="button"
                         onClick={onCancel || (() => navigate('/dashboard'))}
@@ -299,13 +308,14 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                     </button>
                     <button
                         type="submit"
+                        form="create-stream-form"
                         disabled={isLoading}
                         className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                     >
                         {isLoading ? 'Creating...' : 'Create Stream'}
                     </button>
                 </div>
-            </form>
+            </div>
         </div>
     );
 }

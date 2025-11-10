@@ -373,28 +373,44 @@ export default function QueryConfigPhase({
 
                                                             {/* Test Results */}
                                                             {testResult && (
-                                                                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md p-3">
-                                                                    <div className="flex items-start gap-2">
-                                                                        <CheckCircleIcon className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-                                                                        <div className="flex-1">
-                                                                            <p className="text-sm font-medium text-green-900 dark:text-green-200">
-                                                                                Found {testResult.article_count} articles
-                                                                            </p>
-                                                                            {testResult.sample_titles.length > 0 && (
-                                                                                <div className="mt-2">
-                                                                                    <p className="text-xs font-medium text-green-800 dark:text-green-300 mb-1">
-                                                                                        Sample titles:
-                                                                                    </p>
-                                                                                    <ul className="text-xs text-green-700 dark:text-green-400 space-y-1">
-                                                                                        {testResult.sample_titles.map((title, idx) => (
-                                                                                            <li key={idx}>• {title}</li>
-                                                                                        ))}
-                                                                                    </ul>
-                                                                                </div>
-                                                                            )}
+                                                                testResult.article_count === 0 ? (
+                                                                    <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md p-3">
+                                                                        <div className="flex items-start gap-2">
+                                                                            <ExclamationTriangleIcon className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+                                                                            <div className="flex-1">
+                                                                                <p className="text-sm font-medium text-yellow-900 dark:text-yellow-200">
+                                                                                    No articles found
+                                                                                </p>
+                                                                                <p className="text-xs text-yellow-800 dark:text-yellow-300 mt-1">
+                                                                                    The query may be too restrictive or there may be no matching results in {source.name}. Try adjusting the query or checking the source.
+                                                                                </p>
+                                                                            </div>
                                                                         </div>
                                                                     </div>
-                                                                </div>
+                                                                ) : (
+                                                                    <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md p-3">
+                                                                        <div className="flex items-start gap-2">
+                                                                            <CheckCircleIcon className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+                                                                            <div className="flex-1">
+                                                                                <p className="text-sm font-medium text-green-900 dark:text-green-200">
+                                                                                    Found {testResult.article_count} articles
+                                                                                </p>
+                                                                                {testResult.sample_titles.length > 0 && (
+                                                                                    <div className="mt-2">
+                                                                                        <p className="text-xs font-medium text-green-800 dark:text-green-300 mb-1">
+                                                                                            Sample titles:
+                                                                                        </p>
+                                                                                        <ul className="text-xs text-green-700 dark:text-green-400 space-y-1">
+                                                                                            {testResult.sample_titles.map((title, idx) => (
+                                                                                                <li key={idx}>• {title}</li>
+                                                                                            ))}
+                                                                                        </ul>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                )
                                                             )}
                                                         </div>
                                                     )}
