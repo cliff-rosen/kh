@@ -206,14 +206,8 @@ class QueryTestResponse(BaseModel):
 
 
 # ============================================================================
-# Topic-Based Query Generation (Layer 2: Retrieval Config)
+# Topic-Based Query Testing (Layer 2: Retrieval Config)
 # ============================================================================
-
-class TopicQueryGenerationRequest(BaseModel):
-    """Request to generate a query for a topic"""
-    topic_id: str = Field(..., description="ID of the topic to generate query for")
-    source_id: str = Field(..., description="Source to generate query for (e.g., 'pubmed', 'google_scholar')")
-
 
 class TopicQueryTestRequest(BaseModel):
     """Request to test a query for a topic"""
@@ -223,71 +217,6 @@ class TopicQueryTestRequest(BaseModel):
     start_date: Optional[str] = Field(None, description="Start date for filtering (YYYY-MM-DD) - PubMed only")
     end_date: Optional[str] = Field(None, description="End date for filtering (YYYY-MM-DD) - PubMed only")
     date_type: Optional[str] = Field('entrez', description="Date type for filtering - PubMed only")
-
-
-@router.post("/{stream_id}/topics/generate-query", response_model=QueryGenerationResponse)
-async def generate_query_for_topic(
-    stream_id: int,
-    request: TopicQueryGenerationRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Generate a source-specific query for a topic in the semantic space.
-
-    This uses the topic name, description, related entities, and broader semantic
-    context to create an optimized query for the target source.
-    """
-    service = RetrievalQueryService(db)
-    stream_service = ResearchStreamService(db)
-
-    try:
-        # Get stream (raises 404 if not found or not authorized)
-        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
-
-        # Parse semantic space
-        semantic_space_dict = stream.semantic_space
-        semantic_space = SemanticSpace(**semantic_space_dict)
-
-        # Find the topic
-        topic = next(
-            (t for t in semantic_space.topics if t.topic_id == request.topic_id),
-            None
-        )
-        if not topic:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Topic '{request.topic_id}' not found in semantic space"
-            )
-
-        # Validate source
-        valid_sources = [src.source_id for src in INFORMATION_SOURCES]
-        if request.source_id not in valid_sources:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid source_id. Must be one of: {', '.join(valid_sources)}"
-            )
-
-        # Generate query
-        query_expression, reasoning = await service.generate_query_for_topic(
-            topic=topic,
-            source_id=request.source_id,
-            semantic_space=semantic_space
-        )
-
-        return QueryGenerationResponse(
-            query_expression=query_expression,
-            reasoning=reasoning
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Query generation failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Query generation failed: {str(e)}"
-        )
 
 
 @router.post("/{stream_id}/topics/test-query", response_model=QueryTestResponse)
