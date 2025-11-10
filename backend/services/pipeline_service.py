@@ -25,6 +25,8 @@ from models import (
 from schemas.semantic_space import SemanticSpace
 from schemas.research_stream import RetrievalConfig, PresentationConfig
 from services.pubmed_service import PubMedService
+from services.semantic_filter_service import SemanticFilterService
+from services.article_categorization_service import ArticleCategorizationService
 
 
 class PipelineStatus:
@@ -54,6 +56,8 @@ class PipelineService:
     def __init__(self, db: Session):
         self.db = db
         self.pubmed_service = PubMedService()
+        self.filter_service = SemanticFilterService()
+        self.categorization_service = ArticleCategorizationService()
 
     async def run_pipeline(
         self,
@@ -463,90 +467,12 @@ class PipelineService:
         Returns:
             Tuple of (is_relevant, reasoning)
         """
-        # Prepare article content
-        article_content = f"""
-Title: {article.title}
-
-Abstract: {article.abstract or 'N/A'}
-
-Journal: {article.journal or 'N/A'}
-Year: {article.year or 'N/A'}
-"""
-
-        # Prepare prompt for LLM
-        prompt = f"""You are evaluating whether a research article is relevant based on specific criteria.
-
-FILTER CRITERIA:
-{filter_criteria}
-
-ARTICLE:
-{article_content}
-
-Evaluate whether this article meets the filter criteria. Consider the title, abstract, and context.
-
-Respond with:
-1. A relevance score from 0.0 to 1.0 (where 1.0 is highly relevant)
-2. A brief explanation (2-3 sentences) of why the article does or does not meet the criteria
-
-Format your response as JSON:
-{{
-    "score": 0.0 to 1.0,
-    "reasoning": "explanation here"
-}}
-"""
-
-        # Call LLM using BasePromptCaller
-        from schemas.chat import ChatMessage, MessageRole
-        from agents.prompts.base_prompt_caller import BasePromptCaller
-        from config.llm_models import get_task_config, supports_reasoning_effort
-
-        response_schema = {
-            "type": "object",
-            "properties": {
-                "score": {"type": "number", "minimum": 0, "maximum": 1},
-                "reasoning": {"type": "string"}
-            },
-            "required": ["score", "reasoning"]
-        }
-
-        system_prompt = "You are evaluating research articles for relevance based on semantic filter criteria."
-
-        task_config = get_task_config("smart_search", "keyword_generation")
-        prompt_caller = BasePromptCaller(
-            response_model=response_schema,
-            system_message=system_prompt,
-            model=task_config["model"],
-            temperature=0.3,
-            reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(task_config["model"]) else None
+        # Delegate to semantic filter service
+        is_relevant, score, reasoning = await self.filter_service.evaluate_wip_article(
+            article=article,
+            filter_criteria=filter_criteria,
+            threshold=threshold
         )
-
-        user_message = ChatMessage(
-            id="temp_id",
-            chat_id="temp_chat",
-            role=MessageRole.USER,
-            content=prompt,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        )
-
-        result = await prompt_caller.invoke(
-            messages=[user_message],
-            return_usage=True
-        )
-
-        # Extract result
-        llm_response = result.result
-        if hasattr(llm_response, 'model_dump'):
-            response_data = llm_response.model_dump()
-        elif hasattr(llm_response, 'dict'):
-            response_data = llm_response.dict()
-        else:
-            response_data = llm_response
-
-        score = response_data.get("score", 0)
-        reasoning = response_data.get("reasoning", "")
-
-        is_relevant = score >= threshold
         return is_relevant, reasoning
 
     async def _deduplicate_globally(self, research_stream_id: int) -> int:
@@ -621,15 +547,9 @@ Format your response as JSON:
         ).all()
 
         # Prepare category descriptions for LLM
-        categories_desc = []
-        for cat in presentation_config.categories:
-            cat_info = {
-                "id": cat.id,
-                "name": cat.name,
-                "topics": cat.topics,
-                "specific_inclusions": cat.specific_inclusions
-            }
-            categories_desc.append(cat_info)
+        categories_desc = self.categorization_service.prepare_category_definitions(
+            presentation_config.categories
+        )
 
         categorized = 0
         for article in articles:
@@ -657,84 +577,11 @@ Format your response as JSON:
         Returns:
             List of category IDs that apply to this article
         """
-        # Prepare article content
-        article_content = f"""
-Title: {article.title}
-Abstract: {article.abstract or 'N/A'}
-Journal: {article.journal or 'N/A'}
-Year: {article.year or 'N/A'}
-"""
-
-        # Prepare prompt
-        prompt = f"""You are categorizing a research article into presentation categories for a user report.
-
-ARTICLE:
-{article_content}
-
-AVAILABLE CATEGORIES:
-{json.dumps(categories, indent=2)}
-
-Analyze the article and determine which categories it belongs to. An article can belong to multiple categories or none.
-
-Return the list of category IDs that apply. Return an empty list if none apply.
-
-Respond with JSON:
-{{
-    "category_ids": ["category_id_1", "category_id_2", ...]
-}}
-"""
-
-        # Call LLM using BasePromptCaller
-        from schemas.chat import ChatMessage, MessageRole
-        from agents.prompts.base_prompt_caller import BasePromptCaller
-        from config.llm_models import get_task_config, supports_reasoning_effort
-
-        response_schema = {
-            "type": "object",
-            "properties": {
-                "category_ids": {
-                    "type": "array",
-                    "items": {"type": "string"}
-                }
-            },
-            "required": ["category_ids"]
-        }
-
-        system_prompt = "You are categorizing research articles into presentation categories for user reports."
-
-        task_config = get_task_config("smart_search", "keyword_generation")
-        prompt_caller = BasePromptCaller(
-            response_model=response_schema,
-            system_message=system_prompt,
-            model=task_config["model"],
-            temperature=0.3,
-            reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(task_config["model"]) else None
+        # Delegate to categorization service
+        return await self.categorization_service.categorize_wip_article(
+            article=article,
+            categories=categories
         )
-
-        user_message = ChatMessage(
-            id="temp_id",
-            chat_id="temp_chat",
-            role=MessageRole.USER,
-            content=prompt,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        )
-
-        result = await prompt_caller.invoke(
-            messages=[user_message],
-            return_usage=True
-        )
-
-        # Extract result
-        llm_response = result.result
-        if hasattr(llm_response, 'model_dump'):
-            response_data = llm_response.model_dump()
-        elif hasattr(llm_response, 'dict'):
-            response_data = llm_response.dict()
-        else:
-            response_data = llm_response
-
-        return response_data.get("category_ids", [])
 
     async def _generate_report(
         self,
