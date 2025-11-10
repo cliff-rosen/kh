@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import {
     CheckCircleIcon,
     ExclamationTriangleIcon,
-    ArrowLeftIcon,
     ArrowPathIcon,
     XCircleIcon
 } from '@heroicons/react/24/outline';
@@ -13,9 +12,7 @@ interface ValidationPhaseProps {
     streamId: number;
     semanticSpace: SemanticSpace;
     groups: RetrievalGroup[];
-    onBack: () => void;
-    onFinalize: () => Promise<void>;
-    saving: boolean;
+    onValidationReady: (ready: boolean) => void;
 }
 
 interface ValidationResult {
@@ -41,9 +38,7 @@ export default function ValidationPhase({
     streamId,
     semanticSpace,
     groups,
-    onBack,
-    onFinalize,
-    saving
+    onValidationReady
 }: ValidationPhaseProps) {
     const [validating, setValidating] = useState(false);
     const [validation, setValidation] = useState<ValidationResult | null>(null);
@@ -64,8 +59,10 @@ export default function ValidationPhase({
             });
 
             setValidation(result);
+            onValidationReady(result.ready_to_activate);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to validate configuration');
+            onValidationReady(false);
         } finally {
             setValidating(false);
         }
@@ -363,34 +360,6 @@ export default function ValidationPhase({
                     )}
                 </div>
             )}
-
-            {/* Navigation */}
-            <div className="flex justify-between pt-4">
-                <button
-                    onClick={onBack}
-                    className="inline-flex items-center gap-2 px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 font-medium"
-                >
-                    <ArrowLeftIcon className="h-5 w-5" />
-                    Back to Filters
-                </button>
-                <button
-                    onClick={onFinalize}
-                    disabled={!validation?.ready_to_activate || saving}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                >
-                    {saving ? (
-                        <>
-                            <ArrowPathIcon className="h-5 w-5 animate-spin" />
-                            Saving Configuration...
-                        </>
-                    ) : (
-                        <>
-                            <CheckCircleIcon className="h-5 w-5" />
-                            Finalize & Activate
-                        </>
-                    )}
-                </button>
-            </div>
         </div>
     );
 }

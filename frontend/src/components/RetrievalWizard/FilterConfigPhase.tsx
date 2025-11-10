@@ -4,8 +4,6 @@ import {
     ArrowPathIcon,
     PencilIcon,
     CheckCircleIcon,
-    ArrowRightIcon,
-    ArrowLeftIcon,
     XMarkIcon
 } from '@heroicons/react/24/outline';
 import { SemanticSpace, RetrievalGroup, SemanticFilter } from '../../types';
@@ -17,8 +15,6 @@ interface FilterConfigPhaseProps {
     groups: RetrievalGroup[];
     onGroupsChange: (groups: RetrievalGroup[]) => void;
     onComplete: (completed: boolean) => void;
-    onBack: () => void;
-    onNext: () => void;
 }
 
 export default function FilterConfigPhase({
@@ -26,9 +22,7 @@ export default function FilterConfigPhase({
     semanticSpace,
     groups,
     onGroupsChange,
-    onComplete,
-    onBack,
-    onNext
+    onComplete
 }: FilterConfigPhaseProps) {
     const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
     const [generating, setGenerating] = useState<Record<string, boolean>>({});
@@ -48,12 +42,21 @@ export default function FilterConfigPhase({
     }, [groups]);
 
     const handleGenerateFilter = async (groupId: string) => {
+        const group = groups.find(g => g.group_id === groupId);
+        if (!group) return;
+
+        // Check if filter already exists and confirm regeneration
+        const hasExistingFilter = group.semantic_filter.enabled && group.semantic_filter.criteria.trim();
+        if (hasExistingFilter) {
+            const confirmed = window.confirm(
+                `This will replace the existing semantic filter for "${group.name}". Continue?`
+            );
+            if (!confirmed) return;
+        }
+
         setGenerating({ ...generating, [groupId]: true });
 
         try {
-            const group = groups.find(g => g.group_id === groupId);
-            if (!group) return;
-
             // Get topic details for context
             const topics = group.covered_topics
                 .map(topicId => {
@@ -329,14 +332,24 @@ export default function FilterConfigPhase({
                                                         </div>
                                                         <div className="flex gap-2">
                                                             <button
+                                                                onClick={() => handleGenerateFilter(group.group_id)}
+                                                                disabled={isGenerating}
+                                                                className="p-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded disabled:opacity-50"
+                                                                title="Regenerate filter with AI"
+                                                            >
+                                                                <ArrowPathIcon className="h-4 w-4" />
+                                                            </button>
+                                                            <button
                                                                 onClick={() => handleEditFilter(group.group_id)}
                                                                 className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
+                                                                title="Edit manually"
                                                             >
                                                                 <PencilIcon className="h-4 w-4" />
                                                             </button>
                                                             <button
                                                                 onClick={() => handleDisableFilter(group.group_id)}
                                                                 className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                                                                title="Disable filter"
                                                             >
                                                                 <XMarkIcon className="h-4 w-4" />
                                                             </button>
@@ -404,24 +417,6 @@ export default function FilterConfigPhase({
                         </div>
                     );
                 })}
-            </div>
-
-            {/* Navigation */}
-            <div className="flex justify-between pt-4">
-                <button
-                    onClick={onBack}
-                    className="inline-flex items-center gap-2 px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 font-medium"
-                >
-                    <ArrowLeftIcon className="h-5 w-5" />
-                    Back to Queries
-                </button>
-                <button
-                    onClick={onNext}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
-                >
-                    Continue to Validation
-                    <ArrowRightIcon className="h-5 w-5" />
-                </button>
             </div>
         </div>
     );

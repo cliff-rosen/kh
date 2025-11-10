@@ -6,8 +6,7 @@ import {
     PencilIcon,
     TrashIcon,
     ExclamationTriangleIcon,
-    CheckCircleIcon,
-    ArrowRightIcon
+    CheckCircleIcon
 } from '@heroicons/react/24/outline';
 import { SemanticSpace, RetrievalGroup } from '../../types';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
@@ -18,7 +17,6 @@ interface GroupProposalPhaseProps {
     groups: RetrievalGroup[];
     onGroupsChange: (groups: RetrievalGroup[]) => void;
     onComplete: (completed: boolean) => void;
-    onNext: () => void;
 }
 
 export default function GroupProposalPhase({
@@ -26,8 +24,7 @@ export default function GroupProposalPhase({
     semanticSpace,
     groups,
     onGroupsChange,
-    onComplete,
-    onNext
+    onComplete
 }: GroupProposalPhaseProps) {
     const [generating, setGenerating] = useState(false);
     const [coverage, setCoverage] = useState<any>(null);
@@ -35,13 +32,21 @@ export default function GroupProposalPhase({
     const [editForm, setEditForm] = useState<Partial<RetrievalGroup>>({});
 
     useEffect(() => {
-        // Mark complete if we have groups with good coverage
-        const hasGroups = groups.length > 0;
-        const goodCoverage = coverage && coverage.coverage_percentage >= 100;
-        onComplete(hasGroups && goodCoverage);
-    }, [groups, coverage]);
+        // Mark complete if we have groups with topics - don't require 100% coverage
+        const hasValidGroups = groups.length > 0 &&
+            groups.every(g => g.covered_topics && g.covered_topics.length > 0);
+        onComplete(hasValidGroups);
+    }, [groups, coverage, onComplete]);
 
     const handleGenerate = async () => {
+        // Confirm before regenerating if groups already exist
+        if (groups.length > 0) {
+            const confirmed = window.confirm(
+                `This will replace your existing ${groups.length} retrieval group(s) with AI-generated groups. Continue?`
+            );
+            if (!confirmed) return;
+        }
+
         setGenerating(true);
         try {
             const result = await researchStreamApi.proposeRetrievalGroups(streamId);
@@ -152,6 +157,11 @@ export default function GroupProposalPhase({
                                 <>
                                     <ArrowPathIcon className="h-5 w-5 animate-spin" />
                                     Analyzing Semantic Space...
+                                </>
+                            ) : groups.length > 0 ? (
+                                <>
+                                    <ArrowPathIcon className="h-5 w-5" />
+                                    Regenerate Groups with AI
                                 </>
                             ) : (
                                 <>
@@ -379,20 +389,6 @@ export default function GroupProposalPhase({
                     </div>
                 ))}
             </div>
-
-            {/* Navigation */}
-            {groups.length > 0 && (
-                <div className="flex justify-end pt-4">
-                    <button
-                        onClick={onNext}
-                        disabled={!coverage || !coverage.is_complete}
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                    >
-                        Continue to Query Configuration
-                        <ArrowRightIcon className="h-5 w-5" />
-                    </button>
-                </div>
-            )}
         </div>
     );
 }

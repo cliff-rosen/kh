@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ArrowLeftIcon,
+    ArrowRightIcon,
+    ArrowPathIcon,
     CheckCircleIcon,
     SparklesIcon
 } from '@heroicons/react/24/outline';
@@ -29,6 +31,7 @@ export default function RetrievalWizardPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [validationReady, setValidationReady] = useState(false);
 
     // Phase completion tracking
     const [phasesCompleted, setPhasesCompleted] = useState({
@@ -52,8 +55,46 @@ export default function RetrievalWizardPage() {
             setSemanticSpace(streamData.semantic_space);
 
             // Load existing groups if any
-            if (streamData.retrieval_config?.retrieval_groups) {
-                setGroups(streamData.retrieval_config.retrieval_groups);
+            if (streamData.retrieval_config?.retrieval_groups && streamData.retrieval_config.retrieval_groups.length > 0) {
+                const existingGroups = streamData.retrieval_config.retrieval_groups;
+                setGroups(existingGroups);
+
+                // Detect what's already configured and mark phases complete
+                const newPhasesCompleted = {
+                    groups: false,
+                    queries: false,
+                    filters: false,
+                    validation: false
+                };
+
+                // Phase 1: Groups - complete if we have groups with topics
+                const hasValidGroups = existingGroups.length > 0 &&
+                    existingGroups.every(g => g.covered_topics && g.covered_topics.length > 0);
+                if (hasValidGroups) {
+                    newPhasesCompleted.groups = true;
+                }
+
+                // Phase 2: Queries - complete if groups have queries configured
+                const hasQueries = existingGroups.some(g =>
+                    g.source_queries && Object.keys(g.source_queries).length > 0
+                );
+                if (hasQueries) {
+                    newPhasesCompleted.queries = true;
+                }
+
+                // Phase 3: Filters - complete if at least checked (not required to enable)
+                // Consider this complete if we've reached this point in config before
+                const hasFilterConfig = existingGroups.some(g =>
+                    g.semantic_filter && (g.semantic_filter.enabled || g.semantic_filter.criteria)
+                );
+                if (hasFilterConfig || hasQueries) {
+                    newPhasesCompleted.filters = true;
+                }
+
+                setPhasesCompleted(newPhasesCompleted);
+
+                // Always start at phase 1 (groups)
+                setCurrentPhase('groups');
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load stream');
@@ -142,9 +183,9 @@ export default function RetrievalWizardPage() {
     ];
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: '100vh' }}>
             {/* Header */}
-            <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                 <div className="max-w-7xl mx-auto px-4 py-6">
                     <div className="flex items-center justify-between">
                         <div>
@@ -231,54 +272,103 @@ export default function RetrievalWizardPage() {
                 </div>
             </div>
 
-            {/* Phase Content */}
-            <div className="max-w-7xl mx-auto px-4 py-8">
-                {currentPhase === 'groups' && (
-                    <GroupProposalPhase
-                        streamId={Number(streamId)}
-                        semanticSpace={semanticSpace}
-                        groups={groups}
-                        onGroupsChange={setGroups}
-                        onComplete={(completed) => handlePhaseComplete('groups', completed)}
-                        onNext={() => setCurrentPhase('queries')}
-                    />
-                )}
+            {/* Phase Content - Scrollable */}
+            <div className="flex-1 overflow-y-auto">
+                <div className="max-w-7xl mx-auto px-4 py-8">
+                    {currentPhase === 'groups' && (
+                        <GroupProposalPhase
+                            streamId={Number(streamId)}
+                            semanticSpace={semanticSpace}
+                            groups={groups}
+                            onGroupsChange={setGroups}
+                            onComplete={(completed) => handlePhaseComplete('groups', completed)}
+                        />
+                    )}
 
-                {currentPhase === 'queries' && (
-                    <QueryConfigPhase
-                        streamId={Number(streamId)}
-                        semanticSpace={semanticSpace}
-                        groups={groups}
-                        sources={sources}
-                        onGroupsChange={setGroups}
-                        onComplete={(completed) => handlePhaseComplete('queries', completed)}
-                        onBack={() => setCurrentPhase('groups')}
-                        onNext={() => setCurrentPhase('filters')}
-                    />
-                )}
+                    {currentPhase === 'queries' && (
+                        <QueryConfigPhase
+                            streamId={Number(streamId)}
+                            semanticSpace={semanticSpace}
+                            groups={groups}
+                            sources={sources}
+                            onGroupsChange={setGroups}
+                            onComplete={(completed) => handlePhaseComplete('queries', completed)}
+                        />
+                    )}
 
-                {currentPhase === 'filters' && (
-                    <FilterConfigPhase
-                        streamId={Number(streamId)}
-                        semanticSpace={semanticSpace}
-                        groups={groups}
-                        onGroupsChange={setGroups}
-                        onComplete={(completed) => handlePhaseComplete('filters', completed)}
-                        onBack={() => setCurrentPhase('queries')}
-                        onNext={() => setCurrentPhase('validation')}
-                    />
-                )}
+                    {currentPhase === 'filters' && (
+                        <FilterConfigPhase
+                            streamId={Number(streamId)}
+                            semanticSpace={semanticSpace}
+                            groups={groups}
+                            onGroupsChange={setGroups}
+                            onComplete={(completed) => handlePhaseComplete('filters', completed)}
+                        />
+                    )}
 
-                {currentPhase === 'validation' && (
-                    <ValidationPhase
-                        streamId={Number(streamId)}
-                        semanticSpace={semanticSpace}
-                        groups={groups}
-                        onBack={() => setCurrentPhase('filters')}
-                        onFinalize={handleSaveAndFinalize}
-                        saving={saving}
-                    />
-                )}
+                    {currentPhase === 'validation' && (
+                        <ValidationPhase
+                            streamId={Number(streamId)}
+                            semanticSpace={semanticSpace}
+                            groups={groups}
+                            onValidationReady={setValidationReady}
+                        />
+                    )}
+                </div>
+            </div>
+
+            {/* Navigation Footer - Fixed */}
+            <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-4">
+                <div className="max-w-7xl mx-auto flex justify-between">
+                    {currentPhase !== 'groups' ? (
+                        <button
+                            onClick={() => {
+                                if (currentPhase === 'queries') setCurrentPhase('groups');
+                                else if (currentPhase === 'filters') setCurrentPhase('queries');
+                                else if (currentPhase === 'validation') setCurrentPhase('filters');
+                            }}
+                            className="inline-flex items-center gap-2 px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 font-medium"
+                        >
+                            <ArrowLeftIcon className="h-5 w-5" />
+                            Back
+                        </button>
+                    ) : (
+                        <div></div>
+                    )}
+
+                    {currentPhase === 'validation' ? (
+                        <button
+                            onClick={handleSaveAndFinalize}
+                            disabled={!validationReady || saving}
+                            className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                        >
+                            {saving ? (
+                                <>
+                                    <ArrowPathIcon className="h-5 w-5 animate-spin" />
+                                    Saving Configuration...
+                                </>
+                            ) : (
+                                <>
+                                    <CheckCircleIcon className="h-5 w-5" />
+                                    Finalize & Activate
+                                </>
+                            )}
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => {
+                                if (currentPhase === 'groups') setCurrentPhase('queries');
+                                else if (currentPhase === 'queries') setCurrentPhase('filters');
+                                else if (currentPhase === 'filters') setCurrentPhase('validation');
+                            }}
+                            disabled={currentPhase === 'groups' && groups.length === 0}
+                            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                        >
+                            Continue
+                            <ArrowRightIcon className="h-5 w-5" />
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
     );

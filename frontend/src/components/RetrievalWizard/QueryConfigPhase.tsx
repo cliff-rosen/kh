@@ -5,8 +5,6 @@ import {
     PencilIcon,
     CheckCircleIcon,
     BeakerIcon,
-    ArrowRightIcon,
-    ArrowLeftIcon,
     ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { SemanticSpace, RetrievalGroup, InformationSource } from '../../types';
@@ -19,8 +17,6 @@ interface QueryConfigPhaseProps {
     sources: InformationSource[];
     onGroupsChange: (groups: RetrievalGroup[]) => void;
     onComplete: (completed: boolean) => void;
-    onBack: () => void;
-    onNext: () => void;
 }
 
 interface QueryTestResult {
@@ -35,9 +31,7 @@ export default function QueryConfigPhase({
     groups,
     sources,
     onGroupsChange,
-    onComplete,
-    onBack,
-    onNext
+    onComplete
 }: QueryConfigPhaseProps) {
     const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
     const [generating, setGenerating] = useState<Record<string, boolean>>({});
@@ -303,6 +297,11 @@ export default function QueryConfigPhase({
                                                                         <ArrowPathIcon className="h-4 w-4 animate-spin" />
                                                                         Generating...
                                                                     </>
+                                                                ) : query?.query_expression ? (
+                                                                    <>
+                                                                        <ArrowPathIcon className="h-4 w-4" />
+                                                                        Regenerate
+                                                                    </>
                                                                 ) : (
                                                                     <>
                                                                         <SparklesIcon className="h-4 w-4" />
@@ -441,25 +440,6 @@ export default function QueryConfigPhase({
                     </div>
                 </div>
             )}
-
-            {/* Navigation */}
-            <div className="flex justify-between pt-4">
-                <button
-                    onClick={onBack}
-                    className="inline-flex items-center gap-2 px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 font-medium"
-                >
-                    <ArrowLeftIcon className="h-5 w-5" />
-                    Back to Groups
-                </button>
-                <button
-                    onClick={onNext}
-                    disabled={!groups.some(g => Object.values(g.source_queries).some(q => q?.query_expression?.trim()))}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                >
-                    Continue to Filters
-                    <ArrowRightIcon className="h-5 w-5" />
-                </button>
-            </div>
         </div>
     );
 }
