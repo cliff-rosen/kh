@@ -183,15 +183,16 @@ export default function RetrievalWizardPage() {
     ];
 
     return (
-        <div className="flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: '100vh' }}>
+        <>
             {/* Header */}
-            <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <div className="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                 <div className="max-w-7xl mx-auto px-4 py-6">
                     <div className="flex items-center justify-between">
                         <div>
                             <button
                                 onClick={() => navigate(`/streams/${streamId}/edit`)}
-                                className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 mb-2"
+                                type="button"
+                                className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 mb-2 transition-colors cursor-pointer"
                             >
                                 <ArrowLeftIcon className="h-4 w-4" />
                                 Back to Edit Stream
@@ -272,8 +273,8 @@ export default function RetrievalWizardPage() {
                 </div>
             </div>
 
-            {/* Phase Content - Scrollable */}
-            <div className="flex-1 overflow-y-auto">
+            {/* Phase Content */}
+            <div className="bg-gray-50 dark:bg-gray-900 pb-24">
                 <div className="max-w-7xl mx-auto px-4 py-8">
                     {currentPhase === 'groups' && (
                         <GroupProposalPhase
@@ -317,8 +318,8 @@ export default function RetrievalWizardPage() {
                 </div>
             </div>
 
-            {/* Navigation Footer - Fixed */}
-            <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-4">
+            {/* Navigation Footer - Sticky */}
+            <div className="sticky bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-4 shadow-lg z-50">
                 <div className="max-w-7xl mx-auto flex justify-between">
                     {currentPhase !== 'groups' ? (
                         <button
@@ -370,6 +371,6 @@ export default function RetrievalWizardPage() {
                     )}
                 </div>
             </div>
-        </div>
+        </>
     );
 }
