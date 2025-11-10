@@ -358,12 +358,12 @@ class PipelineService:
                 authors=article.authors or [],
                 publication_date=pub_date,
                 abstract=article.abstract,
-                summary=article.summary,
-                pmid=article.pmid or article.id if article.source == 'pubmed' else None,
+                summary=article.snippet,  # Use snippet as summary
+                pmid=article.pmid or (article.id if article.source == 'pubmed' else None),
                 doi=article.doi,
                 journal=article.journal,
                 year=str(article.publication_year) if article.publication_year else None,
-                article_metadata={},
+                article_metadata=article.metadata or {},
                 is_duplicate=False,
                 passed_semantic_filter=None,  # Not yet filtered
                 included_in_report=False
