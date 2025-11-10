@@ -4,14 +4,16 @@ Research Streams API endpoints
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
+import json
 
 logger = logging.getLogger(__name__)
 
 from database import get_db
-from models import User
+from models import User, RunType
 
 from schemas.research_stream import (
     ResearchStream,
@@ -29,6 +31,7 @@ from schemas.canonical_types import CanonicalResearchArticle
 from services.research_stream_service import ResearchStreamService
 from services.retrieval_query_service import RetrievalQueryService
 from services.retrieval_group_service import RetrievalGroupService
+from services.pipeline_service import PipelineService
 
 from routers.auth import get_current_user
 
@@ -554,4 +557,102 @@ async def test_query_for_source(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Query test failed: {str(e)}"
+        )
+
+
+# ============================================================================
+# Layer 4: Pipeline Execution & Testing
+# ============================================================================
+
+class ExecutePipelineRequest(BaseModel):
+    """Request to execute the full pipeline for a research stream"""
+    run_type: Optional[str] = Field("test", description="Type of run: test, scheduled, or manual")
+
+
+@router.post("/{stream_id}/execute-pipeline")
+async def execute_pipeline(
+    stream_id: int,
+    request: ExecutePipelineRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Execute the full end-to-end pipeline for a research stream.
+
+    This endpoint streams real-time progress updates using Server-Sent Events (SSE).
+
+    Pipeline stages:
+    1. Load configuration
+    2. Execute retrieval queries
+    3. Deduplicate within groups
+    4. Apply semantic filters
+    5. Deduplicate globally
+    6. Categorize articles
+    7. Generate report
+
+    The response is a stream of JSON objects, one per line, each representing a status update.
+    """
+    stream_service = ResearchStreamService(db)
+
+    try:
+        # Verify stream exists and user has access
+        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+
+        # Parse run type
+        run_type_value = RunType.TEST
+        if request.run_type:
+            try:
+                run_type_value = RunType(request.run_type.lower())
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid run_type. Must be one of: test, scheduled, manual"
+                )
+
+        # Create pipeline service
+        pipeline_service = PipelineService(db)
+
+        # Define SSE generator
+        async def event_generator():
+            """Generate SSE events from pipeline status updates"""
+            try:
+                async for status in pipeline_service.run_pipeline(
+                    research_stream_id=stream_id,
+                    run_type=run_type_value
+                ):
+                    # Format as SSE event
+                    status_dict = status.to_dict()
+                    event_data = json.dumps(status_dict)
+                    yield f"data: {event_data}\n\n"
+
+                # Send final completion event
+                yield "data: {\"stage\": \"done\"}\n\n"
+
+            except Exception as e:
+                # Send error event
+                error_data = json.dumps({
+                    "stage": "error",
+                    "message": str(e),
+                    "error_type": type(e).__name__
+                })
+                yield f"data: {error_data}\n\n"
+
+        # Return streaming response
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"  # Disable nginx buffering
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Pipeline execution failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Pipeline execution failed: {str(e)}"
         )

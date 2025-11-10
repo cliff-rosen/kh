@@ -38,6 +38,12 @@ class StreamType(str, PyEnum):
     SCIENTIFIC = "scientific"   # Scientific literature and discoveries
     MIXED = "mixed"             # Multi-purpose streams
 
+class RunType(str, PyEnum):
+    """Type of pipeline run"""
+    TEST = "test"         # Manual test run from UI
+    SCHEDULED = "scheduled"  # Automated scheduled run
+    MANUAL = "manual"     # Manual run (not test)
+
 
 # Core User table
 class User(Base):
@@ -193,6 +199,10 @@ class Report(Base):
     read_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # Pipeline execution metadata
+    run_type = Column(Enum(RunType, name='runtype'), default=RunType.SCHEDULED, nullable=False)
+    pipeline_metrics = Column(JSON, default=dict)  # Metrics from pipeline execution
+
     # Relationships
     user = relationship("User", back_populates="reports")
     research_stream = relationship("ResearchStream", back_populates="reports")
@@ -215,6 +225,9 @@ class ReportArticleAssociation(Base):
     notes = Column(Text)  # User's notes on this article
     added_at = Column(DateTime, default=datetime.utcnow)
     read_at = Column(DateTime)
+
+    # Presentation categorization
+    presentation_categories = Column(JSON, default=list)  # List of presentation category IDs
 
     # Relationships
     report = relationship("Report", back_populates="article_associations")
@@ -287,6 +300,53 @@ class OnboardingSession(Base):
 
     # Relationships
     user = relationship("User", back_populates="onboarding_sessions")
+
+
+class WipArticle(Base):
+    """Work-in-progress articles for pipeline test execution and audit trail"""
+    __tablename__ = "wip_articles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    research_stream_id = Column(Integer, ForeignKey("research_streams.stream_id"), nullable=False)
+    retrieval_group_id = Column(String(255), nullable=False, index=True)
+    source_id = Column(Integer, ForeignKey("information_sources.source_id"), nullable=False)
+
+    # Article data (mirroring articles table structure)
+    title = Column(String(500), nullable=False)
+    url = Column(String(1000))
+    authors = Column(JSON, default=list)
+    publication_date = Column(Date)
+    abstract = Column(Text)
+    summary = Column(Text)
+    full_text = Column(Text)
+
+    # PubMed-specific fields
+    pmid = Column(String(20), index=True)
+    doi = Column(String(255), index=True)
+    journal = Column(String(255))
+    volume = Column(String(50))
+    issue = Column(String(50))
+    pages = Column(String(50))
+    year = Column(String(4))
+
+    # Metadata
+    article_metadata = Column(JSON, default=dict)
+
+    # Processing status fields
+    is_duplicate = Column(Boolean, default=False, index=True)
+    duplicate_of_id = Column(Integer, ForeignKey("wip_articles.id"))
+    passed_semantic_filter = Column(Boolean, default=None, index=True)
+    filter_rejection_reason = Column(Text)
+    included_in_report = Column(Boolean, default=False, index=True)
+    presentation_categories = Column(JSON, default=list)  # List of category IDs assigned by LLM
+
+    # Timestamps
+    retrieved_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    research_stream = relationship("ResearchStream")
+    source = relationship("InformationSource")
 
 
 # Add relationships to User model

@@ -16,8 +16,9 @@ import { useResearchStream } from '../context/ResearchStreamContext';
 import SemanticSpaceForm from '../components/SemanticSpaceForm';
 import PresentationForm from '../components/PresentationForm';
 import RetrievalConfigForm from '../components/RetrievalConfigForm';
+import ExecutePipelineTab from '../components/ExecutePipelineTab';
 
-type TabType = 'semantic' | 'retrieval' | 'presentation';
+type TabType = 'semantic' | 'retrieval' | 'presentation' | 'execute';
 
 export default function EditStreamPage() {
     const { id } = useParams<{ id: string }>();
@@ -337,6 +338,19 @@ export default function EditStreamPage() {
                                 <span className="text-xs font-normal text-gray-500 dark:text-gray-400">How to organize results</span>
                             </div>
                         </button>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('execute')}
+                            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'execute'
+                                ? 'border-orange-500 text-orange-600 dark:text-orange-400'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                                }`}
+                        >
+                            <div className="flex flex-col items-start">
+                                <span>Layer 4: Test & Execute</span>
+                                <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Run pipeline end-to-end</span>
+                            </div>
+                        </button>
                     </nav>
                 </div>
 
@@ -408,6 +422,11 @@ export default function EditStreamPage() {
                                 onChange={(updated) => setForm({ ...form, categories: updated })}
                             />
                         </div>
+                    )}
+
+                    {/* Layer 4: Test & Execute Tab */}
+                    {activeTab === 'execute' && stream && (
+                        <ExecutePipelineTab streamId={parseInt(id!)} />
                     )}
 
                 </form>
