@@ -83,50 +83,50 @@ class RetrievalQueryService:
         if source_id == 'pubmed':
             system_prompt = """You are a PubMed search query expert. Generate an optimized boolean search query for PubMed based on the provided topic and semantic context.
 
-REQUIREMENTS:
-1. Use PubMed boolean syntax (AND, OR, NOT with parentheses)
-2. Structure the query to capture the topic's key concepts
-3. Use OR to combine synonymous or related terms
-4. Use AND to require multiple distinct concepts if appropriate
-5. Keep the query focused and precise - aim for 100-2000 results
-6. Use medical/scientific terminology appropriate for PubMed
-7. Consider the topic's importance level when deciding query breadth
+            REQUIREMENTS:
+            1. Use PubMed boolean syntax (AND, OR, NOT with parentheses)
+            2. Structure the query to capture the topic's key concepts
+            3. Use OR to combine synonymous or related terms
+            4. Use AND to require multiple distinct concepts if appropriate
+            5. Keep the query focused and precise - aim for 100-2000 results
+            6. Use medical/scientific terminology appropriate for PubMed
+            7. Consider the topic's importance level when deciding query breadth
 
-STRUCTURE EXAMPLES:
-- Single concept: (term1 OR term2 OR term3)
-- Multiple concepts: (concept1_term1 OR concept1_term2) AND (concept2_term1 OR concept2_term2)
-- With exclusions: (include_terms) NOT (exclude_terms)
+            STRUCTURE EXAMPLES:
+            - Single concept: (term1 OR term2 OR term3)
+            - Multiple concepts: (concept1_term1 OR concept1_term2) AND (concept2_term1 OR concept2_term2)
+            - With exclusions: (include_terms) NOT (exclude_terms)
 
-Respond in JSON format with "query_expression" and "reasoning" fields."""
+            Respond in JSON format with "query_expression" and "reasoning" fields."""
 
         elif source_id == 'google_scholar':
             system_prompt = """You are a Google Scholar search query expert. Generate an optimized natural language search query for Google Scholar based on the provided topic and semantic context.
 
-REQUIREMENTS:
-1. Use simple natural language - NO complex boolean operators
-2. Use quoted phrases for specific concepts: "machine learning"
-3. Keep it concise - maximum 3-5 key terms or quoted phrases
-4. Focus on the most distinctive keywords
-5. Aim for focused results (hundreds to low thousands, not millions)
-6. Consider the topic's importance when selecting terms
+            REQUIREMENTS:
+            1. Use simple natural language - NO complex boolean operators
+            2. Use quoted phrases for specific concepts: "machine learning"
+            3. Keep it concise - maximum 3-5 key terms or quoted phrases
+            4. Focus on the most distinctive keywords
+            5. Aim for focused results (hundreds to low thousands, not millions)
+            6. Consider the topic's importance when selecting terms
 
-GOOD EXAMPLES:
-- "CRISPR gene editing" cancer therapy
-- "machine learning" healthcare diagnostics
-- "climate change" agriculture adaptation
+            GOOD EXAMPLES:
+            - "CRISPR gene editing" cancer therapy
+            - "machine learning" healthcare diagnostics
+            - "climate change" agriculture adaptation
 
-Respond in JSON format with "query_expression" and "reasoning" fields."""
+            Respond in JSON format with "query_expression" and "reasoning" fields."""
 
         else:
             # Generic fallback for other sources
             system_prompt = f"""You are a search query expert for {source_info.name}. Generate an optimized search query based on the provided topic and semantic context.
 
-Query syntax to use: {source_info.query_syntax}
+            Query syntax to use: {source_info.query_syntax}
 
-Create a focused query that will retrieve relevant articles (aim for 100-2000 results).
-Consider the topic importance and related concepts when building the query.
+            Create a focused query that will retrieve relevant articles (aim for 100-2000 results).
+            Consider the topic importance and related concepts when building the query.
 
-Respond in JSON format with "query_expression" and "reasoning" fields."""
+            Respond in JSON format with "query_expression" and "reasoning" fields."""
 
         # Build user prompt with rich semantic context
         entity_section = ""
@@ -135,18 +135,18 @@ Respond in JSON format with "query_expression" and "reasoning" fields."""
 
         user_prompt = f"""Generate a search query for the following topic within this research domain:
 
-Domain: {domain_name}
-Context: {business_context}
+        Domain: {domain_name}
+        Context: {business_context}
 
-TOPIC TO QUERY:
-Name: {topic_name}
-Description: {topic_description}
-Importance: {topic_importance.value}
-Rationale: {topic.rationale}{entity_section}
+        TOPIC TO QUERY:
+        Name: {topic_name}
+        Description: {topic_description}
+        Importance: {topic_importance.value}
+        Rationale: {topic.rationale}{entity_section}
 
-Create a {source_info.name} query that will find articles relevant to this topic.
-The query should be precise enough to avoid overwhelming results but broad enough to capture relevant research.
-Consider the topic's importance level: {'critical' if topic_importance.value == 'critical' else 'important' if topic_importance.value == 'important' else 'relevant'} topics should be {'comprehensive' if topic_importance.value == 'critical' else 'balanced' if topic_importance.value == 'important' else 'focused'}."""
+        Create a {source_info.name} query that will find articles relevant to this topic.
+        The query should be precise enough to avoid overwhelming results but broad enough to capture relevant research.
+        Consider the topic's importance level: {'critical' if topic_importance.value == 'critical' else 'important' if topic_importance.value == 'important' else 'relevant'} topics should be {'comprehensive' if topic_importance.value == 'critical' else 'balanced' if topic_importance.value == 'important' else 'focused'}."""
 
         # Response schema
         response_schema = {
