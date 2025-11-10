@@ -1,12 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { PlayIcon, CheckCircleIcon, ExclamationCircleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
-
-interface PipelineStatus {
-    stage: string;
-    message: string;
-    data?: Record<string, any>;
-    timestamp: string;
-}
+import { researchStreamApi, PipelineStatus } from '../lib/api/researchStreamApi';
 
 interface ExecutePipelineTabProps {
     streamId: number;
@@ -25,65 +19,31 @@ export default function ExecutePipelineTab({ streamId }: ExecutePipelineTabProps
         setReportId(null);
 
         try {
-            const token = localStorage.getItem('auth_token');
-            const response = await fetch(`/api/research-streams/${streamId}/execute-pipeline`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ run_type: 'test' })
+            // Use the API method to execute pipeline
+            const stream = researchStreamApi.executePipeline(streamId, {
+                run_type: 'test'
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            // Read SSE stream
-            const reader = response.body?.getReader();
-            const decoder = new TextDecoder();
-
-            if (!reader) {
-                throw new Error('No response body');
-            }
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
-
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const data = line.slice(6);
-                        if (data.trim()) {
-                            try {
-                                const status: PipelineStatus = JSON.parse(data);
-
-                                if (status.stage === 'done') {
-                                    setIsExecuting(false);
-                                    break;
-                                }
-
-                                if (status.stage === 'error') {
-                                    setError(status.message);
-                                    setIsExecuting(false);
-                                    break;
-                                }
-
-                                // Check if status contains report_id
-                                if (status.stage === 'complete' && status.data?.report_id) {
-                                    setReportId(status.data.report_id);
-                                }
-
-                                setStatusLog(prev => [...prev, status]);
-                            } catch (e) {
-                                console.error('Failed to parse SSE data:', data, e);
-                            }
-                        }
-                    }
+            for await (const status of stream) {
+                // Check for completion or error
+                if (status.stage === 'done') {
+                    setIsExecuting(false);
+                    break;
                 }
+
+                if (status.stage === 'error') {
+                    setError(status.message);
+                    setIsExecuting(false);
+                    break;
+                }
+
+                // Check if status contains report_id
+                if (status.stage === 'complete' && status.data?.report_id) {
+                    setReportId(status.data.report_id);
+                }
+
+                // Add status to log
+                setStatusLog(prev => [...prev, status]);
             }
         } catch (err: any) {
             setError(err.message || 'Failed to execute pipeline');

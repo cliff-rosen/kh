@@ -97,6 +97,21 @@ export interface QueryGenerationResponse {
     reasoning: string;
 }
 
+// ============================================================================
+// Pipeline Execution API Types (Layer 4: Test & Execute)
+// ============================================================================
+
+export interface PipelineStatus {
+    stage: string;
+    message: string;
+    data?: Record<string, any>;
+    timestamp: string;
+}
+
+export interface ExecutePipelineRequest {
+    run_type?: 'test' | 'scheduled' | 'manual';
+}
+
 export interface QueryTestRequest {
     source_id: string;
     query_expression: string;
@@ -338,6 +353,55 @@ export const researchStreamApi = {
             request
         );
         return response.data;
+    },
+
+
+    // ========================================================================
+    // Pipeline Execution (Layer 4: Test & Execute)
+    // ========================================================================
+
+    /**
+     * Execute the full pipeline for a research stream with real-time SSE updates.
+     *
+     * This streams status updates as the pipeline executes:
+     * - init: Loading configuration
+     * - cleanup: Clearing previous WIP data
+     * - retrieval: Executing queries
+     * - dedup_group: Deduplicating within groups
+     * - filter: Applying semantic filters
+     * - dedup_global: Deduplicating globally
+     * - categorize: Categorizing articles
+     * - report: Generating report
+     * - complete: Pipeline finished
+     * - error: Pipeline failed
+     */
+    async* executePipeline(
+        streamId: number,
+        request: ExecutePipelineRequest = {}
+    ): AsyncGenerator<PipelineStatus> {
+        const stream = makeStreamRequest(
+            `/api/research-streams/${streamId}/execute-pipeline`,
+            request,
+            'POST'
+        );
+
+        for await (const update of stream) {
+            // Parse SSE data (format: "data: {json}\n\n")
+            const lines = update.data.split('\n');
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const jsonData = line.slice(6); // Remove "data: " prefix
+                    if (jsonData.trim()) {
+                        try {
+                            const status = JSON.parse(jsonData) as PipelineStatus;
+                            yield status;
+                        } catch (e) {
+                            console.error('Failed to parse pipeline status:', e);
+                        }
+                    }
+                }
+            }
+        }
     }
 
 };
