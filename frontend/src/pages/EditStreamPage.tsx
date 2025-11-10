@@ -344,12 +344,12 @@ export default function EditStreamPage() {
                     {/* Layer 1: Semantic Space Tab */}
                     {activeTab === 'semantic' && (
                         <div className="space-y-6">
-                            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4 mb-6">
+                            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
                                 <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-200 mb-2">
                                     Layer 1: Semantic Space
                                 </h3>
                                 <p className="text-sm text-purple-800 dark:text-purple-300">
-                                    Define the canonical, source-agnostic representation of what information matters. This is the ground truth that both retrieval strategies and presentation categories will derive from.
+                                    Define what information matters. This is the canonical, source-agnostic ground truth that both retrieval strategies and presentation categories derive from.
                                 </p>
                             </div>
 
@@ -363,30 +363,26 @@ export default function EditStreamPage() {
                     {/* Layer 2: Retrieval Configuration Tab */}
                     {activeTab === 'retrieval' && (
                         <div className="space-y-6">
-                            {/* Wizard Option */}
                             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                                <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                        <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-1">
-                                            AI-Assisted Wizard Available
-                                        </h3>
-                                        <p className="text-xs text-blue-800 dark:text-blue-300 mb-3">
-                                            Use the wizard for AI-assisted retrieval group setup, query generation, and filter configuration.
-                                        </p>
-                                        <button
-                                            type="button"
-                                            onClick={() => navigate(`/streams/${id}/configure-retrieval`)}
-                                            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium shadow-sm"
-                                        >
-                                            <CogIcon className="h-4 w-4" />
-                                            Open Wizard
-                                            <ArrowRightIcon className="h-3 w-3" />
-                                        </button>
-                                    </div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200">
+                                        Layer 2: Retrieval Configuration
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate(`/streams/${id}/configure-retrieval`)}
+                                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium shadow-sm"
+                                    >
+                                        <CogIcon className="h-4 w-4" />
+                                        Open Wizard
+                                        <ArrowRightIcon className="h-3 w-3" />
+                                    </button>
                                 </div>
+                                <p className="text-sm text-blue-800 dark:text-blue-300">
+                                    Define how to find and filter content. Use the wizard for AI-assisted setup, or configure manually below.
+                                </p>
                             </div>
 
-                            {/* Manual Form */}
                             <RetrievalConfigForm
                                 retrievalConfig={form.retrieval_config}
                                 semanticSpace={form.semantic_space}
@@ -397,10 +393,21 @@ export default function EditStreamPage() {
 
                     {/* Layer 3: Presentation Taxonomy Tab */}
                     {activeTab === 'presentation' && (
-                        <PresentationForm
-                            categories={form.categories}
-                            onChange={(updated) => setForm({ ...form, categories: updated })}
-                        />
+                        <div className="space-y-6">
+                            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                                <h3 className="text-sm font-semibold text-green-900 dark:text-green-200 mb-2">
+                                    Layer 3: Presentation Configuration
+                                </h3>
+                                <p className="text-sm text-green-800 dark:text-green-300">
+                                    Define how to organize results. Create categories that group topics for report presentation.
+                                </p>
+                            </div>
+
+                            <PresentationForm
+                                categories={form.categories}
+                                onChange={(updated) => setForm({ ...form, categories: updated })}
+                            />
+                        </div>
                     )}
 
                 </form>

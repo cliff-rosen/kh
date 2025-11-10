@@ -117,15 +117,6 @@ export default function RetrievalConfigForm({
 
     return (
         <div className="space-y-6">
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
-                <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
-                    Layer 2: Retrieval Configuration
-                </h3>
-                <p className="text-sm text-blue-800 dark:text-blue-300">
-                    Define how to find and filter content. Organize topics into retrieval groups, specify source-specific queries, and configure semantic filters.
-                </p>
-            </div>
-
             {/* Article Limit */}
             <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

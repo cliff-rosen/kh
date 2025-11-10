@@ -59,15 +59,6 @@ export default function PresentationForm({ categories, onChange }: PresentationF
 
     return (
         <div className="space-y-6">
-            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
-                <h3 className="text-sm font-semibold text-green-900 dark:text-green-200 mb-2">
-                    Layer 3: Presentation Taxonomy
-                </h3>
-                <p className="text-sm text-green-800 dark:text-green-300">
-                    Define categories for organizing results in reports. These should be derived from your semantic space and optimized for how users consume information.
-                </p>
-            </div>
-
             {/* Categories */}
             <div className="space-y-4">
                 <div className="flex items-center justify-between">
