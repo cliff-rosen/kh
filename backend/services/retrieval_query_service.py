@@ -65,16 +65,19 @@ class RetrievalQueryService:
         if not source_info:
             raise ValueError(f"Unknown source: {source_id}")
 
-        # Collect all related entities across all topics
-        all_related_entities = set()
+        # Collect all related entities across all topics (deduplicate by entity_id)
+        seen_entity_ids = set()
+        all_related_entities = []
         for topic in topics:
             related = self._find_related_entities(topic, semantic_space)
             for entity in related[:5]:  # Top 5 per topic
-                all_related_entities.add(entity)
+                if entity.entity_id not in seen_entity_ids:
+                    seen_entity_ids.add(entity.entity_id)
+                    all_related_entities.append(entity)
 
         # Extract entity terms
         entity_terms = []
-        for entity in list(all_related_entities)[:15]:  # Max 15 entities total
+        for entity in all_related_entities[:15]:  # Max 15 entities total
             entity_terms.extend(entity.canonical_forms[:2])  # Top 2 forms per entity
 
         # Get broader context
@@ -127,9 +130,9 @@ class RetrievalQueryService:
 
         else:
             # Generic fallback for other sources
-            system_prompt = f"""You are a search query expert for {{source_info.name}}. Generate an optimized search query for MULTIPLE related topics in a retrieval group.
+            system_prompt = f"""You are a search query expert for {source_info.name}. Generate an optimized search query for MULTIPLE related topics in a retrieval group.
 
-            Query syntax to use: {{source_info.query_syntax}}
+            Query syntax to use: {source_info.query_syntax}
 
             Create a comprehensive query that will retrieve articles relevant to ANY of the provided topics.
             Use appropriate operators to combine topic concepts (aim for 500-5000 results).
@@ -164,20 +167,20 @@ class RetrievalQueryService:
         Use appropriate operators (OR at the top level) to capture content relevant to any topic in the group."""
 
         # Response schema
-        response_schema = {{
+        response_schema = {
             "type": "object",
-            "properties": {{
-                "query_expression": {{
+            "properties": {
+                "query_expression": {
                     "type": "string",
                     "description": "The generated search query expression covering all topics"
-                }},
-                "reasoning": {{
+                },
+                "reasoning": {
                     "type": "string",
                     "description": "Explanation of how the query covers all topics and what concepts it captures"
-                }}
-            }},
+                }
+            },
             "required": ["query_expression", "reasoning"]
-        }}
+        }
 
         # Get model config
         task_config = get_task_config("smart_search", "keyword_generation")
