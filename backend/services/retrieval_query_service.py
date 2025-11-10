@@ -26,24 +26,25 @@ class RetrievalQueryService:
         self.stream_service = ResearchStreamService(db)
         self.search_service = SmartSearchService()
 
-    async def generate_query_for_topic(
+
+    async def generate_query_for_retrieval_group(
         self,
-        topic: Topic,
+        topics: List[Topic],
         source_id: str,
         semantic_space: SemanticSpace,
-        related_entities: Optional[List[Entity]] = None
+        group_rationale: Optional[str] = None
     ) -> Tuple[str, str]:
         """
-        Generate a source-specific query for a topic.
+        Generate a source-specific query for a retrieval group containing multiple topics.
 
-        This uses the topic itself plus related entities and the broader semantic context
-        to create an optimized query for the target source.
+        This considers ALL topics in the group and their relationships to create a
+        comprehensive query that captures content relevant to any of them.
 
         Args:
-            topic: The topic to generate a query for
+            topics: List of all topics in the retrieval group
             source_id: Target source (e.g., 'pubmed', 'google_scholar')
             semantic_space: Complete semantic space for context
-            related_entities: Optional list of entities related to this topic
+            group_rationale: Optional rationale for why these topics are grouped together
 
         Returns:
             Tuple of (query_expression, reasoning)
@@ -53,6 +54,9 @@ class RetrievalQueryService:
         from config.llm_models import get_task_config, supports_reasoning_effort
         from datetime import datetime
 
+        if not topics:
+            raise ValueError("Cannot generate query for empty topic list")
+
         # Validate source
         source_info = next(
             (src for src in INFORMATION_SOURCES if src.source_id == source_id),
@@ -61,19 +65,17 @@ class RetrievalQueryService:
         if not source_info:
             raise ValueError(f"Unknown source: {source_id}")
 
-        # Extract topic information
-        topic_name = topic.name
-        topic_description = topic.description
-        topic_importance = topic.importance
-
-        # Find related entities if not provided
-        if related_entities is None:
-            related_entities = self._find_related_entities(topic, semantic_space)
+        # Collect all related entities across all topics
+        all_related_entities = set()
+        for topic in topics:
+            related = self._find_related_entities(topic, semantic_space)
+            for entity in related[:5]:  # Top 5 per topic
+                all_related_entities.add(entity)
 
         # Extract entity terms
         entity_terms = []
-        for entity in related_entities[:10]:  # Limit to top 10 entities
-            entity_terms.extend(entity.canonical_forms[:3])  # Top 3 forms per entity
+        for entity in list(all_related_entities)[:15]:  # Max 15 entities total
+            entity_terms.extend(entity.canonical_forms[:2])  # Top 2 forms per entity
 
         # Get broader context
         domain_name = semantic_space.domain.name
@@ -81,88 +83,101 @@ class RetrievalQueryService:
 
         # Create source-specific system prompt
         if source_id == 'pubmed':
-            system_prompt = """You are a PubMed search query expert. Generate an optimized boolean search query for PubMed based on the provided topic and semantic context.
+            system_prompt = """You are a PubMed search query expert. Generate an optimized boolean search query for PubMed that covers MULTIPLE related topics in a retrieval group.
 
             REQUIREMENTS:
             1. Use PubMed boolean syntax (AND, OR, NOT with parentheses)
-            2. Structure the query to capture the topic's key concepts
-            3. Use OR to combine synonymous or related terms
-            4. Use AND to require multiple distinct concepts if appropriate
-            5. Keep the query focused and precise - aim for 100-2000 results
+            2. Create a query that captures content relevant to ANY of the provided topics
+            3. Use OR operators to combine topic-specific terms at the top level
+            4. Within each topic's section, use OR for synonyms and AND for required concepts
+            5. Keep the query comprehensive but focused - aim for 500-5000 results
             6. Use medical/scientific terminology appropriate for PubMed
-            7. Consider the topic's importance level when deciding query breadth
+            7. Consider the group rationale when structuring the query
 
-            STRUCTURE EXAMPLES:
-            - Single concept: (term1 OR term2 OR term3)
-            - Multiple concepts: (concept1_term1 OR concept1_term2) AND (concept2_term1 OR concept2_term2)
-            - With exclusions: (include_terms) NOT (exclude_terms)
+            STRUCTURE FOR MULTIPLE TOPICS:
+            (topic1_terms) OR (topic2_terms) OR (topic3_terms)
+
+            Where each topic_terms is:
+            (concept1_term1 OR concept1_term2) AND (concept2_term1 OR concept2_term2)
+
+            EXAMPLE:
+            (mesothelioma OR "pleural cancer") OR (asbestosis OR "pulmonary fibrosis") OR ("lung cancer" AND asbestos)
 
             Respond in JSON format with "query_expression" and "reasoning" fields."""
 
         elif source_id == 'google_scholar':
-            system_prompt = """You are a Google Scholar search query expert. Generate an optimized natural language search query for Google Scholar based on the provided topic and semantic context.
+            system_prompt = """You are a Google Scholar search query expert. Generate an optimized natural language search query for Google Scholar that covers MULTIPLE related topics in a retrieval group.
 
             REQUIREMENTS:
             1. Use simple natural language - NO complex boolean operators
-            2. Use quoted phrases for specific concepts: "machine learning"
-            3. Keep it concise - maximum 3-5 key terms or quoted phrases
-            4. Focus on the most distinctive keywords
-            5. Aim for focused results (hundreds to low thousands, not millions)
-            6. Consider the topic's importance when selecting terms
+            2. Combine the most important terms from all topics
+            3. Use quoted phrases for specific multi-word concepts: "machine learning"
+            4. Keep it concise - maximum 5-8 key terms or quoted phrases
+            5. Focus on the most distinctive keywords that span the topics
+            6. Aim for focused results (low thousands, not millions)
+            7. Consider the group rationale when selecting terms
 
-            GOOD EXAMPLES:
-            - "CRISPR gene editing" cancer therapy
-            - "machine learning" healthcare diagnostics
-            - "climate change" agriculture adaptation
+            STRUCTURE:
+            "key concept 1" "key concept 2" broader_term1 broader_term2
+
+            EXAMPLE:
+            "asbestos exposure" "mesothelioma" "lung disease" occupational health
 
             Respond in JSON format with "query_expression" and "reasoning" fields."""
 
         else:
             # Generic fallback for other sources
-            system_prompt = f"""You are a search query expert for {source_info.name}. Generate an optimized search query based on the provided topic and semantic context.
+            system_prompt = f"""You are a search query expert for {{source_info.name}}. Generate an optimized search query for MULTIPLE related topics in a retrieval group.
 
-            Query syntax to use: {source_info.query_syntax}
+            Query syntax to use: {{source_info.query_syntax}}
 
-            Create a focused query that will retrieve relevant articles (aim for 100-2000 results).
-            Consider the topic importance and related concepts when building the query.
+            Create a comprehensive query that will retrieve articles relevant to ANY of the provided topics.
+            Use appropriate operators to combine topic concepts (aim for 500-5000 results).
+            Consider the group rationale and how topics relate when building the query.
 
             Respond in JSON format with "query_expression" and "reasoning" fields."""
 
-        # Build user prompt with rich semantic context
+        # Build user prompt with all topics
+        topics_section = ""
+        for i, topic in enumerate(topics, 1):
+            topics_section += f"\n\nTOPIC {i}:\n"
+            topics_section += f"Name: {topic.name}\n"
+            topics_section += f"Description: {topic.description}\n"
+            topics_section += f"Importance: {topic.importance.value}\n"
+            topics_section += f"Rationale: {topic.rationale}"
+
         entity_section = ""
         if entity_terms:
-            entity_section = f"\n\nRelated Entities/Terms:\n{', '.join(entity_terms)}"
+            entity_section = f"\n\nRelated Entities/Terms Across All Topics:\n{', '.join(entity_terms[:20])}"
 
-        user_prompt = f"""Generate a search query for the following topic within this research domain:
+        group_rationale_section = ""
+        if group_rationale:
+            group_rationale_section = f"\n\nGroup Rationale (why these topics are grouped):\n{group_rationale}"
+
+        user_prompt = f"""Generate a search query for a retrieval group containing {len(topics)} related topics within this research domain:
 
         Domain: {domain_name}
-        Context: {business_context}
+        Context: {business_context}{group_rationale_section}{topics_section}{entity_section}
 
-        TOPIC TO QUERY:
-        Name: {topic_name}
-        Description: {topic_description}
-        Importance: {topic_importance.value}
-        Rationale: {topic.rationale}{entity_section}
-
-        Create a {source_info.name} query that will find articles relevant to this topic.
-        The query should be precise enough to avoid overwhelming results but broad enough to capture relevant research.
-        Consider the topic's importance level: {'critical' if topic_importance.value == 'critical' else 'important' if topic_importance.value == 'important' else 'relevant'} topics should be {'comprehensive' if topic_importance.value == 'critical' else 'balanced' if topic_importance.value == 'important' else 'focused'}."""
+        Create a {source_info.name} query that will find articles relevant to ANY of these topics.
+        The query should be comprehensive enough to cover all topics but focused enough to avoid overwhelming results.
+        Use appropriate operators (OR at the top level) to capture content relevant to any topic in the group."""
 
         # Response schema
-        response_schema = {
+        response_schema = {{
             "type": "object",
-            "properties": {
-                "query_expression": {
+            "properties": {{
+                "query_expression": {{
                     "type": "string",
-                    "description": "The generated search query expression"
-                },
-                "reasoning": {
+                    "description": "The generated search query expression covering all topics"
+                }},
+                "reasoning": {{
                     "type": "string",
-                    "description": "Explanation of why this query was generated and what concepts it captures"
-                }
-            },
+                    "description": "Explanation of how the query covers all topics and what concepts it captures"
+                }}
+            }},
             "required": ["query_expression", "reasoning"]
-        }
+        }}
 
         # Get model config
         task_config = get_task_config("smart_search", "keyword_generation")
@@ -205,23 +220,25 @@ class RetrievalQueryService:
             reasoning = response_data.get('reasoning', '')
 
             if not query_expression:
-                # Fallback: simple combination based on topic name and entities
-                query_expression = self._generate_fallback_query(
-                    topic_name, entity_terms[:5], source_id
+                # Fallback: combine topics with OR
+                topic_names = [t.name for t in topics]
+                query_expression = self._generate_fallback_query_for_group(
+                    topic_names, entity_terms[:10], source_id
                 )
-                reasoning = f"Fallback query using topic name and related entities"
+                reasoning = f"Fallback query combining {len(topics)} topics"
 
-            logger.info(f"Generated query for topic '{topic_name}' on {source_id}: {query_expression[:100]}")
+            logger.info(f"Generated query for {len(topics)} topics on {source_id}: {query_expression[:100]}")
 
             return query_expression, reasoning
 
         except Exception as e:
-            logger.error(f"Query generation failed: {e}")
-            # Fallback to simple query
-            query_expression = self._generate_fallback_query(
-                topic_name, entity_terms[:5], source_id
+            logger.error(f"Query generation for group failed: {e}")
+            # Fallback to simple combined query
+            topic_names = [t.name for t in topics]
+            query_expression = self._generate_fallback_query_for_group(
+                topic_names, entity_terms[:10], source_id
             )
-            reasoning = f"Generated fallback query due to error: {str(e)}"
+            reasoning = f"Generated fallback query for {len(topics)} topics due to error: {str(e)}"
             return query_expression, reasoning
 
     def _find_related_entities(
@@ -287,6 +304,34 @@ class RetrievalQueryService:
         else:
             # Natural language with quotes
             return ' '.join(f'"{term}"' for term in all_terms[:3])
+
+    def _generate_fallback_query_for_group(
+        self,
+        topic_names: List[str],
+        entity_terms: List[str],
+        source_id: str
+    ) -> str:
+        """
+        Generate a simple fallback query for multiple topics.
+
+        Args:
+            topic_names: Names of all topics in the group
+            entity_terms: List of entity terms across all topics
+            source_id: Source identifier
+
+        Returns:
+            Simple combined query expression
+        """
+        if source_id == 'pubmed':
+            # Combine topics with OR, include some entity terms
+            topic_parts = [f'({name})' for name in topic_names[:5]]
+            entity_parts = entity_terms[:5]
+            all_parts = topic_parts + entity_parts
+            return '(' + ' OR '.join(all_parts) + ')'
+        else:
+            # Natural language combining topic names
+            all_terms = topic_names[:3] + entity_terms[:3]
+            return ' '.join(f'"{term}"' for term in all_terms)
 
     async def test_query_for_topic(
         self,

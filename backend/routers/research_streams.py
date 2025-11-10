@@ -316,7 +316,8 @@ async def generate_group_queries(
     """
     Phase 2: Generate queries for a retrieval group.
 
-    Uses topics in the group to generate optimized source-specific queries.
+    Uses ALL topics in the group to generate optimized source-specific queries
+    that capture content relevant to any of the topics.
     """
     query_service = RetrievalQueryService(db)
     stream_service = ResearchStreamService(db)
@@ -329,7 +330,7 @@ async def generate_group_queries(
         semantic_space_dict = stream.semantic_space
         semantic_space = SemanticSpace(**semantic_space_dict)
 
-        # Get topics for this group
+        # Get ALL topics for this group
         group_topics = [
             t for t in semantic_space.topics
             if t.topic_id in request.covered_topics
@@ -341,14 +342,12 @@ async def generate_group_queries(
                 detail="Group has no valid topics"
             )
 
-        # Use first topic as representative (could be enhanced to use all)
-        representative_topic = group_topics[0]
-
-        query_expression, reasoning = await query_service.generate_query_for_topic(
-            topic=representative_topic,
+        # Generate query using ALL topics in the group
+        query_expression, reasoning = await query_service.generate_query_for_retrieval_group(
+            topics=group_topics,  # ✅ ALL topics, not just first one
             source_id=request.source_id,
             semantic_space=semantic_space,
-            related_entities=None  # Will find automatically
+            group_rationale=None  # Could pass request.group_rationale if available
         )
 
         return {
@@ -359,7 +358,7 @@ async def generate_group_queries(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Query generation failed: {e}")
+        logger.error(f"Query generation failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Query generation failed: {str(e)}"
