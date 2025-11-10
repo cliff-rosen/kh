@@ -249,47 +249,49 @@ export default function EditStreamPage() {
             <div className="flex-1 overflow-y-auto px-6 py-6">
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8">
                 {/* Basic Stream Info */}
-                <div className="space-y-4 mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Stream Name *
-                        </label>
-                        <input
-                            type="text"
-                            value={form.stream_name}
-                            onChange={(e) => setForm({ ...form, stream_name: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                            required
-                        />
-                    </div>
+                <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                        <div className="md:col-span-6">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Stream Name *
+                            </label>
+                            <input
+                                type="text"
+                                value={form.stream_name}
+                                onChange={(e) => setForm({ ...form, stream_name: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                required
+                            />
+                        </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Report Frequency *
-                        </label>
-                        <select
-                            value={form.report_frequency}
-                            onChange={(e) => setForm({ ...form, report_frequency: e.target.value as ReportFrequency })}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        >
-                            <option value={ReportFrequency.DAILY}>Daily</option>
-                            <option value={ReportFrequency.WEEKLY}>Weekly</option>
-                            <option value={ReportFrequency.BIWEEKLY}>Bi-weekly</option>
-                            <option value={ReportFrequency.MONTHLY}>Monthly</option>
-                        </select>
-                    </div>
+                        <div className="md:col-span-3">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Report Frequency *
+                            </label>
+                            <select
+                                value={form.report_frequency}
+                                onChange={(e) => setForm({ ...form, report_frequency: e.target.value as ReportFrequency })}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            >
+                                <option value={ReportFrequency.DAILY}>Daily</option>
+                                <option value={ReportFrequency.WEEKLY}>Weekly</option>
+                                <option value={ReportFrequency.BIWEEKLY}>Bi-weekly</option>
+                                <option value={ReportFrequency.MONTHLY}>Monthly</option>
+                            </select>
+                        </div>
 
-                    <div className="flex items-center">
-                        <input
-                            type="checkbox"
-                            id="is_active"
-                            checked={form.is_active}
-                            onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-                            className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                        />
-                        <label htmlFor="is_active" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                            Stream is active
-                        </label>
+                        <div className="md:col-span-3 flex items-center h-[42px]">
+                            <input
+                                type="checkbox"
+                                id="is_active"
+                                checked={form.is_active}
+                                onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
+                                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                            />
+                            <label htmlFor="is_active" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                                Stream is active
+                            </label>
+                        </div>
                     </div>
                 </div>
 
