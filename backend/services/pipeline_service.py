@@ -328,8 +328,8 @@ class PipelineService:
         # Execute query based on source type
         articles = []
         if source_id.lower() == "pubmed":
-            # Use PubMed service to execute query
-            articles = await self.pubmed_service.search_articles(
+            # Use PubMed service to execute query (returns tuple of articles and metadata)
+            articles, metadata = self.pubmed_service.search_articles(
                 query=query_expression,
                 max_results=min(self.MAX_ARTICLES_PER_SOURCE, 50)
             )
@@ -338,22 +338,32 @@ class PipelineService:
             pass
 
         # Store results in wip_articles
-        for article_data in articles:
+        # Articles are CanonicalResearchArticle objects (Pydantic models)
+        for article in articles:
+            # Parse publication_date string to date object if present
+            pub_date = None
+            if article.publication_date:
+                try:
+                    from datetime import datetime as dt
+                    pub_date = dt.fromisoformat(article.publication_date).date()
+                except (ValueError, AttributeError):
+                    pass  # Skip invalid dates
+
             wip_article = WipArticle(
                 research_stream_id=research_stream_id,
                 retrieval_group_id=group_id,
                 source_id=source.source_id,
-                title=article_data.get("title", ""),
-                url=article_data.get("url"),
-                authors=article_data.get("authors", []),
-                publication_date=article_data.get("publication_date"),
-                abstract=article_data.get("abstract"),
-                summary=article_data.get("summary"),
-                pmid=article_data.get("pmid"),
-                doi=article_data.get("doi"),
-                journal=article_data.get("journal"),
-                year=article_data.get("year"),
-                article_metadata=article_data.get("metadata", {}),
+                title=article.title,
+                url=article.url,
+                authors=article.authors or [],
+                publication_date=pub_date,
+                abstract=article.abstract,
+                summary=article.summary,
+                pmid=article.pmid or article.id if article.source == 'pubmed' else None,
+                doi=article.doi,
+                journal=article.journal,
+                year=str(article.publication_year) if article.publication_year else None,
+                article_metadata={},
                 is_duplicate=False,
                 passed_semantic_filter=None,  # Not yet filtered
                 included_in_report=False
