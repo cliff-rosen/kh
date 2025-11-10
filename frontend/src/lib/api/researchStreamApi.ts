@@ -236,23 +236,6 @@ export const researchStreamApi = {
         }
     },
 
-    // ========================================================================
-    // Topic-Based Query Testing (Layer 2: Retrieval Config)
-    // ========================================================================
-
-    /**
-     * Test a query for a topic
-     */
-    async testQueryForTopic(
-        streamId: number,
-        request: QueryTestRequest & { topic_id: string }
-    ): Promise<QueryTestResponse> {
-        const response = await api.post(
-            `/api/research-streams/${streamId}/topics/test-query`,
-            request
-        );
-        return response.data;
-    },
 
     // ========================================================================
     // Retrieval Group Wizard (Layer 2: Group-Based Configuration)
@@ -336,5 +319,25 @@ export const researchStreamApi = {
             request
         );
         return response.data;
+    },
+
+
+    // ========================================================================
+    // Topic-Based Query Testing (Layer 2: Retrieval Config)
+    // ========================================================================
+
+    /**
+     * Test a query for a topic
+     */
+    async testQueryForTopic(
+        streamId: number,
+        request: QueryTestRequest & { topic_id: string }
+    ): Promise<QueryTestResponse> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/topics/test-query`,
+            request
+        );
+        return response.data;
     }
+
 };

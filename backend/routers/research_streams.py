@@ -206,70 +206,6 @@ class QueryTestResponse(BaseModel):
 
 
 # ============================================================================
-# Topic-Based Query Testing (Layer 2: Retrieval Config)
-# ============================================================================
-
-class TopicQueryTestRequest(BaseModel):
-    """Request to test a query for a topic"""
-    source_id: str = Field(..., description="Source to test against")
-    query_expression: str = Field(..., description="Query expression to test")
-    max_results: int = Field(10, ge=1, le=50, description="Maximum sample articles to return")
-    start_date: Optional[str] = Field(None, description="Start date for filtering (YYYY-MM-DD) - PubMed only")
-    end_date: Optional[str] = Field(None, description="End date for filtering (YYYY-MM-DD) - PubMed only")
-    date_type: Optional[str] = Field('entrez', description="Date type for filtering - PubMed only")
-
-
-@router.post("/{stream_id}/topics/test-query", response_model=QueryTestResponse)
-async def test_query_for_topic(
-    stream_id: int,
-    request: TopicQueryTestRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Test a query expression against a source for a topic.
-
-    This allows testing query expressions to see how many articles would be
-    returned and preview sample results.
-    """
-    service = RetrievalQueryService(db)
-    stream_service = ResearchStreamService(db)
-
-    try:
-        # Get stream (raises 404 if not found or not authorized)
-        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
-
-        # Validate source
-        valid_sources = [src.source_id for src in INFORMATION_SOURCES]
-        if request.source_id not in valid_sources:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid source_id. Must be one of: {', '.join(valid_sources)}"
-            )
-
-        # Test query
-        result = await service.test_query_for_topic(
-            query_expression=request.query_expression,
-            source_id=request.source_id,
-            max_results=request.max_results,
-            start_date=request.start_date,
-            end_date=request.end_date,
-            date_type=request.date_type
-        )
-
-        return QueryTestResponse(**result)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Query test failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Query test failed: {str(e)}"
-        )
-
-
-# ============================================================================
 # Retrieval Group Workflow (New Group-Based Architecture)
 # ============================================================================
 
@@ -556,4 +492,67 @@ async def generate_semantic_filter(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Semantic filter generation failed: {str(e)}"
+        )
+
+# ============================================================================
+# Topic-Based Query Testing (Layer 2: Retrieval Config)
+# ============================================================================
+
+class TopicQueryTestRequest(BaseModel):
+    """Request to test a query for a topic"""
+    source_id: str = Field(..., description="Source to test against")
+    query_expression: str = Field(..., description="Query expression to test")
+    max_results: int = Field(10, ge=1, le=50, description="Maximum sample articles to return")
+    start_date: Optional[str] = Field(None, description="Start date for filtering (YYYY-MM-DD) - PubMed only")
+    end_date: Optional[str] = Field(None, description="End date for filtering (YYYY-MM-DD) - PubMed only")
+    date_type: Optional[str] = Field('entrez', description="Date type for filtering - PubMed only")
+
+
+@router.post("/{stream_id}/topics/test-query", response_model=QueryTestResponse)
+async def test_query_for_topic(
+    stream_id: int,
+    request: TopicQueryTestRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Test a query expression against a source for a topic.
+
+    This allows testing query expressions to see how many articles would be
+    returned and preview sample results.
+    """
+    service = RetrievalQueryService(db)
+    stream_service = ResearchStreamService(db)
+
+    try:
+        # Get stream (raises 404 if not found or not authorized)
+        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+
+        # Validate source
+        valid_sources = [src.source_id for src in INFORMATION_SOURCES]
+        if request.source_id not in valid_sources:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid source_id. Must be one of: {', '.join(valid_sources)}"
+            )
+
+        # Test query
+        result = await service.test_query_for_topic(
+            query_expression=request.query_expression,
+            source_id=request.source_id,
+            max_results=request.max_results,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            date_type=request.date_type
+        )
+
+        return QueryTestResponse(**result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Query test failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Query test failed: {str(e)}"
         )
