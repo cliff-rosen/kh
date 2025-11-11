@@ -431,11 +431,13 @@ class PipelineService:
         threshold: float
     ) -> Tuple[int, int]:
         """
-        Apply semantic filter to articles in a group using LLM.
+        Apply semantic filter to articles in a group using LLM in parallel batches.
 
         Returns:
             Tuple of (passed_count, rejected_count)
         """
+        import asyncio
+
         # Get all non-duplicate articles for this group that haven't been filtered yet
         articles = self.db.query(WipArticle).filter(
             and_(
@@ -446,17 +448,39 @@ class PipelineService:
             )
         ).all()
 
+        if not articles:
+            return 0, 0
+
+        # Create semaphore to limit concurrent LLM calls (avoid rate limits)
+        semaphore = asyncio.Semaphore(10)  # Limit to 10 concurrent filter evaluations
+
+        async def evaluate_article(article: WipArticle) -> Tuple[int, bool, str]:
+            """Evaluate a single article with rate limiting"""
+            async with semaphore:
+                try:
+                    is_relevant, reasoning = await self._evaluate_article_relevance(
+                        article=article,
+                        filter_criteria=filter_criteria,
+                        threshold=threshold
+                    )
+                    return article.id, is_relevant, reasoning
+                except Exception as e:
+                    # On error, reject the article with error message
+                    return article.id, False, f"Evaluation failed: {str(e)}"
+
+        # Execute all evaluations in parallel
+        results = await asyncio.gather(
+            *[evaluate_article(article) for article in articles],
+            return_exceptions=False
+        )
+
+        # Update database with results
         passed = 0
         rejected = 0
+        article_map = {a.id: a for a in articles}
 
-        for article in articles:
-            # Use LLM to evaluate relevance
-            is_relevant, reasoning = await self._evaluate_article_relevance(
-                article=article,
-                filter_criteria=filter_criteria,
-                threshold=threshold
-            )
-
+        for article_id, is_relevant, reasoning in results:
+            article = article_map[article_id]
             if is_relevant:
                 article.passed_semantic_filter = True
                 passed += 1
@@ -542,11 +566,13 @@ class PipelineService:
         presentation_config: PresentationConfig
     ) -> int:
         """
-        Use LLM to categorize each unique article into presentation categories.
+        Use LLM to categorize each unique article into presentation categories in parallel batches.
 
         Returns:
             Number of articles categorized
         """
+        import asyncio
+
         # Get all unique articles (not duplicates, passed filters)
         articles = self.db.query(WipArticle).filter(
             and_(
@@ -559,25 +585,45 @@ class PipelineService:
             )
         ).all()
 
+        if not articles:
+            return 0
+
         # Prepare category descriptions for LLM
         categories_desc = self.categorization_service.prepare_category_definitions(
             presentation_config.categories
         )
 
-        categorized = 0
-        for article in articles:
-            # Use LLM to assign categories
-            assigned_categories = await self._assign_categories_to_article(
-                article=article,
-                categories=categories_desc
-            )
+        # Create semaphore to limit concurrent LLM calls
+        semaphore = asyncio.Semaphore(10)  # Limit to 10 concurrent categorizations
 
+        async def categorize_article(article: WipArticle) -> Tuple[int, List[str]]:
+            """Categorize a single article with rate limiting"""
+            async with semaphore:
+                try:
+                    assigned_categories = await self._assign_categories_to_article(
+                        article=article,
+                        categories=categories_desc
+                    )
+                    return article.id, assigned_categories
+                except Exception as e:
+                    # On error, return empty category list
+                    return article.id, []
+
+        # Execute all categorizations in parallel
+        results = await asyncio.gather(
+            *[categorize_article(article) for article in articles],
+            return_exceptions=False
+        )
+
+        # Update database with results
+        article_map = {a.id: a for a in articles}
+        for article_id, assigned_categories in results:
+            article = article_map[article_id]
             article.presentation_categories = assigned_categories
             article.included_in_report = len(assigned_categories) > 0
-            categorized += 1
 
         self.db.commit()
-        return categorized
+        return len(articles)
 
     async def _assign_categories_to_article(
         self,
