@@ -100,7 +100,8 @@ class ReportService:
                 'ranking': assoc.ranking,
                 'is_starred': assoc.is_starred,
                 'is_read': assoc.is_read,
-                'notes': assoc.notes
+                'notes': assoc.notes,
+                'presentation_categories': assoc.presentation_categories or []
             }
             articles.append(article_dict)
 

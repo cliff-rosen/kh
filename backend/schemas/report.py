@@ -26,6 +26,7 @@ class ReportArticle(BaseModel):
     is_starred: Optional[bool] = False
     is_read: Optional[bool] = False
     notes: Optional[str] = None
+    presentation_categories: List[str] = []  # List of category IDs
 
 
 class Report(BaseModel):
@@ -34,14 +35,17 @@ class Report(BaseModel):
     user_id: int
     research_stream_id: Optional[int] = None
     report_date: date
-    executive_summary: str
+    executive_summary: Optional[str] = None  # Generated separately by LLM
     key_highlights: List[str] = []
-    thematic_analysis: str
+    thematic_analysis: Optional[str] = None  # Generated separately by LLM
     coverage_stats: Dict[str, Any] = {}
     is_read: bool = False
     read_at: Optional[datetime] = None
     created_at: datetime
     article_count: Optional[int] = None
+    # Pipeline execution metadata
+    run_type: Optional[str] = None  # 'test', 'scheduled', or 'manual'
+    pipeline_metrics: Dict[str, Any] = {}
 
     class Config:
         from_attributes = True

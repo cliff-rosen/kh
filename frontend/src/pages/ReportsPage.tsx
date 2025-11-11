@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CalendarIcon, DocumentTextIcon, StarIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, DocumentTextIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
 import { Report, ReportWithArticles, ReportArticle } from '../types';
+import { ResearchStream, Category } from '../types';
 
 import { reportApi } from '../lib/api/reportApi';
+import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { useResearchStream } from '../context/ResearchStreamContext';
+
+type ReportView = 'all' | 'by-category';
 
 export default function ReportsPage() {
     const [searchParams] = useSearchParams();
@@ -17,6 +21,9 @@ export default function ReportsPage() {
     const [loadingReports, setLoadingReports] = useState(false);
     const [loadingReportDetails, setLoadingReportDetails] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [reportView, setReportView] = useState<ReportView>('all');
+    const [streamDetails, setStreamDetails] = useState<ResearchStream | null>(null);
 
     const hasStreams = researchStreams.length > 0;
 
@@ -33,15 +40,21 @@ export default function ReportsPage() {
         }
     }, [searchParams]);
 
-    // Load reports when stream is selected
+    // Load stream details and reports when stream is selected
     useEffect(() => {
         if (selectedStream) {
-            const loadReports = async () => {
+            const loadStreamAndReports = async () => {
                 setLoadingReports(true);
                 setError(null);
                 setReports([]);
                 setSelectedReport(null);
+                setStreamDetails(null);
                 try {
+                    // Load stream details for presentation categories
+                    const stream = await researchStreamApi.getResearchStream(Number(selectedStream));
+                    setStreamDetails(stream);
+
+                    // Load reports
                     const streamReports = await reportApi.getReportsForStream(Number(selectedStream));
                     setReports(streamReports);
 
@@ -59,7 +72,7 @@ export default function ReportsPage() {
                     setLoadingReports(false);
                 }
             };
-            loadReports();
+            loadStreamAndReports();
         }
     }, [selectedStream]);
 
@@ -77,6 +90,43 @@ export default function ReportsPage() {
 
     const handleReportClick = (report: Report) => {
         loadReportDetails(report.report_id);
+    };
+
+    // Helper function to organize articles by category
+    const getArticlesByCategory = () => {
+        if (!selectedReport || !streamDetails) return {};
+
+        const categories = streamDetails.presentation_config?.categories || [];
+        const categoryMap: Record<string, { category: Category; articles: ReportArticle[] }> = {};
+
+        // Initialize with all categories
+        categories.forEach(cat => {
+            categoryMap[cat.id] = { category: cat, articles: [] };
+        });
+
+        // Add uncategorized bucket
+        categoryMap['uncategorized'] = {
+            category: { id: 'uncategorized', name: 'Uncategorized', topics: [], specific_inclusions: [] },
+            articles: []
+        };
+
+        // Group articles by category
+        selectedReport.articles?.forEach(article => {
+            if (!article.presentation_categories || article.presentation_categories.length === 0) {
+                categoryMap['uncategorized'].articles.push(article);
+            } else {
+                article.presentation_categories.forEach(catId => {
+                    if (categoryMap[catId]) {
+                        categoryMap[catId].articles.push(article);
+                    }
+                });
+            }
+        });
+
+        // Filter out empty categories
+        return Object.fromEntries(
+            Object.entries(categoryMap).filter(([_, data]) => data.articles.length > 0)
+        );
     };
 
     const ArticleCard = ({ article }: { article: ReportArticle }) => (
@@ -198,41 +248,68 @@ export default function ReportsPage() {
                     </p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Report List - Left Panel */}
-                    <div className="lg:col-span-1 space-y-4">
-                        {reports.map((report) => (
-                            <div
-                                key={report.report_id}
-                                onClick={() => handleReportClick(report)}
-                                className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 cursor-pointer transition-all ${selectedReport?.report_id === report.report_id
-                                    ? 'ring-2 ring-blue-600'
-                                    : 'hover:shadow-md'
-                                    }`}
+                <div className="flex gap-6">
+                    {/* Report List - Collapsible Left Panel */}
+                    <div className={`transition-all duration-300 ${sidebarCollapsed ? 'w-12' : 'w-80'} flex-shrink-0`}>
+                        <div className="sticky top-6">
+                            {/* Collapse/Expand Button */}
+                            <button
+                                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                                className="w-full mb-4 flex items-center justify-center p-2 bg-white dark:bg-gray-800 rounded-lg shadow hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                             >
-                                <div className="flex items-start justify-between mb-2">
-                                    <div>
-                                        <h3 className="font-semibold text-gray-900 dark:text-white">
-                                            {new Date(report.report_date).toLocaleDateString('en-US', {
-                                                month: 'short',
-                                                day: 'numeric',
-                                                year: 'numeric'
-                                            })}
-                                        </h3>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                            {report.article_count || 0} articles
-                                        </p>
-                                    </div>
+                                {sidebarCollapsed ? (
+                                    <ChevronRightIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                                ) : (
+                                    <ChevronLeftIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                                )}
+                            </button>
+
+                            {/* Reports List */}
+                            {!sidebarCollapsed && (
+                                <div className="space-y-4">
+                                    {reports.map((report) => (
+                                        <div
+                                            key={report.report_id}
+                                            onClick={() => handleReportClick(report)}
+                                            className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 cursor-pointer transition-all ${selectedReport?.report_id === report.report_id
+                                                ? 'ring-2 ring-blue-600'
+                                                : 'hover:shadow-md'
+                                                }`}
+                                        >
+                                            <div className="flex items-start justify-between mb-2">
+                                                <div>
+                                                    <h3 className="font-semibold text-gray-900 dark:text-white">
+                                                        {new Date(report.report_date).toLocaleDateString('en-US', {
+                                                            month: 'short',
+                                                            day: 'numeric',
+                                                            year: 'numeric'
+                                                        })}
+                                                    </h3>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                        {report.article_count || 0} articles
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                                                {report.executive_summary || 'Pipeline report - view for details'}
+                                            </p>
+                                            {report.run_type && (
+                                                <div className="mt-2">
+                                                    <span className="inline-block px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 uppercase">
+                                                        {report.run_type}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
                                 </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                                    {report.executive_summary}
-                                </p>
-                            </div>
-                        ))}
+                            )}
+                        </div>
                     </div>
 
                     {/* Report Details - Right Panel */}
-                    <div className="lg:col-span-2">
+                    <div className="flex-1 min-w-0">
                         {loadingReportDetails ? (
                             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
                                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -245,29 +322,111 @@ export default function ReportsPage() {
                                     <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                                         Report - {new Date(selectedReport.report_date).toLocaleDateString()}
                                     </h2>
-                                    <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
                                         <span className="flex items-center gap-1">
                                             <CalendarIcon className="h-4 w-4" />
                                             Generated {new Date(selectedReport.created_at).toLocaleDateString()}
                                         </span>
                                         <span>{selectedReport.articles?.length || 0} articles</span>
-                                        <span>{selectedReport.key_highlights?.length || 0} key insights</span>
+                                        {selectedReport.key_highlights?.length > 0 && (
+                                            <span>{selectedReport.key_highlights.length} key insights</span>
+                                        )}
+                                        {selectedReport.run_type && (
+                                            <span className="inline-block px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 uppercase">
+                                                {selectedReport.run_type}
+                                            </span>
+                                        )}
+                                        </div>
+
+                                        {/* View Selector */}
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setReportView('all')}
+                                                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                                                    reportView === 'all'
+                                                        ? 'bg-blue-600 text-white'
+                                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                                }`}
+                                            >
+                                                <ListBulletIcon className="h-4 w-4" />
+                                                All Articles
+                                            </button>
+                                            <button
+                                                onClick={() => setReportView('by-category')}
+                                                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                                                    reportView === 'by-category'
+                                                        ? 'bg-blue-600 text-white'
+                                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                                }`}
+                                            >
+                                                <Squares2X2Icon className="h-4 w-4" />
+                                                By Category
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
 
                                 {/* Report Content */}
                                 <div className="p-6 space-y-6">
-                                    {/* Executive Summary */}
-                                    <div>
-                                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                            Executive Summary
-                                        </h3>
-                                        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                                            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                                                {selectedReport.executive_summary}
-                                            </p>
+                                    {/* Pipeline Metrics */}
+                                    {selectedReport.pipeline_metrics && Object.keys(selectedReport.pipeline_metrics).length > 0 && (
+                                        <div>
+                                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                                                Pipeline Metrics
+                                            </h3>
+                                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                    {selectedReport.pipeline_metrics.total_retrieved && (
+                                                        <div>
+                                                            <p className="text-xs text-gray-500 dark:text-gray-400">Retrieved</p>
+                                                            <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                                                                {selectedReport.pipeline_metrics.total_retrieved}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                    {selectedReport.pipeline_metrics.duplicates_found !== undefined && (
+                                                        <div>
+                                                            <p className="text-xs text-gray-500 dark:text-gray-400">Duplicates</p>
+                                                            <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                                                                {selectedReport.pipeline_metrics.duplicates_found}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                    {selectedReport.pipeline_metrics.filtered_out !== undefined && (
+                                                        <div>
+                                                            <p className="text-xs text-gray-500 dark:text-gray-400">Filtered Out</p>
+                                                            <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                                                                {selectedReport.pipeline_metrics.filtered_out}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                    {selectedReport.pipeline_metrics.articles_included !== undefined && (
+                                                        <div>
+                                                            <p className="text-xs text-gray-500 dark:text-gray-400">Included</p>
+                                                            <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                                                                {selectedReport.pipeline_metrics.articles_included}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
+
+                                    {/* Executive Summary */}
+                                    {selectedReport.executive_summary && (
+                                        <div>
+                                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                                                Executive Summary
+                                            </h3>
+                                            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                                                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                                    {selectedReport.executive_summary}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Key Highlights */}
                                     {selectedReport.key_highlights && selectedReport.key_highlights.length > 0 && (
@@ -297,17 +456,64 @@ export default function ReportsPage() {
                                         </div>
                                     )}
 
-                                    {/* Articles */}
+                                    {/* Articles - View based on selected mode */}
                                     {selectedReport.articles && selectedReport.articles.length > 0 && (
                                         <div>
-                                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                                Articles ({selectedReport.articles.length})
-                                            </h3>
-                                            <div className="space-y-3">
-                                                {selectedReport.articles.map((article) => (
-                                                    <ArticleCard key={article.article_id} article={article} />
-                                                ))}
-                                            </div>
+                                            {reportView === 'all' ? (
+                                                /* All Articles View */
+                                                <div>
+                                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                                                        Articles ({selectedReport.articles.length})
+                                                    </h3>
+                                                    <div className="space-y-3">
+                                                        {selectedReport.articles.map((article) => (
+                                                            <ArticleCard key={article.article_id} article={article} />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                /* By Category View */
+                                                <div>
+                                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                                                        Articles by Category ({selectedReport.articles.length})
+                                                    </h3>
+                                                    <div className="space-y-6">
+                                                        {Object.entries(getArticlesByCategory()).map(([categoryId, data]) => (
+                                                            <div key={categoryId} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                                                {/* Category Header */}
+                                                                <div className="bg-gray-50 dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <h4 className="font-semibold text-gray-900 dark:text-white">
+                                                                            {data.category.name}
+                                                                        </h4>
+                                                                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                                                                            {data.articles.length} article{data.articles.length !== 1 ? 's' : ''}
+                                                                        </span>
+                                                                    </div>
+                                                                    {data.category.topics.length > 0 && (
+                                                                        <div className="mt-2 flex flex-wrap gap-2">
+                                                                            {data.category.topics.map((topic, idx) => (
+                                                                                <span
+                                                                                    key={idx}
+                                                                                    className="inline-block px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 rounded"
+                                                                                >
+                                                                                    {topic}
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                {/* Category Articles */}
+                                                                <div className="p-4 space-y-3 bg-white dark:bg-gray-900">
+                                                                    {data.articles.map((article) => (
+                                                                        <ArticleCard key={article.article_id} article={article} />
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>

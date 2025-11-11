@@ -200,7 +200,7 @@ class Report(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Pipeline execution metadata
-    run_type = Column(Enum(RunType, name='runtype'), default=RunType.SCHEDULED, nullable=False)
+    run_type = Column(Enum(RunType, values_callable=lambda x: [e.value for e in x], name='runtype'), default=RunType.SCHEDULED, nullable=False)
     pipeline_metrics = Column(JSON, default=dict)  # Metrics from pipeline execution
 
     # Relationships
