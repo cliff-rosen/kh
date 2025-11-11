@@ -1,5 +1,3 @@
-import { Category } from './research-stream';
-
 // ============================================================================
 // Stream being built (all fields optional as they're filled in progressively)
 // ============================================================================
