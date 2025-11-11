@@ -24,5 +24,13 @@ export const reportApi = {
     async getReportWithArticles(reportId: number): Promise<ReportWithArticles> {
         const response = await api.get(`/api/reports/${reportId}`);
         return response.data;
+    },
+
+    /**
+     * Get pipeline analytics for a test report
+     */
+    async getPipelineAnalytics(reportId: number): Promise<any> {
+        const response = await api.get(`/api/reports/${reportId}/pipeline-analytics`);
+        return response.data;
     }
 };

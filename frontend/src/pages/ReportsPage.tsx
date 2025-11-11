@@ -9,6 +9,7 @@ import { ResearchStream, Category } from '../types';
 import { reportApi } from '../lib/api/reportApi';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { useResearchStream } from '../context/ResearchStreamContext';
+import PipelineAnalyticsModal from '../components/PipelineAnalyticsModal';
 
 type ReportView = 'all' | 'by-category';
 
@@ -576,6 +577,14 @@ export default function ReportsPage() {
                         )}
                     </div>
                 </div>
+            )}
+
+            {/* Pipeline Analytics Modal */}
+            {showAnalytics && selectedReport && (
+                <PipelineAnalyticsModal
+                    reportId={selectedReport.report_id}
+                    onClose={() => setShowAnalytics(false)}
+                />
             )}
         </div>
     );
