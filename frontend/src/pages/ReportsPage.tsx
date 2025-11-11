@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CalendarIcon, DocumentTextIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, DocumentTextIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
 import { Report, ReportWithArticles, ReportArticle } from '../types';
@@ -24,8 +24,21 @@ export default function ReportsPage() {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [reportView, setReportView] = useState<ReportView>('all');
     const [streamDetails, setStreamDetails] = useState<ResearchStream | null>(null);
+    const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
 
     const hasStreams = researchStreams.length > 0;
+
+    const toggleCategory = (categoryId: string) => {
+        setCollapsedCategories(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(categoryId)) {
+                newSet.delete(categoryId);
+            } else {
+                newSet.add(categoryId);
+            }
+            return newSet;
+        });
+    };
 
     // Load research streams on mount
     useEffect(() => {
@@ -78,6 +91,7 @@ export default function ReportsPage() {
 
     const loadReportDetails = async (reportId: number) => {
         setLoadingReportDetails(true);
+        setCollapsedCategories(new Set()); // Reset collapsed state when switching reports
         try {
             const reportDetails = await reportApi.getReportWithArticles(reportId);
             setSelectedReport(reportDetails);
@@ -478,39 +492,54 @@ export default function ReportsPage() {
                                                         Articles by Category ({selectedReport.articles.length})
                                                     </h3>
                                                     <div className="space-y-6">
-                                                        {Object.entries(getArticlesByCategory()).map(([categoryId, data]) => (
-                                                            <div key={categoryId} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                                                                {/* Category Header */}
-                                                                <div className="bg-gray-50 dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                                                                    <div className="flex items-center justify-between">
-                                                                        <h4 className="font-semibold text-gray-900 dark:text-white">
-                                                                            {data.category.name}
-                                                                        </h4>
-                                                                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                                                                            {data.articles.length} article{data.articles.length !== 1 ? 's' : ''}
-                                                                        </span>
-                                                                    </div>
-                                                                    {data.category.topics.length > 0 && (
-                                                                        <div className="mt-2 flex flex-wrap gap-2">
-                                                                            {data.category.topics.map((topic, idx) => (
-                                                                                <span
-                                                                                    key={idx}
-                                                                                    className="inline-block px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 rounded"
-                                                                                >
-                                                                                    {topic}
-                                                                                </span>
+                                                        {Object.entries(getArticlesByCategory()).map(([categoryId, data]) => {
+                                                            const isCollapsed = collapsedCategories.has(categoryId);
+                                                            return (
+                                                                <div key={categoryId} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                                                    {/* Category Header - Clickable */}
+                                                                    <button
+                                                                        onClick={() => toggleCategory(categoryId)}
+                                                                        className="w-full bg-gray-50 dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors text-left"
+                                                                    >
+                                                                        <div className="flex items-center justify-between">
+                                                                            <div className="flex items-center gap-2">
+                                                                                {isCollapsed ? (
+                                                                                    <ChevronRightIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                                                                                ) : (
+                                                                                    <ChevronDownIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                                                                                )}
+                                                                                <h4 className="font-semibold text-gray-900 dark:text-white">
+                                                                                    {data.category.name}
+                                                                                </h4>
+                                                                            </div>
+                                                                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                                                                                {data.articles.length} article{data.articles.length !== 1 ? 's' : ''}
+                                                                            </span>
+                                                                        </div>
+                                                                        {!isCollapsed && data.category.topics.length > 0 && (
+                                                                            <div className="mt-2 ml-7 flex flex-wrap gap-2">
+                                                                                {data.category.topics.map((topic, idx) => (
+                                                                                    <span
+                                                                                        key={idx}
+                                                                                        className="inline-block px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 rounded"
+                                                                                    >
+                                                                                        {topic}
+                                                                                    </span>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                    </button>
+                                                                    {/* Category Articles - Collapsible */}
+                                                                    {!isCollapsed && (
+                                                                        <div className="p-4 space-y-3 bg-white dark:bg-gray-900">
+                                                                            {data.articles.map((article) => (
+                                                                                <ArticleCard key={article.article_id} article={article} />
                                                                             ))}
                                                                         </div>
                                                                     )}
                                                                 </div>
-                                                                {/* Category Articles */}
-                                                                <div className="p-4 space-y-3 bg-white dark:bg-gray-900">
-                                                                    {data.articles.map((article) => (
-                                                                        <ArticleCard key={article.article_id} article={article} />
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        ))}
+                                                            );
+                                                        })}
                                                     </div>
                                                 </div>
                                             )}
