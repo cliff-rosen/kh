@@ -347,7 +347,7 @@ export default function EditStreamPage() {
                                 }`}
                         >
                             <div className="flex flex-col items-start">
-                                <span>Layer 4: Test & Execute</span>
+                                <span>Test & Execute</span>
                                 <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Run pipeline end-to-end</span>
                             </div>
                         </button>
