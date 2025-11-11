@@ -202,6 +202,7 @@ class Report(Base):
     # Pipeline execution metadata
     run_type = Column(Enum(RunType, values_callable=lambda x: [e.value for e in x], name='runtype'), default=RunType.SCHEDULED, nullable=False)
     pipeline_metrics = Column(JSON, default=dict)  # Metrics from pipeline execution
+    pipeline_execution_id = Column(String(36), index=True)  # UUID linking to WIP data
 
     # Relationships
     user = relationship("User", back_populates="reports")
@@ -310,7 +311,7 @@ class WipArticle(Base):
     research_stream_id = Column(Integer, ForeignKey("research_streams.stream_id"), nullable=False)
     retrieval_group_id = Column(String(255), nullable=False, index=True)
     source_id = Column(Integer, ForeignKey("information_sources.source_id"), nullable=False)
-    report_id = Column(Integer, ForeignKey("reports.report_id", ondelete="CASCADE"), index=True)  # Link to final report
+    pipeline_execution_id = Column(String(36), nullable=False, index=True)  # UUID of pipeline run
 
     # Article data (mirroring articles table structure)
     title = Column(String(500), nullable=False)

@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from datetime import date, datetime
 import json
+import uuid
 
 from models import (
     ResearchStream, Report, ReportArticleAssociation, Article,
@@ -112,18 +113,19 @@ class PipelineService:
                 }
             )
 
-            # === STAGE 2: Clear Previous WIP Data ===
-            yield PipelineStatus("cleanup", "Clearing previous WIP data...")
-
-            deleted_count = self.db.query(WipArticle).filter(
-                WipArticle.research_stream_id == research_stream_id
-            ).delete()
-            self.db.commit()
+            # === STAGE 1.5: Generate Pipeline Execution ID ===
+            execution_id = str(uuid.uuid4())
 
             yield PipelineStatus(
-                "cleanup",
-                f"Cleared {deleted_count} previous WIP articles"
+                "init",
+                f"Generated execution ID: {execution_id}",
+                {"execution_id": execution_id}
             )
+
+            # === STAGE 2: Clear Previous WIP Data ===
+            # Note: We don't clear old data - each execution is independent
+            # Old wip_articles remain for historical analysis
+            yield PipelineStatus("cleanup", "Ready to begin retrieval (keeping historical WIP data)")
 
             # === STAGE 3: Execute Retrieval ===
             total_retrieved = 0
@@ -162,6 +164,7 @@ class PipelineService:
                     # Execute retrieval
                     articles_retrieved = await self._execute_source_query(
                         research_stream_id=research_stream_id,
+                        execution_id=execution_id,
                         group_id=group.group_id,
                         source_id=source_id,
                         query_expression=source_query.query_expression
@@ -265,6 +268,7 @@ class PipelineService:
 
             report = await self._generate_report(
                 research_stream_id=research_stream_id,
+                execution_id=execution_id,
                 stream=stream,
                 run_type=run_type,
                 metrics={
@@ -307,12 +311,20 @@ class PipelineService:
     async def _execute_source_query(
         self,
         research_stream_id: int,
+        execution_id: str,
         group_id: str,
         source_id: str,
         query_expression: str
     ) -> int:
         """
         Execute a query for a specific source and store results in wip_articles.
+
+        Args:
+            research_stream_id: Stream ID
+            execution_id: UUID of this pipeline execution
+            group_id: Retrieval group ID
+            source_id: Source identifier
+            query_expression: Query to execute
 
         Returns:
             Number of articles retrieved
@@ -351,6 +363,7 @@ class PipelineService:
 
             wip_article = WipArticle(
                 research_stream_id=research_stream_id,
+                pipeline_execution_id=execution_id,
                 retrieval_group_id=group_id,
                 source_id=source.source_id,
                 title=article.title,
@@ -645,6 +658,7 @@ class PipelineService:
     async def _generate_report(
         self,
         research_stream_id: int,
+        execution_id: str,
         stream: ResearchStream,
         run_type: RunType,
         metrics: Dict
@@ -652,6 +666,13 @@ class PipelineService:
         """
         Generate a report from the pipeline results.
         Creates Report and ReportArticleAssociation records.
+
+        Args:
+            research_stream_id: Stream ID
+            execution_id: UUID of pipeline execution (links to wip_articles)
+            stream: ResearchStream object
+            run_type: Type of run
+            metrics: Pipeline execution metrics
 
         Returns:
             The created Report object
@@ -663,20 +684,16 @@ class PipelineService:
             report_date=date.today(),
             run_type=run_type,
             pipeline_metrics=metrics,
+            pipeline_execution_id=execution_id,  # Link to this execution's WIP data
             is_read=False
         )
         self.db.add(report)
         self.db.flush()  # Get report_id
 
-        # Link ALL wip_articles for this stream to the report for audit trail
-        self.db.query(WipArticle).filter(
-            WipArticle.research_stream_id == research_stream_id
-        ).update({"report_id": report.report_id})
-
-        # Get all articles to include (unique, passed filters, assigned to categories)
+        # Get all articles to include (from THIS execution, unique, passed filters)
         wip_articles = self.db.query(WipArticle).filter(
             and_(
-                WipArticle.research_stream_id == research_stream_id,
+                WipArticle.pipeline_execution_id == execution_id,
                 WipArticle.included_in_report == True
             )
         ).all()

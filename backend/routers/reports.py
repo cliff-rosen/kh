@@ -85,9 +85,16 @@ async def get_pipeline_analytics(
             detail="Report not found"
         )
 
-    # Get all wip_articles for this report
+    # Get execution ID from report
+    if not report.pipeline_execution_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This report does not have pipeline execution data (legacy report)"
+        )
+
+    # Get all wip_articles for this execution
     wip_articles = db.query(WipArticle).filter(
-        WipArticle.report_id == report_id
+        WipArticle.pipeline_execution_id == report.pipeline_execution_id
     ).all()
 
     # Calculate analytics

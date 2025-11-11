@@ -35,6 +35,7 @@ export interface Report {
     // Pipeline execution metadata
     run_type?: string | null;  // 'test', 'scheduled', or 'manual'
     pipeline_metrics?: Record<string, any>;
+    pipeline_execution_id?: string | null;  // UUID linking to WIP data
 }
 
 export interface ReportWithArticles extends Report {
