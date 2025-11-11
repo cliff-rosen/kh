@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CalendarIcon, DocumentTextIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, DocumentTextIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChevronUpIcon, ChartBarIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
 import { Report, ReportWithArticles, ReportArticle } from '../types';
@@ -25,8 +25,10 @@ export default function ReportsPage() {
     const [reportView, setReportView] = useState<ReportView>('all');
     const [streamDetails, setStreamDetails] = useState<ResearchStream | null>(null);
     const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+    const [showAnalytics, setShowAnalytics] = useState(false);
 
     const hasStreams = researchStreams.length > 0;
+    const isTestReport = selectedReport?.run_type?.toLowerCase() === 'test';
 
     const toggleCategory = (categoryId: string) => {
         setCollapsedCategories(prev => {
@@ -360,8 +362,18 @@ export default function ReportsPage() {
                                         )}
                                         </div>
 
-                                        {/* View Selector */}
+                                        {/* View Selector and Analytics Button */}
                                         <div className="flex gap-2">
+                                            {isTestReport && (
+                                                <button
+                                                    onClick={() => setShowAnalytics(true)}
+                                                    className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors bg-purple-600 hover:bg-purple-700 text-white"
+                                                    title="View pipeline analytics and detailed metrics"
+                                                >
+                                                    <ChartBarIcon className="h-4 w-4" />
+                                                    Pipeline Analytics
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => setReportView('all')}
                                                 className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${

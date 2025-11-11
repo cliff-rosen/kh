@@ -310,6 +310,7 @@ class WipArticle(Base):
     research_stream_id = Column(Integer, ForeignKey("research_streams.stream_id"), nullable=False)
     retrieval_group_id = Column(String(255), nullable=False, index=True)
     source_id = Column(Integer, ForeignKey("information_sources.source_id"), nullable=False)
+    report_id = Column(Integer, ForeignKey("reports.report_id", ondelete="CASCADE"), index=True)  # Link to final report
 
     # Article data (mirroring articles table structure)
     title = Column(String(500), nullable=False)

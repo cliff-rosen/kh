@@ -668,6 +668,11 @@ class PipelineService:
         self.db.add(report)
         self.db.flush()  # Get report_id
 
+        # Link ALL wip_articles for this stream to the report for audit trail
+        self.db.query(WipArticle).filter(
+            WipArticle.research_stream_id == research_stream_id
+        ).update({"report_id": report.report_id})
+
         # Get all articles to include (unique, passed filters, assigned to categories)
         wip_articles = self.db.query(WipArticle).filter(
             and_(
