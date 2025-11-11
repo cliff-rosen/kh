@@ -143,7 +143,7 @@ export default function ReportsPage() {
         );
     };
 
-    const ArticleCard = ({ article }: { article: ReportArticle }) => (
+    const ArticleCard = ({ article, showAbstract = false }: { article: ReportArticle; showAbstract?: boolean }) => (
         <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
             <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
@@ -161,6 +161,13 @@ export default function ReportsPage() {
                         {article.year && <span>• {article.year}</span>}
                         {article.pmid && <span>• PMID: {article.pmid}</span>}
                     </div>
+                    {showAbstract && article.abstract && (
+                        <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700">
+                            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                                {article.abstract}
+                            </p>
+                        </div>
+                    )}
                     {article.relevance_score && (
                         <div className="flex items-center gap-2 mt-2">
                             <div className="h-2 w-24 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
@@ -533,7 +540,7 @@ export default function ReportsPage() {
                                                                     {!isCollapsed && (
                                                                         <div className="p-4 space-y-3 bg-white dark:bg-gray-900">
                                                                             {data.articles.map((article) => (
-                                                                                <ArticleCard key={article.article_id} article={article} />
+                                                                                <ArticleCard key={article.article_id} article={article} showAbstract={true} />
                                                                             ))}
                                                                         </div>
                                                                     )}
