@@ -196,6 +196,7 @@ class PipelineService:
             for group in retrieval_config.retrieval_groups:
                 dupes_found = await self._deduplicate_within_group(
                     research_stream_id=research_stream_id,
+                    execution_id=execution_id,
                     group_id=group.group_id
                 )
                 group_dedup_stats[group.group_id] = dupes_found
@@ -241,7 +242,7 @@ class PipelineService:
             # === STAGE 6: Deduplicate Globally ===
             yield PipelineStatus("dedup_global", "Deduplicating across all groups...")
 
-            global_dupes = await self._deduplicate_globally(research_stream_id)
+            global_dupes = await self._deduplicate_globally(research_stream_id, execution_id)
 
             yield PipelineStatus(
                 "dedup_global",
@@ -389,19 +390,25 @@ class PipelineService:
     async def _deduplicate_within_group(
         self,
         research_stream_id: int,
+        execution_id: str,
         group_id: str
     ) -> int:
         """
-        Find and mark duplicates within a retrieval group.
+        Find and mark duplicates within a retrieval group for this execution.
         Duplicates are identified by DOI or title similarity.
+
+        Args:
+            research_stream_id: Stream ID (for context, not used in query)
+            execution_id: UUID of this pipeline execution
+            group_id: Retrieval group ID
 
         Returns:
             Number of duplicates found
         """
-        # Get all non-duplicate articles for this group
+        # Get all non-duplicate articles for this group in THIS execution only
         articles = self.db.query(WipArticle).filter(
             and_(
-                WipArticle.research_stream_id == research_stream_id,
+                WipArticle.pipeline_execution_id == execution_id,
                 WipArticle.retrieval_group_id == group_id,
                 WipArticle.is_duplicate == False
             )
@@ -525,18 +532,22 @@ class PipelineService:
         )
         return is_relevant, reasoning
 
-    async def _deduplicate_globally(self, research_stream_id: int) -> int:
+    async def _deduplicate_globally(self, research_stream_id: int, execution_id: str) -> int:
         """
-        Find and mark duplicates across all groups (after filtering).
+        Find and mark duplicates across all groups (after filtering) for this execution.
         Only considers articles that passed semantic filter and aren't already marked as dupes.
+
+        Args:
+            research_stream_id: Stream ID (for context, not used in query)
+            execution_id: UUID of this pipeline execution
 
         Returns:
             Number of duplicates found
         """
-        # Get all articles that passed filtering and aren't already marked as duplicates
+        # Get all articles that passed filtering and aren't already marked as duplicates in THIS execution
         articles = self.db.query(WipArticle).filter(
             and_(
-                WipArticle.research_stream_id == research_stream_id,
+                WipArticle.pipeline_execution_id == execution_id,
                 WipArticle.is_duplicate == False,
                 or_(
                     WipArticle.passed_semantic_filter == True,
