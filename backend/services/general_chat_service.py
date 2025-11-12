@@ -180,16 +180,25 @@ Respond with MESSAGE and optional SUGGESTED_VALUES or SUGGESTED_ACTIONS."""
         }
 
         lines = response_text.split('\n')
+        message_lines = []
+        in_message = False
 
         for line in lines:
             stripped = line.strip()
 
             if stripped.startswith("MESSAGE:"):
-                # Get everything after MESSAGE: (could be multi-line)
-                msg = stripped.replace("MESSAGE:", "").strip()
-                result["message"] = msg
+                in_message = True
+                # Get content after MESSAGE: on same line
+                content = stripped.replace("MESSAGE:", "").strip()
+                if content:
+                    message_lines.append(content)
+
+            elif in_message and not any(stripped.startswith(marker) for marker in ["SUGGESTED_VALUES:", "SUGGESTED_ACTIONS:", "PAYLOAD_TYPE:", "PAYLOAD:"]):
+                # Continue collecting message lines
+                message_lines.append(line.rstrip())
 
             elif stripped.startswith("SUGGESTED_VALUES:"):
+                in_message = False
                 values_str = stripped.replace("SUGGESTED_VALUES:", "").strip()
                 if values_str:
                     result["suggested_values"] = [
@@ -198,6 +207,7 @@ Respond with MESSAGE and optional SUGGESTED_VALUES or SUGGESTED_ACTIONS."""
                     ]
 
             elif stripped.startswith("SUGGESTED_ACTIONS:"):
+                in_message = False
                 actions_str = stripped.replace("SUGGESTED_ACTIONS:", "").strip()
                 if actions_str:
                     actions = []
@@ -219,6 +229,10 @@ Respond with MESSAGE and optional SUGGESTED_VALUES or SUGGESTED_ACTIONS."""
                                     pass
                             actions.append(action)
                     result["suggested_actions"] = actions
+
+        # Join message lines
+        if message_lines:
+            result["message"] = "\n".join(message_lines).strip()
 
         # If no message was extracted, use the whole response
         if not result["message"]:

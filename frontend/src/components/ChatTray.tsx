@@ -12,6 +12,7 @@ export default function ChatTray({ initialContext }: ChatTrayProps) {
     const { messages, sendMessage, isLoading, streamingText } = useGeneralChat(initialContext);
     const [input, setInput] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -20,6 +21,13 @@ export default function ChatTray({ initialContext }: ChatTrayProps) {
     useEffect(() => {
         scrollToBottom();
     }, [messages, streamingText]);
+
+    // Auto-focus input when tray opens
+    useEffect(() => {
+        if (isOpen && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [isOpen]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -119,13 +127,13 @@ export default function ChatTray({ initialContext }: ChatTrayProps) {
 
                                 {/* Suggested Values */}
                                 {message.suggested_values && message.suggested_values.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 mt-2">
+                                    <div className="flex flex-wrap gap-2 mt-3 ml-2">
                                         {message.suggested_values.map((suggestion, sIdx) => (
                                             <button
                                                 key={sIdx}
                                                 onClick={() => handleValueSelect(suggestion.value)}
                                                 disabled={isLoading}
-                                                className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
                                                 {suggestion.label}
                                             </button>
@@ -135,7 +143,7 @@ export default function ChatTray({ initialContext }: ChatTrayProps) {
 
                                 {/* Suggested Actions */}
                                 {message.suggested_actions && message.suggested_actions.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 mt-2">
+                                    <div className="flex flex-wrap gap-2 mt-3 ml-2">
                                         {message.suggested_actions.map((action, aIdx) => (
                                             <button
                                                 key={aIdx}
@@ -196,6 +204,7 @@ export default function ChatTray({ initialContext }: ChatTrayProps) {
                     <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                         <form onSubmit={handleSubmit} className="flex gap-2">
                             <input
+                                ref={inputRef}
                                 type="text"
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
