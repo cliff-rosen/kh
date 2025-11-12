@@ -17,6 +17,7 @@ import SemanticSpaceForm from '../components/SemanticSpaceForm';
 import PresentationForm from '../components/PresentationForm';
 import RetrievalConfigForm from '../components/RetrievalConfigForm';
 import ExecutePipelineTab from '../components/ExecutePipelineTab';
+import ChatTray from '../components/ChatTray';
 
 type TabType = 'semantic' | 'retrieval' | 'presentation' | 'execute';
 
@@ -462,6 +463,17 @@ export default function EditStreamPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Chat Tray */}
+            <ChatTray
+                initialContext={{
+                    current_page: "edit_stream",
+                    entity_type: "research_stream",
+                    entity_id: stream?.stream_id,
+                    stream_name: stream?.stream_name,
+                    active_tab: activeTab
+                }}
+            />
         </div>
     );
 }
