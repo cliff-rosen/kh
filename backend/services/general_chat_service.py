@@ -138,8 +138,9 @@ class GeneralChatService:
         Example: SUGGESTED_VALUES: Yes, No, Tell me more
 
         SUGGESTED_ACTIONS are buttons that execute actions (client or server).
-        Format: label|action|handler|style
-        Example: SUGGESTED_ACTIONS: Close|close|client|secondary
+        Format: label|action|handler|style (separated by semicolons for multiple actions)
+        Style must be one of: primary, secondary, warning
+        Example: SUGGESTED_ACTIONS: View Results|view_results|client|primary; Close|close|client|secondary
 
         Client actions (no backend call): close, cancel, navigate, copy
         Server actions (processed by backend): create_stream, execute_search
@@ -221,7 +222,10 @@ class GeneralChatService:
                                 "handler": parts[2].strip()
                             }
                             if len(parts) > 3:
-                                action["style"] = parts[3].strip()
+                                # Validate style - only accept valid literal values
+                                style = parts[3].strip()
+                                if style in ["primary", "secondary", "warning"]:
+                                    action["style"] = style
                             if len(parts) > 4:
                                 try:
                                     action["data"] = json.loads(parts[4])
