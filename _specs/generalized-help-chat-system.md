@@ -4,9 +4,10 @@
 
 A general-purpose chat interface that supports rich, context-aware conversations where:
 
-1. **Frontend sends**: message + user context + interaction type
-2. **Backend returns**: conversational text + suggestions/actions + custom payload
-3. **Custom payloads**: Arbitrary data structures that frontend interprets (forms, configs, search results, etc.)
+1. **Frontend sends**: message + user context + interaction type + action metadata
+2. **Backend returns**: conversational text + suggested values + suggested actions + custom payload
+3. **Custom payloads**: Arbitrary data structures rendered by the embedding context
+4. **Actions**: Can be client-side (local execution) or server-side (backend processing)
 
 ---
 
@@ -19,14 +20,19 @@ interface ChatRequest {
     message: string;                    // What the user typed or action they took
     context: Record<string, any>;       // User's current orientation in the system
     interaction_type: InteractionType;  // How this message was initiated
+    action_metadata?: ActionMetadata;   // If action was executed
     conversation_history: Message[];    // Full chat transcript
 }
 
 enum InteractionType {
     TEXT_INPUT = 'text_input',         // User typed in input field
-    BUTTON_CLICK = 'button_click',     // User clicked a suggestion button
-    OPTION_SELECT = 'option_select',   // User selected from dropdown/chips
-    FORM_SUBMIT = 'form_submit'        // User submitted a form
+    VALUE_SELECTED = 'value_selected', // User clicked a suggested value
+    ACTION_EXECUTED = 'action_executed' // User executed an action
+}
+
+interface ActionMetadata {
+    action_identifier: string;          // e.g., "create_stream", "update_config"
+    action_data?: any;                  // Data associated with the action
 }
 
 interface Message {
@@ -66,32 +72,6 @@ interface ChatContext {
 }
 ```
 
-**Example Context - User on Reports Page**:
-```typescript
-{
-    current_page: "reports",
-    current_route: "/reports?stream_id=5",
-    entity_type: "research_stream",
-    entity_id: 5,
-    filters: { stream_id: 5, unread_only: true }
-}
-```
-
-**Example Context - User Hit an Error**:
-```typescript
-{
-    current_page: "pipeline",
-    entity_type: "research_stream",
-    entity_id: 3,
-    action: "run_pipeline",
-    error: {
-        message: "No articles retrieved",
-        code: "EMPTY_RESULT_SET",
-        context: { query: "melanocortin[Title]", source: "pubmed" }
-    }
-}
-```
-
 ---
 
 ## Response Structure (Backend → Frontend)
@@ -100,229 +80,498 @@ interface ChatContext {
 
 ```typescript
 interface ChatResponse {
-    message: string;                    // Conversational text to display
-    suggestions?: Suggestion[];         // Clickable options for user
-    payload?: CustomPayload;            // Structured data for frontend to interpret
+    message: string;                        // Conversational text to display
+    suggested_values?: SuggestedValue[];    // Values user can select to continue conversation
+    suggested_actions?: SuggestedAction[];  // Actions user can execute
+    payload?: CustomPayload;                // Structured data for embedding context
 }
 
-interface Suggestion {
-    label: string;                      // Display text
-    value: string;                      // Value to send back if clicked
+interface SuggestedValue {
+    label: string;                          // Display text
+    value: string;                          // Message to send back if selected
+}
+
+interface SuggestedAction {
+    label: string;                          // Display text
+    action: string;                         // Action identifier
+    handler: 'client' | 'server';           // Who handles this action
+    data?: any;                             // Action-specific data
     style?: 'primary' | 'secondary' | 'warning'; // Visual style hint
 }
 
 interface CustomPayload {
-    type: string;                       // Payload type (frontend uses this to route)
-    data: any;                          // Arbitrary structured data
+    type: string;                           // Payload type (frontend uses this to route)
+    data: any;                              // Arbitrary structured data
 }
 ```
 
 ---
 
-## Custom Payload Pattern
+## Action Types & Handling
 
-### How It Works
+### Client-Side Actions
 
-1. **Backend** sends structured data with a `type` identifier
-2. **Frontend** has registered "payload handlers" for different types
-3. **Frontend** interprets the payload and renders appropriate UI
-4. **User** interacts with the rendered UI
-5. **Frontend** sends result back through chat
+Handled entirely in the frontend, **no backend call**:
 
-### Example: Form Pre-Population
+```typescript
+const CLIENT_ACTIONS = {
+    close: () => closeModal(),
+    cancel: () => { resetState(); closeChat(); },
+    navigate: (data) => router.push(data.route),
+    copy: (data) => navigator.clipboard.writeText(data.text),
+    highlight: (data) => highlightElement(data.selector),
+    download: (data) => downloadFile(data.url, data.filename)
+}
+```
 
-**User**: "Help me create a research stream for melanocortin research"
+**Examples:**
+- `{ label: "Close", action: "close", handler: "client" }`
+- `{ label: "Cancel", action: "cancel", handler: "client" }`
+- `{ label: "Go to Reports", action: "navigate", handler: "client", data: { route: "/reports" } }`
 
-**Backend Response**:
+### Server-Side Actions
+
+Require backend processing, **sent back to server**:
+
+```typescript
+// These trigger a new chat request with interaction_type='action_executed'
+const SERVER_ACTIONS = [
+    'create_stream',      // Create entity in database
+    'update_config',      // Update configuration
+    'execute_search',     // Run search query
+    'delete_entity',      // Delete from database
+    'apply_filters',      // Apply filters and fetch results
+    'validate_form'       // Validate and process form data
+]
+```
+
+**Examples:**
+- `{ label: "Accept & Create", action: "create_stream", handler: "server", data: {...} }`
+- `{ label: "Apply Filters", action: "execute_search", handler: "server", data: {...} }`
+
+---
+
+## User Interaction Flows
+
+### Flow 1: User Types Message
+
+```typescript
+// User types "Help me create a research stream"
+const request: ChatRequest = {
+    message: "Help me create a research stream",
+    context: { current_page: "home" },
+    interaction_type: 'text_input',
+    conversation_history: messages
+};
+
+// Send to backend
+const response = await chatApi.sendMessage(request);
+```
+
+**Backend Response:**
 ```json
 {
-    "message": "I've prepared a stream configuration based on your request. Review the form below and click Accept to create the stream.",
-    "suggestions": [
-        { "label": "Accept & Create", "value": "accept_stream_config" },
-        { "label": "Modify", "value": "modify_stream_config" }
+    "message": "I'll help you create a research stream. What area are you focused on?",
+    "suggested_values": [
+        { "label": "Oncology", "value": "oncology research" },
+        { "label": "Cardiology", "value": "cardiovascular research" },
+        { "label": "Neurology", "value": "neuroscience research" }
+    ]
+}
+```
+
+### Flow 2: User Selects Suggested Value
+
+```typescript
+// User clicks "Oncology" chip
+const handleValueSelect = async (value: string) => {
+    const request: ChatRequest = {
+        message: value,  // "oncology research"
+        context: currentContext,
+        interaction_type: 'value_selected',
+        conversation_history: messages
+    };
+
+    const response = await chatApi.sendMessage(request);
+};
+```
+
+**Backend knows:**
+- User selected a value (didn't type it)
+- Can adjust tone/response accordingly
+- Continues building context
+
+**Backend Response:**
+```json
+{
+    "message": "Great! I've prepared an oncology research stream. Review the configuration below.",
+    "suggested_values": [
+        { "label": "Change name", "value": "change the stream name" },
+        { "label": "Add channel", "value": "add another channel" }
+    ],
+    "suggested_actions": [
+        {
+            "label": "Accept & Create",
+            "action": "create_stream",
+            "handler": "server",
+            "data": { "stream_name": "Oncology Research", "channels": [...] },
+            "style": "primary"
+        },
+        {
+            "label": "Cancel",
+            "action": "cancel",
+            "handler": "client",
+            "style": "secondary"
+        }
+    ],
+    "payload": {
+        "type": "research_stream_form",
+        "data": { /* form data for preview */ }
+    }
+}
+```
+
+### Flow 3: User Executes Client-Side Action
+
+```typescript
+// User clicks "Cancel" action
+const handleActionClick = async (action: SuggestedAction) => {
+    if (action.handler === 'client') {
+        // Handle locally, no backend call
+        switch (action.action) {
+            case 'close':
+                closeModal();
+                break;
+            case 'cancel':
+                resetState();
+                closeChat();
+                break;
+            case 'navigate':
+                router.push(action.data.route);
+                break;
+            case 'copy':
+                await navigator.clipboard.writeText(action.data.text);
+                showToast('Copied!');
+                break;
+        }
+        // No backend interaction
+        return;
+    }
+
+    // ... handle server actions
+};
+```
+
+### Flow 4: User Executes Server-Side Action
+
+```typescript
+// User clicks "Accept & Create" action
+const handleActionClick = async (action: SuggestedAction) => {
+    if (action.handler === 'server') {
+        const request: ChatRequest = {
+            message: action.label,  // "Accept & Create"
+            context: currentContext,
+            interaction_type: 'action_executed',
+            action_metadata: {
+                action_identifier: action.action,  // "create_stream"
+                action_data: action.data  // Stream configuration
+            },
+            conversation_history: messages
+        };
+
+        const response = await chatApi.sendMessage(request);
+    }
+};
+```
+
+**Backend receives:**
+```json
+{
+    "message": "Accept & Create",
+    "context": { "current_page": "home" },
+    "interaction_type": "action_executed",
+    "action_metadata": {
+        "action_identifier": "create_stream",
+        "action_data": {
+            "stream_name": "Oncology Research",
+            "channels": [...]
+        }
+    },
+    "conversation_history": [...]
+}
+```
+
+**Backend processing:**
+```python
+async def handle_message(self, request: ChatRequest) -> ChatResponse:
+    # Detect action execution
+    if request.interaction_type == "action_executed":
+        action_id = request.action_metadata.action_identifier
+        action_data = request.action_metadata.action_data
+
+        # Execute the action
+        if action_id == "create_stream":
+            stream = await self._create_research_stream(action_data)
+
+            return ChatResponse(
+                message=f"✓ Successfully created '{stream.stream_name}'! "
+                        f"You can view it on the Research Streams page.",
+                suggested_actions=[
+                    SuggestedAction(
+                        label="View Stream",
+                        action="navigate",
+                        handler="client",
+                        data={"route": f"/research-streams/{stream.stream_id}"},
+                        style="primary"
+                    ),
+                    SuggestedAction(
+                        label="Create Another",
+                        action="restart",
+                        handler="client"
+                    ),
+                    SuggestedAction(
+                        label="Close",
+                        action="close",
+                        handler="client"
+                    )
+                ]
+            )
+
+        elif action_id == "execute_search":
+            results = await self._execute_search(action_data)
+            return ChatResponse(
+                message=f"Found {len(results)} articles matching your criteria.",
+                suggested_actions=[
+                    SuggestedAction(
+                        label="View Results",
+                        action="navigate",
+                        handler="client",
+                        data={"route": f"/articles?query={action_data['query']}"}
+                    )
+                ],
+                payload=CustomPayload(
+                    type="search_results",
+                    data={"results": results[:10]}  # Preview
+                )
+            )
+
+    # Otherwise, continue normal conversation...
+    return await self._continue_conversation(request)
+```
+
+**Backend Response:**
+```json
+{
+    "message": "✓ Successfully created 'Oncology Research'! You can view it on the Research Streams page.",
+    "suggested_actions": [
+        {
+            "label": "View Stream",
+            "action": "navigate",
+            "handler": "client",
+            "data": { "route": "/research-streams/123" },
+            "style": "primary"
+        },
+        {
+            "label": "Create Another",
+            "action": "restart",
+            "handler": "client"
+        },
+        {
+            "label": "Close",
+            "action": "close",
+            "handler": "client"
+        }
+    ]
+}
+```
+
+---
+
+## Complete Example: Stream Creation Flow
+
+### Turn 1: Initial Request
+
+**User Types:** "Help me create a research stream"
+
+**Request:**
+```json
+{
+    "message": "Help me create a research stream",
+    "context": { "current_page": "home" },
+    "interaction_type": "text_input",
+    "conversation_history": []
+}
+```
+
+**Response:**
+```json
+{
+    "message": "I'll help you create a research stream. What therapeutic area are you focused on?",
+    "suggested_values": [
+        { "label": "Oncology", "value": "oncology research" },
+        { "label": "Cardiology", "value": "cardiovascular research" },
+        { "label": "Neurology", "value": "neuroscience research" },
+        { "label": "Immunology", "value": "immunology research" }
+    ]
+}
+```
+
+### Turn 2: Value Selection
+
+**User Clicks:** "Oncology" chip
+
+**Request:**
+```json
+{
+    "message": "oncology research",
+    "context": { "current_page": "home" },
+    "interaction_type": "value_selected",
+    "conversation_history": [
+        { "role": "user", "content": "Help me create a research stream", "timestamp": "..." },
+        { "role": "assistant", "content": "I'll help you...", "timestamp": "..." }
+    ]
+}
+```
+
+**Response:**
+```json
+{
+    "message": "Perfect! I've prepared an oncology research stream configuration. Review it below and let me know if you'd like any changes.",
+    "suggested_values": [
+        { "label": "Change name", "value": "I want to change the stream name" },
+        { "label": "Add more channels", "value": "add more channels" },
+        { "label": "Different frequency", "value": "change the report frequency" }
+    ],
+    "suggested_actions": [
+        {
+            "label": "Accept & Create Stream",
+            "action": "create_stream",
+            "handler": "server",
+            "data": {
+                "stream_name": "Oncology Research Intelligence",
+                "purpose": "Monitor oncology research and drug development",
+                "report_frequency": "weekly",
+                "channels": [
+                    {
+                        "name": "Lung Cancer Research",
+                        "type": "scientific",
+                        "keywords": ["lung cancer", "NSCLC", "SCLC"]
+                    },
+                    {
+                        "name": "Breast Cancer Trials",
+                        "type": "clinical",
+                        "keywords": ["breast cancer", "clinical trial"]
+                    }
+                ]
+            },
+            "style": "primary"
+        },
+        {
+            "label": "Cancel",
+            "action": "cancel",
+            "handler": "client",
+            "style": "secondary"
+        }
     ],
     "payload": {
         "type": "research_stream_form",
         "data": {
-            "stream_name": "Melanocortin Research Intelligence",
-            "purpose": "Monitor melanocortin pathway research for competitive intelligence",
+            "stream_name": "Oncology Research Intelligence",
+            "purpose": "Monitor oncology research and drug development",
             "report_frequency": "weekly",
-            "channels": [
-                {
-                    "name": "Melanocortin Pathways",
-                    "focus": "Track scientific research on melanocortin receptors",
-                    "type": "scientific",
-                    "keywords": ["melanocortin", "MCR1", "MCR4", "alpha-MSH"]
-                },
-                {
-                    "name": "Clinical Developments",
-                    "focus": "Monitor clinical trials",
-                    "type": "clinical",
-                    "keywords": ["bremelanotide", "clinical trial", "phase 2"]
-                }
-            ]
+            "channels": [...]
         }
     }
 }
 ```
 
-**Frontend Rendering**:
-```typescript
-// Frontend has a payload handler registry
-const payloadHandlers = {
-    'research_stream_form': (data) => {
-        // Render pre-populated form
-        return <ResearchStreamFormPreview
-            initialData={data}
-            onAccept={() => createStream(data)}
-            onModify={(field) => openChatWith(`Change ${field}`)}
-        />
-    },
-    'search_results': (data) => {
-        return <SearchResultsPreview results={data.results} />
-    },
-    'validation_errors': (data) => {
-        return <ValidationErrorList errors={data.errors} />
-    },
-    // ... more handlers
-}
+**Frontend Rendering:**
+- Chat window shows message + suggested values + action buttons
+- Embedding context renders `research_stream_form` payload as form preview
 
-// In chat component
-if (response.payload) {
-    const handler = payloadHandlers[response.payload.type];
-    if (handler) {
-        return handler(response.payload.data);
-    }
-}
-```
+### Turn 3a: User Requests Change (Value Selection)
 
-### Example: Search Filter Suggestion
+**User Clicks:** "Change name" chip
 
-**User**: "Find articles about melanocortin from 2024"
-
-**Backend Response**:
+**Request:**
 ```json
 {
-    "message": "I'll search for melanocortin articles from 2024. Here are the filters I'll apply:",
-    "suggestions": [
-        { "label": "Search Now", "value": "execute_search" },
-        { "label": "Refine Filters", "value": "refine_filters" }
-    ],
-    "payload": {
-        "type": "search_filters",
-        "data": {
-            "entity_type": "articles",
-            "filters": {
-                "keywords": ["melanocortin"],
-                "year": 2024,
-                "date_range": {
-                    "start": "2024-01-01",
-                    "end": "2024-12-31"
-                }
-            },
-            "sort": "relevance"
-        }
-    }
+    "message": "I want to change the stream name",
+    "context": { "current_page": "home" },
+    "interaction_type": "value_selected",
+    "conversation_history": [...]
 }
 ```
 
-**Frontend Rendering**:
-```typescript
-payloadHandlers['search_filters'] = (data) => {
-    return (
-        <div className="search-preview">
-            <h4>Suggested Search</h4>
-            <FilterChips filters={data.filters} />
-            <button onClick={() => executeSearch(data)}>
-                Apply & Search
-            </button>
-        </div>
-    )
-}
-```
-
-### Example: Validation Feedback
-
-**User**: Submits incomplete form
-
-**Backend Response**:
+**Response:**
 ```json
 {
-    "message": "I found some issues with the configuration. Please review the highlighted fields below.",
-    "suggestions": [
-        { "label": "Fix Automatically", "value": "auto_fix" },
-        { "label": "Guide Me Through", "value": "guided_fix" }
-    ],
-    "payload": {
-        "type": "validation_errors",
-        "data": {
-            "errors": [
-                {
-                    "field": "channels",
-                    "message": "At least one channel is required",
-                    "severity": "error"
-                },
-                {
-                    "field": "channels[0].keywords",
-                    "message": "Keywords list is empty",
-                    "severity": "error"
-                }
-            ],
-            "suggested_fixes": {
-                "channels": [
-                    {
-                        "name": "Primary Research",
-                        "type": "scientific",
-                        "keywords": ["melanocortin", "research"]
-                    }
-                ]
-            }
-        }
-    }
+    "message": "What would you like to name the stream?",
+    "suggested_values": [
+        { "label": "Cancer Research Monitor", "value": "Cancer Research Monitor" },
+        { "label": "Oncology Intelligence", "value": "Oncology Intelligence" },
+        { "label": "Let me type it", "value": "I'll type the name" }
+    ]
 }
 ```
 
-### Example: Navigation Guidance
+### Turn 3b: User Accepts (Action Execution)
 
-**User**: "Where do I find my reports?"
+**User Clicks:** "Accept & Create Stream" button
 
-**Backend Response**:
+**Request:**
 ```json
 {
-    "message": "Your reports are on the Reports page. I can take you there now.",
-    "suggestions": [
-        { "label": "Go to Reports", "value": "navigate_reports" },
-        { "label": "Show me unread reports", "value": "navigate_reports_unread" }
-    ],
-    "payload": {
-        "type": "navigation",
-        "data": {
-            "target_route": "/reports",
-            "query_params": {},
-            "highlight_element": ".reports-list"
+    "message": "Accept & Create Stream",
+    "context": { "current_page": "home" },
+    "interaction_type": "action_executed",
+    "action_metadata": {
+        "action_identifier": "create_stream",
+        "action_data": {
+            "stream_name": "Oncology Research Intelligence",
+            "purpose": "Monitor oncology research and drug development",
+            "report_frequency": "weekly",
+            "channels": [...]
         }
-    }
+    },
+    "conversation_history": [...]
 }
 ```
 
-**Frontend Rendering**:
-```typescript
-payloadHandlers['navigation'] = (data) => {
-    return (
-        <div className="navigation-preview">
-            <p>Destination: <code>{data.target_route}</code></p>
-            <button onClick={() => {
-                router.push(data.target_route);
-                if (data.highlight_element) {
-                    highlightElement(data.highlight_element);
-                }
-            }}>
-                Navigate Now
-            </button>
-        </div>
-    )
+**Backend:**
+- Creates research stream in database
+- Returns success response
+
+**Response:**
+```json
+{
+    "message": "✓ Success! Created 'Oncology Research Intelligence'. The stream is now active and will generate weekly reports.",
+    "suggested_actions": [
+        {
+            "label": "View Stream",
+            "action": "navigate",
+            "handler": "client",
+            "data": { "route": "/research-streams/123" },
+            "style": "primary"
+        },
+        {
+            "label": "Run Test Report",
+            "action": "navigate",
+            "handler": "client",
+            "data": { "route": "/research-streams/123/pipeline" }
+        },
+        {
+            "label": "Close",
+            "action": "close",
+            "handler": "client"
+        }
+    ]
 }
 ```
+
+**User Clicks:** "View Stream" button
+- Client-side action, navigates to `/research-streams/123`
+- Chat can close or remain open
 
 ---
 
@@ -333,8 +582,6 @@ payloadHandlers['navigation'] = (data) => {
 #### 1. ChatInterface Component
 
 **File**: `frontend/src/components/ChatInterface.tsx`
-
-Generic chat UI that works with any payload type:
 
 ```typescript
 interface ChatInterfaceProps {
@@ -350,35 +597,62 @@ function ChatInterface({
 }: ChatInterfaceProps) {
     const { messages, sendMessage, isLoading } = useChat(initialContext);
 
+    const handleValueSelect = (value: string) => {
+        sendMessage(value, 'value_selected');
+    };
+
+    const handleActionClick = async (action: SuggestedAction) => {
+        if (action.handler === 'client') {
+            // Execute client-side action
+            executeClientAction(action.action, action.data);
+            onAction?.(action.action, action.data);
+        } else {
+            // Send to server
+            await sendMessage(
+                action.label,
+                'action_executed',
+                {
+                    action_identifier: action.action,
+                    action_data: action.data
+                }
+            );
+        }
+    };
+
     return (
         <div className="chat-interface">
-            {/* Message List */}
             <MessageList>
                 {messages.map(msg => (
                     <div key={msg.id}>
                         <MessageBubble message={msg.content} role={msg.role} />
 
-                        {/* Render suggestions */}
-                        {msg.suggestions && (
-                            <SuggestionChips
-                                suggestions={msg.suggestions}
-                                onSelect={(value) => sendMessage(value, 'button_click')}
+                        {/* Suggested Values */}
+                        {msg.suggested_values && (
+                            <SuggestedValues
+                                values={msg.suggested_values}
+                                onSelect={handleValueSelect}
                             />
                         )}
 
-                        {/* Render custom payload */}
+                        {/* Suggested Actions */}
+                        {msg.suggested_actions && (
+                            <SuggestedActions
+                                actions={msg.suggested_actions}
+                                onAction={handleActionClick}
+                            />
+                        )}
+
+                        {/* Custom Payload (rendered by parent context) */}
                         {msg.payload && (
                             <PayloadRenderer
                                 payload={msg.payload}
                                 handlers={payloadHandlers}
-                                onAction={onAction}
                             />
                         )}
                     </div>
                 ))}
             </MessageList>
 
-            {/* Input */}
             <ChatInput
                 onSubmit={(text) => sendMessage(text, 'text_input')}
                 disabled={isLoading}
@@ -388,44 +662,72 @@ function ChatInterface({
 }
 ```
 
-#### 2. PayloadRenderer Component
+#### 2. Client Action Executor
 
-**File**: `frontend/src/components/PayloadRenderer.tsx`
-
-Routes payloads to appropriate handlers:
+**File**: `frontend/src/lib/clientActions.ts`
 
 ```typescript
-interface PayloadRendererProps {
-    payload: CustomPayload;
-    handlers: PayloadHandlerRegistry;
-    onAction?: (action: string, data?: any) => void;
-}
+export const executeClientAction = (action: string, data?: any) => {
+    switch (action) {
+        case 'close':
+            // Close modal/chat
+            window.dispatchEvent(new CustomEvent('chat:close'));
+            break;
 
-function PayloadRenderer({ payload, handlers, onAction }: PayloadRendererProps) {
-    const handler = handlers[payload.type];
+        case 'cancel':
+            // Reset and close
+            window.dispatchEvent(new CustomEvent('chat:reset'));
+            window.dispatchEvent(new CustomEvent('chat:close'));
+            break;
 
-    if (!handler) {
-        console.warn(`No handler registered for payload type: ${payload.type}`);
-        return <pre>{JSON.stringify(payload.data, null, 2)}</pre>;
+        case 'navigate':
+            // Navigate to route
+            if (data?.route) {
+                const router = useRouter(); // Or your routing method
+                router.push(data.route);
+            }
+            break;
+
+        case 'copy':
+            // Copy to clipboard
+            if (data?.text) {
+                navigator.clipboard.writeText(data.text);
+            }
+            break;
+
+        case 'highlight':
+            // Highlight element
+            if (data?.selector) {
+                const el = document.querySelector(data.selector);
+                el?.classList.add('highlighted');
+                setTimeout(() => el?.classList.remove('highlighted'), 3000);
+            }
+            break;
+
+        case 'download':
+            // Trigger download
+            if (data?.url && data?.filename) {
+                const a = document.createElement('a');
+                a.href = data.url;
+                a.download = data.filename;
+                a.click();
+            }
+            break;
+
+        case 'restart':
+            // Restart conversation
+            window.dispatchEvent(new CustomEvent('chat:restart'));
+            break;
+
+        default:
+            console.warn(`Unknown client action: ${action}`);
     }
-
-    return handler(payload.data, onAction);
-}
-
-// Payload handler type
-type PayloadHandler = (
-    data: any,
-    onAction?: (action: string, data?: any) => void
-) => React.ReactNode;
-
-type PayloadHandlerRegistry = Record<string, PayloadHandler>;
+};
 ```
 
 #### 3. useChat Hook
 
 **File**: `frontend/src/hooks/useChat.ts`
-
-State management for chat:
 
 ```typescript
 function useChat(initialContext?: Record<string, any>) {
@@ -435,7 +737,8 @@ function useChat(initialContext?: Record<string, any>) {
 
     const sendMessage = async (
         content: string,
-        interactionType: InteractionType = 'text_input'
+        interactionType: InteractionType = 'text_input',
+        actionMetadata?: ActionMetadata
     ) => {
         // Add user message
         setMessages(prev => [...prev, {
@@ -452,6 +755,7 @@ function useChat(initialContext?: Record<string, any>) {
                 message: content,
                 context,
                 interaction_type: interactionType,
+                action_metadata: actionMetadata,
                 conversation_history: messages
             });
 
@@ -459,13 +763,19 @@ function useChat(initialContext?: Record<string, any>) {
             setMessages(prev => [...prev, {
                 role: 'assistant',
                 content: response.message,
-                suggestions: response.suggestions,
+                suggested_values: response.suggested_values,
+                suggested_actions: response.suggested_actions,
                 payload: response.payload,
                 timestamp: new Date().toISOString()
             }]);
 
         } catch (error) {
             // Handle error
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: 'Sorry, something went wrong. Please try again.',
+                timestamp: new Date().toISOString()
+            }]);
         } finally {
             setIsLoading(false);
         }
@@ -483,27 +793,6 @@ function useChat(initialContext?: Record<string, any>) {
         updateContext
     };
 }
-```
-
-#### 4. Chat API Client
-
-**File**: `frontend/src/lib/api/chatApi.ts`
-
-```typescript
-export const chatApi = {
-    async sendMessage(request: ChatRequest): Promise<ChatResponse> {
-        const response = await api.post('/api/chat', request);
-        return response.data;
-    },
-
-    // For SSE streaming (optional)
-    async* streamMessage(request: ChatRequest): AsyncGenerator<ChatStreamChunk> {
-        const stream = makeStreamRequest('/api/chat/stream', request, 'POST');
-        for await (const chunk of stream) {
-            yield JSON.parse(chunk.data);
-        }
-    }
-};
 ```
 
 ### Backend Components
@@ -530,15 +819,26 @@ class ChatMessage(BaseModel):
     content: str
     timestamp: str
 
+class ActionMetadata(BaseModel):
+    action_identifier: str
+    action_data: Optional[Any] = None
+
 class ChatRequest(BaseModel):
     message: str
     context: Dict[str, Any]
-    interaction_type: Literal["text_input", "button_click", "option_select", "form_submit"]
+    interaction_type: Literal["text_input", "value_selected", "action_executed"]
+    action_metadata: Optional[ActionMetadata] = None
     conversation_history: List[ChatMessage]
 
-class Suggestion(BaseModel):
+class SuggestedValue(BaseModel):
     label: str
     value: str
+
+class SuggestedAction(BaseModel):
+    label: str
+    action: str
+    handler: Literal["client", "server"]
+    data: Optional[Any] = None
     style: Optional[Literal["primary", "secondary", "warning"]] = None
 
 class CustomPayload(BaseModel):
@@ -547,7 +847,8 @@ class CustomPayload(BaseModel):
 
 class ChatResponse(BaseModel):
     message: str
-    suggestions: Optional[List[Suggestion]] = None
+    suggested_values: Optional[List[SuggestedValue]] = None
+    suggested_actions: Optional[List[SuggestedAction]] = None
     payload: Optional[CustomPayload] = None
 
 @router.post("", response_model=ChatResponse)
@@ -561,8 +862,9 @@ async def chat(
 
     Accepts user message with context and returns:
     - Conversational response
-    - Optional suggestions
-    - Optional custom payload for frontend to interpret
+    - Optional suggested values (continue conversation)
+    - Optional suggested actions (client or server)
+    - Optional custom payload for embedding context
     """
     service = ChatService(db, current_user.user_id)
     return await service.handle_message(request)
@@ -577,6 +879,9 @@ from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 import anthropic
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ChatService:
     def __init__(self, db: Session, user_id: int):
@@ -588,10 +893,135 @@ class ChatService:
         """
         Main entry point for handling chat messages.
 
-        1. Analyze context to determine intent
-        2. Call LLM with context-aware prompt
-        3. Parse response for message, suggestions, and payload
-        4. Return structured response
+        Flow:
+        1. Check if action_executed → execute action and return result
+        2. Otherwise → continue conversation with LLM
+        """
+        # Handle action execution
+        if request.interaction_type == "action_executed":
+            return await self._handle_action_execution(request)
+
+        # Continue conversation
+        return await self._continue_conversation(request)
+
+    async def _handle_action_execution(self, request: ChatRequest) -> ChatResponse:
+        """
+        Execute a server-side action and return result.
+        """
+        action_id = request.action_metadata.action_identifier
+        action_data = request.action_metadata.action_data
+
+        logger.info(f"Executing action: {action_id}")
+
+        # Route to appropriate handler
+        if action_id == "create_stream":
+            return await self._execute_create_stream(action_data, request.context)
+
+        elif action_id == "update_config":
+            return await self._execute_update_config(action_data, request.context)
+
+        elif action_id == "execute_search":
+            return await self._execute_search(action_data, request.context)
+
+        elif action_id == "delete_entity":
+            return await self._execute_delete(action_data, request.context)
+
+        else:
+            return ChatResponse(
+                message=f"Unknown action: {action_id}",
+                suggested_actions=[
+                    SuggestedAction(
+                        label="Close",
+                        action="close",
+                        handler="client"
+                    )
+                ]
+            )
+
+    async def _execute_create_stream(
+        self,
+        stream_data: Dict[str, Any],
+        context: Dict[str, Any]
+    ) -> ChatResponse:
+        """
+        Create a research stream from chat data.
+        """
+        from services.research_stream_service import ResearchStreamService
+
+        stream_service = ResearchStreamService(self.db)
+
+        # Create the stream
+        stream = stream_service.create_research_stream(
+            user_id=self.user_id,
+            stream_data=stream_data
+        )
+
+        return ChatResponse(
+            message=f"✓ Successfully created '{stream.stream_name}'! "
+                    f"The stream is now active and will generate {stream.report_frequency} reports.",
+            suggested_actions=[
+                SuggestedAction(
+                    label="View Stream",
+                    action="navigate",
+                    handler="client",
+                    data={"route": f"/research-streams/{stream.stream_id}"},
+                    style="primary"
+                ),
+                SuggestedAction(
+                    label="Run Test Report",
+                    action="navigate",
+                    handler="client",
+                    data={"route": f"/research-streams/{stream.stream_id}/pipeline"}
+                ),
+                SuggestedAction(
+                    label="Create Another",
+                    action="restart",
+                    handler="client"
+                ),
+                SuggestedAction(
+                    label="Close",
+                    action="close",
+                    handler="client"
+                )
+            ]
+        )
+
+    async def _execute_search(
+        self,
+        search_data: Dict[str, Any],
+        context: Dict[str, Any]
+    ) -> ChatResponse:
+        """
+        Execute a search with filters.
+        """
+        # Execute search logic here
+        results = []  # Fetch results
+
+        return ChatResponse(
+            message=f"Found {len(results)} articles matching your criteria.",
+            suggested_actions=[
+                SuggestedAction(
+                    label="View All Results",
+                    action="navigate",
+                    handler="client",
+                    data={"route": f"/articles?filters={search_data}"},
+                    style="primary"
+                ),
+                SuggestedAction(
+                    label="Refine Search",
+                    action="restart",
+                    handler="client"
+                )
+            ],
+            payload=CustomPayload(
+                type="search_results",
+                data={"results": results[:10], "total": len(results)}
+            )
+        )
+
+    async def _continue_conversation(self, request: ChatRequest) -> ChatResponse:
+        """
+        Continue conversation using LLM.
         """
         # Build context-aware system prompt
         system_prompt = self._build_system_prompt(request.context)
@@ -623,18 +1053,14 @@ class ChatService:
 
         return ChatResponse(
             message=parsed["message"],
-            suggestions=parsed.get("suggestions"),
+            suggested_values=parsed.get("suggested_values"),
+            suggested_actions=parsed.get("suggested_actions"),
             payload=parsed.get("payload")
         )
 
     def _build_system_prompt(self, context: Dict[str, Any]) -> str:
         """
         Build system prompt based on user's context.
-
-        Context-aware prompting allows LLM to:
-        - Know where user is in the app
-        - Understand what they're trying to do
-        - Generate appropriate payloads for that context
         """
         current_page = context.get("current_page", "unknown")
         entity_type = context.get("entity_type")
@@ -647,19 +1073,23 @@ class ChatService:
         Your responses should be structured in this format:
 
         MESSAGE: [Your conversational response to the user]
-        SUGGESTIONS: [Optional comma-separated clickable options]
+        SUGGESTED_VALUES: [Optional comma-separated values user can select]
+        SUGGESTED_ACTIONS: [Optional actions with format: label|action|handler|data]
         PAYLOAD_TYPE: [Optional payload type identifier]
         PAYLOAD: [Optional JSON payload]
 
-        The PAYLOAD is arbitrary structured data that the frontend will interpret.
-        Use payloads to send complex data structures like:
-        - Form pre-fills: {"type": "research_stream_form", "data": {...}}
-        - Search filters: {"type": "search_filters", "data": {...}}
-        - Validation errors: {"type": "validation_errors", "data": {...}}
-        - Navigation: {"type": "navigation", "data": {...}}
-        - Any other structured data
+        SUGGESTED_VALUES are clickable chips that send a message back to continue conversation.
+        Example: SUGGESTED_VALUES: Yes, No, Tell me more
 
-        The frontend has handlers registered for different payload types.
+        SUGGESTED_ACTIONS are buttons that execute actions (client or server).
+        Format: label|action|handler|style|data_json
+        Example: SUGGESTED_ACTIONS: Accept & Create|create_stream|server|primary|{"stream_name":"..."}
+        Example: SUGGESTED_ACTIONS: Close|close|client|secondary
+
+        Client actions (no backend call): close, cancel, navigate, copy, highlight, download, restart
+        Server actions (processed by backend): create_stream, update_config, execute_search, delete_entity
+
+        The PAYLOAD is arbitrary structured data rendered by the embedding context.
         """
 
         # Add context-specific guidance
@@ -677,16 +1107,18 @@ class ChatService:
             base_prompt += """
 
             USER WANTS TO CREATE A RESEARCH STREAM.
-            Ask clarifying questions, then generate a payload of type "research_stream_form"
-            with pre-populated data based on their answers.
+            Ask clarifying questions, then generate:
+            - SUGGESTED_ACTIONS with create_stream server action
+            - PAYLOAD of type "research_stream_form" with pre-populated data
             """
 
         if current_page == "reports":
             base_prompt += """
 
             USER IS ON THE REPORTS PAGE.
-            If they ask about finding/filtering reports, generate a payload of type
-            "search_filters" with appropriate filter criteria.
+            If they ask about finding/filtering reports, generate:
+            - PAYLOAD of type "search_filters" with filter criteria
+            - SUGGESTED_ACTIONS with execute_search server action
             """
 
         return base_prompt
@@ -707,21 +1139,18 @@ Interaction type: {interaction_type}
 
 User's message: {message}
 
-Respond with MESSAGE, optional SUGGESTIONS, and optional PAYLOAD."""
+Respond with MESSAGE, optional SUGGESTED_VALUES, optional SUGGESTED_ACTIONS, and optional PAYLOAD."""
 
     def _parse_llm_response(self, response_text: str) -> Dict[str, Any]:
         """
-        Parse LLM response to extract:
-        - MESSAGE: Conversational text
-        - SUGGESTIONS: Comma-separated options
-        - PAYLOAD_TYPE: Type identifier
-        - PAYLOAD: JSON data
+        Parse LLM response to extract structured components.
         """
         import json
 
         result = {
             "message": "",
-            "suggestions": None,
+            "suggested_values": None,
+            "suggested_actions": None,
             "payload": None
         }
 
@@ -736,13 +1165,35 @@ Respond with MESSAGE, optional SUGGESTIONS, and optional PAYLOAD."""
             if stripped.startswith("MESSAGE:"):
                 result["message"] = stripped.replace("MESSAGE:", "").strip()
 
-            elif stripped.startswith("SUGGESTIONS:"):
-                suggestions_str = stripped.replace("SUGGESTIONS:", "").strip()
-                if suggestions_str:
-                    result["suggestions"] = [
-                        {"label": s.strip(), "value": s.strip()}
-                        for s in suggestions_str.split(",")
+            elif stripped.startswith("SUGGESTED_VALUES:"):
+                values_str = stripped.replace("SUGGESTED_VALUES:", "").strip()
+                if values_str:
+                    result["suggested_values"] = [
+                        {"label": v.strip(), "value": v.strip()}
+                        for v in values_str.split(",")
                     ]
+
+            elif stripped.startswith("SUGGESTED_ACTIONS:"):
+                actions_str = stripped.replace("SUGGESTED_ACTIONS:", "").strip()
+                if actions_str:
+                    actions = []
+                    for action_str in actions_str.split(";"):
+                        parts = action_str.split("|")
+                        if len(parts) >= 3:
+                            action = {
+                                "label": parts[0].strip(),
+                                "action": parts[1].strip(),
+                                "handler": parts[2].strip()
+                            }
+                            if len(parts) > 3:
+                                action["style"] = parts[3].strip()
+                            if len(parts) > 4:
+                                try:
+                                    action["data"] = json.loads(parts[4])
+                                except:
+                                    pass
+                            actions.append(action)
+                    result["suggested_actions"] = actions
 
             elif stripped.startswith("PAYLOAD_TYPE:"):
                 payload_type = stripped.replace("PAYLOAD_TYPE:", "").strip()
@@ -766,7 +1217,6 @@ Respond with MESSAGE, optional SUGGESTIONS, and optional PAYLOAD."""
                     "data": payload_data
                 }
             except json.JSONDecodeError:
-                # If JSON parsing fails, include as string
                 result["payload"] = {
                     "type": payload_type,
                     "data": {"raw": "\n".join(payload_lines)}
@@ -777,160 +1227,58 @@ Respond with MESSAGE, optional SUGGESTIONS, and optional PAYLOAD."""
 
 ---
 
-## Example Payload Types
-
-### 1. research_stream_form
-Pre-populated research stream configuration
-
-**Use Case**: User asks to create a stream
-
-**Payload**:
-```json
-{
-    "type": "research_stream_form",
-    "data": {
-        "stream_name": "...",
-        "purpose": "...",
-        "channels": [...],
-        "report_frequency": "..."
-    }
-}
-```
-
-**Frontend Handler**: Renders form preview with accept/edit buttons
-
-### 2. search_filters
-Suggested search filters
-
-**Use Case**: User asks to find specific articles/reports
-
-**Payload**:
-```json
-{
-    "type": "search_filters",
-    "data": {
-        "entity_type": "articles",
-        "filters": {
-            "keywords": ["melanocortin"],
-            "year": 2024,
-            "author": "Smith J"
-        }
-    }
-}
-```
-
-**Frontend Handler**: Shows filter chips and "Search Now" button
-
-### 3. validation_errors
-Form validation feedback
-
-**Use Case**: User submitted incomplete/invalid data
-
-**Payload**:
-```json
-{
-    "type": "validation_errors",
-    "data": {
-        "errors": [
-            {"field": "channels", "message": "Required", "severity": "error"}
-        ],
-        "suggested_fixes": {
-            "channels": [{"name": "Default", "type": "scientific"}]
-        }
-    }
-}
-```
-
-**Frontend Handler**: Highlights errors and shows auto-fix option
-
-### 4. navigation
-Navigation instructions
-
-**Use Case**: User asks "where is X?"
-
-**Payload**:
-```json
-{
-    "type": "navigation",
-    "data": {
-        "target_route": "/reports",
-        "query_params": {"stream_id": 5},
-        "highlight_element": ".report-card:first"
-    }
-}
-```
-
-**Frontend Handler**: Navigate button + element highlighting
-
-### 5. comparison_table
-Side-by-side comparison
-
-**Use Case**: User asks to compare options
-
-**Payload**:
-```json
-{
-    "type": "comparison_table",
-    "data": {
-        "columns": ["Option A", "Option B", "Option C"],
-        "rows": [
-            {"label": "Cost", "values": ["$10", "$20", "$30"]},
-            {"label": "Speed", "values": ["Fast", "Medium", "Slow"]}
-        ]
-    }
-}
-```
-
-**Frontend Handler**: Renders comparison table
-
----
-
 ## Implementation Plan
 
 ### Phase 1: Core Infrastructure (Week 1)
 
 **Frontend**:
-- `components/ChatInterface.tsx` - Generic chat UI
-- `components/PayloadRenderer.tsx` - Payload routing
-- `hooks/useChat.ts` - Chat state management
+- `components/ChatInterface.tsx` - Chat UI with value/action handling
+- `components/SuggestedValues.tsx` - Value chips
+- `components/SuggestedActions.tsx` - Action buttons
+- `hooks/useChat.ts` - State management with action support
 - `lib/api/chatApi.ts` - API client
+- `lib/clientActions.ts` - Client-side action executor
 
 **Backend**:
 - `routers/chat.py` - Chat endpoint
-- `services/chat_service.py` - Core service
+- `services/chat_service.py` - Core service with action routing
 - `schemas/chat.py` - Pydantic models
 
-**Deliverable**: Basic chat working with text responses
+**Deliverable**: Basic chat with text, values, and client actions working
 
-### Phase 2: Payload System (Week 2)
+### Phase 2: Server Actions (Week 2)
+
+**Backend**:
+- Implement action handlers (create_stream, execute_search, etc.)
+- Add action execution logging
+- Error handling for failed actions
+
+**Frontend**:
+- Test server action flow end-to-end
+- Add loading states for actions
+- Add success/error feedback
+
+**Deliverable**: Server actions working (create stream, search, etc.)
+
+### Phase 3: Payload System (Week 3)
 
 **Frontend**:
 - Create payload handler registry
-- Implement 2-3 basic handlers (form, search_filters, navigation)
-- Add payload rendering to ChatInterface
+- Implement handlers for key payload types
+- Integrate payload rendering with chat
 
 **Backend**:
 - Update LLM prompts to generate payloads
-- Add payload parsing logic
 - Test payload generation for different contexts
 
-**Deliverable**: Chat can send/receive custom payloads
+**Deliverable**: Payloads rendering correctly for different use cases
 
-### Phase 3: Use Case Implementation (Week 3)
-
-Implement specific use cases:
-- Stream creation assistant (research_stream_form payload)
-- Search assistant (search_filters payload)
-- Navigation helper (navigation payload)
-
-**Deliverable**: 3 working use cases with custom payloads
-
-### Phase 4: Polish & Extend (Week 4)
+### Phase 4: Polish (Week 4)
 
 - Add SSE streaming support
-- Add more payload types
 - Improve error handling
-- Add analytics
+- Add action analytics
+- Performance optimization
 
 ---
 
@@ -941,17 +1289,19 @@ frontend/src/
 ├── components/
 │   ├── ChatInterface.tsx          [NEW] - Main chat UI
 │   ├── PayloadRenderer.tsx        [NEW] - Routes payloads to handlers
-│   ├── MessageBubble.tsx          [NEW] - Individual message display
-│   └── SuggestionChips.tsx        [NEW] - Clickable suggestions
+│   ├── MessageBubble.tsx          [NEW] - Message display
+│   ├── SuggestedValues.tsx        [NEW] - Value chips
+│   └── SuggestedActions.tsx       [NEW] - Action buttons
 ├── hooks/
 │   └── useChat.ts                 [NEW] - Chat state management
-├── lib/api/
-│   └── chatApi.ts                 [NEW] - API client
+├── lib/
+│   ├── api/chatApi.ts             [NEW] - API client
+│   └── clientActions.ts           [NEW] - Client action executor
 ├── payloadHandlers/               [NEW]
 │   ├── index.ts                   - Handler registry
-│   ├── researchStreamForm.tsx     - Form pre-fill handler
-│   ├── searchFilters.tsx          - Search filter handler
-│   └── navigation.tsx             - Navigation handler
+│   ├── researchStreamForm.tsx     - Form preview handler
+│   ├── searchFilters.tsx          - Search filters handler
+│   └── searchResults.tsx          - Results preview handler
 └── types/
     └── chat.ts                    [NEW] - Type definitions
 
@@ -959,30 +1309,20 @@ backend/
 ├── routers/
 │   └── chat.py                    [NEW] - Chat endpoint
 ├── services/
-│   └── chat_service.py            [NEW] - Chat service
+│   └── chat_service.py            [NEW] - Chat service with actions
 └── schemas/
     └── chat.py                    [NEW] - Pydantic models
 ```
 
 ---
 
-## Key Advantages
+## Key Design Principles
 
-1. **Maximum Flexibility**: Custom payloads can be anything - no hardcoded structure
-2. **Simple Integration**: Just register a handler for new payload types
-3. **Separation of Concerns**: Backend focuses on data, frontend on presentation
-4. **Type Safety**: Each payload type has its own structure
-5. **Extensible**: Add new payload types without changing core system
-6. **Context-Aware**: LLM has full context about user's location and intent
-7. **Action Tracking**: Know whether user typed vs. clicked suggestion
-8. **Reusable**: Same infrastructure for help, forms, search, navigation, etc.
-
----
-
-## Success Metrics
-
-1. **Payload Coverage**: % of responses that include custom payloads
-2. **Payload Acceptance Rate**: % of payloads user accepts vs. modifies
-3. **Interaction Efficiency**: Avg messages to complete task (should decrease)
-4. **Context Accuracy**: % of responses that use context appropriately
-5. **Handler Coverage**: % of payload types with registered handlers
+1. **Clear Separation**: Values continue conversation, actions execute operations
+2. **Handler Flexibility**: Client actions for UX, server actions for data
+3. **Context Awareness**: Backend knows how user interacted (typed vs clicked)
+4. **Action Metadata**: Full data flows through action execution
+5. **Extensibility**: Easy to add new client/server actions
+6. **Type Safety**: Structured action identifiers and data
+7. **Error Handling**: Actions can fail gracefully
+8. **Analytics**: Track interaction types and action success rates
