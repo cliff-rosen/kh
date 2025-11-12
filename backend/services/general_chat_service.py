@@ -158,13 +158,13 @@ class GeneralChatService:
         context_summary = "\n".join([f"{k}: {v}" for k, v in context.items()])
 
         return f"""User's current context:
-{context_summary}
+        {context_summary}
 
-Interaction type: {interaction_type}
+        Interaction type: {interaction_type}
 
-User's message: {message}
+        User's message: {message}
 
-Respond with MESSAGE and optional SUGGESTED_VALUES or SUGGESTED_ACTIONS."""
+        Respond with MESSAGE and optional SUGGESTED_VALUES or SUGGESTED_ACTIONS."""
 
     def _parse_llm_response(self, response_text: str) -> Dict[str, Any]:
         """
