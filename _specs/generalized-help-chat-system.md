@@ -1,179 +1,326 @@
-# Generalized Help Chat System - Design Specification
+# General Purpose Chat System - Design Specification
 
-## Executive Summary
+## Core Concept
 
-This document analyzes the current StreamChatInterface architecture and proposes a generalized HelpChatInterface system that adapts its proven conversational AI patterns for general-purpose application help and support.
+A general-purpose chat interface that supports rich, context-aware conversations where:
 
-## Current Architecture Analysis
-
-### Stream Building Chat System
-
-The existing stream building chat consists of:
-
-#### Frontend Components:
-1. **StreamChatInterface.tsx** - UI component for chat display
-2. **StreamChatContext.tsx** - State management provider
-3. **researchStreamApi.ts** - API client with SSE streaming
-4. **Types**: StreamInProgress, StreamBuildStep, UserAction, ChatMessage
-
-#### Backend Components:
-1. **research_stream_chat.py** - FastAPI router with SSE endpoint
-2. **research_stream_chat_service.py** - Business logic and LLM integration
-3. **research_stream_creation_workflow.py** - Workflow state machine
-4. **Schemas**: StreamInProgress, StreamBuildStep, UserAction
-
-### Key Patterns (Generalizable)
-
-#### 1. Context Carry-Through Architecture
-The system maintains rich context across the conversation:
-- **Current State**: StreamInProgress (configuration being built)
-- **Workflow Position**: StreamBuildStep (where user is in the flow)
-- **Conversation History**: Full chat transcript
-- **User Actions**: Metadata about how user interacted (clicked suggestion, typed text, toggled option)
-
-#### 2. LLM Response Modes
-The LLM categorizes each response:
-- **QUESTION**: Asking clarifying questions when more info needed
-- **SUGGESTION**: Presenting concrete options (single-select chips)
-- **REVIEW**: Showing summary and awaiting confirmation
-
-#### 3. User Action Types
-Structured interaction tracking:
-- **text_input**: User typed free text
-- **option_selected**: User clicked a suggestion chip (single select)
-- **options_selected**: User selected checkboxes (multi-select)
-- **accept_review**: User confirmed final configuration
-- **skip_step**: User wants to skip current step
-
-#### 4. SSE Streaming Pattern
-Real-time streaming with two response types:
-- **StatusResponse**: Tool usage, thinking indicators
-- **AgentResponse**: Token-by-token streaming + final payload
-
-#### 5. Structured LLM Output Parsing
-The LLM returns structured format:
-```
-MODE: [QUESTION | SUGGESTION | REVIEW]
-MESSAGE: [conversational text]
-TARGET_FIELD: [field being populated]
-EXTRACTED_DATA: field=value
-SUGGESTIONS: option1, option2, option3
-OPTIONS: checkbox1|checkbox2|checkbox3
-PROPOSED_MESSAGE: [button text]
-```
-
-### What's Purpose-Built for Stream Creation
-
-1. **StreamInProgress Schema**: Specific to channels, purposes, therapeutic areas
-2. **ResearchStreamCreationWorkflow**: Hardcoded steps (exploration → channels → review)
-3. **System Prompts**: Focus on biomedical research, competitive intelligence
-4. **Field Validation**: Specific to stream configuration (channel structure, frequency options)
-5. **Final Action**: Creates a ResearchStream database record
+1. **Frontend sends**: message + user context + interaction type
+2. **Backend returns**: conversational text + suggestions/actions + custom payload
+3. **Custom payloads**: Arbitrary data structures that frontend interprets (forms, configs, search results, etc.)
 
 ---
 
-## Generalized Help Chat System Design
+## Request Structure (Frontend → Backend)
 
-### Design Principles
+### ChatRequest
 
-1. **Topic-Agnostic**: Works for any help topic (navigation, configuration, troubleshooting)
-2. **Context-Aware**: Carries user's current location, selected entities, recent actions
-3. **Action-Oriented**: Can guide users through multi-step processes
-4. **Adaptive**: Learns from user's expertise level and preferences
-
-### Core Abstractions
-
-#### 1. HelpContext (replaces StreamInProgress)
-Flexible key-value store for conversation context:
 ```typescript
-interface HelpContext {
-    // User's current location in app
-    current_page?: string;          // e.g., "reports", "research_streams", "home"
-    current_entity_type?: string;   // e.g., "report", "research_stream", "article"
-    current_entity_id?: number;     // ID of entity user is viewing
+interface ChatRequest {
+    message: string;                    // What the user typed or action they took
+    context: Record<string, any>;       // User's current orientation in the system
+    interaction_type: InteractionType;  // How this message was initiated
+    conversation_history: Message[];    // Full chat transcript
+}
 
-    // User's stated intent
-    user_goal?: string;             // e.g., "create research stream", "find article", "fix error"
-    help_topic?: HelpTopic;         // Category of help
+enum InteractionType {
+    TEXT_INPUT = 'text_input',         // User typed in input field
+    BUTTON_CLICK = 'button_click',     // User clicked a suggestion button
+    OPTION_SELECT = 'option_select',   // User selected from dropdown/chips
+    FORM_SUBMIT = 'form_submit'        // User submitted a form
+}
 
-    // Collected information during conversation
-    preferences?: Record<string, any>;   // User preferences discovered
-    filters?: Record<string, any>;       // Search/filter criteria
-    steps_completed?: string[];          // Multi-step process tracking
+interface Message {
+    role: 'user' | 'assistant';
+    content: string;
+    timestamp: string;
+}
+```
+
+### Context Object
+
+Flexible metadata about user's current state:
+
+```typescript
+interface ChatContext {
+    // Current location
+    current_page?: string;              // e.g., "reports", "research_streams"
+    current_route?: string;             // e.g., "/research-streams/123/edit"
+
+    // Current entity being viewed/edited
+    entity_type?: string;               // e.g., "report", "research_stream", "article"
+    entity_id?: number;                 // ID of entity
+
+    // User action that triggered chat
+    action?: string;                    // e.g., "create_stream", "search_articles"
+    action_context?: Record<string, any>; // Action-specific data
 
     // Error context (if user is troubleshooting)
-    error_message?: string;
-    error_context?: Record<string, any>;
+    error?: {
+        message: string;
+        code?: string;
+        context?: Record<string, any>;
+    };
 
-    // Arbitrary metadata for extensibility
-    metadata?: Record<string, any>;
+    // Arbitrary metadata
+    [key: string]: any;                 // Anything else frontend wants to send
 }
 ```
 
-#### 2. HelpTopic (replaces StreamBuildStep)
-Categories of help the system can provide:
+**Example Context - User on Reports Page**:
 ```typescript
-enum HelpTopic {
-    // Navigation & Discovery
-    GENERAL = 'general',              // Initial greeting, unclear intent
-    NAVIGATION = 'navigation',        // "How do I get to...?"
-    SEARCH = 'search',                // "How do I find...?"
-
-    // Feature Guidance
-    FEATURE_OVERVIEW = 'feature_overview',     // "What can I do with...?"
-    STEP_BY_STEP = 'step_by_step',            // Guided workflows
-    CONFIGURATION = 'configuration',           // Settings and preferences
-
-    // Troubleshooting
-    TROUBLESHOOTING = 'troubleshooting',      // "Why isn't this working?"
-    ERROR_RESOLUTION = 'error_resolution',    // Specific error help
-
-    // Data Operations
-    DATA_IMPORT = 'data_import',
-    DATA_EXPORT = 'data_export',
-    DATA_ANALYSIS = 'data_analysis',
-
-    // Account & Settings
-    ACCOUNT = 'account',
-    PERMISSIONS = 'permissions',
-    INTEGRATIONS = 'integrations'
+{
+    current_page: "reports",
+    current_route: "/reports?stream_id=5",
+    entity_type: "research_stream",
+    entity_id: 5,
+    filters: { stream_id: 5, unread_only: true }
 }
 ```
 
-#### 3. HelpIntent (new concept)
-What the user is trying to accomplish:
+**Example Context - User Hit an Error**:
 ```typescript
-interface HelpIntent {
-    type: 'question' | 'task' | 'troubleshoot' | 'learn';
-    confidence: number;              // 0-1, how confident we are about intent
-    keywords: string[];              // Extracted keywords
-    entities_mentioned: string[];    // Entities user mentioned
+{
+    current_page: "pipeline",
+    entity_type: "research_stream",
+    entity_id: 3,
+    action: "run_pipeline",
+    error: {
+        message: "No articles retrieved",
+        code: "EMPTY_RESULT_SET",
+        context: { query: "melanocortin[Title]", source: "pubmed" }
+    }
 }
 ```
 
-#### 4. HelpAction (extends UserAction)
-Actions the system can execute:
-```typescript
-enum HelpActionType {
-    // User interaction (inherited)
-    TEXT_INPUT = 'text_input',
-    OPTION_SELECTED = 'option_selected',
-    OPTIONS_SELECTED = 'options_selected',
+---
 
-    // System actions (new)
-    NAVIGATE = 'navigate',           // Direct user to page
-    EXECUTE_SEARCH = 'execute_search', // Run search with criteria
-    APPLY_FILTER = 'apply_filter',   // Apply filters to current view
-    OPEN_MODAL = 'open_modal',       // Open specific modal/dialog
-    HIGHLIGHT_ELEMENT = 'highlight_element', // Show tooltip on UI element
-    EXECUTE_ACTION = 'execute_action', // Perform action on behalf of user
+## Response Structure (Backend → Frontend)
+
+### ChatResponse
+
+```typescript
+interface ChatResponse {
+    message: string;                    // Conversational text to display
+    suggestions?: Suggestion[];         // Clickable options for user
+    payload?: CustomPayload;            // Structured data for frontend to interpret
 }
 
-interface HelpAction {
-    type: HelpActionType;
-    target?: string;                 // Target page, element, or entity
-    payload?: Record<string, any>;   // Action-specific data
-    display_message?: string;        // Message to show user
+interface Suggestion {
+    label: string;                      // Display text
+    value: string;                      // Value to send back if clicked
+    style?: 'primary' | 'secondary' | 'warning'; // Visual style hint
+}
+
+interface CustomPayload {
+    type: string;                       // Payload type (frontend uses this to route)
+    data: any;                          // Arbitrary structured data
+}
+```
+
+---
+
+## Custom Payload Pattern
+
+### How It Works
+
+1. **Backend** sends structured data with a `type` identifier
+2. **Frontend** has registered "payload handlers" for different types
+3. **Frontend** interprets the payload and renders appropriate UI
+4. **User** interacts with the rendered UI
+5. **Frontend** sends result back through chat
+
+### Example: Form Pre-Population
+
+**User**: "Help me create a research stream for melanocortin research"
+
+**Backend Response**:
+```json
+{
+    "message": "I've prepared a stream configuration based on your request. Review the form below and click Accept to create the stream.",
+    "suggestions": [
+        { "label": "Accept & Create", "value": "accept_stream_config" },
+        { "label": "Modify", "value": "modify_stream_config" }
+    ],
+    "payload": {
+        "type": "research_stream_form",
+        "data": {
+            "stream_name": "Melanocortin Research Intelligence",
+            "purpose": "Monitor melanocortin pathway research for competitive intelligence",
+            "report_frequency": "weekly",
+            "channels": [
+                {
+                    "name": "Melanocortin Pathways",
+                    "focus": "Track scientific research on melanocortin receptors",
+                    "type": "scientific",
+                    "keywords": ["melanocortin", "MCR1", "MCR4", "alpha-MSH"]
+                },
+                {
+                    "name": "Clinical Developments",
+                    "focus": "Monitor clinical trials",
+                    "type": "clinical",
+                    "keywords": ["bremelanotide", "clinical trial", "phase 2"]
+                }
+            ]
+        }
+    }
+}
+```
+
+**Frontend Rendering**:
+```typescript
+// Frontend has a payload handler registry
+const payloadHandlers = {
+    'research_stream_form': (data) => {
+        // Render pre-populated form
+        return <ResearchStreamFormPreview
+            initialData={data}
+            onAccept={() => createStream(data)}
+            onModify={(field) => openChatWith(`Change ${field}`)}
+        />
+    },
+    'search_results': (data) => {
+        return <SearchResultsPreview results={data.results} />
+    },
+    'validation_errors': (data) => {
+        return <ValidationErrorList errors={data.errors} />
+    },
+    // ... more handlers
+}
+
+// In chat component
+if (response.payload) {
+    const handler = payloadHandlers[response.payload.type];
+    if (handler) {
+        return handler(response.payload.data);
+    }
+}
+```
+
+### Example: Search Filter Suggestion
+
+**User**: "Find articles about melanocortin from 2024"
+
+**Backend Response**:
+```json
+{
+    "message": "I'll search for melanocortin articles from 2024. Here are the filters I'll apply:",
+    "suggestions": [
+        { "label": "Search Now", "value": "execute_search" },
+        { "label": "Refine Filters", "value": "refine_filters" }
+    ],
+    "payload": {
+        "type": "search_filters",
+        "data": {
+            "entity_type": "articles",
+            "filters": {
+                "keywords": ["melanocortin"],
+                "year": 2024,
+                "date_range": {
+                    "start": "2024-01-01",
+                    "end": "2024-12-31"
+                }
+            },
+            "sort": "relevance"
+        }
+    }
+}
+```
+
+**Frontend Rendering**:
+```typescript
+payloadHandlers['search_filters'] = (data) => {
+    return (
+        <div className="search-preview">
+            <h4>Suggested Search</h4>
+            <FilterChips filters={data.filters} />
+            <button onClick={() => executeSearch(data)}>
+                Apply & Search
+            </button>
+        </div>
+    )
+}
+```
+
+### Example: Validation Feedback
+
+**User**: Submits incomplete form
+
+**Backend Response**:
+```json
+{
+    "message": "I found some issues with the configuration. Please review the highlighted fields below.",
+    "suggestions": [
+        { "label": "Fix Automatically", "value": "auto_fix" },
+        { "label": "Guide Me Through", "value": "guided_fix" }
+    ],
+    "payload": {
+        "type": "validation_errors",
+        "data": {
+            "errors": [
+                {
+                    "field": "channels",
+                    "message": "At least one channel is required",
+                    "severity": "error"
+                },
+                {
+                    "field": "channels[0].keywords",
+                    "message": "Keywords list is empty",
+                    "severity": "error"
+                }
+            ],
+            "suggested_fixes": {
+                "channels": [
+                    {
+                        "name": "Primary Research",
+                        "type": "scientific",
+                        "keywords": ["melanocortin", "research"]
+                    }
+                ]
+            }
+        }
+    }
+}
+```
+
+### Example: Navigation Guidance
+
+**User**: "Where do I find my reports?"
+
+**Backend Response**:
+```json
+{
+    "message": "Your reports are on the Reports page. I can take you there now.",
+    "suggestions": [
+        { "label": "Go to Reports", "value": "navigate_reports" },
+        { "label": "Show me unread reports", "value": "navigate_reports_unread" }
+    ],
+    "payload": {
+        "type": "navigation",
+        "data": {
+            "target_route": "/reports",
+            "query_params": {},
+            "highlight_element": ".reports-list"
+        }
+    }
+}
+```
+
+**Frontend Rendering**:
+```typescript
+payloadHandlers['navigation'] = (data) => {
+    return (
+        <div className="navigation-preview">
+            <p>Destination: <code>{data.target_route}</code></p>
+            <button onClick={() => {
+                router.push(data.target_route);
+                if (data.highlight_element) {
+                    highlightElement(data.highlight_element);
+                }
+            }}>
+                Navigate Now
+            </button>
+        </div>
+    )
 }
 ```
 
@@ -183,539 +330,558 @@ interface HelpAction {
 
 ### Frontend Components
 
-#### 1. HelpChatInterface.tsx
-**Purpose**: Generic chat UI for help interactions
+#### 1. ChatInterface Component
 
-**Location**: `frontend/src/components/HelpChatInterface.tsx`
+**File**: `frontend/src/components/ChatInterface.tsx`
 
-**Key Features**:
-- Renders messages with markdown support
-- Displays suggestion chips (single-select)
-- Displays checkbox options (multi-select)
-- Displays action buttons (navigation, execution)
-- Shows status indicators (thinking, searching, executing)
-- Supports rich message types (text, links, code blocks, images)
+Generic chat UI that works with any payload type:
 
-**Props**:
 ```typescript
-interface HelpChatInterfaceProps {
-    initialContext?: Partial<HelpContext>;  // Pre-populate context
-    onNavigate?: (path: string) => void;    // Navigate callback
-    onExecuteAction?: (action: HelpAction) => void; // Action callback
-    className?: string;
+interface ChatInterfaceProps {
+    initialContext?: Record<string, any>;
+    payloadHandlers?: PayloadHandlerRegistry;
+    onAction?: (action: string, data?: any) => void;
+}
+
+function ChatInterface({
+    initialContext,
+    payloadHandlers = defaultHandlers,
+    onAction
+}: ChatInterfaceProps) {
+    const { messages, sendMessage, isLoading } = useChat(initialContext);
+
+    return (
+        <div className="chat-interface">
+            {/* Message List */}
+            <MessageList>
+                {messages.map(msg => (
+                    <div key={msg.id}>
+                        <MessageBubble message={msg.content} role={msg.role} />
+
+                        {/* Render suggestions */}
+                        {msg.suggestions && (
+                            <SuggestionChips
+                                suggestions={msg.suggestions}
+                                onSelect={(value) => sendMessage(value, 'button_click')}
+                            />
+                        )}
+
+                        {/* Render custom payload */}
+                        {msg.payload && (
+                            <PayloadRenderer
+                                payload={msg.payload}
+                                handlers={payloadHandlers}
+                                onAction={onAction}
+                            />
+                        )}
+                    </div>
+                ))}
+            </MessageList>
+
+            {/* Input */}
+            <ChatInput
+                onSubmit={(text) => sendMessage(text, 'text_input')}
+                disabled={isLoading}
+            />
+        </div>
+    );
 }
 ```
 
-**Differences from StreamChatInterface**:
-- No hardcoded "Research Stream Assistant" title - dynamic based on topic
-- Support for action buttons (not just accept/review)
-- Support for navigation suggestions
-- Code block rendering for technical help
-- Screenshot/image support for visual guidance
+#### 2. PayloadRenderer Component
 
-#### 2. HelpChatContext.tsx
-**Purpose**: State management for help conversations
+**File**: `frontend/src/components/PayloadRenderer.tsx`
 
-**Location**: `frontend/src/context/HelpChatContext.tsx`
+Routes payloads to appropriate handlers:
 
-**State**:
 ```typescript
-interface HelpChatContextType {
-    // Conversation state
-    messages: ChatMessage[];
-    helpContext: HelpContext;
-    currentTopic: HelpTopic;
-    isLoading: boolean;
-    error: string | null;
-    statusMessage: string | null;
+interface PayloadRendererProps {
+    payload: CustomPayload;
+    handlers: PayloadHandlerRegistry;
+    onAction?: (action: string, data?: any) => void;
+}
 
-    // Response metadata
-    responseMode: 'QUESTION' | 'SUGGESTION' | 'ANSWER' | null;
-    targetField: string | null;
-    suggestedActions: HelpAction[];
+function PayloadRenderer({ payload, handlers, onAction }: PayloadRendererProps) {
+    const handler = handlers[payload.type];
 
-    // User actions
-    sendMessage: (content: string, userAction?: UserAction) => Promise<void>;
-    selectSuggestion: (value: string) => void;
-    toggleOption: (value: string) => void;
-    executeAction: (action: HelpAction) => Promise<void>;
-    updateContext: (updates: Partial<HelpContext>) => void;
-    resetChat: () => void;
+    if (!handler) {
+        console.warn(`No handler registered for payload type: ${payload.type}`);
+        return <pre>{JSON.stringify(payload.data, null, 2)}</pre>;
+    }
 
-    // Navigation integration
-    navigateTo: (path: string) => void;
+    return handler(payload.data, onAction);
+}
+
+// Payload handler type
+type PayloadHandler = (
+    data: any,
+    onAction?: (action: string, data?: any) => void
+) => React.ReactNode;
+
+type PayloadHandlerRegistry = Record<string, PayloadHandler>;
+```
+
+#### 3. useChat Hook
+
+**File**: `frontend/src/hooks/useChat.ts`
+
+State management for chat:
+
+```typescript
+function useChat(initialContext?: Record<string, any>) {
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [context, setContext] = useState(initialContext || {});
+    const [isLoading, setIsLoading] = useState(false);
+
+    const sendMessage = async (
+        content: string,
+        interactionType: InteractionType = 'text_input'
+    ) => {
+        // Add user message
+        setMessages(prev => [...prev, {
+            role: 'user',
+            content,
+            timestamp: new Date().toISOString()
+        }]);
+
+        setIsLoading(true);
+
+        try {
+            // Call API
+            const response = await chatApi.sendMessage({
+                message: content,
+                context,
+                interaction_type: interactionType,
+                conversation_history: messages
+            });
+
+            // Add assistant message
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: response.message,
+                suggestions: response.suggestions,
+                payload: response.payload,
+                timestamp: new Date().toISOString()
+            }]);
+
+        } catch (error) {
+            // Handle error
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const updateContext = (updates: Record<string, any>) => {
+        setContext(prev => ({ ...prev, ...updates }));
+    };
+
+    return {
+        messages,
+        context,
+        isLoading,
+        sendMessage,
+        updateContext
+    };
 }
 ```
 
-**Key Differences**:
-- `helpContext` instead of `streamConfig`
-- `currentTopic` instead of `currentStep`
-- `suggestedActions` for executable actions
-- `executeAction` method for system actions
+#### 4. Chat API Client
 
-#### 3. helpApi.ts
-**Purpose**: API client for help chat
+**File**: `frontend/src/lib/api/chatApi.ts`
 
-**Location**: `frontend/src/lib/api/helpApi.ts`
-
-**Key Types**:
 ```typescript
-export interface HelpChatRequest {
-    message: string;
-    help_context: HelpContext;
-    current_topic: HelpTopic;
-    conversation_history: ApiMessage[];
-    user_action?: UserAction;
-}
-
-export interface HelpChatPayload {
-    message: string;
-    mode: 'QUESTION' | 'SUGGESTION' | 'ANSWER';
-    target_field: string | null;
-    updated_context: HelpContext;
-    next_topic: HelpTopic;
-    suggestions?: Suggestion[];
-    options?: MultiSelectOption[];
-    actions?: HelpAction[];         // NEW: Executable actions
-    proposed_message?: string;
-}
-
-export interface HelpAgentResponse {
-    token: string | null;
-    response_text: string | null;
-    payload: HelpChatPayload | null;
-    status: string | null;
-    error: string | null;
-    debug: string | object | null;
-}
-```
-
-**API Methods**:
-```typescript
-export const helpApi = {
-    /**
-     * Stream help chat messages
-     */
-    streamChatMessage: async function* (
-        request: HelpChatRequest
-    ): AsyncGenerator<HelpAgentResponse> {
-        // SSE streaming implementation
+export const chatApi = {
+    async sendMessage(request: ChatRequest): Promise<ChatResponse> {
+        const response = await api.post('/api/chat', request);
+        return response.data;
     },
 
-    /**
-     * Execute a help action (navigate, search, etc.)
-     */
-    executeHelpAction: async (action: HelpAction): Promise<{
-        success: boolean;
-        result?: any;
-        error?: string;
-    }> {
-        // Execute action and return result
+    // For SSE streaming (optional)
+    async* streamMessage(request: ChatRequest): AsyncGenerator<ChatStreamChunk> {
+        const stream = makeStreamRequest('/api/chat/stream', request, 'POST');
+        for await (const chunk of stream) {
+            yield JSON.parse(chunk.data);
+        }
     }
-}
+};
 ```
 
 ### Backend Components
 
-#### 1. help_chat.py (Router)
-**Purpose**: FastAPI endpoint for help chat
+#### 1. Chat Router
 
-**Location**: `backend/routers/help_chat.py`
+**File**: `backend/routers/chat.py`
 
-**Endpoints**:
 ```python
-@router.post("/api/help/chat/stream")
-async def chat_stream_for_help(
-    request: HelpChatRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-) -> EventSourceResponse:
-    """
-    Stream help chat responses using Server-Sent Events.
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from typing import List, Dict, Any, Optional, Literal
 
-    Returns:
-        SSE stream with HelpAgentResponse or HelpStatusResponse
-    """
+from database import get_db
+from models import User
+from routers.auth import get_current_user
+from services.chat_service import ChatService
 
-@router.post("/api/help/execute-action")
-async def execute_help_action(
-    action: HelpAction,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-) -> Dict[str, Any]:
-    """
-    Execute a help action (navigate, search, filter, etc.)
+router = APIRouter(prefix="/api/chat", tags=["chat"])
 
-    Returns:
-        Action result or error
-    """
-```
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+    timestamp: str
 
-**Schemas**:
-```python
-class HelpChatRequest(BaseModel):
+class ChatRequest(BaseModel):
     message: str
-    help_context: HelpContext
-    current_topic: HelpTopic
-    conversation_history: List[ApiMessage]
-    user_action: Optional[UserAction] = None
+    context: Dict[str, Any]
+    interaction_type: Literal["text_input", "button_click", "option_select", "form_submit"]
+    conversation_history: List[ChatMessage]
 
-class HelpChatPayload(BaseModel):
+class Suggestion(BaseModel):
+    label: str
+    value: str
+    style: Optional[Literal["primary", "secondary", "warning"]] = None
+
+class CustomPayload(BaseModel):
+    type: str
+    data: Any
+
+class ChatResponse(BaseModel):
     message: str
-    mode: Literal["QUESTION", "SUGGESTION", "ANSWER"]
-    target_field: Optional[str] = None
-    updated_context: HelpContext
-    next_topic: HelpTopic
     suggestions: Optional[List[Suggestion]] = None
-    options: Optional[List[MultiSelectOption]] = None
-    actions: Optional[List[HelpAction]] = None
-    proposed_message: Optional[str] = None
+    payload: Optional[CustomPayload] = None
+
+@router.post("", response_model=ChatResponse)
+async def chat(
+    request: ChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> ChatResponse:
+    """
+    General purpose chat endpoint.
+
+    Accepts user message with context and returns:
+    - Conversational response
+    - Optional suggestions
+    - Optional custom payload for frontend to interpret
+    """
+    service = ChatService(db, current_user.user_id)
+    return await service.handle_message(request)
 ```
 
-#### 2. help_chat_service.py (Service)
-**Purpose**: Business logic and LLM integration for help
+#### 2. Chat Service
 
-**Location**: `backend/services/help_chat_service.py`
+**File**: `backend/services/chat_service.py`
 
-**Key Methods**:
 ```python
-class HelpChatService:
+from typing import Dict, Any, List, Optional
+from sqlalchemy.orm import Session
+import anthropic
+import os
+
+class ChatService:
     def __init__(self, db: Session, user_id: int):
         self.db = db
         self.user_id = user_id
         self.client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 
-    async def stream_chat_message(
-        self,
-        message: str,
-        help_context: HelpContext,
-        current_topic: HelpTopic,
-        conversation_history: List[Dict],
-        user_action: Optional[UserAction] = None
-    ) -> AsyncGenerator[str, None]:
+    async def handle_message(self, request: ChatRequest) -> ChatResponse:
         """
-        Stream help response with SSE updates.
+        Main entry point for handling chat messages.
+
+        1. Analyze context to determine intent
+        2. Call LLM with context-aware prompt
+        3. Parse response for message, suggestions, and payload
+        4. Return structured response
+        """
+        # Build context-aware system prompt
+        system_prompt = self._build_system_prompt(request.context)
+
+        # Build user prompt
+        user_prompt = self._build_user_prompt(
+            request.message,
+            request.context,
+            request.interaction_type
+        )
+
+        # Call LLM
+        messages = [
+            {"role": msg.role, "content": msg.content}
+            for msg in request.conversation_history
+        ]
+        messages.append({"role": "user", "content": user_prompt})
+
+        response = self.client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=2000,
+            temperature=0.0,
+            system=system_prompt,
+            messages=messages
+        )
+
+        # Parse structured response
+        parsed = self._parse_llm_response(response.content[0].text)
+
+        return ChatResponse(
+            message=parsed["message"],
+            suggestions=parsed.get("suggestions"),
+            payload=parsed.get("payload")
+        )
+
+    def _build_system_prompt(self, context: Dict[str, Any]) -> str:
+        """
+        Build system prompt based on user's context.
+
+        Context-aware prompting allows LLM to:
+        - Know where user is in the app
+        - Understand what they're trying to do
+        - Generate appropriate payloads for that context
+        """
+        current_page = context.get("current_page", "unknown")
+        entity_type = context.get("entity_type")
+        action = context.get("action")
+        error = context.get("error")
+
+        base_prompt = """You are a helpful AI assistant for Knowledge Horizon,
+        a biomedical research intelligence platform.
+
+        Your responses should be structured in this format:
+
+        MESSAGE: [Your conversational response to the user]
+        SUGGESTIONS: [Optional comma-separated clickable options]
+        PAYLOAD_TYPE: [Optional payload type identifier]
+        PAYLOAD: [Optional JSON payload]
+
+        The PAYLOAD is arbitrary structured data that the frontend will interpret.
+        Use payloads to send complex data structures like:
+        - Form pre-fills: {"type": "research_stream_form", "data": {...}}
+        - Search filters: {"type": "search_filters", "data": {...}}
+        - Validation errors: {"type": "validation_errors", "data": {...}}
+        - Navigation: {"type": "navigation", "data": {...}}
+        - Any other structured data
+
+        The frontend has handlers registered for different payload types.
         """
 
-    def _build_system_prompt(
-        self,
-        current_topic: HelpTopic,
-        help_context: HelpContext
-    ) -> str:
-        """
-        Build system prompt based on help topic and context.
-        Topic-specific prompts provide domain knowledge.
-        """
+        # Add context-specific guidance
+        if error:
+            base_prompt += f"""
+
+            USER ENCOUNTERED AN ERROR:
+            Error: {error.get('message')}
+            Code: {error.get('code')}
+
+            Help them troubleshoot this issue.
+            """
+
+        if action == "create_stream":
+            base_prompt += """
+
+            USER WANTS TO CREATE A RESEARCH STREAM.
+            Ask clarifying questions, then generate a payload of type "research_stream_form"
+            with pre-populated data based on their answers.
+            """
+
+        if current_page == "reports":
+            base_prompt += """
+
+            USER IS ON THE REPORTS PAGE.
+            If they ask about finding/filtering reports, generate a payload of type
+            "search_filters" with appropriate filter criteria.
+            """
+
+        return base_prompt
 
     def _build_user_prompt(
         self,
         message: str,
-        help_context: HelpContext
+        context: Dict[str, Any],
+        interaction_type: str
     ) -> str:
+        """Build user prompt with context."""
+        context_summary = "\n".join([f"{k}: {v}" for k, v in context.items()])
+
+        return f"""User's current context:
+{context_summary}
+
+Interaction type: {interaction_type}
+
+User's message: {message}
+
+Respond with MESSAGE, optional SUGGESTIONS, and optional PAYLOAD."""
+
+    def _parse_llm_response(self, response_text: str) -> Dict[str, Any]:
         """
-        Build user prompt with context.
+        Parse LLM response to extract:
+        - MESSAGE: Conversational text
+        - SUGGESTIONS: Comma-separated options
+        - PAYLOAD_TYPE: Type identifier
+        - PAYLOAD: JSON data
         """
+        import json
 
-    def _parse_llm_response(
-        self,
-        response_text: str
-    ) -> Dict[str, Any]:
-        """
-        Parse LLM response for structured data.
-        Extracts MODE, MESSAGE, EXTRACTED_DATA, SUGGESTIONS, OPTIONS, ACTIONS.
-        """
-
-    def _classify_intent(
-        self,
-        message: str,
-        help_context: HelpContext
-    ) -> HelpIntent:
-        """
-        Use LLM to classify user's intent.
-        Determines if this is a question, task, troubleshooting, or learning.
-        """
-
-    def _determine_topic(
-        self,
-        intent: HelpIntent,
-        help_context: HelpContext
-    ) -> HelpTopic:
-        """
-        Determine appropriate help topic based on intent and context.
-        """
-
-    async def execute_action(
-        self,
-        action: HelpAction,
-        user_id: int
-    ) -> Dict[str, Any]:
-        """
-        Execute a help action (search, navigate, filter, etc.)
-        """
-```
-
-#### 3. help_topic_prompts.py (new)
-**Purpose**: Topic-specific system prompts
-
-**Location**: `backend/services/help_topic_prompts.py`
-
-**Structure**:
-```python
-class HelpTopicPrompts:
-    """
-    Provides specialized system prompts for different help topics.
-    Each topic has domain-specific knowledge and guidance patterns.
-    """
-
-    @staticmethod
-    def get_prompt_for_topic(topic: HelpTopic, context: HelpContext) -> str:
-        """Get specialized prompt for a help topic."""
-        prompts = {
-            HelpTopic.NAVIGATION: HelpTopicPrompts._navigation_prompt,
-            HelpTopic.SEARCH: HelpTopicPrompts._search_prompt,
-            HelpTopic.FEATURE_OVERVIEW: HelpTopicPrompts._feature_overview_prompt,
-            HelpTopic.STEP_BY_STEP: HelpTopicPrompts._step_by_step_prompt,
-            HelpTopic.TROUBLESHOOTING: HelpTopicPrompts._troubleshooting_prompt,
-            # ... more topics
-        }
-        return prompts.get(topic, HelpTopicPrompts._general_prompt)(context)
-
-    @staticmethod
-    def _navigation_prompt(context: HelpContext) -> str:
-        current_page = context.get('current_page', 'unknown')
-        return f"""You are a navigation assistant for Knowledge Horizon.
-
-        User is currently on: {current_page}
-
-        Your role is to help users navigate to the right place in the application.
-
-        Available pages and their purposes:
-        - /home: Dashboard with stream overview
-        - /research-streams: Manage research streams
-        - /reports: View generated reports
-        - /articles: Search and manage articles
-        - /pipeline: Test and execute pipelines
-        - /settings: User preferences and configuration
-
-        When providing navigation help:
-        1. Understand what the user wants to accomplish
-        2. Suggest the appropriate page(s)
-        3. Provide ACTIONS with type=NAVIGATE and target=/path
-        4. Explain what they can do on that page
-
-        MODE: SUGGESTION with ACTIONS
-        ACTIONS: navigate|/path|Display text for button
-        """
-
-    @staticmethod
-    def _search_prompt(context: HelpContext) -> str:
-        entity_type = context.get('current_entity_type', 'articles')
-        return f"""You are a search assistant for Knowledge Horizon.
-
-        User wants to search for: {entity_type}
-
-        Your role is to help construct effective search queries and filters.
-
-        Available search capabilities:
-        - Articles: By title, author, journal, keywords, date range, PMID, DOI
-        - Reports: By stream, date range, read status
-        - Research Streams: By name, purpose, frequency
-
-        When helping with search:
-        1. Understand what the user is looking for
-        2. Extract search criteria from their natural language
-        3. Suggest filters and keywords
-        4. Provide ACTIONS with type=EXECUTE_SEARCH and criteria
-
-        MODE: SUGGESTION with ACTIONS
-        ACTIONS: execute_search|{{filters}}|Search with these criteria
-        EXTRACTED_DATA: search_query=..., filters={{...}}
-        """
-
-    @staticmethod
-    def _troubleshooting_prompt(context: HelpContext) -> str:
-        error_msg = context.get('error_message', 'Unknown error')
-        error_ctx = context.get('error_context', {})
-        return f"""You are a troubleshooting assistant for Knowledge Horizon.
-
-        User encountered an issue:
-        Error: {error_msg}
-        Context: {error_ctx}
-
-        Your role is to diagnose and resolve issues.
-
-        Common issues and solutions:
-        - Pipeline failures: Check query syntax, API limits, permissions
-        - Search not working: Verify filters, check data availability
-        - Can't create stream: Ensure all required fields filled
-
-        Troubleshooting approach:
-        1. Acknowledge the problem
-        2. Ask clarifying questions if needed
-        3. Provide step-by-step resolution
-        4. Offer ACTIONS to execute fixes if possible
-
-        MODE: QUESTION → SUGGESTION with step-by-step guidance
-        """
-
-    # ... more topic-specific prompts
-```
-
-#### 4. help_action_executor.py (new)
-**Purpose**: Execute help actions on behalf of user
-
-**Location**: `backend/services/help_action_executor.py`
-
-```python
-class HelpActionExecutor:
-    """
-    Executes help actions that modify application state.
-    """
-
-    def __init__(self, db: Session, user_id: int):
-        self.db = db
-        self.user_id = user_id
-
-    async def execute(self, action: HelpAction) -> Dict[str, Any]:
-        """
-        Execute a help action and return result.
-        """
-        handlers = {
-            HelpActionType.NAVIGATE: self._execute_navigate,
-            HelpActionType.EXECUTE_SEARCH: self._execute_search,
-            HelpActionType.APPLY_FILTER: self._execute_apply_filter,
-            HelpActionType.EXECUTE_ACTION: self._execute_custom_action,
+        result = {
+            "message": "",
+            "suggestions": None,
+            "payload": None
         }
 
-        handler = handlers.get(action.type)
-        if not handler:
-            return {"success": False, "error": f"Unknown action type: {action.type}"}
+        lines = response_text.split('\n')
+        payload_type = None
+        payload_lines = []
+        in_payload = False
 
-        return await handler(action)
+        for line in lines:
+            stripped = line.strip()
 
-    async def _execute_search(self, action: HelpAction) -> Dict:
-        """Execute a search based on extracted criteria."""
-        criteria = action.payload or {}
-        entity_type = criteria.get('entity_type', 'articles')
+            if stripped.startswith("MESSAGE:"):
+                result["message"] = stripped.replace("MESSAGE:", "").strip()
 
-        if entity_type == 'articles':
-            # Use article search service
-            results = await self._search_articles(criteria)
-        elif entity_type == 'reports':
-            results = await self._search_reports(criteria)
-        # ... more entity types
+            elif stripped.startswith("SUGGESTIONS:"):
+                suggestions_str = stripped.replace("SUGGESTIONS:", "").strip()
+                if suggestions_str:
+                    result["suggestions"] = [
+                        {"label": s.strip(), "value": s.strip()}
+                        for s in suggestions_str.split(",")
+                    ]
 
-        return {
-            "success": True,
-            "result": results,
-            "message": f"Found {len(results)} {entity_type}"
-        }
+            elif stripped.startswith("PAYLOAD_TYPE:"):
+                payload_type = stripped.replace("PAYLOAD_TYPE:", "").strip()
 
-    # ... more execution methods
+            elif stripped.startswith("PAYLOAD:"):
+                in_payload = True
+                payload_content = stripped.replace("PAYLOAD:", "").strip()
+                if payload_content:
+                    payload_lines.append(payload_content)
+
+            elif in_payload:
+                payload_lines.append(line)
+
+        # Parse payload if we have one
+        if payload_type and payload_lines:
+            try:
+                payload_json = "\n".join(payload_lines)
+                payload_data = json.loads(payload_json)
+                result["payload"] = {
+                    "type": payload_type,
+                    "data": payload_data
+                }
+            except json.JSONDecodeError:
+                # If JSON parsing fails, include as string
+                result["payload"] = {
+                    "type": payload_type,
+                    "data": {"raw": "\n".join(payload_lines)}
+                }
+
+        return result
 ```
 
 ---
 
-## Context Carry-Through Design
+## Example Payload Types
 
-### What Context Travels Through the System
+### 1. research_stream_form
+Pre-populated research stream configuration
 
-#### Request Flow (Frontend → Backend):
-1. **User Message**: What user typed/selected
-2. **HelpContext**: Current state (page, entity, goal, metadata)
-3. **Current Topic**: Which help category we're in
-4. **Conversation History**: Full chat transcript
-5. **User Action**: How user interacted (text vs selection vs action)
+**Use Case**: User asks to create a stream
 
-#### Response Flow (Backend → Frontend):
-1. **Message**: LLM's conversational response
-2. **Mode**: QUESTION | SUGGESTION | ANSWER
-3. **Updated Context**: Any extracted data merged into context
-4. **Next Topic**: Where conversation should go next
-5. **Suggestions/Options**: UI elements to display
-6. **Actions**: Executable actions user can trigger
-
-### Context Updates During Conversation
-
-#### Example Flow: "How do I find articles about melanocortin?"
-
-**Initial State**:
-```typescript
-helpContext = {
-    current_page: "home"
-}
-currentTopic = "general"
-```
-
-**User**: "How do I find articles about melanocortin?"
-
-**Backend Processing**:
-1. Classify intent → `{ type: 'task', confidence: 0.9 }`
-2. Determine topic → `HelpTopic.SEARCH`
-3. Extract data → `{ search_query: 'melanocortin', entity_type: 'articles' }`
-
-**Response**:
+**Payload**:
 ```json
 {
-    "mode": "SUGGESTION",
-    "message": "I can help you search for articles about melanocortin. Here are your options:",
-    "updated_context": {
-        "current_page": "home",
-        "user_goal": "find articles about melanocortin",
-        "help_topic": "search",
-        "search_query": "melanocortin",
-        "entity_type": "articles"
-    },
-    "next_topic": "search",
-    "suggestions": [
-        { "label": "Search all articles", "value": "search_all" },
-        { "label": "Search within a specific stream", "value": "search_stream" }
-    ],
-    "actions": [
-        {
-            "type": "execute_search",
-            "payload": { "query": "melanocortin", "entity_type": "articles" },
-            "display_message": "Search for melanocortin articles now"
-        },
-        {
-            "type": "navigate",
-            "target": "/articles?q=melanocortin",
-            "display_message": "Go to articles page with search"
+    "type": "research_stream_form",
+    "data": {
+        "stream_name": "...",
+        "purpose": "...",
+        "channels": [...],
+        "report_frequency": "..."
+    }
+}
+```
+
+**Frontend Handler**: Renders form preview with accept/edit buttons
+
+### 2. search_filters
+Suggested search filters
+
+**Use Case**: User asks to find specific articles/reports
+
+**Payload**:
+```json
+{
+    "type": "search_filters",
+    "data": {
+        "entity_type": "articles",
+        "filters": {
+            "keywords": ["melanocortin"],
+            "year": 2024,
+            "author": "Smith J"
         }
-    ]
+    }
 }
 ```
 
-**User clicks**: "Search for melanocortin articles now"
+**Frontend Handler**: Shows filter chips and "Search Now" button
 
-**New State**:
-```typescript
-helpContext = {
-    current_page: "home",  // Or "articles" after navigation
-    user_goal: "find articles about melanocortin",
-    help_topic: "search",
-    search_query: "melanocortin",
-    entity_type: "articles",
-    search_results: [...],  // Populated by action execution
-    filters: { query: "melanocortin" }
-}
-currentTopic = "search"
-```
+### 3. validation_errors
+Form validation feedback
 
-**Response**:
+**Use Case**: User submitted incomplete/invalid data
+
+**Payload**:
 ```json
 {
-    "mode": "ANSWER",
-    "message": "I found 47 articles about melanocortin. The results are displayed on the articles page. Would you like to refine your search with additional filters?",
-    "updated_context": { /* same as above */ },
-    "next_topic": "search",
-    "suggestions": [
-        { "label": "Add date filter", "value": "add_date_filter" },
-        { "label": "Filter by journal", "value": "filter_journal" },
-        { "label": "This is what I needed", "value": "done" }
-    ]
+    "type": "validation_errors",
+    "data": {
+        "errors": [
+            {"field": "channels", "message": "Required", "severity": "error"}
+        ],
+        "suggested_fixes": {
+            "channels": [{"name": "Default", "type": "scientific"}]
+        }
+    }
 }
 ```
+
+**Frontend Handler**: Highlights errors and shows auto-fix option
+
+### 4. navigation
+Navigation instructions
+
+**Use Case**: User asks "where is X?"
+
+**Payload**:
+```json
+{
+    "type": "navigation",
+    "data": {
+        "target_route": "/reports",
+        "query_params": {"stream_id": 5},
+        "highlight_element": ".report-card:first"
+    }
+}
+```
+
+**Frontend Handler**: Navigate button + element highlighting
+
+### 5. comparison_table
+Side-by-side comparison
+
+**Use Case**: User asks to compare options
+
+**Payload**:
+```json
+{
+    "type": "comparison_table",
+    "data": {
+        "columns": ["Option A", "Option B", "Option C"],
+        "rows": [
+            {"label": "Cost", "values": ["$10", "$20", "$30"]},
+            {"label": "Speed", "values": ["Fast", "Medium", "Slow"]}
+        ]
+    }
+}
+```
+
+**Frontend Handler**: Renders comparison table
 
 ---
 
@@ -723,234 +889,100 @@ currentTopic = "search"
 
 ### Phase 1: Core Infrastructure (Week 1)
 
-#### Frontend Files to Create:
-1. `frontend/src/types/help-chat.ts` - Core type definitions
-2. `frontend/src/components/HelpChatInterface.tsx` - Chat UI component
-3. `frontend/src/context/HelpChatContext.tsx` - State management
-4. `frontend/src/lib/api/helpApi.ts` - API client
+**Frontend**:
+- `components/ChatInterface.tsx` - Generic chat UI
+- `components/PayloadRenderer.tsx` - Payload routing
+- `hooks/useChat.ts` - Chat state management
+- `lib/api/chatApi.ts` - API client
 
-#### Backend Files to Create:
-1. `backend/schemas/help_chat.py` - Pydantic models
-2. `backend/routers/help_chat.py` - FastAPI endpoint
-3. `backend/services/help_chat_service.py` - Core service
-4. `backend/services/help_topic_prompts.py` - Topic-specific prompts
+**Backend**:
+- `routers/chat.py` - Chat endpoint
+- `services/chat_service.py` - Core service
+- `schemas/chat.py` - Pydantic models
 
-**Deliverable**: Basic help chat with GENERAL topic working end-to-end
+**Deliverable**: Basic chat working with text responses
 
-### Phase 2: Topic Specialization (Week 2)
+### Phase 2: Payload System (Week 2)
 
-#### Backend Enhancements:
-1. Implement topic-specific prompts for:
-   - Navigation
-   - Search
-   - Feature Overview
-   - Troubleshooting
+**Frontend**:
+- Create payload handler registry
+- Implement 2-3 basic handlers (form, search_filters, navigation)
+- Add payload rendering to ChatInterface
 
-#### Frontend Enhancements:
-1. Add action button rendering
-2. Add navigation integration
-3. Add search integration
+**Backend**:
+- Update LLM prompts to generate payloads
+- Add payload parsing logic
+- Test payload generation for different contexts
 
-**Deliverable**: Help chat can handle navigation and search queries
+**Deliverable**: Chat can send/receive custom payloads
 
-### Phase 3: Action Execution (Week 3)
+### Phase 3: Use Case Implementation (Week 3)
 
-#### Backend Files to Create:
-1. `backend/services/help_action_executor.py` - Action executor
-2. Add execute action endpoint to router
+Implement specific use cases:
+- Stream creation assistant (research_stream_form payload)
+- Search assistant (search_filters payload)
+- Navigation helper (navigation payload)
 
-#### Frontend Enhancements:
-1. Implement `executeAction` in context
-2. Add action confirmation UI
-3. Add action result display
+**Deliverable**: 3 working use cases with custom payloads
 
-**Deliverable**: Help chat can execute actions (navigate, search, filter)
+### Phase 4: Polish & Extend (Week 4)
 
-### Phase 4: Advanced Features (Week 4)
-
-1. **Context Awareness**: Auto-populate context from URL/page
-2. **Visual Guidance**: Highlight UI elements, show screenshots
-3. **Step-by-Step Workflows**: Multi-step guided processes
-4. **Error Integration**: Auto-trigger help when errors occur
-5. **Analytics**: Track help usage, common questions
+- Add SSE streaming support
+- Add more payload types
+- Improve error handling
+- Add analytics
 
 ---
 
-## File Structure Summary
-
-### Frontend Files
+## File Structure
 
 ```
 frontend/src/
 ├── components/
-│   └── HelpChatInterface.tsx          [NEW]
-├── context/
-│   └── HelpChatContext.tsx            [NEW]
+│   ├── ChatInterface.tsx          [NEW] - Main chat UI
+│   ├── PayloadRenderer.tsx        [NEW] - Routes payloads to handlers
+│   ├── MessageBubble.tsx          [NEW] - Individual message display
+│   └── SuggestionChips.tsx        [NEW] - Clickable suggestions
+├── hooks/
+│   └── useChat.ts                 [NEW] - Chat state management
 ├── lib/api/
-│   └── helpApi.ts                     [NEW]
+│   └── chatApi.ts                 [NEW] - API client
+├── payloadHandlers/               [NEW]
+│   ├── index.ts                   - Handler registry
+│   ├── researchStreamForm.tsx     - Form pre-fill handler
+│   ├── searchFilters.tsx          - Search filter handler
+│   └── navigation.tsx             - Navigation handler
 └── types/
-    ├── help-chat.ts                   [NEW] - ChatMessage, HelpContext, HelpTopic
-    └── help-actions.ts                [NEW] - HelpAction, HelpIntent
-```
+    └── chat.ts                    [NEW] - Type definitions
 
-### Backend Files
-
-```
 backend/
 ├── routers/
-│   └── help_chat.py                   [NEW]
+│   └── chat.py                    [NEW] - Chat endpoint
 ├── services/
-│   ├── help_chat_service.py           [NEW]
-│   ├── help_topic_prompts.py          [NEW]
-│   └── help_action_executor.py        [NEW]
+│   └── chat_service.py            [NEW] - Chat service
 └── schemas/
-    └── help_chat.py                   [NEW]
+    └── chat.py                    [NEW] - Pydantic models
 ```
 
 ---
 
-## Key Differences from Stream Building
+## Key Advantages
 
-| Aspect | Stream Building | Generalized Help |
-|--------|----------------|------------------|
-| **Purpose** | Create research stream config | General app help & support |
-| **State Object** | StreamInProgress (fixed schema) | HelpContext (flexible key-value) |
-| **Workflow** | Linear steps (exploration → channels → review) | Dynamic topic switching |
-| **LLM Focus** | Domain-specific (biomedical research) | App functionality & navigation |
-| **End Result** | Database record created | User gets answer/completes task |
-| **User Actions** | Select options, type data | + Navigate, execute searches, apply filters |
-| **Response Modes** | QUESTION, SUGGESTION, REVIEW | QUESTION, SUGGESTION, ANSWER |
-| **Context Sources** | User conversation only | Conversation + page location + error state |
-| **Extensibility** | Purpose-built, hard to extend | Designed for easy topic addition |
-
----
-
-## Advantages of Generalized System
-
-1. **Reusable Infrastructure**: SSE streaming, state management, LLM parsing all reused
-2. **Consistent UX**: Same interaction patterns across different help topics
-3. **Easy Extension**: Add new help topics by adding prompts, no code changes
-4. **Context-Rich**: Can leverage user's current location and actions
-5. **Action-Oriented**: Can execute tasks on behalf of user, not just answer questions
-6. **Scalable**: Can handle any app feature as topic library grows
-7. **Intelligent Routing**: Automatically determines appropriate help topic
-8. **Multi-Modal**: Supports questions, tasks, troubleshooting, learning
-
----
-
-## Example Prompts for Different Topics
-
-### Navigation Topic
-**User**: "Where do I create a new research stream?"
-
-**System Response**:
-```
-MODE: SUGGESTION
-MESSAGE: You can create a new research stream from the Research Streams page. Would you like me to take you there?
-ACTIONS: navigate|/research-streams|Go to Research Streams
-```
-
-### Search Topic
-**User**: "Find articles by John Smith published in 2024"
-
-**System Response**:
-```
-MODE: SUGGESTION
-MESSAGE: I'll search for articles by John Smith from 2024.
-EXTRACTED_DATA: author=John Smith, year=2024
-ACTIONS: execute_search|{"author": "John Smith", "year": 2024}|Search now
-```
-
-### Troubleshooting Topic
-**User**: "The pipeline failed with 'no results found'"
-
-**System Response**:
-```
-MODE: QUESTION
-MESSAGE: I see the pipeline returned no results. This usually means:
-1. The query might be too restrictive
-2. The date range might be outside available data
-3. The search terms might not match any articles
-
-Can you share the query you used?
-```
-
-### Feature Overview Topic
-**User**: "What's the pipeline analytics feature?"
-
-**System Response**:
-```
-MODE: ANSWER
-MESSAGE: Pipeline Analytics shows detailed metrics about how your test runs performed:
-
-- **Retrieval Stats**: How many articles were retrieved from each source
-- **Deduplication**: How many duplicates were found
-- **Filter Performance**: Pass/reject rates for semantic filters
-- **Category Distribution**: How articles were categorized
-
-You can access it from any TEST report by clicking "Pipeline Analytics".
-ACTIONS: navigate|/reports|View your reports
-```
-
----
-
-## Integration Points
-
-### 1. Global Help Button
-Add help button to app shell that opens HelpChatInterface with auto-populated context:
-```typescript
-<HelpChatInterface
-    initialContext={{
-        current_page: currentPath,
-        current_entity_type: entityType,
-        current_entity_id: entityId
-    }}
-/>
-```
-
-### 2. Contextual Help Triggers
-Trigger help automatically in certain situations:
-- User gets an error → Open help with error context
-- User hovers on "?" icon → Show quick help
-- User clicks "Get Help" in empty states
-
-### 3. Error Boundary Integration
-Catch errors and offer help:
-```typescript
-<ErrorBoundary
-    fallback={(error) => (
-        <HelpChatInterface
-            initialContext={{
-                help_topic: 'troubleshooting',
-                error_message: error.message,
-                error_context: { stack: error.stack }
-            }}
-        />
-    )}
->
-    <App />
-</ErrorBoundary>
-```
+1. **Maximum Flexibility**: Custom payloads can be anything - no hardcoded structure
+2. **Simple Integration**: Just register a handler for new payload types
+3. **Separation of Concerns**: Backend focuses on data, frontend on presentation
+4. **Type Safety**: Each payload type has its own structure
+5. **Extensible**: Add new payload types without changing core system
+6. **Context-Aware**: LLM has full context about user's location and intent
+7. **Action Tracking**: Know whether user typed vs. clicked suggestion
+8. **Reusable**: Same infrastructure for help, forms, search, navigation, etc.
 
 ---
 
 ## Success Metrics
 
-1. **Help Resolution Rate**: % of help sessions that end with user getting answer
-2. **Action Execution Rate**: % of help sessions where user executes suggested action
-3. **Topic Distribution**: Which help topics are most used
-4. **Average Session Length**: Time from opening help to resolution
-5. **Escalation Rate**: % of help sessions that require human support
-
----
-
-## Future Enhancements
-
-1. **Voice Interface**: Audio input/output for help
-2. **Visual Guidance**: Animated arrows pointing to UI elements
-3. **Video Tutorials**: Generated screen recordings
-4. **Personalization**: Learn user's expertise level
-5. **Proactive Help**: Offer help before user asks
-6. **Multi-Language**: Support multiple languages
-7. **Offline Help**: Cached responses for common questions
-8. **Help Analytics Dashboard**: Admin view of help usage patterns
+1. **Payload Coverage**: % of responses that include custom payloads
+2. **Payload Acceptance Rate**: % of payloads user accepts vs. modifies
+3. **Interaction Efficiency**: Avg messages to complete task (should decrease)
+4. **Context Accuracy**: % of responses that use context appropriately
+5. **Handler Coverage**: % of payload types with registered handlers
