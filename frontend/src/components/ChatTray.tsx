@@ -2,12 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon } from '@heroicons/react/24/solid';
 import { useGeneralChat } from '../hooks/useGeneralChat';
 import { InteractionType } from '../types/chat';
+import SchemaProposalCard from './SchemaProposalCard';
 
 interface ChatTrayProps {
     initialContext?: Record<string, any>;
+    onSchemaProposalAccepted?: (changes: Record<string, any>) => void;
 }
 
-export default function ChatTray({ initialContext }: ChatTrayProps) {
+export default function ChatTray({ initialContext, onSchemaProposalAccepted }: ChatTrayProps) {
     const [isOpen, setIsOpen] = useState(false);
     const { messages, sendMessage, isLoading, streamingText } = useGeneralChat(initialContext);
     const [input, setInput] = useState('');
@@ -159,6 +161,23 @@ export default function ChatTray({ initialContext }: ChatTrayProps) {
                                                 {action.label}
                                             </button>
                                         ))}
+                                    </div>
+                                )}
+
+                                {/* Schema Proposal */}
+                                {message.payload?.type === 'schema_proposal' && message.payload?.data && (
+                                    <div className="mt-3 ml-2">
+                                        <SchemaProposalCard
+                                            proposal={message.payload.data}
+                                            onAccept={(changes) => {
+                                                if (onSchemaProposalAccepted) {
+                                                    onSchemaProposalAccepted(changes);
+                                                }
+                                            }}
+                                            onReject={() => {
+                                                console.log('Schema proposal rejected');
+                                            }}
+                                        />
                                     </div>
                                 )}
                             </div>

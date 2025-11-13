@@ -191,6 +191,45 @@ export default function EditStreamPage() {
         }
     };
 
+    const handleSchemaProposalAccepted = (changes: Record<string, any>) => {
+        console.log('Applying schema proposal changes:', changes);
+
+        // Create a new form object with the proposed changes applied
+        const updatedForm = { ...form };
+
+        // Apply each proposed change
+        Object.entries(changes).forEach(([key, value]) => {
+            if (key === 'stream_name') {
+                updatedForm.stream_name = value as string;
+            } else if (key === 'purpose') {
+                // Purpose is on the stream level, not in semantic_space
+                // We'll need to handle this differently when submitting
+                console.log('Purpose change proposed:', value);
+            } else if (key.startsWith('semantic_space.')) {
+                // Handle nested semantic_space fields
+                const path = key.replace('semantic_space.', '').split('.');
+                let target: any = updatedForm.semantic_space;
+
+                // Navigate to the nested property
+                for (let i = 0; i < path.length - 1; i++) {
+                    if (!target[path[i]]) {
+                        target[path[i]] = {};
+                    }
+                    target = target[path[i]];
+                }
+
+                // Set the value
+                target[path[path.length - 1]] = value;
+            }
+        });
+
+        // Update the form state
+        setForm(updatedForm);
+
+        // Show a success message
+        alert('Schema changes have been applied to the form. Click "Save Changes" to persist them.');
+    };
+
     if (isLoading) {
         return (
             <div className="max-w-7xl mx-auto p-6">
@@ -467,12 +506,18 @@ export default function EditStreamPage() {
             {/* Chat Tray */}
             <ChatTray
                 initialContext={{
-                    current_page: "edit_stream",
+                    current_page: "edit_research_stream",
                     entity_type: "research_stream",
                     entity_id: stream?.stream_id,
                     stream_name: stream?.stream_name,
-                    active_tab: activeTab
+                    active_tab: activeTab,
+                    current_schema: {
+                        stream_name: form.stream_name,
+                        purpose: stream?.purpose || "",
+                        semantic_space: form.semantic_space
+                    }
                 }}
+                onSchemaProposalAccepted={handleSchemaProposalAccepted}
             />
         </div>
     );
