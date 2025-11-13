@@ -15,6 +15,7 @@ export default function ChatTray({ initialContext, onSchemaProposalAccepted }: C
     const [input, setInput] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const [activeProposal, setActiveProposal] = useState<any>(null);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -23,6 +24,14 @@ export default function ChatTray({ initialContext, onSchemaProposalAccepted }: C
     useEffect(() => {
         scrollToBottom();
     }, [messages, streamingText]);
+
+    // Detect new schema proposals and show in floating panel
+    useEffect(() => {
+        const latestMessage = messages[messages.length - 1];
+        if (latestMessage?.payload?.type === 'schema_proposal' && latestMessage.payload.data) {
+            setActiveProposal(latestMessage.payload.data);
+        }
+    }, [messages]);
 
     // Auto-focus input when tray opens
     useEffect(() => {
@@ -164,20 +173,13 @@ export default function ChatTray({ initialContext, onSchemaProposalAccepted }: C
                                     </div>
                                 )}
 
-                                {/* Schema Proposal */}
+                                {/* Schema Proposal Indicator */}
                                 {message.payload?.type === 'schema_proposal' && message.payload?.data && (
-                                    <div className="mt-3 ml-2">
-                                        <SchemaProposalCard
-                                            proposal={message.payload.data}
-                                            onAccept={(changes) => {
-                                                if (onSchemaProposalAccepted) {
-                                                    onSchemaProposalAccepted(changes);
-                                                }
-                                            }}
-                                            onReject={() => {
-                                                console.log('Schema proposal rejected');
-                                            }}
-                                        />
+                                    <div className="mt-3 ml-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                                        <p className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
+                                            <span className="font-medium">📋 Schema proposal ready</span>
+                                            <span className="text-xs opacity-75">(see panel to the right)</span>
+                                        </p>
                                     </div>
                                 )}
                             </div>
@@ -249,6 +251,45 @@ export default function ChatTray({ initialContext, onSchemaProposalAccepted }: C
                     className="fixed inset-0 bg-black bg-opacity-25 z-40"
                     onClick={() => setIsOpen(false)}
                 />
+            )}
+
+            {/* Floating Schema Proposal Panel */}
+            {activeProposal && (
+                <div className="fixed top-0 left-96 h-full w-[500px] bg-white dark:bg-gray-800 shadow-2xl z-50 border-l border-gray-200 dark:border-gray-700">
+                    <div className="flex flex-col h-full">
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                <span>📋</span>
+                                Schema Proposal
+                            </h3>
+                            <button
+                                onClick={() => setActiveProposal(null)}
+                                className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                aria-label="Close proposal"
+                            >
+                                <XMarkIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                            </button>
+                        </div>
+
+                        {/* Scrollable Proposal Content */}
+                        <div className="flex-1 overflow-y-auto p-4">
+                            <SchemaProposalCard
+                                proposal={activeProposal}
+                                onAccept={(changes) => {
+                                    if (onSchemaProposalAccepted) {
+                                        onSchemaProposalAccepted(changes);
+                                    }
+                                    setActiveProposal(null);
+                                }}
+                                onReject={() => {
+                                    console.log('Schema proposal rejected');
+                                    setActiveProposal(null);
+                                }}
+                            />
+                        </div>
+                    </div>
+                </div>
             )}
         </>
     );

@@ -65,10 +65,10 @@ export default function SchemaProposalCard({
 
     if (isAccepted) {
         return (
-            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 my-3">
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                 <div className="flex items-center gap-2 text-green-800 dark:text-green-200">
                     <CheckIcon className="h-5 w-5" />
-                    <span className="font-medium">Proposal accepted! Changes have been applied.</span>
+                    <span className="font-medium">Proposal accepted! Changes have been applied to the form.</span>
                 </div>
             </div>
         );
@@ -76,7 +76,7 @@ export default function SchemaProposalCard({
 
     if (isRejected) {
         return (
-            <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 my-3">
+            <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                 <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                     <XMarkIcon className="h-5 w-5" />
                     <span className="font-medium">Proposal rejected</span>
@@ -86,35 +86,33 @@ export default function SchemaProposalCard({
     }
 
     return (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 my-3">
-            {/* Header */}
-            <div className="flex items-start gap-2 mb-3">
-                <SparklesIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                    <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1">
-                        Schema Proposal
-                    </h4>
-                    <p className="text-xs text-blue-800 dark:text-blue-300">
-                        Confidence: <span className={`font-medium ${confidenceColor}`}>{proposal.confidence}</span>
-                    </p>
-                </div>
+        <div>
+            {/* Confidence Badge */}
+            <div className="mb-4 flex items-center gap-2">
+                <SparklesIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                    Confidence: <span className={`font-semibold ${confidenceColor}`}>{proposal.confidence}</span>
+                </span>
             </div>
 
             {/* Reasoning */}
             {proposal.reasoning && (
-                <div className="mb-4 pb-3 border-b border-blue-200 dark:border-blue-700">
-                    <p className="text-sm text-blue-900 dark:text-blue-100 italic">
+                <div className="mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+                    <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-2">
+                        Reasoning
+                    </p>
+                    <p className="text-sm text-gray-900 dark:text-gray-100 italic">
                         {proposal.reasoning}
                     </p>
                 </div>
             )}
 
             {/* Proposed Changes */}
-            <div className="space-y-2 mb-4">
-                <p className="text-xs font-semibold text-blue-800 dark:text-blue-300 uppercase tracking-wide">
-                    Proposed Changes:
+            <div className="space-y-3 mb-6">
+                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+                    Proposed Changes
                 </p>
-                <div className="bg-white dark:bg-gray-900 rounded-md p-3 space-y-2 max-h-60 overflow-y-auto">
+                <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 space-y-3 border border-gray-200 dark:border-gray-700">
                     {Object.entries(proposal.proposed_changes).map(([key, value]) => (
                         <div key={key} className="text-sm">
                             <span className="font-medium text-gray-700 dark:text-gray-300">
@@ -144,21 +142,21 @@ export default function SchemaProposalCard({
             </div>
 
             {/* Actions */}
-            <div className="flex gap-2">
+            <div className="flex gap-3">
                 <button
                     onClick={handleAccept}
                     disabled={isProcessing}
-                    className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
                 >
-                    <CheckIcon className="h-4 w-4" />
+                    <CheckIcon className="h-5 w-5" />
                     Accept Changes
                 </button>
                 <button
                     onClick={handleReject}
                     disabled={isProcessing}
-                    className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-md text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="flex-1 px-6 py-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
                 >
-                    <XMarkIcon className="h-4 w-4" />
+                    <XMarkIcon className="h-5 w-5" />
                     Reject
                 </button>
             </div>
