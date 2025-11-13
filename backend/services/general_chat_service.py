@@ -352,7 +352,6 @@ class GeneralChatService:
 
             elif stripped.startswith("SUGGESTED_VALUES:"):
                 in_message = False
-                in_schema_proposal = False
                 values_str = stripped.replace("SUGGESTED_VALUES:", "").strip()
                 if values_str:
                     result["suggested_values"] = [
@@ -362,7 +361,6 @@ class GeneralChatService:
 
             elif stripped.startswith("SUGGESTED_ACTIONS:"):
                 in_message = False
-                in_schema_proposal = False
                 actions_str = stripped.replace("SUGGESTED_ACTIONS:", "").strip()
                 if actions_str:
                     actions = []

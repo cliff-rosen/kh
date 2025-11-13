@@ -161,6 +161,31 @@ This specification proposes a modular, registry-based architecture for the gener
 
 ## Frontend Design
 
+### Key Principle: Multiple Payload Handlers Per Page
+
+Just like the backend, **the frontend supports multiple payload handlers per page**. This means:
+
+```
+Frontend Page Configuration:
+├── buildContext() - builds context for backend
+└── payloadHandlers - Map of payload type → handler
+    ├── 'schema_proposal' → SchemaProposalCard + handlers
+    ├── 'validation_results' → ValidationResultsCard + handlers
+    └── 'import_suggestions' → ImportSuggestionsCard + handlers
+```
+
+**How it works:**
+1. Page registers multiple `PayloadHandler` instances, one per payload type
+2. When backend sends a payload, `useChatPage` looks up the handler by type
+3. ChatTray renders the appropriate component using the matched handler
+4. User interaction (accept/reject) calls the handler's callbacks
+
+**Benefits:**
+- Single page can handle different types of assistance
+- LLM decides which payload type to use based on conversation
+- Same payload type can be reused across multiple pages
+- Easy to add new payload types without modifying core code
+
 ### 1. Type Definitions
 
 ```typescript
@@ -396,6 +421,7 @@ export const editStreamPageChatConfig: ChatPageConfig = {
   },
 
   payloadHandlers: {
+    // Handler 1: Schema Proposals
     'schema_proposal': {
       render: (payload, callbacks) => (
         <SchemaProposalCard
@@ -440,6 +466,53 @@ export const editStreamPageChatConfig: ChatPageConfig = {
         panelWidth: '500px',
         panelPosition: 'right',
         showHeader: true
+      }
+    },
+
+    // Handler 2: Validation Results
+    'validation_results': {
+      render: (payload, callbacks) => (
+        <ValidationResultsCard
+          errors={payload.errors}
+          warnings={payload.warnings}
+          suggestions={payload.suggestions}
+          onDismiss={callbacks.onReject}
+        />
+      ),
+
+      onReject: (payload) => {
+        console.log('Validation results dismissed');
+      },
+
+      renderOptions: {
+        panelWidth: '450px',
+        showHeader: true
+      }
+    },
+
+    // Handler 3: Import Suggestions (example of third handler)
+    'import_suggestions': {
+      render: (payload, callbacks) => (
+        <ImportSuggestionsCard
+          templates={payload.templates}
+          reasoning={payload.reasoning}
+          onSelect={callbacks.onAccept}
+          onDismiss={callbacks.onReject}
+        />
+      ),
+
+      onAccept: (payload, pageState) => {
+        const { loadTemplate } = pageState;
+        const selectedTemplate = payload.templates[0];
+        loadTemplate(selectedTemplate.template_id);
+      },
+
+      onReject: (payload) => {
+        console.log('Import suggestions rejected');
+      },
+
+      renderOptions: {
+        panelWidth: '550px'
       }
     }
   }
@@ -827,19 +900,40 @@ export default function EditStreamPage() {
 
 ## Backend Design
 
-### 1. Prompt Builder Interface
+### Core Principle: Pages Support Multiple Payload Types
+
+A key design principle is that **a single page can support multiple different payload types**. For example:
+
+```
+edit_research_stream page supports:
+  ├── schema_proposal (propose values for fields)
+  ├── validation_results (show validation errors)
+  └── import_suggestions (suggest templates)
+
+reports_page supports:
+  ├── report_insights (analysis)
+  ├── filter_suggestions (improve filters)
+  └── export_recommendations (suggest formats)
+```
+
+This is achieved through:
+1. **PayloadConfig classes** - Each payload type is self-contained
+2. **PagePayloadRegistry** - Maps pages to lists of supported payload types
+3. **Dynamic prompt generation** - System prompt includes all registered payloads for that page
+
+### 1. Payload Config Interface
 
 ```python
-# backend/services/chat/prompt_builder.py
+# backend/services/chat/payload_config.py
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-class PromptBuilder(ABC):
-    """Abstract base class for page-specific prompt builders."""
+class PayloadConfig(ABC):
+    """Base class for payload type configuration."""
 
     @abstractmethod
-    def can_handle(self, page_id: str) -> bool:
+    def get_type(self) -> str:
         """
         Check if this builder can handle the given page.
 
@@ -1623,7 +1717,7 @@ __all__ = ['prompt_builder_registry', 'payload_parser_registry']
 
 ## Example: Adding a New Page
 
-Let's say we want to add chat support to the Reports page with a custom "report insights" payload.
+Let's say we want to add chat support to the Reports page with **multiple payload types**: report insights, filter suggestions, and export recommendations.
 
 ### Step 1: Create Frontend Chat Config
 
@@ -1633,6 +1727,8 @@ Let's say we want to add chat support to the Reports page with a custom "report 
 import { ChatPageConfig } from '../lib/chat/types';
 import { chatPageRegistry } from '../lib/chat/chatPageRegistry';
 import ReportInsightsCard from '../components/ReportInsightsCard';
+import FilterSuggestionsCard from '../components/FilterSuggestionsCard';
+import ExportRecommendationsCard from '../components/ExportRecommendationsCard';
 
 export const reportsPageChatConfig: ChatPageConfig = {
   pageId: 'reports_page',
@@ -1648,7 +1744,9 @@ export const reportsPageChatConfig: ChatPageConfig = {
     };
   },
 
+  // Multiple payload handlers - LLM chooses which to use based on conversation
   payloadHandlers: {
+    // Payload Type 1: Report Insights
     'report_insights': {
       render: (payload, callbacks) => (
         <ReportInsightsCard
@@ -1670,6 +1768,50 @@ export const reportsPageChatConfig: ChatPageConfig = {
 
       renderOptions: {
         panelWidth: '600px'
+      }
+    },
+
+    // Payload Type 2: Filter Suggestions
+    'filter_suggestions': {
+      render: (payload, callbacks) => (
+        <FilterSuggestionsCard
+          suggestions={payload.suggestions}
+          currentFilters={payload.current_filters}
+          reasoning={payload.reasoning}
+          onApply={callbacks.onAccept}
+          onCancel={callbacks.onReject}
+        />
+      ),
+
+      onAccept: (payload, pageState) => {
+        const { setFilters } = pageState;
+        setFilters(payload.suggestions);
+      },
+
+      renderOptions: {
+        panelWidth: '500px'
+      }
+    },
+
+    // Payload Type 3: Export Recommendations
+    'export_recommendations': {
+      render: (payload, callbacks) => (
+        <ExportRecommendationsCard
+          formats={payload.recommended_formats}
+          reasoning={payload.reasoning}
+          onExport={callbacks.onAccept}
+          onCancel={callbacks.onReject}
+        />
+      ),
+
+      onAccept: (payload, pageState) => {
+        const { exportReport } = pageState;
+        const format = payload.recommended_formats[0];
+        exportReport(format.format_type, format.options);
+      },
+
+      renderOptions: {
+        panelWidth: '450px'
       }
     }
   }
