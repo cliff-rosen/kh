@@ -14,6 +14,9 @@ from schemas.general_chat import (
     ChatAgentResponse, ChatStatusResponse,
     SuggestedValue, SuggestedAction, CustomPayload
 )
+from services.payload_configs import get_page_payloads, has_page_payloads
+# Import page payload configurations to register them
+import services.edit_stream_payloads
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +89,7 @@ class GeneralChatService:
                     yield token_response.model_dump_json()
 
             # Parse the LLM response to extract structured data
-            parsed = self._parse_llm_response(collected_text)
+            parsed = self._parse_llm_response(collected_text, request.context.get("current_page", "unknown"))
 
             # Build final payload
             final_payload = ChatPayload(
@@ -161,11 +164,10 @@ class GeneralChatService:
     def _build_system_prompt(self, context: Dict[str, Any]) -> str:
         """Build system prompt based on user's context."""
         current_page = context.get("current_page", "unknown")
-        current_schema = context.get("current_schema")
 
-        # If editing a research stream, use schema-aware prompt
-        if current_page == "edit_research_stream" and current_schema:
-            return self._build_schema_aware_prompt(current_schema)
+        # Check if this page has registered payload types
+        if has_page_payloads(current_page):
+            return self._build_payload_aware_prompt(current_page, context)
 
         # Regular conversational prompt
         return f"""You are a helpful AI assistant for Knowledge Horizon,
@@ -183,9 +185,56 @@ class GeneralChatService:
         Help users understand what they can do in the application.
         """
 
-    def _build_schema_aware_prompt(self, current_schema: Dict[str, Any]) -> str:
-        """Build system prompt for research stream editing context."""
-        import json
+    def _build_payload_aware_prompt(self, current_page: str, context: Dict[str, Any]) -> str:
+        """Build system prompt dynamically based on registered payload types for this page."""
+        # Get registered payload configurations
+        payload_configs = get_page_payloads(current_page)
+
+        # Build page-specific context section
+        page_context = self._build_page_context(current_page, context)
+
+        # Build payload instructions from all registered configs
+        payload_instructions = "\n\n".join([
+            f"{config.llm_instructions}"
+            for config in payload_configs
+        ])
+
+        return f"""You are a helpful AI assistant for Knowledge Horizon.
+
+        {page_context}
+
+        YOUR ROLE:
+        - Answer questions and help the user understand the page
+        - When the user asks for recommendations, validation, or assistance, use the appropriate payload type
+        - Use conversation history to understand context and provide relevant help
+        - Be conversational and helpful
+
+        {self._get_response_format_instructions()}
+
+        AVAILABLE PAYLOAD TYPES:
+        You can respond with structured payloads to provide rich interactions.
+        Choose the appropriate payload type based on what the user needs:
+
+        {payload_instructions}
+
+        IMPORTANT:
+        - Only use payloads when they add value
+        - If just having a conversation, use MESSAGE without payloads
+        - You can use multiple payloads in one response if relevant
+        - Use conversation history to inform your responses
+        """
+
+    def _build_page_context(self, current_page: str, context: Dict[str, Any]) -> str:
+        """Build page-specific context section of the prompt."""
+        if current_page == "edit_research_stream":
+            return self._build_edit_stream_context(context)
+
+        # Default context for other pages
+        return f"The user is currently on: {current_page}"
+
+    def _build_edit_stream_context(self, context: Dict[str, Any]) -> str:
+        """Build context section for edit_research_stream page."""
+        current_schema = context.get("current_schema", {})
 
         # Extract current values
         stream_name = current_schema.get("stream_name", "Not set")
@@ -198,9 +247,7 @@ class GeneralChatService:
         topics = current_schema.get("semantic_space", {}).get("topics", [])
         topics_summary = f"{len(topics)} topics defined" if topics else "No topics defined yet"
 
-        return f"""You are a helpful AI assistant for Knowledge Horizon, helping the user configure a research stream.
-
-        The user is editing a research stream. Current values:
+        return f"""The user is editing a research stream. Current values:
         - Stream Name: {stream_name}
         - Purpose: {purpose}
         - Domain Name: {domain_name}
@@ -209,64 +256,14 @@ class GeneralChatService:
 
         RESEARCH STREAM SCHEMA FIELDS:
 
-        1. stream_name: Short, clear name for the research stream (e.g., "Alzheimer's Clinical Trials")
-
-        2. purpose: High-level explanation of why this stream exists (e.g., "Track emerging treatments for competitive intelligence")
-
-        3. semantic_space.domain.name: The domain this research covers (e.g., "Neurodegenerative Disease Research")
-
-        4. semantic_space.domain.description: Detailed description of what the domain encompasses
-
-        5. semantic_space.topics: Array of topics to track, each with:
-           - topic_id: Unique identifier (snake_case, e.g., "phase_3_trials")
-           - name: Display name (e.g., "Phase 3 Clinical Trials")
-           - description: What this topic covers
-           - importance: "critical" | "important" | "relevant"
-           - rationale: Why this topic matters
-
-        6. semantic_space.context.business_context: Business context (e.g., "Defense litigation support", "Competitive intelligence")
-
-        7. semantic_space.context.decision_types: What decisions this informs (array of strings)
-
-        8. semantic_space.context.stakeholders: Who uses this information (array of strings)
-
-        YOUR ROLE:
-        - Answer questions about these fields and help the user understand what to enter
-        - When the user describes what they want to track, ask clarifying questions to gather complete information
-        - When the user explicitly requests recommendations or proposals, AND you have enough context from the conversation, propose concrete values using the format below
-        - Use the conversation history to understand what the user wants
-
-        {self._get_response_format_instructions()}
-
-        SCHEMA PROPOSALS (specific to this page):
-        When proposing schema values (ONLY when user asks for it and you have enough info):
-        SCHEMA_PROPOSAL: {{
-          "proposed_changes": {{
-            "stream_name": "value",
-            "purpose": "value",
-            "semantic_space.domain.name": "value",
-            "semantic_space.domain.description": "value",
-            "semantic_space.context.business_context": "value",
-            "semantic_space.topics": [
-              {{
-                "topic_id": "unique_id",
-                "name": "Display Name",
-                "description": "What this covers",
-                "importance": "critical",
-                "rationale": "Why this matters"
-              }}
-            ]
-          }},
-          "confidence": "high",
-          "reasoning": "Based on our conversation, you mentioned X, Y, and Z, so I'm suggesting..."
-        }}
-
-        SCHEMA PROPOSAL GUIDELINES:
-        - Only propose SCHEMA_PROPOSAL when the user has asked for recommendations/proposals
-        - If you don't have enough information, ask clarifying questions instead
-        - You can propose some or all fields - only propose what you're confident about
-        - Use conversation history to inform your proposals
-        - Be helpful and conversational
+        1. stream_name: Short, clear name for the research stream
+        2. purpose: High-level explanation of why this stream exists
+        3. semantic_space.domain.name: The domain this research covers
+        4. semantic_space.domain.description: Detailed description of the domain
+        5. semantic_space.topics: Array of topics to track (topic_id, name, description, importance, rationale)
+        6. semantic_space.context.business_context: Business context
+        7. semantic_space.context.decision_types: What decisions this informs
+        8. semantic_space.context.stakeholders: Who uses this information
         """
 
     def _build_user_prompt(
@@ -287,9 +284,10 @@ class GeneralChatService:
 
         Respond with MESSAGE and optional SUGGESTED_VALUES or SUGGESTED_ACTIONS."""
 
-    def _parse_llm_response(self, response_text: str) -> Dict[str, Any]:
+    def _parse_llm_response(self, response_text: str, current_page: str) -> Dict[str, Any]:
         """
         Parse LLM response to extract structured components.
+        Dynamically handles all registered payload types for the current page.
         """
         import json
 
@@ -300,11 +298,17 @@ class GeneralChatService:
             "payload": None
         }
 
+        # Get registered payload configs to know what markers to look for
+        payload_configs = get_page_payloads(current_page)
+        payload_markers = {config.parse_marker: config for config in payload_configs}
+
         lines = response_text.split('\n')
         message_lines = []
         in_message = False
-        schema_proposal_lines = []
-        in_schema_proposal = False
+
+        # Dynamic payload tracking
+        current_payload_config = None
+        payload_lines = []
         brace_count = 0
 
         for line in lines:
@@ -312,46 +316,63 @@ class GeneralChatService:
 
             if stripped.startswith("MESSAGE:"):
                 in_message = True
-                in_schema_proposal = False
+                current_payload_config = None
                 # Get content after MESSAGE: on same line
                 content = stripped.replace("MESSAGE:", "").strip()
                 if content:
                     message_lines.append(content)
 
-            elif stripped.startswith("SCHEMA_PROPOSAL:"):
+            # Check for any registered payload marker
+            elif any(stripped.startswith(marker) for marker in payload_markers.keys()):
                 in_message = False
-                in_schema_proposal = True
-                brace_count = 0
-                # Get content after SCHEMA_PROPOSAL: on same line
-                content = stripped.replace("SCHEMA_PROPOSAL:", "").strip()
-                if content:
-                    schema_proposal_lines.append(content)
-                    # Count braces in this line
-                    brace_count += content.count('{') - content.count('}')
+                # Find which marker this is
+                for marker, config in payload_markers.items():
+                    if stripped.startswith(marker):
+                        current_payload_config = config
+                        payload_lines = []
+                        brace_count = 0
+                        # Get content after marker on same line
+                        content = stripped.replace(marker, "").strip()
+                        if content:
+                            payload_lines.append(content)
+                            # Count braces in this line
+                            brace_count += content.count('{') - content.count('}')
+                        break
 
-            elif in_schema_proposal:
+            elif current_payload_config is not None:
                 # Check if this line starts a new section
-                if any(stripped.startswith(marker) for marker in ["MESSAGE:", "SUGGESTED_VALUES:", "SUGGESTED_ACTIONS:"]):
-                    # Stop collecting schema proposal
-                    in_schema_proposal = False
-                    # Don't process this line yet, let it fall through to be handled below
+                all_section_markers = ["MESSAGE:", "SUGGESTED_VALUES:", "SUGGESTED_ACTIONS:"] + list(payload_markers.keys())
+                if any(stripped.startswith(marker) for marker in all_section_markers):
+                    # Parse and save the collected payload
+                    if payload_lines:
+                        self._parse_and_save_payload(result, current_payload_config, payload_lines)
+                    # Stop collecting this payload
+                    current_payload_config = None
+                    payload_lines = []
+                    # Don't process this line yet, let it fall through to be handled in next iteration
+                    # We need to re-process this line, so back up
+                    continue
                 else:
-                    # Continue collecting schema proposal JSON lines
-                    schema_proposal_lines.append(line.rstrip())
+                    # Continue collecting payload JSON lines
+                    payload_lines.append(line.rstrip())
                     # Track brace count to detect end of JSON
                     brace_count += line.count('{') - line.count('}')
 
                     # If braces are balanced, we've reached the end of the JSON
-                    if brace_count == 0 and len(schema_proposal_lines) > 0:
-                        in_schema_proposal = False
+                    if brace_count == 0 and len(payload_lines) > 0:
+                        # Parse and save the collected payload
+                        self._parse_and_save_payload(result, current_payload_config, payload_lines)
+                        current_payload_config = None
+                        payload_lines = []
                         continue
 
-            elif in_message and not any(stripped.startswith(marker) for marker in ["SUGGESTED_VALUES:", "SUGGESTED_ACTIONS:", "SCHEMA_PROPOSAL:"]):
+            elif in_message and not any(stripped.startswith(marker) for marker in ["SUGGESTED_VALUES:", "SUGGESTED_ACTIONS:"] + list(payload_markers.keys())):
                 # Continue collecting message lines
                 message_lines.append(line.rstrip())
 
             elif stripped.startswith("SUGGESTED_VALUES:"):
                 in_message = False
+                current_payload_config = None
                 values_str = stripped.replace("SUGGESTED_VALUES:", "").strip()
                 if values_str:
                     result["suggested_values"] = [
@@ -361,6 +382,7 @@ class GeneralChatService:
 
             elif stripped.startswith("SUGGESTED_ACTIONS:"):
                 in_message = False
+                current_payload_config = None
                 actions_str = stripped.replace("SUGGESTED_ACTIONS:", "").strip()
                 if actions_str:
                     actions = []
@@ -392,25 +414,26 @@ class GeneralChatService:
                             actions.append(action)
                     result["suggested_actions"] = actions
 
+        # Handle any remaining payload being collected at end of response
+        if current_payload_config is not None and payload_lines:
+            self._parse_and_save_payload(result, current_payload_config, payload_lines)
+
         # Join message lines
         if message_lines:
             result["message"] = "\n".join(message_lines).strip()
-
-        # Parse schema proposal if present
-        if schema_proposal_lines:
-            try:
-                schema_json = "\n".join(schema_proposal_lines).strip()
-                schema_data = json.loads(schema_json)
-                result["payload"] = {
-                    "type": "schema_proposal",
-                    "data": schema_data
-                }
-            except json.JSONDecodeError as e:
-                logger.warning(f"Failed to parse SCHEMA_PROPOSAL JSON: {e}")
-                # Don't fail the whole response, just skip the proposal
 
         # If no message was extracted, use the whole response
         if not result["message"]:
             result["message"] = response_text
 
         return result
+
+    def _parse_and_save_payload(self, result: Dict[str, Any], config: Any, payload_lines: list):
+        """Parse a payload using its registered parser and save to result."""
+        try:
+            payload_text = "\n".join(payload_lines).strip()
+            parsed_payload = config.parser(payload_text)
+            if parsed_payload:
+                result["payload"] = parsed_payload
+        except Exception as e:
+            logger.warning(f"Failed to parse {config.type} payload: {e}")
