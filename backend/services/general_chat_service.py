@@ -119,6 +119,45 @@ class GeneralChatService:
             )
             yield error_response.model_dump_json()
 
+    def _get_response_format_instructions(self) -> str:
+        """
+        Get common response format instructions used by all prompts.
+        This ensures consistent formatting across all chat modes.
+        """
+        return """
+        RESPONSE FORMAT:
+
+        Always start with a conversational message:
+        MESSAGE: [Your response to the user]
+
+        Optional elements you can include:
+
+        1. SUGGESTED_VALUES (clickable quick replies):
+        Format: Comma-separated values
+        Example: SUGGESTED_VALUES: Yes, No, Tell me more
+
+        2. SUGGESTED_ACTIONS (action buttons):
+        Format: label|action|handler|style|data
+
+        CRITICAL REQUIREMENTS:
+        - Position 1 (label): Button text shown to user
+        - Position 2 (action): Action identifier
+        - Position 3 (handler): MUST be EXACTLY "client" OR "server" (no other values!)
+        - Position 4 (style): MUST be "primary", "secondary", or "warning"
+        - Position 5 (data): Optional JSON object with parameters
+        - Separate multiple actions with semicolons (;)
+
+        Examples without data:
+        SUGGESTED_ACTIONS: View Results|view_results|client|primary
+        SUGGESTED_ACTIONS: Save|save|server|primary; Cancel|cancel|client|secondary
+
+        Examples with data:
+        SUGGESTED_ACTIONS: Edit Item|edit_item|client|primary|{{"item_id":"123"}}; Delete|delete|server|warning|{{"item_id":"123"}}
+
+        CRITICAL: Position 3 must ALWAYS be "client" or "server" - never put IDs, names, or other data there!
+        Use position 5 for any data you need to pass!
+        """
+
     def _build_system_prompt(self, context: Dict[str, Any]) -> str:
         """Build system prompt based on user's context."""
         current_page = context.get("current_page", "unknown")
@@ -134,24 +173,13 @@ class GeneralChatService:
 
         The user is currently on: {current_page}
 
-        Your responses should be structured in this format:
+        {self._get_response_format_instructions()}
 
-        MESSAGE: [Your conversational response to the user]
-        SUGGESTED_VALUES: [Optional comma-separated values user can select]
-        SUGGESTED_ACTIONS: [Optional actions with format: label|action|handler|style]
+        Available actions:
+        - Client actions (no backend call): close, cancel, navigate, copy, edit, view
+        - Server actions (backend processes): create_stream, execute_search, update, delete
 
-        SUGGESTED_VALUES are clickable chips that send a message back to continue conversation.
-        Example: SUGGESTED_VALUES: Yes, No, Tell me more
-
-        SUGGESTED_ACTIONS are buttons that execute actions (client or server).
-        Format: label|action|handler|style (separated by semicolons for multiple actions)
-        Style must be one of: primary, secondary, warning
-        Example: SUGGESTED_ACTIONS: View Results|view_results|client|primary; Close|close|client|secondary
-
-        Client actions (no backend call): close, cancel, navigate, copy
-        Server actions (processed by backend): create_stream, execute_search
-
-        For now, keep responses simple and conversational.
+        Keep responses simple and conversational.
         Help users understand what they can do in the application.
         """
 
@@ -208,15 +236,9 @@ class GeneralChatService:
         - When the user explicitly requests recommendations or proposals, AND you have enough context from the conversation, propose concrete values using the format below
         - Use the conversation history to understand what the user wants
 
-        RESPONSE FORMAT:
+        {self._get_response_format_instructions()}
 
-        Always start with a conversational message:
-        MESSAGE: [Your response to the user]
-
-        Optional elements:
-        SUGGESTED_VALUES: [Comma-separated quick reply options]
-        SUGGESTED_ACTIONS: [Actions in format: label|action|handler|style]
-
+        SCHEMA PROPOSALS (specific to this page):
         When proposing schema values (ONLY when user asks for it and you have enough info):
         SCHEMA_PROPOSAL: {{
           "proposed_changes": {{
@@ -239,7 +261,7 @@ class GeneralChatService:
           "reasoning": "Based on our conversation, you mentioned X, Y, and Z, so I'm suggesting..."
         }}
 
-        IMPORTANT:
+        SCHEMA PROPOSAL GUIDELINES:
         - Only propose SCHEMA_PROPOSAL when the user has asked for recommendations/proposals
         - If you don't have enough information, ask clarifying questions instead
         - You can propose some or all fields - only propose what you're confident about
