@@ -4,18 +4,62 @@ import { useGeneralChat } from '../hooks/useGeneralChat';
 import { InteractionType } from '../types/chat';
 import SchemaProposalCard from './SchemaProposalCard';
 
+interface PayloadHandler {
+    render: (payload: any, callbacks: { onAccept?: (data: any) => void; onReject?: () => void }) => React.ReactNode;
+    onAccept?: (payload: any, pageState?: any) => void;
+    onReject?: (payload: any) => void;
+    renderOptions?: {
+        panelWidth?: string;
+        headerTitle?: string;
+        headerIcon?: string;
+    };
+}
+
 interface ChatTrayProps {
     initialContext?: Record<string, any>;
+    payloadHandlers?: Record<string, PayloadHandler>;
+    // Legacy prop for backward compatibility
     onSchemaProposalAccepted?: (changes: Record<string, any>) => void;
 }
 
-export default function ChatTray({ initialContext, onSchemaProposalAccepted }: ChatTrayProps) {
+function getDefaultHeaderTitle(payloadType: string): string {
+    const titles: Record<string, string> = {
+        'schema_proposal': 'Schema Proposal',
+        'stream_suggestions': 'Stream Suggestions',
+        'portfolio_insights': 'Portfolio Insights',
+        'quick_setup': 'Quick Setup',
+        'validation_results': 'Validation Results',
+        'import_suggestions': 'Import Suggestions'
+    };
+    return titles[payloadType] || 'Details';
+}
+
+function getDefaultHeaderIcon(payloadType: string): string {
+    const icons: Record<string, string> = {
+        'schema_proposal': '📋',
+        'stream_suggestions': '💡',
+        'portfolio_insights': '📊',
+        'quick_setup': '🚀',
+        'validation_results': '✅',
+        'import_suggestions': '📥'
+    };
+    return icons[payloadType] || '✨';
+}
+
+export default function ChatTray({ initialContext, payloadHandlers, onSchemaProposalAccepted }: ChatTrayProps) {
     const [isOpen, setIsOpen] = useState(false);
-    const { messages, sendMessage, isLoading, streamingText } = useGeneralChat(initialContext);
+    const { messages, sendMessage, isLoading, streamingText, updateContext } = useGeneralChat(initialContext);
     const [input, setInput] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
-    const [activeProposal, setActiveProposal] = useState<any>(null);
+    const [activePayload, setActivePayload] = useState<{ type: string; data: any } | null>(null);
+
+    // Update context when initialContext changes
+    useEffect(() => {
+        if (initialContext) {
+            updateContext(initialContext);
+        }
+    }, [initialContext, updateContext]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -25,13 +69,28 @@ export default function ChatTray({ initialContext, onSchemaProposalAccepted }: C
         scrollToBottom();
     }, [messages, streamingText]);
 
-    // Detect new schema proposals and show in floating panel
+    // Detect new payloads and show in floating panel
     useEffect(() => {
         const latestMessage = messages[messages.length - 1];
-        if (latestMessage?.payload?.type === 'schema_proposal' && latestMessage.payload.data) {
-            setActiveProposal(latestMessage.payload.data);
+        if (latestMessage?.payload?.type && latestMessage.payload.data) {
+            const payloadType = latestMessage.payload.type;
+
+            // Check if we have a handler for this payload type
+            if (payloadHandlers && payloadHandlers[payloadType]) {
+                setActivePayload({
+                    type: payloadType,
+                    data: latestMessage.payload.data
+                });
+            }
+            // Legacy support for schema_proposal without explicit handler
+            else if (payloadType === 'schema_proposal') {
+                setActivePayload({
+                    type: 'schema_proposal',
+                    data: latestMessage.payload.data
+                });
+            }
         }
-    }, [messages]);
+    }, [messages, payloadHandlers]);
 
     // Auto-focus input when tray opens
     useEffect(() => {
@@ -173,11 +232,17 @@ export default function ChatTray({ initialContext, onSchemaProposalAccepted }: C
                                     </div>
                                 )}
 
-                                {/* Schema Proposal Indicator */}
-                                {message.payload?.type === 'schema_proposal' && message.payload?.data && (
+                                {/* Payload Indicator */}
+                                {message.payload?.type && message.payload?.data && (
                                     <div className="mt-3 ml-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
                                         <p className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
-                                            <span className="font-medium">📋 Schema proposal ready</span>
+                                            <span className="font-medium">
+                                                {message.payload.type === 'schema_proposal' && '📋 Schema proposal ready'}
+                                                {message.payload.type === 'stream_suggestions' && '💡 Stream suggestions ready'}
+                                                {message.payload.type === 'portfolio_insights' && '📊 Portfolio insights ready'}
+                                                {message.payload.type === 'quick_setup' && '🚀 Quick setup ready'}
+                                                {!['schema_proposal', 'stream_suggestions', 'portfolio_insights', 'quick_setup'].includes(message.payload.type) && '✨ Content ready'}
+                                            </span>
                                             <span className="text-xs opacity-75">(see panel to the right)</span>
                                         </p>
                                     </div>
@@ -253,44 +318,72 @@ export default function ChatTray({ initialContext, onSchemaProposalAccepted }: C
                 />
             )}
 
-            {/* Floating Schema Proposal Panel */}
-            {activeProposal && (
-                <div className="fixed top-0 left-96 h-full w-[500px] bg-white dark:bg-gray-800 shadow-2xl z-50 border-l border-gray-200 dark:border-gray-700">
-                    <div className="flex flex-col h-full">
-                        {/* Header */}
-                        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                                <span>📋</span>
-                                Schema Proposal
-                            </h3>
-                            <button
-                                onClick={() => setActiveProposal(null)}
-                                className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
-                                aria-label="Close proposal"
-                            >
-                                <XMarkIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                            </button>
-                        </div>
+            {/* Floating Payload Panel */}
+            {activePayload && (() => {
+                const handler = payloadHandlers?.[activePayload.type];
+                const renderOptions = handler?.renderOptions || {};
+                const panelWidth = renderOptions.panelWidth || '500px';
+                const headerTitle = renderOptions.headerTitle || getDefaultHeaderTitle(activePayload.type);
+                const headerIcon = renderOptions.headerIcon || getDefaultHeaderIcon(activePayload.type);
 
-                        {/* Scrollable Proposal Content */}
-                        <div className="flex-1 overflow-y-auto p-4">
-                            <SchemaProposalCard
-                                proposal={activeProposal}
-                                onAccept={(changes) => {
-                                    if (onSchemaProposalAccepted) {
-                                        onSchemaProposalAccepted(changes);
-                                    }
-                                    setActiveProposal(null);
-                                }}
-                                onReject={() => {
-                                    console.log('Schema proposal rejected');
-                                    setActiveProposal(null);
-                                }}
-                            />
+                return (
+                    <div className="fixed top-0 left-96 h-full bg-white dark:bg-gray-800 shadow-2xl z-50 border-l border-gray-200 dark:border-gray-700" style={{ width: panelWidth }}>
+                        <div className="flex flex-col h-full">
+                            {/* Header */}
+                            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20">
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                    <span>{headerIcon}</span>
+                                    {headerTitle}
+                                </h3>
+                                <button
+                                    onClick={() => setActivePayload(null)}
+                                    className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                    aria-label="Close panel"
+                                >
+                                    <XMarkIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                                </button>
+                            </div>
+
+                            {/* Scrollable Payload Content */}
+                            <div className="flex-1 overflow-y-auto p-4">
+                                {handler ? (
+                                    handler.render(activePayload.data, {
+                                        onAccept: (data) => {
+                                            if (handler.onAccept) {
+                                                handler.onAccept(data);
+                                            }
+                                            setActivePayload(null);
+                                        },
+                                        onReject: () => {
+                                            if (handler.onReject) {
+                                                handler.onReject(activePayload.data);
+                                            }
+                                            setActivePayload(null);
+                                        }
+                                    })
+                                ) : (
+                                    // Fallback for schema_proposal without explicit handler (legacy support)
+                                    activePayload.type === 'schema_proposal' && (
+                                        <SchemaProposalCard
+                                            proposal={activePayload.data}
+                                            onAccept={(changes) => {
+                                                if (onSchemaProposalAccepted) {
+                                                    onSchemaProposalAccepted(changes);
+                                                }
+                                                setActivePayload(null);
+                                            }}
+                                            onReject={() => {
+                                                console.log('Schema proposal rejected');
+                                                setActivePayload(null);
+                                            }}
+                                        />
+                                    )
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
         </>
     );
 }

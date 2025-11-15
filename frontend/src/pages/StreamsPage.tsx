@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { PlusIcon, BeakerIcon, PencilIcon } from '@heroicons/react/24/outline';
 
 import { useResearchStream } from '../context/ResearchStreamContext';
+import ChatTray from '../components/ChatTray';
+import StreamSuggestionsCard from '../components/StreamSuggestionsCard';
+import PortfolioInsightsCard from '../components/PortfolioInsightsCard';
+import QuickSetupCard from '../components/QuickSetupCard';
 
 export default function StreamsPage() {
     const navigate = useNavigate();
@@ -127,6 +131,72 @@ export default function StreamsPage() {
                     ))}
                 </div>
             )}
+
+            {/* Chat Tray */}
+            <ChatTray
+                initialContext={{
+                    current_page: "streams_list",
+                    entity_type: "research_streams",
+                    streams: researchStreams.map(stream => ({
+                        stream_id: stream.stream_id,
+                        stream_name: stream.stream_name,
+                        purpose: stream.purpose,
+                        is_active: stream.is_active,
+                        domain: stream.semantic_space?.domain?.name || "Not set"
+                    }))
+                }}
+                payloadHandlers={{
+                    stream_suggestions: {
+                        render: (payload, callbacks) => (
+                            <StreamSuggestionsCard
+                                payload={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: (suggestion) => {
+                            console.log('Stream suggestion accepted:', suggestion);
+                            // Navigation is handled in the card component
+                        },
+                        renderOptions: {
+                            panelWidth: '550px',
+                            headerTitle: 'Suggested Research Streams',
+                            headerIcon: '💡'
+                        }
+                    },
+                    portfolio_insights: {
+                        render: (payload, callbacks) => (
+                            <PortfolioInsightsCard
+                                payload={payload}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        renderOptions: {
+                            panelWidth: '500px',
+                            headerTitle: 'Portfolio Analysis',
+                            headerIcon: '📊'
+                        }
+                    },
+                    quick_setup: {
+                        render: (payload, callbacks) => (
+                            <QuickSetupCard
+                                payload={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: (setup) => {
+                            console.log('Quick setup accepted:', setup);
+                            // Navigation is handled in the card component
+                        },
+                        renderOptions: {
+                            panelWidth: '550px',
+                            headerTitle: 'Quick Stream Setup',
+                            headerIcon: '🚀'
+                        }
+                    }
+                }}
+            />
         </div>
     );
 }
