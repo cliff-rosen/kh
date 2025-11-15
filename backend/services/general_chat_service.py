@@ -14,10 +14,8 @@ from schemas.general_chat import (
     ChatAgentResponse, ChatStatusResponse,
     SuggestedValue, SuggestedAction, CustomPayload
 )
-from services.payload_configs import get_page_payloads, has_page_payloads
-# Import page payload configurations to register them
-import services.edit_stream_payloads
-import services.streams_list_payloads
+# Import chat payloads package (auto-registers all page configurations)
+from services.chat_payloads import get_page_payloads, get_page_context_builder, has_page_payloads
 
 logger = logging.getLogger(__name__)
 
@@ -227,85 +225,14 @@ class GeneralChatService:
 
     def _build_page_context(self, current_page: str, context: Dict[str, Any]) -> str:
         """Build page-specific context section of the prompt."""
-        if current_page == "edit_research_stream":
-            return self._build_edit_stream_context(context)
-        elif current_page == "streams_list":
-            return self._build_streams_list_context(context)
+        # Get the context builder from the registry
+        context_builder = get_page_context_builder(current_page)
 
-        # Default context for other pages
+        if context_builder:
+            return context_builder(context)
+
+        # Default context for unregistered pages
         return f"The user is currently on: {current_page}"
-
-    def _build_edit_stream_context(self, context: Dict[str, Any]) -> str:
-        """Build context section for edit_research_stream page."""
-        current_schema = context.get("current_schema", {})
-
-        # Extract current values
-        stream_name = current_schema.get("stream_name", "Not set")
-        purpose = current_schema.get("purpose", "Not set")
-        domain = current_schema.get("semantic_space", {}).get("domain", {})
-        domain_name = domain.get("name", "Not set")
-        domain_description = domain.get("description", "Not set")
-
-        # Get topics if they exist
-        topics = current_schema.get("semantic_space", {}).get("topics", [])
-        topics_summary = f"{len(topics)} topics defined" if topics else "No topics defined yet"
-
-        return f"""The user is editing a research stream. Current values:
-        - Stream Name: {stream_name}
-        - Purpose: {purpose}
-        - Domain Name: {domain_name}
-        - Domain Description: {domain_description}
-        - Topics: {topics_summary}
-
-        RESEARCH STREAM SCHEMA FIELDS:
-
-        1. stream_name: Short, clear name for the research stream
-        2. purpose: High-level explanation of why this stream exists
-        3. semantic_space.domain.name: The domain this research covers
-        4. semantic_space.domain.description: Detailed description of the domain
-        5. semantic_space.topics: Array of topics to track (topic_id, name, description, importance, rationale)
-        6. semantic_space.context.business_context: Business context
-        7. semantic_space.context.decision_types: What decisions this informs
-        8. semantic_space.context.stakeholders: Who uses this information
-        """
-
-    def _build_streams_list_context(self, context: Dict[str, Any]) -> str:
-        """Build context section for streams_list page."""
-        streams = context.get("streams", [])
-        stream_count = len(streams)
-
-        if stream_count == 0:
-            return """The user is viewing their Research Streams list page.
-
-        Current status: No research streams created yet
-
-        WHAT ARE RESEARCH STREAMS:
-        Research streams are focused monitoring channels that track specific topics, competitors, or therapeutic areas.
-        Each stream defines what information matters, how to find it, and how to organize the results.
-        """
-
-        # Build summary of existing streams
-        stream_summaries = []
-        for stream in streams[:5]:  # Limit to first 5 for context
-            name = stream.get("stream_name", "Unnamed")
-            purpose = stream.get("purpose", "No purpose defined")
-            is_active = stream.get("is_active", False)
-            status = "Active" if is_active else "Inactive"
-            stream_summaries.append(f"  - {name} ({status}): {purpose}")
-
-        summary_text = "\n".join(stream_summaries)
-        more_text = f"\n  ... and {stream_count - 5} more" if stream_count > 5 else ""
-
-        return f"""The user is viewing their Research Streams list page.
-
-        Current portfolio: {stream_count} research stream{'s' if stream_count != 1 else ''}
-
-{summary_text}{more_text}
-
-        CONTEXT:
-        The user can create new streams, edit existing ones, or get help understanding their current portfolio.
-        Help them understand gaps, overlaps, or suggest new streams that would be valuable.
-        """
 
     def _build_user_prompt(
         self,

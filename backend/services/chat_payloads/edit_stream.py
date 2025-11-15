@@ -1,12 +1,12 @@
 """
 Payload configurations for the edit_research_stream page.
-Defines all payload types this page supports.
+Defines all payload types and context builder this page supports.
 """
 
 import json
 import logging
 from typing import Dict, Any
-from services.payload_configs import PayloadConfig, register_page_payloads
+from .registry import PayloadConfig, register_page
 
 logger = logging.getLogger(__name__)
 
@@ -152,5 +152,40 @@ EDIT_STREAM_PAYLOADS = [
 ]
 
 
-# Register these configurations on module import
-register_page_payloads("edit_research_stream", EDIT_STREAM_PAYLOADS)
+def build_context(context: Dict[str, Any]) -> str:
+    """Build context section for edit_research_stream page."""
+    current_schema = context.get("current_schema", {})
+
+    # Extract current values
+    stream_name = current_schema.get("stream_name", "Not set")
+    purpose = current_schema.get("purpose", "Not set")
+    domain = current_schema.get("semantic_space", {}).get("domain", {})
+    domain_name = domain.get("name", "Not set")
+    domain_description = domain.get("description", "Not set")
+
+    # Get topics if they exist
+    topics = current_schema.get("semantic_space", {}).get("topics", [])
+    topics_summary = f"{len(topics)} topics defined" if topics else "No topics defined yet"
+
+    return f"""The user is editing a research stream. Current values:
+    - Stream Name: {stream_name}
+    - Purpose: {purpose}
+    - Domain Name: {domain_name}
+    - Domain Description: {domain_description}
+    - Topics: {topics_summary}
+
+    RESEARCH STREAM SCHEMA FIELDS:
+
+    1. stream_name: Short, clear name for the research stream
+    2. purpose: High-level explanation of why this stream exists
+    3. semantic_space.domain.name: The domain this research covers
+    4. semantic_space.domain.description: Detailed description of the domain
+    5. semantic_space.topics: Array of topics to track (topic_id, name, description, importance, rationale)
+    6. semantic_space.context.business_context: Business context
+    7. semantic_space.context.decision_types: What decisions this informs
+    8. semantic_space.context.stakeholders: Who uses this information
+    """
+
+
+# Register page configuration on module import
+register_page("edit_research_stream", EDIT_STREAM_PAYLOADS, build_context)
