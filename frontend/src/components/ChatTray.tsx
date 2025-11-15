@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react';
 import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon } from '@heroicons/react/24/solid';
 import { useGeneralChat } from '../hooks/useGeneralChat';
 import { InteractionType } from '../types/chat';
-import SchemaProposalCard from './SchemaProposalCard';
 
 interface PayloadHandler {
     render: (payload: any, callbacks: { onAccept?: (data: any) => void; onReject?: () => void }) => React.ReactNode;
@@ -18,8 +17,6 @@ interface PayloadHandler {
 interface ChatTrayProps {
     initialContext?: Record<string, any>;
     payloadHandlers?: Record<string, PayloadHandler>;
-    // Legacy prop for backward compatibility
-    onSchemaProposalAccepted?: (changes: Record<string, any>) => void;
 }
 
 function getDefaultHeaderTitle(payloadType: string): string {
@@ -46,7 +43,7 @@ function getDefaultHeaderIcon(payloadType: string): string {
     return icons[payloadType] || '✨';
 }
 
-export default function ChatTray({ initialContext, payloadHandlers, onSchemaProposalAccepted }: ChatTrayProps) {
+export default function ChatTray({ initialContext, payloadHandlers }: ChatTrayProps) {
     const [isOpen, setIsOpen] = useState(false);
     const { messages, sendMessage, isLoading, streamingText, updateContext } = useGeneralChat(initialContext);
     const [input, setInput] = useState('');
@@ -79,13 +76,6 @@ export default function ChatTray({ initialContext, payloadHandlers, onSchemaProp
             if (payloadHandlers && payloadHandlers[payloadType]) {
                 setActivePayload({
                     type: payloadType,
-                    data: latestMessage.payload.data
-                });
-            }
-            // Legacy support for schema_proposal without explicit handler
-            else if (payloadType === 'schema_proposal') {
-                setActivePayload({
-                    type: 'schema_proposal',
                     data: latestMessage.payload.data
                 });
             }
@@ -362,22 +352,9 @@ export default function ChatTray({ initialContext, payloadHandlers, onSchemaProp
                                         }
                                     })
                                 ) : (
-                                    // Fallback for schema_proposal without explicit handler (legacy support)
-                                    activePayload.type === 'schema_proposal' && (
-                                        <SchemaProposalCard
-                                            proposal={activePayload.data}
-                                            onAccept={(changes) => {
-                                                if (onSchemaProposalAccepted) {
-                                                    onSchemaProposalAccepted(changes);
-                                                }
-                                                setActivePayload(null);
-                                            }}
-                                            onReject={() => {
-                                                console.log('Schema proposal rejected');
-                                                setActivePayload(null);
-                                            }}
-                                        />
-                                    )
+                                    <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                        <p>No handler configured for payload type: {activePayload.type}</p>
+                                    </div>
                                 )}
                             </div>
                         </div>

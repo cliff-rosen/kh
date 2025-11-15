@@ -12,7 +12,6 @@ export function useGeneralChat(initialContext?: Record<string, any>) {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [streamingText, setStreamingText] = useState('');
-    const abortControllerRef = useRef<AbortController | null>(null);
 
     const sendMessage = useCallback(async (
         content: string,

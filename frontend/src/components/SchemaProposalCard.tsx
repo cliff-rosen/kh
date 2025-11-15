@@ -9,8 +9,8 @@ interface SchemaProposal {
 
 interface SchemaProposalCardProps {
     proposal: SchemaProposal;
-    onAccept: (changes: Record<string, any>) => void;
-    onReject: () => void;
+    onAccept?: (changes: Record<string, any>) => void;
+    onReject?: () => void;
     isProcessing?: boolean;
 }
 
@@ -25,12 +25,16 @@ export default function SchemaProposalCard({
 
     const handleAccept = () => {
         setIsAccepted(true);
-        onAccept(proposal.proposed_changes);
+        if (onAccept) {
+            onAccept(proposal.proposed_changes);
+        }
     };
 
     const handleReject = () => {
         setIsRejected(true);
-        onReject();
+        if (onReject) {
+            onReject();
+        }
     };
 
     // Helper to format field names nicely
