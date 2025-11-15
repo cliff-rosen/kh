@@ -16,6 +16,29 @@ export default function StreamsPage() {
         loadResearchStreams();
     }, [loadResearchStreams]);
 
+    // Payload handlers for chat
+    const handleStreamSuggestionAccept = (suggestion: any) => {
+        console.log('Stream suggestion accepted:', suggestion);
+        // Navigation is handled in the card component
+    };
+
+    const handleStreamSuggestionReject = () => {
+        console.log('Stream suggestion rejected');
+    };
+
+    const handlePortfolioInsightsReject = () => {
+        console.log('Portfolio insights dismissed');
+    };
+
+    const handleQuickSetupAccept = (setup: any) => {
+        console.log('Quick setup accepted:', setup);
+        // Navigation is handled in the card component
+    };
+
+    const handleQuickSetupReject = () => {
+        console.log('Quick setup rejected');
+    };
+
     return (
         <div className="max-w-7xl mx-auto p-6">
             <div className="flex justify-between items-center mb-8">
@@ -154,10 +177,8 @@ export default function StreamsPage() {
                                 onReject={callbacks.onReject}
                             />
                         ),
-                        onAccept: (suggestion) => {
-                            console.log('Stream suggestion accepted:', suggestion);
-                            // Navigation is handled in the card component
-                        },
+                        onAccept: handleStreamSuggestionAccept,
+                        onReject: handleStreamSuggestionReject,
                         renderOptions: {
                             panelWidth: '550px',
                             headerTitle: 'Suggested Research Streams',
@@ -171,6 +192,7 @@ export default function StreamsPage() {
                                 onReject={callbacks.onReject}
                             />
                         ),
+                        onReject: handlePortfolioInsightsReject,
                         renderOptions: {
                             panelWidth: '500px',
                             headerTitle: 'Portfolio Analysis',
@@ -185,10 +207,8 @@ export default function StreamsPage() {
                                 onReject={callbacks.onReject}
                             />
                         ),
-                        onAccept: (setup) => {
-                            console.log('Quick setup accepted:', setup);
-                            // Navigation is handled in the card component
-                        },
+                        onAccept: handleQuickSetupAccept,
+                        onReject: handleQuickSetupReject,
                         renderOptions: {
                             panelWidth: '550px',
                             headerTitle: 'Quick Stream Setup',
