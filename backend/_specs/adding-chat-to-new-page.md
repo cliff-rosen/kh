@@ -195,6 +195,16 @@ export default function {PageName}() {
         // Fetch data...
     }, []);
 
+    // Define payload handlers as named functions
+    const handleExamplePayloadAccept = (data: any) => {
+        console.log('Payload accepted:', data);
+        // Handle acceptance (e.g., update state, navigate)
+    };
+
+    const handleExamplePayloadReject = () => {
+        console.log('Payload rejected');
+    };
+
     return (
         <div className="container">
             {/* Page content */}
@@ -222,13 +232,8 @@ export default function {PageName}() {
                                 onReject={callbacks.onReject}
                             />
                         ),
-                        onAccept: (data) => {
-                            console.log('Payload accepted:', data);
-                            // Handle acceptance (e.g., update state, navigate)
-                        },
-                        onReject: (data) => {
-                            console.log('Payload rejected:', data);
-                        },
+                        onAccept: handleExamplePayloadAccept,
+                        onReject: handleExamplePayloadReject,
                         renderOptions: {
                             panelWidth: '500px',
                             headerTitle: 'Custom Title',
@@ -242,6 +247,12 @@ export default function {PageName}() {
     );
 }
 ```
+
+**Best Practice**: Define handler functions as named functions at the component level rather than inline. This improves:
+- **Readability**: Config stays clean and scannable
+- **Debuggability**: Named functions appear in stack traces
+- **Testability**: Can unit test handlers independently
+- **Maintainability**: Logic changes don't clutter config structure
 
 ---
 
