@@ -19,6 +19,7 @@ from .registry import (
 # Import all page configurations to register them
 from . import edit_stream
 from . import streams_list
+from . import new_stream
 
 __all__ = [
     'PayloadConfig',

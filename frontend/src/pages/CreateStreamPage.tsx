@@ -13,6 +13,10 @@ import { useNavigate } from 'react-router-dom';
 import SemanticSpaceForm from '../components/SemanticSpaceForm';
 import PresentationForm from '../components/PresentationForm';
 import RetrievalConfigForm from '../components/RetrievalConfigForm';
+import ChatTray from '../components/ChatTray';
+import StreamTemplateCard from '../components/StreamTemplateCard';
+import TopicSuggestionsCard from '../components/TopicSuggestionsCard';
+import ValidationFeedbackCard from '../components/ValidationFeedbackCard';
 
 interface CreateStreamPageProps {
     onCancel?: () => void;
@@ -143,6 +147,91 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
         } catch (err) {
             console.error('Failed to create research stream:', err);
         }
+    };
+
+    // Chat payload handlers
+    const handleStreamTemplateAccept = (template: any) => {
+        console.log('Applying stream template:', template);
+
+        const updatedForm = { ...form };
+
+        // Apply stream name
+        if (template.stream_name) {
+            updatedForm.stream_name = template.stream_name;
+        }
+
+        // Apply domain
+        if (template.domain) {
+            updatedForm.semantic_space.domain = {
+                name: template.domain.name || '',
+                description: template.domain.description || ''
+            };
+        }
+
+        // Apply topics
+        if (template.topics && template.topics.length > 0) {
+            updatedForm.semantic_space.topics = template.topics.map((t: any) => ({
+                name: t.name,
+                description: t.description,
+                importance: t.importance || 'medium',
+                keywords: []
+            }));
+        }
+
+        // Apply entities
+        if (template.entities && template.entities.length > 0) {
+            updatedForm.semantic_space.entities = template.entities.map((e: any) => ({
+                name: e.name,
+                type: e.type || 'other',
+                description: e.description,
+                importance: e.importance || 'medium',
+                aliases: []
+            }));
+        }
+
+        // Apply business context
+        if (template.business_context) {
+            updatedForm.semantic_space.context.business_context = template.business_context;
+        }
+
+        setForm(updatedForm);
+        alert('Stream template has been applied to the form.');
+    };
+
+    const handleStreamTemplateReject = () => {
+        console.log('Stream template rejected');
+    };
+
+    const handleTopicSuggestionsAccept = (suggestions: any) => {
+        console.log('Adding topic suggestions:', suggestions);
+
+        const updatedForm = { ...form };
+
+        if (suggestions.suggestions && suggestions.suggestions.length > 0) {
+            // Add new topics to existing ones
+            const newTopics = suggestions.suggestions.map((s: any) => ({
+                name: s.name,
+                description: s.description,
+                importance: s.importance || 'medium',
+                keywords: []
+            }));
+
+            updatedForm.semantic_space.topics = [
+                ...updatedForm.semantic_space.topics,
+                ...newTopics
+            ];
+        }
+
+        setForm(updatedForm);
+        alert(`${suggestions.suggestions.length} topic(s) have been added to the form.`);
+    };
+
+    const handleTopicSuggestionsReject = () => {
+        console.log('Topic suggestions rejected');
+    };
+
+    const handleValidationFeedbackReject = () => {
+        console.log('Validation feedback dismissed');
     };
 
 
@@ -316,6 +405,74 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                     </button>
                 </div>
             </div>
+
+            {/* Chat Tray */}
+            <ChatTray
+                initialContext={{
+                    current_page: "new_stream",
+                    entity_type: "research_stream",
+                    active_tab: activeTab,
+                    current_form: {
+                        stream_name: form.stream_name,
+                        semantic_space: {
+                            domain: form.semantic_space.domain,
+                            topics: form.semantic_space.topics,
+                            entities: form.semantic_space.entities,
+                            context: {
+                                business_context: form.semantic_space.context.business_context
+                            }
+                        }
+                    }
+                }}
+                payloadHandlers={{
+                    stream_template: {
+                        render: (payload, callbacks) => (
+                            <StreamTemplateCard
+                                payload={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: handleStreamTemplateAccept,
+                        onReject: handleStreamTemplateReject,
+                        renderOptions: {
+                            panelWidth: '600px',
+                            headerTitle: 'Stream Template',
+                            headerIcon: '🎯'
+                        }
+                    },
+                    topic_suggestions: {
+                        render: (payload, callbacks) => (
+                            <TopicSuggestionsCard
+                                payload={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: handleTopicSuggestionsAccept,
+                        onReject: handleTopicSuggestionsReject,
+                        renderOptions: {
+                            panelWidth: '550px',
+                            headerTitle: 'Topic Suggestions',
+                            headerIcon: '💡'
+                        }
+                    },
+                    validation_feedback: {
+                        render: (payload, callbacks) => (
+                            <ValidationFeedbackCard
+                                payload={payload}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onReject: handleValidationFeedbackReject,
+                        renderOptions: {
+                            panelWidth: '550px',
+                            headerTitle: 'Validation Feedback',
+                            headerIcon: '✅'
+                        }
+                    }
+                }}
+            />
         </div>
     );
 }
