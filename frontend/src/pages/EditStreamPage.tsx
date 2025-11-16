@@ -17,8 +17,8 @@ import SemanticSpaceForm from '../components/SemanticSpaceForm';
 import PresentationForm from '../components/PresentationForm';
 import RetrievalConfigForm from '../components/RetrievalConfigForm';
 import ExecutePipelineTab from '../components/ExecutePipelineTab';
-import ChatTray from '../components/ChatTray';
-import SchemaProposalCard from '../components/SchemaProposalCard';
+import ChatTray from '../components/chat/ChatTray';
+import SchemaProposalCard from '../components/chat/SchemaProposalCard';
 
 type TabType = 'semantic' | 'retrieval' | 'presentation' | 'execute';
 

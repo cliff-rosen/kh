@@ -13,10 +13,10 @@ import { useNavigate } from 'react-router-dom';
 import SemanticSpaceForm from '../components/SemanticSpaceForm';
 import PresentationForm from '../components/PresentationForm';
 import RetrievalConfigForm from '../components/RetrievalConfigForm';
-import ChatTray from '../components/ChatTray';
-import StreamTemplateCard from '../components/StreamTemplateCard';
-import TopicSuggestionsCard from '../components/TopicSuggestionsCard';
-import ValidationFeedbackCard from '../components/ValidationFeedbackCard';
+import ChatTray from '../components/chat/ChatTray';
+import StreamTemplateCard from '../components/chat/StreamTemplateCard';
+import TopicSuggestionsCard from '../components/chat/TopicSuggestionsCard';
+import ValidationFeedbackCard from '../components/chat/ValidationFeedbackCard';
 
 interface CreateStreamPageProps {
     onCancel?: () => void;

@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { PlusIcon, BeakerIcon, PencilIcon } from '@heroicons/react/24/outline';
 
 import { useResearchStream } from '../context/ResearchStreamContext';
-import ChatTray from '../components/ChatTray';
-import StreamSuggestionsCard from '../components/StreamSuggestionsCard';
-import PortfolioInsightsCard from '../components/PortfolioInsightsCard';
-import QuickSetupCard from '../components/QuickSetupCard';
+import ChatTray from '../components/chat/ChatTray';
+import StreamSuggestionsCard from '../components/chat/StreamSuggestionsCard';
+import PortfolioInsightsCard from '../components/chat/PortfolioInsightsCard';
+import QuickSetupCard from '../components/chat/QuickSetupCard';
 
 export default function StreamsPage() {
     const navigate = useNavigate();
