@@ -170,22 +170,23 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
 
         // Apply topics
         if (template.topics && template.topics.length > 0) {
-            updatedForm.semantic_space.topics = template.topics.map((t: any) => ({
+            updatedForm.semantic_space.topics = template.topics.map((t: any, idx: number) => ({
+                topic_id: `topic_${Date.now()}_${idx}`,
                 name: t.name,
                 description: t.description,
                 importance: t.importance || 'medium',
-                keywords: []
+                rationale: t.rationale || `${t.importance} priority topic for the research stream`
             }));
         }
 
         // Apply entities
         if (template.entities && template.entities.length > 0) {
-            updatedForm.semantic_space.entities = template.entities.map((e: any) => ({
+            updatedForm.semantic_space.entities = template.entities.map((e: any, idx: number) => ({
+                entity_id: `entity_${Date.now()}_${idx}`,
+                entity_type: e.type || 'organization',
                 name: e.name,
-                type: e.type || 'other',
-                description: e.description,
-                importance: e.importance || 'medium',
-                aliases: []
+                canonical_forms: [e.name], // Initialize with entity name
+                context: e.description || ''
             }));
         }
 
@@ -209,11 +210,13 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
 
         if (suggestions.suggestions && suggestions.suggestions.length > 0) {
             // Add new topics to existing ones
-            const newTopics = suggestions.suggestions.map((s: any) => ({
+            const baseTimestamp = Date.now();
+            const newTopics = suggestions.suggestions.map((s: any, idx: number) => ({
+                topic_id: `topic_${baseTimestamp}_${idx}`,
                 name: s.name,
                 description: s.description,
                 importance: s.importance || 'medium',
-                keywords: []
+                rationale: s.rationale || `Suggested topic based on ${suggestions.based_on || 'analysis'}`
             }));
 
             updatedForm.semantic_space.topics = [

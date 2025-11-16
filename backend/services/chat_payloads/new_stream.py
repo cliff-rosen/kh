@@ -69,13 +69,14 @@ NEW_STREAM_PAYLOADS = [
             {
               "name": "string",
               "description": "string",
-              "importance": "high" | "medium" | "low"
+              "importance": "high" | "medium" | "low",
+              "rationale": "string (why this topic is important)"
             }
           ],
           "entities": [
             {
               "name": "string",
-              "type": "company" | "person" | "product" | "location" | "other",
+              "type": "disease" | "substance" | "chemical" | "organization" | "regulation" | "standard" | "methodology" | "biomarker" | "geographic" | "population" | "drug" | "gene" | "protein" | "pathway" | "therapy" | "device",
               "description": "string",
               "importance": "high" | "medium" | "low"
             }

@@ -40,9 +40,9 @@ export enum RelationshipType {
 }
 
 export enum ImportanceLevel {
-    CRITICAL = 'critical',
-    IMPORTANT = 'important',
-    RELEVANT = 'relevant'
+    HIGH = 'high',
+    MEDIUM = 'medium',
+    LOW = 'low'
 }
 
 export enum PriorityLevel {

@@ -53,7 +53,7 @@ export default function SemanticSpaceForm({ semanticSpace, onChange }: SemanticS
             topic_id: `topic_${Date.now()}`,
             name: '',
             description: '',
-            importance: ImportanceLevel.RELEVANT,
+            importance: ImportanceLevel.MEDIUM,
             rationale: ''
         };
         updateField(['topics'], [...semanticSpace.topics, newTopic]);
@@ -589,9 +589,9 @@ export default function SemanticSpaceForm({ semanticSpace, onChange }: SemanticS
                                     onChange={(e) => updateTopic(index, 'importance', e.target.value as ImportanceLevel)}
                                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                                 >
-                                    <option value={ImportanceLevel.CRITICAL}>Critical</option>
-                                    <option value={ImportanceLevel.IMPORTANT}>Important</option>
-                                    <option value={ImportanceLevel.RELEVANT}>Relevant</option>
+                                    <option value={ImportanceLevel.HIGH}>High</option>
+                                    <option value={ImportanceLevel.MEDIUM}>Medium</option>
+                                    <option value={ImportanceLevel.LOW}>Low</option>
                                 </select>
                             </div>
                         </div>
