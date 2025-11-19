@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import logging
 
-from schemas.canonical_types import CanonicalPubMedArticle
+from schemas.canonical_types import CanonicalResearchArticle
 
 from services.pubmed_service import search_articles_by_date_range
 
@@ -17,7 +17,7 @@ router = APIRouter(
 
 class PubMedSearchResponse(BaseModel):
     """Response model for PubMed search including articles and metadata"""
-    articles: List[CanonicalPubMedArticle]
+    articles: List[CanonicalResearchArticle]
     metadata: Dict[str, Any]
 
 
