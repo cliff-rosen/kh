@@ -110,6 +110,8 @@ export interface PipelineStatus {
 
 export interface ExecutePipelineRequest {
     run_type?: 'test' | 'scheduled' | 'manual';
+    start_date?: string;  // YYYY/MM/DD format
+    end_date?: string;    // YYYY/MM/DD format
 }
 
 export interface QueryTestRequest {

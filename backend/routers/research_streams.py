@@ -567,6 +567,8 @@ async def test_query_for_source(
 class ExecutePipelineRequest(BaseModel):
     """Request to execute the full pipeline for a research stream"""
     run_type: Optional[str] = Field("test", description="Type of run: test, scheduled, or manual")
+    start_date: Optional[str] = Field(None, description="Start date for retrieval (YYYY/MM/DD). Defaults to 7 days ago.")
+    end_date: Optional[str] = Field(None, description="End date for retrieval (YYYY/MM/DD). Defaults to today.")
 
 
 @router.post("/{stream_id}/execute-pipeline")
@@ -609,6 +611,19 @@ async def execute_pipeline(
                     detail=f"Invalid run_type. Must be one of: test, scheduled, manual"
                 )
 
+        # Calculate date range (default to last 7 days)
+        from datetime import datetime, timedelta
+
+        if request.end_date:
+            end_date = request.end_date
+        else:
+            end_date = datetime.now().strftime("%Y/%m/%d")
+
+        if request.start_date:
+            start_date = request.start_date
+        else:
+            start_date = (datetime.now() - timedelta(days=7)).strftime("%Y/%m/%d")
+
         # Create pipeline service
         pipeline_service = PipelineService(db)
 
@@ -619,7 +634,9 @@ async def execute_pipeline(
                 async for status in pipeline_service.run_pipeline(
                     research_stream_id=stream_id,
                     user_id=current_user.user_id,
-                    run_type=run_type_value
+                    run_type=run_type_value,
+                    start_date=start_date,
+                    end_date=end_date
                 ):
                     # Format as SSE event
                     status_dict = status.to_dict()

@@ -66,7 +66,9 @@ class PipelineService:
         self,
         research_stream_id: int,
         user_id: int,
-        run_type: RunType = RunType.TEST
+        run_type: RunType = RunType.TEST,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> AsyncGenerator[PipelineStatus, None]:
         """
         Execute the full pipeline for a research stream and yield status updates.
@@ -85,6 +87,8 @@ class PipelineService:
             research_stream_id: ID of the research stream to execute
             user_id: ID of the user executing the pipeline (for authorization)
             run_type: Type of run (TEST, SCHEDULED, MANUAL)
+            start_date: Start date for retrieval (YYYY/MM/DD format)
+            end_date: End date for retrieval (YYYY/MM/DD format)
 
         Yields:
             PipelineStatus: Status updates at each stage
@@ -167,7 +171,9 @@ class PipelineService:
                         execution_id=execution_id,
                         group_id=group.group_id,
                         source_id=source_id,
-                        query_expression=source_query.query_expression
+                        query_expression=source_query.query_expression,
+                        start_date=start_date,
+                        end_date=end_date
                     )
 
                     total_retrieved += articles_retrieved
@@ -315,7 +321,9 @@ class PipelineService:
         execution_id: str,
         group_id: str,
         source_id: str,
-        query_expression: str
+        query_expression: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> int:
         """
         Execute a query for a specific source and store results in wip_articles.
@@ -326,6 +334,8 @@ class PipelineService:
             group_id: Retrieval group ID
             source_id: Source identifier
             query_expression: Query to execute
+            start_date: Start date for retrieval (YYYY/MM/DD format)
+            end_date: End date for retrieval (YYYY/MM/DD format)
 
         Returns:
             Number of articles retrieved
@@ -344,7 +354,11 @@ class PipelineService:
             # Use PubMed service to execute query (returns tuple of articles and metadata)
             articles, metadata = self.pubmed_service.search_articles(
                 query=query_expression,
-                max_results=min(self.MAX_ARTICLES_PER_SOURCE, 50)
+                max_results=min(self.MAX_ARTICLES_PER_SOURCE, 50),
+                start_date=start_date,
+                end_date=end_date,
+                date_type="entry",  # Use entry date for weekly reports
+                sort_by="relevance"  # Most relevant first
             )
         else:
             # Other sources not yet implemented

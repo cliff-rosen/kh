@@ -12,6 +12,22 @@ export default function ExecutePipelineTab({ streamId }: ExecutePipelineTabProps
     const [error, setError] = useState<string | null>(null);
     const [reportId, setReportId] = useState<number | null>(null);
 
+    // Calculate default dates (last 7 days)
+    const getDefaultDates = () => {
+        const today = new Date();
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+
+        return {
+            startDate: weekAgo.toISOString().split('T')[0], // YYYY-MM-DD
+            endDate: today.toISOString().split('T')[0]
+        };
+    };
+
+    const defaults = getDefaultDates();
+    const [startDate, setStartDate] = useState(defaults.startDate);
+    const [endDate, setEndDate] = useState(defaults.endDate);
+
     const executePipeline = async () => {
         setIsExecuting(true);
         setStatusLog([]);
@@ -19,9 +35,15 @@ export default function ExecutePipelineTab({ streamId }: ExecutePipelineTabProps
         setReportId(null);
 
         try {
+            // Convert YYYY-MM-DD to YYYY/MM/DD for backend
+            const formattedStartDate = startDate.replace(/-/g, '/');
+            const formattedEndDate = endDate.replace(/-/g, '/');
+
             // Use the API method to execute pipeline
             const stream = researchStreamApi.executePipeline(streamId, {
-                run_type: 'test'
+                run_type: 'test',
+                start_date: formattedStartDate,
+                end_date: formattedEndDate
             });
 
             for await (const status of stream) {
@@ -117,6 +139,40 @@ export default function ExecutePipelineTab({ streamId }: ExecutePipelineTabProps
                     Execute the full pipeline end-to-end: retrieval, deduplication, filtering, categorization, and report generation.
                     This creates a test report with real-time progress updates.
                 </p>
+            </div>
+
+            {/* Date Range Selection */}
+            <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg p-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Date Range for Retrieval</h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    Retrieves articles that entered PubMed during this date range (using entry date).
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Start Date
+                        </label>
+                        <input
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            disabled={isExecuting}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            End Date
+                        </label>
+                        <input
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            disabled={isExecuting}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+                        />
+                    </div>
+                </div>
             </div>
 
             {/* Execute Button */}

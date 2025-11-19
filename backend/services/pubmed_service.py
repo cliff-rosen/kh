@@ -21,8 +21,6 @@ https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=38004229&
 """
 PUBMED_API_SEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 PUBMED_API_FETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
-# RETMAX moved to settings.py - use settings.PUBMED_MAX_RESULTS_PER_CALL
-FILTER_TERM = "(melanocortin) OR (natriuretic) OR (Dry eye) OR (Ulcerative colitis) OR (Crohn's disease) OR (Retinopathy) OR (Retinal disease)"
 
 def _get_pubmed_max_results() -> int:
     """Helper function to get PubMed max results from settings."""
