@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import List
+from typing import List, Dict, Any
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 import logging
 
 from schemas.canonical_types import CanonicalPubMedArticle
@@ -13,7 +14,14 @@ router = APIRouter(
     tags=["pubmed"]
 )
 
-@router.get("/articles/search", response_model=List[CanonicalPubMedArticle])
+
+class PubMedSearchResponse(BaseModel):
+    """Response model for PubMed search including articles and metadata"""
+    articles: List[CanonicalPubMedArticle]
+    metadata: Dict[str, Any]
+
+
+@router.get("/articles/search", response_model=PubMedSearchResponse)
 def search_articles(
     filter_term: str = Query(..., description="The search term to filter articles by."),
     start_date: str = Query(..., description="The start date for the search range (YYYY-MM-DD)."),
@@ -21,9 +29,12 @@ def search_articles(
 ):
     """
     Search for PubMed articles within a specified date range.
+
+    Returns both the articles and metadata about the search (total results, offset, returned count).
     """
     try:
-        return search_articles_by_date_range(filter_term, start_date, end_date)
+        articles, metadata = search_articles_by_date_range(filter_term, start_date, end_date)
+        return PubMedSearchResponse(articles=articles, metadata=metadata)
     except Exception as e:
         logger.error(f"Error in PubMed search endpoint: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}") 

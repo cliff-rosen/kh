@@ -558,14 +558,14 @@ class PubMedService:
 
 
 # Keep the old function for backward compatibility but have it call the new one
-def search_articles_by_date_range(filter_term: str, start_date: str, end_date: str, date_type: str = "publication", sort_by: str = "relevance") -> List['CanonicalResearchArticle']:
+def search_articles_by_date_range(filter_term: str, start_date: str, end_date: str, date_type: str = "publication", sort_by: str = "relevance") -> tuple[List['CanonicalResearchArticle'], Dict[str, Any]]:
     """
     DEPRECATED: Use search_articles() instead.
-    
-    This function is kept for backward compatibility.
+
+    This function is kept for backward compatibility and now returns (articles, metadata) tuple.
     """
     # Just call the new unified search function
-    articles, _ = search_articles(
+    articles, metadata = search_articles(
         query=filter_term,
         max_results=_get_pubmed_max_results(),
         offset=0,
@@ -574,7 +574,7 @@ def search_articles_by_date_range(filter_term: str, start_date: str, end_date: s
         end_date=end_date,
         date_type=date_type
     )
-    return articles
+    return articles, metadata
 
 
 def fetch_articles_by_ids(pubmed_ids: List[str]) -> List[PubMedArticle]:
