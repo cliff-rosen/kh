@@ -102,10 +102,9 @@ export default function QueryConfigPhase({
             const query = group.source_queries[sourceId];
             if (!query?.query_expression) return;
 
-            const result = await researchStreamApi.testQueryForTopic(streamId, {
+            const result = await researchStreamApi.testSourceQuery(streamId, {
                 source_id: sourceId,
-                query_expression: query.query_expression,
-                topic_id: group.covered_topics[0] // Use first topic for testing
+                query_expression: query.query_expression
             });
 
             // Extract titles from sample_articles

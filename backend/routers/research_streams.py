@@ -528,33 +528,37 @@ async def generate_semantic_filter(
         )
 
 # ============================================================================
-# Topic-Based Query Testing (Layer 2: Retrieval Config)
+# Query Testing (Same Path as Pipeline)
 # ============================================================================
 
 class QueryTestRequest(BaseModel):
-    """Request to test a query for a topic"""
+    """Request to test a query against a source"""
     source_id: str = Field(..., description="Source to test against")
     query_expression: str = Field(..., description="Query expression to test")
-    max_results: int = Field(10, ge=1, le=50, description="Maximum sample articles to return")
-    start_date: Optional[str] = Field(None, description="Start date for filtering (YYYY-MM-DD) - PubMed only")
-    end_date: Optional[str] = Field(None, description="End date for filtering (YYYY-MM-DD) - PubMed only")
-    date_type: Optional[str] = Field('entrez', description="Date type for filtering - PubMed only")
+    max_results: int = Field(10, ge=1, le=100, description="Maximum sample articles to return")
+    start_date: Optional[str] = Field(None, description="Start date for filtering (YYYY/MM/DD) - PubMed only")
+    end_date: Optional[str] = Field(None, description="End date for filtering (YYYY/MM/DD) - PubMed only")
+    date_type: Optional[str] = Field('entry', description="Date type for filtering (entry, publication, etc.) - PubMed only")
+    sort_by: Optional[str] = Field('relevance', description="Sort order (relevance, date) - PubMed only")
 
 
-@router.post("/{stream_id}/topics/test-query", response_model=QueryTestResponse)
-async def test_query_for_source(
+@router.post("/{stream_id}/test-query", response_model=QueryTestResponse)
+async def test_source_query(
     stream_id: int,
     request: QueryTestRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Test a query expression against a source for a topic.
+    Test a query expression against a source.
 
+    Uses the SAME code path as pipeline execution to ensure consistency.
     This allows testing query expressions to see how many articles would be
     returned and preview sample results.
     """
-    service = RetrievalQueryService(db)
+    from services.pubmed_service import PubMedService
+    from datetime import datetime, timedelta
+
     stream_service = ResearchStreamService(db)
 
     try:
@@ -569,25 +573,51 @@ async def test_query_for_source(
                 detail=f"Invalid source_id. Must be one of: {', '.join(valid_sources)}"
             )
 
-        # Test query
-        result = await service.test_query_for_source(
-            query_expression=request.query_expression,
-            source_id=request.source_id,
-            max_results=request.max_results,
-            start_date=request.start_date,
-            end_date=request.end_date,
-            date_type=request.date_type
-        )
+        # Apply default date range if not provided (7 days like pipeline)
+        start_date = request.start_date
+        end_date = request.end_date
 
-        return QueryTestResponse(**result)
+        if not start_date or not end_date:
+            end_date_obj = datetime.now()
+            start_date_obj = end_date_obj - timedelta(days=7)
+            start_date = start_date_obj.strftime("%Y/%m/%d")
+            end_date = end_date_obj.strftime("%Y/%m/%d")
+
+        # Execute query using same service as pipeline
+        if request.source_id.lower() == "pubmed":
+            pubmed_service = PubMedService()
+            articles, metadata = pubmed_service.search_articles(
+                query=request.query_expression,
+                max_results=request.max_results,
+                offset=0,
+                start_date=start_date,
+                end_date=end_date,
+                date_type=request.date_type,
+                sort_by=request.sort_by
+            )
+
+            return QueryTestResponse(
+                success=True,
+                article_count=metadata.get('total_results', 0),
+                sample_articles=articles,
+                error_message=None
+            )
+        else:
+            # Other sources not yet implemented
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail=f"Source '{request.source_id}' not yet implemented for query testing"
+            )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Query test failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Query test failed: {str(e)}"
+        logger.error(f"Query test failed: {e}", exc_info=True)
+        return QueryTestResponse(
+            success=False,
+            article_count=0,
+            sample_articles=[],
+            error_message=str(e)
         )
 
 

@@ -118,9 +118,10 @@ export interface QueryTestRequest {
     source_id: string;
     query_expression: string;
     max_results?: number;
-    start_date?: string;  // YYYY-MM-DD
-    end_date?: string;    // YYYY-MM-DD
-    date_type?: string;   // 'entrez', 'publication', etc.
+    start_date?: string;  // YYYY/MM/DD - PubMed only
+    end_date?: string;    // YYYY/MM/DD - PubMed only
+    date_type?: string;   // 'entry', 'publication', etc. - PubMed only
+    sort_by?: string;     // 'relevance', 'date' - PubMed only
 }
 
 export interface QueryTestResponse {
@@ -340,18 +341,18 @@ export const researchStreamApi = {
 
 
     // ========================================================================
-    // Topic-Based Query Testing (Layer 2: Retrieval Config)
+    // Query Testing (Same Path as Pipeline)
     // ========================================================================
 
     /**
-     * Test a query for a topic
+     * Test a query against a source (uses same code path as pipeline)
      */
-    async testQueryForTopic(
+    async testSourceQuery(
         streamId: number,
-        request: QueryTestRequest & { topic_id: string }
+        request: QueryTestRequest
     ): Promise<QueryTestResponse> {
         const response = await api.post(
-            `/api/research-streams/${streamId}/topics/test-query`,
+            `/api/research-streams/${streamId}/test-query`,
             request
         );
         return response.data;
