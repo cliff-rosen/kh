@@ -194,10 +194,34 @@ async def toggle_research_stream_status(
 # ============================================================================
 
 
+class ProposeGroupsResponse(BaseModel):
+    """Response from retrieval group proposal"""
+    proposed_groups: List[Dict[str, Any]] = Field(..., description="Proposed retrieval groups")
+    coverage_analysis: Dict[str, Any] = Field(..., description="Analysis of topic coverage")
+    overall_reasoning: str = Field(..., description="Explanation of grouping strategy")
+    error: Optional[str] = Field(None, description="Error message if proposal used fallback")
+
+
+class ValidateGroupsResponse(BaseModel):
+    """Response from retrieval group validation"""
+    is_complete: bool = Field(..., description="Whether all topics are covered")
+    coverage: Dict[str, Any] = Field(..., description="Topic coverage details")
+    configuration_status: Dict[str, Any] = Field(..., description="Configuration completeness status")
+    warnings: List[str] = Field(..., description="Validation warnings")
+    ready_to_activate: bool = Field(..., description="Whether config is ready for production")
+
+
 class QueryGenerationResponse(BaseModel):
     """Response from query generation"""
     query_expression: str = Field(..., description="Generated query expression")
     reasoning: str = Field(..., description="Explanation of why this expression was generated")
+
+
+class SemanticFilterResponse(BaseModel):
+    """Response from semantic filter generation"""
+    criteria: str = Field(..., description="Filter criteria description")
+    threshold: float = Field(..., ge=0.0, le=1.0, description="Relevance threshold (0-1)")
+    reasoning: str = Field(..., description="Explanation of filter design")
 
 
 class QueryTestResponse(BaseModel):
@@ -208,11 +232,18 @@ class QueryTestResponse(BaseModel):
     error_message: Optional[str] = Field(None, description="Error message if query failed")
 
 
+class TopicSummary(BaseModel):
+    """Summary of a topic for filter generation"""
+    topic_id: str = Field(..., description="Unique topic identifier")
+    name: str = Field(..., description="Topic name")
+    description: str = Field(..., description="Topic description")
+
+
 # ============================================================================
 # Retrieval Group Workflow (New Group-Based Architecture)
 # ============================================================================
 
-@router.post("/{stream_id}/retrieval/propose-groups")
+@router.post("/{stream_id}/retrieval/propose-groups", response_model=ProposeGroupsResponse)
 async def propose_retrieval_groups(
     stream_id: int,
     db: Session = Depends(get_db),
@@ -242,7 +273,7 @@ async def propose_retrieval_groups(
         if 'error' in result:
             logger.warning(f"Group proposal returned with fallback: {result.get('error')}")
 
-        return result
+        return ProposeGroupsResponse(**result)
 
     except HTTPException:
         raise
@@ -259,7 +290,7 @@ class ValidateGroupsRequest(BaseModel):
     groups: List[Dict[str, Any]]
 
 
-@router.post("/{stream_id}/retrieval/validate")
+@router.post("/{stream_id}/retrieval/validate", response_model=ValidateGroupsResponse)
 async def validate_retrieval_groups(
     stream_id: int,
     request: ValidateGroupsRequest,
@@ -290,7 +321,7 @@ async def validate_retrieval_groups(
         # Validate
         result = service.validate_groups(semantic_space, groups)
 
-        return result
+        return ValidateGroupsResponse(**result)
 
     except HTTPException:
         raise
@@ -309,7 +340,7 @@ class GenerateGroupQueriesRequest(BaseModel):
     covered_topics: List[str]
 
 
-@router.post("/{stream_id}/retrieval/generate-group-queries")
+@router.post("/{stream_id}/retrieval/generate-group-queries", response_model=QueryGenerationResponse)
 async def generate_group_queries(
     stream_id: int,
     request: GenerateGroupQueriesRequest,
@@ -353,10 +384,10 @@ async def generate_group_queries(
             group_rationale=None  # Could pass request.group_rationale if available
         )
 
-        return {
-            'query_expression': query_expression,
-            'reasoning': reasoning
-        }
+        return QueryGenerationResponse(
+            query_expression=query_expression,
+            reasoning=reasoning
+        )
 
     except HTTPException:
         raise
@@ -370,12 +401,12 @@ async def generate_group_queries(
 
 class GenerateSemanticFilterRequest(BaseModel):
     """Request to generate semantic filter for a retrieval group"""
-    group_id: str
-    topics: List[Dict[str, str]]
-    rationale: str
+    group_id: str = Field(..., description="Retrieval group ID")
+    topics: List[TopicSummary] = Field(..., description="Topics in the group")
+    rationale: str = Field(..., description="Why these topics are grouped together")
 
 
-@router.post("/{stream_id}/retrieval/generate-semantic-filter")
+@router.post("/{stream_id}/retrieval/generate-semantic-filter", response_model=SemanticFilterResponse)
 async def generate_semantic_filter(
     stream_id: int,
     request: GenerateSemanticFilterRequest,
@@ -400,7 +431,7 @@ async def generate_semantic_filter(
         from datetime import datetime
 
         topics_summary = "\n".join([
-            f"- {t['name']}: {t['description']}"
+            f"- {t.name}: {t.description}"
             for t in request.topics
         ])
 
@@ -481,11 +512,11 @@ async def generate_semantic_filter(
         else:
             response_data = llm_response
 
-        return {
-            'criteria': response_data.get('criteria', ''),
-            'threshold': response_data.get('threshold', 0.7),
-            'reasoning': response_data.get('reasoning', '')
-        }
+        return SemanticFilterResponse(
+            criteria=response_data.get('criteria', ''),
+            threshold=response_data.get('threshold', 0.7),
+            reasoning=response_data.get('reasoning', '')
+        )
 
     except HTTPException:
         raise
