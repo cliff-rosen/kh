@@ -98,6 +98,11 @@ class ConceptProposalService:
                 for r in semantic_space.relationships
             ])
 
+        # Format user context if provided
+        user_context_section = ""
+        if user_context:
+            user_context_section = f"\n## Additional User Context:\n{user_context}\n"
+
         prompt = f"""You are an expert at designing retrieval configurations for research monitoring systems.
 
 Your task is to analyze a semantic space and propose CONCEPTS for retrieving relevant research articles.
@@ -125,9 +130,7 @@ Key principles:
 {relationships_text}
 
 ## Domain Context:
-{semantic_space.domain_description}
-
-{f"## Additional User Context:\n{user_context}\n" if user_context else ""}
+{semantic_space.domain_description}{user_context_section}
 
 # YOUR TASK
 
