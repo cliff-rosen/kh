@@ -5,7 +5,8 @@ import {
     PencilIcon,
     CheckCircleIcon,
     BeakerIcon,
-    ExclamationTriangleIcon
+    ExclamationTriangleIcon,
+    CalendarIcon
 } from '@heroicons/react/24/outline';
 import { SemanticSpace, RetrievalGroup, InformationSource } from '../../types';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
@@ -25,6 +26,18 @@ interface QueryTestResult {
     sample_titles: string[];
 }
 
+// Calculate default dates (last 7 days)
+const getDefaultDates = () => {
+    const today = new Date();
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    return {
+        startDate: weekAgo.toISOString().split('T')[0], // YYYY-MM-DD
+        endDate: today.toISOString().split('T')[0]
+    };
+};
+
 export default function QueryConfigPhase({
     streamId,
     semanticSpace,
@@ -33,12 +46,21 @@ export default function QueryConfigPhase({
     onGroupsChange,
     onComplete
 }: QueryConfigPhaseProps) {
+    const defaults = getDefaultDates();
     const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
     const [generating, setGenerating] = useState<Record<string, boolean>>({});
     const [testing, setTesting] = useState<Record<string, boolean>>({});
     const [testResults, setTestResults] = useState<Record<string, QueryTestResult>>({});
     const [editingQuery, setEditingQuery] = useState<{ groupId: string; sourceId: string } | null>(null);
     const [editForm, setEditForm] = useState<string>('');
+    const [startDate, setStartDate] = useState(defaults.startDate);
+    const [endDate, setEndDate] = useState(defaults.endDate);
+    const [showDateFilter, setShowDateFilter] = useState(false);
+
+    // Filter to only show PubMed and Google Scholar
+    const filteredSources = sources.filter(
+        source => source.source_id === 'pubmed' || source.source_id === 'google_scholar'
+    );
 
     useEffect(() => {
         // Mark complete if all groups have at least one configured query
@@ -102,9 +124,18 @@ export default function QueryConfigPhase({
             const query = group.source_queries[sourceId];
             if (!query?.query_expression) return;
 
+            // Convert YYYY-MM-DD to YYYY/MM/DD for backend
+            const formattedStartDate = startDate.replace(/-/g, '/');
+            const formattedEndDate = endDate.replace(/-/g, '/');
+
             const result = await researchStreamApi.testSourceQuery(streamId, {
                 source_id: sourceId,
-                query_expression: query.query_expression
+                query_expression: query.query_expression,
+                start_date: formattedStartDate,
+                end_date: formattedEndDate,
+                date_type: 'entry',
+                sort_by: 'relevance',
+                max_results: 10
             });
 
             // Extract titles from sample_articles
@@ -206,6 +237,60 @@ export default function QueryConfigPhase({
                 </div>
             </div>
 
+            {/* Date Range Filter */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                <button
+                    onClick={() => setShowDateFilter(!showDateFilter)}
+                    className="w-full flex items-center justify-between text-left"
+                >
+                    <div className="flex items-center gap-2">
+                        <CalendarIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                        <h3 className="font-medium text-gray-900 dark:text-white">
+                            Date Range for Query Testing
+                        </h3>
+                    </div>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                        {showDateFilter ? '▼' : '▶'}
+                    </span>
+                </button>
+
+                {showDateFilter && (
+                    <div className="mt-4 space-y-3">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Test queries against articles that entered PubMed during this date range.
+                            This helps verify your queries will find recent, relevant articles.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Start Date
+                                </label>
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    End Date
+                                </label>
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                />
+                            </div>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Currently testing: {startDate} to {endDate} (last 7 days by default)
+                        </p>
+                    </div>
+                )}
+            </div>
+
             {/* Groups with Query Configuration */}
             <div className="space-y-4">
                 {groups.map((group) => {
@@ -253,7 +338,7 @@ export default function QueryConfigPhase({
                                             Information Sources
                                         </h4>
 
-                                        {sources.map((source) => {
+                                        {filteredSources.map((source) => {
                                             const query = group.source_queries[source.source_id];
                                             const key = `${group.group_id}_${source.source_id}`;
                                             const isGenerating = generating[key];
