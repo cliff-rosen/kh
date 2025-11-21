@@ -133,7 +133,7 @@ export default function QueryConfigPhase({
                 query_expression: query.query_expression,
                 start_date: formattedStartDate,
                 end_date: formattedEndDate,
-                date_type: 'entry',
+                date_type: 'publication',
                 sort_by: 'relevance',
                 max_results: 10
             });
