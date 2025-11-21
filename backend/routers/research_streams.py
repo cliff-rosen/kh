@@ -21,7 +21,8 @@ from schemas.research_stream import (
     StreamType,
     ReportFrequency,
     RetrievalConfig,
-    PresentationConfig
+    PresentationConfig,
+    Concept
 )
 from schemas.semantic_space import SemanticSpace
 from schemas.sources import INFORMATION_SOURCES, InformationSource
@@ -31,6 +32,7 @@ from schemas.canonical_types import CanonicalResearchArticle
 from services.research_stream_service import ResearchStreamService
 from services.retrieval_query_service import RetrievalQueryService
 from services.retrieval_group_service import RetrievalGroupService
+from services.concept_proposal_service import ConceptProposalService
 from services.pipeline_service import PipelineService
 
 from routers.auth import get_current_user
@@ -237,6 +239,59 @@ class TopicSummary(BaseModel):
     topic_id: str = Field(..., description="Unique topic identifier")
     name: str = Field(..., description="Topic name")
     description: str = Field(..., description="Topic description")
+
+
+class ProposeConceptsResponse(BaseModel):
+    """Response from concept proposal based on semantic space analysis"""
+    proposed_concepts: List[Concept] = Field(..., description="Proposed concepts for retrieval")
+    analysis: Dict[str, Any] = Field(..., description="Phase 1 analysis (entities, relationships)")
+    reasoning: str = Field(..., description="Overall strategy explanation")
+    coverage_check: Dict[str, Any] = Field(..., description="Topic coverage validation")
+
+
+# ============================================================================
+# Retrieval Concept Workflow (Concept-Based Architecture)
+# ============================================================================
+
+@router.post("/{stream_id}/retrieval/propose-concepts", response_model=ProposeConceptsResponse)
+async def propose_retrieval_concepts(
+    stream_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Phase 1: Propose retrieval concepts based on semantic space analysis.
+
+    Analyzes the semantic space and generates concept proposals following the framework:
+    - Extracts entities and relationships
+    - Generates entity-relationship patterns (concepts)
+    - Many-to-many mapping to topics
+    - Volume-driven design (will be refined in later phases)
+    """
+    concept_service = ConceptProposalService()
+    stream_service = ResearchStreamService(db)
+
+    try:
+        # Get stream (raises 404 if not found or not authorized)
+        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+
+        # Parse semantic space
+        semantic_space_dict = stream.semantic_space
+        semantic_space = SemanticSpace(**semantic_space_dict)
+
+        # Propose concepts
+        result = await concept_service.propose_concepts(semantic_space)
+
+        return ProposeConceptsResponse(**result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Concept proposal failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Concept proposal failed: {str(e)}"
+        )
 
 
 # ============================================================================

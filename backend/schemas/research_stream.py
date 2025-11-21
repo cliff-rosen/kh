@@ -35,7 +35,7 @@ class Category(BaseModel):
 
 
 # ============================================================================
-# Retrieval Configuration - Group-Based
+# Retrieval Configuration - Concept-Based
 # ============================================================================
 
 class SourceQuery(BaseModel):
@@ -51,44 +51,121 @@ class SemanticFilter(BaseModel):
     threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Confidence threshold (0.0 to 1.0)")
 
 
-class GenerationMetadata(BaseModel):
-    """Metadata about how a configuration element was generated"""
-    generated_at: datetime = Field(description="When this was generated")
-    generated_by: str = Field(description="Who/what generated this (e.g., 'llm:gpt-4', 'user:manual')")
-    reasoning: str = Field(default="", description="Explanation of why this was generated")
-    confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence score (0-1)")
-    inputs_considered: List[str] = Field(default_factory=list, description="topic_ids, entity_ids considered")
-    human_edited: bool = Field(default=False, description="Has a human edited this")
+class VolumeStatus(str, Enum):
+    """Volume assessment for a concept"""
+    TOO_BROAD = "too_broad"      # > 1000 results/week
+    APPROPRIATE = "appropriate"   # 10-1000 results/week
+    TOO_NARROW = "too_narrow"     # < 10 results/week
+    UNKNOWN = "unknown"           # Not yet tested
 
 
-class RetrievalGroup(BaseModel):
-    """A grouping of topics for retrieval optimization"""
-    group_id: str = Field(description="Unique identifier for this retrieval group")
-    name: str = Field(description="Display name for the group")
-    covered_topics: List[str] = Field(description="List of topic_ids from semantic space covered by this group")
-    rationale: str = Field(description="Why these topics are grouped together for retrieval")
+class Concept(BaseModel):
+    """
+    A searchable entity-relationship pattern that covers one or more topics.
 
-    # Retrieval configuration embedded directly
-    source_queries: Dict[str, Optional[SourceQuery]] = Field(
+    Based on framework:
+    - Single inclusion pattern (entities in relationships)
+    - Vocabulary expansion within entities (not across patterns)
+    - Volume-driven refinement
+    - Minimal exclusions
+    """
+    concept_id: str = Field(description="Unique identifier for this concept")
+    name: str = Field(description="Descriptive name for this concept")
+
+    # Core pattern (entities and their relationships)
+    entity_pattern: List[str] = Field(
+        description="List of entity_ids that form this pattern",
+        default_factory=list
+    )
+    relationship_pattern: Optional[str] = Field(
+        None,
+        description="How entities relate (e.g., 'causes', 'treats', 'indicates')"
+    )
+
+    # Coverage (many-to-many with topics)
+    covered_topics: List[str] = Field(
+        description="List of topic_ids from semantic space this concept covers"
+    )
+
+    # Vocabulary expansion (synonyms/variants per entity)
+    vocabulary_terms: Dict[str, List[str]] = Field(
+        default_factory=dict,
+        description="Map: entity_id -> list of synonym terms (for OR clauses)"
+    )
+
+    # Volume tracking and refinement
+    expected_volume: Optional[int] = Field(
+        None,
+        description="Estimated weekly article count"
+    )
+    volume_status: VolumeStatus = Field(
+        default=VolumeStatus.UNKNOWN,
+        description="Assessment of query volume"
+    )
+    last_volume_check: Optional[datetime] = Field(
+        None,
+        description="When volume was last checked"
+    )
+
+    # Queries per source
+    source_queries: Dict[str, SourceQuery] = Field(
         default_factory=dict,
         description="Map: source_id -> SourceQuery configuration"
     )
+
+    # Semantic filtering (per concept)
     semantic_filter: SemanticFilter = Field(
         default_factory=lambda: SemanticFilter(),
-        description="Semantic filtering for this group"
+        description="Semantic filtering for this concept"
     )
 
-    # Metadata for auditability
-    metadata: Optional[GenerationMetadata] = Field(None, description="Generation metadata")
+    # Exclusions (use sparingly!)
+    exclusions: List[str] = Field(
+        default_factory=list,
+        description="Terms to exclude (last resort only)"
+    )
+    exclusion_rationale: Optional[str] = Field(
+        None,
+        description="Why exclusions are necessary and safe"
+    )
+
+    # Metadata
+    rationale: str = Field(
+        description="Why this concept pattern covers these topics"
+    )
+    human_edited: bool = Field(
+        default=False,
+        description="Whether human has modified LLM-generated concept"
+    )
 
 
 class RetrievalConfig(BaseModel):
     """Layer 2: Configuration for content retrieval and filtering"""
-    retrieval_groups: List[RetrievalGroup] = Field(
+    concepts: List[Concept] = Field(
         default_factory=list,
-        description="Retrieval groups organizing topics for efficient search"
+        description="Concepts covering domain (union = complete coverage)"
     )
     article_limit_per_week: Optional[int] = Field(None, description="Maximum articles per week")
+
+    def get_concepts_for_topic(self, topic_id: str) -> List[Concept]:
+        """Get all concepts that cover a specific topic"""
+        return [c for c in self.concepts if topic_id in c.covered_topics]
+
+    def validate_coverage(self, semantic_space: SemanticSpace) -> Dict[str, Any]:
+        """Check if all topics are covered by at least one concept"""
+        covered = set()
+        for concept in self.concepts:
+            covered.update(concept.covered_topics)
+
+        all_topics = {t.topic_id for t in semantic_space.topics}
+        uncovered = all_topics - covered
+
+        return {
+            "is_complete": len(uncovered) == 0,
+            "covered_topics": list(covered),
+            "uncovered_topics": list(uncovered),
+            "coverage_percentage": len(covered) / len(all_topics) * 100 if all_topics else 100
+        }
 
 
 class PresentationConfig(BaseModel):
