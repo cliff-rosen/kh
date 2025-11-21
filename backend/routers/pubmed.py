@@ -6,7 +6,7 @@ import logging
 
 from schemas.canonical_types import CanonicalResearchArticle
 
-from services.pubmed_service import search_articles_by_date_range
+from services.pubmed_service import search_articles_by_date_range, search_pubmed_count
 
 logger = logging.getLogger(__name__)
 
@@ -37,4 +37,25 @@ def search_articles(
         return PubMedSearchResponse(articles=articles, metadata=metadata)
     except Exception as e:
         logger.error(f"Error in PubMed search endpoint: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+class PubMedCountResponse(BaseModel):
+    """Response model for PubMed count"""
+    count: int
+    query: str
+
+
+@router.get("/articles/count", response_model=PubMedCountResponse)
+def get_search_count(
+    query: str = Query(..., description="The PubMed search query.")
+):
+    """
+    Get the count of PubMed articles matching a search query without fetching articles.
+    """
+    try:
+        count = search_pubmed_count(query)
+        return PubMedCountResponse(count=count, query=query)
+    except Exception as e:
+        logger.error(f"Error in PubMed count endpoint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
