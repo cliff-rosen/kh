@@ -463,7 +463,7 @@ class PubMedService:
         if self.api_key:
             params['api_key'] = self.api_key
         
-        logger.info(f'Retrieving article IDs for query: {search_term}')
+        logger.info(f'Retrieving article IDs for query: {full_term}')
         logger.debug(f'Parameters: {params}')
 
         # Check if the URL is too long (PubMed has a limit of about 2000-3000 characters)
