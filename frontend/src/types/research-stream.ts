@@ -26,7 +26,7 @@ export interface Category {
 }
 
 // ============================================================================
-// Retrieval Configuration - Group-Based
+// Retrieval Configuration - Concept-Based
 // ============================================================================
 
 export interface SourceQuery {
@@ -39,6 +39,56 @@ export interface SemanticFilter {
     criteria: string;  // Text description of what should pass/fail
     threshold: number;  // 0.0 to 1.0 confidence threshold
 }
+
+export enum VolumeStatus {
+    TOO_BROAD = 'too_broad',      // > 1000 results/week
+    APPROPRIATE = 'appropriate',  // 10-1000 results/week
+    TOO_NARROW = 'too_narrow',    // < 10 results/week
+    UNKNOWN = 'unknown'           // Not yet tested
+}
+
+export interface Concept {
+    concept_id: string;  // Unique identifier for this concept
+    name: string;  // Descriptive name for this concept
+
+    // Core pattern (entities and their relationships)
+    entity_pattern: string[];  // List of entity_ids that form this pattern
+    relationship_pattern: string | null;  // How entities relate (e.g., 'causes', 'treats', 'indicates')
+
+    // Coverage (many-to-many with topics)
+    covered_topics: string[];  // List of topic_ids from semantic space this concept covers
+
+    // Vocabulary expansion (synonyms/variants per entity)
+    vocabulary_terms: Record<string, string[]>;  // Map: entity_id -> list of synonym terms
+
+    // Volume tracking and refinement
+    expected_volume: number | null;  // Estimated weekly article count
+    volume_status: VolumeStatus;  // Assessment of query volume
+    last_volume_check: string | null;  // ISO 8601 datetime when volume was last checked
+
+    // Queries per source
+    source_queries: Record<string, SourceQuery>;  // Map: source_id -> SourceQuery configuration
+
+    // Semantic filtering (per concept)
+    semantic_filter: SemanticFilter;  // Semantic filtering for this concept
+
+    // Exclusions (use sparingly!)
+    exclusions: string[];  // Terms to exclude (last resort only)
+    exclusion_rationale: string | null;  // Why exclusions are necessary and safe
+
+    // Metadata
+    rationale: string;  // Why this concept pattern covers these topics
+    human_edited: boolean;  // Whether human has modified LLM-generated concept
+}
+
+export interface RetrievalConfig {
+    concepts: Concept[];  // Concepts covering domain (union = complete coverage)
+    article_limit_per_week?: number;  // Maximum articles per week
+}
+
+// ============================================================================
+// Legacy Types (for backward compatibility during transition)
+// ============================================================================
 
 export interface GenerationMetadata {
     generated_at: string;  // ISO 8601 datetime
@@ -61,11 +111,6 @@ export interface RetrievalGroup {
 
     // Metadata for auditability
     metadata?: GenerationMetadata;
-}
-
-export interface RetrievalConfig {
-    retrieval_groups: RetrievalGroup[];  // Retrieval groups organizing topics for efficient search
-    article_limit_per_week?: number;  // Maximum articles per week
 }
 
 export interface PresentationConfig {

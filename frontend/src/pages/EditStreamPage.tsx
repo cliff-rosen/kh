@@ -9,7 +9,7 @@ import {
     Topic,
     Entity,
     RetrievalConfig,
-    RetrievalGroup
+    Concept
 } from '../types';
 
 import { useResearchStream } from '../context/ResearchStreamContext';
@@ -84,7 +84,7 @@ export default function EditStreamPage() {
 
         // === LAYER 2: RETRIEVAL CONFIG ===
         retrieval_config: {
-            retrieval_groups: [] as RetrievalGroup[],
+            concepts: [] as Concept[],
             article_limit_per_week: 10
         } as RetrievalConfig,
 
@@ -117,7 +117,7 @@ export default function EditStreamPage() {
                     is_active: foundStream.is_active,
                     semantic_space: foundStream.semantic_space,
                     retrieval_config: foundStream.retrieval_config || {
-                        retrieval_groups: [],
+                        concepts: [],
                         article_limit_per_week: 10
                     },
                     categories: foundStream.presentation_config.categories.length > 0
@@ -296,187 +296,187 @@ export default function EditStreamPage() {
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto px-6 py-6">
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8">
-                {/* Basic Stream Info */}
-                <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                        <div className="md:col-span-6">
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Stream Name *
-                            </label>
-                            <input
-                                type="text"
-                                value={form.stream_name}
-                                onChange={(e) => setForm({ ...form, stream_name: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                required
-                            />
-                        </div>
+                    {/* Basic Stream Info */}
+                    <div className="mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                            <div className="md:col-span-6">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Stream Name *
+                                </label>
+                                <input
+                                    type="text"
+                                    value={form.stream_name}
+                                    onChange={(e) => setForm({ ...form, stream_name: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    required
+                                />
+                            </div>
 
-                        <div className="md:col-span-3">
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Report Frequency *
-                            </label>
-                            <select
-                                value={form.report_frequency}
-                                onChange={(e) => setForm({ ...form, report_frequency: e.target.value as ReportFrequency })}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                            >
-                                <option value={ReportFrequency.DAILY}>Daily</option>
-                                <option value={ReportFrequency.WEEKLY}>Weekly</option>
-                                <option value={ReportFrequency.BIWEEKLY}>Bi-weekly</option>
-                                <option value={ReportFrequency.MONTHLY}>Monthly</option>
-                            </select>
-                        </div>
+                            <div className="md:col-span-3">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Report Frequency *
+                                </label>
+                                <select
+                                    value={form.report_frequency}
+                                    onChange={(e) => setForm({ ...form, report_frequency: e.target.value as ReportFrequency })}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                >
+                                    <option value={ReportFrequency.DAILY}>Daily</option>
+                                    <option value={ReportFrequency.WEEKLY}>Weekly</option>
+                                    <option value={ReportFrequency.BIWEEKLY}>Bi-weekly</option>
+                                    <option value={ReportFrequency.MONTHLY}>Monthly</option>
+                                </select>
+                            </div>
 
-                        <div className="md:col-span-3 flex items-center h-[42px]">
-                            <input
-                                type="checkbox"
-                                id="is_active"
-                                checked={form.is_active}
-                                onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-                                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                            />
-                            <label htmlFor="is_active" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                                Stream is active
-                            </label>
+                            <div className="md:col-span-3 flex items-center h-[42px]">
+                                <input
+                                    type="checkbox"
+                                    id="is_active"
+                                    checked={form.is_active}
+                                    onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
+                                    className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                                />
+                                <label htmlFor="is_active" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                                    Stream is active
+                                </label>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Three-Layer Architecture Tabs */}
-                <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
-                    <nav className="-mb-px flex space-x-8">
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('semantic')}
-                            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'semantic'
-                                ? 'border-purple-500 text-purple-600 dark:text-purple-400'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                                }`}
-                        >
-                            <div className="flex flex-col items-start">
-                                <span>Layer 1: Semantic Space</span>
-                                <span className="text-xs font-normal text-gray-500 dark:text-gray-400">What information matters</span>
-                            </div>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('retrieval')}
-                            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'retrieval'
-                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                                }`}
-                        >
-                            <div className="flex flex-col items-start">
-                                <span>Layer 2: Retrieval Config</span>
-                                <span className="text-xs font-normal text-gray-500 dark:text-gray-400">How to find & filter</span>
-                            </div>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('presentation')}
-                            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'presentation'
-                                ? 'border-green-500 text-green-600 dark:text-green-400'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                                }`}
-                        >
-                            <div className="flex flex-col items-start">
-                                <span>Layer 3: Presentation</span>
-                                <span className="text-xs font-normal text-gray-500 dark:text-gray-400">How to organize results</span>
-                            </div>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('execute')}
-                            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'execute'
-                                ? 'border-orange-500 text-orange-600 dark:text-orange-400'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                                }`}
-                        >
-                            <div className="flex flex-col items-start">
-                                <span>Test & Execute</span>
-                                <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Run pipeline end-to-end</span>
-                            </div>
-                        </button>
-                    </nav>
-                </div>
-
-                <form id="edit-stream-form" onSubmit={handleSubmit} className="space-y-6">
-                    {/* Layer 1: Semantic Space Tab */}
-                    {activeTab === 'semantic' && (
-                        <div className="space-y-6">
-                            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
-                                <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-200 mb-2">
-                                    Layer 1: Semantic Space
-                                </h3>
-                                <p className="text-sm text-purple-800 dark:text-purple-300">
-                                    Define what information matters. This is the canonical, source-agnostic ground truth that both retrieval strategies and presentation categories derive from.
-                                </p>
-                            </div>
-
-                            <SemanticSpaceForm
-                                semanticSpace={form.semantic_space}
-                                onChange={(updated) => setForm({ ...form, semantic_space: updated })}
-                            />
-                        </div>
-                    )}
-
-                    {/* Layer 2: Retrieval Configuration Tab */}
-                    {activeTab === 'retrieval' && (
-                        <div className="space-y-6">
-                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                                <div className="flex items-center justify-between mb-2">
-                                    <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200">
-                                        Layer 2: Retrieval Configuration
-                                    </h3>
-                                    <button
-                                        type="button"
-                                        onClick={() => navigate(`/streams/${id}/configure-retrieval`)}
-                                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium shadow-sm"
-                                    >
-                                        <CogIcon className="h-4 w-4" />
-                                        Open Wizard
-                                        <ArrowRightIcon className="h-3 w-3" />
-                                    </button>
+                    {/* Three-Layer Architecture Tabs */}
+                    <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
+                        <nav className="-mb-px flex space-x-8">
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('semantic')}
+                                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'semantic'
+                                    ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                                    }`}
+                            >
+                                <div className="flex flex-col items-start">
+                                    <span>Layer 1: Semantic Space</span>
+                                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">What information matters</span>
                                 </div>
-                                <p className="text-sm text-blue-800 dark:text-blue-300">
-                                    Define how to find and filter content. Use the wizard for AI-assisted setup, or configure manually below.
-                                </p>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('retrieval')}
+                                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'retrieval'
+                                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                                    }`}
+                            >
+                                <div className="flex flex-col items-start">
+                                    <span>Layer 2: Retrieval Config</span>
+                                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">How to find & filter</span>
+                                </div>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('presentation')}
+                                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'presentation'
+                                    ? 'border-green-500 text-green-600 dark:text-green-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                                    }`}
+                            >
+                                <div className="flex flex-col items-start">
+                                    <span>Layer 3: Presentation</span>
+                                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">How to organize results</span>
+                                </div>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('execute')}
+                                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'execute'
+                                    ? 'border-orange-500 text-orange-600 dark:text-orange-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                                    }`}
+                            >
+                                <div className="flex flex-col items-start">
+                                    <span>Test & Execute</span>
+                                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Run pipeline end-to-end</span>
+                                </div>
+                            </button>
+                        </nav>
+                    </div>
+
+                    <form id="edit-stream-form" onSubmit={handleSubmit} className="space-y-6">
+                        {/* Layer 1: Semantic Space Tab */}
+                        {activeTab === 'semantic' && (
+                            <div className="space-y-6">
+                                <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+                                    <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-200 mb-2">
+                                        Layer 1: Semantic Space
+                                    </h3>
+                                    <p className="text-sm text-purple-800 dark:text-purple-300">
+                                        Define what information matters. This is the canonical, source-agnostic ground truth that both retrieval strategies and presentation categories derive from.
+                                    </p>
+                                </div>
+
+                                <SemanticSpaceForm
+                                    semanticSpace={form.semantic_space}
+                                    onChange={(updated) => setForm({ ...form, semantic_space: updated })}
+                                />
                             </div>
+                        )}
 
-                            <RetrievalConfigForm
-                                retrievalConfig={form.retrieval_config}
-                                semanticSpace={form.semantic_space}
-                                onChange={(updated) => setForm({ ...form, retrieval_config: updated })}
-                            />
-                        </div>
-                    )}
+                        {/* Layer 2: Retrieval Configuration Tab */}
+                        {activeTab === 'retrieval' && (
+                            <div className="space-y-6">
+                                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200">
+                                            Layer 2: Retrieval Configuration
+                                        </h3>
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate(`/streams/${id}/configure-retrieval`)}
+                                            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium shadow-sm"
+                                        >
+                                            <CogIcon className="h-4 w-4" />
+                                            Open Wizard
+                                            <ArrowRightIcon className="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                    <p className="text-sm text-blue-800 dark:text-blue-300">
+                                        Define how to find and filter content. Use the wizard for AI-assisted setup, or configure manually below.
+                                    </p>
+                                </div>
 
-                    {/* Layer 3: Presentation Taxonomy Tab */}
-                    {activeTab === 'presentation' && (
-                        <div className="space-y-6">
-                            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                                <h3 className="text-sm font-semibold text-green-900 dark:text-green-200 mb-2">
-                                    Layer 3: Presentation Configuration
-                                </h3>
-                                <p className="text-sm text-green-800 dark:text-green-300">
-                                    Define how to organize results. Create categories that group topics for report presentation.
-                                </p>
+                                <RetrievalConfigForm
+                                    retrievalConfig={form.retrieval_config}
+                                    semanticSpace={form.semantic_space}
+                                    onChange={(updated) => setForm({ ...form, retrieval_config: updated })}
+                                />
                             </div>
+                        )}
 
-                            <PresentationForm
-                                categories={form.categories}
-                                onChange={(updated) => setForm({ ...form, categories: updated })}
-                            />
-                        </div>
-                    )}
+                        {/* Layer 3: Presentation Taxonomy Tab */}
+                        {activeTab === 'presentation' && (
+                            <div className="space-y-6">
+                                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                                    <h3 className="text-sm font-semibold text-green-900 dark:text-green-200 mb-2">
+                                        Layer 3: Presentation Configuration
+                                    </h3>
+                                    <p className="text-sm text-green-800 dark:text-green-300">
+                                        Define how to organize results. Create categories that group topics for report presentation.
+                                    </p>
+                                </div>
 
-                    {/* Layer 4: Test & Execute Tab */}
-                    {activeTab === 'execute' && stream && (
-                        <ExecutePipelineTab streamId={parseInt(id!)} />
-                    )}
+                                <PresentationForm
+                                    categories={form.categories}
+                                    onChange={(updated) => setForm({ ...form, categories: updated })}
+                                />
+                            </div>
+                        )}
 
-                </form>
+                        {/* Layer 4: Test & Execute Tab */}
+                        {activeTab === 'execute' && stream && (
+                            <ExecutePipelineTab streamId={parseInt(id!)} />
+                        )}
+
+                    </form>
                 </div>
             </div>
 

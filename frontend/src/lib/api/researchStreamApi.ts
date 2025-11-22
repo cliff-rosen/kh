@@ -1,5 +1,5 @@
 import { api } from './index';
-import { ResearchStream, ReportFrequency, InformationSource, RetrievalGroup, RetrievalConfig, SemanticSpace, PresentationConfig } from '../../types';
+import { ResearchStream, ReportFrequency, InformationSource, RetrievalGroup, Concept, RetrievalConfig, SemanticSpace, PresentationConfig } from '../../types';
 import {
     StreamInProgress,
     StreamBuildStep,
@@ -256,11 +256,31 @@ export const researchStreamApi = {
 
 
     // ========================================================================
-    // Retrieval Group Wizard (Layer 2: Group-Based Configuration)
+    // Retrieval Concept Workflow (Layer 2: Concept-Based Configuration)
+    // ========================================================================
+
+    /**
+     * Propose retrieval concepts based on semantic space analysis
+     */
+    async proposeRetrievalConcepts(streamId: number): Promise<{
+        proposed_concepts: Concept[];
+        analysis: any;
+        reasoning: string;
+        coverage_check: any;
+    }> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/retrieval/propose-concepts`
+        );
+        return response.data;
+    },
+
+    // ========================================================================
+    // Retrieval Group Wizard (Layer 2: Group-Based Configuration - LEGACY)
     // ========================================================================
 
     /**
      * Propose retrieval groups based on semantic space analysis
+     * @deprecated Use proposeRetrievalConcepts instead
      */
     async proposeRetrievalGroups(streamId: number): Promise<{
         proposed_groups: any[];

@@ -8,15 +8,12 @@ import {
     SparklesIcon
 } from '@heroicons/react/24/outline';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
-import { ResearchStream, RetrievalGroup, SemanticSpace, InformationSource } from '../types';
+import { ResearchStream, Concept, SemanticSpace, InformationSource } from '../types';
 
 // Import phase components
-import GroupProposalPhase from '../components/RetrievalWizard/GroupProposalPhase';
-import QueryConfigPhase from '../components/RetrievalWizard/QueryConfigPhase';
-import FilterConfigPhase from '../components/RetrievalWizard/FilterConfigPhase';
-import ValidationPhase from '../components/RetrievalWizard/ValidationPhase';
+import ConceptProposalPhase from '../components/RetrievalWizard/ConceptProposalPhase';
 
-type WizardPhase = 'groups' | 'queries' | 'filters' | 'validation';
+type WizardPhase = 'concepts';
 
 export default function RetrievalWizardPage() {
     const { streamId } = useParams<{ streamId: string }>();
@@ -25,20 +22,16 @@ export default function RetrievalWizardPage() {
     // State
     const [stream, setStream] = useState<ResearchStream | null>(null);
     const [semanticSpace, setSemanticSpace] = useState<SemanticSpace | null>(null);
-    const [groups, setGroups] = useState<RetrievalGroup[]>([]);
+    const [concepts, setConcepts] = useState<Concept[]>([]);
     const [sources, setSources] = useState<InformationSource[]>([]);
-    const [currentPhase, setCurrentPhase] = useState<WizardPhase>('groups');
+    const [currentPhase, setCurrentPhase] = useState<WizardPhase>('concepts');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [validationReady, setValidationReady] = useState(false);
 
     // Phase completion tracking
     const [phasesCompleted, setPhasesCompleted] = useState({
-        groups: false,
-        queries: false,
-        filters: false,
-        validation: false
+        concepts: false
     });
 
     // Load stream data
@@ -54,47 +47,18 @@ export default function RetrievalWizardPage() {
             setStream(streamData);
             setSemanticSpace(streamData.semantic_space);
 
-            // Load existing groups if any
-            if (streamData.retrieval_config?.retrieval_groups && streamData.retrieval_config.retrieval_groups.length > 0) {
-                const existingGroups = streamData.retrieval_config.retrieval_groups;
-                setGroups(existingGroups);
+            // Load existing concepts if any
+            if (streamData.retrieval_config?.concepts && streamData.retrieval_config.concepts.length > 0) {
+                const existingConcepts = streamData.retrieval_config.concepts;
+                setConcepts(existingConcepts);
 
-                // Detect what's already configured and mark phases complete
-                const newPhasesCompleted = {
-                    groups: false,
-                    queries: false,
-                    filters: false,
-                    validation: false
-                };
+                // Mark concept phase complete if we have valid concepts
+                const hasValidConcepts = existingConcepts.length > 0 &&
+                    existingConcepts.every(c => c.covered_topics && c.covered_topics.length > 0);
 
-                // Phase 1: Groups - complete if we have groups with topics
-                const hasValidGroups = existingGroups.length > 0 &&
-                    existingGroups.every(g => g.covered_topics && g.covered_topics.length > 0);
-                if (hasValidGroups) {
-                    newPhasesCompleted.groups = true;
-                }
-
-                // Phase 2: Queries - complete if groups have queries configured
-                const hasQueries = existingGroups.some(g =>
-                    g.source_queries && Object.keys(g.source_queries).length > 0
-                );
-                if (hasQueries) {
-                    newPhasesCompleted.queries = true;
-                }
-
-                // Phase 3: Filters - complete if at least checked (not required to enable)
-                // Consider this complete if we've reached this point in config before
-                const hasFilterConfig = existingGroups.some(g =>
-                    g.semantic_filter && (g.semantic_filter.enabled || g.semantic_filter.criteria)
-                );
-                if (hasFilterConfig || hasQueries) {
-                    newPhasesCompleted.filters = true;
-                }
-
-                setPhasesCompleted(newPhasesCompleted);
-
-                // Always start at phase 1 (groups)
-                setCurrentPhase('groups');
+                setPhasesCompleted({
+                    concepts: hasValidConcepts
+                });
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load stream');
@@ -117,18 +81,7 @@ export default function RetrievalWizardPage() {
     };
 
     const canNavigateToPhase = (phase: WizardPhase): boolean => {
-        switch (phase) {
-            case 'groups':
-                return true;
-            case 'queries':
-                return phasesCompleted.groups && groups.length > 0;
-            case 'filters':
-                return phasesCompleted.groups && groups.length > 0;
-            case 'validation':
-                return phasesCompleted.groups && groups.length > 0;
-            default:
-                return false;
-        }
+        return phase === 'concepts';
     };
 
     const handleSaveAndFinalize = async () => {
@@ -140,7 +93,7 @@ export default function RetrievalWizardPage() {
             // Update stream with new retrieval config
             await researchStreamApi.updateResearchStream(Number(streamId), {
                 retrieval_config: {
-                    retrieval_groups: groups,
+                    concepts: concepts,
                     article_limit_per_week: stream.retrieval_config?.article_limit_per_week
                 }
             });
@@ -176,10 +129,7 @@ export default function RetrievalWizardPage() {
     }
 
     const phases: { key: WizardPhase; label: string; icon: typeof CheckCircleIcon }[] = [
-        { key: 'groups', label: 'Propose Groups', icon: SparklesIcon },
-        { key: 'queries', label: 'Configure Queries', icon: CheckCircleIcon },
-        { key: 'filters', label: 'Configure Filters', icon: CheckCircleIcon },
-        { key: 'validation', label: 'Validate & Finalize', icon: CheckCircleIcon }
+        { key: 'concepts', label: 'Propose Concepts', icon: SparklesIcon }
     ];
 
     return (
@@ -276,43 +226,13 @@ export default function RetrievalWizardPage() {
             {/* Phase Content */}
             <div className="bg-gray-50 dark:bg-gray-900 pb-24">
                 <div className="max-w-7xl mx-auto px-4 py-8">
-                    {currentPhase === 'groups' && (
-                        <GroupProposalPhase
+                    {currentPhase === 'concepts' && (
+                        <ConceptProposalPhase
                             streamId={Number(streamId)}
                             semanticSpace={semanticSpace}
-                            groups={groups}
-                            onGroupsChange={setGroups}
-                            onComplete={(completed) => handlePhaseComplete('groups', completed)}
-                        />
-                    )}
-
-                    {currentPhase === 'queries' && (
-                        <QueryConfigPhase
-                            streamId={Number(streamId)}
-                            semanticSpace={semanticSpace}
-                            groups={groups}
-                            sources={sources}
-                            onGroupsChange={setGroups}
-                            onComplete={(completed) => handlePhaseComplete('queries', completed)}
-                        />
-                    )}
-
-                    {currentPhase === 'filters' && (
-                        <FilterConfigPhase
-                            streamId={Number(streamId)}
-                            semanticSpace={semanticSpace}
-                            groups={groups}
-                            onGroupsChange={setGroups}
-                            onComplete={(completed) => handlePhaseComplete('filters', completed)}
-                        />
-                    )}
-
-                    {currentPhase === 'validation' && (
-                        <ValidationPhase
-                            streamId={Number(streamId)}
-                            semanticSpace={semanticSpace}
-                            groups={groups}
-                            onValidationReady={setValidationReady}
+                            concepts={concepts}
+                            onConceptsChange={setConcepts}
+                            onComplete={(completed) => handlePhaseComplete('concepts', completed)}
                         />
                     )}
                 </div>
@@ -321,54 +241,25 @@ export default function RetrievalWizardPage() {
             {/* Navigation Footer - Sticky */}
             <div className="sticky bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-4 shadow-lg z-50">
                 <div className="max-w-7xl mx-auto flex justify-between">
-                    {currentPhase !== 'groups' ? (
-                        <button
-                            onClick={() => {
-                                if (currentPhase === 'queries') setCurrentPhase('groups');
-                                else if (currentPhase === 'filters') setCurrentPhase('queries');
-                                else if (currentPhase === 'validation') setCurrentPhase('filters');
-                            }}
-                            className="inline-flex items-center gap-2 px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 font-medium"
-                        >
-                            <ArrowLeftIcon className="h-5 w-5" />
-                            Back
-                        </button>
-                    ) : (
-                        <div></div>
-                    )}
+                    <div></div>
 
-                    {currentPhase === 'validation' ? (
-                        <button
-                            onClick={handleSaveAndFinalize}
-                            disabled={!validationReady || saving}
-                            className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                        >
-                            {saving ? (
-                                <>
-                                    <ArrowPathIcon className="h-5 w-5 animate-spin" />
-                                    Saving Configuration...
-                                </>
-                            ) : (
-                                <>
-                                    <CheckCircleIcon className="h-5 w-5" />
-                                    Finalize & Activate
-                                </>
-                            )}
-                        </button>
-                    ) : (
-                        <button
-                            onClick={() => {
-                                if (currentPhase === 'groups') setCurrentPhase('queries');
-                                else if (currentPhase === 'queries') setCurrentPhase('filters');
-                                else if (currentPhase === 'filters') setCurrentPhase('validation');
-                            }}
-                            disabled={currentPhase === 'groups' && groups.length === 0}
-                            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                        >
-                            Continue
-                            <ArrowRightIcon className="h-5 w-5" />
-                        </button>
-                    )}
+                    <button
+                        onClick={handleSaveAndFinalize}
+                        disabled={!phasesCompleted.concepts || concepts.length === 0 || saving}
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                    >
+                        {saving ? (
+                            <>
+                                <ArrowPathIcon className="h-5 w-5 animate-spin" />
+                                Saving Configuration...
+                            </>
+                        ) : (
+                            <>
+                                <CheckCircleIcon className="h-5 w-5" />
+                                Save & Finalize
+                            </>
+                        )}
+                    </button>
                 </div>
             </div>
         </>
