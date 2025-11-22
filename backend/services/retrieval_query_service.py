@@ -27,223 +27,6 @@ class RetrievalQueryService:
         self.search_service = SmartSearchService()
 
 
-    async def generate_query_for_retrieval_group(
-        self,
-        topics: List[Topic],
-        source_id: str,
-        semantic_space: SemanticSpace,
-        group_rationale: Optional[str] = None
-    ) -> Tuple[str, str]:
-        """
-        Generate a source-specific query for a retrieval group containing multiple topics.
-
-        This considers ALL topics in the group and their relationships to create a
-        comprehensive query that captures content relevant to any of them.
-
-        Args:
-            topics: List of all topics in the retrieval group
-            source_id: Target source (e.g., 'pubmed', 'google_scholar')
-            semantic_space: Complete semantic space for context
-            group_rationale: Optional rationale for why these topics are grouped together
-
-        Returns:
-            Tuple of (query_expression, reasoning)
-        """
-        from schemas.chat import ChatMessage, MessageRole
-        from agents.prompts.base_prompt_caller import BasePromptCaller
-        from config.llm_models import get_task_config, supports_reasoning_effort
-        from datetime import datetime
-
-        if not topics:
-            raise ValueError("Cannot generate query for empty topic list")
-
-        # Validate source
-        source_info = next(
-            (src for src in INFORMATION_SOURCES if src.source_id == source_id),
-            None
-        )
-        if not source_info:
-            raise ValueError(f"Unknown source: {source_id}")
-
-        # Collect all related entities across all topics (deduplicate by entity_id)
-        seen_entity_ids = set()
-        all_related_entities = []
-        for topic in topics:
-            related = self._find_related_entities(topic, semantic_space)
-            for entity in related[:5]:  # Top 5 per topic
-                if entity.entity_id not in seen_entity_ids:
-                    seen_entity_ids.add(entity.entity_id)
-                    all_related_entities.append(entity)
-
-        # Extract entity terms
-        entity_terms = []
-        for entity in all_related_entities[:15]:  # Max 15 entities total
-            entity_terms.extend(entity.canonical_forms[:2])  # Top 2 forms per entity
-
-        # Get broader context
-        domain_name = semantic_space.domain.name
-        business_context = semantic_space.context.business_context
-
-        # Create source-specific system prompt
-        if source_id == 'pubmed':
-            system_prompt = """You are a PubMed search query expert. Generate an optimized boolean search query for PubMed that covers MULTIPLE related topics in a retrieval group.
-
-            REQUIREMENTS:
-            1. Use PubMed boolean syntax (AND, OR, NOT with parentheses)
-            2. Create a query that captures content relevant to ANY of the provided topics
-            3. Use OR operators to combine topic-specific terms at the top level
-            4. Within each topic's section, use OR for synonyms and AND for required concepts
-            5. Keep the query comprehensive but focused - aim for 500-5000 results
-            6. Use medical/scientific terminology appropriate for PubMed
-            7. Consider the group rationale when structuring the query
-
-            STRUCTURE FOR MULTIPLE TOPICS:
-            (topic1_terms) OR (topic2_terms) OR (topic3_terms)
-
-            Where each topic_terms is:
-            (concept1_term1 OR concept1_term2) AND (concept2_term1 OR concept2_term2)
-
-            EXAMPLE:
-            (mesothelioma OR "pleural cancer") OR (asbestosis OR "pulmonary fibrosis") OR ("lung cancer" AND asbestos)
-
-            Respond in JSON format with "query_expression" and "reasoning" fields."""
-
-        elif source_id == 'google_scholar':
-            system_prompt = """You are a Google Scholar search query expert. Generate an optimized natural language search query for Google Scholar that covers MULTIPLE related topics in a retrieval group.
-
-            REQUIREMENTS:
-            1. Use simple natural language - NO complex boolean operators
-            2. Combine the most important terms from all topics
-            3. Use quoted phrases for specific multi-word concepts: "machine learning"
-            4. Keep it concise - maximum 5-8 key terms or quoted phrases
-            5. Focus on the most distinctive keywords that span the topics
-            6. Aim for focused results (low thousands, not millions)
-            7. Consider the group rationale when selecting terms
-
-            STRUCTURE:
-            "key concept 1" "key concept 2" broader_term1 broader_term2
-
-            EXAMPLE:
-            "asbestos exposure" "mesothelioma" "lung disease" occupational health
-
-            Respond in JSON format with "query_expression" and "reasoning" fields."""
-
-        else:
-            # Generic fallback for other sources
-            system_prompt = f"""You are a search query expert for {source_info.name}. Generate an optimized search query for MULTIPLE related topics in a retrieval group.
-
-            Query syntax to use: {source_info.query_syntax}
-
-            Create a comprehensive query that will retrieve articles relevant to ANY of the provided topics.
-            Use appropriate operators to combine topic concepts (aim for 500-5000 results).
-            Consider the group rationale and how topics relate when building the query.
-
-            Respond in JSON format with "query_expression" and "reasoning" fields."""
-
-        # Build user prompt with all topics
-        topics_section = ""
-        for i, topic in enumerate(topics, 1):
-            topics_section += f"\n\nTOPIC {i}:\n"
-            topics_section += f"Name: {topic.name}\n"
-            topics_section += f"Description: {topic.description}\n"
-            topics_section += f"Importance: {topic.importance.value}\n"
-            topics_section += f"Rationale: {topic.rationale}"
-
-        entity_section = ""
-        if entity_terms:
-            entity_section = f"\n\nRelated Entities/Terms Across All Topics:\n{', '.join(entity_terms[:20])}"
-
-        group_rationale_section = ""
-        if group_rationale:
-            group_rationale_section = f"\n\nGroup Rationale (why these topics are grouped):\n{group_rationale}"
-
-        user_prompt = f"""Generate a search query for a retrieval group containing {len(topics)} related topics within this research domain:
-
-        Domain: {domain_name}
-        Context: {business_context}{group_rationale_section}{topics_section}{entity_section}
-
-        Create a {source_info.name} query that will find articles relevant to ANY of these topics.
-        The query should be comprehensive enough to cover all topics but focused enough to avoid overwhelming results.
-        Use appropriate operators (OR at the top level) to capture content relevant to any topic in the group."""
-
-        # Response schema
-        response_schema = {
-            "type": "object",
-            "properties": {
-                "query_expression": {
-                    "type": "string",
-                    "description": "The generated search query expression covering all topics"
-                },
-                "reasoning": {
-                    "type": "string",
-                    "description": "Explanation of how the query covers all topics and what concepts it captures"
-                }
-            },
-            "required": ["query_expression", "reasoning"]
-        }
-
-        # Get model config
-        task_config = get_task_config("smart_search", "keyword_generation")
-
-        # Create prompt caller
-        prompt_caller = BasePromptCaller(
-            response_model=response_schema,
-            system_message=system_prompt,
-            model=task_config["model"],
-            temperature=task_config.get("temperature", 0.0),
-            reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(task_config["model"]) else None
-        )
-
-        try:
-            # Get LLM response
-            user_message = ChatMessage(
-                id="temp_id",
-                chat_id="temp_chat",
-                role=MessageRole.USER,
-                content=user_prompt,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
-            )
-
-            result = await prompt_caller.invoke(
-                messages=[user_message],
-                return_usage=True
-            )
-
-            # Extract result
-            llm_response = result.result
-            if hasattr(llm_response, 'model_dump'):
-                response_data = llm_response.model_dump()
-            elif hasattr(llm_response, 'dict'):
-                response_data = llm_response.dict()
-            else:
-                response_data = llm_response
-
-            query_expression = response_data.get('query_expression', '')
-            reasoning = response_data.get('reasoning', '')
-
-            if not query_expression:
-                # Fallback: combine topics with OR
-                topic_names = [t.name for t in topics]
-                query_expression = self._generate_fallback_query_for_group(
-                    topic_names, entity_terms[:10], source_id
-                )
-                reasoning = f"Fallback query combining {len(topics)} topics"
-
-            logger.info(f"Generated query for {len(topics)} topics on {source_id}: {query_expression[:100]}")
-
-            return query_expression, reasoning
-
-        except Exception as e:
-            logger.error(f"Query generation for group failed: {e}")
-            # Fallback to simple combined query
-            topic_names = [t.name for t in topics]
-            query_expression = self._generate_fallback_query_for_group(
-                topic_names, entity_terms[:10], source_id
-            )
-            reasoning = f"Generated fallback query for {len(topics)} topics due to error: {str(e)}"
-            return query_expression, reasoning
-
     async def generate_query_for_concept(
         self,
         concept,  # Concept from research_stream schema
@@ -457,6 +240,150 @@ Use OR operators within each entity for vocabulary expansion, and AND between en
             )
             reasoning = f"Generated fallback query for concept due to error: {str(e)}"
             return query_expression, reasoning
+
+    async def generate_filter_for_concept(
+        self,
+        concept,  # Concept from research_stream schema
+        semantic_space: SemanticSpace
+    ) -> Tuple[str, float, str]:
+        """
+        Generate semantic filter criteria for a concept.
+
+        Uses LLM to create filter criteria based on the concept's covered topics,
+        entity pattern, and rationale.
+
+        Args:
+            concept: Concept object with entity_pattern, relationship_pattern, covered_topics
+            semantic_space: Complete semantic space for context
+
+        Returns:
+            Tuple of (criteria, threshold, reasoning)
+        """
+        from schemas.chat import ChatMessage, MessageRole
+        from agents.prompts.base_prompt_caller import BasePromptCaller
+        from config.llm_models import get_task_config, supports_reasoning_effort
+        from datetime import datetime
+
+        # Get covered topics
+        covered_topics = [
+            t for t in semantic_space.topics
+            if t.topic_id in concept.covered_topics
+        ]
+
+        topics_summary = "\n".join([
+            f"- {t.name}: {t.description}"
+            for t in covered_topics
+        ])
+
+        # Get entities
+        entities = [
+            e for e in semantic_space.entities
+            if e.entity_id in concept.entity_pattern
+        ]
+        entities_summary = "\n".join([
+            f"- {e.name} ({e.entity_type.value})"
+            for e in entities
+        ])
+
+        relationship = concept.relationship_pattern or "related to"
+
+        system_prompt = """You are an expert at creating semantic filter criteria for research article screening.
+
+Your task is to define clear, specific criteria that distinguish relevant articles from irrelevant ones for a concept.
+
+A concept is an entity-relationship pattern that covers specific topics. The filter should ensure that retrieved
+articles truly match this pattern and are relevant to the covered topics.
+
+Good filter criteria:
+- Are specific and actionable
+- Focus on the entity-relationship pattern
+- Consider what makes an article truly relevant vs tangentially related
+- Are written in clear, natural language
+
+Respond in JSON format with "criteria", "threshold", and "reasoning" fields.
+
+Threshold should be between 0.5 (permissive) and 0.9 (strict). Default to 0.7."""
+
+        user_prompt = f"""Create semantic filter criteria for this concept:
+
+CONCEPT: {concept.name}
+RATIONALE: {concept.rationale}
+
+ENTITY PATTERN:
+{entities_summary}
+
+RELATIONSHIP PATTERN: {relationship}
+
+TOPICS COVERED:
+{topics_summary}
+
+DOMAIN: {semantic_space.domain.name}
+
+Define filter criteria that will help identify articles truly relevant to this entity-relationship pattern and its covered topics."""
+
+        # Response schema
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "criteria": {"type": "string"},
+                "threshold": {"type": "number", "minimum": 0, "maximum": 1},
+                "reasoning": {"type": "string"}
+            },
+            "required": ["criteria", "threshold", "reasoning"]
+        }
+
+        # Get model config
+        task_config = get_task_config("smart_search", "keyword_generation")
+
+        # Create prompt caller
+        prompt_caller = BasePromptCaller(
+            response_model=response_schema,
+            system_message=system_prompt,
+            model=task_config["model"],
+            temperature=task_config.get("temperature", 0.3),
+            reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(task_config["model"]) else None
+        )
+
+        try:
+            # Get LLM response
+            user_message = ChatMessage(
+                id="temp_id",
+                chat_id="temp_chat",
+                role=MessageRole.USER,
+                content=user_prompt,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+
+            result = await prompt_caller.invoke(
+                messages=[user_message],
+                return_usage=True
+            )
+
+            # Extract result
+            llm_response = result.result
+            if hasattr(llm_response, 'model_dump'):
+                response_data = llm_response.model_dump()
+            elif hasattr(llm_response, 'dict'):
+                response_data = llm_response.dict()
+            else:
+                response_data = llm_response
+
+            criteria = response_data.get('criteria', '')
+            threshold = response_data.get('threshold', 0.7)
+            reasoning = response_data.get('reasoning', '')
+
+            logger.info(f"Generated filter for concept '{concept.name}': threshold={threshold}")
+
+            return criteria, threshold, reasoning
+
+        except Exception as e:
+            logger.error(f"Filter generation for concept failed: {e}")
+            # Fallback to simple filter
+            criteria = f"Articles must directly address the relationship between {' and '.join([e.name for e in entities])}."
+            threshold = 0.7
+            reasoning = f"Generated fallback filter for concept due to error: {str(e)}"
+            return criteria, threshold, reasoning
 
     def _generate_fallback_concept_query(
         self,
