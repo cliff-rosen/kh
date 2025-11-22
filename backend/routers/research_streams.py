@@ -211,6 +211,18 @@ class ProposeConceptsResponse(BaseModel):
     coverage_check: Dict[str, Any] = Field(..., description="Topic coverage validation")
 
 
+class GenerateConceptQueryRequest(BaseModel):
+    """Request to generate a query for a specific concept"""
+    concept_id: str = Field(..., description="Concept ID")
+    source_id: str = Field(..., description="Source to generate query for (e.g., 'pubmed')")
+
+
+class GenerateConceptQueryResponse(BaseModel):
+    """Response from concept query generation"""
+    query_expression: str = Field(..., description="Generated query expression")
+    reasoning: str = Field(..., description="Explanation of query design")
+
+
 # ============================================================================
 # Retrieval Concept Workflow (Concept-Based Architecture)
 # ============================================================================
@@ -254,6 +266,80 @@ async def propose_retrieval_concepts(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Concept proposal failed: {str(e)}"
         )
+
+
+@router.post("/{stream_id}/retrieval/generate-concept-query", response_model=GenerateConceptQueryResponse)
+async def generate_concept_query(
+    stream_id: int,
+    request: GenerateConceptQueryRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate a source-specific query for a concept.
+
+    Uses the concept's entity pattern, relationship pattern, and vocabulary terms
+    to generate an optimized query following framework principles:
+    - Single inclusion pattern
+    - Vocabulary expansion within entities
+    - Minimal exclusions
+    """
+    query_service = RetrievalQueryService(db)
+    stream_service = ResearchStreamService(db)
+
+    try:
+        # Get stream (raises 404 if not found or not authorized)
+        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+
+        # Parse semantic space and retrieval config
+        semantic_space_dict = stream.semantic_space
+        semantic_space = SemanticSpace(**semantic_space_dict)
+
+        retrieval_config_dict = stream.retrieval_config
+        from schemas.research_stream import RetrievalConfig
+        retrieval_config = RetrievalConfig(**retrieval_config_dict)
+
+        # Find the concept
+        concept = next(
+            (c for c in retrieval_config.concepts if c.concept_id == request.concept_id),
+            None
+        )
+
+        if not concept:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Concept '{request.concept_id}' not found"
+            )
+
+        # Validate source
+        valid_sources = [src.source_id for src in INFORMATION_SOURCES]
+        if request.source_id not in valid_sources:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid source_id. Must be one of: {', '.join(valid_sources)}"
+            )
+
+        # Generate query
+        query_expression, reasoning = await query_service.generate_query_for_concept(
+            concept=concept,
+            source_id=request.source_id,
+            semantic_space=semantic_space
+        )
+
+        return GenerateConceptQueryResponse(
+            query_expression=query_expression,
+            reasoning=reasoning
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Concept query generation failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Concept query generation failed: {str(e)}"
+        )
+
 
 # ============================================================================
 # Query Testing (Same Path as Pipeline)

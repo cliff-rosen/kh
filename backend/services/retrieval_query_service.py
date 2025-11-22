@@ -244,6 +244,243 @@ class RetrievalQueryService:
             reasoning = f"Generated fallback query for {len(topics)} topics due to error: {str(e)}"
             return query_expression, reasoning
 
+    async def generate_query_for_concept(
+        self,
+        concept,  # Concept from research_stream schema
+        source_id: str,
+        semantic_space: SemanticSpace
+    ) -> Tuple[str, str]:
+        """
+        Generate a source-specific query for a concept.
+
+        Based on framework:
+        - Single inclusion pattern (entity-relationship)
+        - Vocabulary expansion within entities (OR clauses)
+        - No exclusions unless absolutely necessary
+
+        Args:
+            concept: Concept object with entity_pattern, relationship_pattern, vocabulary_terms
+            source_id: Target source (e.g., 'pubmed', 'google_scholar')
+            semantic_space: Complete semantic space for context
+
+        Returns:
+            Tuple of (query_expression, reasoning)
+        """
+        from schemas.chat import ChatMessage, MessageRole
+        from agents.prompts.base_prompt_caller import BasePromptCaller
+        from config.llm_models import get_task_config, supports_reasoning_effort
+        from datetime import datetime
+
+        # Validate source
+        source_info = next(
+            (src for src in INFORMATION_SOURCES if src.source_id == source_id),
+            None
+        )
+        if not source_info:
+            raise ValueError(f"Unknown source: {source_id}")
+
+        # Get entities from entity pattern
+        entities = [
+            e for e in semantic_space.entities
+            if e.entity_id in concept.entity_pattern
+        ]
+
+        # Build entity terms with vocabulary expansion
+        entity_sections = []
+        for entity_id in concept.entity_pattern:
+            entity = next((e for e in entities if e.entity_id == entity_id), None)
+            if entity:
+                # Get vocabulary terms for this entity (synonyms/variants)
+                terms = concept.vocabulary_terms.get(entity_id, entity.canonical_forms)
+                entity_sections.append({
+                    "entity_id": entity_id,
+                    "entity_name": entity.name,
+                    "terms": terms[:5]  # Limit to top 5 terms per entity
+                })
+
+        # Get covered topics for context
+        covered_topics = [
+            t for t in semantic_space.topics
+            if t.topic_id in concept.covered_topics
+        ]
+
+        # Create source-specific system prompt
+        if source_id == 'pubmed':
+            system_prompt = """You are a PubMed search query expert. Generate an optimized boolean search query for a CONCEPT (entity-relationship pattern).
+
+REQUIREMENTS:
+1. Use PubMed boolean syntax (AND, OR, NOT with parentheses)
+2. Create ONE inclusion pattern (not multiple OR'd patterns)
+3. Use OR operators within each entity for vocabulary expansion (synonyms/variants)
+4. Use AND operators between entities to capture the relationship
+5. Keep the query focused - aim for 10-1000 results per week
+6. Use medical/scientific terminology appropriate for PubMed
+7. Avoid exclusions unless absolutely necessary
+
+STRUCTURE:
+(entity1_term1 OR entity1_term2 OR entity1_term3) AND (entity2_term1 OR entity2_term2)
+
+EXAMPLE:
+(mesothelioma OR "pleural cancer" OR "malignant mesothelioma") AND (asbestos OR "asbestos exposure" OR "occupational exposure")
+
+Respond in JSON format with "query_expression" and "reasoning" fields."""
+
+        elif source_id == 'google_scholar':
+            system_prompt = """You are a Google Scholar search query expert. Generate an optimized natural language search query for a CONCEPT (entity-relationship pattern).
+
+REQUIREMENTS:
+1. Use simple natural language - NO complex boolean operators
+2. Combine the most important terms from the entity pattern
+3. Use quoted phrases for specific multi-word concepts: "machine learning"
+4. Keep it concise - maximum 5-8 key terms or quoted phrases
+5. Focus on the most distinctive keywords that capture the relationship
+6. Aim for focused results (low thousands, not millions)
+
+STRUCTURE:
+"key entity 1" "key entity 2" relationship_term
+
+EXAMPLE:
+"asbestos exposure" "mesothelioma" "occupational health"
+
+Respond in JSON format with "query_expression" and "reasoning" fields."""
+
+        else:
+            # Generic fallback for other sources
+            system_prompt = f"""You are a search query expert for {source_info.name}. Generate an optimized search query for a CONCEPT (entity-relationship pattern).
+
+Query syntax to use: {source_info.query_syntax}
+
+Create a focused query that will retrieve articles about this specific entity-relationship pattern.
+Use appropriate operators to combine entity terms (aim for 10-1000 results per week).
+
+Respond in JSON format with "query_expression" and "reasoning" fields."""
+
+        # Build user prompt
+        entity_descriptions = "\n".join([
+            f"- {es['entity_name']} ({es['entity_id']}): {', '.join(es['terms'])}"
+            for es in entity_sections
+        ])
+
+        topics_list = ", ".join([t.name for t in covered_topics])
+        relationship = concept.relationship_pattern or "related to"
+
+        user_prompt = f"""Generate a search query for this concept:
+
+CONCEPT: {concept.name}
+RATIONALE: {concept.rationale}
+
+ENTITY PATTERN (with vocabulary expansion):
+{entity_descriptions}
+
+RELATIONSHIP PATTERN: {relationship}
+
+COVERED TOPICS: {topics_list}
+
+DOMAIN: {semantic_space.domain.name}
+CONTEXT: {semantic_space.domain.description}
+
+Create a {source_info.name} query that captures this entity-relationship pattern.
+Use OR operators within each entity for vocabulary expansion, and AND between entities for the relationship."""
+
+        # Response schema
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "query_expression": {
+                    "type": "string",
+                    "description": "The generated search query expression"
+                },
+                "reasoning": {
+                    "type": "string",
+                    "description": "Explanation of how the query captures the concept"
+                }
+            },
+            "required": ["query_expression", "reasoning"]
+        }
+
+        # Get model config
+        task_config = get_task_config("smart_search", "keyword_generation")
+
+        # Create prompt caller
+        prompt_caller = BasePromptCaller(
+            response_model=response_schema,
+            system_message=system_prompt,
+            model=task_config["model"],
+            temperature=task_config.get("temperature", 0.0),
+            reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(task_config["model"]) else None
+        )
+
+        try:
+            # Get LLM response
+            user_message = ChatMessage(
+                id="temp_id",
+                chat_id="temp_chat",
+                role=MessageRole.USER,
+                content=user_prompt,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+
+            result = await prompt_caller.invoke(
+                messages=[user_message],
+                return_usage=True
+            )
+
+            # Extract result
+            llm_response = result.result
+            if hasattr(llm_response, 'model_dump'):
+                response_data = llm_response.model_dump()
+            elif hasattr(llm_response, 'dict'):
+                response_data = llm_response.dict()
+            else:
+                response_data = llm_response
+
+            query_expression = response_data.get('query_expression', '')
+            reasoning = response_data.get('reasoning', '')
+
+            if not query_expression:
+                # Fallback: combine entity terms with AND
+                query_expression = self._generate_fallback_concept_query(
+                    entity_sections, source_id
+                )
+                reasoning = f"Fallback query for concept {concept.name}"
+
+            logger.info(f"Generated query for concept '{concept.name}' on {source_id}: {query_expression[:100]}")
+
+            return query_expression, reasoning
+
+        except Exception as e:
+            logger.error(f"Query generation for concept failed: {e}")
+            # Fallback to simple combined query
+            query_expression = self._generate_fallback_concept_query(
+                entity_sections, source_id
+            )
+            reasoning = f"Generated fallback query for concept due to error: {str(e)}"
+            return query_expression, reasoning
+
+    def _generate_fallback_concept_query(
+        self,
+        entity_sections: List[Dict[str, Any]],
+        source_id: str
+    ) -> str:
+        """Generate a simple fallback query from entity sections"""
+        if source_id == 'pubmed':
+            # PubMed: (term1 OR term2) AND (term3 OR term4)
+            entity_groups = []
+            for es in entity_sections:
+                terms = es['terms'][:3]  # Top 3 terms
+                if len(terms) > 1:
+                    entity_groups.append(f"({' OR '.join(terms)})")
+                elif terms:
+                    entity_groups.append(terms[0])
+            return ' AND '.join(entity_groups)
+        else:
+            # Google Scholar / others: simple term list
+            all_terms = []
+            for es in entity_sections:
+                all_terms.extend(es['terms'][:2])  # Top 2 per entity
+            return ' '.join(f'"{term}"' if ' ' in term else term for term in all_terms[:6])
+
     def _find_related_entities(
         self,
         topic: Topic,
