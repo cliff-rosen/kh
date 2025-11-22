@@ -223,6 +223,32 @@ class GenerateConceptQueryResponse(BaseModel):
     reasoning: str = Field(..., description="Explanation of query design")
 
 
+class GenerateConceptFilterRequest(BaseModel):
+    """Request to generate semantic filter for a concept"""
+    concept_id: str = Field(..., description="Concept ID")
+
+
+class GenerateConceptFilterResponse(BaseModel):
+    """Response from semantic filter generation"""
+    criteria: str = Field(..., description="Filter criteria description")
+    threshold: float = Field(..., ge=0.0, le=1.0, description="Relevance threshold (0-1)")
+    reasoning: str = Field(..., description="Explanation of filter design")
+
+
+class ValidateConceptsRequest(BaseModel):
+    """Request to validate concepts configuration"""
+    concepts: List[Concept]
+
+
+class ValidateConceptsResponse(BaseModel):
+    """Response from concepts validation"""
+    is_complete: bool = Field(..., description="Whether all topics are covered")
+    coverage: Dict[str, Any] = Field(..., description="Topic coverage details")
+    configuration_status: Dict[str, Any] = Field(..., description="Configuration completeness")
+    warnings: List[str] = Field(..., description="Validation warnings")
+    ready_to_activate: bool = Field(..., description="Whether config is ready for production")
+
+
 # ============================================================================
 # Retrieval Concept Workflow (Concept-Based Architecture)
 # ============================================================================
@@ -338,6 +364,248 @@ async def generate_concept_query(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Concept query generation failed: {str(e)}"
+        )
+
+
+@router.post("/{stream_id}/retrieval/generate-concept-filter", response_model=GenerateConceptFilterResponse)
+async def generate_concept_filter(
+    stream_id: int,
+    request: GenerateConceptFilterRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate semantic filter criteria for a concept.
+
+    Uses LLM to create filter criteria based on the concept's covered topics,
+    entity pattern, and rationale.
+    """
+    stream_service = ResearchStreamService(db)
+
+    try:
+        # Get stream (raises 404 if not found or not authorized)
+        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+
+        # Parse semantic space and retrieval config
+        semantic_space_dict = stream.semantic_space
+        semantic_space = SemanticSpace(**semantic_space_dict)
+
+        retrieval_config_dict = stream.retrieval_config
+        from schemas.research_stream import RetrievalConfig
+        retrieval_config = RetrievalConfig(**retrieval_config_dict)
+
+        # Find the concept
+        concept = next(
+            (c for c in retrieval_config.concepts if c.concept_id == request.concept_id),
+            None
+        )
+
+        if not concept:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Concept '{request.concept_id}' not found"
+            )
+
+        # Build prompt for LLM
+        from schemas.chat import ChatMessage, MessageRole
+        from agents.prompts.base_prompt_caller import BasePromptCaller
+        from config.llm_models import get_task_config, supports_reasoning_effort
+        from datetime import datetime
+
+        # Get covered topics
+        covered_topics = [
+            t for t in semantic_space.topics
+            if t.topic_id in concept.covered_topics
+        ]
+
+        topics_summary = "\n".join([
+            f"- {t.name}: {t.description}"
+            for t in covered_topics
+        ])
+
+        # Get entities
+        entities = [
+            e for e in semantic_space.entities
+            if e.entity_id in concept.entity_pattern
+        ]
+        entities_summary = "\n".join([
+            f"- {e.name} ({e.entity_type.value})"
+            for e in entities
+        ])
+
+        relationship = concept.relationship_pattern or "related to"
+
+        system_prompt = """You are an expert at creating semantic filter criteria for research article screening.
+
+Your task is to define clear, specific criteria that distinguish relevant articles from irrelevant ones for a concept.
+
+A concept is an entity-relationship pattern that covers specific topics. The filter should ensure that retrieved
+articles truly match this pattern and are relevant to the covered topics.
+
+Good filter criteria:
+- Are specific and actionable
+- Focus on the entity-relationship pattern
+- Consider what makes an article truly relevant vs tangentially related
+- Are written in clear, natural language
+
+Respond in JSON format with "criteria", "threshold", and "reasoning" fields.
+
+Threshold should be between 0.5 (permissive) and 0.9 (strict). Default to 0.7."""
+
+        user_prompt = f"""Create semantic filter criteria for this concept:
+
+CONCEPT: {concept.name}
+RATIONALE: {concept.rationale}
+
+ENTITY PATTERN:
+{entities_summary}
+
+RELATIONSHIP PATTERN: {relationship}
+
+TOPICS COVERED:
+{topics_summary}
+
+DOMAIN: {semantic_space.domain.name}
+
+Define filter criteria that will help identify articles truly relevant to this entity-relationship pattern and its covered topics."""
+
+        # Response schema
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "criteria": {"type": "string"},
+                "threshold": {"type": "number", "minimum": 0, "maximum": 1},
+                "reasoning": {"type": "string"}
+            },
+            "required": ["criteria", "threshold", "reasoning"]
+        }
+
+        # Get model config
+        task_config = get_task_config("smart_search", "keyword_generation")
+
+        # Create prompt caller
+        prompt_caller = BasePromptCaller(
+            response_model=response_schema,
+            system_message=system_prompt,
+            model=task_config["model"],
+            temperature=task_config.get("temperature", 0.3),
+            reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(task_config["model"]) else None
+        )
+
+        # Get LLM response
+        user_message = ChatMessage(
+            id="temp_id",
+            chat_id="temp_chat",
+            role=MessageRole.USER,
+            content=user_prompt,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+
+        result = await prompt_caller.invoke(
+            messages=[user_message],
+            return_usage=True
+        )
+
+        # Extract result
+        llm_response = result.result
+        if hasattr(llm_response, 'model_dump'):
+            response_data = llm_response.model_dump()
+        elif hasattr(llm_response, 'dict'):
+            response_data = llm_response.dict()
+        else:
+            response_data = llm_response
+
+        return GenerateConceptFilterResponse(
+            criteria=response_data.get('criteria', ''),
+            threshold=response_data.get('threshold', 0.7),
+            reasoning=response_data.get('reasoning', '')
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Semantic filter generation failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Semantic filter generation failed: {str(e)}"
+        )
+
+
+@router.post("/{stream_id}/retrieval/validate-concepts", response_model=ValidateConceptsResponse)
+async def validate_concepts(
+    stream_id: int,
+    request: ValidateConceptsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Validate concepts configuration for completeness and readiness.
+
+    Checks coverage, configuration status, and whether the retrieval
+    config is ready to activate.
+    """
+    stream_service = ResearchStreamService(db)
+
+    try:
+        # Get stream (raises 404 if not found or not authorized)
+        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+
+        # Parse semantic space
+        semantic_space_dict = stream.semantic_space
+        semantic_space = SemanticSpace(**semantic_space_dict)
+
+        concepts = request.concepts
+
+        # Check coverage
+        from schemas.research_stream import RetrievalConfig
+        temp_config = RetrievalConfig(concepts=concepts)
+        coverage = temp_config.validate_coverage(semantic_space)
+
+        # Check configuration status
+        config_status = {
+            "total_concepts": len(concepts),
+            "concepts_with_queries": sum(
+                1 for c in concepts if c.source_queries and len(c.source_queries) > 0
+            ),
+            "concepts_with_filters": sum(
+                1 for c in concepts if c.semantic_filter.enabled or c.semantic_filter.criteria
+            )
+        }
+
+        # Generate warnings
+        warnings = []
+        if not coverage["is_complete"]:
+            warnings.append(f"Incomplete coverage: {len(coverage['uncovered_topics'])} topics not covered")
+
+        if config_status["concepts_with_queries"] == 0:
+            warnings.append("No concepts have queries configured")
+
+        if config_status["concepts_with_queries"] < len(concepts):
+            warnings.append(f"Only {config_status['concepts_with_queries']}/{len(concepts)} concepts have queries")
+
+        # Determine if ready to activate
+        ready_to_activate = (
+            coverage["is_complete"] and
+            config_status["concepts_with_queries"] == len(concepts) and
+            len(concepts) > 0
+        )
+
+        return ValidateConceptsResponse(
+            is_complete=coverage["is_complete"],
+            coverage=coverage,
+            configuration_status=config_status,
+            warnings=warnings,
+            ready_to_activate=ready_to_activate
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Concept validation failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Concept validation failed: {str(e)}"
         )
 
 

@@ -274,6 +274,52 @@ export const researchStreamApi = {
         return response.data;
     },
 
+    /**
+     * Generate query for a concept
+     */
+    async generateConceptQuery(streamId: number, conceptId: string, sourceId: string): Promise<{
+        query_expression: string;
+        reasoning: string;
+    }> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/retrieval/generate-concept-query`,
+            { concept_id: conceptId, source_id: sourceId }
+        );
+        return response.data;
+    },
+
+    /**
+     * Generate semantic filter for a concept
+     */
+    async generateConceptFilter(streamId: number, conceptId: string): Promise<{
+        criteria: string;
+        threshold: number;
+        reasoning: string;
+    }> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/retrieval/generate-concept-filter`,
+            { concept_id: conceptId }
+        );
+        return response.data;
+    },
+
+    /**
+     * Validate concepts configuration
+     */
+    async validateConcepts(streamId: number, concepts: Concept[]): Promise<{
+        is_complete: boolean;
+        coverage: any;
+        configuration_status: any;
+        warnings: string[];
+        ready_to_activate: boolean;
+    }> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/retrieval/validate-concepts`,
+            { concepts }
+        );
+        return response.data;
+    },
+
     // ========================================================================
     // Retrieval Group Wizard (Layer 2: Group-Based Configuration - LEGACY)
     // ========================================================================
