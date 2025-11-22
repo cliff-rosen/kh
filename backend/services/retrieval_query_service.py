@@ -91,52 +91,52 @@ class RetrievalQueryService:
         if source_id == 'pubmed':
             system_prompt = """You are a PubMed search query expert. Generate an optimized boolean search query for a CONCEPT (entity-relationship pattern).
 
-REQUIREMENTS:
-1. Use PubMed boolean syntax (AND, OR, NOT with parentheses)
-2. Create ONE inclusion pattern (not multiple OR'd patterns)
-3. Use OR operators within each entity for vocabulary expansion (synonyms/variants)
-4. Use AND operators between entities to capture the relationship
-5. Keep the query focused - aim for 10-1000 results per week
-6. Use medical/scientific terminology appropriate for PubMed
-7. Avoid exclusions unless absolutely necessary
+            REQUIREMENTS:
+            1. Use PubMed boolean syntax (AND, OR, NOT with parentheses)
+            2. Create ONE inclusion pattern (not multiple OR'd patterns)
+            3. Use OR operators within each entity for vocabulary expansion (synonyms/variants)
+            4. Use AND operators between entities to capture the relationship
+            5. Keep the query focused - aim for 10-1000 results per week
+            6. Use medical/scientific terminology appropriate for PubMed
+            7. Avoid exclusions unless absolutely necessary
 
-STRUCTURE:
-(entity1_term1 OR entity1_term2 OR entity1_term3) AND (entity2_term1 OR entity2_term2)
+            STRUCTURE:
+            (entity1_term1 OR entity1_term2 OR entity1_term3) AND (entity2_term1 OR entity2_term2)
 
-EXAMPLE:
-(mesothelioma OR "pleural cancer" OR "malignant mesothelioma") AND (asbestos OR "asbestos exposure" OR "occupational exposure")
+            EXAMPLE:
+            (mesothelioma OR "pleural cancer" OR "malignant mesothelioma") AND (asbestos OR "asbestos exposure" OR "occupational exposure")
 
-Respond in JSON format with "query_expression" and "reasoning" fields."""
+            Respond in JSON format with "query_expression" and "reasoning" fields."""
 
         elif source_id == 'google_scholar':
             system_prompt = """You are a Google Scholar search query expert. Generate an optimized natural language search query for a CONCEPT (entity-relationship pattern).
 
-REQUIREMENTS:
-1. Use simple natural language - NO complex boolean operators
-2. Combine the most important terms from the entity pattern
-3. Use quoted phrases for specific multi-word concepts: "machine learning"
-4. Keep it concise - maximum 5-8 key terms or quoted phrases
-5. Focus on the most distinctive keywords that capture the relationship
-6. Aim for focused results (low thousands, not millions)
+            REQUIREMENTS:
+            1. Use simple natural language - NO complex boolean operators
+            2. Combine the most important terms from the entity pattern
+            3. Use quoted phrases for specific multi-word concepts: "machine learning"
+            4. Keep it concise - maximum 5-8 key terms or quoted phrases
+            5. Focus on the most distinctive keywords that capture the relationship
+            6. Aim for focused results (low thousands, not millions)
 
-STRUCTURE:
-"key entity 1" "key entity 2" relationship_term
+            STRUCTURE:
+            "key entity 1" "key entity 2" relationship_term
 
-EXAMPLE:
-"asbestos exposure" "mesothelioma" "occupational health"
+            EXAMPLE:
+            "asbestos exposure" "mesothelioma" "occupational health"
 
-Respond in JSON format with "query_expression" and "reasoning" fields."""
+            Respond in JSON format with "query_expression" and "reasoning" fields."""
 
         else:
             # Generic fallback for other sources
             system_prompt = f"""You are a search query expert for {source_info.name}. Generate an optimized search query for a CONCEPT (entity-relationship pattern).
 
-Query syntax to use: {source_info.query_syntax}
+            Query syntax to use: {source_info.query_syntax}
 
-Create a focused query that will retrieve articles about this specific entity-relationship pattern.
-Use appropriate operators to combine entity terms (aim for 10-1000 results per week).
+            Create a focused query that will retrieve articles about this specific entity-relationship pattern.
+            Use appropriate operators to combine entity terms (aim for 10-1000 results per week).
 
-Respond in JSON format with "query_expression" and "reasoning" fields."""
+            Respond in JSON format with "query_expression" and "reasoning" fields."""
 
         # Build user prompt
         entity_descriptions = "\n".join([
@@ -149,21 +149,21 @@ Respond in JSON format with "query_expression" and "reasoning" fields."""
 
         user_prompt = f"""Generate a search query for this concept:
 
-CONCEPT: {concept.name}
-RATIONALE: {concept.rationale}
+        CONCEPT: {concept.name}
+        RATIONALE: {concept.rationale}
 
-ENTITY PATTERN (with vocabulary expansion):
-{entity_descriptions}
+        ENTITY PATTERN (with vocabulary expansion):
+        {entity_descriptions}
 
-RELATIONSHIP PATTERN: {relationship}
+        RELATIONSHIP PATTERN: {relationship}
 
-COVERED TOPICS: {topics_list}
+        COVERED TOPICS: {topics_list}
 
-DOMAIN: {semantic_space.domain.name}
-CONTEXT: {semantic_space.domain.description}
+        DOMAIN: {semantic_space.domain.name}
+        CONTEXT: {semantic_space.domain.description}
 
-Create a {source_info.name} query that captures this entity-relationship pattern.
-Use OR operators within each entity for vocabulary expansion, and AND between entities for the relationship."""
+        Create a {source_info.name} query that captures this entity-relationship pattern.
+        Use OR operators within each entity for vocabulary expansion, and AND between entities for the relationship."""
 
         # Response schema
         response_schema = {
@@ -289,37 +289,37 @@ Use OR operators within each entity for vocabulary expansion, and AND between en
 
         system_prompt = """You are an expert at creating semantic filter criteria for research article screening.
 
-Your task is to define clear, specific criteria that distinguish relevant articles from irrelevant ones for a concept.
+        Your task is to define clear, specific criteria that distinguish relevant articles from irrelevant ones for a concept.
 
-A concept is an entity-relationship pattern that covers specific topics. The filter should ensure that retrieved
-articles truly match this pattern and are relevant to the covered topics.
+        A concept is an entity-relationship pattern that covers specific topics. The filter should ensure that retrieved
+        articles truly match this pattern and are relevant to the covered topics.
 
-Good filter criteria:
-- Are specific and actionable
-- Focus on the entity-relationship pattern
-- Consider what makes an article truly relevant vs tangentially related
-- Are written in clear, natural language
+        Good filter criteria:
+        - Are specific and actionable
+        - Focus on the entity-relationship pattern
+        - Consider what makes an article truly relevant vs tangentially related
+        - Are written in clear, natural language
 
-Respond in JSON format with "criteria", "threshold", and "reasoning" fields.
+        Respond in JSON format with "criteria", "threshold", and "reasoning" fields.
 
-Threshold should be between 0.5 (permissive) and 0.9 (strict). Default to 0.7."""
+        Threshold should be between 0.5 (permissive) and 0.9 (strict). Default to 0.7."""
 
         user_prompt = f"""Create semantic filter criteria for this concept:
 
-CONCEPT: {concept.name}
-RATIONALE: {concept.rationale}
+        CONCEPT: {concept.name}
+        RATIONALE: {concept.rationale}
 
-ENTITY PATTERN:
-{entities_summary}
+        ENTITY PATTERN:
+        {entities_summary}
 
-RELATIONSHIP PATTERN: {relationship}
+        RELATIONSHIP PATTERN: {relationship}
 
-TOPICS COVERED:
-{topics_summary}
+        TOPICS COVERED:
+        {topics_summary}
 
-DOMAIN: {semantic_space.domain.name}
+        DOMAIN: {semantic_space.domain.name}
 
-Define filter criteria that will help identify articles truly relevant to this entity-relationship pattern and its covered topics."""
+        Define filter criteria that will help identify articles truly relevant to this entity-relationship pattern and its covered topics."""
 
         # Response schema
         response_schema = {
