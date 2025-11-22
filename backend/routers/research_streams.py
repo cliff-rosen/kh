@@ -230,7 +230,7 @@ async def propose_retrieval_concepts(
     - Many-to-many mapping to topics
     - Volume-driven design (will be refined in later phases)
     """
-    concept_service = ConceptProposalService()
+    concept_service = ConceptProposalService(db, current_user.user_id)
     stream_service = ResearchStreamService(db)
 
     try:

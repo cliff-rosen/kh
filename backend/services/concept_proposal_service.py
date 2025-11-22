@@ -11,11 +11,10 @@ Based on framework:
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-import json
+from sqlalchemy.orm import Session
 
 from schemas.semantic_space import SemanticSpace, Topic, Entity
 from schemas.research_stream import Concept, VolumeStatus, SourceQuery, SemanticFilter
-from services.general_chat_service import GeneralChatService
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +22,9 @@ logger = logging.getLogger(__name__)
 class ConceptProposalService:
     """Service for generating concept proposals from semantic space analysis"""
 
-    def __init__(self):
-        self.chat_service = GeneralChatService()
+    def __init__(self, db: Session, user_id: int):
+        self.db = db
+        self.user_id = user_id
 
     async def propose_concepts(
         self,
@@ -44,39 +44,105 @@ class ConceptProposalService:
                 - analysis: Dict with entity/relationship extraction
                 - reasoning: Overall rationale
         """
+        from schemas.chat import ChatMessage, MessageRole
+        from agents.prompts.base_prompt_caller import BasePromptCaller
+        from config.llm_models import get_task_config, supports_reasoning_effort
+
         logger.info(f"Proposing concepts for semantic space with {len(semantic_space.topics)} topics")
 
-        # Build LLM prompt for concept generation
-        prompt = self._build_concept_generation_prompt(semantic_space, user_context)
+        # Build LLM prompts
+        system_prompt, user_prompt = self._build_concept_generation_prompts(semantic_space, user_context)
 
-        # Call LLM for concept generation
-        messages = [{"role": "user", "content": prompt}]
-        response = await self.chat_service.chat_completion(
-            messages=messages,
-            response_format="json_object"
+        # Response schema
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "phase1_analysis": {
+                    "type": "object",
+                    "properties": {
+                        "key_entities": {"type": "array", "items": {"type": "string"}},
+                        "relationship_patterns": {"type": "array", "items": {"type": "string"}},
+                        "entity_groupings": {"type": "object"}
+                    },
+                    "required": ["key_entities", "relationship_patterns"]
+                },
+                "concepts": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "concept_id": {"type": "string"},
+                            "name": {"type": "string"},
+                            "entity_pattern": {"type": "array", "items": {"type": "string"}},
+                            "relationship_pattern": {"type": "string"},
+                            "covered_topics": {"type": "array", "items": {"type": "string"}},
+                            "rationale": {"type": "string"}
+                        },
+                        "required": ["concept_id", "name", "entity_pattern", "covered_topics", "rationale"]
+                    }
+                },
+                "overall_reasoning": {"type": "string"}
+            },
+            "required": ["phase1_analysis", "concepts", "overall_reasoning"]
+        }
+
+        # Get model config
+        task_config = get_task_config("smart_search", "keyword_generation")
+
+        # Create prompt caller
+        prompt_caller = BasePromptCaller(
+            response_model=response_schema,
+            system_message=system_prompt,
+            model=task_config["model"],
+            temperature=task_config.get("temperature", 0.3),
+            reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(task_config["model"]) else None
         )
 
-        # Parse LLM response
         try:
-            result = json.loads(response)
-            concepts = self._parse_concept_proposals(result, semantic_space)
+            # Get LLM response
+            user_message = ChatMessage(
+                id="temp_id",
+                chat_id="temp_chat",
+                role=MessageRole.USER,
+                content=user_prompt,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+
+            result = await prompt_caller.invoke(
+                messages=[user_message],
+                return_usage=True
+            )
+
+            # Extract result
+            llm_response = result.result
+            if hasattr(llm_response, 'model_dump'):
+                response_data = llm_response.model_dump()
+            elif hasattr(llm_response, 'dict'):
+                response_data = llm_response.dict()
+            else:
+                response_data = llm_response
+
+            # Parse concepts
+            concepts = self._parse_concept_proposals(response_data, semantic_space)
 
             return {
                 "proposed_concepts": concepts,
-                "analysis": result.get("phase1_analysis", {}),
-                "reasoning": result.get("overall_reasoning", ""),
+                "analysis": response_data.get("phase1_analysis", {}),
+                "reasoning": response_data.get("overall_reasoning", ""),
                 "coverage_check": self._validate_coverage(concepts, semantic_space)
             }
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse LLM response: {e}")
-            raise ValueError(f"Invalid JSON response from LLM: {e}")
 
-    def _build_concept_generation_prompt(
+        except Exception as e:
+            logger.error(f"Concept proposal failed: {e}", exc_info=True)
+            raise ValueError(f"Failed to generate concept proposals: {e}")
+
+    def _build_concept_generation_prompts(
         self,
         semantic_space: SemanticSpace,
         user_context: Optional[str]
-    ) -> str:
-        """Build the LLM prompt for concept generation"""
+    ) -> tuple[str, str]:
+        """Build the LLM prompts for concept generation (system and user prompts)"""
 
         # Format topics for prompt
         topics_text = "\n".join([
@@ -103,7 +169,7 @@ class ConceptProposalService:
         if user_context:
             user_context_section = f"\n## Additional User Context:\n{user_context}\n"
 
-        prompt = f"""You are an expert at designing retrieval configurations for research monitoring systems.
+        system_prompt = """You are an expert at designing retrieval configurations for research monitoring systems.
 
 Your task is to analyze a semantic space and propose CONCEPTS for retrieving relevant research articles.
 
@@ -118,21 +184,7 @@ Key principles:
 4. **Volume-Driven**: Aim for 10-1000 articles/week per concept (will be refined later)
 5. **Minimal Exclusions**: Avoid exclusions unless absolutely necessary
 
-# SEMANTIC SPACE
-
-## Topics:
-{topics_text}
-
-## Entities:
-{entities_text}
-
-## Relationships:
-{relationships_text}
-
-## Domain Context:
-{semantic_space.domain_description}{user_context_section}
-
-# YOUR TASK
+# PROCESS
 
 Generate concept proposals following this process:
 
@@ -158,31 +210,27 @@ For each topic or cluster of related topics:
 - Use entity_ids from the semantic space
 - Provide clear rationale for each concept
 
-# OUTPUT FORMAT
+Respond in JSON format with "phase1_analysis", "concepts", and "overall_reasoning" fields."""
 
-Return JSON with this structure:
-{{
-  "phase1_analysis": {{
-    "key_entities": ["entity_id1", "entity_id2", ...],
-    "relationship_patterns": ["pattern1", "pattern2", ...],
-    "entity_groupings": {{"group_name": ["entity_id1", "entity_id2"]}}
-  }},
-  "concepts": [
-    {{
-      "concept_id": "unique_id",
-      "name": "Descriptive Name",
-      "entity_pattern": ["entity_id1", "entity_id2"],
-      "relationship_pattern": "how entities relate (e.g., 'treats', 'causes')",
-      "covered_topics": ["topic_id1", "topic_id2"],
-      "rationale": "Why this pattern covers these topics"
-    }}
-  ],
-  "overall_reasoning": "High-level explanation of the concept design strategy"
-}}
+        user_prompt = f"""Analyze this semantic space and generate concept proposals:
+
+# SEMANTIC SPACE
+
+## Domain Context:
+{semantic_space.domain_description}{user_context_section}
+
+## Topics:
+{topics_text}
+
+## Entities:
+{entities_text}
+
+## Relationships:
+{relationships_text}
 
 Generate the concepts now."""
 
-        return prompt
+        return system_prompt, user_prompt
 
     def _parse_concept_proposals(
         self,
