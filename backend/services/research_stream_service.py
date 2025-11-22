@@ -63,9 +63,10 @@ class ResearchStreamService:
 
         return result
 
-    def get_research_stream(self, stream_id: int, user_id: int) -> ResearchStream:
+    def get_research_stream(self, stream_id: int, user_id: int) -> ResearchStreamSchema:
         """
         Get a specific research stream by ID for a user.
+        Returns a Pydantic schema with properly parsed nested objects.
 
         Raises:
             HTTPException: 404 if stream not found or user doesn't have access
@@ -83,7 +84,8 @@ class ResearchStreamService:
                 detail="Research stream not found"
             )
 
-        return stream
+        # Convert to Pydantic schema - this parses nested objects like SemanticSpace
+        return ResearchStreamSchema.from_orm(stream)
 
     def create_research_stream(
         self,

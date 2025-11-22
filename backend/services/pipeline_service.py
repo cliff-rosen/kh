@@ -98,14 +98,16 @@ class PipelineService:
             yield PipelineStatus("init", "Loading research stream configuration...")
 
             # Use research_stream_service to get stream (handles authorization)
+            # Returns Pydantic schema with all nested objects already parsed
             stream = self.research_stream_service.get_research_stream(
                 stream_id=research_stream_id,
                 user_id=user_id
             )
 
-            semantic_space = SemanticSpace(**stream.semantic_space)
-            retrieval_config = RetrievalConfig(**stream.retrieval_config)
-            presentation_config = PresentationConfig(**stream.presentation_config)
+            # All configs are already parsed Pydantic objects
+            semantic_space = stream.semantic_space
+            retrieval_config = stream.retrieval_config
+            presentation_config = stream.presentation_config
 
             yield PipelineStatus(
                 "init",

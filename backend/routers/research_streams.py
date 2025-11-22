@@ -273,14 +273,11 @@ async def propose_retrieval_concepts(
 
     try:
         # Get stream (raises 404 if not found or not authorized)
+        # Returns Pydantic schema with semantic_space already parsed
         stream = stream_service.get_research_stream(stream_id, current_user.user_id)
 
-        # Parse semantic space
-        semantic_space_dict = stream.semantic_space
-        semantic_space = SemanticSpace(**semantic_space_dict)
-
-        # Propose concepts
-        result = await concept_service.propose_concepts(semantic_space)
+        # Propose concepts using parsed semantic_space
+        result = await concept_service.propose_concepts(stream.semantic_space)
 
         return ProposeConceptsResponse(**result)
 
@@ -315,11 +312,8 @@ async def generate_concept_query(
 
     try:
         # Get stream (raises 404 if not found or not authorized)
+        # Returns Pydantic schema with semantic_space already parsed
         stream = stream_service.get_research_stream(stream_id, current_user.user_id)
-
-        # Parse semantic space
-        semantic_space_dict = stream.semantic_space
-        semantic_space = SemanticSpace(**semantic_space_dict)
 
         # Validate source
         valid_sources = [src.source_id for src in INFORMATION_SOURCES]
@@ -329,11 +323,11 @@ async def generate_concept_query(
                 detail=f"Invalid source_id. Must be one of: {', '.join(valid_sources)}"
             )
 
-        # Generate query using concept from request
+        # Generate query using concept from request and parsed semantic_space
         query_expression, reasoning = await query_service.generate_query_for_concept(
             concept=request.concept,
             source_id=request.source_id,
-            semantic_space=semantic_space
+            semantic_space=stream.semantic_space
         )
 
         return GenerateConceptQueryResponse(
@@ -369,16 +363,13 @@ async def generate_concept_filter(
 
     try:
         # Get stream (raises 404 if not found or not authorized)
+        # Returns Pydantic schema with semantic_space already parsed
         stream = stream_service.get_research_stream(stream_id, current_user.user_id)
 
-        # Parse semantic space
-        semantic_space_dict = stream.semantic_space
-        semantic_space = SemanticSpace(**semantic_space_dict)
-
-        # Generate filter using service with concept from request
+        # Generate filter using service with concept from request and parsed semantic_space
         criteria, threshold, reasoning = await query_service.generate_filter_for_concept(
             concept=request.concept,
-            semantic_space=semantic_space
+            semantic_space=stream.semantic_space
         )
 
         return GenerateConceptFilterResponse(
@@ -414,18 +405,15 @@ async def validate_concepts(
 
     try:
         # Get stream (raises 404 if not found or not authorized)
+        # Returns Pydantic schema with semantic_space already parsed
         stream = stream_service.get_research_stream(stream_id, current_user.user_id)
-
-        # Parse semantic space
-        semantic_space_dict = stream.semantic_space
-        semantic_space = SemanticSpace(**semantic_space_dict)
 
         concepts = request.concepts
 
-        # Check coverage
+        # Check coverage using parsed semantic_space
         from schemas.research_stream import RetrievalConfig
         temp_config = RetrievalConfig(concepts=concepts)
-        coverage = temp_config.validate_coverage(semantic_space)
+        coverage = temp_config.validate_coverage(stream.semantic_space)
 
         # Check configuration status
         config_status = {
