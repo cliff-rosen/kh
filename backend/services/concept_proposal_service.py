@@ -146,13 +146,13 @@ class ConceptProposalService:
 
         # Format topics for prompt
         topics_text = "\n".join([
-            f"- {t.topic_id}: {t.name}\n  Description: {t.description}\n  Priority: {t.priority}"
+            f"- {t.topic_id}: {t.name}\n  Description: {t.description}\n  Importance: {t.importance.value}"
             for t in semantic_space.topics
         ])
 
         # Format entities for prompt
         entities_text = "\n".join([
-            f"- {e.entity_id}: {e.name} ({e.entity_type})\n  Synonyms: {', '.join(e.synonyms) if e.synonyms else 'None'}"
+            f"- {e.entity_id}: {e.name} ({e.entity_type.value})\n  Forms: {', '.join(e.canonical_forms)}"
             for e in semantic_space.entities
         ])
 
@@ -160,7 +160,7 @@ class ConceptProposalService:
         relationships_text = "None explicitly defined"
         if semantic_space.relationships:
             relationships_text = "\n".join([
-                f"- {r.source_entity_id} -> {r.relationship_type} -> {r.target_entity_id}"
+                f"- {r.subject} -> {r.type.value} -> {r.object} (strength: {r.strength})"
                 for r in semantic_space.relationships
             ])
 
@@ -171,64 +171,65 @@ class ConceptProposalService:
 
         system_prompt = """You are an expert at designing retrieval configurations for research monitoring systems.
 
-Your task is to analyze a semantic space and propose CONCEPTS for retrieving relevant research articles.
+        Your task is to analyze a semantic space and propose CONCEPTS for retrieving relevant research articles.
 
-# FRAMEWORK
+        # FRAMEWORK
 
-A CONCEPT is a searchable entity-relationship pattern that covers one or more topics.
+        A CONCEPT is a searchable entity-relationship pattern that covers one or more topics.
 
-Key principles:
-1. **Single Inclusion Pattern**: Each concept has ONE entity-relationship pattern (not multiple OR'd together)
-2. **Vocabulary Expansion**: Add synonyms WITHIN entities (for OR clauses), not across patterns
-3. **Many-to-Many Coverage**: A concept can cover multiple topics, and a topic can be covered by multiple concepts
-4. **Volume-Driven**: Aim for 10-1000 articles/week per concept (will be refined later)
-5. **Minimal Exclusions**: Avoid exclusions unless absolutely necessary
+        Key principles:
+        1. **Single Inclusion Pattern**: Each concept has ONE entity-relationship pattern (not multiple OR'd together)
+        2. **Vocabulary Expansion**: Add synonyms WITHIN entities (for OR clauses), not across patterns
+        3. **Many-to-Many Coverage**: A concept can cover multiple topics, and a topic can be covered by multiple concepts
+        4. **Volume-Driven**: Aim for 10-1000 articles/week per concept (will be refined later)
+        5. **Minimal Exclusions**: Avoid exclusions unless absolutely necessary
 
-# PROCESS
+        # PROCESS
 
-Generate concept proposals following this process:
+        Generate concept proposals following this process:
 
-## Phase 1: Analysis
-1. Extract key entities across all topics
-2. Identify relationship patterns between entities
-3. Note any hierarchies or specializations
+        ## Phase 1: Analysis
+        1. Extract key entities across all topics
+        2. Identify relationship patterns between entities
+        3. Note any hierarchies or specializations
 
-## Phase 2-3: Concept Generation
-For each topic or cluster of related topics:
-1. Identify the core entity-relationship pattern that captures it
-2. Create a concept with:
-   - A clear entity pattern (list of entity_ids)
-   - The relationship between entities
-   - Which topics it covers (can be multiple)
-   - Rationale for why this pattern covers these topics
+        ## Phase 2-3: Concept Generation
+        For each topic or cluster of related topics:
+        1. Identify the core entity-relationship pattern that captures it
+        2. Create a concept with:
+        - A clear entity pattern (list of entity_ids)
+        - The relationship between entities
+        - Which topics it covers (can be multiple)
+        - Rationale for why this pattern covers these topics
 
-## Guidelines:
-- Create 3-7 concepts total (balance coverage vs. manageability)
-- Each concept should have a SINGLE clear pattern (not multiple OR'd patterns)
-- A concept can cover multiple topics if they share the same pattern
-- Multiple concepts can cover the same topic if it needs different patterns
-- Use entity_ids from the semantic space
-- Provide clear rationale for each concept
+        ## Guidelines:
+        - Create 3-7 concepts total (balance coverage vs. manageability)
+        - Each concept should have a SINGLE clear pattern (not multiple OR'd patterns)
+        - A concept can cover multiple topics if they share the same pattern
+        - Multiple concepts can cover the same topic if it needs different patterns
+        - Use entity_ids from the semantic space
+        - Provide clear rationale for each concept
 
-Respond in JSON format with "phase1_analysis", "concepts", and "overall_reasoning" fields."""
+        Respond in JSON format with "phase1_analysis", "concepts", and "overall_reasoning" fields."""
 
         user_prompt = f"""Analyze this semantic space and generate concept proposals:
 
-# SEMANTIC SPACE
+        # SEMANTIC SPACE
 
-## Domain Context:
-{semantic_space.domain_description}{user_context_section}
+        ## Domain:
+        Name: {semantic_space.domain.name}
+        Description: {semantic_space.domain.description}{user_context_section}
 
-## Topics:
-{topics_text}
+        ## Topics:
+        {topics_text}
 
-## Entities:
-{entities_text}
+        ## Entities:
+        {entities_text}
 
-## Relationships:
-{relationships_text}
+        ## Relationships:
+        {relationships_text}
 
-Generate the concepts now."""
+        Generate the concepts now."""
 
         return system_prompt, user_prompt
 
@@ -267,8 +268,8 @@ Generate the concepts now."""
             vocabulary_terms = {}
             for entity_id in entity_ids:
                 entity = next((e for e in semantic_space.entities if e.entity_id == entity_id), None)
-                if entity and entity.synonyms:
-                    vocabulary_terms[entity_id] = entity.synonyms
+                if entity and entity.canonical_forms:
+                    vocabulary_terms[entity_id] = entity.canonical_forms
 
             concept = Concept(
                 concept_id=concept_data.get("concept_id", f"concept_{idx+1}"),
