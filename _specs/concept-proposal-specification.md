@@ -68,7 +68,7 @@ Explicit relationships between entities or topics.
 
 A **concept** is a searchable pattern consisting of:
 1. **Entity Pattern**: A list of 1-3 entities that appear together
-2. **Relationship Pattern**: How those entities relate (optional but recommended)
+2. **Relationship Pattern**: How those entities relate (describes the graph structure)
 3. **Covered Topics**: Which topic(s) this pattern retrieves articles for
 4. **Vocabulary Terms**: Synonyms/variants for each entity (for query expansion)
 
@@ -81,7 +81,7 @@ A **concept** is a searchable pattern consisting of:
 
   // Core pattern
   entity_pattern: ["e2", "e1"],  // [mesothelin, mesothelioma]
-  relationship_pattern: "detects",
+  relationship_pattern: "e2 detects e1",  // Describes the edge
 
   // Coverage
   covered_topics: ["t1"],  // covers "Mesothelioma early detection"
@@ -94,6 +94,83 @@ A **concept** is a searchable pattern consisting of:
 
   rationale: "This pattern retrieves articles about using mesothelin as a biomarker for detecting mesothelioma, directly addressing early detection methods."
 }
+```
+
+### 2.3 Relationship Patterns by Entity Count
+
+#### **2 Entities: Single Edge**
+```
+Graph: e1 --[relationship]--> e2
+
+Example:
+entity_pattern: ["e1", "e2"]  // [asbestos, mesothelioma]
+relationship_pattern: "e1 causes e2"
+
+Query intent: Articles about asbestos causing mesothelioma
+```
+
+#### **3 Entities: Multiple Edges (Graph Structure)**
+
+You need to describe how ALL entities connect. Common patterns:
+
+**Linear Chain:**
+```
+Graph: e1 --[r1]--> e2 --[r2]--> e3
+
+Example:
+entity_pattern: ["e1", "e2", "e3"]  // [liquid biopsy, ctDNA, lung cancer]
+relationship_pattern: "e1 measures e2, which detects e3"
+
+Query intent: Articles about using liquid biopsy to measure ctDNA for detecting lung cancer
+```
+
+**Convergent (Two entities relate to a third):**
+```
+Graph: e1 --[r1]--> e3 <--[r2]-- e2
+
+Example:
+entity_pattern: ["e1", "e2", "e3"]  // [smoking, asbestos, mesothelioma]
+relationship_pattern: "e1 causes e3, e2 causes e3"
+
+Query intent: Articles about both smoking and asbestos as causal factors for mesothelioma
+```
+
+**Mediator (One entity connects two others):**
+```
+Graph: e1 --[r1]--> e2 --[r2]--> e3
+
+Example:
+entity_pattern: ["e1", "e2", "e3"]  // [asbestos, inflammation, mesothelioma]
+relationship_pattern: "e1 induces e2, e2 leads to e3"
+
+Query intent: Articles about asbestos causing inflammation that leads to mesothelioma
+```
+
+**⚠️ Important:** The relationship_pattern must describe the complete graph. For 3 entities, you need to specify at least 2 relationships.
+
+### 2.4 When to Use 2 vs 3 Entities
+
+**Prefer 2 entities when:**
+- The pattern has a single clear relationship
+- Adding a third entity doesn't add searchable specificity
+- The query is already focused enough
+
+**Use 3 entities when:**
+- You need to specify a methodological pathway (technique → biomarker → disease)
+- Multiple causal factors converge on an outcome
+- A mediating mechanism is important (cause → mediator → effect)
+- The three-entity pattern significantly narrows the search
+
+**Example:**
+```typescript
+// Too generic (might get 10,000+ articles/week)
+entity_pattern: ["cancer", "treatment"]
+relationship_pattern: "cancer treated by treatment"
+
+// Better - add specificity with 3rd entity
+entity_pattern: ["lung cancer", "immunotherapy", "PD-L1"]
+relationship_pattern: "PD-L1 predicts response to immunotherapy for lung cancer"
+// This narrows to articles about PD-L1 as a predictive biomarker for immunotherapy in lung cancer
 ```
 
 ---
@@ -185,17 +262,24 @@ Semantic Space
 │   └── e2: Mesothelin
 │   └── e3: Asbestos
 │   └── e4: Chemotherapy
+│   └── e5: Liquid biopsy
 │
-└── Relationships (how entities relate)
-    └── r1: mesothelin -> detects -> mesothelioma
-    └── r2: asbestos -> causes -> mesothelioma
-    └── r3: chemotherapy -> treats -> mesothelioma
+└── Relationships (how entities relate - these inform concept patterns)
+    └── r1: mesothelin --detects--> mesothelioma
+    └── r2: asbestos --causes--> mesothelioma
+    └── r3: chemotherapy --treats--> mesothelioma
+    └── r4: liquid biopsy --measures--> mesothelin
 
 Concepts (search patterns that retrieve articles about topics)
-├── c1: [mesothelin, mesothelioma] "detects" → covers t1
-├── c2: [asbestos, mesothelioma] "causes" → covers t2
-└── c3: [chemotherapy, mesothelioma] "treats" → covers t3
+├── c1: [e2, e1] "e2 detects e1" → covers t1
+├── c2: [e5, e2, e1] "e5 measures e2, which detects e1" → covers t1
+│   Graph: e5 --measures--> e2 --detects--> e1
+│   (3-entity pattern for methodological specificity)
+├── c3: [e3, e1] "e3 causes e1" → covers t2
+└── c4: [e4, e1] "e4 treats e1" → covers t3
 ```
+
+**Key Point:** When a concept has 3 entities, the relationship_pattern describes the **graph structure** connecting all three, not just a single edge.
 
 ### 4.2 From Semantic Space to Concepts: The Process
 
@@ -276,48 +360,48 @@ entities: [
 [
   {
     concept_id: "c1",
-    name: "ctDNA-based lung cancer screening",
-    entity_pattern: ["e2", "e1", "e3"],  // ctDNA, lung cancer, liquid biopsy
-    relationship_pattern: "detects via",
+    name: "Liquid biopsy ctDNA detection for lung cancer",
+    entity_pattern: ["e3", "e2", "e1"],  // liquid biopsy, ctDNA, lung cancer
+    relationship_pattern: "e3 measures e2, which detects e1",
+    // Graph: liquid biopsy --measures--> ctDNA --detects--> lung cancer
     covered_topics: ["t1"],
     vocabulary_terms: {
+      "e3": ["liquid biopsy", "blood biopsy", "plasma testing"],
       "e2": ["ctDNA", "circulating tumor DNA", "cell-free DNA"],
-      "e1": ["lung cancer", "NSCLC"],
-      "e3": ["liquid biopsy", "blood biopsy"]
+      "e1": ["lung cancer", "NSCLC"]
     },
-    rationale: "This pattern captures articles about detecting lung cancer through ctDNA analysis via liquid biopsy methods, directly addressing early detection topic."
+    rationale: "This pattern captures articles about using liquid biopsy to measure ctDNA for detecting lung cancer. The three-entity chain describes the complete methodological pathway: liquid biopsy technique measures ctDNA biomarker to detect the disease."
   },
   {
     concept_id: "c2",
-    name: "ctDNA immunotherapy response monitoring",
-    entity_pattern: ["e2", "e4", "e1"],  // ctDNA, immunotherapy, lung cancer
-    relationship_pattern: "monitors",
+    name: "ctDNA monitoring of immunotherapy response",
+    entity_pattern: ["e2", "e4"],  // ctDNA, immunotherapy
+    relationship_pattern: "e2 monitors response to e4",
+    // Graph: ctDNA --monitors response to--> immunotherapy
+    // Note: Only 2 entities needed here, lung cancer is implicit context
     covered_topics: ["t2"],
     vocabulary_terms: {
       "e2": ["ctDNA", "circulating tumor DNA"],
-      "e4": ["immunotherapy", "checkpoint inhibitor", "PD-1 inhibitor"],
-      "e1": ["lung cancer", "NSCLC"]
+      "e4": ["immunotherapy", "checkpoint inhibitor", "PD-1 inhibitor"]
     },
-    rationale: "This pattern retrieves articles about using ctDNA to monitor immunotherapy response in lung cancer patients."
+    rationale: "This pattern retrieves articles about using ctDNA to monitor immunotherapy response. Simplified to 2 entities since the focus is the monitoring relationship, not the disease itself."
   }
 ]
 ```
 
 **Query Translation (PubMed):**
 ```
-Concept c1:
+Concept c1 (3 entities - linear chain):
+("liquid biopsy" OR "blood biopsy" OR "plasma testing")
+AND
 (ctDNA OR "circulating tumor DNA" OR "cell-free DNA")
 AND
-(lung cancer OR NSCLC)
-AND
-("liquid biopsy" OR "blood biopsy")
+("lung cancer" OR NSCLC)
 
-Concept c2:
+Concept c2 (2 entities - simpler):
 (ctDNA OR "circulating tumor DNA")
 AND
 (immunotherapy OR "checkpoint inhibitor" OR "PD-1 inhibitor")
-AND
-(lung cancer OR NSCLC)
 ```
 
 ---
@@ -353,28 +437,30 @@ entities: [
 [
   {
     concept_id: "c1",
-    name: "Microplastic exposure and inflammation",
-    entity_pattern: ["e1", "e2", "e3"],  // microplastics, human exposure, inflammatory markers
-    relationship_pattern: "induces",
+    name: "Microplastic-induced inflammation in humans",
+    entity_pattern: ["e2", "e1", "e3"],  // human exposure, microplastics, inflammatory markers
+    relationship_pattern: "e2 to e1 induces e3",
+    // Graph: human exposure --to--> microplastics --induces--> inflammatory markers
     covered_topics: ["t1"],
     vocabulary_terms: {
-      "e1": ["microplastics", "microplastic particles"],
       "e2": ["human exposure", "human ingestion", "dietary exposure"],
+      "e1": ["microplastics", "microplastic particles"],
       "e3": ["inflammatory markers", "cytokines", "inflammation"]
     },
-    rationale: "Captures health impact studies examining inflammatory responses to microplastic exposure in humans."
+    rationale: "Captures the mechanistic pathway: human exposure to microplastics induces inflammatory responses. The three entities describe the exposure → substance → biological effect chain."
   },
   {
     concept_id: "c2",
-    name: "Microplastic detection in biological samples",
-    entity_pattern: ["e1", "e4"],  // microplastics, mass spectrometry
-    relationship_pattern: "detected by",
+    name: "Mass spectrometry detection of microplastics",
+    entity_pattern: ["e4", "e1"],  // mass spectrometry, microplastics
+    relationship_pattern: "e4 detects e1",
+    // Graph: mass spectrometry --detects--> microplastics
     covered_topics: ["t2"],
     vocabulary_terms: {
-      "e1": ["microplastics", "plastic microparticles"],
-      "e4": ["mass spectrometry", "LC-MS", "MS analysis"]
+      "e4": ["mass spectrometry", "LC-MS", "MS analysis"],
+      "e1": ["microplastics", "plastic microparticles"]
     },
-    rationale: "Covers analytical methods for measuring microplastics in tissue/blood samples using mass spec."
+    rationale: "Covers analytical methods: mass spectrometry techniques for detecting and measuring microplastics in biological samples."
   }
 ]
 ```
@@ -525,15 +611,51 @@ Every topic must be covered by at least one concept.
 **RIGHT:**
 ```typescript
 {
-  relationship_pattern: "detects"  // Specific action
+  relationship_pattern: "e1 detects e2"  // Specific action
 }
 // or
 {
-  relationship_pattern: "causes"
+  relationship_pattern: "e1 causes e2"
 }
 // or
 {
-  relationship_pattern: "treats"
+  relationship_pattern: "e1 treats e2"
+}
+```
+
+### ❌ Anti-Pattern 5: Incomplete Multi-Entity Relationships
+
+**WRONG - 3 entities but only describes one edge:**
+```typescript
+{
+  entity_pattern: ["liquid biopsy", "ctDNA", "lung cancer"],
+  relationship_pattern: "detects"  // ❌ Which entity detects which?
+}
+```
+
+**RIGHT - Describes the full graph:**
+```typescript
+{
+  entity_pattern: ["e1", "e2", "e3"],  // liquid biopsy, ctDNA, lung cancer
+  relationship_pattern: "e1 measures e2, which detects e3"
+  // Clear: liquid biopsy measures ctDNA, ctDNA detects lung cancer
+}
+```
+
+**WRONG - 3 entities with ambiguous relationships:**
+```typescript
+{
+  entity_pattern: ["asbestos", "inflammation", "mesothelioma"],
+  relationship_pattern: "associated with"  // ❌ Doesn't specify the pathway
+}
+```
+
+**RIGHT - Clear mechanistic chain:**
+```typescript
+{
+  entity_pattern: ["e1", "e2", "e3"],  // asbestos, inflammation, mesothelioma
+  relationship_pattern: "e1 induces e2, e2 leads to e3"
+  // Clear: asbestos induces inflammation, inflammation leads to mesothelioma
 }
 ```
 
