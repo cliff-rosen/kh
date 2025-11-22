@@ -50,7 +50,7 @@ export default function ConceptProposalPhase({
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                 <div className="flex items-start gap-4">
                     <div className="flex-shrink-0">
-                        <SparklesIcon className="h-8 w-8 text-blue-600" />
+                        <SparklesIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div className="flex-1">
                         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
@@ -157,7 +157,7 @@ export default function ConceptProposalPhase({
             {reasoning && (
                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
                     <div className="flex items-start gap-3">
-                        <InformationCircleIcon className="h-6 w-6 text-blue-600 flex-shrink-0 mt-0.5" />
+                        <InformationCircleIcon className="h-6 w-6 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
                         <div>
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                                 Strategy

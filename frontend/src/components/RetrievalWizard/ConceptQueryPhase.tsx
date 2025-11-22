@@ -95,7 +95,7 @@ export default function ConceptQueryPhase({
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                 <div className="flex items-start gap-4">
                     <div className="flex-shrink-0">
-                        <SparklesIcon className="h-8 w-8 text-blue-600" />
+                        <SparklesIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div className="flex-1">
                         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
@@ -136,7 +136,7 @@ export default function ConceptQueryPhase({
                         {/* Concept Header */}
                         <button
                             onClick={() => toggleConcept(concept.concept_id)}
-                            className="w-full p-6 text-left hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+                            className="w-full p-6 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                         >
                             <div className="flex items-center justify-between">
                                 <div className="flex-1">
@@ -225,7 +225,7 @@ export default function ConceptQueryPhase({
 
                                                         {existingQuery && (
                                                             <div className="space-y-2">
-                                                                <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded font-mono text-xs">
+                                                                <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded font-mono text-xs text-gray-900 dark:text-gray-100">
                                                                     {existingQuery.query_expression}
                                                                 </div>
                                                             </div>

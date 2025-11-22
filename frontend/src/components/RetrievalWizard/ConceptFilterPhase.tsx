@@ -110,7 +110,7 @@ export default function ConceptFilterPhase({
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                 <div className="flex items-start gap-4">
                     <div className="flex-shrink-0">
-                        <SparklesIcon className="h-8 w-8 text-purple-600" />
+                        <SparklesIcon className="h-8 w-8 text-purple-600 dark:text-purple-400" />
                     </div>
                     <div className="flex-1">
                         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
@@ -150,7 +150,7 @@ export default function ConceptFilterPhase({
                         {/* Concept Header */}
                         <button
                             onClick={() => toggleConcept(concept.concept_id)}
-                            className="w-full p-6 text-left hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+                            className="w-full p-6 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                         >
                             <div className="flex items-center justify-between">
                                 <div className="flex-1">
@@ -249,7 +249,7 @@ export default function ConceptFilterPhase({
                                                     id={`filter-enabled-${concept.concept_id}`}
                                                     checked={concept.semantic_filter.enabled}
                                                     onChange={() => handleToggleFilter(concept.concept_id)}
-                                                    className="h-4 w-4 text-purple-600 border-gray-300 rounded"
+                                                    className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-gray-600 rounded"
                                                 />
                                                 <label
                                                     htmlFor={`filter-enabled-${concept.concept_id}`}

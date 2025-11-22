@@ -69,9 +69,9 @@ export default function ConceptValidationPhase({
                 <div className="flex items-start gap-4">
                     <div className="flex-shrink-0">
                         {validationResult.ready_to_activate ? (
-                            <CheckCircleIcon className="h-8 w-8 text-green-600" />
+                            <CheckCircleIcon className="h-8 w-8 text-green-600 dark:text-green-400" />
                         ) : (
-                            <ExclamationTriangleIcon className="h-8 w-8 text-yellow-600" />
+                            <ExclamationTriangleIcon className="h-8 w-8 text-yellow-600 dark:text-yellow-400" />
                         )}
                     </div>
                     <div className="flex-1">
@@ -209,7 +209,7 @@ export default function ConceptValidationPhase({
             {/* Info */}
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
                 <div className="flex items-start gap-3">
-                    <InformationCircleIcon className="h-6 w-6 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <InformationCircleIcon className="h-6 w-6 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-blue-800 dark:text-blue-200">
                         <p className="font-medium mb-2">Ready to finalize?</p>
                         <p>
