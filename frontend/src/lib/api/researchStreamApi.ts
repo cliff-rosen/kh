@@ -277,13 +277,13 @@ export const researchStreamApi = {
     /**
      * Generate query for a concept
      */
-    async generateConceptQuery(streamId: number, conceptId: string, sourceId: string): Promise<{
+    async generateConceptQuery(streamId: number, concept: Concept, sourceId: string): Promise<{
         query_expression: string;
         reasoning: string;
     }> {
         const response = await api.post(
             `/api/research-streams/${streamId}/retrieval/generate-concept-query`,
-            { concept_id: conceptId, source_id: sourceId }
+            { concept, source_id: sourceId }
         );
         return response.data;
     },
@@ -291,14 +291,14 @@ export const researchStreamApi = {
     /**
      * Generate semantic filter for a concept
      */
-    async generateConceptFilter(streamId: number, conceptId: string): Promise<{
+    async generateConceptFilter(streamId: number, concept: Concept): Promise<{
         criteria: string;
         threshold: number;
         reasoning: string;
     }> {
         const response = await api.post(
             `/api/research-streams/${streamId}/retrieval/generate-concept-filter`,
-            { concept_id: conceptId }
+            { concept }
         );
         return response.data;
     },

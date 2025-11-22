@@ -35,7 +35,13 @@ export default function ConceptFilterPhase({
             setLoading(prev => ({ ...prev, [conceptId]: true }));
             setError(null);
 
-            const result = await researchStreamApi.generateConceptFilter(streamId, conceptId);
+            // Find the concept
+            const concept = concepts.find(c => c.concept_id === conceptId);
+            if (!concept) {
+                throw new Error('Concept not found');
+            }
+
+            const result = await researchStreamApi.generateConceptFilter(streamId, concept);
 
             // Update concept with new filter
             const updatedConcepts = concepts.map(c => {

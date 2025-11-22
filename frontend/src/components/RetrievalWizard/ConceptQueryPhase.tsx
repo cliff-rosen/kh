@@ -43,7 +43,13 @@ export default function ConceptQueryPhase({
             setLoading(prev => ({ ...prev, [loadingKey]: true }));
             setError(null);
 
-            const result = await researchStreamApi.generateConceptQuery(streamId, conceptId, sourceId);
+            // Find the concept
+            const concept = concepts.find(c => c.concept_id === conceptId);
+            if (!concept) {
+                throw new Error('Concept not found');
+            }
+
+            const result = await researchStreamApi.generateConceptQuery(streamId, concept, sourceId);
 
             // Update concept with new query
             const updatedConcepts = concepts.map(c => {

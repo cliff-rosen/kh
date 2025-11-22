@@ -213,7 +213,7 @@ class ProposeConceptsResponse(BaseModel):
 
 class GenerateConceptQueryRequest(BaseModel):
     """Request to generate a query for a specific concept"""
-    concept_id: str = Field(..., description="Concept ID")
+    concept: Concept = Field(..., description="Concept to generate query for")
     source_id: str = Field(..., description="Source to generate query for (e.g., 'pubmed')")
 
 
@@ -225,7 +225,7 @@ class GenerateConceptQueryResponse(BaseModel):
 
 class GenerateConceptFilterRequest(BaseModel):
     """Request to generate semantic filter for a concept"""
-    concept_id: str = Field(..., description="Concept ID")
+    concept: Concept = Field(..., description="Concept to generate filter for")
 
 
 class GenerateConceptFilterResponse(BaseModel):
@@ -317,25 +317,9 @@ async def generate_concept_query(
         # Get stream (raises 404 if not found or not authorized)
         stream = stream_service.get_research_stream(stream_id, current_user.user_id)
 
-        # Parse semantic space and retrieval config
+        # Parse semantic space
         semantic_space_dict = stream.semantic_space
         semantic_space = SemanticSpace(**semantic_space_dict)
-
-        retrieval_config_dict = stream.retrieval_config
-        from schemas.research_stream import RetrievalConfig
-        retrieval_config = RetrievalConfig(**retrieval_config_dict)
-
-        # Find the concept
-        concept = next(
-            (c for c in retrieval_config.concepts if c.concept_id == request.concept_id),
-            None
-        )
-
-        if not concept:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Concept '{request.concept_id}' not found"
-            )
 
         # Validate source
         valid_sources = [src.source_id for src in INFORMATION_SOURCES]
@@ -345,9 +329,9 @@ async def generate_concept_query(
                 detail=f"Invalid source_id. Must be one of: {', '.join(valid_sources)}"
             )
 
-        # Generate query
+        # Generate query using concept from request
         query_expression, reasoning = await query_service.generate_query_for_concept(
-            concept=concept,
+            concept=request.concept,
             source_id=request.source_id,
             semantic_space=semantic_space
         )
@@ -387,29 +371,13 @@ async def generate_concept_filter(
         # Get stream (raises 404 if not found or not authorized)
         stream = stream_service.get_research_stream(stream_id, current_user.user_id)
 
-        # Parse semantic space and retrieval config
+        # Parse semantic space
         semantic_space_dict = stream.semantic_space
         semantic_space = SemanticSpace(**semantic_space_dict)
 
-        retrieval_config_dict = stream.retrieval_config
-        from schemas.research_stream import RetrievalConfig
-        retrieval_config = RetrievalConfig(**retrieval_config_dict)
-
-        # Find the concept
-        concept = next(
-            (c for c in retrieval_config.concepts if c.concept_id == request.concept_id),
-            None
-        )
-
-        if not concept:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Concept '{request.concept_id}' not found"
-            )
-
-        # Generate filter using service
+        # Generate filter using service with concept from request
         criteria, threshold, reasoning = await query_service.generate_filter_for_concept(
-            concept=concept,
+            concept=request.concept,
             semantic_space=semantic_space
         )
 
