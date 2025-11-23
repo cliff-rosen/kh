@@ -302,55 +302,39 @@ class ConceptProposalService:
         ## 2 Entities: Single Edge
 
         Example:
-        ```json
-        {
-          "entity_pattern": ["e1", "e2"],
-          "relationship_edges": [
-            {"from_entity_id": "e1", "to_entity_id": "e2", "relation_type": "causes"}
-          ],
-          "relationship_description": "Asbestos exposure causes mesothelioma through fiber-induced cellular damage"
-        }
-        ```
+        - entity_pattern: ["e1", "e2"]
+        - relationship_edges: [
+            {{from_entity_id: "e1", to_entity_id: "e2", relation_type: "causes"}}
+          ]
+        - relationship_description: "Asbestos exposure causes mesothelioma through fiber-induced cellular damage"
 
         ## 3 Entities: Multiple Edges
 
         You MUST define at least 2 edges for 3 entities. Common patterns:
 
         **Linear Chain:**
-        ```json
-        {
-          "entity_pattern": ["e3", "e4", "e5"],
-          "relationship_edges": [
-            {"from_entity_id": "e3", "to_entity_id": "e4", "relation_type": "measures"},
-            {"from_entity_id": "e4", "to_entity_id": "e5", "relation_type": "detects"}
-          ],
-          "relationship_description": "Liquid biopsy measures circulating tumor DNA levels, which detect lung cancer"
-        }
-        ```
+        - entity_pattern: ["e3", "e4", "e5"]
+        - relationship_edges: [
+            {{from_entity_id: "e3", to_entity_id: "e4", relation_type: "measures"}},
+            {{from_entity_id: "e4", to_entity_id: "e5", relation_type: "detects"}}
+          ]
+        - relationship_description: "Liquid biopsy measures circulating tumor DNA levels, which detect lung cancer"
 
         **Convergent (two sources → one target):**
-        ```json
-        {
-          "entity_pattern": ["e6", "e7", "e2"],
-          "relationship_edges": [
-            {"from_entity_id": "e6", "to_entity_id": "e2", "relation_type": "increases_risk"},
-            {"from_entity_id": "e7", "to_entity_id": "e2", "relation_type": "causes"}
-          ],
-          "relationship_description": "Both smoking and asbestos exposure contribute to mesothelioma development"
-        }
-        ```
+        - entity_pattern: ["e6", "e7", "e2"]
+        - relationship_edges: [
+            {{from_entity_id: "e6", to_entity_id: "e2", relation_type: "increases_risk"}},
+            {{from_entity_id: "e7", to_entity_id: "e2", relation_type: "causes"}}
+          ]
+        - relationship_description: "Both smoking and asbestos exposure contribute to mesothelioma development"
 
         **Mediator (cause → mediator → effect):**
-        ```json
-        {
-          "entity_pattern": ["e1", "e8", "e2"],
-          "relationship_edges": [
-            {"from_entity_id": "e1", "to_entity_id": "e8", "relation_type": "induces"},
-            {"from_entity_id": "e8", "to_entity_id": "e2", "relation_type": "leads_to"}
-          ],
-          "relationship_description": "Asbestos induces chronic inflammation, which leads to mesothelioma"
-        }
-        ```
+        - entity_pattern: ["e1", "e8", "e2"]
+        - relationship_edges: [
+            {{from_entity_id: "e1", to_entity_id: "e8", relation_type: "induces"}},
+            {{from_entity_id: "e8", to_entity_id: "e2", relation_type: "leads_to"}}
+          ]
+        - relationship_description: "Asbestos induces chronic inflammation, which leads to mesothelioma"
 
         ## Relation Types
         Use clear, specific verbs: causes, measures, detects, treats, induces, prevents, increases_risk, leads_to, regulates, activates, inhibits, etc.
