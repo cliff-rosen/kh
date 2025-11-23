@@ -59,6 +59,15 @@ class VolumeStatus(str, Enum):
     UNKNOWN = "unknown"           # Not yet tested
 
 
+class RelationshipEdge(BaseModel):
+    """A directed edge in the concept's entity relationship graph"""
+    from_entity_id: str = Field(description="Source entity_id from entity_pattern")
+    to_entity_id: str = Field(description="Target entity_id from entity_pattern")
+    relation_type: str = Field(
+        description="Type of relationship (e.g., 'causes', 'measures', 'detects', 'treats', 'induces')"
+    )
+
+
 class Concept(BaseModel):
     """
     A searchable entity-relationship pattern that covers one or more topics.
@@ -74,12 +83,28 @@ class Concept(BaseModel):
 
     # Core pattern (entities and their relationships)
     entity_pattern: List[str] = Field(
-        description="List of entity_ids that form this pattern",
+        description="List of entity_ids that form this pattern (1-3 entities)",
+        min_length=1,
+        max_length=3,
         default_factory=list
     )
+
+    # RIGOROUS relationship graph (machine-parseable)
+    relationship_edges: List[RelationshipEdge] = Field(
+        description="Directed edges defining how entities connect in the graph",
+        default_factory=list
+    )
+
+    # HUMAN-READABLE relationship description
+    relationship_description: str = Field(
+        default="",
+        description="Natural language description of entity relationships for human understanding"
+    )
+
+    # DEPRECATED: Kept for backward compatibility during migration
     relationship_pattern: Optional[str] = Field(
         None,
-        description="How entities relate (e.g., 'causes', 'treats', 'indicates')"
+        description="DEPRECATED: Use relationship_edges and relationship_description instead"
     )
 
     # Coverage (many-to-many with topics)

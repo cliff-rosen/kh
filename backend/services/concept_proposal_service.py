@@ -14,7 +14,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from schemas.semantic_space import SemanticSpace, Topic, Entity
-from schemas.research_stream import Concept, VolumeStatus, SourceQuery, SemanticFilter
+from schemas.research_stream import Concept, VolumeStatus, SourceQuery, SemanticFilter, RelationshipEdge
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,90 @@ class ConceptProposalService:
     def __init__(self, db: Session, user_id: int):
         self.db = db
         self.user_id = user_id
+
+    def _validate_concept_relationships(
+        self,
+        concept_data: Dict[str, Any],
+        semantic_space: SemanticSpace
+    ) -> List[str]:
+        """
+        Validate concept relationship graph.
+
+        Returns list of validation errors (empty if valid).
+        """
+        errors = []
+        entity_pattern = concept_data.get("entity_pattern", [])
+        relationship_edges = concept_data.get("relationship_edges", [])
+
+        # Check minimum edges
+        min_edges = len(entity_pattern) - 1
+        if len(relationship_edges) < min_edges:
+            errors.append(
+                f"Concept {concept_data.get('concept_id')} has {len(entity_pattern)} entities but only "
+                f"{len(relationship_edges)} edges. Need at least {min_edges} edges."
+            )
+
+        # Check all entity_ids are valid
+        valid_entity_ids = {e.entity_id for e in semantic_space.entities}
+        for entity_id in entity_pattern:
+            if entity_id not in valid_entity_ids:
+                errors.append(f"Invalid entity_id in pattern: {entity_id}")
+
+        # Check edge references
+        pattern_set = set(entity_pattern)
+        for edge_data in relationship_edges:
+            from_id = edge_data.get("from_entity_id")
+            to_id = edge_data.get("to_entity_id")
+
+            if from_id not in pattern_set:
+                errors.append(f"Edge references unknown entity: {from_id}")
+            if to_id not in pattern_set:
+                errors.append(f"Edge references unknown entity: {to_id}")
+            if from_id == to_id:
+                errors.append(f"Self-loop not allowed: {from_id} -> {to_id}")
+
+        # Check graph connectivity (all entities reachable)
+        if len(entity_pattern) > 1 and len(relationship_edges) > 0:
+            connected = self._check_graph_connected(entity_pattern, relationship_edges)
+            if not connected:
+                errors.append(
+                    f"Concept {concept_data.get('concept_id')}: Graph is not connected - "
+                    "some entities are unreachable"
+                )
+
+        return errors
+
+    def _check_graph_connected(
+        self,
+        entities: List[str],
+        edges: List[Dict[str, Any]]
+    ) -> bool:
+        """Check if undirected graph formed by edges is connected"""
+        if len(entities) <= 1:
+            return True
+
+        # Build adjacency list (treat as undirected)
+        adj = {e: set() for e in entities}
+        for edge in edges:
+            from_id = edge.get("from_entity_id")
+            to_id = edge.get("to_entity_id")
+            if from_id and to_id:
+                adj[from_id].add(to_id)
+                adj[to_id].add(from_id)
+
+        # BFS from first entity
+        visited = set()
+        queue = [entities[0]]
+        visited.add(entities[0])
+
+        while queue:
+            node = queue.pop(0)
+            for neighbor in adj.get(node, []):
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+
+        return len(visited) == len(entities)
 
     async def propose_concepts(
         self,
@@ -73,12 +157,37 @@ class ConceptProposalService:
                         "properties": {
                             "concept_id": {"type": "string"},
                             "name": {"type": "string"},
-                            "entity_pattern": {"type": "array", "items": {"type": "string"}},
-                            "relationship_pattern": {"type": "string"},
+                            "entity_pattern": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "minItems": 1,
+                                "maxItems": 3
+                            },
+                            "relationship_edges": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "from_entity_id": {"type": "string"},
+                                        "to_entity_id": {"type": "string"},
+                                        "relation_type": {"type": "string"}
+                                    },
+                                    "required": ["from_entity_id", "to_entity_id", "relation_type"]
+                                }
+                            },
+                            "relationship_description": {"type": "string"},
                             "covered_topics": {"type": "array", "items": {"type": "string"}},
                             "rationale": {"type": "string"}
                         },
-                        "required": ["concept_id", "name", "entity_pattern", "covered_topics", "rationale"]
+                        "required": [
+                            "concept_id",
+                            "name",
+                            "entity_pattern",
+                            "relationship_edges",
+                            "relationship_description",
+                            "covered_topics",
+                            "rationale"
+                        ]
                     }
                 },
                 "overall_reasoning": {"type": "string"}
@@ -184,33 +293,67 @@ class ConceptProposalService:
         4. **Volume-Driven**: Aim for 10-1000 articles/week per concept (will be refined later)
         5. **Minimal Exclusions**: Avoid exclusions unless absolutely necessary
 
-        # ENTITY PATTERNS AND RELATIONSHIP GRAPHS
+        # RELATIONSHIP GRAPH STRUCTURE
+
+        Each concept has TWO relationship fields:
+        1. **relationship_edges** - Rigorous, machine-parseable graph structure (array of edges)
+        2. **relationship_description** - Human-readable natural language explanation
 
         ## 2 Entities: Single Edge
-        When using 2 entities, describe the single relationship:
 
         Example:
-        entity_pattern: ["e1", "e2"]  // asbestos, mesothelioma
-        relationship_pattern: "e1 causes e2"
-        Graph: e1 --[causes]--> e2
+        ```json
+        {
+          "entity_pattern": ["e1", "e2"],
+          "relationship_edges": [
+            {"from_entity_id": "e1", "to_entity_id": "e2", "relation_type": "causes"}
+          ],
+          "relationship_description": "Asbestos exposure causes mesothelioma through fiber-induced cellular damage"
+        }
+        ```
 
-        ## 3 Entities: Complete Graph Structure
-        When using 3 entities, you MUST describe how ALL entities connect (at least 2 edges).
+        ## 3 Entities: Multiple Edges
 
-        **Linear Chain (e1 → e2 → e3):**
-        entity_pattern: ["e1", "e2", "e3"]  // liquid biopsy, ctDNA, lung cancer
-        relationship_pattern: "e1 measures e2, which detects e3"
-        Graph: liquid biopsy --[measures]--> ctDNA --[detects]--> lung cancer
+        You MUST define at least 2 edges for 3 entities. Common patterns:
 
-        **Convergent (e1 → e3 ← e2):**
-        entity_pattern: ["e1", "e2", "e3"]  // smoking, asbestos, mesothelioma
-        relationship_pattern: "e1 causes e3, e2 causes e3"
-        Graph: smoking --[causes]--> mesothelioma <--[causes]-- asbestos
+        **Linear Chain:**
+        ```json
+        {
+          "entity_pattern": ["e3", "e4", "e5"],
+          "relationship_edges": [
+            {"from_entity_id": "e3", "to_entity_id": "e4", "relation_type": "measures"},
+            {"from_entity_id": "e4", "to_entity_id": "e5", "relation_type": "detects"}
+          ],
+          "relationship_description": "Liquid biopsy measures circulating tumor DNA levels, which detect lung cancer"
+        }
+        ```
 
-        **Mediator (e1 → e2 → e3):**
-        entity_pattern: ["e1", "e2", "e3"]  // asbestos, inflammation, mesothelioma
-        relationship_pattern: "e1 induces e2, e2 leads to e3"
-        Graph: asbestos --[induces]--> inflammation --[leads to]--> mesothelioma
+        **Convergent (two sources → one target):**
+        ```json
+        {
+          "entity_pattern": ["e6", "e7", "e2"],
+          "relationship_edges": [
+            {"from_entity_id": "e6", "to_entity_id": "e2", "relation_type": "increases_risk"},
+            {"from_entity_id": "e7", "to_entity_id": "e2", "relation_type": "causes"}
+          ],
+          "relationship_description": "Both smoking and asbestos exposure contribute to mesothelioma development"
+        }
+        ```
+
+        **Mediator (cause → mediator → effect):**
+        ```json
+        {
+          "entity_pattern": ["e1", "e8", "e2"],
+          "relationship_edges": [
+            {"from_entity_id": "e1", "to_entity_id": "e8", "relation_type": "induces"},
+            {"from_entity_id": "e8", "to_entity_id": "e2", "relation_type": "leads_to"}
+          ],
+          "relationship_description": "Asbestos induces chronic inflammation, which leads to mesothelioma"
+        }
+        ```
+
+        ## Relation Types
+        Use clear, specific verbs: causes, measures, detects, treats, induces, prevents, increases_risk, leads_to, regulates, activates, inhibits, etc.
 
         ## When to Use 2 vs 3 Entities
 
@@ -225,8 +368,6 @@ class ConceptProposalService:
 
         # PROCESS
 
-        Generate concept proposals following this process:
-
         ## Phase 1: Analysis
         1. Extract key entities across all topics
         2. Identify relationship patterns between entities
@@ -234,20 +375,23 @@ class ConceptProposalService:
 
         ## Phase 2-3: Concept Generation
         For each topic or cluster of related topics:
-        1. Identify the core entity-relationship pattern that captures it
+        1. Identify the core entity-relationship pattern
         2. Create a concept with:
-        - A clear entity pattern (list of entity_ids, 1-3 entities)
-        - The relationship between entities (MUST describe complete graph for 3 entities)
-        - Which topics it covers (can be multiple)
-        - Rationale for why this pattern covers these topics
+           - entity_pattern: List of 1-3 entity_ids
+           - relationship_edges: Array of edges defining the graph
+           - relationship_description: Natural language explanation
+           - covered_topics: Which topic_ids this covers
+           - rationale: Why this pattern covers these topics
 
         ## Guidelines:
         - Create 3-7 concepts total (balance coverage vs. manageability)
         - Each concept should have a SINGLE clear pattern (not multiple OR'd patterns)
         - A concept can cover multiple topics if they share the same pattern
         - Multiple concepts can cover the same topic if it needs different patterns
-        - Use entity_ids from the semantic space
-        - For 3-entity patterns, relationship_pattern MUST reference all entities (e.g., "e1 measures e2, which detects e3")
+        - Use actual entity_ids from the semantic space
+        - For 3 entities: Define at least 2 edges
+        - All edges must reference entity_ids in the entity_pattern
+        - Graph must be connected (all entities reachable)
         - Provide clear rationale for each concept
 
         Respond in JSON format with "phase1_analysis", "concepts", and "overall_reasoning" fields."""
@@ -304,17 +448,25 @@ class ConceptProposalService:
                 # Filter to valid topics only
                 topic_ids = [tid for tid in topic_ids if tid in valid_topic_ids]
 
-            # Validate relationship pattern for multi-entity concepts
-            relationship_pattern = concept_data.get("relationship_pattern")
-            if len(entity_ids) == 3 and relationship_pattern:
-                # For 3-entity patterns, check that relationship mentions multiple entities
-                # At minimum, should contain commas or conjunctions suggesting multiple edges
-                has_multiple_edges = any(sep in relationship_pattern for sep in [',', 'and', 'which', 'that'])
-                if not has_multiple_edges:
-                    logger.warning(
-                        f"Concept {concept_data.get('concept_id')} has 3 entities but relationship_pattern "
-                        f"may be incomplete: '{relationship_pattern}'. Should describe complete graph structure."
-                    )
+            # Validate relationship edges
+            validation_errors = self._validate_concept_relationships(concept_data, semantic_space)
+            if validation_errors:
+                for error in validation_errors:
+                    logger.warning(error)
+                # Continue anyway, but log the issues
+
+            # Parse relationship edges
+            relationship_edges_data = concept_data.get("relationship_edges", [])
+            relationship_edges = []
+            for edge_data in relationship_edges_data:
+                try:
+                    edge = RelationshipEdge(**edge_data)
+                    relationship_edges.append(edge)
+                except Exception as e:
+                    logger.warning(f"Failed to parse relationship edge: {e}")
+
+            # Get relationship description
+            relationship_description = concept_data.get("relationship_description", "")
 
             # Build vocabulary_terms from entities
             vocabulary_terms = {}
@@ -323,11 +475,18 @@ class ConceptProposalService:
                 if entity and entity.canonical_forms:
                     vocabulary_terms[entity_id] = entity.canonical_forms
 
+            # Backward compatibility: use old relationship_pattern if new fields not present
+            relationship_pattern = concept_data.get("relationship_pattern")
+            if not relationship_description and relationship_pattern:
+                relationship_description = relationship_pattern
+
             concept = Concept(
                 concept_id=concept_data.get("concept_id", f"concept_{idx+1}"),
                 name=concept_data.get("name", f"Concept {idx+1}"),
                 entity_pattern=entity_ids,
-                relationship_pattern=concept_data.get("relationship_pattern"),
+                relationship_edges=relationship_edges,
+                relationship_description=relationship_description,
+                relationship_pattern=relationship_pattern,  # Keep for backward compatibility
                 covered_topics=topic_ids,
                 vocabulary_terms=vocabulary_terms,
                 expected_volume=None,  # Will be filled during volume estimation

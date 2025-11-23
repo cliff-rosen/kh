@@ -47,13 +47,27 @@ export enum VolumeStatus {
     UNKNOWN = 'unknown'           // Not yet tested
 }
 
+export interface RelationshipEdge {
+    from_entity_id: string;  // Source entity_id from entity_pattern
+    to_entity_id: string;    // Target entity_id from entity_pattern
+    relation_type: string;   // Type of relationship (e.g., 'causes', 'measures', 'detects')
+}
+
 export interface Concept {
     concept_id: string;  // Unique identifier for this concept
     name: string;  // Descriptive name for this concept
 
     // Core pattern (entities and their relationships)
-    entity_pattern: string[];  // List of entity_ids that form this pattern
-    relationship_pattern: string | null;  // How entities relate (e.g., 'causes', 'treats', 'indicates')
+    entity_pattern: string[];  // List of entity_ids that form this pattern (1-3 entities)
+
+    // RIGOROUS relationship graph (machine-parseable)
+    relationship_edges: RelationshipEdge[];  // Directed edges defining how entities connect
+
+    // HUMAN-READABLE relationship description
+    relationship_description: string;  // Natural language description of entity relationships
+
+    // DEPRECATED: Kept for backward compatibility
+    relationship_pattern?: string | null;  // Old field - use relationship_edges and relationship_description instead
 
     // Coverage (many-to-many with topics)
     covered_topics: string[];  // List of topic_ids from semantic space this concept covers

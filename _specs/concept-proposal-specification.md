@@ -81,7 +81,14 @@ A **concept** is a searchable pattern consisting of:
 
   // Core pattern
   entity_pattern: ["e2", "e1"],  // [mesothelin, mesothelioma]
-  relationship_pattern: "e2 detects e1",  // Describes the edge
+
+  // Rigorous graph structure (machine-parseable)
+  relationship_edges: [
+    {from_entity_id: "e2", to_entity_id: "e1", relation_type: "detects"}
+  ],
+
+  // Human-readable description
+  relationship_description: "Mesothelin levels detect mesothelioma through biomarker screening",
 
   // Coverage
   covered_topics: ["t1"],  // covers "Mesothelioma early detection"
@@ -103,8 +110,13 @@ A **concept** is a searchable pattern consisting of:
 Graph: e1 --[relationship]--> e2
 
 Example:
-entity_pattern: ["e1", "e2"]  // [asbestos, mesothelioma]
-relationship_pattern: "e1 causes e2"
+{
+  entity_pattern: ["e1", "e2"],  // [asbestos, mesothelioma]
+  relationship_edges: [
+    {from_entity_id: "e1", to_entity_id: "e2", relation_type: "causes"}
+  ],
+  relationship_description: "Asbestos exposure causes mesothelioma through fiber-induced cellular damage"
+}
 
 Query intent: Articles about asbestos causing mesothelioma
 ```
@@ -118,8 +130,14 @@ You need to describe how ALL entities connect. Common patterns:
 Graph: e1 --[r1]--> e2 --[r2]--> e3
 
 Example:
-entity_pattern: ["e1", "e2", "e3"]  // [liquid biopsy, ctDNA, lung cancer]
-relationship_pattern: "e1 measures e2, which detects e3"
+{
+  entity_pattern: ["e1", "e2", "e3"],  // [liquid biopsy, ctDNA, lung cancer]
+  relationship_edges: [
+    {from_entity_id: "e1", to_entity_id: "e2", relation_type: "measures"},
+    {from_entity_id: "e2", to_entity_id: "e3", relation_type: "detects"}
+  ],
+  relationship_description: "Liquid biopsy measures circulating tumor DNA levels, which detect lung cancer"
+}
 
 Query intent: Articles about using liquid biopsy to measure ctDNA for detecting lung cancer
 ```
@@ -129,8 +147,14 @@ Query intent: Articles about using liquid biopsy to measure ctDNA for detecting 
 Graph: e1 --[r1]--> e3 <--[r2]-- e2
 
 Example:
-entity_pattern: ["e1", "e2", "e3"]  // [smoking, asbestos, mesothelioma]
-relationship_pattern: "e1 causes e3, e2 causes e3"
+{
+  entity_pattern: ["e1", "e2", "e3"],  // [smoking, asbestos, mesothelioma]
+  relationship_edges: [
+    {from_entity_id: "e1", to_entity_id: "e3", relation_type: "increases_risk"},
+    {from_entity_id: "e2", to_entity_id: "e3", relation_type: "causes"}
+  ],
+  relationship_description: "Both smoking and asbestos exposure contribute to mesothelioma development"
+}
 
 Query intent: Articles about both smoking and asbestos as causal factors for mesothelioma
 ```
@@ -140,13 +164,19 @@ Query intent: Articles about both smoking and asbestos as causal factors for mes
 Graph: e1 --[r1]--> e2 --[r2]--> e3
 
 Example:
-entity_pattern: ["e1", "e2", "e3"]  // [asbestos, inflammation, mesothelioma]
-relationship_pattern: "e1 induces e2, e2 leads to e3"
+{
+  entity_pattern: ["e1", "e2", "e3"],  // [asbestos, inflammation, mesothelioma]
+  relationship_edges: [
+    {from_entity_id: "e1", to_entity_id: "e2", relation_type: "induces"},
+    {from_entity_id: "e2", to_entity_id: "e3", relation_type: "leads_to"}
+  ],
+  relationship_description: "Asbestos induces chronic inflammation, which leads to mesothelioma"
+}
 
 Query intent: Articles about asbestos causing inflammation that leads to mesothelioma
 ```
 
-**⚠️ Important:** The relationship_pattern must describe the complete graph. For 3 entities, you need to specify at least 2 relationships.
+**⚠️ Important:** Each concept must have both `relationship_edges` (machine-parseable graph) and `relationship_description` (human-readable explanation). For 3 entities, you need at least 2 edges.
 
 ### 2.4 When to Use 2 vs 3 Entities
 

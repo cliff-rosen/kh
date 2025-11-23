@@ -145,7 +145,9 @@ class RetrievalQueryService:
         ])
 
         topics_list = ", ".join([t.name for t in covered_topics])
-        relationship = concept.relationship_pattern or "related to"
+
+        # Use relationship_description if available, fallback to relationship_pattern
+        relationship = concept.relationship_description or concept.relationship_pattern or "related to"
 
         user_prompt = f"""Generate a search query for this concept:
 
@@ -155,7 +157,7 @@ class RetrievalQueryService:
         ENTITY PATTERN (with vocabulary expansion):
         {entity_descriptions}
 
-        RELATIONSHIP PATTERN: {relationship}
+        RELATIONSHIP: {relationship}
 
         COVERED TOPICS: {topics_list}
 
@@ -253,7 +255,7 @@ class RetrievalQueryService:
         entity pattern, and rationale.
 
         Args:
-            concept: Concept object with entity_pattern, relationship_pattern, covered_topics
+            concept: Concept object with entity_pattern, relationship_edges, relationship_description, covered_topics
             semantic_space: Complete semantic space for context
 
         Returns:
@@ -285,7 +287,8 @@ class RetrievalQueryService:
             for e in entities
         ])
 
-        relationship = concept.relationship_pattern or "related to"
+        # Use relationship_description if available, fallback to relationship_pattern
+        relationship = concept.relationship_description or concept.relationship_pattern or "related to"
 
         system_prompt = """You are an expert at creating semantic filter criteria for research article screening.
 

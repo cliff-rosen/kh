@@ -1,15 +1,43 @@
 import { useState } from 'react';
 import { SparklesIcon, ArrowPathIcon, CheckCircleIcon, InformationCircleIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
-import { Concept, SemanticSpace } from '../../types';
+import { Concept, SemanticSpace, RelationshipEdge } from '../../types';
 
-// Helper component to visualize entity connections
+// Helper component to visualize entity connections from relationship edges
 function EntityConnectionVisualization({ concept, semanticSpace }: { concept: Concept; semanticSpace: SemanticSpace }) {
     const getEntityName = (entityId: string) => {
         const entity = semanticSpace.entities.find(e => e.entity_id === entityId);
         return entity ? entity.name : entityId;
     };
 
+    // If we have relationship_edges, use them for precise visualization
+    if (concept.relationship_edges && concept.relationship_edges.length > 0) {
+        // Build a simple linear visualization from the edges
+        // For complex graphs, we just show the edges as individual connections
+        return (
+            <div className="mt-2 space-y-1">
+                {concept.relationship_edges.map((edge: RelationshipEdge, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2 text-xs">
+                        <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/40 text-purple-900 dark:text-purple-100 rounded font-medium">
+                            {getEntityName(edge.from_entity_id)}
+                        </span>
+                        <div className="flex items-center gap-1">
+                            <ArrowRightIcon className="h-3 w-3 text-gray-500 dark:text-gray-400" />
+                            <span className="text-gray-600 dark:text-gray-400 italic text-xs">
+                                {edge.relation_type}
+                            </span>
+                            <ArrowRightIcon className="h-3 w-3 text-gray-500 dark:text-gray-400" />
+                        </div>
+                        <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/40 text-purple-900 dark:text-purple-100 rounded font-medium">
+                            {getEntityName(edge.to_entity_id)}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    // Fallback to simple linear visualization for backward compatibility
     if (concept.entity_pattern.length === 2) {
         return (
             <div className="flex items-center gap-2 mt-2 text-xs">
@@ -326,22 +354,22 @@ export default function ConceptProposalPhase({
                                     </div>
                                 </div>
 
-                                {concept.relationship_pattern && (
+                                {(concept.relationship_description || concept.relationship_pattern) && (
                                     <div className="mt-3">
                                         <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                                            Relationship Pattern:
+                                            Relationship Graph:
                                         </div>
                                         <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded">
-                                            <div className="text-sm font-mono text-blue-900 dark:text-blue-100">
-                                                {concept.relationship_pattern}
+                                            <div className="text-sm text-blue-900 dark:text-blue-100 mb-2">
+                                                {concept.relationship_description || concept.relationship_pattern}
                                             </div>
                                             <EntityConnectionVisualization
                                                 concept={concept}
                                                 semanticSpace={semanticSpace}
                                             />
-                                            {concept.entity_pattern.length === 3 && (
+                                            {concept.relationship_edges && concept.relationship_edges.length > 1 && (
                                                 <div className="text-xs text-blue-700 dark:text-blue-300 mt-2 italic">
-                                                    3-entity graph with complete relationship structure
+                                                    {concept.relationship_edges.length} edges defining complete graph structure
                                                 </div>
                                             )}
                                         </div>
