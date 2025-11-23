@@ -1,7 +1,49 @@
 import { useState } from 'react';
-import { SparklesIcon, ArrowPathIcon, CheckCircleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { SparklesIcon, ArrowPathIcon, CheckCircleIcon, InformationCircleIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
 import { Concept, SemanticSpace } from '../../types';
+
+// Helper component to visualize entity connections
+function EntityConnectionVisualization({ concept, semanticSpace }: { concept: Concept; semanticSpace: SemanticSpace }) {
+    const getEntityName = (entityId: string) => {
+        const entity = semanticSpace.entities.find(e => e.entity_id === entityId);
+        return entity ? entity.name : entityId;
+    };
+
+    if (concept.entity_pattern.length === 2) {
+        return (
+            <div className="flex items-center gap-2 mt-2 text-xs">
+                <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/40 text-purple-900 dark:text-purple-100 rounded font-medium">
+                    {getEntityName(concept.entity_pattern[0])}
+                </span>
+                <ArrowRightIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/40 text-purple-900 dark:text-purple-100 rounded font-medium">
+                    {getEntityName(concept.entity_pattern[1])}
+                </span>
+            </div>
+        );
+    }
+
+    if (concept.entity_pattern.length === 3) {
+        return (
+            <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
+                <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/40 text-purple-900 dark:text-purple-100 rounded font-medium">
+                    {getEntityName(concept.entity_pattern[0])}
+                </span>
+                <ArrowRightIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/40 text-purple-900 dark:text-purple-100 rounded font-medium">
+                    {getEntityName(concept.entity_pattern[1])}
+                </span>
+                <ArrowRightIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/40 text-purple-900 dark:text-purple-100 rounded font-medium">
+                    {getEntityName(concept.entity_pattern[2])}
+                </span>
+            </div>
+        );
+    }
+
+    return null;
+}
 
 interface ConceptProposalPhaseProps {
     streamId: number;
@@ -245,39 +287,64 @@ export default function ConceptProposalPhase({
 
                                 <div className="grid grid-cols-2 gap-4 text-sm">
                                     <div>
-                                        <span className="text-gray-600 dark:text-gray-400">Entities:</span>
+                                        <span className="text-gray-600 dark:text-gray-400">
+                                            Entities ({concept.entity_pattern.length}):
+                                        </span>
                                         <div className="mt-1 flex flex-wrap gap-1">
-                                            {concept.entity_pattern.map((entityId, i) => (
-                                                <span
-                                                    key={i}
-                                                    className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 rounded text-xs"
-                                                >
-                                                    {entityId}
-                                                </span>
-                                            ))}
+                                            {concept.entity_pattern.map((entityId, i) => {
+                                                const entity = semanticSpace.entities.find(e => e.entity_id === entityId);
+                                                return (
+                                                    <span
+                                                        key={i}
+                                                        className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 rounded text-xs"
+                                                        title={entity?.name || entityId}
+                                                    >
+                                                        {entity?.name || entityId}
+                                                    </span>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                     <div>
-                                        <span className="text-gray-600 dark:text-gray-400">Covers Topics:</span>
+                                        <span className="text-gray-600 dark:text-gray-400">
+                                            Covers Topics ({concept.covered_topics.length}):
+                                        </span>
                                         <div className="mt-1 flex flex-wrap gap-1">
-                                            {concept.covered_topics.map((topicId, i) => (
-                                                <span
-                                                    key={i}
-                                                    className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded text-xs"
-                                                >
-                                                    {topicId}
-                                                </span>
-                                            ))}
+                                            {concept.covered_topics.map((topicId, i) => {
+                                                const topic = semanticSpace.topics.find(t => t.topic_id === topicId);
+                                                return (
+                                                    <span
+                                                        key={i}
+                                                        className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded text-xs"
+                                                        title={topic?.name || topicId}
+                                                    >
+                                                        {topic?.name || topicId}
+                                                    </span>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 </div>
 
                                 {concept.relationship_pattern && (
-                                    <div className="mt-3 text-sm">
-                                        <span className="text-gray-600 dark:text-gray-400">Relationship: </span>
-                                        <span className="text-gray-900 dark:text-white font-medium">
-                                            {concept.relationship_pattern}
-                                        </span>
+                                    <div className="mt-3">
+                                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                            Relationship Pattern:
+                                        </div>
+                                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded">
+                                            <div className="text-sm font-mono text-blue-900 dark:text-blue-100">
+                                                {concept.relationship_pattern}
+                                            </div>
+                                            <EntityConnectionVisualization
+                                                concept={concept}
+                                                semanticSpace={semanticSpace}
+                                            />
+                                            {concept.entity_pattern.length === 3 && (
+                                                <div className="text-xs text-blue-700 dark:text-blue-300 mt-2 italic">
+                                                    3-entity graph with complete relationship structure
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
                             </div>

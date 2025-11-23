@@ -184,6 +184,45 @@ class ConceptProposalService:
         4. **Volume-Driven**: Aim for 10-1000 articles/week per concept (will be refined later)
         5. **Minimal Exclusions**: Avoid exclusions unless absolutely necessary
 
+        # ENTITY PATTERNS AND RELATIONSHIP GRAPHS
+
+        ## 2 Entities: Single Edge
+        When using 2 entities, describe the single relationship:
+
+        Example:
+        entity_pattern: ["e1", "e2"]  // asbestos, mesothelioma
+        relationship_pattern: "e1 causes e2"
+        Graph: e1 --[causes]--> e2
+
+        ## 3 Entities: Complete Graph Structure
+        When using 3 entities, you MUST describe how ALL entities connect (at least 2 edges).
+
+        **Linear Chain (e1 → e2 → e3):**
+        entity_pattern: ["e1", "e2", "e3"]  // liquid biopsy, ctDNA, lung cancer
+        relationship_pattern: "e1 measures e2, which detects e3"
+        Graph: liquid biopsy --[measures]--> ctDNA --[detects]--> lung cancer
+
+        **Convergent (e1 → e3 ← e2):**
+        entity_pattern: ["e1", "e2", "e3"]  // smoking, asbestos, mesothelioma
+        relationship_pattern: "e1 causes e3, e2 causes e3"
+        Graph: smoking --[causes]--> mesothelioma <--[causes]-- asbestos
+
+        **Mediator (e1 → e2 → e3):**
+        entity_pattern: ["e1", "e2", "e3"]  // asbestos, inflammation, mesothelioma
+        relationship_pattern: "e1 induces e2, e2 leads to e3"
+        Graph: asbestos --[induces]--> inflammation --[leads to]--> mesothelioma
+
+        ## When to Use 2 vs 3 Entities
+
+        Prefer 2 entities when:
+        - The pattern has a single clear relationship
+        - Already focused enough
+
+        Use 3 entities when:
+        - Need to specify a methodological pathway (technique → biomarker → disease)
+        - Multiple causal factors converge on an outcome
+        - A mediating mechanism is important (cause → mediator → effect)
+
         # PROCESS
 
         Generate concept proposals following this process:
@@ -197,8 +236,8 @@ class ConceptProposalService:
         For each topic or cluster of related topics:
         1. Identify the core entity-relationship pattern that captures it
         2. Create a concept with:
-        - A clear entity pattern (list of entity_ids)
-        - The relationship between entities
+        - A clear entity pattern (list of entity_ids, 1-3 entities)
+        - The relationship between entities (MUST describe complete graph for 3 entities)
         - Which topics it covers (can be multiple)
         - Rationale for why this pattern covers these topics
 
@@ -208,6 +247,7 @@ class ConceptProposalService:
         - A concept can cover multiple topics if they share the same pattern
         - Multiple concepts can cover the same topic if it needs different patterns
         - Use entity_ids from the semantic space
+        - For 3-entity patterns, relationship_pattern MUST reference all entities (e.g., "e1 measures e2, which detects e3")
         - Provide clear rationale for each concept
 
         Respond in JSON format with "phase1_analysis", "concepts", and "overall_reasoning" fields."""
@@ -263,6 +303,18 @@ class ConceptProposalService:
                 logger.warning(f"Concept {concept_data.get('concept_id')} references invalid topics: {invalid_topics}")
                 # Filter to valid topics only
                 topic_ids = [tid for tid in topic_ids if tid in valid_topic_ids]
+
+            # Validate relationship pattern for multi-entity concepts
+            relationship_pattern = concept_data.get("relationship_pattern")
+            if len(entity_ids) == 3 and relationship_pattern:
+                # For 3-entity patterns, check that relationship mentions multiple entities
+                # At minimum, should contain commas or conjunctions suggesting multiple edges
+                has_multiple_edges = any(sep in relationship_pattern for sep in [',', 'and', 'which', 'that'])
+                if not has_multiple_edges:
+                    logger.warning(
+                        f"Concept {concept_data.get('concept_id')} has 3 entities but relationship_pattern "
+                        f"may be incomplete: '{relationship_pattern}'. Should describe complete graph structure."
+                    )
 
             # Build vocabulary_terms from entities
             vocabulary_terms = {}
