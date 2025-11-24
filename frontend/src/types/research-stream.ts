@@ -47,6 +47,15 @@ export enum VolumeStatus {
     UNKNOWN = 'unknown'           // Not yet tested
 }
 
+export interface ConceptEntity {
+    entity_id: string;  // Unique identifier (e.g., 'c_e1', 'c_e2')
+    name: string;  // Entity name
+    entity_type: string;  // Type: methodology, biomarker, disease, treatment, etc.
+    canonical_forms: string[];  // Search terms for this entity
+    rationale: string;  // Why this entity is needed for topic coverage
+    semantic_space_ref: string | null;  // Reference to semantic space entity_id if applicable
+}
+
 export interface RelationshipEdge {
     from_entity_id: string;  // Source entity_id from entity_pattern
     to_entity_id: string;    // Target entity_id from entity_pattern
@@ -58,7 +67,7 @@ export interface Concept {
     name: string;  // Descriptive name for this concept
 
     // Core pattern (entities and their relationships)
-    entity_pattern: string[];  // List of entity_ids that form this pattern (1-3 entities)
+    entity_pattern: string[];  // List of entity_ids from phase1_analysis that form this pattern (1-3 entities)
 
     // RIGOROUS relationship graph (machine-parseable)
     relationship_edges: RelationshipEdge[];  // Directed edges defining how entities connect
@@ -72,8 +81,8 @@ export interface Concept {
     // Coverage (many-to-many with topics)
     covered_topics: string[];  // List of topic_ids from semantic space this concept covers
 
-    // Vocabulary expansion (synonyms/variants per entity)
-    vocabulary_terms: Record<string, string[]>;  // Map: entity_id -> list of synonym terms
+    // Vocabulary expansion (built from phase1 entity definitions)
+    vocabulary_terms: Record<string, string[]>;  // Map: entity_id -> list of synonym terms (from ConceptEntity.canonical_forms)
 
     // Volume tracking and refinement
     expected_volume: number | null;  // Estimated weekly article count

@@ -14,7 +14,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from schemas.semantic_space import SemanticSpace, Topic, Entity
-from schemas.research_stream import Concept, VolumeStatus, SourceQuery, SemanticFilter, RelationshipEdge
+from schemas.research_stream import Concept, VolumeStatus, SourceQuery, SemanticFilter, RelationshipEdge, ConceptEntity
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +29,10 @@ class ConceptProposalService:
     def _validate_concept_relationships(
         self,
         concept_data: Dict[str, Any],
-        semantic_space: SemanticSpace
+        phase1_entities_map: Dict[str, Dict[str, Any]]
     ) -> List[str]:
         """
-        Validate concept relationship graph.
+        Validate concept relationship graph against phase1 entities.
 
         Returns list of validation errors (empty if valid).
         """
@@ -48,11 +48,11 @@ class ConceptProposalService:
                 f"{len(relationship_edges)} edges. Need at least {min_edges} edges."
             )
 
-        # Check all entity_ids are valid
-        valid_entity_ids = {e.entity_id for e in semantic_space.entities}
+        # Check all entity_ids are valid (exist in phase1 entities)
+        valid_entity_ids = set(phase1_entities_map.keys())
         for entity_id in entity_pattern:
             if entity_id not in valid_entity_ids:
-                errors.append(f"Invalid entity_id in pattern: {entity_id}")
+                errors.append(f"Invalid entity_id in pattern: {entity_id} (not in phase1_analysis.entities)")
 
         # Check edge references
         pattern_set = set(entity_pattern)
@@ -144,11 +144,25 @@ class ConceptProposalService:
                 "phase1_analysis": {
                     "type": "object",
                     "properties": {
-                        "key_entities": {"type": "array", "items": {"type": "string"}},
+                        "entities": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "entity_id": {"type": "string"},
+                                    "name": {"type": "string"},
+                                    "entity_type": {"type": "string"},
+                                    "canonical_forms": {"type": "array", "items": {"type": "string"}},
+                                    "rationale": {"type": "string"},
+                                    "semantic_space_ref": {"type": ["string", "null"]}
+                                },
+                                "required": ["entity_id", "name", "entity_type", "canonical_forms", "rationale"]
+                            }
+                        },
                         "relationship_patterns": {"type": "array", "items": {"type": "string"}},
-                        "entity_groupings": {"type": "object"}
+                        "coverage_strategy": {"type": "string"}
                     },
-                    "required": ["key_entities", "relationship_patterns"]
+                    "required": ["entities", "relationship_patterns", "coverage_strategy"]
                 },
                 "concepts": {
                     "type": "array",
@@ -280,124 +294,126 @@ class ConceptProposalService:
 
         system_prompt = """You are an expert at designing retrieval configurations for research monitoring systems.
 
-        Your task is to analyze a semantic space and propose CONCEPTS for retrieving relevant research articles.
+        Your task: Analyze topics and define entity-relationship patterns that would retrieve relevant research papers.
 
-        # FRAMEWORK
+        # TWO-PHASE PROCESS
 
-        A CONCEPT is a searchable entity-relationship pattern that covers one or more topics.
+        ## PHASE 1: Independent Analysis (Define What's Needed)
 
-        Key principles:
-        1. **Single Inclusion Pattern**: Each concept has ONE entity-relationship pattern (not multiple OR'd together)
-        2. **Vocabulary Expansion**: Add synonyms WITHIN entities (for OR clauses), not across patterns
-        3. **Many-to-Many Coverage**: A concept can cover multiple topics, and a topic can be covered by multiple concepts
-        4. **Volume-Driven**: Aim for 10-1000 articles/week per concept (will be refined later)
-        5. **Minimal Exclusions**: Avoid exclusions unless absolutely necessary
+        For the given topics, think through:
 
-        # RELATIONSHIP GRAPH STRUCTURE
+        **1. What entities do research papers about these topics actually discuss?**
+        - What are the key "things" papers talk about? (diseases, methods, biomarkers, treatments, outcomes, etc.)
+        - What search terms do papers use for these entities?
+        - Don't limit yourself to the semantic space reference - define what's actually needed to cover these topics
 
-        Each concept has TWO relationship fields:
-        1. **relationship_edges** - Rigorous, machine-parseable graph structure (array of edges)
-        2. **relationship_description** - Human-readable natural language explanation
+        **2. What relationships exist between these entities?**
+        - How do papers connect these entities?
+        - What relationship patterns appear in the literature?
 
-        ## 2 Entities: Single Edge
+        **3. What patterns would cast the right net?**
+        - What entity combinations would retrieve the right papers?
+        - What patterns substantially cover each topic's domain?
 
-        Example:
-        - entity_pattern: ["e1", "e2"]
+        For each entity you define, provide:
+        - entity_id: Unique ID (use "c_e1", "c_e2", "c_e3", etc.)
+        - name: Clear entity name
+        - entity_type: methodology, biomarker, disease, treatment, outcome, population, etc.
+        - canonical_forms: ALL search terms (synonyms, abbreviations, variants) - this is critical for retrieval
+        - rationale: Why this entity is needed for covering the topics
+        - semantic_space_ref: If this maps to a semantic space entity, provide its ID (optional)
+
+        ## PHASE 2: Concept Creation (Build Searchable Patterns)
+
+        Using the entities from Phase 1, create concepts:
+
+        Each concept should have:
+        - entity_pattern: List of entity_ids from Phase 1 (1-3 entities)
+        - relationship_edges: How entities connect (directed graph)
+        - relationship_description: Human-readable explanation
+        - covered_topics: Which topic_ids this retrieves
+        - rationale: Why this pattern covers these topics
+
+        ### Relationship Graph Rules:
+
+        **2 entities = 1 edge:**
+        - entity_pattern: ["c_e1", "c_e2"]
+        - relationship_edges: [{{from_entity_id: "c_e1", to_entity_id: "c_e2", relation_type: "causes"}}]
+
+        **3 entities = at least 2 edges:**
+
+        Linear chain (method → biomarker → disease):
+        - entity_pattern: ["c_e1", "c_e2", "c_e3"]
         - relationship_edges: [
-            {{from_entity_id: "e1", to_entity_id: "e2", relation_type: "causes"}}
+            {{from_entity_id: "c_e1", to_entity_id: "c_e2", relation_type: "measures"}},
+            {{from_entity_id: "c_e2", to_entity_id: "c_e3", relation_type: "detects"}}
           ]
-        - relationship_description: "Asbestos exposure causes mesothelioma through fiber-induced cellular damage"
 
-        ## 3 Entities: Multiple Edges
-
-        You MUST define at least 2 edges for 3 entities. Common patterns:
-
-        **Linear Chain:**
-        - entity_pattern: ["e3", "e4", "e5"]
+        Convergent (two causes → one effect):
+        - entity_pattern: ["c_e1", "c_e2", "c_e3"]
         - relationship_edges: [
-            {{from_entity_id: "e3", to_entity_id: "e4", relation_type: "measures"}},
-            {{from_entity_id: "e4", to_entity_id: "e5", relation_type: "detects"}}
+            {{from_entity_id: "c_e1", to_entity_id: "c_e3", relation_type: "causes"}},
+            {{from_entity_id: "c_e2", to_entity_id: "c_e3", relation_type: "causes"}}
           ]
-        - relationship_description: "Liquid biopsy measures circulating tumor DNA levels, which detect lung cancer"
 
-        **Convergent (two sources → one target):**
-        - entity_pattern: ["e6", "e7", "e2"]
-        - relationship_edges: [
-            {{from_entity_id: "e6", to_entity_id: "e2", relation_type: "increases_risk"}},
-            {{from_entity_id: "e7", to_entity_id: "e2", relation_type: "causes"}}
-          ]
-        - relationship_description: "Both smoking and asbestos exposure contribute to mesothelioma development"
+        Use clear relation_types: causes, measures, detects, treats, induces, prevents, monitors, indicates, etc.
 
-        **Mediator (cause → mediator → effect):**
-        - entity_pattern: ["e1", "e8", "e2"]
-        - relationship_edges: [
-            {{from_entity_id: "e1", to_entity_id: "e8", relation_type: "induces"}},
-            {{from_entity_id: "e8", to_entity_id: "e2", relation_type: "leads_to"}}
-          ]
-        - relationship_description: "Asbestos induces chronic inflammation, which leads to mesothelioma"
+        # FRAMEWORK PRINCIPLES
 
-        ## Relation Types
-        Use clear, specific verbs: causes, measures, detects, treats, induces, prevents, increases_risk, leads_to, regulates, activates, inhibits, etc.
+        1. **Let the data guide you**: Define entities based on what papers actually discuss
+        2. **Semantic space is reference**: Use it for inspiration, not constraint
+        3. **Optimize for search**: Choose entities and terms that cast the right net
+        4. **Cover the domain**: For each topic, a finite set of patterns should substantially cover it
+        5. **Single pattern per concept**: Each concept = one focused pattern (not multiple OR'd patterns)
+        6. **Many-to-many coverage**: A concept can cover multiple topics; a topic can have multiple concepts
 
-        ## When to Use 2 vs 3 Entities
+        # VALIDATION
 
-        Prefer 2 entities when:
-        - The pattern has a single clear relationship
-        - Already focused enough
-
-        Use 3 entities when:
-        - Need to specify a methodological pathway (technique → biomarker → disease)
-        - Multiple causal factors converge on an outcome
-        - A mediating mechanism is important (cause → mediator → effect)
-
-        # PROCESS
-
-        ## Phase 1: Analysis
-        1. Extract key entities across all topics
-        2. Identify relationship patterns between entities
-        3. Note any hierarchies or specializations
-
-        ## Phase 2-3: Concept Generation
-        For each topic or cluster of related topics:
-        1. Identify the core entity-relationship pattern
-        2. Create a concept with:
-           - entity_pattern: List of 1-3 entity_ids
-           - relationship_edges: Array of edges defining the graph
-           - relationship_description: Natural language explanation
-           - covered_topics: Which topic_ids this covers
-           - rationale: Why this pattern covers these topics
-
-        ## Guidelines:
+        - Every topic must be covered by at least one concept
         - Create 3-7 concepts total (balance coverage vs. manageability)
-        - Each concept should have a SINGLE clear pattern (not multiple OR'd patterns)
-        - A concept can cover multiple topics if they share the same pattern
-        - Multiple concepts can cover the same topic if it needs different patterns
-        - Use actual entity_ids from the semantic space
-        - For 3 entities: Define at least 2 edges
-        - All edges must reference entity_ids in the entity_pattern
+        - Concepts with 3 entities need at least 2 edges
+        - All edges must reference entity_ids from Phase 1 entities
         - Graph must be connected (all entities reachable)
-        - Provide clear rationale for each concept
 
-        Respond in JSON format with "phase1_analysis", "concepts", and "overall_reasoning" fields."""
+        # OUTPUT FORMAT
 
-        user_prompt = f"""Analyze this semantic space and generate concept proposals:
+        Respond in JSON with:
+        - phase1_analysis: {{entities: [...], relationship_patterns: [...], coverage_strategy: "..."}}
+        - concepts: [...]
+        - overall_reasoning: "..."
 
-        # SEMANTIC SPACE
+        The semantic space reference is provided for context - use it as inspiration but define what's actually needed."""
 
-        ## Domain:
+        user_prompt = f"""Analyze these topics and define entity-relationship patterns for retrieval:
+
+        # TOPICS TO COVER
+
+        {topics_text}
+
+        # DOMAIN CONTEXT
+
         Name: {semantic_space.domain.name}
         Description: {semantic_space.domain.description}{user_context_section}
 
-        ## Topics:
-        {topics_text}
+        # SEMANTIC SPACE REFERENCE (for inspiration, not constraint)
 
-        ## Entities:
+        Entities that might be relevant:
         {entities_text}
 
-        ## Relationships:
+        Relationships that might exist:
         {relationships_text}
 
-        Generate the concepts now."""
+        # YOUR TASK
+
+        Phase 1: Define the entities and relationships needed to cover these topics
+        - Think: What entity-relationship patterns would retrieve papers about these topics?
+        - Define entities with search-optimized canonical_forms
+        - Use semantic space as reference but define what's actually needed
+
+        Phase 2: Create concepts using those entities
+        - Build searchable patterns that substantially cover each topic's domain
+
+        Generate your analysis now."""
 
         return system_prompt, user_prompt
 
@@ -411,14 +427,20 @@ class ConceptProposalService:
         concepts = []
         concept_data_list = llm_result.get("concepts", [])
 
+        # Extract phase1 entities
+        phase1_entities_data = llm_result.get("phase1_analysis", {}).get("entities", [])
+        phase1_entities_map = {e.get("entity_id"): e for e in phase1_entities_data}
+
         for idx, concept_data in enumerate(concept_data_list):
-            # Validate entity_ids exist in semantic space
+            # Validate entity_ids exist in phase1 entities
             entity_ids = concept_data.get("entity_pattern", [])
-            valid_entity_ids = [e.entity_id for e in semantic_space.entities]
+            valid_entity_ids = list(phase1_entities_map.keys())
             invalid_entities = [eid for eid in entity_ids if eid not in valid_entity_ids]
 
             if invalid_entities:
-                logger.warning(f"Concept {concept_data.get('concept_id')} references invalid entities: {invalid_entities}")
+                logger.warning(
+                    f"Concept {concept_data.get('concept_id')} references entities not in phase1: {invalid_entities}"
+                )
                 # Filter to valid entities only
                 entity_ids = [eid for eid in entity_ids if eid in valid_entity_ids]
 
@@ -433,7 +455,7 @@ class ConceptProposalService:
                 topic_ids = [tid for tid in topic_ids if tid in valid_topic_ids]
 
             # Validate relationship edges
-            validation_errors = self._validate_concept_relationships(concept_data, semantic_space)
+            validation_errors = self._validate_concept_relationships(concept_data, phase1_entities_map)
             if validation_errors:
                 for error in validation_errors:
                     logger.warning(error)
@@ -452,12 +474,16 @@ class ConceptProposalService:
             # Get relationship description
             relationship_description = concept_data.get("relationship_description", "")
 
-            # Build vocabulary_terms from entities
+            # Build vocabulary_terms from phase1 entities
             vocabulary_terms = {}
             for entity_id in entity_ids:
-                entity = next((e for e in semantic_space.entities if e.entity_id == entity_id), None)
-                if entity and entity.canonical_forms:
-                    vocabulary_terms[entity_id] = entity.canonical_forms
+                phase1_entity = phase1_entities_map.get(entity_id)
+                if phase1_entity:
+                    canonical_forms = phase1_entity.get("canonical_forms", [])
+                    if canonical_forms:
+                        vocabulary_terms[entity_id] = canonical_forms
+                    else:
+                        logger.warning(f"Entity {entity_id} in phase1 has no canonical_forms")
 
             # Backward compatibility: use old relationship_pattern if new fields not present
             relationship_pattern = concept_data.get("relationship_pattern")

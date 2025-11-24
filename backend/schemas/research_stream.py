@@ -59,6 +59,21 @@ class VolumeStatus(str, Enum):
     UNKNOWN = "unknown"           # Not yet tested
 
 
+class ConceptEntity(BaseModel):
+    """An entity defined during concept generation (Phase 1 analysis)"""
+    entity_id: str = Field(description="Unique identifier (e.g., 'c_e1', 'c_e2')")
+    name: str = Field(description="Entity name")
+    entity_type: str = Field(
+        description="Type: methodology, biomarker, disease, treatment, outcome, population, etc."
+    )
+    canonical_forms: List[str] = Field(description="Search terms for this entity (synonyms, abbreviations)")
+    rationale: str = Field(description="Why this entity is needed for topic coverage")
+    semantic_space_ref: Optional[str] = Field(
+        None,
+        description="Reference to semantic space entity_id if this maps to one (optional)"
+    )
+
+
 class RelationshipEdge(BaseModel):
     """A directed edge in the concept's entity relationship graph"""
     from_entity_id: str = Field(description="Source entity_id from entity_pattern")
@@ -83,7 +98,7 @@ class Concept(BaseModel):
 
     # Core pattern (entities and their relationships)
     entity_pattern: List[str] = Field(
-        description="List of entity_ids that form this pattern (1-3 entities)",
+        description="List of entity_ids from phase1_analysis that form this pattern (1-3 entities)",
         min_length=1,
         max_length=3,
         default_factory=list
@@ -112,10 +127,10 @@ class Concept(BaseModel):
         description="List of topic_ids from semantic space this concept covers"
     )
 
-    # Vocabulary expansion (synonyms/variants per entity)
+    # Vocabulary expansion (from phase1 entity definitions)
     vocabulary_terms: Dict[str, List[str]] = Field(
         default_factory=dict,
-        description="Map: entity_id -> list of synonym terms (for OR clauses)"
+        description="Map: entity_id -> list of synonym terms (built from phase1 ConceptEntity.canonical_forms)"
     )
 
     # Volume tracking and refinement

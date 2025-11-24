@@ -1,13 +1,26 @@
 import { useState } from 'react';
 import { SparklesIcon, ArrowPathIcon, CheckCircleIcon, InformationCircleIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
-import { Concept, SemanticSpace, RelationshipEdge } from '../../types';
+import { Concept, SemanticSpace, RelationshipEdge, ConceptEntity } from '../../types';
 
 // Helper component to visualize entity connections from relationship edges
-function EntityConnectionVisualization({ concept, semanticSpace }: { concept: Concept; semanticSpace: SemanticSpace }) {
+function EntityConnectionVisualization({
+    concept,
+    semanticSpace,
+    phase1Entities
+}: {
+    concept: Concept;
+    semanticSpace: SemanticSpace;
+    phase1Entities: ConceptEntity[];
+}) {
     const getEntityName = (entityId: string) => {
-        const entity = semanticSpace.entities.find(e => e.entity_id === entityId);
-        return entity ? entity.name : entityId;
+        // First try to find in phase1 entities (concept-generated entities)
+        const phase1Entity = phase1Entities?.find(e => e.entity_id === entityId);
+        if (phase1Entity) return phase1Entity.name;
+
+        // Fallback to semantic space entities
+        const semanticEntity = semanticSpace.entities.find(e => e.entity_id === entityId);
+        return semanticEntity ? semanticEntity.name : entityId;
     };
 
     // If we have relationship_edges, use them for precise visualization
@@ -91,6 +104,7 @@ export default function ConceptProposalPhase({
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [analysis, setAnalysis] = useState<any>(null);
+    const [phase1Entities, setPhase1Entities] = useState<ConceptEntity[]>([]);
     const [reasoning, setReasoning] = useState<string>('');
     const [coverageCheck, setCoverageCheck] = useState<any>(null);
 
@@ -103,6 +117,7 @@ export default function ConceptProposalPhase({
 
             onConceptsChange(response.proposed_concepts);
             setAnalysis(response.analysis);
+            setPhase1Entities(response.analysis?.entities || []);
             setReasoning(response.reasoning);
             setCoverageCheck(response.coverage_check);
             onComplete(response.proposed_concepts.length > 0);
@@ -183,43 +198,61 @@ export default function ConceptProposalPhase({
                 )}
             </div>
 
-            {/* Analysis Results */}
-            {analysis && (
+            {/* Phase 1: Entity Definitions */}
+            {phase1Entities.length > 0 && (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                        Semantic Space Analysis
+                        Phase 1: Defined Entities ({phase1Entities.length})
                     </h3>
-                    <div className="space-y-4">
-                        {analysis.key_entities && (
-                            <div>
-                                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Key Entities
-                                </h4>
-                                <div className="flex flex-wrap gap-2">
-                                    {analysis.key_entities.map((entity: string, idx: number) => (
-                                        <span
-                                            key={idx}
-                                            className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded-full text-sm"
-                                        >
-                                            {entity}
-                                        </span>
-                                    ))}
+                    <div className="space-y-3">
+                        {phase1Entities.map((entity, idx) => (
+                            <div
+                                key={idx}
+                                className="border border-gray-200 dark:border-gray-700 rounded-lg p-4"
+                            >
+                                <div className="flex items-start gap-3">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <h4 className="font-semibold text-gray-900 dark:text-white">
+                                                {entity.name}
+                                            </h4>
+                                            <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded text-xs">
+                                                {entity.entity_type}
+                                            </span>
+                                            {entity.semantic_space_ref && (
+                                                <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-xs">
+                                                    ↔ {entity.semantic_space_ref}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                                            {entity.rationale}
+                                        </p>
+                                        <div className="flex flex-wrap gap-1">
+                                            {entity.canonical_forms.map((form, i) => (
+                                                <span
+                                                    key={i}
+                                                    className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-xs font-mono"
+                                                >
+                                                    {form}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        )}
-                        {analysis.relationship_patterns && (
-                            <div>
-                                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Relationship Patterns
-                                </h4>
-                                <ul className="list-disc list-inside text-gray-600 dark:text-gray-400 space-y-1">
-                                    {analysis.relationship_patterns.map((pattern: string, idx: number) => (
-                                        <li key={idx}>{pattern}</li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
+                        ))}
                     </div>
+                    {analysis?.coverage_strategy && (
+                        <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-900 rounded">
+                            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Coverage Strategy
+                            </h4>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                {analysis.coverage_strategy}
+                            </p>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -320,14 +353,18 @@ export default function ConceptProposalPhase({
                                         </span>
                                         <div className="mt-1 flex flex-wrap gap-1">
                                             {concept.entity_pattern.map((entityId, i) => {
-                                                const entity = semanticSpace.entities.find(e => e.entity_id === entityId);
+                                                // First try phase1 entities, fallback to semantic space
+                                                const phase1Entity = phase1Entities.find(e => e.entity_id === entityId);
+                                                const semanticEntity = semanticSpace.entities.find(e => e.entity_id === entityId);
+                                                const entityName = phase1Entity?.name || semanticEntity?.name || entityId;
+
                                                 return (
                                                     <span
                                                         key={i}
                                                         className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 rounded text-xs"
-                                                        title={entity?.name || entityId}
+                                                        title={entityName}
                                                     >
-                                                        {entity?.name || entityId}
+                                                        {entityName}
                                                     </span>
                                                 );
                                             })}
@@ -366,6 +403,7 @@ export default function ConceptProposalPhase({
                                             <EntityConnectionVisualization
                                                 concept={concept}
                                                 semanticSpace={semanticSpace}
+                                                phase1Entities={phase1Entities}
                                             />
                                             {concept.relationship_edges && concept.relationship_edges.length > 1 && (
                                                 <div className="text-xs text-blue-700 dark:text-blue-300 mt-2 italic">
