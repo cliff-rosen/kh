@@ -1,5 +1,5 @@
 import { api } from './index';
-import { ResearchStream, ReportFrequency, InformationSource, RetrievalGroup, Concept, RetrievalConfig, SemanticSpace, PresentationConfig } from '../../types';
+import { ResearchStream, ReportFrequency, InformationSource, RetrievalGroup, Concept, RetrievalConfig, SemanticSpace, PresentationConfig, BroadQuery } from '../../types';
 import {
     StreamInProgress,
     StreamBuildStep,
@@ -270,6 +270,24 @@ export const researchStreamApi = {
     }> {
         const response = await api.post(
             `/api/research-streams/${streamId}/retrieval/propose-concepts`
+        );
+        return response.data;
+    },
+
+    /**
+     * Propose broad search strategy (alternative to concepts)
+     *
+     * Generates 1-3 broad, simple search queries that cast a wide net
+     * to capture all relevant literature. Optimized for weekly monitoring
+     * where accepting false positives is better than missing papers.
+     */
+    async proposeBroadSearch(streamId: number): Promise<{
+        queries: BroadQuery[];
+        strategy_rationale: string;
+        coverage_analysis: any;
+    }> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/retrieval/propose-broad-search`
         );
         return response.data;
     },

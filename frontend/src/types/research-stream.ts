@@ -104,8 +104,24 @@ export interface Concept {
     human_edited: boolean;  // Whether human has modified LLM-generated concept
 }
 
+export interface BroadQuery {
+    query_id: string;  // Unique identifier for this query
+    search_terms: string[];  // Core search terms (e.g., ['asbestos', 'mesothelioma'])
+    query_expression: string;  // Boolean query expression (e.g., '(asbestos OR mesothelioma)')
+    rationale: string;  // Why these terms capture all relevant literature
+    covered_topics: string[];  // List of topic_ids this query covers
+    estimated_weekly_volume: number | null;  // Estimated number of articles per week
+}
+
+export interface BroadSearchStrategy {
+    queries: BroadQuery[];  // Usually 1-3 broad queries that together cover all topics
+    strategy_rationale: string;  // Overall explanation of why this broad approach covers the domain
+    coverage_analysis: Record<string, any>;  // Analysis of how queries cover topics
+}
+
 export interface RetrievalConfig {
     concepts: Concept[];  // Concepts covering domain (union = complete coverage)
+    broad_search?: BroadSearchStrategy | null;  // Alternative: broad search strategy for simple, wide-net retrieval
     article_limit_per_week?: number;  // Maximum articles per week
 }
 

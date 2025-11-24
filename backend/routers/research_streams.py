@@ -22,7 +22,9 @@ from schemas.research_stream import (
     ReportFrequency,
     RetrievalConfig,
     PresentationConfig,
-    Concept
+    Concept,
+    BroadQuery,
+    BroadSearchStrategy
 )
 from schemas.semantic_space import SemanticSpace
 from schemas.sources import INFORMATION_SOURCES, InformationSource
@@ -32,6 +34,7 @@ from schemas.canonical_types import CanonicalResearchArticle
 from services.research_stream_service import ResearchStreamService
 from services.retrieval_query_service import RetrievalQueryService
 from services.concept_proposal_service import ConceptProposalService
+from services.broad_search_service import BroadSearchService
 from services.pipeline_service import PipelineService
 
 from routers.auth import get_current_user
@@ -211,6 +214,13 @@ class ProposeConceptsResponse(BaseModel):
     coverage_check: Dict[str, Any] = Field(..., description="Topic coverage validation")
 
 
+class ProposeBroadSearchResponse(BaseModel):
+    """Response from broad search proposal"""
+    queries: List[BroadQuery] = Field(..., description="Proposed broad search queries (usually 1-3)")
+    strategy_rationale: str = Field(..., description="Overall explanation of broad search strategy")
+    coverage_analysis: Dict[str, Any] = Field(..., description="Analysis of how queries cover topics")
+
+
 class GenerateConceptQueryRequest(BaseModel):
     """Request to generate a query for a specific concept"""
     concept: Concept = Field(..., description="Concept to generate query for")
@@ -288,6 +298,47 @@ async def propose_retrieval_concepts(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Concept proposal failed: {str(e)}"
+        )
+
+
+@router.post("/{stream_id}/retrieval/propose-broad-search", response_model=ProposeBroadSearchResponse)
+async def propose_broad_search(
+    stream_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Alternative to propose-concepts: Generate broad, simple search strategy.
+
+    Analyzes the semantic space and proposes 1-3 broad search queries that
+    cast a wide net to capture all relevant literature. Optimized for weekly
+    monitoring where accepting false positives is better than missing papers.
+
+    Philosophy:
+    - Find the most general terms that cover all topics
+    - Simple is better: 1-3 queries instead of many narrow concepts
+    - Accept some false positives (better than missing papers)
+    - Leverage that weekly volumes are naturally limited
+    """
+    broad_search_service = BroadSearchService(db, current_user.user_id)
+    stream_service = ResearchStreamService(db)
+
+    try:
+        # Get stream (raises 404 if not found or not authorized)
+        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+
+        # Propose broad search using parsed semantic_space
+        result = await broad_search_service.propose_broad_search(stream.semantic_space)
+
+        return ProposeBroadSearchResponse(**result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Broad search proposal failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Broad search proposal failed: {str(e)}"
         )
 
 

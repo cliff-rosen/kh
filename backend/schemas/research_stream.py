@@ -179,11 +179,47 @@ class Concept(BaseModel):
     )
 
 
+class BroadQuery(BaseModel):
+    """A broad, general search query designed to capture all relevant literature"""
+    query_id: str = Field(description="Unique identifier for this query")
+    search_terms: List[str] = Field(description="Core search terms (e.g., ['asbestos', 'mesothelioma'])")
+    query_expression: str = Field(description="Boolean query expression (e.g., '(asbestos OR mesothelioma)')")
+    rationale: str = Field(description="Why these terms capture all relevant literature")
+    covered_topics: List[str] = Field(description="List of topic_ids this query covers")
+    estimated_weekly_volume: Optional[int] = Field(
+        None,
+        description="Estimated number of articles per week this query retrieves"
+    )
+
+
+class BroadSearchStrategy(BaseModel):
+    """
+    Alternative retrieval strategy: broad, general searches that capture everything.
+
+    Philosophy: Cast a wide net with simple searches, accept some false positives.
+    Optimized for weekly literature monitoring where volume is naturally limited.
+    """
+    queries: List[BroadQuery] = Field(
+        description="Usually 1-3 broad queries that together cover all topics"
+    )
+    strategy_rationale: str = Field(
+        description="Overall explanation of why this broad approach covers the domain"
+    )
+    coverage_analysis: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Analysis of how queries cover topics"
+    )
+
+
 class RetrievalConfig(BaseModel):
     """Layer 2: Configuration for content retrieval and filtering"""
     concepts: List[Concept] = Field(
         default_factory=list,
         description="Concepts covering domain (union = complete coverage)"
+    )
+    broad_search: Optional[BroadSearchStrategy] = Field(
+        None,
+        description="Alternative: broad search strategy for simple, wide-net retrieval"
     )
     article_limit_per_week: Optional[int] = Field(None, description="Maximum articles per week")
 
