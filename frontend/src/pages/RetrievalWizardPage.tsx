@@ -5,18 +5,21 @@ import {
     ArrowRightIcon,
     ArrowPathIcon,
     CheckCircleIcon,
-    SparklesIcon
+    SparklesIcon,
+    MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
-import { ResearchStream, Concept, SemanticSpace, InformationSource } from '../types';
+import { ResearchStream, Concept, SemanticSpace, InformationSource, BroadQuery } from '../types';
 
 // Import phase components
 import ConceptProposalPhase from '../components/RetrievalWizard/ConceptProposalPhase';
 import ConceptQueryPhase from '../components/RetrievalWizard/ConceptQueryPhase';
 import ConceptFilterPhase from '../components/RetrievalWizard/ConceptFilterPhase';
 import ConceptValidationPhase from '../components/RetrievalWizard/ConceptValidationPhase';
+import BroadSearchPhase from '../components/RetrievalWizard/BroadSearchPhase';
 
-type WizardPhase = 'concepts' | 'queries' | 'filters' | 'validation';
+type RetrievalStrategy = 'concepts' | 'broad-search' | null;
+type WizardPhase = 'strategy' | 'concepts' | 'broad-search' | 'queries' | 'filters' | 'validation';
 
 export default function RetrievalWizardPage() {
     const { streamId } = useParams<{ streamId: string }>();
@@ -25,16 +28,20 @@ export default function RetrievalWizardPage() {
     // State
     const [stream, setStream] = useState<ResearchStream | null>(null);
     const [semanticSpace, setSemanticSpace] = useState<SemanticSpace | null>(null);
+    const [strategy, setStrategy] = useState<RetrievalStrategy>(null);
     const [concepts, setConcepts] = useState<Concept[]>([]);
+    const [broadQueries, setBroadQueries] = useState<BroadQuery[]>([]);
     const [sources, setSources] = useState<InformationSource[]>([]);
-    const [currentPhase, setCurrentPhase] = useState<WizardPhase>('concepts');
+    const [currentPhase, setCurrentPhase] = useState<WizardPhase>('strategy');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // Phase completion tracking
     const [phasesCompleted, setPhasesCompleted] = useState({
+        strategy: false,
         concepts: false,
+        'broad-search': false,
         queries: false,
         filters: false,
         validation: false
@@ -54,14 +61,25 @@ export default function RetrievalWizardPage() {
             setStream(streamData);
             setSemanticSpace(streamData.semantic_space);
 
-            // Load existing concepts if any
-            if (streamData.retrieval_config?.concepts && streamData.retrieval_config.concepts.length > 0) {
+            // Detect existing strategy
+            const hasConcepts = streamData.retrieval_config?.concepts && streamData.retrieval_config.concepts.length > 0;
+            const hasBroadSearch = streamData.retrieval_config?.broad_search && streamData.retrieval_config.broad_search.queries.length > 0;
+
+            if (hasBroadSearch) {
+                setStrategy('broad-search');
+                setBroadQueries(streamData.retrieval_config.broad_search.queries);
+                setPhasesCompleted(prev => ({ ...prev, strategy: true, 'broad-search': true }));
+                setCurrentPhase('broad-search');
+            } else if (hasConcepts) {
+                setStrategy('concepts');
                 const existingConcepts = streamData.retrieval_config.concepts;
                 setConcepts(existingConcepts);
 
                 // Detect what's already configured and mark phases complete
                 const newPhasesCompleted = {
+                    strategy: true,
                     concepts: false,
+                    'broad-search': false,
                     queries: false,
                     filters: false,
                     validation: false
@@ -91,9 +109,10 @@ export default function RetrievalWizardPage() {
                 }
 
                 setPhasesCompleted(newPhasesCompleted);
-
-                // Always start at phase 1 (concepts)
                 setCurrentPhase('concepts');
+            } else {
+                // No existing config - start with strategy selection
+                setCurrentPhase('strategy');
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load stream');
@@ -117,14 +136,23 @@ export default function RetrievalWizardPage() {
 
     const canNavigateToPhase = (phase: WizardPhase): boolean => {
         switch (phase) {
-            case 'concepts':
+            case 'strategy':
                 return true;
+            case 'concepts':
+                return strategy === 'concepts' && phasesCompleted.strategy;
+            case 'broad-search':
+                return strategy === 'broad-search' && phasesCompleted.strategy;
             case 'queries':
-                return phasesCompleted.concepts && concepts.length > 0;
+                return strategy === 'concepts' && phasesCompleted.concepts && concepts.length > 0;
             case 'filters':
-                return phasesCompleted.concepts && concepts.length > 0;
+                return strategy === 'concepts' && phasesCompleted.concepts && concepts.length > 0;
             case 'validation':
-                return phasesCompleted.concepts && concepts.length > 0;
+                if (strategy === 'concepts') {
+                    return phasesCompleted.concepts && concepts.length > 0;
+                } else if (strategy === 'broad-search') {
+                    return phasesCompleted['broad-search'] && broadQueries.length > 0;
+                }
+                return false;
             default:
                 return false;
         }
@@ -136,12 +164,28 @@ export default function RetrievalWizardPage() {
         try {
             setSaving(true);
 
-            // Update stream with new retrieval config
-            await researchStreamApi.updateResearchStream(Number(streamId), {
-                retrieval_config: {
+            // Build retrieval config based on strategy
+            let retrievalConfig;
+            if (strategy === 'concepts') {
+                retrievalConfig = {
                     concepts: concepts,
                     article_limit_per_week: stream.retrieval_config?.article_limit_per_week
-                }
+                };
+            } else if (strategy === 'broad-search') {
+                retrievalConfig = {
+                    concepts: [],
+                    broad_search: {
+                        queries: broadQueries,
+                        strategy_rationale: '', // Already captured in phase
+                        coverage_analysis: {}
+                    },
+                    article_limit_per_week: stream.retrieval_config?.article_limit_per_week
+                };
+            }
+
+            // Update stream with new retrieval config
+            await researchStreamApi.updateResearchStream(Number(streamId), {
+                retrieval_config: retrievalConfig
             });
 
             // Navigate back to edit page
@@ -174,12 +218,33 @@ export default function RetrievalWizardPage() {
         );
     }
 
-    const phases: { key: WizardPhase; label: string; icon: typeof CheckCircleIcon }[] = [
-        { key: 'concepts', label: 'Propose Concepts', icon: SparklesIcon },
-        { key: 'queries', label: 'Configure Queries', icon: CheckCircleIcon },
-        { key: 'filters', label: 'Configure Filters', icon: CheckCircleIcon },
-        { key: 'validation', label: 'Validate & Finalize', icon: CheckCircleIcon }
-    ];
+    // Dynamic phases based on selected strategy
+    const getPhases = (): { key: WizardPhase; label: string; icon: typeof CheckCircleIcon }[] => {
+        if (!strategy) {
+            return [
+                { key: 'strategy', label: 'Choose Strategy', icon: SparklesIcon }
+            ];
+        }
+
+        if (strategy === 'broad-search') {
+            return [
+                { key: 'strategy', label: 'Strategy', icon: CheckCircleIcon },
+                { key: 'broad-search', label: 'Generate Queries', icon: MagnifyingGlassIcon },
+                { key: 'validation', label: 'Finalize', icon: CheckCircleIcon }
+            ];
+        }
+
+        // Concept-based flow
+        return [
+            { key: 'strategy', label: 'Strategy', icon: CheckCircleIcon },
+            { key: 'concepts', label: 'Propose Concepts', icon: SparklesIcon },
+            { key: 'queries', label: 'Configure Queries', icon: CheckCircleIcon },
+            { key: 'filters', label: 'Configure Filters', icon: CheckCircleIcon },
+            { key: 'validation', label: 'Validate & Finalize', icon: CheckCircleIcon }
+        ];
+    };
+
+    const phases = getPhases();
 
     return (
         <>
@@ -275,13 +340,94 @@ export default function RetrievalWizardPage() {
             {/* Phase Content */}
             <div className="bg-gray-50 dark:bg-gray-900 pb-24">
                 <div className="max-w-7xl mx-auto px-4 py-8">
-                    {currentPhase === 'concepts' && (
+                    {currentPhase === 'strategy' && (
+                        <div className="space-y-6">
+                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                                    Choose Your Retrieval Strategy
+                                </h2>
+                                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                                    Select how you want to find and retrieve relevant literature for your research stream.
+                                </p>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Concept-Based Strategy */}
+                                    <button
+                                        onClick={() => {
+                                            setStrategy('concepts');
+                                            handlePhaseComplete('strategy', true);
+                                            setCurrentPhase('concepts');
+                                        }}
+                                        className="text-left p-6 border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all"
+                                    >
+                                        <div className="flex items-start gap-4">
+                                            <SparklesIcon className="h-8 w-8 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                                            <div>
+                                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                                                    Concept-Based Retrieval
+                                                </h3>
+                                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                                                    Define specific entity-relationship patterns (concepts) for targeted, precise retrieval.
+                                                </p>
+                                                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                                    <li>• Multiple narrow, specific concepts</li>
+                                                    <li>• Entity-relationship patterns</li>
+                                                    <li>• Fine-grained semantic filtering</li>
+                                                    <li>• Best for complex, nuanced domains</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    {/* Broad Search Strategy */}
+                                    <button
+                                        onClick={() => {
+                                            setStrategy('broad-search');
+                                            handlePhaseComplete('strategy', true);
+                                            setCurrentPhase('broad-search');
+                                        }}
+                                        className="text-left p-6 border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:border-green-500 dark:hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-all"
+                                    >
+                                        <div className="flex items-start gap-4">
+                                            <MagnifyingGlassIcon className="h-8 w-8 text-green-600 dark:text-green-400 flex-shrink-0" />
+                                            <div>
+                                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                                                    Broad Search
+                                                </h3>
+                                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                                                    Simple, wide-net queries (1-3) that capture everything with minimal complexity.
+                                                </p>
+                                                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                                    <li>• 1-3 simple, general queries</li>
+                                                    <li>• Cast a wide net</li>
+                                                    <li>• Accept false positives</li>
+                                                    <li>• Best for weekly monitoring</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {currentPhase === 'concepts' && semanticSpace && (
                         <ConceptProposalPhase
                             streamId={Number(streamId)}
                             semanticSpace={semanticSpace}
                             concepts={concepts}
                             onConceptsChange={setConcepts}
                             onComplete={(completed) => handlePhaseComplete('concepts', completed)}
+                        />
+                    )}
+
+                    {currentPhase === 'broad-search' && semanticSpace && (
+                        <BroadSearchPhase
+                            streamId={Number(streamId)}
+                            semanticSpace={semanticSpace}
+                            queries={broadQueries}
+                            onQueriesChange={setBroadQueries}
+                            onComplete={(completed) => handlePhaseComplete('broad-search', completed)}
                         />
                     )}
 
@@ -304,12 +450,31 @@ export default function RetrievalWizardPage() {
                         />
                     )}
 
-                    {currentPhase === 'validation' && (
+                    {currentPhase === 'validation' && strategy === 'concepts' && (
                         <ConceptValidationPhase
                             streamId={Number(streamId)}
                             concepts={concepts}
                             onValidationReady={setValidationReady}
                         />
+                    )}
+
+                    {currentPhase === 'validation' && strategy === 'broad-search' && (
+                        <div className="space-y-6">
+                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                                <div className="flex items-start gap-4">
+                                    <CheckCircleIcon className="h-8 w-8 text-green-600 dark:text-green-400" />
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                                            Ready to Finalize
+                                        </h2>
+                                        <p className="text-gray-600 dark:text-gray-400">
+                                            Your broad search strategy is configured with {broadQueries.length} {broadQueries.length === 1 ? 'query' : 'queries'}.
+                                            Click "Finalize & Activate" to save your configuration.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     )}
                 </div>
             </div>
@@ -317,12 +482,17 @@ export default function RetrievalWizardPage() {
             {/* Navigation Footer - Sticky */}
             <div className="sticky bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-4 shadow-lg z-50">
                 <div className="max-w-7xl mx-auto flex justify-between">
-                    {currentPhase !== 'concepts' ? (
+                    {/* Back Button */}
+                    {currentPhase !== 'strategy' && currentPhase !== 'concepts' && currentPhase !== 'broad-search' ? (
                         <button
                             onClick={() => {
-                                if (currentPhase === 'queries') setCurrentPhase('concepts');
-                                else if (currentPhase === 'filters') setCurrentPhase('queries');
-                                else if (currentPhase === 'validation') setCurrentPhase('filters');
+                                if (strategy === 'concepts') {
+                                    if (currentPhase === 'queries') setCurrentPhase('concepts');
+                                    else if (currentPhase === 'filters') setCurrentPhase('queries');
+                                    else if (currentPhase === 'validation') setCurrentPhase('filters');
+                                } else if (strategy === 'broad-search') {
+                                    if (currentPhase === 'validation') setCurrentPhase('broad-search');
+                                }
                             }}
                             className="inline-flex items-center gap-2 px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 font-medium"
                         >
@@ -333,10 +503,11 @@ export default function RetrievalWizardPage() {
                         <div></div>
                     )}
 
+                    {/* Forward/Complete Button */}
                     {currentPhase === 'validation' ? (
                         <button
                             onClick={handleSaveAndFinalize}
-                            disabled={!validationReady || saving}
+                            disabled={(strategy === 'concepts' && !validationReady) || saving}
                             className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                         >
                             {saving ? (
@@ -351,20 +522,27 @@ export default function RetrievalWizardPage() {
                                 </>
                             )}
                         </button>
-                    ) : (
+                    ) : currentPhase !== 'strategy' ? (
                         <button
                             onClick={() => {
-                                if (currentPhase === 'concepts') setCurrentPhase('queries');
-                                else if (currentPhase === 'queries') setCurrentPhase('filters');
-                                else if (currentPhase === 'filters') setCurrentPhase('validation');
+                                if (strategy === 'concepts') {
+                                    if (currentPhase === 'concepts') setCurrentPhase('queries');
+                                    else if (currentPhase === 'queries') setCurrentPhase('filters');
+                                    else if (currentPhase === 'filters') setCurrentPhase('validation');
+                                } else if (strategy === 'broad-search') {
+                                    if (currentPhase === 'broad-search') setCurrentPhase('validation');
+                                }
                             }}
-                            disabled={currentPhase === 'concepts' && concepts.length === 0}
+                            disabled={
+                                (currentPhase === 'concepts' && concepts.length === 0) ||
+                                (currentPhase === 'broad-search' && broadQueries.length === 0)
+                            }
                             className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                         >
                             Continue
                             <ArrowRightIcon className="h-5 w-5" />
                         </button>
-                    )}
+                    ) : null}
                 </div>
             </div>
         </>
