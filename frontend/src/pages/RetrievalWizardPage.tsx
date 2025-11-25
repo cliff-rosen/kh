@@ -291,8 +291,8 @@ export default function RetrievalWizardPage() {
                                             {idx < phases.length - 1 && (
                                                 <div
                                                     className={`absolute top-5 left-[50%] w-full h-0.5 ${isCompleted
-                                                            ? 'bg-blue-600'
-                                                            : 'bg-gray-300 dark:bg-gray-700'
+                                                        ? 'bg-blue-600'
+                                                        : 'bg-gray-300 dark:bg-gray-700'
                                                         }`}
                                                     style={{ left: 'calc(50% + 20px)' }}
                                                 />
@@ -306,10 +306,10 @@ export default function RetrievalWizardPage() {
                                             >
                                                 <span
                                                     className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${isActive
+                                                        ? 'border-blue-600 bg-blue-600 text-white'
+                                                        : isCompleted
                                                             ? 'border-blue-600 bg-blue-600 text-white'
-                                                            : isCompleted
-                                                                ? 'border-blue-600 bg-blue-600 text-white'
-                                                                : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400'
+                                                            : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400'
                                                         }`}
                                                 >
                                                     {isCompleted ? (
@@ -320,10 +320,10 @@ export default function RetrievalWizardPage() {
                                                 </span>
                                                 <span
                                                     className={`mt-2 text-xs font-medium ${isActive
-                                                            ? 'text-blue-600 dark:text-blue-400'
-                                                            : isCompleted
-                                                                ? 'text-gray-900 dark:text-white'
-                                                                : 'text-gray-500 dark:text-gray-400'
+                                                        ? 'text-blue-600 dark:text-blue-400'
+                                                        : isCompleted
+                                                            ? 'text-gray-900 dark:text-white'
+                                                            : 'text-gray-500 dark:text-gray-400'
                                                         }`}
                                                 >
                                                     {phase.label}
