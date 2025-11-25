@@ -312,6 +312,30 @@ class PubMedService:
         from config.settings import settings
         return settings.PUBMED_MAX_RESULTS_PER_CALL
     
+    def get_article_ids(
+        self,
+        query: str,
+        max_results: int = 1000,
+        sort_by: str = "relevance",
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        date_type: Optional[str] = None
+    ) -> tuple[List[str], int]:
+        """
+        Get just the PubMed IDs from a search query (fast - no article fetching).
+
+        Returns:
+            Tuple of (list of PMIDs, total count)
+        """
+        return self._get_article_ids(
+            search_term=query,
+            max_results=max_results,
+            sort_by=sort_by,
+            start_date=start_date,
+            end_date=end_date,
+            date_type=date_type
+        )
+
     def search_articles(
         self,
         query: str,
@@ -521,6 +545,18 @@ class PubMedService:
             logger.error(f"Error in PubMed search: {e}", exc_info=True)
             raise
     
+    def get_articles_from_ids(self, ids: List[str]) -> List[PubMedArticle]:
+        """
+        Fetch full article data from PubMed IDs (public wrapper).
+
+        Args:
+            ids: List of PubMed IDs
+
+        Returns:
+            List of PubMedArticle objects
+        """
+        return self._get_articles_from_ids(ids)
+
     def _get_articles_from_ids(self, ids: List[str]) -> List[PubMedArticle]:
         """Fetch full article data from PubMed IDs."""
         BATCH_SIZE = 100

@@ -115,8 +115,13 @@ async def check_pubmed_ids(
 
     This tool runs a query and checks which of the provided PubMed IDs
     appear in the results, helping validate query coverage.
+
+    This is optimized for speed: it only fetches article IDs from the query
+    (very fast), then fetches full metadata only for the captured IDs.
     """
     from services.pubmed_service import PubMedService
+    from schemas.canonical_types import CanonicalPubMedArticle
+    from schemas.research_article_converters import pubmed_to_research_article
 
     try:
         # Apply default date range if not provided
@@ -129,29 +134,62 @@ async def check_pubmed_ids(
             start_date = start_date_obj.strftime("%Y/%m/%d")
             end_date = end_date_obj.strftime("%Y/%m/%d")
 
-        # Execute query with high limit to capture more results
+        # FAST: Get just the IDs from the query (no article fetching)
         pubmed_service = PubMedService()
-        articles, metadata = pubmed_service.search_articles(
+        logger.info(f"Fetching IDs for query (fast): {request.query_expression}")
+
+        pmids_from_query, total_count = pubmed_service.get_article_ids(
             query=request.query_expression,
-            max_results=1000,  # Get more results for better coverage
-            offset=0,
+            max_results=10000,  # Get many IDs (fast since we're not fetching articles)
+            sort_by='relevance',
             start_date=start_date,
             end_date=end_date,
-            date_type=request.date_type,
-            sort_by='relevance'
+            date_type=request.date_type
         )
 
         # Build set of captured PubMed IDs
-        captured_pmids = {article.pubmed_id for article in articles if article.pubmed_id}
+        captured_pmids_set = set(pmids_from_query)
+        logger.info(f"Query returned {total_count} total results, got {len(pmids_from_query)} IDs")
 
-        # Create lookup for articles by PMID
-        article_lookup = {article.pubmed_id: article for article in articles if article.pubmed_id}
+        # Determine which user IDs were captured
+        user_pmids_clean = [pmid.strip() for pmid in request.pubmed_ids]
+        captured_user_pmids = [pmid for pmid in user_pmids_clean if pmid in captured_pmids_set]
 
-        # Check each requested ID
+        logger.info(f"User provided {len(user_pmids_clean)} IDs, {len(captured_user_pmids)} were captured")
+
+        # SLOW: Fetch full article metadata ONLY for captured IDs
+        article_lookup = {}
+        if captured_user_pmids:
+            logger.info(f"Fetching full article data for {len(captured_user_pmids)} captured IDs")
+            articles = pubmed_service.get_articles_from_ids(captured_user_pmids)
+
+            # Convert to canonical format and build lookup
+            for article in articles:
+                try:
+                    canonical_pubmed = CanonicalPubMedArticle(
+                        pmid=article.PMID,
+                        title=article.title or "[No title available]",
+                        abstract=article.abstract or "[No abstract available]",
+                        authors=article.authors.split(', ') if article.authors else [],
+                        journal=article.journal or "[Unknown journal]",
+                        publication_date=article.pub_date if article.pub_date else None,
+                        keywords=[],
+                        mesh_terms=[],
+                        metadata={
+                            "volume": article.volume,
+                            "issue": article.issue,
+                            "pages": article.pages,
+                        }
+                    )
+                    research_article = pubmed_to_research_article(canonical_pubmed)
+                    article_lookup[article.PMID] = research_article
+                except Exception as e:
+                    logger.error(f"Error converting article {article.PMID}: {e}")
+
+        # Build results for each user-provided ID
         results = []
-        for pmid in request.pubmed_ids:
-            pmid_clean = pmid.strip()
-            is_captured = pmid_clean in captured_pmids
+        for pmid_clean in user_pmids_clean:
+            is_captured = pmid_clean in captured_pmids_set
 
             result = PubMedIdCheckResult(
                 pubmed_id=pmid_clean,
@@ -167,7 +205,7 @@ async def check_pubmed_ids(
             captured_count=captured_count,
             missed_count=len(request.pubmed_ids) - captured_count,
             results=results,
-            query_total_results=metadata.get('total_results', 0)
+            query_total_results=total_count
         )
 
     except Exception as e:
