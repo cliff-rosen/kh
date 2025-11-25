@@ -183,12 +183,18 @@ class BroadQuery(BaseModel):
     """A broad, general search query designed to capture all relevant literature"""
     query_id: str = Field(description="Unique identifier for this query")
     search_terms: List[str] = Field(description="Core search terms (e.g., ['asbestos', 'mesothelioma'])")
-    query_expression: str = Field(description="Boolean query expression (e.g., '(asbestos OR mesothelioma)')")
+    query_expression: str = Field(description="Boolean query expression usable as-is for PubMed (e.g., '(asbestos OR mesothelioma)')")
     rationale: str = Field(description="Why these terms capture all relevant literature")
     covered_topics: List[str] = Field(description="List of topic_ids this query covers")
     estimated_weekly_volume: Optional[int] = Field(
         None,
         description="Estimated number of articles per week this query retrieves"
+    )
+
+    # Optional semantic filtering
+    semantic_filter: SemanticFilter = Field(
+        default_factory=lambda: SemanticFilter(),
+        description="Optional semantic filtering for this broad query"
     )
 
 

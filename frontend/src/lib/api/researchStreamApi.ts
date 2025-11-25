@@ -293,6 +293,21 @@ export const researchStreamApi = {
     },
 
     /**
+     * Generate semantic filter for a broad query
+     */
+    async generateBroadFilter(streamId: number, broadQuery: BroadQuery): Promise<{
+        criteria: string;
+        threshold: number;
+        reasoning: string;
+    }> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/retrieval/generate-broad-filter`,
+            { broad_query: broadQuery }
+        );
+        return response.data;
+    },
+
+    /**
      * Generate query for a concept
      */
     async generateConceptQuery(streamId: number, concept: Concept, sourceId: string): Promise<{

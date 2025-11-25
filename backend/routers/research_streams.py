@@ -221,6 +221,11 @@ class ProposeBroadSearchResponse(BaseModel):
     coverage_analysis: Dict[str, Any] = Field(..., description="Analysis of how queries cover topics")
 
 
+class GenerateBroadFilterRequest(BaseModel):
+    """Request to generate semantic filter for a broad query"""
+    broad_query: BroadQuery = Field(..., description="Broad query to generate filter for")
+
+
 class GenerateConceptQueryRequest(BaseModel):
     """Request to generate a query for a specific concept"""
     concept: Concept = Field(..., description="Concept to generate query for")
@@ -339,6 +344,48 @@ async def propose_broad_search(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Broad search proposal failed: {str(e)}"
+        )
+
+
+@router.post("/{stream_id}/retrieval/generate-broad-filter", response_model=GenerateConceptFilterResponse)
+async def generate_broad_filter(
+    stream_id: int,
+    request: GenerateBroadFilterRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate semantic filter criteria for a broad query.
+
+    Uses LLM to create filter criteria based on the broad query's covered topics
+    and search terms.
+    """
+    query_service = RetrievalQueryService(db)
+    stream_service = ResearchStreamService(db)
+
+    try:
+        # Get stream (raises 404 if not found or not authorized)
+        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+
+        # Generate filter using service
+        criteria, threshold, reasoning = await query_service.generate_filter_for_broad_query(
+            broad_query=request.broad_query,
+            semantic_space=stream.semantic_space
+        )
+
+        return GenerateConceptFilterResponse(
+            criteria=criteria,
+            threshold=threshold,
+            reasoning=reasoning
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Broad filter generation failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Broad filter generation failed: {str(e)}"
         )
 
 

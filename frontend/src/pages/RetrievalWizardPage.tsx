@@ -17,9 +17,10 @@ import ConceptQueryPhase from '../components/RetrievalWizard/ConceptQueryPhase';
 import ConceptFilterPhase from '../components/RetrievalWizard/ConceptFilterPhase';
 import ConceptValidationPhase from '../components/RetrievalWizard/ConceptValidationPhase';
 import BroadSearchPhase from '../components/RetrievalWizard/BroadSearchPhase';
+import BroadFilterPhase from '../components/RetrievalWizard/BroadFilterPhase';
 
 type RetrievalStrategy = 'concepts' | 'broad-search' | null;
-type WizardPhase = 'strategy' | 'concepts' | 'broad-search' | 'queries' | 'filters' | 'validation';
+type WizardPhase = 'strategy' | 'concepts' | 'broad-search' | 'broad-filter' | 'queries' | 'filters' | 'validation';
 
 export default function RetrievalWizardPage() {
     const { streamId } = useParams<{ streamId: string }>();
@@ -42,6 +43,7 @@ export default function RetrievalWizardPage() {
         strategy: false,
         concepts: false,
         'broad-search': false,
+        'broad-filter': false,
         queries: false,
         filters: false,
         validation: false
@@ -142,6 +144,8 @@ export default function RetrievalWizardPage() {
                 return strategy === 'concepts' && phasesCompleted.strategy;
             case 'broad-search':
                 return strategy === 'broad-search' && phasesCompleted.strategy;
+            case 'broad-filter':
+                return strategy === 'broad-search' && phasesCompleted['broad-search'] && broadQueries.length > 0;
             case 'queries':
                 return strategy === 'concepts' && phasesCompleted.concepts && concepts.length > 0;
             case 'filters':
@@ -230,6 +234,7 @@ export default function RetrievalWizardPage() {
             return [
                 { key: 'strategy', label: 'Strategy', icon: CheckCircleIcon },
                 { key: 'broad-search', label: 'Generate Queries', icon: MagnifyingGlassIcon },
+                { key: 'broad-filter', label: 'Configure Filters', icon: SparklesIcon },
                 { key: 'validation', label: 'Finalize', icon: CheckCircleIcon }
             ];
         }
@@ -431,6 +436,15 @@ export default function RetrievalWizardPage() {
                         />
                     )}
 
+                    {currentPhase === 'broad-filter' && (
+                        <BroadFilterPhase
+                            streamId={Number(streamId)}
+                            queries={broadQueries}
+                            onQueriesChange={setBroadQueries}
+                            onComplete={(completed) => handlePhaseComplete('broad-filter', completed)}
+                        />
+                    )}
+
                     {currentPhase === 'queries' && (
                         <ConceptQueryPhase
                             streamId={Number(streamId)}
@@ -491,7 +505,8 @@ export default function RetrievalWizardPage() {
                                     else if (currentPhase === 'filters') setCurrentPhase('queries');
                                     else if (currentPhase === 'validation') setCurrentPhase('filters');
                                 } else if (strategy === 'broad-search') {
-                                    if (currentPhase === 'validation') setCurrentPhase('broad-search');
+                                    if (currentPhase === 'broad-filter') setCurrentPhase('broad-search');
+                                    else if (currentPhase === 'validation') setCurrentPhase('broad-filter');
                                 }
                             }}
                             className="inline-flex items-center gap-2 px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 font-medium"
@@ -530,7 +545,8 @@ export default function RetrievalWizardPage() {
                                     else if (currentPhase === 'queries') setCurrentPhase('filters');
                                     else if (currentPhase === 'filters') setCurrentPhase('validation');
                                 } else if (strategy === 'broad-search') {
-                                    if (currentPhase === 'broad-search') setCurrentPhase('validation');
+                                    if (currentPhase === 'broad-search') setCurrentPhase('broad-filter');
+                                    else if (currentPhase === 'broad-filter') setCurrentPhase('validation');
                                 }
                             }}
                             disabled={

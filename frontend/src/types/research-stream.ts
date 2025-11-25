@@ -107,10 +107,13 @@ export interface Concept {
 export interface BroadQuery {
     query_id: string;  // Unique identifier for this query
     search_terms: string[];  // Core search terms (e.g., ['asbestos', 'mesothelioma'])
-    query_expression: string;  // Boolean query expression (e.g., '(asbestos OR mesothelioma)')
+    query_expression: string;  // Boolean query expression usable as-is for PubMed (e.g., '(asbestos OR mesothelioma)')
     rationale: string;  // Why these terms capture all relevant literature
     covered_topics: string[];  // List of topic_ids this query covers
     estimated_weekly_volume: number | null;  // Estimated number of articles per week
+
+    // Optional semantic filtering
+    semantic_filter: SemanticFilter;  // Optional semantic filtering for this broad query
 }
 
 export interface BroadSearchStrategy {
