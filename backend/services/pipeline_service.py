@@ -2,14 +2,18 @@
 Pipeline Service - Orchestrates end-to-end test execution of research streams
 
 This service coordinates:
-1. Retrieval: Execute queries for each retrieval group from configured sources
-2. Deduplication (group-level): Find duplicates within each retrieval group
-3. Semantic Filtering: Apply AI-powered relevance filters per group
+1. Retrieval: Execute queries for each retrieval unit (concept or broad query) from configured sources
+2. Deduplication (unit-level): Find duplicates within each retrieval unit
+3. Semantic Filtering: Apply AI-powered relevance filters per unit
 4. Deduplication (global): Find duplicates across all filtered results
 5. Categorization: Assign articles to presentation categories using LLM
 6. Report Generation: Save results to reports and report_article_associations tables
 
 All intermediate results are stored in wip_articles table for audit trail and debugging.
+
+Supports two retrieval strategies:
+- Concept-based: Multiple narrow, specific entity-relationship patterns
+- Broad Search: 1-3 simple, wide-net queries optimized for weekly monitoring
 """
 
 from typing import AsyncGenerator, Dict, List, Optional, Tuple
@@ -74,11 +78,11 @@ class PipelineService:
         Execute the full pipeline for a research stream and yield status updates.
 
         Pipeline stages:
-        1. Load configuration
+        1. Load configuration and determine retrieval strategy
         2. Clear previous WIP data
-        3. Execute retrieval for each group
-        4. Deduplicate within groups
-        5. Apply semantic filters
+        3. Execute retrieval for each unit (concept or broad query)
+        4. Deduplicate within units
+        5. Apply semantic filters per unit
         6. Deduplicate globally
         7. Categorize articles
         8. Generate report
@@ -109,12 +113,25 @@ class PipelineService:
             retrieval_config = stream.retrieval_config
             presentation_config = stream.presentation_config
 
+            # Determine retrieval strategy
+            retrieval_strategy = None
+            retrieval_unit_count = 0
+            if retrieval_config.concepts and len(retrieval_config.concepts) > 0:
+                retrieval_strategy = "concepts"
+                retrieval_unit_count = len(retrieval_config.concepts)
+            elif retrieval_config.broad_search and retrieval_config.broad_search.queries:
+                retrieval_strategy = "broad_search"
+                retrieval_unit_count = len(retrieval_config.broad_search.queries)
+            else:
+                raise ValueError("No retrieval configuration found (concepts or broad_search)")
+
             yield PipelineStatus(
                 "init",
                 "Configuration loaded",
                 {
                     "stream_name": stream.stream_name,
-                    "num_groups": len(retrieval_config.retrieval_groups),
+                    "retrieval_strategy": retrieval_strategy,
+                    "num_retrieval_units": retrieval_unit_count,
                     "num_categories": len(presentation_config.categories)
                 }
             )
@@ -136,17 +153,71 @@ class PipelineService:
             # === STAGE 3: Execute Retrieval ===
             total_retrieved = 0
 
-            for group in retrieval_config.retrieval_groups:
-                yield PipelineStatus(
-                    "retrieval",
-                    f"Starting retrieval for group: {group.name}",
-                    {"group_id": group.group_id, "group_name": group.name}
-                )
+            if retrieval_strategy == "concepts":
+                # === CONCEPT-BASED RETRIEVAL ===
+                for concept in retrieval_config.concepts:
+                    yield PipelineStatus(
+                        "retrieval",
+                        f"Starting retrieval for concept: {concept.name}",
+                        {"concept_id": concept.concept_id, "concept_name": concept.name}
+                    )
 
-                # Execute queries for each source in this group
-                for source_id, source_query in group.source_queries.items():
-                    if not source_query or not source_query.enabled:
-                        continue
+                    # Execute queries for each source in this concept
+                    for source_id, source_query in concept.source_queries.items():
+                        if not source_query or not source_query.enabled:
+                            continue
+
+                        # Check if we've hit limits
+                        if total_retrieved >= self.MAX_TOTAL_ARTICLES:
+                            yield PipelineStatus(
+                                "retrieval",
+                                f"Hit MAX_TOTAL_ARTICLES limit ({self.MAX_TOTAL_ARTICLES}), stopping retrieval",
+                                {"limit_reached": True}
+                            )
+                            break
+
+                        yield PipelineStatus(
+                            "retrieval",
+                            f"Executing query for source '{source_id}' in concept '{concept.name}'",
+                            {
+                                "concept_id": concept.concept_id,
+                                "source_id": source_id,
+                                "query": source_query.query_expression
+                            }
+                        )
+
+                        # Execute retrieval
+                        articles_retrieved = await self._execute_source_query(
+                            research_stream_id=research_stream_id,
+                            execution_id=execution_id,
+                            retrieval_unit_id=concept.concept_id,  # Store concept_id in retrieval_group_id field
+                            source_id=source_id,
+                            query_expression=source_query.query_expression,
+                            start_date=start_date,
+                            end_date=end_date
+                        )
+
+                        total_retrieved += articles_retrieved
+
+                        yield PipelineStatus(
+                            "retrieval",
+                            f"Retrieved {articles_retrieved} articles from {source_id}",
+                            {
+                                "concept_id": concept.concept_id,
+                                "source_id": source_id,
+                                "count": articles_retrieved,
+                                "total_retrieved": total_retrieved
+                            }
+                        )
+
+            elif retrieval_strategy == "broad_search":
+                # === BROAD SEARCH RETRIEVAL ===
+                for broad_query in retrieval_config.broad_search.queries:
+                    yield PipelineStatus(
+                        "retrieval",
+                        f"Starting retrieval for broad query: {broad_query.search_terms}",
+                        {"query_id": broad_query.query_id, "search_terms": broad_query.search_terms}
+                    )
 
                     # Check if we've hit limits
                     if total_retrieved >= self.MAX_TOTAL_ARTICLES:
@@ -159,21 +230,20 @@ class PipelineService:
 
                     yield PipelineStatus(
                         "retrieval",
-                        f"Executing query for source '{source_id}' in group '{group.name}'",
+                        f"Executing broad query on PubMed",
                         {
-                            "group_id": group.group_id,
-                            "source_id": source_id,
-                            "query": source_query.query_expression
+                            "query_id": broad_query.query_id,
+                            "query_expression": broad_query.query_expression
                         }
                     )
 
-                    # Execute retrieval
+                    # Execute retrieval on PubMed (broad queries use query_expression directly)
                     articles_retrieved = await self._execute_source_query(
                         research_stream_id=research_stream_id,
                         execution_id=execution_id,
-                        group_id=group.group_id,
-                        source_id=source_id,
-                        query_expression=source_query.query_expression,
+                        retrieval_unit_id=broad_query.query_id,  # Store query_id in retrieval_group_id field
+                        source_id="pubmed",  # Broad queries always use PubMed for now
+                        query_expression=broad_query.query_expression,
                         start_date=start_date,
                         end_date=end_date
                     )
@@ -182,10 +252,9 @@ class PipelineService:
 
                     yield PipelineStatus(
                         "retrieval",
-                        f"Retrieved {articles_retrieved} articles from {source_id}",
+                        f"Retrieved {articles_retrieved} articles",
                         {
-                            "group_id": group.group_id,
-                            "source_id": source_id,
+                            "query_id": broad_query.query_id,
                             "count": articles_retrieved,
                             "total_retrieved": total_retrieved
                         }
@@ -197,55 +266,103 @@ class PipelineService:
                 {"total_retrieved": total_retrieved}
             )
 
-            # === STAGE 4: Deduplicate Within Groups ===
-            yield PipelineStatus("dedup_group", "Deduplicating within retrieval groups...")
+            # === STAGE 4: Deduplicate Within Retrieval Units ===
+            yield PipelineStatus("dedup_group", "Deduplicating within retrieval units...")
 
-            group_dedup_stats = {}
-            for group in retrieval_config.retrieval_groups:
-                dupes_found = await self._deduplicate_within_group(
-                    research_stream_id=research_stream_id,
-                    execution_id=execution_id,
-                    group_id=group.group_id
-                )
-                group_dedup_stats[group.group_id] = dupes_found
+            unit_dedup_stats = {}
 
-                yield PipelineStatus(
-                    "dedup_group",
-                    f"Found {dupes_found} duplicates in group '{group.name}'",
-                    {"group_id": group.group_id, "duplicates": dupes_found}
-                )
+            if retrieval_strategy == "concepts":
+                for concept in retrieval_config.concepts:
+                    dupes_found = await self._deduplicate_within_unit(
+                        research_stream_id=research_stream_id,
+                        execution_id=execution_id,
+                        retrieval_unit_id=concept.concept_id
+                    )
+                    unit_dedup_stats[concept.concept_id] = dupes_found
+
+                    yield PipelineStatus(
+                        "dedup_group",
+                        f"Found {dupes_found} duplicates in concept '{concept.name}'",
+                        {"concept_id": concept.concept_id, "duplicates": dupes_found}
+                    )
+
+            elif retrieval_strategy == "broad_search":
+                for broad_query in retrieval_config.broad_search.queries:
+                    dupes_found = await self._deduplicate_within_unit(
+                        research_stream_id=research_stream_id,
+                        execution_id=execution_id,
+                        retrieval_unit_id=broad_query.query_id
+                    )
+                    unit_dedup_stats[broad_query.query_id] = dupes_found
+
+                    yield PipelineStatus(
+                        "dedup_group",
+                        f"Found {dupes_found} duplicates in broad query",
+                        {"query_id": broad_query.query_id, "duplicates": dupes_found}
+                    )
 
             # === STAGE 5: Apply Semantic Filters ===
             yield PipelineStatus("filter", "Applying semantic filters...")
 
             filter_stats = {}
-            for group in retrieval_config.retrieval_groups:
-                if not group.semantic_filter.enabled:
+
+            if retrieval_strategy == "concepts":
+                for concept in retrieval_config.concepts:
+                    if not concept.semantic_filter.enabled:
+                        yield PipelineStatus(
+                            "filter",
+                            f"Semantic filter disabled for concept '{concept.name}', keeping all articles",
+                            {"concept_id": concept.concept_id, "filtered": False}
+                        )
+                        continue
+
+                    passed, rejected = await self._apply_semantic_filter(
+                        research_stream_id=research_stream_id,
+                        retrieval_unit_id=concept.concept_id,
+                        filter_criteria=concept.semantic_filter.criteria,
+                        threshold=concept.semantic_filter.threshold
+                    )
+
+                    filter_stats[concept.concept_id] = {"passed": passed, "rejected": rejected}
+
                     yield PipelineStatus(
                         "filter",
-                        f"Semantic filter disabled for group '{group.name}', keeping all articles",
-                        {"group_id": group.group_id, "filtered": False}
+                        f"Filtered concept '{concept.name}': {passed} passed, {rejected} rejected",
+                        {
+                            "concept_id": concept.concept_id,
+                            "passed": passed,
+                            "rejected": rejected
+                        }
                     )
-                    continue
 
-                passed, rejected = await self._apply_semantic_filter(
-                    research_stream_id=research_stream_id,
-                    group_id=group.group_id,
-                    filter_criteria=group.semantic_filter.criteria,
-                    threshold=group.semantic_filter.threshold
-                )
+            elif retrieval_strategy == "broad_search":
+                for broad_query in retrieval_config.broad_search.queries:
+                    if not broad_query.semantic_filter.enabled:
+                        yield PipelineStatus(
+                            "filter",
+                            f"Semantic filter disabled for broad query, keeping all articles",
+                            {"query_id": broad_query.query_id, "filtered": False}
+                        )
+                        continue
 
-                filter_stats[group.group_id] = {"passed": passed, "rejected": rejected}
+                    passed, rejected = await self._apply_semantic_filter(
+                        research_stream_id=research_stream_id,
+                        retrieval_unit_id=broad_query.query_id,
+                        filter_criteria=broad_query.semantic_filter.criteria,
+                        threshold=broad_query.semantic_filter.threshold
+                    )
 
-                yield PipelineStatus(
-                    "filter",
-                    f"Filtered group '{group.name}': {passed} passed, {rejected} rejected",
-                    {
-                        "group_id": group.group_id,
-                        "passed": passed,
-                        "rejected": rejected
-                    }
-                )
+                    filter_stats[broad_query.query_id] = {"passed": passed, "rejected": rejected}
+
+                    yield PipelineStatus(
+                        "filter",
+                        f"Filtered broad query: {passed} passed, {rejected} rejected",
+                        {
+                            "query_id": broad_query.query_id,
+                            "passed": passed,
+                            "rejected": rejected
+                        }
+                    )
 
             # === STAGE 6: Deduplicate Globally ===
             yield PipelineStatus("dedup_global", "Deduplicating across all groups...")
@@ -282,7 +399,7 @@ class PipelineService:
                 run_type=run_type,
                 metrics={
                     "total_retrieved": total_retrieved,
-                    "group_dedup_stats": group_dedup_stats,
+                    "unit_dedup_stats": unit_dedup_stats,
                     "filter_stats": filter_stats,
                     "global_duplicates": global_dupes,
                     "categorized": categorized_count
@@ -321,7 +438,7 @@ class PipelineService:
         self,
         research_stream_id: int,
         execution_id: str,
-        group_id: str,
+        retrieval_unit_id: str,
         source_id: str,
         query_expression: str,
         start_date: Optional[str] = None,
@@ -333,7 +450,7 @@ class PipelineService:
         Args:
             research_stream_id: Stream ID
             execution_id: UUID of this pipeline execution
-            group_id: Retrieval group ID
+            retrieval_unit_id: Retrieval unit ID (concept_id or query_id)
             source_id: Source identifier
             query_expression: Query to execute
             start_date: Start date for retrieval (YYYY/MM/DD format)
@@ -381,7 +498,7 @@ class PipelineService:
             wip_article = WipArticle(
                 research_stream_id=research_stream_id,
                 pipeline_execution_id=execution_id,
-                retrieval_group_id=group_id,
+                retrieval_group_id=retrieval_unit_id,  # Store concept_id or query_id
                 source_id=source.source_id,
                 title=article.title,
                 url=article.url,
@@ -403,29 +520,29 @@ class PipelineService:
         self.db.commit()
         return len(articles)
 
-    async def _deduplicate_within_group(
+    async def _deduplicate_within_unit(
         self,
         research_stream_id: int,
         execution_id: str,
-        group_id: str
+        retrieval_unit_id: str
     ) -> int:
         """
-        Find and mark duplicates within a retrieval group for this execution.
+        Find and mark duplicates within a retrieval unit (concept or broad query) for this execution.
         Duplicates are identified by DOI or title similarity.
 
         Args:
             research_stream_id: Stream ID (for context, not used in query)
             execution_id: UUID of this pipeline execution
-            group_id: Retrieval group ID
+            retrieval_unit_id: Retrieval unit ID (concept_id or query_id)
 
         Returns:
             Number of duplicates found
         """
-        # Get all non-duplicate articles for this group in THIS execution only
+        # Get all non-duplicate articles for this unit in THIS execution only
         articles = self.db.query(WipArticle).filter(
             and_(
                 WipArticle.pipeline_execution_id == execution_id,
-                WipArticle.retrieval_group_id == group_id,
+                WipArticle.retrieval_group_id == retrieval_unit_id,
                 WipArticle.is_duplicate == False
             )
         ).all()
@@ -462,23 +579,23 @@ class PipelineService:
     async def _apply_semantic_filter(
         self,
         research_stream_id: int,
-        group_id: str,
+        retrieval_unit_id: str,
         filter_criteria: str,
         threshold: float
     ) -> Tuple[int, int]:
         """
-        Apply semantic filter to articles in a group using LLM in parallel batches.
+        Apply semantic filter to articles in a retrieval unit (concept or broad query) using LLM in parallel batches.
 
         Returns:
             Tuple of (passed_count, rejected_count)
         """
         import asyncio
 
-        # Get all non-duplicate articles for this group that haven't been filtered yet
+        # Get all non-duplicate articles for this unit that haven't been filtered yet
         articles = self.db.query(WipArticle).filter(
             and_(
                 WipArticle.research_stream_id == research_stream_id,
-                WipArticle.retrieval_group_id == group_id,
+                WipArticle.retrieval_group_id == retrieval_unit_id,
                 WipArticle.is_duplicate == False,
                 WipArticle.passed_semantic_filter == None
             )

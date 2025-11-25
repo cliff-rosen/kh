@@ -165,79 +165,79 @@ class BroadSearchService:
 
         system_prompt = """You are an expert at designing broad, simple search strategies for literature monitoring.
 
-Your task: Find the MOST GENERAL search terms that capture ALL topics in the semantic space.
+        Your task: Find the MOST GENERAL search terms that capture ALL topics in the semantic space.
 
-# PHILOSOPHY
+        # PHILOSOPHY
 
-**Problem**: Narrow searches create complexity and risk missing papers
-**Solution**: Find broad terms that cast a wide net
+        **Problem**: Narrow searches create complexity and risk missing papers
+        **Solution**: Find broad terms that cast a wide net
 
-**Context**:
-- We're monitoring WEEKLY literature (limited volume)
-- Better to review some false positives than miss relevant papers
-- Simpler is better: 1-3 queries ideal
+        **Context**:
+        - We're monitoring WEEKLY literature (limited volume)
+        - Better to review some false positives than miss relevant papers
+        - Simpler is better: 1-3 queries ideal
 
-# YOUR GOAL
+        # YOUR GOAL
 
-Find the minimal set of broad search terms that guarantee coverage of all topics.
+        Find the minimal set of broad search terms that guarantee coverage of all topics.
 
-**Think**:
-- What are the core entities/concepts that appear across ALL or most topics?
-- What's the highest-level term that captures this domain?
-- If you search for just these core terms, will you capture everything relevant?
+        **Think**:
+        - What are the core entities/concepts that appear across ALL or most topics?
+        - What's the highest-level term that captures this domain?
+        - If you search for just these core terms, will you capture everything relevant?
 
-**Example**:
-Semantic space topics: "Asbestos-induced mesothelioma", "Mesothelioma biomarkers", "Mesothelioma treatment"
-**Narrow approach** (what NOT to do): 5 specific concepts with entity patterns
-**Broad approach** (what TO do): Query = (asbestos OR mesothelioma)
-This simple query captures ALL papers about asbestos and mesothelioma, covering all topics.
+        **Example**:
+        Semantic space topics: "Asbestos-induced mesothelioma", "Mesothelioma biomarkers", "Mesothelioma treatment"
+        **Narrow approach** (what NOT to do): 5 specific concepts with entity patterns
+        **Broad approach** (what TO do): Query = (asbestos OR mesothelioma)
+        This simple query captures ALL papers about asbestos and mesothelioma, covering all topics.
 
-# GUIDELINES
+        # GUIDELINES
 
-1. **Start broad**: Think about the core domain terms
-2. **Test coverage**: Does this capture all topics?
-3. **Keep it simple**: Prefer 1 query over 3, prefer 3 over 10
-4. **Volume check**: For weekly monitoring, even broad terms won't overwhelm
-5. **False positives OK**: Better to filter out than miss papers
+        1. **Start broad**: Think about the core domain terms
+        2. **Test coverage**: Does this capture all topics?
+        3. **Keep it simple**: Prefer 1 query over 3, prefer 3 over 10
+        4. **Volume check**: For weekly monitoring, even broad terms won't overwhelm
+        5. **False positives OK**: Better to filter out than miss papers
 
-# OUTPUT FORMAT
+        # OUTPUT FORMAT
 
-Generate 1-3 broad queries (usually just 1!), each with:
-- query_id: Unique ID
-- search_terms: List of core terms (e.g., ["asbestos", "mesothelioma"])
-- query_expression: Boolean expression (e.g., "(asbestos OR mesothelioma)")
-- rationale: Why these terms capture everything
-- covered_topics: All topic_ids this covers
-- estimated_weekly_volume: Rough estimate of papers/week
+        Generate 1-3 broad queries (usually just 1!), each with:
+        - query_id: Unique ID
+        - search_terms: List of core terms (e.g., ["asbestos", "mesothelioma"])
+        - query_expression: Boolean expression (e.g., "(asbestos OR mesothelioma)")
+        - rationale: Why these terms capture everything
+        - covered_topics: All topic_ids this covers
+        - estimated_weekly_volume: Rough estimate of papers/week
 
-Also provide:
-- strategy_rationale: Overall explanation of the broad approach
-- coverage_analysis: How queries cover all topics, expected false positive rate
+        Also provide:
+        - strategy_rationale: Overall explanation of the broad approach
+        - coverage_analysis: How queries cover all topics, expected false positive rate
 
-Respond in JSON format."""
+        Respond in JSON format."""
 
         user_prompt = f"""Find the broadest search strategy for this domain:
 
-# DOMAIN
+        # DOMAIN
 
-Name: {semantic_space.domain.name}
-Description: {semantic_space.domain.description}{user_context_section}
+        Name: {semantic_space.domain.name}
+        Description: {semantic_space.domain.description}{user_context_section}
 
-# TOPICS TO COVER
+        # TOPICS TO COVER
 
-{topics_text}
+        {topics_text}
 
-# ENTITIES FOR REFERENCE
+        # ENTITIES FOR REFERENCE
 
-{entities_text}
+        {entities_text}
 
-# YOUR TASK
+        # YOUR TASK
 
-What are the MOST GENERAL search terms that would capture papers about ALL these topics?
+        What are the MOST GENERAL search terms that would capture papers about ALL these topics?
 
-Think: If I'm monitoring PubMed weekly, what simple search would guarantee I don't miss anything relevant?
+        Think: If I'm monitoring PubMed weekly, what simple search would guarantee I don't miss anything relevant?
 
-Generate your broad search strategy now."""
+        Generate your broad search strategy now."""
 
         return system_prompt, user_prompt
 

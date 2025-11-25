@@ -69,7 +69,7 @@ export default function RetrievalWizardPage() {
 
             if (hasBroadSearch) {
                 setStrategy('broad-search');
-                setBroadQueries(streamData.retrieval_config.broad_search.queries);
+                setBroadQueries(streamData.retrieval_config.broad_search?.queries || []);
                 setPhasesCompleted(prev => ({ ...prev, strategy: true, 'broad-search': true }));
                 setCurrentPhase('broad-search');
             } else if (hasConcepts) {
@@ -290,11 +290,10 @@ export default function RetrievalWizardPage() {
                                             {/* Connector line */}
                                             {idx < phases.length - 1 && (
                                                 <div
-                                                    className={`absolute top-5 left-[50%] w-full h-0.5 ${
-                                                        isCompleted
+                                                    className={`absolute top-5 left-[50%] w-full h-0.5 ${isCompleted
                                                             ? 'bg-blue-600'
                                                             : 'bg-gray-300 dark:bg-gray-700'
-                                                    }`}
+                                                        }`}
                                                     style={{ left: 'calc(50% + 20px)' }}
                                                 />
                                             )}
@@ -302,18 +301,16 @@ export default function RetrievalWizardPage() {
                                             <button
                                                 onClick={() => canNavigate && setCurrentPhase(phase.key)}
                                                 disabled={!canNavigate}
-                                                className={`relative flex flex-col items-center group ${
-                                                    !canNavigate ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
-                                                }`}
+                                                className={`relative flex flex-col items-center group ${!canNavigate ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                    }`}
                                             >
                                                 <span
-                                                    className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-                                                        isActive
+                                                    className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${isActive
                                                             ? 'border-blue-600 bg-blue-600 text-white'
                                                             : isCompleted
-                                                            ? 'border-blue-600 bg-blue-600 text-white'
-                                                            : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400'
-                                                    }`}
+                                                                ? 'border-blue-600 bg-blue-600 text-white'
+                                                                : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400'
+                                                        }`}
                                                 >
                                                     {isCompleted ? (
                                                         <CheckCircleIcon className="h-6 w-6" />
@@ -322,13 +319,12 @@ export default function RetrievalWizardPage() {
                                                     )}
                                                 </span>
                                                 <span
-                                                    className={`mt-2 text-xs font-medium ${
-                                                        isActive
+                                                    className={`mt-2 text-xs font-medium ${isActive
                                                             ? 'text-blue-600 dark:text-blue-400'
                                                             : isCompleted
-                                                            ? 'text-gray-900 dark:text-white'
-                                                            : 'text-gray-500 dark:text-gray-400'
-                                                    }`}
+                                                                ? 'text-gray-900 dark:text-white'
+                                                                : 'text-gray-500 dark:text-gray-400'
+                                                        }`}
                                                 >
                                                     {phase.label}
                                                 </span>
