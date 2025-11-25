@@ -28,6 +28,7 @@ import EditStreamPage from './pages/EditStreamPage';
 import RetrievalWizardPage from './pages/RetrievalWizardPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
+import ToolsPage from './pages/ToolsPage';
 
 // Inner component that uses auth context
 function AppContent() {
@@ -57,6 +58,7 @@ function AppContent() {
             <Route path="/new-stream" element={<NewStreamPage />} />
             <Route path="/new-stream/chat" element={<NewStreamChatPage />} />
             <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/tools" element={<ToolsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/profile" element={<Profile />} />
 
