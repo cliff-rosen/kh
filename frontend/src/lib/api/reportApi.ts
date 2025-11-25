@@ -32,5 +32,16 @@ export const reportApi = {
     async getPipelineAnalytics(reportId: number): Promise<any> {
         const response = await api.get(`/api/reports/${reportId}/pipeline-analytics`);
         return response.data;
+    },
+
+    /**
+     * Compare a report to a list of PubMed IDs
+     */
+    async compareReport(reportId: number, pubmedIds: string[]): Promise<any> {
+        const response = await api.post(`/api/research-streams/reports/${reportId}/compare`, {
+            report_id: reportId,
+            pubmed_ids: pubmedIds
+        });
+        return response.data;
     }
 };

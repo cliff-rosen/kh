@@ -768,3 +768,173 @@ async def execute_pipeline(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Pipeline execution failed: {str(e)}"
         )
+
+
+# ============================================================================
+# Report Comparison Endpoint
+# ============================================================================
+
+class CompareReportRequest(BaseModel):
+    """Request schema for comparing report to supplied PubMed IDs"""
+    report_id: int = Field(..., description="Report ID to compare against")
+    pubmed_ids: List[str] = Field(..., description="List of PubMed IDs to compare")
+
+
+class SuppliedArticleStatus(BaseModel):
+    """Status of a supplied PubMed ID in the pipeline"""
+    pmid: str
+    status: str = Field(..., description="not_found, filtered_out, or included")
+    article_title: Optional[str] = None
+    retrieval_unit_id: Optional[str] = Field(None, description="Concept ID or broad query ID that retrieved this article")
+    filter_rejection_reason: Optional[str] = None
+
+
+class ReportOnlyArticle(BaseModel):
+    """Article that was in the report but not in supplied PMIDs"""
+    pmid: str
+    title: str
+    retrieval_unit_id: str = Field(..., description="Concept ID or broad query ID that retrieved this article")
+    url: Optional[str] = None
+
+
+class CompareReportResponse(BaseModel):
+    """Response for report comparison"""
+    supplied_articles: List[SuppliedArticleStatus]
+    report_only_articles: List[ReportOnlyArticle]
+    statistics: Dict[str, int] = Field(
+        ...,
+        description="Statistics: total_supplied, not_found, filtered_out, included, report_only"
+    )
+
+
+@router.post("/reports/{report_id}/compare", response_model=CompareReportResponse)
+async def compare_report_to_pubmed_ids(
+    report_id: int,
+    request: CompareReportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Compare a pipeline report to a supplied set of PubMed IDs.
+
+    For each supplied PMID, determines:
+    - Was it retrieved in the search?
+    - Did it pass the semantic filter?
+    - Was it included in the report?
+
+    Also returns articles in the report that weren't in the supplied list.
+    """
+    from models import Report, WipArticle, ReportArticleAssociation, Article
+    from sqlalchemy import and_
+
+    # Verify report exists and user has access
+    report = db.query(Report).filter(
+        and_(
+            Report.report_id == report_id,
+            Report.user_id == current_user.user_id
+        )
+    ).first()
+
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found"
+        )
+
+    if not report.pipeline_execution_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Report does not have pipeline execution data"
+        )
+
+    # Get all wip_articles for this execution
+    wip_articles = db.query(WipArticle).filter(
+        WipArticle.pipeline_execution_id == report.pipeline_execution_id
+    ).all()
+
+    # Create PMID lookup map
+    wip_by_pmid = {wip.pmid: wip for wip in wip_articles if wip.pmid}
+
+    # Get all articles in the report
+    report_associations = db.query(ReportArticleAssociation).join(Article).filter(
+        ReportArticleAssociation.report_id == report_id
+    ).all()
+
+    report_pmids = set()
+    report_articles_map = {}
+    for assoc in report_associations:
+        if assoc.article.pmid:
+            report_pmids.add(assoc.article.pmid)
+            report_articles_map[assoc.article.pmid] = assoc.article
+
+    # Analyze each supplied PMID
+    supplied_articles = []
+    for pmid in request.pubmed_ids:
+        pmid = pmid.strip()
+        if not pmid:
+            continue
+
+        wip = wip_by_pmid.get(pmid)
+
+        if not wip:
+            # Not found in search results
+            supplied_articles.append(SuppliedArticleStatus(
+                pmid=pmid,
+                status="not_found"
+            ))
+        elif wip.passed_semantic_filter == False:
+            # Found but filtered out
+            supplied_articles.append(SuppliedArticleStatus(
+                pmid=pmid,
+                status="filtered_out",
+                article_title=wip.title,
+                retrieval_unit_id=wip.retrieval_group_id,
+                filter_rejection_reason=wip.filter_rejection_reason
+            ))
+        elif pmid in report_pmids:
+            # Found and included in report
+            supplied_articles.append(SuppliedArticleStatus(
+                pmid=pmid,
+                status="included",
+                article_title=wip.title,
+                retrieval_unit_id=wip.retrieval_group_id
+            ))
+        else:
+            # Found in search but not in report (duplicate or other reason)
+            supplied_articles.append(SuppliedArticleStatus(
+                pmid=pmid,
+                status="not_included",
+                article_title=wip.title,
+                retrieval_unit_id=wip.retrieval_group_id
+            ))
+
+    # Find articles in report but not in supplied list
+    supplied_pmids_set = set(pmid.strip() for pmid in request.pubmed_ids if pmid.strip())
+    report_only_articles = []
+
+    for pmid in report_pmids:
+        if pmid not in supplied_pmids_set:
+            article = report_articles_map[pmid]
+            wip = wip_by_pmid.get(pmid)
+            report_only_articles.append(ReportOnlyArticle(
+                pmid=pmid,
+                title=article.title,
+                retrieval_unit_id=wip.retrieval_group_id if wip else "unknown",
+                url=article.url
+            ))
+
+    # Calculate statistics
+    stats = {
+        "total_supplied": len([a for a in supplied_articles if a.pmid]),
+        "not_found": len([a for a in supplied_articles if a.status == "not_found"]),
+        "filtered_out": len([a for a in supplied_articles if a.status == "filtered_out"]),
+        "included": len([a for a in supplied_articles if a.status == "included"]),
+        "not_included": len([a for a in supplied_articles if a.status == "not_included"]),
+        "report_only": len(report_only_articles)
+    }
+
+    return CompareReportResponse(
+        supplied_articles=supplied_articles,
+        report_only_articles=report_only_articles,
+        statistics=stats
+    )

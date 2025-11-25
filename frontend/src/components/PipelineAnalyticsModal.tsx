@@ -53,7 +53,13 @@ export default function PipelineAnalyticsModal({ reportId, onClose }: PipelineAn
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
-    const [selectedTab, setSelectedTab] = useState<'overview' | 'groups' | 'rejections' | 'articles'>('overview');
+    const [selectedTab, setSelectedTab] = useState<'overview' | 'groups' | 'rejections' | 'articles' | 'comparison'>('overview');
+
+    // Comparison tab state
+    const [comparisonInput, setComparisonInput] = useState('');
+    const [comparisonResult, setComparisonResult] = useState<any>(null);
+    const [comparisonLoading, setComparisonLoading] = useState(false);
+    const [comparisonError, setComparisonError] = useState<string | null>(null);
 
     useEffect(() => {
         loadAnalytics();
@@ -69,6 +75,30 @@ export default function PipelineAnalyticsModal({ reportId, onClose }: PipelineAn
             setError(err.response?.data?.detail || 'Failed to load analytics');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleCompareReport = async () => {
+        setComparisonLoading(true);
+        setComparisonError(null);
+        try {
+            // Parse PubMed IDs from input (comma or newline separated)
+            const pmids = comparisonInput
+                .split(/[\n,\s]+/)
+                .map(id => id.trim())
+                .filter(id => id.length > 0);
+
+            if (pmids.length === 0) {
+                setComparisonError('Please enter at least one PubMed ID');
+                return;
+            }
+
+            const result = await reportApi.compareReport(reportId, pmids);
+            setComparisonResult(result);
+        } catch (err: any) {
+            setComparisonError(err.response?.data?.detail || 'Failed to compare report');
+        } finally {
+            setComparisonLoading(false);
         }
     };
 
@@ -168,6 +198,16 @@ export default function PipelineAnalyticsModal({ reportId, onClose }: PipelineAn
                         }`}
                     >
                         All Articles ({analytics.wip_articles.length})
+                    </button>
+                    <button
+                        onClick={() => setSelectedTab('comparison')}
+                        className={`pb-3 px-2 font-medium transition-colors border-b-2 ${
+                            selectedTab === 'comparison'
+                                ? 'border-purple-600 text-purple-600 dark:text-purple-400'
+                                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                        }`}
+                    >
+                        Comparison
                     </button>
                 </div>
 
@@ -349,6 +389,168 @@ export default function PipelineAnalyticsModal({ reportId, onClose }: PipelineAn
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    )}
+
+                    {selectedTab === 'comparison' && (
+                        <div className="space-y-6">
+                            <div>
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                                    Compare Report to PubMed IDs
+                                </h3>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                    Enter a list of PubMed IDs (one per line or comma-separated) to compare against this report.
+                                    This will show which articles were found, filtered out, or included in the report.
+                                </p>
+
+                                <textarea
+                                    value={comparisonInput}
+                                    onChange={(e) => setComparisonInput(e.target.value)}
+                                    placeholder="Enter PubMed IDs (e.g., 12345678, 87654321)..."
+                                    rows={6}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white text-sm font-mono"
+                                />
+
+                                <button
+                                    onClick={handleCompareReport}
+                                    disabled={comparisonLoading || !comparisonInput.trim()}
+                                    className="mt-3 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {comparisonLoading ? 'Comparing...' : 'Compare'}
+                                </button>
+
+                                {comparisonError && (
+                                    <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                                        <p className="text-red-800 dark:text-red-200 text-sm">{comparisonError}</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {comparisonResult && (
+                                <div className="space-y-6">
+                                    {/* Statistics */}
+                                    <div>
+                                        <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-3">Statistics</h4>
+                                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                                                <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Total Supplied</p>
+                                                <p className="text-2xl font-bold text-blue-900 dark:text-blue-100 mt-1">
+                                                    {comparisonResult.statistics.total_supplied}
+                                                </p>
+                                            </div>
+                                            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                                                <p className="text-xs text-red-600 dark:text-red-400 font-medium">Not Found</p>
+                                                <p className="text-2xl font-bold text-red-900 dark:text-red-100 mt-1">
+                                                    {comparisonResult.statistics.not_found}
+                                                </p>
+                                            </div>
+                                            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
+                                                <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">Filtered Out</p>
+                                                <p className="text-2xl font-bold text-orange-900 dark:text-orange-100 mt-1">
+                                                    {comparisonResult.statistics.filtered_out}
+                                                </p>
+                                            </div>
+                                            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                                                <p className="text-xs text-green-600 dark:text-green-400 font-medium">Included</p>
+                                                <p className="text-2xl font-bold text-green-900 dark:text-green-100 mt-1">
+                                                    {comparisonResult.statistics.included}
+                                                </p>
+                                            </div>
+                                            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+                                                <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">Report Only</p>
+                                                <p className="text-2xl font-bold text-purple-900 dark:text-purple-100 mt-1">
+                                                    {comparisonResult.statistics.report_only}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Supplied Articles Analysis */}
+                                    <div>
+                                        <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
+                                            Supplied Articles ({comparisonResult.supplied_articles.length})
+                                        </h4>
+                                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                                            {comparisonResult.supplied_articles.map((article: any, idx: number) => (
+                                                <div key={idx} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <code className="text-sm font-mono text-gray-700 dark:text-gray-300">
+                                                                    PMID: {article.pmid}
+                                                                </code>
+                                                                {article.status === 'not_found' && (
+                                                                    <span className="px-2 py-0.5 bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300 rounded text-xs font-medium">
+                                                                        Not Found
+                                                                    </span>
+                                                                )}
+                                                                {article.status === 'filtered_out' && (
+                                                                    <span className="px-2 py-0.5 bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300 rounded text-xs font-medium">
+                                                                        Filtered Out
+                                                                    </span>
+                                                                )}
+                                                                {article.status === 'included' && (
+                                                                    <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 rounded text-xs font-medium">
+                                                                        Included
+                                                                    </span>
+                                                                )}
+                                                                {article.status === 'not_included' && (
+                                                                    <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 rounded text-xs font-medium">
+                                                                        Found but Not Included
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {article.article_title && (
+                                                                <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                                                                    {article.article_title}
+                                                                </p>
+                                                            )}
+                                                            {article.retrieval_unit_id && (
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                    Retrieved by: {article.retrieval_unit_id}
+                                                                </p>
+                                                            )}
+                                                            {article.filter_rejection_reason && (
+                                                                <p className="text-xs text-orange-600 dark:text-orange-400 italic mt-1">
+                                                                    {article.filter_rejection_reason}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Report Only Articles */}
+                                    {comparisonResult.report_only_articles.length > 0 && (
+                                        <div>
+                                            <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
+                                                Articles in Report Not in Supplied List ({comparisonResult.report_only_articles.length})
+                                            </h4>
+                                            <div className="space-y-2 max-h-96 overflow-y-auto">
+                                                {comparisonResult.report_only_articles.map((article: any, idx: number) => (
+                                                    <div key={idx} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                                                        <div className="flex items-start gap-3">
+                                                            <div className="flex-1 min-w-0">
+                                                                <code className="text-sm font-mono text-gray-700 dark:text-gray-300">
+                                                                    PMID: {article.pmid}
+                                                                </code>
+                                                                <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                                                                    {article.title}
+                                                                </p>
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                    Retrieved by: {article.retrieval_unit_id}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
