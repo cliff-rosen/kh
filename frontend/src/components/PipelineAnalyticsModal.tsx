@@ -60,6 +60,8 @@ export default function PipelineAnalyticsModal({ reportId, onClose }: PipelineAn
     const [comparisonResult, setComparisonResult] = useState<any>(null);
     const [comparisonLoading, setComparisonLoading] = useState(false);
     const [comparisonError, setComparisonError] = useState<string | null>(null);
+    const [comparisonInputExpanded, setComparisonInputExpanded] = useState(true);
+    const [comparisonSubTab, setComparisonSubTab] = useState<'not_found' | 'filtered_out' | 'included' | 'report_only'>('not_found');
 
     useEffect(() => {
         loadAnalytics();
@@ -95,6 +97,7 @@ export default function PipelineAnalyticsModal({ reportId, onClose }: PipelineAn
 
             const result = await reportApi.compareReport(reportId, pmids);
             setComparisonResult(result);
+            setComparisonInputExpanded(false); // Collapse input after successful comparison
         } catch (err: any) {
             setComparisonError(err.response?.data?.detail || 'Failed to compare report');
         } finally {
@@ -138,7 +141,7 @@ export default function PipelineAnalyticsModal({ reportId, onClose }: PipelineAn
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] flex flex-col">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[95vw] h-[90vh] flex flex-col">
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
                     <div>
@@ -212,7 +215,7 @@ export default function PipelineAnalyticsModal({ reportId, onClose }: PipelineAn
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-6">
+                <div className="flex-1 overflow-y-auto p-6 min-h-0">
                     {selectedTab === 'overview' && (
                         <div className="space-y-6">
                             {/* Summary Cards */}
@@ -393,162 +396,259 @@ export default function PipelineAnalyticsModal({ reportId, onClose }: PipelineAn
                     )}
 
                     {selectedTab === 'comparison' && (
-                        <div className="space-y-6">
-                            <div>
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                                    Compare Report to PubMed IDs
-                                </h3>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                                    Enter a list of PubMed IDs (one per line or comma-separated) to compare against this report.
-                                    This will show which articles were found, filtered out, or included in the report.
-                                </p>
-
-                                <textarea
-                                    value={comparisonInput}
-                                    onChange={(e) => setComparisonInput(e.target.value)}
-                                    placeholder="Enter PubMed IDs (e.g., 12345678, 87654321)..."
-                                    rows={6}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white text-sm font-mono"
-                                />
-
+                        <div className="h-full flex flex-col space-y-4">
+                            {/* Collapsible Input Section */}
+                            <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden flex-shrink-0">
                                 <button
-                                    onClick={handleCompareReport}
-                                    disabled={comparisonLoading || !comparisonInput.trim()}
-                                    className="mt-3 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    onClick={() => setComparisonInputExpanded(!comparisonInputExpanded)}
+                                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                                 >
-                                    {comparisonLoading ? 'Comparing...' : 'Compare'}
+                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                        Compare Report to PubMed IDs
+                                    </h3>
+                                    {comparisonInputExpanded ? (
+                                        <ChevronDownIcon className="h-5 w-5 text-gray-500" />
+                                    ) : (
+                                        <ChevronRightIcon className="h-5 w-5 text-gray-500" />
+                                    )}
                                 </button>
+                                {comparisonInputExpanded && (
+                                    <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                            Enter a list of PubMed IDs (one per line or comma-separated) to compare against this report.
+                                        </p>
 
-                                {comparisonError && (
-                                    <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-                                        <p className="text-red-800 dark:text-red-200 text-sm">{comparisonError}</p>
+                                        <textarea
+                                            value={comparisonInput}
+                                            onChange={(e) => setComparisonInput(e.target.value)}
+                                            placeholder="Enter PubMed IDs (e.g., 12345678, 87654321)..."
+                                            rows={6}
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white text-sm font-mono"
+                                        />
+
+                                        <button
+                                            onClick={handleCompareReport}
+                                            disabled={comparisonLoading || !comparisonInput.trim()}
+                                            className="mt-3 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {comparisonLoading ? 'Comparing...' : 'Compare'}
+                                        </button>
+
+                                        {comparisonError && (
+                                            <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                                                <p className="text-red-800 dark:text-red-200 text-sm">{comparisonError}</p>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
 
                             {comparisonResult && (
-                                <div className="space-y-6">
+                                <div className="flex-1 flex flex-col min-h-0 space-y-4">
                                     {/* Statistics */}
-                                    <div>
-                                        <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-3">Statistics</h4>
-                                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                                                <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Total Supplied</p>
-                                                <p className="text-2xl font-bold text-blue-900 dark:text-blue-100 mt-1">
-                                                    {comparisonResult.statistics.total_supplied}
-                                                </p>
-                                            </div>
-                                            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-                                                <p className="text-xs text-red-600 dark:text-red-400 font-medium">Not Found</p>
-                                                <p className="text-2xl font-bold text-red-900 dark:text-red-100 mt-1">
-                                                    {comparisonResult.statistics.not_found}
-                                                </p>
-                                            </div>
-                                            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
-                                                <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">Filtered Out</p>
-                                                <p className="text-2xl font-bold text-orange-900 dark:text-orange-100 mt-1">
-                                                    {comparisonResult.statistics.filtered_out}
-                                                </p>
-                                            </div>
-                                            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
-                                                <p className="text-xs text-green-600 dark:text-green-400 font-medium">Included</p>
-                                                <p className="text-2xl font-bold text-green-900 dark:text-green-100 mt-1">
-                                                    {comparisonResult.statistics.included}
-                                                </p>
-                                            </div>
-                                            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
-                                                <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">Report Only</p>
-                                                <p className="text-2xl font-bold text-purple-900 dark:text-purple-100 mt-1">
-                                                    {comparisonResult.statistics.report_only}
-                                                </p>
-                                            </div>
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 flex-shrink-0">
+                                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                                            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Total Supplied</p>
+                                            <p className="text-2xl font-bold text-blue-900 dark:text-blue-100 mt-1">
+                                                {comparisonResult.statistics.total_supplied}
+                                            </p>
+                                        </div>
+                                        <div
+                                            className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                                            onClick={() => setComparisonSubTab('not_found')}
+                                        >
+                                            <p className="text-xs text-red-600 dark:text-red-400 font-medium">Not Found</p>
+                                            <p className="text-2xl font-bold text-red-900 dark:text-red-100 mt-1">
+                                                {comparisonResult.statistics.not_found}
+                                            </p>
+                                        </div>
+                                        <div
+                                            className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3 cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                                            onClick={() => setComparisonSubTab('filtered_out')}
+                                        >
+                                            <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">Filtered Out</p>
+                                            <p className="text-2xl font-bold text-orange-900 dark:text-orange-100 mt-1">
+                                                {comparisonResult.statistics.filtered_out}
+                                            </p>
+                                        </div>
+                                        <div
+                                            className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                                            onClick={() => setComparisonSubTab('included')}
+                                        >
+                                            <p className="text-xs text-green-600 dark:text-green-400 font-medium">Included</p>
+                                            <p className="text-2xl font-bold text-green-900 dark:text-green-100 mt-1">
+                                                {comparisonResult.statistics.included}
+                                            </p>
+                                        </div>
+                                        <div
+                                            className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3 cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+                                            onClick={() => setComparisonSubTab('report_only')}
+                                        >
+                                            <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">Report Only</p>
+                                            <p className="text-2xl font-bold text-purple-900 dark:text-purple-100 mt-1">
+                                                {comparisonResult.statistics.report_only}
+                                            </p>
                                         </div>
                                     </div>
 
-                                    {/* Supplied Articles Analysis */}
-                                    <div>
-                                        <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
-                                            Supplied Articles ({comparisonResult.supplied_articles.length})
-                                        </h4>
-                                        <div className="space-y-2 max-h-96 overflow-y-auto">
-                                            {comparisonResult.supplied_articles.map((article: any, idx: number) => (
-                                                <div key={idx} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-                                                    <div className="flex items-start justify-between gap-3">
-                                                        <div className="flex-1 min-w-0">
+                                    {/* Sub-tabs */}
+                                    <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                                        <button
+                                            onClick={() => setComparisonSubTab('not_found')}
+                                            className={`pb-2 px-3 font-medium transition-colors border-b-2 ${
+                                                comparisonSubTab === 'not_found'
+                                                    ? 'border-red-600 text-red-600 dark:text-red-400'
+                                                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                                            }`}
+                                        >
+                                            Not Found ({comparisonResult.statistics.not_found})
+                                        </button>
+                                        <button
+                                            onClick={() => setComparisonSubTab('filtered_out')}
+                                            className={`pb-2 px-3 font-medium transition-colors border-b-2 ${
+                                                comparisonSubTab === 'filtered_out'
+                                                    ? 'border-orange-600 text-orange-600 dark:text-orange-400'
+                                                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                                            }`}
+                                        >
+                                            Filtered Out ({comparisonResult.statistics.filtered_out})
+                                        </button>
+                                        <button
+                                            onClick={() => setComparisonSubTab('included')}
+                                            className={`pb-2 px-3 font-medium transition-colors border-b-2 ${
+                                                comparisonSubTab === 'included'
+                                                    ? 'border-green-600 text-green-600 dark:text-green-400'
+                                                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                                            }`}
+                                        >
+                                            Included ({comparisonResult.statistics.included})
+                                        </button>
+                                        <button
+                                            onClick={() => setComparisonSubTab('report_only')}
+                                            className={`pb-2 px-3 font-medium transition-colors border-b-2 ${
+                                                comparisonSubTab === 'report_only'
+                                                    ? 'border-purple-600 text-purple-600 dark:text-purple-400'
+                                                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                                            }`}
+                                        >
+                                            Report Only ({comparisonResult.statistics.report_only})
+                                        </button>
+                                    </div>
+
+                                    {/* Sub-tab Content */}
+                                    <div className="flex-1 overflow-y-auto min-h-0">
+                                        {comparisonSubTab === 'not_found' && (
+                                            <div className="space-y-2">
+                                                {comparisonResult.supplied_articles
+                                                    .filter((article: any) => article.status === 'not_found')
+                                                    .map((article: any, idx: number) => (
+                                                        <div key={idx} className="bg-white dark:bg-gray-800 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                                                            <code className="text-sm font-mono text-gray-700 dark:text-gray-300">
+                                                                PMID: {article.pmid}
+                                                            </code>
+                                                            <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                                                                This article did not appear in any search results.
+                                                            </p>
+                                                        </div>
+                                                    ))}
+                                                {comparisonResult.supplied_articles.filter((a: any) => a.status === 'not_found').length === 0 && (
+                                                    <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+                                                        All supplied articles were found in the search results.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {comparisonSubTab === 'filtered_out' && (
+                                            <div className="space-y-2">
+                                                {comparisonResult.supplied_articles
+                                                    .filter((article: any) => article.status === 'filtered_out')
+                                                    .map((article: any, idx: number) => (
+                                                        <div key={idx} className="bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
                                                             <div className="flex items-center gap-2 mb-1">
                                                                 <code className="text-sm font-mono text-gray-700 dark:text-gray-300">
                                                                     PMID: {article.pmid}
                                                                 </code>
-                                                                {article.status === 'not_found' && (
-                                                                    <span className="px-2 py-0.5 bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300 rounded text-xs font-medium">
-                                                                        Not Found
-                                                                    </span>
-                                                                )}
-                                                                {article.status === 'filtered_out' && (
-                                                                    <span className="px-2 py-0.5 bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300 rounded text-xs font-medium">
-                                                                        Filtered Out
-                                                                    </span>
-                                                                )}
-                                                                {article.status === 'included' && (
-                                                                    <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 rounded text-xs font-medium">
-                                                                        Included
-                                                                    </span>
-                                                                )}
-                                                                {article.status === 'not_included' && (
-                                                                    <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 rounded text-xs font-medium">
-                                                                        Found but Not Included
-                                                                    </span>
-                                                                )}
                                                             </div>
                                                             {article.article_title && (
-                                                                <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                                                                <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
                                                                     {article.article_title}
                                                                 </p>
                                                             )}
                                                             {article.retrieval_unit_id && (
-                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                                                                     Retrieved by: {article.retrieval_unit_id}
                                                                 </p>
                                                             )}
                                                             {article.filter_rejection_reason && (
-                                                                <p className="text-xs text-orange-600 dark:text-orange-400 italic mt-1">
-                                                                    {article.filter_rejection_reason}
+                                                                <p className="text-xs text-orange-600 dark:text-orange-400 italic">
+                                                                    Rejection: {article.filter_rejection_reason}
                                                                 </p>
                                                             )}
                                                         </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
+                                                    ))}
+                                                {comparisonResult.supplied_articles.filter((a: any) => a.status === 'filtered_out').length === 0 && (
+                                                    <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+                                                        No supplied articles were filtered out.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
 
-                                    {/* Report Only Articles */}
-                                    {comparisonResult.report_only_articles.length > 0 && (
-                                        <div>
-                                            <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
-                                                Articles in Report Not in Supplied List ({comparisonResult.report_only_articles.length})
-                                            </h4>
-                                            <div className="space-y-2 max-h-96 overflow-y-auto">
-                                                {comparisonResult.report_only_articles.map((article: any, idx: number) => (
-                                                    <div key={idx} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-                                                        <div className="flex items-start gap-3">
-                                                            <div className="flex-1 min-w-0">
+                                        {comparisonSubTab === 'included' && (
+                                            <div className="space-y-2">
+                                                {comparisonResult.supplied_articles
+                                                    .filter((article: any) => article.status === 'included')
+                                                    .map((article: any, idx: number) => (
+                                                        <div key={idx} className="bg-white dark:bg-gray-800 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                                                            <div className="flex items-center gap-2 mb-1">
                                                                 <code className="text-sm font-mono text-gray-700 dark:text-gray-300">
                                                                     PMID: {article.pmid}
                                                                 </code>
-                                                                <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
-                                                                    {article.title}
+                                                            </div>
+                                                            {article.article_title && (
+                                                                <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                                                                    {article.article_title}
                                                                 </p>
-                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                            )}
+                                                            {article.retrieval_unit_id && (
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400">
                                                                     Retrieved by: {article.retrieval_unit_id}
                                                                 </p>
-                                                            </div>
+                                                            )}
                                                         </div>
+                                                    ))}
+                                                {comparisonResult.supplied_articles.filter((a: any) => a.status === 'included').length === 0 && (
+                                                    <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+                                                        None of the supplied articles were included in the report.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {comparisonSubTab === 'report_only' && (
+                                            <div className="space-y-2">
+                                                {comparisonResult.report_only_articles.map((article: any, idx: number) => (
+                                                    <div key={idx} className="bg-white dark:bg-gray-800 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+                                                        <code className="text-sm font-mono text-gray-700 dark:text-gray-300">
+                                                            PMID: {article.pmid}
+                                                        </code>
+                                                        <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                                                            {article.title}
+                                                        </p>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                            Retrieved by: {article.retrieval_unit_id}
+                                                        </p>
                                                     </div>
                                                 ))}
+                                                {comparisonResult.report_only_articles.length === 0 && (
+                                                    <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+                                                        All articles in the report were in the supplied list.
+                                                    </p>
+                                                )}
                                             </div>
-                                        </div>
-                                    )}
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>
