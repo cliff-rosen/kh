@@ -25,7 +25,6 @@ export interface Report {
     research_stream_id: number | null;
     report_name: string;  // Human-readable report name (defaults to YYYY.MM.DD)
     report_date: string;
-    executive_summary?: string | null;  // Generated separately by LLM
     key_highlights: string[];
     thematic_analysis?: string | null;  // Generated separately by LLM
     coverage_stats: Record<string, any>;
@@ -35,7 +34,9 @@ export interface Report {
     article_count?: number;
     // Pipeline execution metadata
     run_type?: string | null;  // 'test', 'scheduled', or 'manual'
-    pipeline_metrics?: Record<string, any>;
+    retrieval_params?: Record<string, any>;  // Input parameters: start_date, end_date, etc.
+    enrichments?: Record<string, any>;  // LLM-generated content: executive_summary, category_summaries
+    pipeline_metrics?: Record<string, any>;  // Execution metadata: counts, timing, etc.
     pipeline_execution_id?: string | null;  // UUID linking to WIP data
 }
 

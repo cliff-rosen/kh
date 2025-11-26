@@ -331,7 +331,7 @@ export default function ReportsPage() {
                                                 </div>
                                             </div>
                                             <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                                                {report.executive_summary || 'Pipeline report - view for details'}
+                                                {report.enrichments?.executive_summary || 'Pipeline report - view for details'}
                                             </p>
                                         </div>
                                     ))}
@@ -412,14 +412,14 @@ export default function ReportsPage() {
                                 {/* Report Content */}
                                 <div className="p-6 space-y-6">
                                     {/* Executive Summary */}
-                                    {selectedReport.executive_summary && (
+                                    {selectedReport.enrichments?.executive_summary && (
                                         <div>
                                             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
                                                 Executive Summary
                                             </h3>
                                             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                                                 <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                                                    {selectedReport.executive_summary}
+                                                    {selectedReport.enrichments.executive_summary}
                                                 </p>
                                             </div>
                                         </div>
@@ -516,14 +516,14 @@ export default function ReportsPage() {
                                                                     {!isCollapsed && (
                                                                         <div className="bg-white dark:bg-gray-900">
                                                                             {/* Category Summary */}
-                                                                            {selectedReport.pipeline_metrics?.category_summaries?.[categoryId] && (
+                                                                            {selectedReport.enrichments?.category_summaries?.[categoryId] && (
                                                                                 <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                                                                                     <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                                                                                         Category Summary
                                                                                     </h5>
                                                                                     <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
                                                                                         <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
-                                                                                            {selectedReport.pipeline_metrics.category_summaries[categoryId]}
+                                                                                            {selectedReport.enrichments.category_summaries[categoryId]}
                                                                                         </p>
                                                                                     </div>
                                                                                 </div>

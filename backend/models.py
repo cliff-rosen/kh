@@ -192,7 +192,6 @@ class Report(Base):
     research_stream_id = Column(Integer, ForeignKey("research_streams.stream_id"))
     report_name = Column(String, nullable=False)  # Human-readable report name (defaults to YYYY.MM.DD)
     report_date = Column(Date, nullable=False)
-    executive_summary = Column(Text)
     key_highlights = Column(JSON, default=list)  # List of key points
     thematic_analysis = Column(Text)  # Analysis of themes
     coverage_stats = Column(JSON, default=dict)  # Statistics about coverage
@@ -202,7 +201,9 @@ class Report(Base):
 
     # Pipeline execution metadata
     run_type = Column(Enum(RunType, values_callable=lambda x: [e.value for e in x], name='runtype'), default=RunType.SCHEDULED, nullable=False)
-    pipeline_metrics = Column(JSON, default=dict)  # Metrics from pipeline execution
+    retrieval_params = Column(JSON, default=dict)  # Input parameters: start_date, end_date, etc.
+    enrichments = Column(JSON, default=dict)  # LLM-generated content: executive_summary, category_summaries
+    pipeline_metrics = Column(JSON, default=dict)  # Execution metadata: counts, timing, etc.
     pipeline_execution_id = Column(String(36), index=True)  # UUID linking to WIP data
 
     # Relationships

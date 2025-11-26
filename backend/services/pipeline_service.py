@@ -324,7 +324,9 @@ class PipelineService:
                     "filter_stats": filter_stats,
                     "global_duplicates": global_dupes,
                     "categorized": categorized_count
-                }
+                },
+                start_date=start_date,
+                end_date=end_date
             )
 
             yield PipelineStatus(
@@ -794,7 +796,9 @@ class PipelineService:
         run_type: RunType,
         executive_summary: str,
         category_summaries: Dict[str, str],
-        metrics: Dict
+        metrics: Dict,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> Report:
         """
         Generate a report from the pipeline results.
@@ -808,13 +812,22 @@ class PipelineService:
             executive_summary: Overall executive summary
             category_summaries: Dict mapping category_id to summary text
             metrics: Pipeline execution metrics
+            start_date: Start date for retrieval (YYYY/MM/DD format)
+            end_date: End date for retrieval (YYYY/MM/DD format)
 
         Returns:
             The created Report object
         """
-        # Add category summaries to metrics
-        enriched_metrics = {
-            **metrics,
+        # Build retrieval_params
+        retrieval_params = {}
+        if start_date:
+            retrieval_params["start_date"] = start_date
+        if end_date:
+            retrieval_params["end_date"] = end_date
+
+        # Build enrichments (LLM-generated content)
+        enrichments = {
+            "executive_summary": executive_summary,
             "category_summaries": category_summaries
         }
 
@@ -828,8 +841,9 @@ class PipelineService:
             report_name=report_name,
             report_date=report_date,
             run_type=run_type,
-            executive_summary=executive_summary,
-            pipeline_metrics=enriched_metrics,
+            retrieval_params=retrieval_params,
+            enrichments=enrichments,
+            pipeline_metrics=metrics,
             pipeline_execution_id=execution_id,  # Link to this execution's WIP data
             is_read=False
         )

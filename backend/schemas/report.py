@@ -36,7 +36,6 @@ class Report(BaseModel):
     research_stream_id: Optional[int] = None
     report_name: str  # Human-readable report name (defaults to YYYY.MM.DD)
     report_date: date
-    executive_summary: Optional[str] = None  # Generated separately by LLM
     key_highlights: List[str] = []
     thematic_analysis: Optional[str] = None  # Generated separately by LLM
     coverage_stats: Dict[str, Any] = {}
@@ -46,7 +45,9 @@ class Report(BaseModel):
     article_count: Optional[int] = None
     # Pipeline execution metadata
     run_type: Optional[str] = None  # 'test', 'scheduled', or 'manual'
-    pipeline_metrics: Dict[str, Any] = {}
+    retrieval_params: Dict[str, Any] = {}  # Input parameters: start_date, end_date, etc.
+    enrichments: Dict[str, Any] = {}  # LLM-generated content: executive_summary, category_summaries
+    pipeline_metrics: Dict[str, Any] = {}  # Execution metadata: counts, timing, etc.
 
     class Config:
         from_attributes = True
