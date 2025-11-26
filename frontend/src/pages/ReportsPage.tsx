@@ -551,10 +551,26 @@ export default function ReportsPage() {
                                                                     </button>
                                                                     {/* Category Articles - Collapsible */}
                                                                     {!isCollapsed && (
-                                                                        <div className="p-4 space-y-3 bg-white dark:bg-gray-900">
-                                                                            {data.articles.map((article) => (
-                                                                                <ArticleCard key={article.article_id} article={article} showAbstract={true} />
-                                                                            ))}
+                                                                        <div className="bg-white dark:bg-gray-900">
+                                                                            {/* Category Summary */}
+                                                                            {selectedReport.pipeline_metrics?.category_summaries?.[categoryId] && (
+                                                                                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                                                                                    <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                                                                        Category Summary
+                                                                                    </h5>
+                                                                                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                                                                                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                                                                                            {selectedReport.pipeline_metrics.category_summaries[categoryId]}
+                                                                                        </p>
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
+                                                                            {/* Articles */}
+                                                                            <div className="p-4 space-y-3">
+                                                                                {data.articles.map((article) => (
+                                                                                    <ArticleCard key={article.article_id} article={article} showAbstract={true} />
+                                                                                ))}
+                                                                            </div>
                                                                         </div>
                                                                     )}
                                                                 </div>
