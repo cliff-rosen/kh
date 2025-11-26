@@ -7,16 +7,24 @@ This service generates:
 """
 
 from typing import List, Dict, Tuple
-from anthropic import Anthropic
-import os
+from openai import AsyncOpenAI
+import httpx
 
 
 class ReportSummaryService:
     """Service for generating report summaries using LLM"""
 
     def __init__(self):
-        self.client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-        self.model = "claude-3-5-sonnet-20241022"
+        # Create httpx client with higher connection limits
+        http_client = httpx.AsyncClient(
+            limits=httpx.Limits(
+                max_connections=100,
+                max_keepalive_connections=20,
+            ),
+            timeout=httpx.Timeout(120.0)  # 2 minute timeout for summaries
+        )
+        self.client = AsyncOpenAI(http_client=http_client)
+        self.model = "gpt-5-mini"  # Use gpt-5-mini for cost-effective summarization
 
     async def generate_executive_summary(
         self,
@@ -83,15 +91,17 @@ class ReportSummaryService:
 
         Generate a comprehensive executive summary that synthesizes the key findings and themes across all articles."""
 
-        message = self.client.messages.create(
+        response = await self.client.chat.completions.create(
             model=self.model,
             max_tokens=2000,
             temperature=0.3,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}]
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
         )
 
-        return message.content[0].text
+        return response.choices[0].message.content
 
     async def generate_category_summary(
         self,
@@ -152,15 +162,17 @@ class ReportSummaryService:
 
         Generate a focused summary that captures the key insights from articles in this category."""
 
-        message = self.client.messages.create(
+        response = await self.client.chat.completions.create(
             model=self.model,
             max_tokens=1500,
             temperature=0.3,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}]
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
         )
 
-        return message.content[0].text
+        return response.choices[0].message.content
 
     def _format_articles_for_prompt(self, articles: List[Dict]) -> str:
         """Format articles for inclusion in LLM prompt"""
