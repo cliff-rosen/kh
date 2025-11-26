@@ -7,7 +7,8 @@ This service coordinates:
 3. Semantic Filtering: Apply AI-powered relevance filters per unit
 4. Deduplication (global): Find duplicates across all filtered results
 5. Categorization: Assign articles to presentation categories using LLM
-6. Report Generation: Save results to reports and report_article_associations tables
+6. Summary Generation: Generate executive summary and per-category summaries using LLM
+7. Report Generation: Save results to reports and report_article_associations tables
 
 All intermediate results are stored in wip_articles table for audit trail and debugging.
 
@@ -33,6 +34,7 @@ from services.pubmed_service import PubMedService
 from services.semantic_filter_service import SemanticFilterService
 from services.article_categorization_service import ArticleCategorizationService
 from services.research_stream_service import ResearchStreamService
+from services.report_summary_service import ReportSummaryService
 
 
 class PipelineStatus:
@@ -65,6 +67,7 @@ class PipelineService:
         self.pubmed_service = PubMedService()
         self.filter_service = SemanticFilterService()
         self.categorization_service = ArticleCategorizationService()
+        self.summary_service = ReportSummaryService()
 
     async def run_pipeline(
         self,
@@ -85,7 +88,8 @@ class PipelineService:
         5. Apply semantic filters per unit
         6. Deduplicate globally
         7. Categorize articles
-        8. Generate report
+        8. Generate executive summaries (overall + per category)
+        9. Generate report
 
         Args:
             research_stream_id: ID of the research stream to execute
@@ -389,7 +393,23 @@ class PipelineService:
                 {"categorized": categorized_count}
             )
 
-            # === STAGE 8: Generate Report ===
+            # === STAGE 8: Generate Summaries ===
+            yield PipelineStatus("summary", "Generating executive summaries...")
+
+            executive_summary, category_summaries = await self._generate_summaries(
+                research_stream_id=research_stream_id,
+                execution_id=execution_id,
+                stream=stream,
+                presentation_config=presentation_config
+            )
+
+            yield PipelineStatus(
+                "summary",
+                f"Generated executive summary and {len(category_summaries)} category summaries",
+                {"categories": len(category_summaries)}
+            )
+
+            # === STAGE 9: Generate Report ===
             yield PipelineStatus("report", "Generating report...")
 
             report = await self._generate_report(
@@ -397,6 +417,8 @@ class PipelineService:
                 execution_id=execution_id,
                 stream=stream,
                 run_type=run_type,
+                executive_summary=executive_summary,
+                category_summaries=category_summaries,
                 metrics={
                     "total_retrieved": total_retrieved,
                     "unit_dedup_stats": unit_dedup_stats,
@@ -799,12 +821,80 @@ class PipelineService:
             categories=categories
         )
 
+    async def _generate_summaries(
+        self,
+        research_stream_id: int,
+        execution_id: str,
+        stream: ResearchStream,
+        presentation_config: PresentationConfig
+    ) -> Tuple[str, Dict[str, str]]:
+        """
+        Generate executive summary and per-category summaries.
+
+        Args:
+            research_stream_id: Stream ID
+            execution_id: UUID of pipeline execution
+            stream: ResearchStream object
+            presentation_config: Presentation configuration
+
+        Returns:
+            Tuple of (executive_summary, category_summaries_dict)
+        """
+        # Get all articles to include in report (unique, passed filters, included)
+        wip_articles = self.db.query(WipArticle).filter(
+            and_(
+                WipArticle.pipeline_execution_id == execution_id,
+                WipArticle.included_in_report == True
+            )
+        ).all()
+
+        if not wip_articles:
+            return "No articles in this report.", {}
+
+        # Generate category summaries
+        category_summaries = {}
+        for category in presentation_config.categories:
+            # Get articles in this category
+            category_articles = [
+                article for article in wip_articles
+                if category.id in article.presentation_categories
+            ]
+
+            if not category_articles:
+                category_summaries[category.id] = "No articles in this category."
+                continue
+
+            # Build category description
+            category_description = f"{category.name}. "
+            if category.specific_inclusions:
+                category_description += "Includes: " + ", ".join(category.specific_inclusions)
+
+            # Generate summary for this category
+            summary = await self.summary_service.generate_category_summary(
+                category_name=category.name,
+                category_description=category_description,
+                wip_articles=category_articles,
+                stream_purpose=stream.purpose
+            )
+            category_summaries[category.id] = summary
+
+        # Generate executive summary using category summaries
+        executive_summary = await self.summary_service.generate_executive_summary(
+            wip_articles=wip_articles,
+            stream_purpose=stream.purpose,
+            category_summaries=category_summaries
+        )
+
+        return executive_summary, category_summaries
+
     async def _generate_report(
         self,
         research_stream_id: int,
         execution_id: str,
         stream: ResearchStream,
         run_type: RunType,
+        executive_summary: str,
+        category_summaries: Dict[str, str],
         metrics: Dict
     ) -> Report:
         """
@@ -816,18 +906,27 @@ class PipelineService:
             execution_id: UUID of pipeline execution (links to wip_articles)
             stream: ResearchStream object
             run_type: Type of run
+            executive_summary: Overall executive summary
+            category_summaries: Dict mapping category_id to summary text
             metrics: Pipeline execution metrics
 
         Returns:
             The created Report object
         """
+        # Add category summaries to metrics
+        enriched_metrics = {
+            **metrics,
+            "category_summaries": category_summaries
+        }
+
         # Create report
         report = Report(
             user_id=stream.user_id,
             research_stream_id=research_stream_id,
             report_date=date.today(),
             run_type=run_type,
-            pipeline_metrics=metrics,
+            executive_summary=executive_summary,
+            pipeline_metrics=enriched_metrics,
             pipeline_execution_id=execution_id,  # Link to this execution's WIP data
             is_read=False
         )
