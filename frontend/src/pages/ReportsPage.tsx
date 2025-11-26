@@ -31,6 +31,25 @@ export default function ReportsPage() {
     const hasStreams = researchStreams.length > 0;
     const isTestReport = selectedReport?.run_type?.toLowerCase() === 'test';
 
+    // Helper function to generate report display name
+    const getReportDisplayName = (report: Report) => {
+        const date = new Date(report.report_date).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+
+        const runType = report.run_type?.toLowerCase();
+        if (runType === 'test') {
+            return `Test Run - ${date}`;
+        } else if (runType === 'manual') {
+            return `Manual Report - ${date}`;
+        } else {
+            // scheduled or default
+            return `Weekly Report - ${date}`;
+        }
+    };
+
     const toggleCategory = (categoryId: string) => {
         setCollapsedCategories(prev => {
             const newSet = new Set(prev);
@@ -304,11 +323,7 @@ export default function ReportsPage() {
                                             <div className="flex items-start justify-between mb-2">
                                                 <div>
                                                     <h3 className="font-semibold text-gray-900 dark:text-white">
-                                                        {new Date(report.report_date).toLocaleDateString('en-US', {
-                                                            month: 'short',
-                                                            day: 'numeric',
-                                                            year: 'numeric'
-                                                        })}
+                                                        {getReportDisplayName(report)}
                                                     </h3>
                                                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                                         {report.article_count || 0} articles
@@ -318,13 +333,6 @@ export default function ReportsPage() {
                                             <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
                                                 {report.executive_summary || 'Pipeline report - view for details'}
                                             </p>
-                                            {report.run_type && (
-                                                <div className="mt-2">
-                                                    <span className="inline-block px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 uppercase">
-                                                        {report.run_type}
-                                                    </span>
-                                                </div>
-                                            )}
                                         </div>
                                     ))}
                                 </div>
@@ -344,7 +352,7 @@ export default function ReportsPage() {
                                 {/* Report Header */}
                                 <div className="p-6 border-b border-gray-200 dark:border-gray-700">
                                     <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                                        Report - {new Date(selectedReport.report_date).toLocaleDateString()}
+                                        {getReportDisplayName(selectedReport)}
                                     </h2>
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">

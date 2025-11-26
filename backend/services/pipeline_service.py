@@ -920,10 +920,14 @@ class PipelineService:
         }
 
         # Create report
+        report_date = date.today()
+        report_name = report_date.strftime("%Y.%m.%d")  # Default format: YYYY.MM.DD
+
         report = Report(
             user_id=stream.user_id,
             research_stream_id=research_stream_id,
-            report_date=date.today(),
+            report_name=report_name,
+            report_date=report_date,
             run_type=run_type,
             executive_summary=executive_summary,
             pipeline_metrics=enriched_metrics,

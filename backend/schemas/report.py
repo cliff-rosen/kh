@@ -34,6 +34,7 @@ class Report(BaseModel):
     report_id: int
     user_id: int
     research_stream_id: Optional[int] = None
+    report_name: str  # Human-readable report name (defaults to YYYY.MM.DD)
     report_date: date
     executive_summary: Optional[str] = None  # Generated separately by LLM
     key_highlights: List[str] = []

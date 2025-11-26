@@ -23,6 +23,7 @@ export interface Report {
     report_id: number;
     user_id: number;
     research_stream_id: number | null;
+    report_name: string;  // Human-readable report name (defaults to YYYY.MM.DD)
     report_date: string;
     executive_summary?: string | null;  // Generated separately by LLM
     key_highlights: string[];

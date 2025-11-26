@@ -190,6 +190,7 @@ class Report(Base):
     report_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
     research_stream_id = Column(Integer, ForeignKey("research_streams.stream_id"))
+    report_name = Column(String, nullable=False)  # Human-readable report name (defaults to YYYY.MM.DD)
     report_date = Column(Date, nullable=False)
     executive_summary = Column(Text)
     key_highlights = Column(JSON, default=list)  # List of key points
@@ -284,25 +285,6 @@ class UserFeedback(Base):
     )
 
 
-class OnboardingSession(Base):
-    """Onboarding conversation sessions"""
-    __tablename__ = "onboarding_sessions"
-
-    session_id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
-    conversation_history = Column(JSON, default=list)  # List of messages
-    extracted_data = Column(JSON, default=dict)  # Extracted profile data
-    research_data = Column(JSON, default=dict)  # Company research data
-    completed_steps = Column(JSON, default=list)  # List of completed steps
-    is_complete = Column(Boolean, default=False)
-    completed_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Relationships
-    user = relationship("User", back_populates="onboarding_sessions")
-
-
 class WipArticle(Base):
     """Work-in-progress articles for pipeline test execution and audit trail"""
     __tablename__ = "wip_articles"
@@ -357,4 +339,3 @@ User.research_streams = relationship("ResearchStream", back_populates="user")
 User.reports = relationship("Report", back_populates="user")
 User.report_schedule = relationship("ReportSchedule", back_populates="user", uselist=False)
 User.feedback = relationship("UserFeedback", back_populates="user")
-User.onboarding_sessions = relationship("OnboardingSession", back_populates="user")
