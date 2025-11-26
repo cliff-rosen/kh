@@ -24,7 +24,7 @@ class ReportSummaryService:
             timeout=httpx.Timeout(120.0)  # 2 minute timeout for summaries
         )
         self.client = AsyncOpenAI(http_client=http_client)
-        self.model = "gpt-5-mini"  # Use gpt-5-mini for cost-effective summarization
+        self.model = "gpt-4.1"  # Use gpt-4.1 which supports temperature for summarization
 
     async def generate_executive_summary(
         self,
