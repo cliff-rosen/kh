@@ -321,18 +321,20 @@ export default function ReportsPage() {
                                                 }`}
                                         >
                                             <div className="flex items-start justify-between mb-2">
-                                                <div>
+                                                <div className="w-full">
                                                     <h3 className="font-semibold text-gray-900 dark:text-white">
                                                         {getReportDisplayName(report)}
                                                     </h3>
                                                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                                         {report.article_count || 0} articles
                                                     </p>
+                                                    {report.retrieval_params?.start_date && report.retrieval_params?.end_date && (
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                            {new Date(report.retrieval_params.start_date).toLocaleDateString()} - {new Date(report.retrieval_params.end_date).toLocaleDateString()}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
-                                            <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                                                {report.enrichments?.executive_summary || 'Pipeline report - view for details'}
-                                            </p>
                                         </div>
                                     ))}
                                 </div>
@@ -360,6 +362,11 @@ export default function ReportsPage() {
                                             <CalendarIcon className="h-4 w-4" />
                                             Generated {new Date(selectedReport.created_at).toLocaleDateString()}
                                         </span>
+                                        {selectedReport.retrieval_params?.start_date && selectedReport.retrieval_params?.end_date && (
+                                            <span>
+                                                Date Range: {new Date(selectedReport.retrieval_params.start_date).toLocaleDateString()} - {new Date(selectedReport.retrieval_params.end_date).toLocaleDateString()}
+                                            </span>
+                                        )}
                                         <span>{selectedReport.articles?.length || 0} articles</span>
                                         {selectedReport.key_highlights?.length > 0 && (
                                             <span>{selectedReport.key_highlights.length} key insights</span>
