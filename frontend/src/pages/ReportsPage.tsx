@@ -31,25 +31,6 @@ export default function ReportsPage() {
     const hasStreams = researchStreams.length > 0;
     const isTestReport = selectedReport?.run_type?.toLowerCase() === 'test';
 
-    // Helper function to generate report display name
-    const getReportDisplayName = (report: Report) => {
-        const date = new Date(report.report_date).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-        });
-
-        const runType = report.run_type?.toLowerCase();
-        if (runType === 'test') {
-            return `Test Run - ${date}`;
-        } else if (runType === 'manual') {
-            return `Manual Report - ${date}`;
-        } else {
-            // scheduled or default
-            return `Weekly Report - ${date}`;
-        }
-    };
-
     const toggleCategory = (categoryId: string) => {
         setCollapsedCategories(prev => {
             const newSet = new Set(prev);
@@ -323,7 +304,7 @@ export default function ReportsPage() {
                                             <div className="flex items-start justify-between mb-2">
                                                 <div className="w-full">
                                                     <h3 className="font-semibold text-gray-900 dark:text-white">
-                                                        {getReportDisplayName(report)}
+                                                        {report.report_name}
                                                     </h3>
                                                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                                         {report.article_count || 0} articles
@@ -354,7 +335,7 @@ export default function ReportsPage() {
                                 {/* Report Header */}
                                 <div className="p-6 border-b border-gray-200 dark:border-gray-700">
                                     <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                                        {getReportDisplayName(selectedReport)}
+                                        {selectedReport.report_name}
                                     </h2>
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
@@ -379,39 +360,44 @@ export default function ReportsPage() {
                                         </div>
 
                                         {/* View Selector and Analytics Button */}
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-4 items-center">
+                                            {/* Article View Buttons */}
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setReportView('all')}
+                                                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                                                        reportView === 'all'
+                                                            ? 'bg-blue-600 text-white'
+                                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                                    }`}
+                                                >
+                                                    <ListBulletIcon className="h-4 w-4" />
+                                                    All Articles
+                                                </button>
+                                                <button
+                                                    onClick={() => setReportView('by-category')}
+                                                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                                                        reportView === 'by-category'
+                                                            ? 'bg-blue-600 text-white'
+                                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                                    }`}
+                                                >
+                                                    <Squares2X2Icon className="h-4 w-4" />
+                                                    By Category
+                                                </button>
+                                            </div>
+
+                                            {/* Pipeline Analytics Button (Test Reports Only) */}
                                             {isTestReport && (
                                                 <button
                                                     onClick={() => setShowAnalytics(true)}
-                                                    className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors bg-purple-600 hover:bg-purple-700 text-white"
+                                                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-purple-600 hover:bg-purple-700 text-white"
                                                     title="View pipeline analytics and detailed metrics"
                                                 >
-                                                    <ChartBarIcon className="h-4 w-4" />
-                                                    Pipeline Analytics
+                                                    <ChartBarIcon className="h-3.5 w-3.5" />
+                                                    Analytics
                                                 </button>
                                             )}
-                                            <button
-                                                onClick={() => setReportView('all')}
-                                                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                                                    reportView === 'all'
-                                                        ? 'bg-blue-600 text-white'
-                                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                                }`}
-                                            >
-                                                <ListBulletIcon className="h-4 w-4" />
-                                                All Articles
-                                            </button>
-                                            <button
-                                                onClick={() => setReportView('by-category')}
-                                                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                                                    reportView === 'by-category'
-                                                        ? 'bg-blue-600 text-white'
-                                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                                }`}
-                                            >
-                                                <Squares2X2Icon className="h-4 w-4" />
-                                                By Category
-                                            </button>
                                         </div>
                                     </div>
                                 </div>
