@@ -411,51 +411,6 @@ export default function ReportsPage() {
 
                                 {/* Report Content */}
                                 <div className="p-6 space-y-6">
-                                    {/* Pipeline Metrics */}
-                                    {selectedReport.pipeline_metrics && Object.keys(selectedReport.pipeline_metrics).length > 0 && (
-                                        <div>
-                                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                                Pipeline Metrics
-                                            </h3>
-                                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                                    {selectedReport.pipeline_metrics.total_retrieved && (
-                                                        <div>
-                                                            <p className="text-xs text-gray-500 dark:text-gray-400">Retrieved</p>
-                                                            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                                                                {selectedReport.pipeline_metrics.total_retrieved}
-                                                            </p>
-                                                        </div>
-                                                    )}
-                                                    {selectedReport.pipeline_metrics.duplicates_found !== undefined && (
-                                                        <div>
-                                                            <p className="text-xs text-gray-500 dark:text-gray-400">Duplicates</p>
-                                                            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                                                                {selectedReport.pipeline_metrics.duplicates_found}
-                                                            </p>
-                                                        </div>
-                                                    )}
-                                                    {selectedReport.pipeline_metrics.filtered_out !== undefined && (
-                                                        <div>
-                                                            <p className="text-xs text-gray-500 dark:text-gray-400">Filtered Out</p>
-                                                            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                                                                {selectedReport.pipeline_metrics.filtered_out}
-                                                            </p>
-                                                        </div>
-                                                    )}
-                                                    {selectedReport.pipeline_metrics.articles_included !== undefined && (
-                                                        <div>
-                                                            <p className="text-xs text-gray-500 dark:text-gray-400">Included</p>
-                                                            <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                                                                {selectedReport.pipeline_metrics.articles_included}
-                                                            </p>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-
                                     {/* Executive Summary */}
                                     {selectedReport.executive_summary && (
                                         <div>

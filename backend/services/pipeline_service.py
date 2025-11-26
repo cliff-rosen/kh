@@ -2,9 +2,9 @@
 Pipeline Service - Orchestrates end-to-end test execution of research streams
 
 This service coordinates:
-1. Retrieval: Execute queries for each retrieval unit (concept or broad query) from configured sources
-2. Deduplication (unit-level): Find duplicates within each retrieval unit
-3. Semantic Filtering: Apply AI-powered relevance filters per unit
+1. Retrieval: Execute broad search queries from PubMed
+2. Deduplication (query-level): Find duplicates within each query
+3. Semantic Filtering: Apply AI-powered relevance filters per query
 4. Deduplication (global): Find duplicates across all filtered results
 5. Categorization: Assign articles to presentation categories using LLM
 6. Summary Generation: Generate executive summary and per-category summaries using LLM
@@ -12,9 +12,9 @@ This service coordinates:
 
 All intermediate results are stored in wip_articles table for audit trail and debugging.
 
-Supports two retrieval strategies:
-- Concept-based: Multiple narrow, specific entity-relationship patterns
+Retrieval Strategy:
 - Broad Search: 1-3 simple, wide-net queries optimized for weekly monitoring
+- Note: Concept-based retrieval is not supported
 """
 
 from typing import AsyncGenerator, Dict, List, Optional, Tuple
@@ -28,7 +28,6 @@ from models import (
     ResearchStream, Report, ReportArticleAssociation, Article,
     WipArticle, InformationSource, RunType
 )
-from schemas.semantic_space import SemanticSpace
 from schemas.research_stream import RetrievalConfig, PresentationConfig
 from services.pubmed_service import PubMedService
 from services.semantic_filter_service import SemanticFilterService
@@ -81,11 +80,11 @@ class PipelineService:
         Execute the full pipeline for a research stream and yield status updates.
 
         Pipeline stages:
-        1. Load configuration and determine retrieval strategy
-        2. Clear previous WIP data
-        3. Execute retrieval for each unit (concept or broad query)
-        4. Deduplicate within units
-        5. Apply semantic filters per unit
+        1. Load configuration and validate broad search strategy
+        2. Generate execution ID for tracking
+        3. Execute retrieval for each broad search query
+        4. Deduplicate within queries
+        5. Apply semantic filters per query
         6. Deduplicate globally
         7. Categorize articles
         8. Generate executive summaries (overall + per category)
@@ -100,6 +99,9 @@ class PipelineService:
 
         Yields:
             PipelineStatus: Status updates at each stage
+
+        Raises:
+            ValueError: If the research stream uses concept-based retrieval (not supported)
         """
         try:
             # === STAGE 1: Load Configuration ===
@@ -113,29 +115,30 @@ class PipelineService:
             )
 
             # All configs are already parsed Pydantic objects
-            semantic_space = stream.semantic_space
             retrieval_config = stream.retrieval_config
             presentation_config = stream.presentation_config
 
-            # Determine retrieval strategy
-            retrieval_strategy = None
-            retrieval_unit_count = 0
+            # Check for unsupported concept-based retrieval strategy
             if retrieval_config.concepts and len(retrieval_config.concepts) > 0:
-                retrieval_strategy = "concepts"
-                retrieval_unit_count = len(retrieval_config.concepts)
-            elif retrieval_config.broad_search and retrieval_config.broad_search.queries:
-                retrieval_strategy = "broad_search"
-                retrieval_unit_count = len(retrieval_config.broad_search.queries)
-            else:
-                raise ValueError("No retrieval configuration found (concepts or broad_search)")
+                raise ValueError(
+                    "Concept-based retrieval is not supported. "
+                    "Please use broad search retrieval strategy instead."
+                )
+
+            # Validate broad search configuration exists
+            if not retrieval_config.broad_search or not retrieval_config.broad_search.queries:
+                raise ValueError("No broad search queries configured for this research stream")
+
+            queries = retrieval_config.broad_search.queries
+            query_count = len(queries)
 
             yield PipelineStatus(
                 "init",
                 "Configuration loaded",
                 {
                     "stream_name": stream.stream_name,
-                    "retrieval_strategy": retrieval_strategy,
-                    "num_retrieval_units": retrieval_unit_count,
+                    "retrieval_strategy": "broad_search",
+                    "num_queries": query_count,
                     "num_categories": len(presentation_config.categories)
                 }
             )
@@ -155,114 +158,56 @@ class PipelineService:
             yield PipelineStatus("cleanup", "Ready to begin retrieval (keeping historical WIP data)")
 
             # === STAGE 3: Execute Retrieval ===
+            # Using broad search retrieval strategy
             total_retrieved = 0
 
-            if retrieval_strategy == "concepts":
-                # === CONCEPT-BASED RETRIEVAL ===
-                for concept in retrieval_config.concepts:
+            for broad_query in queries:
+                yield PipelineStatus(
+                    "retrieval",
+                    f"Starting retrieval for broad query: {broad_query.search_terms}",
+                    {"query_id": broad_query.query_id, "search_terms": broad_query.search_terms}
+                )
+
+                # Check if we've hit limits
+                if total_retrieved >= self.MAX_TOTAL_ARTICLES:
                     yield PipelineStatus(
                         "retrieval",
-                        f"Starting retrieval for concept: {concept.name}",
-                        {"concept_id": concept.concept_id, "concept_name": concept.name}
+                        f"Hit MAX_TOTAL_ARTICLES limit ({self.MAX_TOTAL_ARTICLES}), stopping retrieval",
+                        {"limit_reached": True}
                     )
+                    break
 
-                    # Execute queries for each source in this concept
-                    for source_id, source_query in concept.source_queries.items():
-                        if not source_query or not source_query.enabled:
-                            continue
+                yield PipelineStatus(
+                    "retrieval",
+                    f"Executing broad query on PubMed",
+                    {
+                        "query_id": broad_query.query_id,
+                        "query_expression": broad_query.query_expression
+                    }
+                )
 
-                        # Check if we've hit limits
-                        if total_retrieved >= self.MAX_TOTAL_ARTICLES:
-                            yield PipelineStatus(
-                                "retrieval",
-                                f"Hit MAX_TOTAL_ARTICLES limit ({self.MAX_TOTAL_ARTICLES}), stopping retrieval",
-                                {"limit_reached": True}
-                            )
-                            break
+                # Execute retrieval on PubMed
+                articles_retrieved = await self._execute_source_query(
+                    research_stream_id=research_stream_id,
+                    execution_id=execution_id,
+                    retrieval_unit_id=broad_query.query_id,
+                    source_id="pubmed",
+                    query_expression=broad_query.query_expression,
+                    start_date=start_date,
+                    end_date=end_date
+                )
 
-                        yield PipelineStatus(
-                            "retrieval",
-                            f"Executing query for source '{source_id}' in concept '{concept.name}'",
-                            {
-                                "concept_id": concept.concept_id,
-                                "source_id": source_id,
-                                "query": source_query.query_expression
-                            }
-                        )
+                total_retrieved += articles_retrieved
 
-                        # Execute retrieval
-                        articles_retrieved = await self._execute_source_query(
-                            research_stream_id=research_stream_id,
-                            execution_id=execution_id,
-                            retrieval_unit_id=concept.concept_id,  # Store concept_id in retrieval_group_id field
-                            source_id=source_id,
-                            query_expression=source_query.query_expression,
-                            start_date=start_date,
-                            end_date=end_date
-                        )
-
-                        total_retrieved += articles_retrieved
-
-                        yield PipelineStatus(
-                            "retrieval",
-                            f"Retrieved {articles_retrieved} articles from {source_id}",
-                            {
-                                "concept_id": concept.concept_id,
-                                "source_id": source_id,
-                                "count": articles_retrieved,
-                                "total_retrieved": total_retrieved
-                            }
-                        )
-
-            elif retrieval_strategy == "broad_search":
-                # === BROAD SEARCH RETRIEVAL ===
-                for broad_query in retrieval_config.broad_search.queries:
-                    yield PipelineStatus(
-                        "retrieval",
-                        f"Starting retrieval for broad query: {broad_query.search_terms}",
-                        {"query_id": broad_query.query_id, "search_terms": broad_query.search_terms}
-                    )
-
-                    # Check if we've hit limits
-                    if total_retrieved >= self.MAX_TOTAL_ARTICLES:
-                        yield PipelineStatus(
-                            "retrieval",
-                            f"Hit MAX_TOTAL_ARTICLES limit ({self.MAX_TOTAL_ARTICLES}), stopping retrieval",
-                            {"limit_reached": True}
-                        )
-                        break
-
-                    yield PipelineStatus(
-                        "retrieval",
-                        f"Executing broad query on PubMed",
-                        {
-                            "query_id": broad_query.query_id,
-                            "query_expression": broad_query.query_expression
-                        }
-                    )
-
-                    # Execute retrieval on PubMed (broad queries use query_expression directly)
-                    articles_retrieved = await self._execute_source_query(
-                        research_stream_id=research_stream_id,
-                        execution_id=execution_id,
-                        retrieval_unit_id=broad_query.query_id,  # Store query_id in retrieval_group_id field
-                        source_id="pubmed",  # Broad queries always use PubMed for now
-                        query_expression=broad_query.query_expression,
-                        start_date=start_date,
-                        end_date=end_date
-                    )
-
-                    total_retrieved += articles_retrieved
-
-                    yield PipelineStatus(
-                        "retrieval",
-                        f"Retrieved {articles_retrieved} articles",
-                        {
-                            "query_id": broad_query.query_id,
-                            "count": articles_retrieved,
-                            "total_retrieved": total_retrieved
-                        }
-                    )
+                yield PipelineStatus(
+                    "retrieval",
+                    f"Retrieved {articles_retrieved} articles",
+                    {
+                        "query_id": broad_query.query_id,
+                        "count": articles_retrieved,
+                        "total_retrieved": total_retrieved
+                    }
+                )
 
             yield PipelineStatus(
                 "retrieval",
@@ -271,102 +216,56 @@ class PipelineService:
             )
 
             # === STAGE 4: Deduplicate Within Retrieval Units ===
-            yield PipelineStatus("dedup_group", "Deduplicating within retrieval units...")
+            yield PipelineStatus("dedup_group", "Deduplicating within queries...")
 
             unit_dedup_stats = {}
 
-            if retrieval_strategy == "concepts":
-                for concept in retrieval_config.concepts:
-                    dupes_found = await self._deduplicate_within_unit(
-                        research_stream_id=research_stream_id,
-                        execution_id=execution_id,
-                        retrieval_unit_id=concept.concept_id
-                    )
-                    unit_dedup_stats[concept.concept_id] = dupes_found
+            for broad_query in queries:
+                dupes_found = await self._deduplicate_within_unit(
+                    research_stream_id=research_stream_id,
+                    execution_id=execution_id,
+                    retrieval_unit_id=broad_query.query_id
+                )
+                unit_dedup_stats[broad_query.query_id] = dupes_found
 
-                    yield PipelineStatus(
-                        "dedup_group",
-                        f"Found {dupes_found} duplicates in concept '{concept.name}'",
-                        {"concept_id": concept.concept_id, "duplicates": dupes_found}
-                    )
-
-            elif retrieval_strategy == "broad_search":
-                for broad_query in retrieval_config.broad_search.queries:
-                    dupes_found = await self._deduplicate_within_unit(
-                        research_stream_id=research_stream_id,
-                        execution_id=execution_id,
-                        retrieval_unit_id=broad_query.query_id
-                    )
-                    unit_dedup_stats[broad_query.query_id] = dupes_found
-
-                    yield PipelineStatus(
-                        "dedup_group",
-                        f"Found {dupes_found} duplicates in broad query",
-                        {"query_id": broad_query.query_id, "duplicates": dupes_found}
-                    )
+                yield PipelineStatus(
+                    "dedup_group",
+                    f"Found {dupes_found} duplicates in query",
+                    {"query_id": broad_query.query_id, "duplicates": dupes_found}
+                )
 
             # === STAGE 5: Apply Semantic Filters ===
             yield PipelineStatus("filter", "Applying semantic filters...")
 
             filter_stats = {}
 
-            if retrieval_strategy == "concepts":
-                for concept in retrieval_config.concepts:
-                    if not concept.semantic_filter.enabled:
-                        yield PipelineStatus(
-                            "filter",
-                            f"Semantic filter disabled for concept '{concept.name}', keeping all articles",
-                            {"concept_id": concept.concept_id, "filtered": False}
-                        )
-                        continue
-
-                    passed, rejected = await self._apply_semantic_filter(
-                        research_stream_id=research_stream_id,
-                        retrieval_unit_id=concept.concept_id,
-                        filter_criteria=concept.semantic_filter.criteria,
-                        threshold=concept.semantic_filter.threshold
-                    )
-
-                    filter_stats[concept.concept_id] = {"passed": passed, "rejected": rejected}
-
+            for broad_query in queries:
+                if not broad_query.semantic_filter.enabled:
                     yield PipelineStatus(
                         "filter",
-                        f"Filtered concept '{concept.name}': {passed} passed, {rejected} rejected",
-                        {
-                            "concept_id": concept.concept_id,
-                            "passed": passed,
-                            "rejected": rejected
-                        }
+                        f"Semantic filter disabled for query, keeping all articles",
+                        {"query_id": broad_query.query_id, "filtered": False}
                     )
+                    continue
 
-            elif retrieval_strategy == "broad_search":
-                for broad_query in retrieval_config.broad_search.queries:
-                    if not broad_query.semantic_filter.enabled:
-                        yield PipelineStatus(
-                            "filter",
-                            f"Semantic filter disabled for broad query, keeping all articles",
-                            {"query_id": broad_query.query_id, "filtered": False}
-                        )
-                        continue
+                passed, rejected = await self._apply_semantic_filter(
+                    research_stream_id=research_stream_id,
+                    retrieval_unit_id=broad_query.query_id,
+                    filter_criteria=broad_query.semantic_filter.criteria,
+                    threshold=broad_query.semantic_filter.threshold
+                )
 
-                    passed, rejected = await self._apply_semantic_filter(
-                        research_stream_id=research_stream_id,
-                        retrieval_unit_id=broad_query.query_id,
-                        filter_criteria=broad_query.semantic_filter.criteria,
-                        threshold=broad_query.semantic_filter.threshold
-                    )
+                filter_stats[broad_query.query_id] = {"passed": passed, "rejected": rejected}
 
-                    filter_stats[broad_query.query_id] = {"passed": passed, "rejected": rejected}
-
-                    yield PipelineStatus(
-                        "filter",
-                        f"Filtered broad query: {passed} passed, {rejected} rejected",
-                        {
-                            "query_id": broad_query.query_id,
-                            "passed": passed,
-                            "rejected": rejected
-                        }
-                    )
+                yield PipelineStatus(
+                    "filter",
+                    f"Filtered query: {passed} passed, {rejected} rejected",
+                    {
+                        "query_id": broad_query.query_id,
+                        "passed": passed,
+                        "rejected": rejected
+                    }
+                )
 
             # === STAGE 6: Deduplicate Globally ===
             yield PipelineStatus("dedup_global", "Deduplicating across all groups...")
