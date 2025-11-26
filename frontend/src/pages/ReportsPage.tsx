@@ -27,6 +27,7 @@ export default function ReportsPage() {
     const [streamDetails, setStreamDetails] = useState<ResearchStream | null>(null);
     const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
     const [showAnalytics, setShowAnalytics] = useState(false);
+    const [executiveSummaryCollapsed, setExecutiveSummaryCollapsed] = useState(false);
 
     const hasStreams = researchStreams.length > 0;
     const isTestReport = selectedReport?.run_type?.toLowerCase() === 'test';
@@ -95,6 +96,7 @@ export default function ReportsPage() {
     const loadReportDetails = async (reportId: number) => {
         setLoadingReportDetails(true);
         setCollapsedCategories(new Set()); // Reset collapsed state when switching reports
+        setExecutiveSummaryCollapsed(false); // Reset executive summary collapsed state
         try {
             const reportDetails = await reportApi.getReportWithArticles(reportId);
             setSelectedReport(reportDetails);
@@ -406,15 +408,29 @@ export default function ReportsPage() {
                                 <div className="p-6 space-y-6">
                                     {/* Executive Summary */}
                                     {selectedReport.enrichments?.executive_summary && (
-                                        <div>
-                                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                                Executive Summary
-                                            </h3>
-                                            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                                                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                                                    {selectedReport.enrichments.executive_summary}
-                                                </p>
-                                            </div>
+                                        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                            <button
+                                                onClick={() => setExecutiveSummaryCollapsed(!executiveSummaryCollapsed)}
+                                                className="w-full bg-gray-50 dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors text-left"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    {executiveSummaryCollapsed ? (
+                                                        <ChevronRightIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                                                    ) : (
+                                                        <ChevronDownIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                                                    )}
+                                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                                        Executive Summary
+                                                    </h3>
+                                                </div>
+                                            </button>
+                                            {!executiveSummaryCollapsed && (
+                                                <div className="bg-gray-50 dark:bg-gray-700 p-4">
+                                                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                                                        {selectedReport.enrichments.executive_summary}
+                                                    </p>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
