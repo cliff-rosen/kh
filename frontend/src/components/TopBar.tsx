@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 export default function TopBar() {
     const { isDarkMode, toggleTheme } = useTheme();
     const location = useLocation();
-    const { logout, user } = useAuth();
+    const { logout } = useAuth();
 
     const getLinkClass = (path: string) => {
         const isActive = location.pathname === path;

@@ -1,17 +1,15 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { RetrievalConfig, Concept, SemanticSpace } from '../types';
+import { RetrievalConfig } from '../types';
 import { SparklesIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
 interface RetrievalConfigFormProps {
     retrievalConfig: RetrievalConfig;
-    semanticSpace: SemanticSpace;
     onChange: (updated: RetrievalConfig) => void;
 }
 
 export default function RetrievalConfigForm({
     retrievalConfig,
-    semanticSpace,
     onChange
 }: RetrievalConfigFormProps) {
     const navigate = useNavigate();
@@ -89,7 +87,7 @@ export default function RetrievalConfigForm({
                     </div>
                 ) : (
                     <div className="space-y-3">
-                        {retrievalConfig.concepts.map((concept, index) => {
+                        {retrievalConfig.concepts.map((concept) => {
                             const isExpanded = expandedConcepts.has(concept.concept_id);
 
                             return (

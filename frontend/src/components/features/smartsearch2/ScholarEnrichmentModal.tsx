@@ -12,7 +12,6 @@ import {
     X,
     ArrowLeft,
     ExternalLink,
-    List,
     Grid,
     Table
 } from 'lucide-react';

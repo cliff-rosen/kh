@@ -4,7 +4,7 @@
  * Optimized for direct search functionality without the guided workflow complexity.
  * Focuses on: source selection, query input, search execution, and results display.
  */
-import React, { createContext, useEffect, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 
 import { api } from '@/lib/api';
 import { smartSearch2Api } from '@/lib/api/smartSearch2Api';

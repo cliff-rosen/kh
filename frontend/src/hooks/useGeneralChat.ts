@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { generalChatApi } from '../lib/api/generalChatApi';
 import {
     GeneralChatMessage,

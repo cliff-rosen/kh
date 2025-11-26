@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { WrenchScrewdriverIcon } from '@heroicons/react/24/outline';
 import PubMedIdChecker from '../components/tools/PubMedIdChecker';
 
