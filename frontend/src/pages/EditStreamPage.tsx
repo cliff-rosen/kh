@@ -446,7 +446,6 @@ export default function EditStreamPage() {
 
                                 <RetrievalConfigForm
                                     retrievalConfig={form.retrieval_config}
-                                    semanticSpace={form.semantic_space}
                                     onChange={(updated) => setForm({ ...form, retrieval_config: updated })}
                                 />
                             </div>
