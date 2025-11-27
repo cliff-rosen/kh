@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import QueryRefinementWorkbench from './QueryRefinementWorkbench';
 import ExecutePipelineTab from './ExecutePipelineTab';
+import { ResearchStream } from '../types';
 
 interface TestRefineTabProps {
     streamId: number;
+    stream: ResearchStream;
 }
 
 type SubTab = 'workbench' | 'pipeline';
 
-export default function TestRefineTab({ streamId }: TestRefineTabProps) {
+export default function TestRefineTab({ streamId, stream }: TestRefineTabProps) {
     const [activeSubTab, setActiveSubTab] = useState<SubTab>('workbench');
 
     return (
@@ -45,7 +47,7 @@ export default function TestRefineTab({ streamId }: TestRefineTabProps) {
 
             {/* Sub-Tab Content */}
             <div>
-                {activeSubTab === 'workbench' && <QueryRefinementWorkbench streamId={streamId} />}
+                {activeSubTab === 'workbench' && <QueryRefinementWorkbench streamId={streamId} stream={stream} />}
                 {activeSubTab === 'pipeline' && <ExecutePipelineTab streamId={streamId} />}
             </div>
         </div>

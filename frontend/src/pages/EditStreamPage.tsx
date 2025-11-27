@@ -472,7 +472,7 @@ export default function EditStreamPage() {
 
                         {/* Layer 4: Test & Refine Tab */}
                         {activeTab === 'execute' && stream && (
-                            <TestRefineTab streamId={parseInt(id!)} />
+                            <TestRefineTab streamId={parseInt(id!)} stream={stream} />
                         )}
 
                     </form>

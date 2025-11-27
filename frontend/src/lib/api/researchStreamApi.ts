@@ -9,6 +9,17 @@ import {
 } from '../../types/stream-building';
 import { makeStreamRequest } from './streamUtils';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
+import {
+    RunQueryRequest,
+    ManualPMIDsRequest,
+    FilterArticlesRequest,
+    CategorizeArticlesRequest,
+    ComparePMIDsRequest,
+    SourceResponse,
+    FilterResponse,
+    CategorizeResponse,
+    ComparisonResult
+} from '../../types/refinement-workbench';
 
 // ============================================================================
 // Stream Building Chat API
@@ -504,6 +515,66 @@ export const researchStreamApi = {
                 }
             }
         }
+    },
+
+
+    // ========================================================================
+    // Refinement Workbench (Layer 4: Test & Refine)
+    // ========================================================================
+
+    /**
+     * Execute a broad query from a stream's retrieval config
+     */
+    async runQuery(request: RunQueryRequest): Promise<SourceResponse> {
+        const response = await api.post(
+            '/api/refinement-workbench/source/run-query',
+            request
+        );
+        return response.data;
+    },
+
+    /**
+     * Fetch articles by PMID list
+     */
+    async fetchManualPMIDs(request: ManualPMIDsRequest): Promise<SourceResponse> {
+        const response = await api.post(
+            '/api/refinement-workbench/source/manual-pmids',
+            request
+        );
+        return response.data;
+    },
+
+    /**
+     * Apply semantic filtering to articles
+     */
+    async filterArticles(request: FilterArticlesRequest): Promise<FilterResponse> {
+        const response = await api.post(
+            '/api/refinement-workbench/filter',
+            request
+        );
+        return response.data;
+    },
+
+    /**
+     * Categorize articles using stream's Layer 3 categories
+     */
+    async categorizeArticles(request: CategorizeArticlesRequest): Promise<CategorizeResponse> {
+        const response = await api.post(
+            '/api/refinement-workbench/categorize',
+            request
+        );
+        return response.data;
+    },
+
+    /**
+     * Compare retrieved vs expected PMID lists
+     */
+    async comparePMIDs(request: ComparePMIDsRequest): Promise<ComparisonResult> {
+        const response = await api.post(
+            '/api/refinement-workbench/compare',
+            request
+        );
+        return response.data;
     }
 
 };

@@ -14,9 +14,15 @@ import {
     DocumentTextIcon,
     ArrowDownIcon
 } from '@heroicons/react/24/outline';
+import { researchStreamApi } from '../lib/api/researchStreamApi';
+import { ResearchStream } from '../types';
+import {
+    ArticleResult
+} from '../types/refinement-workbench';
 
 interface QueryRefinementWorkbenchProps {
     streamId: number;
+    stream: ResearchStream;
 }
 
 type StepType = 'source' | 'filter' | 'categorize';
@@ -32,7 +38,7 @@ interface WorkflowStep {
 
 type ResultView = 'raw' | 'compare' | 'analyze';
 
-export default function QueryRefinementWorkbench({ streamId }: QueryRefinementWorkbenchProps) {
+export default function QueryRefinementWorkbench({ streamId, stream }: QueryRefinementWorkbenchProps) {
     const [steps, setSteps] = useState<WorkflowStep[]>([
         {
             id: 'step_1',
@@ -129,6 +135,8 @@ export default function QueryRefinementWorkbench({ streamId }: QueryRefinementWo
                                 onFocus={() => setFocusedStepId(step.id)}
                                 isFocused={focusedStepId === step.id}
                                 previousSteps={steps.slice(0, index)}
+                                stream={stream}
+                                streamId={streamId}
                             />
                         </div>
                     ))}
@@ -183,9 +191,11 @@ interface WorkflowStepCardProps {
     onFocus: () => void;
     isFocused: boolean;
     previousSteps: WorkflowStep[];
+    stream: ResearchStream;
+    streamId: number;
 }
 
-function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFocus, isFocused, previousSteps }: WorkflowStepCardProps) {
+function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFocus, isFocused, previousSteps, stream, streamId }: WorkflowStepCardProps) {
     const stepConfig = {
         source: { title: 'Source', icon: BeakerIcon, color: 'blue' },
         filter: { title: 'Filter', icon: FunnelIcon, color: 'purple' },
@@ -251,13 +261,13 @@ function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFo
             {step.expanded && (
                 <div className="p-4 bg-white dark:bg-gray-900">
                     {step.type === 'source' && (
-                        <SourceStepContent step={step} onUpdate={onUpdate} />
+                        <SourceStepContent step={step} onUpdate={onUpdate} stream={stream} streamId={streamId} />
                     )}
                     {step.type === 'filter' && (
-                        <FilterStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} />
+                        <FilterStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} streamId={streamId} />
                     )}
                     {step.type === 'categorize' && (
-                        <CategorizeStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} />
+                        <CategorizeStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} streamId={streamId} />
                     )}
                 </div>
             )}
@@ -269,26 +279,59 @@ function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFo
 // Source Step
 // ============================================================================
 
-function SourceStepContent({ step, onUpdate }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void }) {
+function SourceStepContent({ step, onUpdate, stream, streamId }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; stream: ResearchStream; streamId: number }) {
     const [isRunning, setIsRunning] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const config = step.config;
+
+    // Get broad queries from stream
+    const broadQueries = stream.retrieval_config?.broad_search?.queries || [];
 
     const runQuery = async () => {
         setIsRunning(true);
-        // Mock execution
-        setTimeout(() => {
-            onUpdate({
-                results: {
-                    count: 142,
-                    articles: [
-                        { pmid: '38123456', title: 'EGFR mutations in lung cancer', score: 0.92 },
-                        { pmid: '38123457', title: 'Treatment outcomes study', score: 0.78 },
-                        { pmid: '38123458', title: 'Biomarker analysis', score: 0.85 }
-                    ]
+        setError(null);
+
+        try {
+            if (config.sourceType === 'query') {
+                // Run broad query
+                const queryIndex = parseInt(config.selectedQuery);
+                if (isNaN(queryIndex)) {
+                    throw new Error('Invalid query selection');
                 }
-            });
+
+                const response = await researchStreamApi.runQuery({
+                    stream_id: streamId,
+                    query_index: queryIndex,
+                    start_date: config.startDate,
+                    end_date: config.endDate
+                });
+
+                onUpdate({
+                    results: response
+                });
+            } else if (config.sourceType === 'manual') {
+                // Fetch manual PMIDs
+                const pmids = config.manualIds
+                    .split(/[\n,]/)
+                    .map((id: string) => id.trim())
+                    .filter((id: string) => id.length > 0);
+
+                if (pmids.length === 0) {
+                    throw new Error('No PMIDs provided');
+                }
+
+                const response = await researchStreamApi.fetchManualPMIDs({ pmids });
+
+                onUpdate({
+                    results: response
+                });
+            }
+        } catch (err) {
+            console.error('Error running source:', err);
+            setError(err instanceof Error ? err.message : 'Failed to run source');
+        } finally {
             setIsRunning(false);
-        }, 1500);
+        }
     };
 
     return (
@@ -329,7 +372,7 @@ function SourceStepContent({ step, onUpdate }: { step: WorkflowStep; onUpdate: (
                     <>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Select Query
+                                Select Broad Query
                             </label>
                             <select
                                 value={config.selectedQuery}
@@ -337,9 +380,17 @@ function SourceStepContent({ step, onUpdate }: { step: WorkflowStep; onUpdate: (
                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                             >
                                 <option value="">Select a query...</option>
-                                <option value="broad_1">Broad Query 1: Asbestos & Mesothelioma</option>
-                                <option value="concept_1">Concept 1: EGFR Testing</option>
+                                {broadQueries.map((query, index) => (
+                                    <option key={index} value={index.toString()}>
+                                        Broad Query {index + 1}: {query.label || query.query_expression?.substring(0, 50)}
+                                    </option>
+                                ))}
                             </select>
+                            {broadQueries.length === 0 && (
+                                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                                    No broad queries configured in this stream
+                                </p>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
@@ -385,11 +436,18 @@ function SourceStepContent({ step, onUpdate }: { step: WorkflowStep; onUpdate: (
                 )}
             </div>
 
+            {/* Error Display */}
+            {error && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3">
+                    <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+                </div>
+            )}
+
             {/* Run Button */}
             <button
                 type="button"
                 onClick={runQuery}
-                disabled={isRunning || (config.sourceType === 'query' && !config.selectedQuery)}
+                disabled={isRunning || (config.sourceType === 'query' && (!config.selectedQuery || !config.startDate || !config.endDate)) || (config.sourceType === 'manual' && !config.manualIds)}
                 className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
                     isRunning || (config.sourceType === 'query' && !config.selectedQuery)
                         ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
@@ -417,29 +475,45 @@ function SourceStepContent({ step, onUpdate }: { step: WorkflowStep; onUpdate: (
 // Filter Step
 // ============================================================================
 
-function FilterStepContent({ step, onUpdate, previousSteps }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; previousSteps: WorkflowStep[] }) {
+function FilterStepContent({ step, onUpdate, previousSteps, streamId }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; previousSteps: WorkflowStep[]; streamId: number }) {
     const [isRunning, setIsRunning] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const config = step.config;
 
     const availableInputs = previousSteps.filter(s => s.results);
 
     const runFilter = async () => {
         setIsRunning(true);
-        setTimeout(() => {
-            onUpdate({
-                results: {
-                    count: 89,
-                    passed: 89,
-                    failed: 53,
-                    articles: [
-                        { pmid: '38123456', title: 'EGFR mutations in lung cancer', passed: true, score: 0.92 },
-                        { pmid: '38123457', title: 'Treatment outcomes study', passed: false, score: 0.42 },
-                        { pmid: '38123458', title: 'Biomarker analysis', passed: true, score: 0.85 }
-                    ]
-                }
+        setError(null);
+
+        try {
+            // Get input articles from selected step
+            const inputStep = previousSteps.find(s => s.id === config.inputStep);
+            if (!inputStep || !inputStep.results) {
+                throw new Error('No input articles selected');
+            }
+
+            if (!config.criteria) {
+                throw new Error('Filter criteria is required');
+            }
+
+            const articles: ArticleResult[] = inputStep.results.articles;
+
+            const response = await researchStreamApi.filterArticles({
+                articles,
+                filter_criteria: config.criteria,
+                threshold: config.threshold || 0.7
             });
+
+            onUpdate({
+                results: response
+            });
+        } catch (err) {
+            console.error('Error running filter:', err);
+            setError(err instanceof Error ? err.message : 'Failed to run filter');
+        } finally {
             setIsRunning(false);
-        }, 1500);
+        }
     };
 
     return (
@@ -492,12 +566,19 @@ function FilterStepContent({ step, onUpdate, previousSteps }: { step: WorkflowSt
                 </div>
             </div>
 
+            {/* Error Display */}
+            {error && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3">
+                    <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+                </div>
+            )}
+
             <button
                 type="button"
                 onClick={runFilter}
-                disabled={isRunning || !config.inputStep}
+                disabled={isRunning || !config.inputStep || !config.criteria}
                 className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
-                    isRunning || !config.inputStep
+                    isRunning || !config.inputStep || !config.criteria
                         ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                         : 'bg-purple-600 hover:bg-purple-700 text-white'
                 }`}
@@ -523,27 +604,40 @@ function FilterStepContent({ step, onUpdate, previousSteps }: { step: WorkflowSt
 // Categorize Step
 // ============================================================================
 
-function CategorizeStepContent({ step, onUpdate, previousSteps }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; previousSteps: WorkflowStep[] }) {
+function CategorizeStepContent({ step, onUpdate, previousSteps, streamId }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; previousSteps: WorkflowStep[]; streamId: number }) {
     const [isRunning, setIsRunning] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const config = step.config;
 
     const availableInputs = previousSteps.filter(s => s.results);
 
     const runCategorize = async () => {
         setIsRunning(true);
-        setTimeout(() => {
-            onUpdate({
-                results: {
-                    count: 89,
-                    categories: [
-                        { name: 'Medical & Health', count: 45, articles: [] },
-                        { name: 'Environmental', count: 32, articles: [] },
-                        { name: 'Regulatory', count: 12, articles: [] }
-                    ]
-                }
+        setError(null);
+
+        try {
+            // Get input articles from selected step
+            const inputStep = previousSteps.find(s => s.id === config.inputStep);
+            if (!inputStep || !inputStep.results) {
+                throw new Error('No input articles selected');
+            }
+
+            const articles: ArticleResult[] = inputStep.results.articles;
+
+            const response = await researchStreamApi.categorizeArticles({
+                stream_id: streamId,
+                articles
             });
+
+            onUpdate({
+                results: response
+            });
+        } catch (err) {
+            console.error('Error running categorization:', err);
+            setError(err instanceof Error ? err.message : 'Failed to run categorization');
+        } finally {
             setIsRunning(false);
-        }, 1500);
+        }
     };
 
     return (
@@ -568,6 +662,13 @@ function CategorizeStepContent({ step, onUpdate, previousSteps }: { step: Workfl
                     Using categories from Layer 3 configuration
                 </p>
             </div>
+
+            {/* Error Display */}
+            {error && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3">
+                    <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+                </div>
+            )}
 
             <button
                 type="button"
