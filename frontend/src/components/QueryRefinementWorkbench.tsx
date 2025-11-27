@@ -1,301 +1,466 @@
 import { useState } from 'react';
 import {
     BeakerIcon,
-    CheckBadgeIcon,
+    ChevronDownIcon,
+    ChevronRightIcon,
+    PlayIcon,
+    ArrowPathIcon,
+    PlusIcon,
+    XMarkIcon,
+    CheckCircleIcon,
+    XCircleIcon,
     FunnelIcon,
-    MagnifyingGlassIcon,
-    ArrowPathIcon
+    TagIcon,
+    DocumentTextIcon,
+    ArrowDownIcon
 } from '@heroicons/react/24/outline';
 
 interface QueryRefinementWorkbenchProps {
     streamId: number;
 }
 
-type RefinementTab = 'test-query' | 'validate-recall' | 'test-filter';
+type StepType = 'source' | 'filter' | 'categorize';
+type SourceType = 'query' | 'manual' | 'previous';
+
+interface WorkflowStep {
+    id: string;
+    type: StepType;
+    config: any;
+    results: any | null;
+    expanded: boolean;
+}
+
+type ResultView = 'raw' | 'compare' | 'analyze';
 
 export default function QueryRefinementWorkbench({ streamId }: QueryRefinementWorkbenchProps) {
-    const [activeTab, setActiveTab] = useState<RefinementTab>('test-query');
+    const [steps, setSteps] = useState<WorkflowStep[]>([
+        {
+            id: 'step_1',
+            type: 'source',
+            config: { sourceType: 'query', selectedQuery: '', startDate: '', endDate: '' },
+            results: null,
+            expanded: true
+        }
+    ]);
+    const [focusedStepId, setFocusedStepId] = useState<string>('step_1');
+    const [resultView, setResultView] = useState<ResultView>('raw');
 
-    const tabs = [
-        { id: 'test-query' as RefinementTab, name: 'Test Query', icon: BeakerIcon },
-        { id: 'validate-recall' as RefinementTab, name: 'Validate Recall', icon: CheckBadgeIcon },
-        { id: 'test-filter' as RefinementTab, name: 'Test Filter', icon: FunnelIcon },
-    ];
+    const addStep = (type: StepType) => {
+        const newStep: WorkflowStep = {
+            id: `step_${Date.now()}`,
+            type,
+            config: {},
+            results: null,
+            expanded: true
+        };
+        setSteps([...steps, newStep]);
+        setFocusedStepId(newStep.id);
+    };
+
+    const removeStep = (id: string) => {
+        setSteps(steps.filter(s => s.id !== id));
+        if (focusedStepId === id) {
+            setFocusedStepId('step_1');
+        }
+    };
+
+    const updateStep = (id: string, updates: Partial<WorkflowStep>) => {
+        setSteps(steps.map(s => s.id === id ? { ...s, ...updates } : s));
+    };
+
+    const toggleExpanded = (id: string) => {
+        setSteps(steps.map(s => s.id === id ? { ...s, expanded: !s.expanded } : s));
+    };
+
+    const canAddFilter = !steps.some(s => s.type === 'filter');
+    const canAddCategorize = !steps.some(s => s.type === 'categorize');
+
+    const focusedStep = steps.find(s => s.id === focusedStepId);
 
     return (
         <div className="space-y-6">
             {/* Header */}
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
-                    Query Refinement Workbench
-                </h3>
-                <p className="text-sm text-blue-800 dark:text-blue-300">
-                    Test and refine individual queries, validate recall against known articles, and tune semantic filters.
-                </p>
+                <div className="flex items-start justify-between">
+                    <div>
+                        <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
+                            Query Refinement Workbench
+                        </h3>
+                        <p className="text-sm text-blue-800 dark:text-blue-300">
+                            Test queries, filters, and categorization in isolation or as a pipeline. Build and refine each step independently.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setSteps([{
+                                id: 'step_1',
+                                type: 'source',
+                                config: { sourceType: 'query', selectedQuery: '', startDate: '', endDate: '' },
+                                results: null,
+                                expanded: true
+                            }]);
+                            setFocusedStepId('step_1');
+                        }}
+                        className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                        Clear All
+                    </button>
+                </div>
             </div>
 
-            {/* Tab Navigation */}
-            <div className="border-b border-gray-200 dark:border-gray-700">
-                <nav className="-mb-px flex space-x-8">
-                    {tabs.map((tab) => {
-                        const Icon = tab.icon;
-                        const isActive = activeTab === tab.id;
-                        return (
+            {/* Two-Column Layout */}
+            <div className="grid grid-cols-[40%_60%] gap-6">
+                {/* Left: Workflow Steps */}
+                <div className="space-y-4">
+                    {steps.map((step, index) => (
+                        <div key={step.id}>
+                            {index > 0 && (
+                                <div className="flex justify-center py-2">
+                                    <ArrowDownIcon className="h-5 w-5 text-gray-400" />
+                                </div>
+                            )}
+                            <WorkflowStepCard
+                                step={step}
+                                stepNumber={index + 1}
+                                onUpdate={(updates) => updateStep(step.id, updates)}
+                                onRemove={steps.length > 1 ? () => removeStep(step.id) : undefined}
+                                onToggle={() => toggleExpanded(step.id)}
+                                onFocus={() => setFocusedStepId(step.id)}
+                                isFocused={focusedStepId === step.id}
+                                previousSteps={steps.slice(0, index)}
+                            />
+                        </div>
+                    ))}
+
+                    {/* Add Step Buttons */}
+                    <div className="flex gap-3 pt-2">
+                        {canAddFilter && (
                             <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`
-                                    group inline-flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm
-                                    ${isActive
-                                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                                    }
-                                `}
+                                type="button"
+                                onClick={() => addStep('filter')}
+                                className="flex items-center gap-2 px-4 py-2 text-sm border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-700 dark:text-gray-300 transition-colors"
                             >
-                                <Icon className="h-5 w-5" />
-                                {tab.name}
+                                <PlusIcon className="h-4 w-4" />
+                                Add Filter
                             </button>
-                        );
-                    })}
-                </nav>
-            </div>
+                        )}
+                        {canAddCategorize && (
+                            <button
+                                type="button"
+                                onClick={() => addStep('categorize')}
+                                className="flex items-center gap-2 px-4 py-2 text-sm border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-700 dark:text-gray-300 transition-colors"
+                            >
+                                <PlusIcon className="h-4 w-4" />
+                                Add Categorize
+                            </button>
+                        )}
+                    </div>
+                </div>
 
-            {/* Tab Content */}
-            <div>
-                {activeTab === 'test-query' && <TestQueryTab streamId={streamId} />}
-                {activeTab === 'validate-recall' && <ValidateRecallTab streamId={streamId} />}
-                {activeTab === 'test-filter' && <TestFilterTab streamId={streamId} />}
+                {/* Right: Results Pane */}
+                <ResultsPane
+                    step={focusedStep}
+                    stepNumber={steps.findIndex(s => s.id === focusedStepId) + 1}
+                    view={resultView}
+                    onViewChange={setResultView}
+                />
             </div>
         </div>
     );
 }
 
 // ============================================================================
-// Test Query Tab
+// Workflow Step Card
 // ============================================================================
 
-function TestQueryTab({ streamId }: { streamId: number }) {
-    const [selectedQuery, setSelectedQuery] = useState<string>('');
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
-    const [applyFilter, setApplyFilter] = useState(false);
-    const [isRunning, setIsRunning] = useState(false);
+interface WorkflowStepCardProps {
+    step: WorkflowStep;
+    stepNumber: number;
+    onUpdate: (updates: Partial<WorkflowStep>) => void;
+    onRemove?: () => void;
+    onToggle: () => void;
+    onFocus: () => void;
+    isFocused: boolean;
+    previousSteps: WorkflowStep[];
+}
 
-    const runTest = async () => {
+function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFocus, isFocused, previousSteps }: WorkflowStepCardProps) {
+    const stepConfig = {
+        source: { title: 'Source', icon: BeakerIcon, color: 'blue' },
+        filter: { title: 'Filter', icon: FunnelIcon, color: 'purple' },
+        categorize: { title: 'Categorize', icon: TagIcon, color: 'green' }
+    };
+
+    const config = stepConfig[step.type];
+    const Icon = config.icon;
+
+    return (
+        <div
+            className={`border rounded-lg overflow-hidden transition-colors ${
+                isFocused
+                    ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800'
+                    : 'border-gray-300 dark:border-gray-600'
+            }`}
+            onClick={onFocus}
+        >
+            {/* Header */}
+            <div className={`bg-${config.color}-50 dark:bg-${config.color}-900/20 border-b border-gray-300 dark:border-gray-600 p-3`}>
+                <div className="flex items-center justify-between">
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onToggle();
+                        }}
+                        className="flex items-center gap-2 flex-1 text-left"
+                    >
+                        {step.expanded ? (
+                            <ChevronDownIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                        ) : (
+                            <ChevronRightIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                        )}
+                        <Icon className={`h-4 w-4 text-${config.color}-600 dark:text-${config.color}-400`} />
+                        <div>
+                            <h4 className="text-sm font-medium text-gray-900 dark:text-white">
+                                Step {stepNumber}: {config.title}
+                            </h4>
+                            {step.results && (
+                                <p className="text-xs text-gray-600 dark:text-gray-400">
+                                    {step.results.count} articles
+                                </p>
+                            )}
+                        </div>
+                    </button>
+                    {onRemove && (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onRemove();
+                            }}
+                            className="text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                        >
+                            <XMarkIcon className="h-4 w-4" />
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Content */}
+            {step.expanded && (
+                <div className="p-4 bg-white dark:bg-gray-900">
+                    {step.type === 'source' && (
+                        <SourceStepContent step={step} onUpdate={onUpdate} />
+                    )}
+                    {step.type === 'filter' && (
+                        <FilterStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} />
+                    )}
+                    {step.type === 'categorize' && (
+                        <CategorizeStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} />
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ============================================================================
+// Source Step
+// ============================================================================
+
+function SourceStepContent({ step, onUpdate }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void }) {
+    const [isRunning, setIsRunning] = useState(false);
+    const config = step.config;
+
+    const runQuery = async () => {
         setIsRunning(true);
-        // TODO: Implement actual query testing
-        setTimeout(() => setIsRunning(false), 2000);
+        // Mock execution
+        setTimeout(() => {
+            onUpdate({
+                results: {
+                    count: 142,
+                    articles: [
+                        { pmid: '38123456', title: 'EGFR mutations in lung cancer', score: 0.92 },
+                        { pmid: '38123457', title: 'Treatment outcomes study', score: 0.78 },
+                        { pmid: '38123458', title: 'Biomarker analysis', score: 0.85 }
+                    ]
+                }
+            });
+            setIsRunning(false);
+        }, 1500);
     };
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Setup Panel */}
-            <div className="space-y-4">
-                <h4 className="font-medium text-gray-900 dark:text-white">Setup</h4>
-
+        <div className="space-y-4">
+            {/* Configuration */}
+            <div className="space-y-3">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Query Source
+                        Source Type
                     </label>
-                    <select
-                        value={selectedQuery}
-                        onChange={(e) => setSelectedQuery(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    >
-                        <option value="">Select a query...</option>
-                        <option value="broad_1">Broad Query 1</option>
-                        <option value="concept_1">Concept 1</option>
-                    </select>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Select from your configured queries or concepts
-                    </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Start Date
+                    <div className="flex gap-3">
+                        <label className="flex items-center">
+                            <input
+                                type="radio"
+                                name={`source-${step.id}`}
+                                value="query"
+                                checked={config.sourceType === 'query'}
+                                onChange={(e) => onUpdate({ config: { ...config, sourceType: e.target.value } })}
+                                className="mr-2"
+                            />
+                            <span className="text-sm text-gray-700 dark:text-gray-300">Run Query</span>
                         </label>
-                        <input
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            End Date
+                        <label className="flex items-center">
+                            <input
+                                type="radio"
+                                name={`source-${step.id}`}
+                                value="manual"
+                                checked={config.sourceType === 'manual'}
+                                onChange={(e) => onUpdate({ config: { ...config, sourceType: e.target.value } })}
+                                className="mr-2"
+                            />
+                            <span className="text-sm text-gray-700 dark:text-gray-300">Manual PMIDs</span>
                         </label>
-                        <input
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        />
                     </div>
                 </div>
 
-                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                    <label className="flex items-center space-x-2">
-                        <input
-                            type="checkbox"
-                            checked={applyFilter}
-                            onChange={(e) => setApplyFilter(e.target.checked)}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-700 dark:text-gray-300">Apply semantic filter</span>
-                    </label>
-                    {applyFilter && (
-                        <div className="mt-3 pl-6 space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                            <div>Threshold: <span className="font-mono">0.7</span></div>
-                            <div className="text-xs">Using filter from selected query</div>
+                {config.sourceType === 'query' && (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Select Query
+                            </label>
+                            <select
+                                value={config.selectedQuery}
+                                onChange={(e) => onUpdate({ config: { ...config, selectedQuery: e.target.value } })}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                            >
+                                <option value="">Select a query...</option>
+                                <option value="broad_1">Broad Query 1: Asbestos & Mesothelioma</option>
+                                <option value="concept_1">Concept 1: EGFR Testing</option>
+                            </select>
                         </div>
-                    )}
-                </div>
 
-                <button
-                    type="button"
-                    onClick={runTest}
-                    disabled={isRunning || !selectedQuery}
-                    className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
-                        isRunning || !selectedQuery
-                            ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                            : 'bg-blue-600 hover:bg-blue-700 text-white'
-                    }`}
-                >
-                    {isRunning ? (
-                        <>
-                            <ArrowPathIcon className="h-5 w-5 animate-spin" />
-                            Running Test...
-                        </>
-                    ) : (
-                        <>
-                            <MagnifyingGlassIcon className="h-5 w-5" />
-                            Run Test
-                        </>
-                    )}
-                </button>
-            </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Start Date
+                                </label>
+                                <input
+                                    type="date"
+                                    value={config.startDate}
+                                    onChange={(e) => onUpdate({ config: { ...config, startDate: e.target.value } })}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    End Date
+                                </label>
+                                <input
+                                    type="date"
+                                    value={config.endDate}
+                                    onChange={(e) => onUpdate({ config: { ...config, endDate: e.target.value } })}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                />
+                            </div>
+                        </div>
+                    </>
+                )}
 
-            {/* Results Panel */}
-            <div className="space-y-4">
-                <h4 className="font-medium text-gray-900 dark:text-white">Results</h4>
-
-                <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 min-h-[400px]">
-                    <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                        <MagnifyingGlassIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                        <p>Configure settings and click "Run Test" to see results</p>
+                {config.sourceType === 'manual' && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            PubMed IDs
+                        </label>
+                        <textarea
+                            value={config.manualIds || ''}
+                            onChange={(e) => onUpdate({ config: { ...config, manualIds: e.target.value } })}
+                            placeholder="Enter PubMed IDs (one per line or comma-separated)&#10;38123456&#10;38123457"
+                            rows={6}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
+                        />
                     </div>
-                </div>
+                )}
             </div>
+
+            {/* Run Button */}
+            <button
+                type="button"
+                onClick={runQuery}
+                disabled={isRunning || (config.sourceType === 'query' && !config.selectedQuery)}
+                className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
+                    isRunning || (config.sourceType === 'query' && !config.selectedQuery)
+                        ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                }`}
+            >
+                {isRunning ? (
+                    <>
+                        <ArrowPathIcon className="h-5 w-5 animate-spin" />
+                        Running...
+                    </>
+                ) : (
+                    <>
+                        <PlayIcon className="h-5 w-5" />
+                        Run Source
+                    </>
+                )}
+            </button>
+
         </div>
     );
 }
 
 // ============================================================================
-// Validate Recall Tab
+// Filter Step
 // ============================================================================
 
-function ValidateRecallTab({ streamId }: { streamId: number }) {
-    const [goldStandardIds, setGoldStandardIds] = useState('');
-    const [selectedQuery, setSelectedQuery] = useState<string>('');
+function FilterStepContent({ step, onUpdate, previousSteps }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; previousSteps: WorkflowStep[] }) {
+    const [isRunning, setIsRunning] = useState(false);
+    const config = step.config;
+
+    const availableInputs = previousSteps.filter(s => s.results);
+
+    const runFilter = async () => {
+        setIsRunning(true);
+        setTimeout(() => {
+            onUpdate({
+                results: {
+                    count: 89,
+                    passed: 89,
+                    failed: 53,
+                    articles: [
+                        { pmid: '38123456', title: 'EGFR mutations in lung cancer', passed: true, score: 0.92 },
+                        { pmid: '38123457', title: 'Treatment outcomes study', passed: false, score: 0.42 },
+                        { pmid: '38123458', title: 'Biomarker analysis', passed: true, score: 0.85 }
+                    ]
+                }
+            });
+            setIsRunning(false);
+        }, 1500);
+    };
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Setup Panel */}
-            <div className="space-y-4">
-                <h4 className="font-medium text-gray-900 dark:text-white">Setup</h4>
-
+        <div className="space-y-4">
+            <div className="space-y-3">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Query to Test
+                        Input Source
                     </label>
                     <select
-                        value={selectedQuery}
-                        onChange={(e) => setSelectedQuery(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        value={config.inputStep || ''}
+                        onChange={(e) => onUpdate({ config: { ...config, inputStep: e.target.value } })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                     >
-                        <option value="">Select a query...</option>
-                        <option value="broad_1">Broad Query 1</option>
-                        <option value="concept_1">Concept 1</option>
+                        <option value="">Select input...</option>
+                        {availableInputs.map((s, idx) => (
+                            <option key={s.id} value={s.id}>
+                                Step {idx + 1} - {s.results.count} articles
+                            </option>
+                        ))}
                     </select>
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Gold Standard PubMed IDs
-                    </label>
-                    <textarea
-                        value={goldStandardIds}
-                        onChange={(e) => setGoldStandardIds(e.target.value)}
-                        placeholder="Enter PubMed IDs (one per line or comma-separated)&#10;38123456&#10;38123457&#10;38123458"
-                        rows={8}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Known relevant articles that should be captured
-                    </p>
-                </div>
-
-                <button
-                    type="button"
-                    disabled={!selectedQuery || !goldStandardIds}
-                    className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
-                        !selectedQuery || !goldStandardIds
-                            ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                            : 'bg-blue-600 hover:bg-blue-700 text-white'
-                    }`}
-                >
-                    <CheckBadgeIcon className="h-5 w-5" />
-                    Validate Recall
-                </button>
-            </div>
-
-            {/* Results Panel */}
-            <div className="space-y-4">
-                <h4 className="font-medium text-gray-900 dark:text-white">Validation Results</h4>
-
-                <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 min-h-[400px]">
-                    <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                        <CheckBadgeIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                        <p>Enter gold standard IDs and run validation</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-// ============================================================================
-// Test Filter Tab
-// ============================================================================
-
-function TestFilterTab({ streamId }: { streamId: number }) {
-    const [pubmedIds, setPubmedIds] = useState('');
-    const [filterCriteria, setFilterCriteria] = useState('');
-    const [threshold, setThreshold] = useState(0.7);
-
-    return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Setup Panel */}
-            <div className="space-y-4">
-                <h4 className="font-medium text-gray-900 dark:text-white">Setup</h4>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        PubMed IDs to Filter
-                    </label>
-                    <textarea
-                        value={pubmedIds}
-                        onChange={(e) => setPubmedIds(e.target.value)}
-                        placeholder="Enter PubMed IDs (one per line or comma-separated)&#10;38123456&#10;38123457&#10;38123458"
-                        rows={6}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        From query results or manually entered
-                    </p>
                 </div>
 
                 <div>
@@ -303,57 +468,355 @@ function TestFilterTab({ streamId }: { streamId: number }) {
                         Filter Criteria
                     </label>
                     <textarea
-                        value={filterCriteria}
-                        onChange={(e) => setFilterCriteria(e.target.value)}
-                        placeholder="Describe what should pass/fail the filter..."
-                        rows={4}
+                        value={config.criteria || ''}
+                        onChange={(e) => onUpdate({ config: { ...config, criteria: e.target.value } })}
+                        placeholder="Describe what should pass/fail..."
+                        rows={3}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                     />
                 </div>
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Confidence Threshold: {threshold.toFixed(2)}
+                        Threshold: {config.threshold || 0.7}
                     </label>
                     <input
                         type="range"
                         min="0"
                         max="1"
                         step="0.05"
-                        value={threshold}
-                        onChange={(e) => setThreshold(parseFloat(e.target.value))}
+                        value={config.threshold || 0.7}
+                        onChange={(e) => onUpdate({ config: { ...config, threshold: parseFloat(e.target.value) } })}
                         className="w-full"
                     />
-                    <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                        <span>Permissive (0.0)</span>
-                        <span>Strict (1.0)</span>
+                </div>
+            </div>
+
+            <button
+                type="button"
+                onClick={runFilter}
+                disabled={isRunning || !config.inputStep}
+                className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
+                    isRunning || !config.inputStep
+                        ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                        : 'bg-purple-600 hover:bg-purple-700 text-white'
+                }`}
+            >
+                {isRunning ? (
+                    <>
+                        <ArrowPathIcon className="h-5 w-5 animate-spin" />
+                        Running...
+                    </>
+                ) : (
+                    <>
+                        <PlayIcon className="h-5 w-5" />
+                        Run Filter
+                    </>
+                )}
+            </button>
+
+        </div>
+    );
+}
+
+// ============================================================================
+// Categorize Step
+// ============================================================================
+
+function CategorizeStepContent({ step, onUpdate, previousSteps }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; previousSteps: WorkflowStep[] }) {
+    const [isRunning, setIsRunning] = useState(false);
+    const config = step.config;
+
+    const availableInputs = previousSteps.filter(s => s.results);
+
+    const runCategorize = async () => {
+        setIsRunning(true);
+        setTimeout(() => {
+            onUpdate({
+                results: {
+                    count: 89,
+                    categories: [
+                        { name: 'Medical & Health', count: 45, articles: [] },
+                        { name: 'Environmental', count: 32, articles: [] },
+                        { name: 'Regulatory', count: 12, articles: [] }
+                    ]
+                }
+            });
+            setIsRunning(false);
+        }, 1500);
+    };
+
+    return (
+        <div className="space-y-4">
+            <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Input Source
+                </label>
+                <select
+                    value={config.inputStep || ''}
+                    onChange={(e) => onUpdate({ config: { ...config, inputStep: e.target.value } })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                >
+                    <option value="">Select input...</option>
+                    {availableInputs.map((s, idx) => (
+                        <option key={s.id} value={s.id}>
+                            Step {idx + 1} - {s.results.count} articles
+                        </option>
+                    ))}
+                </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Using categories from Layer 3 configuration
+                </p>
+            </div>
+
+            <button
+                type="button"
+                onClick={runCategorize}
+                disabled={isRunning || !config.inputStep}
+                className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
+                    isRunning || !config.inputStep
+                        ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                        : 'bg-green-600 hover:bg-green-700 text-white'
+                }`}
+            >
+                {isRunning ? (
+                    <>
+                        <ArrowPathIcon className="h-5 w-5 animate-spin" />
+                        Running...
+                    </>
+                ) : (
+                    <>
+                        <PlayIcon className="h-5 w-5" />
+                        Run Categorize
+                    </>
+                )}
+            </button>
+
+        </div>
+    );
+}
+
+// ============================================================================
+// Results Pane (Right Side)
+// ============================================================================
+
+interface ResultsPaneProps {
+    step: WorkflowStep | undefined;
+    stepNumber: number;
+    view: ResultView;
+    onViewChange: (view: ResultView) => void;
+}
+
+function ResultsPane({ step, stepNumber, view, onViewChange }: ResultsPaneProps) {
+    const [compareIds, setCompareIds] = useState('');
+
+    if (!step) {
+        return (
+            <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-8 bg-gray-50 dark:bg-gray-900">
+                <div className="text-center text-gray-500 dark:text-gray-400">
+                    <DocumentTextIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No step selected</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 flex flex-col" style={{ height: 'calc(100vh - 320px)', minHeight: '500px' }}>
+            {/* Header */}
+            <div className="border-b border-gray-300 dark:border-gray-600 p-4">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-gray-900 dark:text-white">
+                        Step {stepNumber} Results
+                    </h3>
+                    {step.results && (
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                            {step.results.count} articles
+                        </span>
+                    )}
+                </div>
+
+                {/* View Mode Tabs */}
+                {step.results && (
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => onViewChange('raw')}
+                            className={`px-3 py-1 text-sm rounded ${
+                                view === 'raw'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                            }`}
+                        >
+                            Raw
+                        </button>
+                        <button
+                            onClick={() => onViewChange('compare')}
+                            className={`px-3 py-1 text-sm rounded ${
+                                view === 'compare'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                            }`}
+                        >
+                            Compare
+                        </button>
+                        <button
+                            onClick={() => onViewChange('analyze')}
+                            className={`px-3 py-1 text-sm rounded ${
+                                view === 'analyze'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                            }`}
+                        >
+                            Analyze
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+                {!step.results ? (
+                    <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                        <DocumentTextIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <p>Run this step to see results</p>
+                    </div>
+                ) : view === 'raw' ? (
+                    <RawResultsView step={step} />
+                ) : view === 'compare' ? (
+                    <CompareResultsView step={step} compareIds={compareIds} onCompareIdsChange={setCompareIds} />
+                ) : (
+                    <AnalyzeResultsView step={step} />
+                )}
+            </div>
+        </div>
+    );
+}
+
+// Raw Results View
+function RawResultsView({ step }: { step: WorkflowStep }) {
+    if (step.type === 'categorize') {
+        return (
+            <div className="space-y-3">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    {step.results.count} articles across {step.results.categories.length} categories
+                </p>
+                {step.results.categories.map((category: any) => (
+                    <div key={category.name} className="border border-gray-200 dark:border-gray-700 rounded p-3">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                                <TagIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                                <span className="font-medium text-gray-900 dark:text-white">{category.name}</span>
+                            </div>
+                            <span className="text-sm text-gray-600 dark:text-gray-400">{category.count} articles</span>
+                        </div>
+                        <div className="bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                            <div
+                                className="bg-green-500 h-2 rounded-full"
+                                style={{ width: `${(category.count / step.results.count) * 100}%` }}
+                            />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    if (step.type === 'filter') {
+        return (
+            <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded p-3 text-center">
+                        <p className="text-2xl font-bold text-gray-900 dark:text-white">{step.results.count}</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Total</p>
+                    </div>
+                    <div className="bg-green-50 dark:bg-green-900/20 rounded p-3 text-center">
+                        <p className="text-2xl font-bold text-green-600 dark:text-green-400">{step.results.passed}</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Passed</p>
+                    </div>
+                    <div className="bg-red-50 dark:bg-red-900/20 rounded p-3 text-center">
+                        <p className="text-2xl font-bold text-red-600 dark:text-red-400">{step.results.failed}</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Failed</p>
                     </div>
                 </div>
 
+                <div className="space-y-2">
+                    {step.results.articles.map((article: any) => (
+                        <div key={article.pmid} className="border border-gray-200 dark:border-gray-700 rounded p-3 text-sm">
+                            <div className="flex items-center gap-2 mb-1">
+                                {article.passed ? (
+                                    <CheckCircleIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                ) : (
+                                    <XCircleIcon className="h-4 w-4 text-red-600 dark:text-red-400" />
+                                )}
+                                <p className="font-mono text-xs text-gray-500 dark:text-gray-400">PMID: {article.pmid}</p>
+                                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                                    Score: {article.score.toFixed(2)}
+                                </span>
+                            </div>
+                            <p className="text-gray-900 dark:text-white">{article.title}</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    // Source step or default
+    return (
+        <div className="space-y-2">
+            {step.results.articles.map((article: any) => (
+                <div key={article.pmid} className="border border-gray-200 dark:border-gray-700 rounded p-3 text-sm">
+                    <p className="font-mono text-xs text-gray-500 dark:text-gray-400 mb-1">PMID: {article.pmid}</p>
+                    <p className="text-gray-900 dark:text-white">{article.title}</p>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+// Compare Results View
+function CompareResultsView({ step, compareIds, onCompareIdsChange }: { step: WorkflowStep; compareIds: string; onCompareIdsChange: (ids: string) => void }) {
+    return (
+        <div className="space-y-4">
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Expected PMIDs (one per line or comma-separated)
+                </label>
+                <textarea
+                    value={compareIds}
+                    onChange={(e) => onCompareIdsChange(e.target.value)}
+                    placeholder="38123456&#10;38123457&#10;38123458"
+                    rows={6}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
+                />
                 <button
                     type="button"
-                    disabled={!pubmedIds || !filterCriteria}
-                    className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
-                        !pubmedIds || !filterCriteria
-                            ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                            : 'bg-blue-600 hover:bg-blue-700 text-white'
-                    }`}
+                    className="mt-3 px-4 py-2 text-sm bg-yellow-600 text-white rounded hover:bg-yellow-700"
                 >
-                    <FunnelIcon className="h-5 w-5" />
-                    Run Filter
+                    Run Comparison
                 </button>
             </div>
 
-            {/* Results Panel */}
-            <div className="space-y-4">
-                <h4 className="font-medium text-gray-900 dark:text-white">Filter Results</h4>
-
-                <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 min-h-[400px]">
-                    <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                        <FunnelIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                        <p>Configure filter and click "Run Filter" to see results</p>
-                    </div>
+            {compareIds && (
+                <div className="border border-gray-200 dark:border-gray-700 rounded p-4">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Comparison results will appear here
+                    </p>
                 </div>
+            )}
+        </div>
+    );
+}
+
+// Analyze Results View
+function AnalyzeResultsView({ step }: { step: WorkflowStep }) {
+    return (
+        <div className="space-y-4">
+            <div className="border border-gray-200 dark:border-gray-700 rounded p-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-2">Analysis</h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Statistical analysis and visualizations will appear here
+                </p>
             </div>
         </div>
     );

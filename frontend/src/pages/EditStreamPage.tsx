@@ -16,8 +16,7 @@ import { useResearchStream } from '../context/ResearchStreamContext';
 import SemanticSpaceForm from '../components/SemanticSpaceForm';
 import PresentationForm from '../components/PresentationForm';
 import RetrievalConfigForm from '../components/RetrievalConfigForm';
-import ExecutePipelineTab from '../components/ExecutePipelineTab';
-import QueryRefinementWorkbench from '../components/QueryRefinementWorkbench';
+import TestRefineTab from '../components/TestRefineTab';
 import ChatTray from '../components/chat/ChatTray';
 import SchemaProposalCard from '../components/chat/SchemaProposalCard';
 
@@ -473,13 +472,7 @@ export default function EditStreamPage() {
 
                         {/* Layer 4: Test & Refine Tab */}
                         {activeTab === 'execute' && stream && (
-                            <div className="space-y-8">
-                                <QueryRefinementWorkbench streamId={parseInt(id!)} />
-
-                                <div className="border-t-4 border-gray-200 dark:border-gray-700 pt-8">
-                                    <ExecutePipelineTab streamId={parseInt(id!)} />
-                                </div>
-                            </div>
+                            <TestRefineTab streamId={parseInt(id!)} />
                         )}
 
                     </form>
