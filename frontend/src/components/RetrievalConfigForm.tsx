@@ -37,17 +37,18 @@ export default function RetrievalConfigForm({
         setExpandedQueries(newExpanded);
     };
 
-    // Determine which strategy to display based on configuration state
-    const hasBroadSearchObject = retrievalConfig.broad_search !== null && retrievalConfig.broad_search !== undefined;
-    const hasConceptsContent = retrievalConfig.concepts && retrievalConfig.concepts.length > 0;
-    const hasBroadSearchContent = hasBroadSearchObject && retrievalConfig.broad_search.queries && retrievalConfig.broad_search.queries.length > 0;
+    // Detect if a strategy is SELECTED (type check, not content check)
+    const conceptsSelected = Array.isArray(retrievalConfig.concepts);
+    const broadSearchSelected = retrievalConfig.broad_search !== null && retrievalConfig.broad_search !== undefined;
 
-    // Show broad search if the object exists (even if empty)
-    const showBroadSearch = hasBroadSearchObject;
-    // Show concepts if we have concept content and no broad search object
-    const showConcepts = !showBroadSearch && hasConceptsContent;
-    // Show strategy selection if neither condition is met
-    const hasNoConfig = !showBroadSearch && !hasConceptsContent;
+    // Separately check if the selected strategy HAS CONTENT
+    const hasConceptsContent = conceptsSelected && retrievalConfig.concepts.length > 0;
+    const hasBroadSearchContent = broadSearchSelected && retrievalConfig.broad_search.queries?.length > 0;
+
+    // Show UI based on SELECTION (not content)
+    const showBroadSearch = broadSearchSelected;
+    const showConcepts = conceptsSelected && !broadSearchSelected;
+    const hasNoConfig = !conceptsSelected && !broadSearchSelected;
 
     const selectStrategy = (strategy: 'concepts' | 'broad_search') => {
         if (strategy === 'concepts') {
