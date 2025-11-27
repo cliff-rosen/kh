@@ -37,9 +37,17 @@ export default function RetrievalConfigForm({
         setExpandedQueries(newExpanded);
     };
 
-    const hasConcepts = retrievalConfig.concepts && retrievalConfig.concepts.length > 0;
-    const hasBroadSearch = retrievalConfig.broad_search && retrievalConfig.broad_search.queries && retrievalConfig.broad_search.queries.length > 0;
-    const hasNoConfig = !hasConcepts && !hasBroadSearch;
+    // Determine which strategy to display based on configuration state
+    const hasBroadSearchObject = retrievalConfig.broad_search !== null && retrievalConfig.broad_search !== undefined;
+    const hasConceptsContent = retrievalConfig.concepts && retrievalConfig.concepts.length > 0;
+    const hasBroadSearchContent = hasBroadSearchObject && retrievalConfig.broad_search.queries && retrievalConfig.broad_search.queries.length > 0;
+
+    // Show broad search if the object exists (even if empty)
+    const showBroadSearch = hasBroadSearchObject;
+    // Show concepts if we have concept content and no broad search object
+    const showConcepts = !showBroadSearch && hasConceptsContent;
+    // Show strategy selection if neither condition is met
+    const hasNoConfig = !showBroadSearch && !hasConceptsContent;
 
     const selectStrategy = (strategy: 'concepts' | 'broad_search') => {
         if (strategy === 'concepts') {
@@ -135,12 +143,31 @@ export default function RetrievalConfigForm({
                             Or use the Retrieval Wizard to automatically generate and configure your strategy
                         </p>
                     </div>
-                ) : hasConcepts ? (
+                ) : showConcepts ? (
                     /* Concepts Configuration Display */
                     <div className="space-y-4">
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                             Entity-relationship patterns that cover your topics. Use the wizard to generate and configure concepts.
                         </p>
+                        {!hasConceptsContent ? (
+                            <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
+                                <SparklesIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                                    No concepts configured
+                                </h3>
+                                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                                    Use the Retrieval Wizard to generate concept proposals based on your semantic space.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(`/streams/${id}/retrieval-wizard`)}
+                                    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+                                >
+                                    <SparklesIcon className="h-5 w-5" />
+                                    Launch Retrieval Wizard
+                                </button>
+                            </div>
+                        ) : (
                         <div className="space-y-3">
                             {retrievalConfig.concepts.map((concept) => {
                                 const isExpanded = expandedConcepts.has(concept.concept_id);
@@ -261,14 +288,35 @@ export default function RetrievalConfigForm({
                                 );
                             })}
                         </div>
+                        )}
                     </div>
-                ) : hasBroadSearch ? (
+                ) : showBroadSearch ? (
                     /* Broad Search Configuration Display */
                     <div className="space-y-4">
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                             Broad queries for weekly monitoring. Use the wizard to generate and configure queries.
                         </p>
 
+                        {!hasBroadSearchContent ? (
+                            <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
+                                <SparklesIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                                    No queries configured
+                                </h3>
+                                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                                    Use the Retrieval Wizard to generate broad search queries.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(`/streams/${id}/retrieval-wizard`)}
+                                    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+                                >
+                                    <SparklesIcon className="h-5 w-5" />
+                                    Launch Retrieval Wizard
+                                </button>
+                            </div>
+                        ) : (
+                        <>
                         {/* Strategy Rationale */}
                         {retrievalConfig.broad_search.strategy_rationale && (
                             <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -402,6 +450,8 @@ export default function RetrievalConfigForm({
                                 );
                             })}
                         </div>
+                        </>
+                        )}
                     </div>
                 ) : null}
             </div>
