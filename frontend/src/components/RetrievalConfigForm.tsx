@@ -364,9 +364,70 @@ export default function RetrievalConfigForm({
                                     />
                                 </div>
 
+                                {/* Semantic Filter */}
+                                <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                                    <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                                        Semantic Filter
+                                    </h5>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="flex items-center space-x-2">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={concept.semantic_filter.enabled}
+                                                    onChange={(e) => updateConcept(index, 'semantic_filter', {
+                                                        ...concept.semantic_filter,
+                                                        enabled: e.target.checked
+                                                    })}
+                                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <span className="text-sm text-gray-700 dark:text-gray-300">Enable semantic filtering</span>
+                                            </label>
+                                        </div>
+
+                                        {concept.semantic_filter.enabled && (
+                                            <>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                        Filter Criteria
+                                                    </label>
+                                                    <textarea
+                                                        placeholder="Text description of what should pass/fail"
+                                                        rows={2}
+                                                        value={concept.semantic_filter.criteria}
+                                                        onChange={(e) => updateConcept(index, 'semantic_filter', {
+                                                            ...concept.semantic_filter,
+                                                            criteria: e.target.value
+                                                        })}
+                                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                        Confidence Threshold (0.0 to 1.0)
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max="1"
+                                                        step="0.1"
+                                                        value={concept.semantic_filter.threshold}
+                                                        onChange={(e) => updateConcept(index, 'semantic_filter', {
+                                                            ...concept.semantic_filter,
+                                                            threshold: parseFloat(e.target.value)
+                                                        })}
+                                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                    />
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+
                                 <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
                                     <p className="text-xs text-gray-500 dark:text-gray-400 italic">
-                                        Note: Complex fields (entity_pattern, relationship_edges, vocabulary_terms, source_queries, semantic_filter) are best configured via the wizard.
+                                        Note: Complex fields (entity_pattern, relationship_edges, vocabulary_terms, source_queries) are best configured via the wizard.
                                     </p>
                                 </div>
                             </div>
@@ -498,10 +559,65 @@ export default function RetrievalConfigForm({
                                         />
                                     </div>
 
+                                    {/* Semantic Filter */}
                                     <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 italic">
-                                            Note: Semantic filter configuration is best done via the wizard.
-                                        </p>
+                                        <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                                            Semantic Filter
+                                        </h5>
+                                        <div className="space-y-3">
+                                            <div>
+                                                <label className="flex items-center space-x-2">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={query.semantic_filter.enabled}
+                                                        onChange={(e) => updateBroadQuery(index, 'semantic_filter', {
+                                                            ...query.semantic_filter,
+                                                            enabled: e.target.checked
+                                                        })}
+                                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <span className="text-sm text-gray-700 dark:text-gray-300">Enable semantic filtering</span>
+                                                </label>
+                                            </div>
+
+                                            {query.semantic_filter.enabled && (
+                                                <>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                            Filter Criteria
+                                                        </label>
+                                                        <textarea
+                                                            placeholder="Text description of what should pass/fail"
+                                                            rows={2}
+                                                            value={query.semantic_filter.criteria}
+                                                            onChange={(e) => updateBroadQuery(index, 'semantic_filter', {
+                                                                ...query.semantic_filter,
+                                                                criteria: e.target.value
+                                                            })}
+                                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                            Confidence Threshold (0.0 to 1.0)
+                                                        </label>
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            max="1"
+                                                            step="0.1"
+                                                            value={query.semantic_filter.threshold}
+                                                            onChange={(e) => updateBroadQuery(index, 'semantic_filter', {
+                                                                ...query.semantic_filter,
+                                                                threshold: parseFloat(e.target.value)
+                                                            })}
+                                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                        />
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             ))}
