@@ -219,25 +219,28 @@ class BroadSearchStrategy(BaseModel):
 
 class RetrievalConfig(BaseModel):
     """Layer 2: Configuration for content retrieval and filtering"""
-    concepts: List[Concept] = Field(
-        default_factory=list,
-        description="Concepts covering domain (union = complete coverage)"
+    concepts: Optional[List[Concept]] = Field(
+        None,
+        description="Concept-based retrieval (mutually exclusive with broad_search)"
     )
     broad_search: Optional[BroadSearchStrategy] = Field(
         None,
-        description="Alternative: broad search strategy for simple, wide-net retrieval"
+        description="Broad search retrieval (mutually exclusive with concepts)"
     )
     article_limit_per_week: Optional[int] = Field(None, description="Maximum articles per week")
 
     def get_concepts_for_topic(self, topic_id: str) -> List[Concept]:
         """Get all concepts that cover a specific topic"""
+        if not self.concepts:
+            return []
         return [c for c in self.concepts if topic_id in c.covered_topics]
 
     def validate_coverage(self, semantic_space: SemanticSpace) -> Dict[str, Any]:
         """Check if all topics are covered by at least one concept"""
         covered = set()
-        for concept in self.concepts:
-            covered.update(concept.covered_topics)
+        if self.concepts:
+            for concept in self.concepts:
+                covered.update(concept.covered_topics)
 
         all_topics = {t.topic_id for t in semantic_space.topics}
         uncovered = all_topics - covered

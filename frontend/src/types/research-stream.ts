@@ -123,8 +123,8 @@ export interface BroadSearchStrategy {
 }
 
 export interface RetrievalConfig {
-    concepts: Concept[];  // Concepts covering domain (union = complete coverage)
-    broad_search?: BroadSearchStrategy | null;  // Alternative: broad search strategy for simple, wide-net retrieval
+    concepts?: Concept[] | null;  // Concept-based retrieval (mutually exclusive with broad_search)
+    broad_search?: BroadSearchStrategy | null;  // Broad search retrieval (mutually exclusive with concepts)
     article_limit_per_week?: number;  // Maximum articles per week
 }
 

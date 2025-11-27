@@ -83,7 +83,7 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
 
         // === LAYER 2: RETRIEVAL CONFIG ===
         retrieval_config: {
-            concepts: [],
+            concepts: null,
             broad_search: null,
             article_limit_per_week: 10
         },

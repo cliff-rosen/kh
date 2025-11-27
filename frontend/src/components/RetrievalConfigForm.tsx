@@ -59,7 +59,7 @@ export default function RetrievalConfigForm({
         } else {
             onChange({
                 ...retrievalConfig,
-                concepts: [],
+                concepts: null,
                 broad_search: {
                     queries: [],
                     strategy_rationale: '',
@@ -67,6 +67,15 @@ export default function RetrievalConfigForm({
                 }
             });
         }
+    };
+
+    const switchStrategy = () => {
+        // Clear current strategy and show selection again
+        onChange({
+            ...retrievalConfig,
+            concepts: null,
+            broad_search: null
+        });
     };
 
     return (
@@ -94,9 +103,20 @@ export default function RetrievalConfigForm({
             {/* Strategy Selection or Configuration Display */}
             <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Retrieval Strategy
-                    </label>
+                    <div className="flex items-center gap-3">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Retrieval Strategy
+                        </label>
+                        {!hasNoConfig && (
+                            <button
+                                type="button"
+                                onClick={switchStrategy}
+                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                            >
+                                Change Strategy
+                            </button>
+                        )}
+                    </div>
                     <button
                         type="button"
                         onClick={() => navigate(`/streams/${id}/retrieval-wizard`)}
@@ -156,7 +176,10 @@ export default function RetrievalConfigForm({
                                     No concepts configured
                                 </h3>
                                 <p className="text-gray-600 dark:text-gray-400 mb-4">
-                                    Use the Retrieval Wizard to generate concept proposals based on your semantic space.
+                                    Concept-based retrieval requires specific configuration via the wizard.
+                                </p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                    Note: Manual configuration of concepts is complex. We recommend using the wizard.
                                 </p>
                                 <button
                                     type="button"
@@ -169,7 +192,7 @@ export default function RetrievalConfigForm({
                             </div>
                         ) : (
                         <div className="space-y-3">
-                            {retrievalConfig.concepts.map((concept) => {
+                            {retrievalConfig.concepts && retrievalConfig.concepts.map((concept) => {
                                 const isExpanded = expandedConcepts.has(concept.concept_id);
 
                                 return (
@@ -304,7 +327,10 @@ export default function RetrievalConfigForm({
                                     No queries configured
                                 </h3>
                                 <p className="text-gray-600 dark:text-gray-400 mb-4">
-                                    Use the Retrieval Wizard to generate broad search queries.
+                                    Use the Retrieval Wizard to generate optimized broad search queries for your research domain.
+                                </p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                    The wizard will help you create 1-3 queries that cover your topics effectively.
                                 </p>
                                 <button
                                     type="button"
