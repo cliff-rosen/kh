@@ -111,17 +111,23 @@ class RefinementWorkbenchService:
         # Convert PubMedArticle to CanonicalResearchArticle
         articles = []
         for pm_article in pubmed_articles:
+            # PubMedArticle has PMID (uppercase), not pmid
+            pmid = pm_article.PMID
             articles.append(CanonicalResearchArticle(
-                id=pm_article.pmid,
+                id=pmid,
                 source='pubmed',
-                pmid=pm_article.pmid,
+                pmid=pmid,
                 title=pm_article.title or "",
                 abstract=pm_article.abstract,
                 journal=pm_article.journal,
-                authors=pm_article.authors or [],
+                authors=pm_article.authors.split(', ') if isinstance(pm_article.authors, str) else [],
                 publication_date=pm_article.pub_date,
-                doi=pm_article.doi,
-                url=pm_article.url
+                date_completed=pm_article.comp_date,
+                date_revised=pm_article.date_revised,
+                date_entered=pm_article.entry_date,
+                date_published=pm_article.article_date,
+                publication_year=int(pm_article.year) if pm_article.year and pm_article.year.isdigit() else None,
+                url=f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else None
             ))
 
         metadata = {
