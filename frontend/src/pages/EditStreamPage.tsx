@@ -17,6 +17,7 @@ import SemanticSpaceForm from '../components/SemanticSpaceForm';
 import PresentationForm from '../components/PresentationForm';
 import RetrievalConfigForm from '../components/RetrievalConfigForm';
 import ExecutePipelineTab from '../components/ExecutePipelineTab';
+import QueryRefinementWorkbench from '../components/QueryRefinementWorkbench';
 import ChatTray from '../components/chat/ChatTray';
 import SchemaProposalCard from '../components/chat/SchemaProposalCard';
 
@@ -394,8 +395,8 @@ export default function EditStreamPage() {
                                     }`}
                             >
                                 <div className="flex flex-col items-start">
-                                    <span>Test & Execute</span>
-                                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Run pipeline end-to-end</span>
+                                    <span>Test & Refine</span>
+                                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Refine queries and run pipeline</span>
                                 </div>
                             </button>
                         </nav>
@@ -470,9 +471,15 @@ export default function EditStreamPage() {
                             </div>
                         )}
 
-                        {/* Layer 4: Test & Execute Tab */}
+                        {/* Layer 4: Test & Refine Tab */}
                         {activeTab === 'execute' && stream && (
-                            <ExecutePipelineTab streamId={parseInt(id!)} />
+                            <div className="space-y-8">
+                                <QueryRefinementWorkbench streamId={parseInt(id!)} />
+
+                                <div className="border-t-4 border-gray-200 dark:border-gray-700 pt-8">
+                                    <ExecutePipelineTab streamId={parseInt(id!)} />
+                                </div>
+                            </div>
                         )}
 
                     </form>
