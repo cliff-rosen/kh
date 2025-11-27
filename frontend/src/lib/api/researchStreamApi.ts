@@ -9,17 +9,80 @@ import {
 } from '../../types/stream-building';
 import { makeStreamRequest } from './streamUtils';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
-import {
-    RunQueryRequest,
-    ManualPMIDsRequest,
-    FilterArticlesRequest,
-    CategorizeArticlesRequest,
-    ComparePMIDsRequest,
-    SourceResponse,
-    FilterResponse,
-    CategorizeResponse,
-    ComparisonResult
-} from '../../types/refinement-workbench';
+
+// ============================================================================
+// Refinement Workbench API Types
+// ============================================================================
+
+export interface RunQueryRequest {
+    stream_id: number;
+    query_index: number;
+    start_date: string;  // YYYY-MM-DD
+    end_date: string;    // YYYY-MM-DD
+}
+
+export interface ManualPMIDsRequest {
+    pmids: string[];
+}
+
+export interface SourceResponse {
+    articles: CanonicalResearchArticle[];
+    count: number;
+    metadata?: Record<string, any>;
+}
+
+export interface FilterArticlesRequest {
+    articles: CanonicalResearchArticle[];
+    filter_criteria: string;
+    threshold: number;  // 0.0-1.0
+}
+
+export interface FilterResult {
+    article: CanonicalResearchArticle;
+    passed: boolean;
+    score: number;
+    reasoning: string;
+}
+
+export interface FilterResponse {
+    results: FilterResult[];
+    count: number;
+    passed: number;
+    failed: number;
+}
+
+export interface CategorizeArticlesRequest {
+    stream_id: number;
+    articles: CanonicalResearchArticle[];
+}
+
+export interface CategoryAssignment {
+    article: CanonicalResearchArticle;
+    assigned_categories: string[];
+}
+
+export interface CategorizeResponse {
+    results: CategoryAssignment[];
+    count: number;
+    category_distribution: Record<string, number>;
+}
+
+export interface ComparePMIDsRequest {
+    retrieved_pmids: string[];
+    expected_pmids: string[];
+}
+
+export interface ComparisonResult {
+    matched: string[];
+    missed: string[];
+    extra: string[];
+    matched_count: number;
+    missed_count: number;
+    extra_count: number;
+    recall: number;
+    precision: number;
+    f1_score: number;
+}
 
 // ============================================================================
 // Stream Building Chat API

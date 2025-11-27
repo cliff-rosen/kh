@@ -16,9 +16,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { ResearchStream } from '../types';
-import {
-    ArticleResult
-} from '../types/refinement-workbench';
+import { CanonicalResearchArticle } from '../types/canonical_types';
 
 interface QueryRefinementWorkbenchProps {
     streamId: number;
@@ -497,7 +495,7 @@ function FilterStepContent({ step, onUpdate, previousSteps, streamId }: { step: 
                 throw new Error('Filter criteria is required');
             }
 
-            const articles: ArticleResult[] = inputStep.results.articles;
+            const articles: CanonicalResearchArticle[] = inputStep.results.articles;
 
             const response = await researchStreamApi.filterArticles({
                 articles,
@@ -622,7 +620,7 @@ function CategorizeStepContent({ step, onUpdate, previousSteps, streamId }: { st
                 throw new Error('No input articles selected');
             }
 
-            const articles: ArticleResult[] = inputStep.results.articles;
+            const articles: CanonicalResearchArticle[] = inputStep.results.articles;
 
             const response = await researchStreamApi.categorizeArticles({
                 stream_id: streamId,

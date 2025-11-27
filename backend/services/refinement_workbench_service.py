@@ -5,20 +5,12 @@ Service for testing and refining queries, filters, and categorization.
 Provides isolated testing capabilities for each pipeline component.
 """
 
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Tuple
 from sqlalchemy.orm import Session
 
 from models import ResearchStream
-from schemas.refinement_workbench import (
-    ArticleResult,
-    SourceResponse,
-    FilterResult,
-    FilterResponse,
-    CategoryAssignment,
-    CategorizeResponse,
-    ComparisonResult
-)
-from services.pubmed_service import PubMedService
+from schemas.canonical_types import CanonicalResearchArticle
+from services.pubmed_service import PubMedService, fetch_articles_by_ids
 from services.semantic_filter_service import SemanticFilterService
 from services.article_categorization_service import ArticleCategorizationService
 
@@ -38,7 +30,7 @@ class RefinementWorkbenchService:
         query_index: int,
         start_date: str,
         end_date: str
-    ) -> SourceResponse:
+    ) -> Tuple[List[CanonicalResearchArticle], Dict]:
         """
         Execute a broad query from the stream's retrieval config.
 
@@ -49,7 +41,7 @@ class RefinementWorkbenchService:
             end_date: End date (YYYY-MM-DD)
 
         Returns:
-            SourceResponse with articles and metadata
+            Tuple of (articles, metadata dict)
         """
         # Get stream from database
         stream = self.db.query(ResearchStream).filter(
@@ -89,28 +81,21 @@ class RefinementWorkbenchService:
             sort_by="relevance"
         )
 
-        # Convert to ArticleResult
-        article_results = [
-            self._canonical_to_article_result(article)
-            for article in articles
-        ]
+        # Add additional metadata
+        enriched_metadata = {
+            "query_expression": query_expression,
+            "query_index": query_index,
+            "start_date": start_date,
+            "end_date": end_date,
+            **metadata
+        }
 
-        return SourceResponse(
-            articles=article_results,
-            count=len(article_results),
-            metadata={
-                "query_expression": query_expression,
-                "query_index": query_index,
-                "start_date": start_date,
-                "end_date": end_date,
-                **metadata
-            }
-        )
+        return articles, enriched_metadata
 
     async def fetch_manual_pmids(
         self,
         pmids: List[str]
-    ) -> SourceResponse:
+    ) -> Tuple[List[CanonicalResearchArticle], Dict]:
         """
         Fetch articles by PMID list.
 
@@ -118,17 +103,17 @@ class RefinementWorkbenchService:
             pmids: List of PubMed IDs
 
         Returns:
-            SourceResponse with articles
+            Tuple of (articles, metadata dict)
         """
-        from services.pubmed_service import fetch_articles_by_ids
-
-        # Fetch articles from PubMed
+        # Fetch articles from PubMed - returns List[PubMedArticle]
         pubmed_articles = fetch_articles_by_ids(pmids)
 
-        # Convert to ArticleResult
-        article_results = []
+        # Convert PubMedArticle to CanonicalResearchArticle
+        articles = []
         for pm_article in pubmed_articles:
-            article_results.append(ArticleResult(
+            articles.append(CanonicalResearchArticle(
+                id=pm_article.pmid,
+                source='pubmed',
                 pmid=pm_article.pmid,
                 title=pm_article.title or "",
                 abstract=pm_article.abstract,
@@ -139,21 +124,19 @@ class RefinementWorkbenchService:
                 url=pm_article.url
             ))
 
-        return SourceResponse(
-            articles=article_results,
-            count=len(article_results),
-            metadata={
-                "requested_pmids": len(pmids),
-                "found_pmids": len(article_results)
-            }
-        )
+        metadata = {
+            "requested_pmids": len(pmids),
+            "found_pmids": len(articles)
+        }
+
+        return articles, metadata
 
     async def filter_articles(
         self,
-        articles: List[ArticleResult],
+        articles: List[CanonicalResearchArticle],
         filter_criteria: str,
         threshold: float
-    ) -> FilterResponse:
+    ) -> List[Dict]:
         """
         Apply semantic filtering to articles.
 
@@ -163,10 +146,9 @@ class RefinementWorkbenchService:
             threshold: Minimum score to pass (0.0-1.0)
 
         Returns:
-            FilterResponse with results for each article
+            List of filter result dicts with article, passed, score, reasoning
         """
         results = []
-        passed_count = 0
 
         for article in articles:
             # Evaluate article relevance
@@ -179,29 +161,20 @@ class RefinementWorkbenchService:
                 threshold=threshold
             )
 
-            result = FilterResult(
-                article=article,
-                passed=is_relevant,
-                score=score,
-                reasoning=reasoning
-            )
-            results.append(result)
+            results.append({
+                "article": article,
+                "passed": is_relevant,
+                "score": score,
+                "reasoning": reasoning
+            })
 
-            if is_relevant:
-                passed_count += 1
-
-        return FilterResponse(
-            results=results,
-            count=len(results),
-            passed=passed_count,
-            failed=len(results) - passed_count
-        )
+        return results
 
     async def categorize_articles(
         self,
         stream_id: int,
-        articles: List[ArticleResult]
-    ) -> CategorizeResponse:
+        articles: List[CanonicalResearchArticle]
+    ) -> List[Dict]:
         """
         Categorize articles using stream's Layer 3 categories.
 
@@ -210,7 +183,7 @@ class RefinementWorkbenchService:
             articles: List of articles to categorize
 
         Returns:
-            CategorizeResponse with category assignments
+            List of categorization result dicts with article and assigned_categories
         """
         # Get stream from database
         stream = self.db.query(ResearchStream).filter(
@@ -228,7 +201,6 @@ class RefinementWorkbenchService:
 
         # Categorize each article
         results = []
-        category_counts: Dict[str, int] = {}
 
         for article in articles:
             # Call categorization service
@@ -238,27 +210,18 @@ class RefinementWorkbenchService:
                 categories=categories
             )
 
-            result = CategoryAssignment(
-                article=article,
-                assigned_categories=assigned_category_ids
-            )
-            results.append(result)
+            results.append({
+                "article": article,
+                "assigned_categories": assigned_category_ids
+            })
 
-            # Update category counts
-            for cat_id in assigned_category_ids:
-                category_counts[cat_id] = category_counts.get(cat_id, 0) + 1
-
-        return CategorizeResponse(
-            results=results,
-            count=len(results),
-            category_distribution=category_counts
-        )
+        return results
 
     def compare_pmid_lists(
         self,
         retrieved_pmids: List[str],
         expected_pmids: List[str]
-    ) -> ComparisonResult:
+    ) -> Dict:
         """
         Compare retrieved vs expected PMID lists.
 
@@ -267,7 +230,7 @@ class RefinementWorkbenchService:
             expected_pmids: PMIDs that were expected
 
         Returns:
-            ComparisonResult with match statistics
+            Dict with match statistics
         """
         # Convert to sets for comparison
         retrieved_set = set(retrieved_pmids)
@@ -293,27 +256,14 @@ class RefinementWorkbenchService:
         else:
             f1_score = 0.0
 
-        return ComparisonResult(
-            matched=matched,
-            missed=missed,
-            extra=extra,
-            matched_count=matched_count,
-            missed_count=missed_count,
-            extra_count=extra_count,
-            recall=recall,
-            precision=precision,
-            f1_score=f1_score
-        )
-
-    def _canonical_to_article_result(self, canonical_article) -> ArticleResult:
-        """Convert CanonicalResearchArticle to ArticleResult"""
-        return ArticleResult(
-            pmid=canonical_article.pmid or (canonical_article.id if canonical_article.source == 'pubmed' else None),
-            title=canonical_article.title or "",
-            abstract=canonical_article.abstract,
-            journal=canonical_article.journal,
-            authors=canonical_article.authors,
-            publication_date=canonical_article.publication_date,
-            doi=canonical_article.doi,
-            url=canonical_article.url
-        )
+        return {
+            "matched": matched,
+            "missed": missed,
+            "extra": extra,
+            "matched_count": matched_count,
+            "missed_count": missed_count,
+            "extra_count": extra_count,
+            "recall": recall,
+            "precision": precision,
+            "f1_score": f1_score
+        }
