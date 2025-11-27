@@ -13,7 +13,7 @@ const currentHost = window.location.hostname;
 const isLocalhost = currentHost === 'localhost' || currentHost === '127.0.0.1';
 
 const productionSettings: Settings = {
-    apiUrl: 'https://hopbot-api.ironcliff.ai',
+    apiUrl: 'https://api.knowledgehorizon.ai',
     appName: 'Knowledge Horizon',
     logoUrl: '/cognify-icon.svg'  // Using existing icon
 };

@@ -57,8 +57,8 @@ class PipelineService:
     """Orchestrates end-to-end pipeline execution for research streams"""
 
     # Hard limits to prevent runaway execution
-    MAX_ARTICLES_PER_SOURCE = 50
-    MAX_TOTAL_ARTICLES = 200
+    MAX_ARTICLES_PER_SOURCE = 500
+    MAX_TOTAL_ARTICLES = 1000
 
     def __init__(self, db: Session):
         self.db = db
