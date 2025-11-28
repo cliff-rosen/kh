@@ -256,6 +256,15 @@ class PipelineService:
                 {"duplicates": global_dupes}
             )
 
+            # Mark articles for report inclusion (not duplicates, passed filter or no filter)
+            included_count = await self._mark_articles_for_report(execution_id)
+
+            yield PipelineStatus(
+                "dedup_global",
+                f"Marked {included_count} articles for report inclusion",
+                {"included": included_count}
+            )
+
             # === STAGE 6: Categorize Articles ===
             yield PipelineStatus("categorize", "Categorizing articles into presentation categories...")
 
@@ -299,9 +308,9 @@ class PipelineService:
                 category_summaries=category_summaries,
                 metrics={
                     "total_retrieved": total_retrieved,
-                    "unit_dedup_stats": unit_dedup_stats,
                     "filter_stats": filter_stats,
                     "global_duplicates": global_dupes,
+                    "included_in_report": included_count,
                     "categorized": categorized_count
                 },
                 start_date=start_date,
@@ -533,6 +542,37 @@ class PipelineService:
         self.db.commit()
         return duplicates_found
 
+    async def _mark_articles_for_report(self, execution_id: str) -> int:
+        """
+        Mark articles that should be included in the final report.
+
+        An article is included if:
+        - NOT a duplicate
+        - Passed semantic filter OR no filter was applied
+
+        Args:
+            execution_id: UUID of this pipeline execution
+
+        Returns:
+            Number of articles marked for inclusion
+        """
+        articles = self.db.query(WipArticle).filter(
+            and_(
+                WipArticle.pipeline_execution_id == execution_id,
+                WipArticle.is_duplicate == False,
+                or_(
+                    WipArticle.passed_semantic_filter == True,
+                    WipArticle.passed_semantic_filter == None
+                )
+            )
+        ).all()
+
+        for article in articles:
+            article.included_in_report = True
+
+        self.db.commit()
+        return len(articles)
+
     async def _categorize_articles(
         self,
         research_stream_id: int,
@@ -550,15 +590,11 @@ class PipelineService:
         Returns:
             Number of articles categorized
         """
-        # Get all unique articles (not duplicates, passed filters) from THIS execution
+        # Get all articles marked for report inclusion (to categorize them)
         articles = self.db.query(WipArticle).filter(
             and_(
                 WipArticle.pipeline_execution_id == execution_id,
-                WipArticle.is_duplicate == False,
-                or_(
-                    WipArticle.passed_semantic_filter == True,
-                    WipArticle.passed_semantic_filter == None
-                )
+                WipArticle.included_in_report == True
             )
         ).all()
 
@@ -580,7 +616,6 @@ class PipelineService:
         # Update database with results
         for article, assigned_categories in results:
             article.presentation_categories = assigned_categories
-            article.included_in_report = len(assigned_categories) > 0
 
         self.db.commit()
         return len(articles)
@@ -604,7 +639,7 @@ class PipelineService:
         Returns:
             Tuple of (executive_summary, category_summaries_dict)
         """
-        # Get all articles to include in report (unique, passed filters, included)
+        # Get all articles marked for report inclusion
         wip_articles = self.db.query(WipArticle).filter(
             and_(
                 WipArticle.pipeline_execution_id == execution_id,
@@ -713,7 +748,7 @@ class PipelineService:
         self.db.add(report)
         self.db.flush()  # Get report_id
 
-        # Get all articles to include (from THIS execution, unique, passed filters)
+        # Get all articles marked for report inclusion
         wip_articles = self.db.query(WipArticle).filter(
             and_(
                 WipArticle.pipeline_execution_id == execution_id,
