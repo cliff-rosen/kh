@@ -183,7 +183,7 @@ class RefinementWorkbenchService:
         articles: List[CanonicalResearchArticle]
     ) -> List[Dict]:
         """
-        Categorize articles using stream's Layer 3 categories.
+        Categorize articles using stream's Layer 3 categories in parallel.
 
         Args:
             stream_id: Research stream ID (to get categories)
@@ -206,20 +206,22 @@ class RefinementWorkbenchService:
 
         categories = stream.presentation_config["categories"]
 
-        # Categorize each article
+        if not articles:
+            return []
+
+        # Use centralized batch categorization from ArticleCategorizationService
+        batch_results = await self.categorization_service.categorize_articles_batch(
+            articles=articles,
+            categories=categories,
+            max_concurrent=10
+        )
+
+        # Convert batch results to expected format
         results = []
-
-        for article in articles:
-            # Call categorization service
-            assigned_category_ids = await self.categorization_service.categorize_article(
-                article_title=article.title,
-                article_abstract=article.abstract or "",
-                categories=categories
-            )
-
+        for article, assigned_categories in batch_results:
             results.append({
                 "article": article,
-                "assigned_categories": assigned_category_ids
+                "assigned_categories": assigned_categories
             })
 
         return results

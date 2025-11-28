@@ -612,8 +612,6 @@ class PipelineService:
         Returns:
             Number of articles categorized
         """
-        import asyncio
-
         # Get all unique articles (not duplicates, passed filters)
         articles = self.db.query(WipArticle).filter(
             and_(
@@ -634,54 +632,20 @@ class PipelineService:
             presentation_config.categories
         )
 
-        # Create semaphore to limit concurrent LLM calls
-        semaphore = asyncio.Semaphore(10)  # Limit to 10 concurrent categorizations
-
-        async def categorize_article(article: WipArticle) -> Tuple[int, List[str]]:
-            """Categorize a single article with rate limiting"""
-            async with semaphore:
-                try:
-                    assigned_categories = await self._assign_categories_to_article(
-                        article=article,
-                        categories=categories_desc
-                    )
-                    return article.id, assigned_categories
-                except Exception as e:
-                    # On error, return empty category list
-                    return article.id, []
-
-        # Execute all categorizations in parallel
-        results = await asyncio.gather(
-            *[categorize_article(article) for article in articles],
-            return_exceptions=False
+        # Use centralized batch categorization from ArticleCategorizationService
+        results = await self.categorization_service.categorize_wip_articles_batch(
+            articles=articles,
+            categories=categories_desc,
+            max_concurrent=10
         )
 
         # Update database with results
-        article_map = {a.id: a for a in articles}
-        for article_id, assigned_categories in results:
-            article = article_map[article_id]
+        for article, assigned_categories in results:
             article.presentation_categories = assigned_categories
             article.included_in_report = len(assigned_categories) > 0
 
         self.db.commit()
         return len(articles)
-
-    async def _assign_categories_to_article(
-        self,
-        article: WipArticle,
-        categories: List[Dict]
-    ) -> List[str]:
-        """
-        Use LLM to assign presentation categories to an article.
-
-        Returns:
-            List of category IDs that apply to this article
-        """
-        # Delegate to categorization service
-        return await self.categorization_service.categorize_wip_article(
-            article=article,
-            categories=categories
-        )
 
     async def _generate_summaries(
         self,
