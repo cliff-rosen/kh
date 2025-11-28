@@ -41,7 +41,8 @@ class ManualPMIDsRequest(BaseModel):
 class SourceResponse(BaseModel):
     """Response from source operations"""
     articles: List[CanonicalResearchArticle] = Field(..., description="Retrieved articles")
-    count: int = Field(..., description="Number of articles retrieved")
+    count: int = Field(..., description="Number of articles actually returned")
+    total_count: int = Field(..., description="Total number of articles matching the query")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
 
@@ -136,6 +137,7 @@ async def run_query(
         return SourceResponse(
             articles=articles,
             count=len(articles),
+            total_count=metadata.get("total_results", len(articles)),
             metadata=metadata
         )
     except ValueError as e:
@@ -166,6 +168,7 @@ async def fetch_manual_pmids(
         return SourceResponse(
             articles=articles,
             count=len(articles),
+            total_count=len(articles),  # For manual PMIDs, total equals returned
             metadata=metadata
         )
     except Exception as e:

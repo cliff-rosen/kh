@@ -170,6 +170,116 @@ class ResearchStreamService:
         self.db.refresh(research_stream)
         return research_stream
 
+    def update_broad_query(
+        self,
+        stream_id: int,
+        query_index: int,
+        query_expression: str
+    ) -> ResearchStream:
+        """
+        Update a specific broad query's expression.
+
+        Args:
+            stream_id: Research stream ID
+            query_index: Index of the query to update (0-based)
+            query_expression: Updated query expression
+
+        Returns:
+            Updated ResearchStream
+        """
+        from sqlalchemy.orm.attributes import flag_modified
+
+        research_stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == stream_id
+        ).first()
+
+        if not research_stream:
+            raise ValueError(f"Research stream with ID {stream_id} not found")
+
+        # Get retrieval config
+        retrieval_config = research_stream.retrieval_config or {}
+        broad_search = retrieval_config.get("broad_search", {})
+        queries = broad_search.get("queries", [])
+
+        # Validate query index
+        if query_index < 0 or query_index >= len(queries):
+            raise ValueError(f"Query index {query_index} out of range (0-{len(queries)-1})")
+
+        # Update the query expression
+        queries[query_index]["query_expression"] = query_expression
+
+        # Save back to database
+        broad_search["queries"] = queries
+        retrieval_config["broad_search"] = broad_search
+        research_stream.retrieval_config = retrieval_config
+
+        # Mark as modified so SQLAlchemy tracks the change
+        flag_modified(research_stream, "retrieval_config")
+        research_stream.updated_at = datetime.utcnow()
+
+        self.db.commit()
+        self.db.refresh(research_stream)
+        return research_stream
+
+    def update_semantic_filter(
+        self,
+        stream_id: int,
+        query_index: int,
+        enabled: bool,
+        criteria: str,
+        threshold: float
+    ) -> ResearchStream:
+        """
+        Update semantic filter configuration for a specific broad query.
+
+        Args:
+            stream_id: Research stream ID
+            query_index: Index of the query whose filter to update (0-based)
+            enabled: Whether semantic filter is enabled
+            criteria: Natural language filter criteria
+            threshold: Relevance threshold (0.0-1.0)
+
+        Returns:
+            Updated ResearchStream
+        """
+        from sqlalchemy.orm.attributes import flag_modified
+
+        research_stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == stream_id
+        ).first()
+
+        if not research_stream:
+            raise ValueError(f"Research stream with ID {stream_id} not found")
+
+        # Get retrieval config
+        retrieval_config = research_stream.retrieval_config or {}
+        broad_search = retrieval_config.get("broad_search", {})
+        queries = broad_search.get("queries", [])
+
+        # Validate query index
+        if query_index < 0 or query_index >= len(queries):
+            raise ValueError(f"Query index {query_index} out of range (0-{len(queries)-1})")
+
+        # Update the semantic filter
+        queries[query_index]["semantic_filter"] = {
+            "enabled": enabled,
+            "criteria": criteria,
+            "threshold": threshold
+        }
+
+        # Save back to database
+        broad_search["queries"] = queries
+        retrieval_config["broad_search"] = broad_search
+        research_stream.retrieval_config = retrieval_config
+
+        # Mark as modified so SQLAlchemy tracks the change
+        flag_modified(research_stream, "retrieval_config")
+        research_stream.updated_at = datetime.utcnow()
+
+        self.db.commit()
+        self.db.refresh(research_stream)
+        return research_stream
+
     def delete_research_stream(self, stream_id: int) -> bool:
         """Delete a research stream"""
         research_stream = self.db.query(ResearchStream).filter(

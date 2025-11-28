@@ -235,7 +235,9 @@ function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFo
                             </h4>
                             {step.results && (
                                 <p className="text-xs text-gray-600 dark:text-gray-400">
-                                    {step.results.count} articles
+                                    {step.type === 'source' && step.results.total_count !== undefined && step.results.total_count !== step.results.count
+                                        ? `${step.results.count} of ${step.results.total_count} articles`
+                                        : `${step.results.count} articles`}
                                 </p>
                             )}
                         </div>
@@ -297,6 +299,8 @@ function SourceStepContent({ step, onUpdate, stream, streamId }: { step: Workflo
                     throw new Error('Invalid query selection');
                 }
 
+                // Note: Backend always uses the saved query from the stream
+                // If user has modified testQueryExpression, they need to "Update Stream" first
                 const response = await researchStreamApi.runQuery({
                     stream_id: streamId,
                     query_index: queryIndex,
@@ -390,6 +394,79 @@ function SourceStepContent({ step, onUpdate, stream, streamId }: { step: Workflo
                                 </p>
                             )}
                         </div>
+
+                        {/* Query Expression Editor (when query selected) */}
+                        {config.selectedQuery !== '' && (() => {
+                            const queryIndex = parseInt(config.selectedQuery);
+                            const savedQuery = broadQueries[queryIndex];
+                            const savedExpression = savedQuery?.query_expression || '';
+                            const testExpression = config.testQueryExpression || savedExpression;
+                            const hasChanges = testExpression !== savedExpression;
+
+                            return (
+                                <div className="border border-gray-300 dark:border-gray-600 rounded-md p-3 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            Query Expression
+                                        </label>
+                                        {hasChanges && (
+                                            <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                                </svg>
+                                                Modified
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <textarea
+                                        value={testExpression}
+                                        onChange={(e) => onUpdate({ config: { ...config, testQueryExpression: e.target.value } })}
+                                        placeholder="Enter PubMed query expression..."
+                                        rows={3}
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
+                                    />
+
+                                    {hasChanges && (
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={async () => {
+                                                    try {
+                                                        await researchStreamApi.updateBroadQuery(
+                                                            streamId,
+                                                            queryIndex,
+                                                            testExpression
+                                                        );
+                                                        // Reset test expression to match saved
+                                                        onUpdate({ config: { ...config, testQueryExpression: undefined } });
+                                                        alert('Query updated successfully!');
+                                                    } catch (err) {
+                                                        alert('Failed to update query: ' + (err instanceof Error ? err.message : 'Unknown error'));
+                                                    }
+                                                }}
+                                                className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md font-medium"
+                                            >
+                                                Update Stream
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => onUpdate({ config: { ...config, testQueryExpression: savedExpression } })}
+                                                className="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-700 text-white rounded-md font-medium"
+                                            >
+                                                Revert
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {!hasChanges && (
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            Matches saved query expression
+                                        </p>
+                                    )}
+                                </div>
+                            );
+                        })()}
 
                         <div className="grid grid-cols-2 gap-3">
                             <div>
@@ -535,33 +612,133 @@ function FilterStepContent({ step, onUpdate, previousSteps, streamId }: { step: 
                     </select>
                 </div>
 
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Filter Criteria
-                    </label>
-                    <textarea
-                        value={config.criteria || ''}
-                        onChange={(e) => onUpdate({ config: { ...config, criteria: e.target.value } })}
-                        placeholder="Describe what should pass/fail..."
-                        rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                    />
-                </div>
+                {/* Filter Configuration with Diff Tracking */}
+                {(() => {
+                    // Try to determine which query this filter is associated with
+                    // Look for a source step in previous steps
+                    const sourceStep = previousSteps.find(s => s.type === 'source' && s.config.sourceType === 'query');
+                    let savedFilter: any = null;
+                    let queryIndex = -1;
 
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Threshold: {config.threshold || 0.7}
-                    </label>
-                    <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.05"
-                        value={config.threshold || 0.7}
-                        onChange={(e) => onUpdate({ config: { ...config, threshold: parseFloat(e.target.value) } })}
-                        className="w-full"
-                    />
-                </div>
+                    if (sourceStep && sourceStep.config.selectedQuery) {
+                        queryIndex = parseInt(sourceStep.config.selectedQuery);
+                        const broadQueries = stream.retrieval_config?.broad_search?.queries || [];
+                        const query = broadQueries[queryIndex];
+                        savedFilter = query?.semantic_filter;
+                    }
+
+                    const testCriteria = config.criteria !== undefined ? config.criteria : (savedFilter?.criteria || '');
+                    const testThreshold = config.threshold !== undefined ? config.threshold : (savedFilter?.threshold || 0.7);
+                    const testEnabled = config.enabled !== undefined ? config.enabled : (savedFilter?.enabled ?? true);
+
+                    const hasChanges = savedFilter && (
+                        testCriteria !== savedFilter.criteria ||
+                        testThreshold !== savedFilter.threshold ||
+                        testEnabled !== savedFilter.enabled
+                    );
+
+                    return (
+                        <div className="border border-gray-300 dark:border-gray-600 rounded-md p-3 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Filter Configuration
+                                </label>
+                                {hasChanges && (
+                                    <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                        Modified
+                                    </span>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="flex items-center mb-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={testEnabled}
+                                        onChange={(e) => onUpdate({ config: { ...config, enabled: e.target.checked } })}
+                                        className="mr-2"
+                                    />
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        Enable Semantic Filter
+                                    </span>
+                                </label>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Filter Criteria
+                                </label>
+                                <textarea
+                                    value={testCriteria}
+                                    onChange={(e) => onUpdate({ config: { ...config, criteria: e.target.value } })}
+                                    placeholder="Describe what should pass/fail..."
+                                    rows={3}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Threshold: {testThreshold.toFixed(2)}
+                                </label>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.05"
+                                    value={testThreshold}
+                                    onChange={(e) => onUpdate({ config: { ...config, threshold: parseFloat(e.target.value) } })}
+                                    className="w-full"
+                                />
+                            </div>
+
+                            {hasChanges && queryIndex >= 0 && (
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            try {
+                                                await researchStreamApi.updateSemanticFilter(
+                                                    streamId,
+                                                    queryIndex,
+                                                    {
+                                                        enabled: testEnabled,
+                                                        criteria: testCriteria,
+                                                        threshold: testThreshold
+                                                    }
+                                                );
+                                                // Reset to match saved
+                                                onUpdate({ config: { ...config, enabled: undefined, criteria: undefined, threshold: undefined } });
+                                                alert('Filter updated successfully!');
+                                            } catch (err) {
+                                                alert('Failed to update filter: ' + (err instanceof Error ? err.message : 'Unknown error'));
+                                            }
+                                        }}
+                                        className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md font-medium"
+                                    >
+                                        Update Stream
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => onUpdate({ config: { ...config, enabled: savedFilter.enabled, criteria: savedFilter.criteria, threshold: savedFilter.threshold } })}
+                                        className="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-700 text-white rounded-md font-medium"
+                                    >
+                                        Revert
+                                    </button>
+                                </div>
+                            )}
+
+                            {!hasChanges && savedFilter && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    Matches saved filter configuration
+                                </p>
+                            )}
+                        </div>
+                    );
+                })()}
             </div>
 
             {/* Error Display */}
@@ -730,7 +907,9 @@ function ResultsPane({ step, stepNumber, view, onViewChange }: ResultsPaneProps)
                     </h3>
                     {step.results && (
                         <span className="text-sm text-gray-600 dark:text-gray-400">
-                            {step.results.count} articles
+                            {step.type === 'source' && step.results.total_count !== undefined && step.results.total_count !== step.results.count
+                                ? `${step.results.count} of ${step.results.total_count} articles`
+                                : `${step.results.count} articles`}
                         </span>
                     )}
                 </div>

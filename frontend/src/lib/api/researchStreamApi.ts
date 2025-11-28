@@ -27,7 +27,8 @@ export interface ManualPMIDsRequest {
 
 export interface SourceResponse {
     articles: CanonicalResearchArticle[];
-    count: number;
+    count: number;  // Number of articles actually returned
+    total_count: number;  // Total number of articles matching the query
     metadata?: Record<string, any>;
 }
 
@@ -636,6 +637,38 @@ export const researchStreamApi = {
         const response = await api.post(
             '/api/refinement-workbench/compare',
             request
+        );
+        return response.data;
+    },
+
+    /**
+     * Update a specific broad query's expression
+     * Used by refinement workbench to apply tested queries back to stream config
+     */
+    async updateBroadQuery(
+        streamId: number,
+        queryIndex: number,
+        queryExpression: string
+    ): Promise<ResearchStream> {
+        const response = await api.patch(
+            `/api/research-streams/${streamId}/retrieval-config/queries/${queryIndex}`,
+            { query_expression: queryExpression }
+        );
+        return response.data;
+    },
+
+    /**
+     * Update semantic filter configuration for a specific broad query
+     * Used by refinement workbench to apply tested filters back to stream config
+     */
+    async updateSemanticFilter(
+        streamId: number,
+        queryIndex: number,
+        filter: { enabled: boolean; criteria: string; threshold: number }
+    ): Promise<ResearchStream> {
+        const response = await api.patch(
+            `/api/research-streams/${streamId}/retrieval-config/queries/${queryIndex}/semantic-filter`,
+            filter
         );
         return response.data;
     }

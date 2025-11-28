@@ -194,6 +194,115 @@ async def toggle_research_stream_status(
 
 
 # ============================================================================
+# Granular Update Endpoints (for Refinement Workbench)
+# ============================================================================
+
+
+class UpdateBroadQueryRequest(BaseModel):
+    """Request to update a specific broad query"""
+    query_expression: str = Field(..., description="Updated PubMed query expression")
+
+
+class UpdateSemanticFilterRequest(BaseModel):
+    """Request to update semantic filter for a broad query"""
+    enabled: bool = Field(..., description="Whether semantic filter is enabled")
+    criteria: str = Field("", description="Natural language filter criteria")
+    threshold: float = Field(0.7, ge=0.0, le=1.0, description="Relevance threshold (0.0-1.0)")
+
+
+@router.patch("/{stream_id}/retrieval-config/queries/{query_index}")
+async def update_broad_query(
+    stream_id: int,
+    query_index: int,
+    request: UpdateBroadQueryRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update a specific broad query's expression.
+    Used by refinement workbench to apply tested queries back to stream config.
+
+    Args:
+        stream_id: Research stream ID
+        query_index: Index of the query to update (0-based)
+        request: Updated query expression
+
+    Returns:
+        Updated ResearchStream
+    """
+    service = ResearchStreamService(db)
+
+    # Verify ownership
+    existing_stream = service.get_research_stream(stream_id, current_user.user_id)
+    if not existing_stream:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Research stream not found"
+        )
+
+    try:
+        # Update via service
+        updated_stream = service.update_broad_query(
+            stream_id=stream_id,
+            query_index=query_index,
+            query_expression=request.query_expression
+        )
+        return updated_stream
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.patch("/{stream_id}/retrieval-config/queries/{query_index}/semantic-filter")
+async def update_semantic_filter(
+    stream_id: int,
+    query_index: int,
+    request: UpdateSemanticFilterRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update semantic filter configuration for a specific broad query.
+    Used by refinement workbench to apply tested filters back to stream config.
+
+    Args:
+        stream_id: Research stream ID
+        query_index: Index of the query whose filter to update (0-based)
+        request: Updated filter configuration
+
+    Returns:
+        Updated ResearchStream
+    """
+    service = ResearchStreamService(db)
+
+    # Verify ownership
+    existing_stream = service.get_research_stream(stream_id, current_user.user_id)
+    if not existing_stream:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Research stream not found"
+        )
+
+    try:
+        # Update via service
+        updated_stream = service.update_semantic_filter(
+            stream_id=stream_id,
+            query_index=query_index,
+            enabled=request.enabled,
+            criteria=request.criteria,
+            threshold=request.threshold
+        )
+        return updated_stream
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+# ============================================================================
 # Shared Retrieval Response Models
 # ============================================================================
 
