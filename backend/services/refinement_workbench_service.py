@@ -144,7 +144,7 @@ class RefinementWorkbenchService:
         threshold: float
     ) -> List[Dict]:
         """
-        Apply semantic filtering to articles.
+        Apply semantic filtering to articles in parallel.
 
         Args:
             articles: List of articles to filter
@@ -154,19 +154,20 @@ class RefinementWorkbenchService:
         Returns:
             List of filter result dicts with article, passed, score, reasoning
         """
+        if not articles:
+            return []
+
+        # Use centralized batch evaluation from SemanticFilterService
+        batch_results = await self.filter_service.evaluate_articles_batch(
+            articles=articles,
+            filter_criteria=filter_criteria,
+            threshold=threshold,
+            max_concurrent=10
+        )
+
+        # Convert batch results to expected format
         results = []
-
-        for article in articles:
-            # Evaluate article relevance
-            is_relevant, score, reasoning = await self.filter_service.evaluate_article_relevance(
-                article_title=article.title,
-                article_abstract=article.abstract or "",
-                article_journal=article.journal,
-                article_year=article.publication_date[:4] if article.publication_date else None,
-                filter_criteria=filter_criteria,
-                threshold=threshold
-            )
-
+        for article, is_relevant, score, reasoning in batch_results:
             results.append({
                 "article": article,
                 "passed": is_relevant,

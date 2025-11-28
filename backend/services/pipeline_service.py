@@ -512,8 +512,6 @@ class PipelineService:
         Returns:
             Tuple of (passed_count, rejected_count)
         """
-        import asyncio
-
         # Get all non-duplicate articles for this unit that haven't been filtered yet
         articles = self.db.query(WipArticle).filter(
             and_(
@@ -527,36 +525,19 @@ class PipelineService:
         if not articles:
             return 0, 0
 
-        # Create semaphore to limit concurrent LLM calls (avoid rate limits)
-        semaphore = asyncio.Semaphore(10)  # Limit to 10 concurrent filter evaluations
-
-        async def evaluate_article(article: WipArticle) -> Tuple[int, bool, str]:
-            """Evaluate a single article with rate limiting"""
-            async with semaphore:
-                try:
-                    is_relevant, reasoning = await self._evaluate_article_relevance(
-                        article=article,
-                        filter_criteria=filter_criteria,
-                        threshold=threshold
-                    )
-                    return article.id, is_relevant, reasoning
-                except Exception as e:
-                    # On error, reject the article with error message
-                    return article.id, False, f"Evaluation failed: {str(e)}"
-
-        # Execute all evaluations in parallel
-        results = await asyncio.gather(
-            *[evaluate_article(article) for article in articles],
-            return_exceptions=False
+        # Use centralized batch evaluation from SemanticFilterService
+        results = await self.filter_service.evaluate_wip_articles_batch(
+            articles=articles,
+            filter_criteria=filter_criteria,
+            threshold=threshold,
+            max_concurrent=10
         )
 
         # Update database with results
         passed = 0
         rejected = 0
-        article_map = {a.id: a for a in articles}
 
-        for article_id, is_relevant, reasoning in results:
-            article = article_map[article_id]
+        for article, is_relevant, score, reasoning in results:
             if is_relevant:
                 article.passed_semantic_filter = True
                 passed += 1
@@ -567,26 +548,6 @@ class PipelineService:
 
         self.db.commit()
         return passed, rejected
-
-    async def _evaluate_article_relevance(
-        self,
-        article: WipArticle,
-        filter_criteria: str,
-        threshold: float
-    ) -> Tuple[bool, str]:
-        """
-        Use LLM to evaluate if an article meets the semantic filter criteria.
-
-        Returns:
-            Tuple of (is_relevant, reasoning)
-        """
-        # Delegate to semantic filter service
-        is_relevant, score, reasoning = await self.filter_service.evaluate_wip_article(
-            article=article,
-            filter_criteria=filter_criteria,
-            threshold=threshold
-        )
-        return is_relevant, reasoning
 
     async def _deduplicate_globally(self, research_stream_id: int, execution_id: str) -> int:
         """
