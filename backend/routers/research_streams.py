@@ -232,15 +232,10 @@ async def update_broad_query(
     """
     service = ResearchStreamService(db)
 
-    # Verify ownership
-    existing_stream = service.get_research_stream(stream_id, current_user.user_id)
-    if not existing_stream:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Research stream not found"
-        )
-
     try:
+        # Verify ownership (will raise if not found/unauthorized)
+        service.get_research_stream(stream_id, current_user.user_id)
+
         # Update via service
         updated_stream = service.update_broad_query(
             stream_id=stream_id,
@@ -277,15 +272,10 @@ async def update_semantic_filter(
     """
     service = ResearchStreamService(db)
 
-    # Verify ownership
-    existing_stream = service.get_research_stream(stream_id, current_user.user_id)
-    if not existing_stream:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Research stream not found"
-        )
-
     try:
+        # Verify ownership (will raise if not found/unauthorized)
+        service.get_research_stream(stream_id, current_user.user_id)
+
         # Update via service
         updated_stream = service.update_semantic_filter(
             stream_id=stream_id,
