@@ -44,30 +44,30 @@ class ArticleCategorizationService:
 
         # Prepare article content
         article_content = f"""
-Title: {article_title}
-Abstract: {article_abstract or 'N/A'}
-Journal: {article_journal or 'N/A'}
-Year: {article_year or 'N/A'}
-"""
+        Title: {article_title}
+        Abstract: {article_abstract or 'N/A'}
+        Journal: {article_journal or 'N/A'}
+        Year: {article_year or 'N/A'}
+        """
 
         # Prepare prompt
         prompt = f"""You are categorizing a research article into presentation categories for a user report.
 
-ARTICLE:
-{article_content}
+        ARTICLE:
+        {article_content}
 
-AVAILABLE CATEGORIES:
-{json.dumps(categories, indent=2)}
+        AVAILABLE CATEGORIES:
+        {json.dumps(categories, indent=2)}
 
-Analyze the article and determine which categories it belongs to. An article can belong to multiple categories or none.
+        Analyze the article and determine which categories it belongs to. An article can belong to multiple categories or none.
 
-Return the list of category IDs that apply. Return an empty list if none apply.
+        Return the list of category IDs that apply. Return an empty list if none apply.
 
-Respond with JSON:
-{{
-    "category_ids": ["category_id_1", "category_id_2", ...]
-}}
-"""
+        Respond with JSON:
+        {{
+            "category_ids": ["category_id_1", "category_id_2", ...]
+        }}
+        """
 
         # Call LLM using BasePromptCaller
         from schemas.chat import ChatMessage, MessageRole
