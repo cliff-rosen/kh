@@ -283,6 +283,7 @@ class PipelineService:
 
             categorized_count = await self._categorize_articles(
                 research_stream_id=research_stream_id,
+                execution_id=execution_id,
                 presentation_config=presentation_config
             )
 
@@ -604,18 +605,24 @@ class PipelineService:
     async def _categorize_articles(
         self,
         research_stream_id: int,
+        execution_id: str,
         presentation_config: PresentationConfig
     ) -> int:
         """
         Use LLM to categorize each unique article into presentation categories in parallel batches.
 
+        Args:
+            research_stream_id: Stream ID
+            execution_id: Current pipeline execution ID
+            presentation_config: Presentation configuration with categories
+
         Returns:
             Number of articles categorized
         """
-        # Get all unique articles (not duplicates, passed filters)
+        # Get all unique articles (not duplicates, passed filters) from THIS execution
         articles = self.db.query(WipArticle).filter(
             and_(
-                WipArticle.research_stream_id == research_stream_id,
+                WipArticle.pipeline_execution_id == execution_id,
                 WipArticle.is_duplicate == False,
                 or_(
                     WipArticle.passed_semantic_filter == True,
