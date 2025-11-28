@@ -184,7 +184,7 @@ class PipelineService:
                 )
 
                 # Execute retrieval on PubMed
-                articles_retrieved = await self._execute_source_query(
+                articles_retrieved = await self._fetch_and_store_articles(
                     research_stream_id=research_stream_id,
                     execution_id=execution_id,
                     retrieval_unit_id=broad_query.query_id,
@@ -336,7 +336,7 @@ class PipelineService:
             )
             raise
 
-    async def _execute_source_query(
+    async def _fetch_and_store_articles(
         self,
         research_stream_id: int,
         execution_id: str,
@@ -347,7 +347,10 @@ class PipelineService:
         end_date: Optional[str] = None
     ) -> int:
         """
-        Execute a query for a specific source and store results in wip_articles.
+        Fetch articles from a source and store all results in wip_articles table.
+
+        IMPORTANT: This method has a critical side effect - it persists ALL retrieved
+        articles to the wip_articles table for the entire pipeline to process.
 
         Args:
             research_stream_id: Stream ID
@@ -359,7 +362,7 @@ class PipelineService:
             end_date: End date for retrieval (YYYY/MM/DD format)
 
         Returns:
-            Number of articles retrieved
+            Number of articles retrieved and stored
         """
         # Get source from database
         source = self.db.query(InformationSource).filter(
