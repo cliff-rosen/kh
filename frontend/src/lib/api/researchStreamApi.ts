@@ -1,5 +1,5 @@
 import { api } from './index';
-import { ResearchStream, ReportFrequency, InformationSource, RetrievalGroup, Concept, RetrievalConfig, SemanticSpace, PresentationConfig, BroadQuery } from '../../types';
+import { ResearchStream, ReportFrequency, InformationSource, Concept, RetrievalConfig, SemanticSpace, PresentationConfig, BroadQuery } from '../../types';
 import {
     StreamInProgress,
     StreamBuildStep,
@@ -429,92 +429,6 @@ export const researchStreamApi = {
     },
 
     // ========================================================================
-    // Retrieval Group Wizard (Layer 2: Group-Based Configuration - LEGACY)
-    // ========================================================================
-
-    /**
-     * Propose retrieval groups based on semantic space analysis
-     * @deprecated Use proposeRetrievalConcepts instead
-     */
-    async proposeRetrievalGroups(streamId: number): Promise<{
-        proposed_groups: any[];
-        coverage_analysis: any;
-        overall_reasoning: string;
-        error?: string;
-    }> {
-        const response = await api.post(
-            `/api/research-streams/${streamId}/retrieval/propose-groups`
-        );
-        return response.data;
-    },
-
-    /**
-     * Generate queries for a retrieval group
-     */
-    async generateGroupQueries(
-        streamId: number,
-        request: {
-            group_id: string;
-            source_id: string;
-            covered_topics: string[];
-        }
-    ): Promise<{
-        query_expression: string;
-        reasoning: string;
-    }> {
-        const response = await api.post(
-            `/api/research-streams/${streamId}/retrieval/generate-group-queries`,
-            request
-        );
-        return response.data;
-    },
-
-    /**
-     * Generate semantic filter for a retrieval group
-     */
-    async generateSemanticFilter(
-        streamId: number,
-        request: {
-            group_id: string;
-            topics: Array<{ topic_id: string; name: string; description: string }>;
-            rationale: string;
-        }
-    ): Promise<{
-        criteria: string;
-        threshold: number;
-        reasoning: string;
-    }> {
-        const response = await api.post(
-            `/api/research-streams/${streamId}/retrieval/generate-semantic-filter`,
-            request
-        );
-        return response.data;
-    },
-
-    /**
-     * Validate retrieval groups for completeness and readiness
-     */
-    async validateRetrievalGroups(
-        streamId: number,
-        request: {
-            groups: RetrievalGroup[];
-        }
-    ): Promise<{
-        is_complete: boolean;
-        coverage: any;
-        configuration_status: any;
-        warnings: string[];
-        ready_to_activate: boolean;
-    }> {
-        const response = await api.post(
-            `/api/research-streams/${streamId}/retrieval/validate`,
-            request
-        );
-        return response.data;
-    },
-
-
-    // ========================================================================
     // Query Testing (Same Path as Pipeline)
     // ========================================================================
 
@@ -537,21 +451,6 @@ export const researchStreamApi = {
     // Pipeline Execution (Layer 4: Test & Execute)
     // ========================================================================
 
-    /**
-     * Execute the full pipeline for a research stream with real-time SSE updates.
-     *
-     * This streams status updates as the pipeline executes:
-     * - init: Loading configuration
-     * - cleanup: Clearing previous WIP data
-     * - retrieval: Executing queries
-     * - dedup_group: Deduplicating within groups
-     * - filter: Applying semantic filters
-     * - dedup_global: Deduplicating globally
-     * - categorize: Categorizing articles
-     * - report: Generating report
-     * - complete: Pipeline finished
-     * - error: Pipeline failed
-     */
     async* executePipeline(
         streamId: number,
         request: ExecutePipelineRequest = {}

@@ -141,20 +141,6 @@ export interface GenerationMetadata {
     human_edited: boolean;  // Has a human edited this
 }
 
-export interface RetrievalGroup {
-    group_id: string;  // Unique identifier for this retrieval group
-    name: string;  // Display name for the group
-    covered_topics: string[];  // List of topic_ids from semantic space covered by this group
-    rationale: string;  // Why these topics are grouped together for retrieval
-
-    // Retrieval configuration embedded directly
-    source_queries: Record<string, SourceQuery | null>;  // Map: source_id -> SourceQuery
-    semantic_filter: SemanticFilter;  // Semantic filtering for this group
-
-    // Metadata for auditability
-    metadata?: GenerationMetadata;
-}
-
 export interface PresentationConfig {
     categories: Category[];    // How to organize results in reports
 }
