@@ -184,7 +184,7 @@ class PipelineService:
                 )
 
                 # Execute retrieval on PubMed
-                articles_retrieved = await self._fetch_and_store_articles(
+                articles_retrieved_count = await self._fetch_and_store_articles(
                     research_stream_id=research_stream_id,
                     execution_id=execution_id,
                     retrieval_unit_id=broad_query.query_id,
@@ -194,14 +194,14 @@ class PipelineService:
                     end_date=end_date
                 )
 
-                total_retrieved += articles_retrieved
+                total_retrieved += articles_retrieved_count
 
                 yield PipelineStatus(
                     "retrieval",
-                    f"Retrieved {articles_retrieved} articles",
+                    f"Retrieved {articles_retrieved_count} articles",
                     {
                         "query_id": broad_query.query_id,
-                        "count": articles_retrieved,
+                        "count": articles_retrieved_count,
                         "total_retrieved": total_retrieved
                     }
                 )
@@ -227,7 +227,7 @@ class PipelineService:
                     continue
 
                 passed, rejected = await self._apply_semantic_filter(
-                    research_stream_id=research_stream_id,
+                    execution_id=execution_id,
                     retrieval_unit_id=broad_query.query_id,
                     filter_criteria=broad_query.semantic_filter.criteria,
                     threshold=broad_query.semantic_filter.threshold
@@ -378,7 +378,7 @@ class PipelineService:
             # Use PubMed service to execute query (returns tuple of articles and metadata)
             articles, metadata = self.pubmed_service.search_articles(
                 query=query_expression,
-                max_results=min(self.MAX_ARTICLES_PER_SOURCE, 50),
+                max_results=self.MAX_ARTICLES_PER_SOURCE,
                 start_date=start_date,
                 end_date=end_date,
                 date_type="entry",  # Use entry date for weekly reports
@@ -427,7 +427,7 @@ class PipelineService:
 
     async def _apply_semantic_filter(
         self,
-        research_stream_id: int,
+        execution_id: str,
         retrieval_unit_id: str,
         filter_criteria: str,
         threshold: float
@@ -435,13 +435,19 @@ class PipelineService:
         """
         Apply semantic filter to articles in a retrieval unit (concept or broad query) using LLM in parallel batches.
 
+        Args:
+            execution_id: UUID of this pipeline execution
+            retrieval_unit_id: Retrieval unit ID (query_id)
+            filter_criteria: Natural language filter criteria
+            threshold: Minimum score (0-1) for article to pass
+
         Returns:
             Tuple of (passed_count, rejected_count)
         """
         # Get all non-duplicate articles for this unit that haven't been filtered yet
         articles = self.db.query(WipArticle).filter(
             and_(
-                WipArticle.research_stream_id == research_stream_id,
+                WipArticle.pipeline_execution_id == execution_id,
                 WipArticle.retrieval_group_id == retrieval_unit_id,
                 WipArticle.is_duplicate == False,
                 WipArticle.passed_semantic_filter == None
