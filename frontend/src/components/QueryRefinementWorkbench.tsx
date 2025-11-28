@@ -794,33 +794,63 @@ function ResultsPane({ step, stepNumber, view, onViewChange }: ResultsPaneProps)
 // Raw Results View
 function RawResultsView({ step }: { step: WorkflowStep }) {
     if (step.type === 'categorize') {
+        // CategorizeResponse: { results: CategoryAssignment[], count, category_distribution }
+        const categoryDist = step.results.category_distribution || {};
+        const categoryCount = Object.keys(categoryDist).length;
+
         return (
             <div className="space-y-3">
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    {step.results.count} articles across {step.results.categories.length} categories
+                    {step.results.count} articles across {categoryCount} categories
                 </p>
-                {step.results.categories.map((category: any) => (
-                    <div key={category.name} className="border border-gray-200 dark:border-gray-700 rounded p-3">
+                {Object.entries(categoryDist).map(([categoryId, count]: [string, any]) => (
+                    <div key={categoryId} className="border border-gray-200 dark:border-gray-700 rounded p-3">
                         <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
                                 <TagIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                                <span className="font-medium text-gray-900 dark:text-white">{category.name}</span>
+                                <span className="font-medium text-gray-900 dark:text-white">{categoryId}</span>
                             </div>
-                            <span className="text-sm text-gray-600 dark:text-gray-400">{category.count} articles</span>
+                            <span className="text-sm text-gray-600 dark:text-gray-400">{count} articles</span>
                         </div>
                         <div className="bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                             <div
                                 className="bg-green-500 h-2 rounded-full"
-                                style={{ width: `${(category.count / step.results.count) * 100}%` }}
+                                style={{ width: `${(count / step.results.count) * 100}%` }}
                             />
                         </div>
                     </div>
                 ))}
+
+                {/* Show articles with their categories */}
+                <div className="mt-6 space-y-2">
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Articles</h4>
+                    {step.results.results?.slice(0, 10).map((result: any, idx: number) => (
+                        <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded p-3 text-sm">
+                            <p className="font-mono text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                PMID: {result.article.pmid || result.article.id}
+                            </p>
+                            <p className="text-gray-900 dark:text-white mb-2">{result.article.title}</p>
+                            <div className="flex gap-1 flex-wrap">
+                                {result.assigned_categories.map((catId: string) => (
+                                    <span key={catId} className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 text-xs rounded">
+                                        {catId}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                    {step.results.results && step.results.results.length > 10 && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
+                            Showing 10 of {step.results.results.length} articles
+                        </p>
+                    )}
+                </div>
             </div>
         );
     }
 
     if (step.type === 'filter') {
+        // FilterResponse: { results: FilterResult[], count, passed, failed }
         return (
             <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-3">
@@ -839,42 +869,103 @@ function RawResultsView({ step }: { step: WorkflowStep }) {
                 </div>
 
                 <div className="space-y-2">
-                    {step.results.articles.map((article: any) => (
-                        <div key={article.pmid} className="border border-gray-200 dark:border-gray-700 rounded p-3 text-sm">
+                    {step.results.results?.slice(0, 20).map((result: any, idx: number) => (
+                        <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded p-3 text-sm">
                             <div className="flex items-center gap-2 mb-1">
-                                {article.passed ? (
+                                {result.passed ? (
                                     <CheckCircleIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
                                 ) : (
                                     <XCircleIcon className="h-4 w-4 text-red-600 dark:text-red-400" />
                                 )}
-                                <p className="font-mono text-xs text-gray-500 dark:text-gray-400">PMID: {article.pmid}</p>
+                                <p className="font-mono text-xs text-gray-500 dark:text-gray-400">
+                                    PMID: {result.article.pmid || result.article.id}
+                                </p>
                                 <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                                    Score: {article.score.toFixed(2)}
+                                    Score: {result.score.toFixed(2)}
                                 </span>
                             </div>
-                            <p className="text-gray-900 dark:text-white">{article.title}</p>
+                            <p className="text-gray-900 dark:text-white mb-1">{result.article.title}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 italic">{result.reasoning}</p>
                         </div>
                     ))}
+                    {step.results.results && step.results.results.length > 20 && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
+                            Showing 20 of {step.results.results.length} articles
+                        </p>
+                    )}
                 </div>
             </div>
         );
     }
 
-    // Source step or default
+    // Source step - SourceResponse: { articles: CanonicalResearchArticle[], count, metadata }
     return (
         <div className="space-y-2">
-            {step.results.articles.map((article: any) => (
-                <div key={article.pmid} className="border border-gray-200 dark:border-gray-700 rounded p-3 text-sm">
-                    <p className="font-mono text-xs text-gray-500 dark:text-gray-400 mb-1">PMID: {article.pmid}</p>
+            {step.results.articles?.slice(0, 20).map((article: any, idx: number) => (
+                <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded p-3 text-sm">
+                    <p className="font-mono text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        PMID: {article.pmid || article.id}
+                    </p>
                     <p className="text-gray-900 dark:text-white">{article.title}</p>
+                    {article.abstract && (
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
+                            {article.abstract}
+                        </p>
+                    )}
                 </div>
             ))}
+            {step.results.articles && step.results.articles.length > 20 && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
+                    Showing 20 of {step.results.articles.length} articles
+                </p>
+            )}
         </div>
     );
 }
 
 // Compare Results View
 function CompareResultsView({ step, compareIds, onCompareIdsChange }: { step: WorkflowStep; compareIds: string; onCompareIdsChange: (ids: string) => void }) {
+    const [comparisonResult, setComparisonResult] = useState<any>(null);
+    const [isComparing, setIsComparing] = useState(false);
+
+    const runComparison = async () => {
+        setIsComparing(true);
+        try {
+            // Parse expected PMIDs from textarea
+            const expectedPmids = compareIds
+                .split(/[\n,]/)
+                .map(id => id.trim())
+                .filter(id => id.length > 0);
+
+            // Get retrieved PMIDs from step results
+            let retrievedPmids: string[] = [];
+            if (step.type === 'source') {
+                retrievedPmids = step.results.articles
+                    .map((a: any) => a.pmid || a.id)
+                    .filter((id: string) => id);
+            } else if (step.type === 'filter') {
+                retrievedPmids = step.results.results
+                    .map((r: any) => r.article.pmid || r.article.id)
+                    .filter((id: string) => id);
+            } else if (step.type === 'categorize') {
+                retrievedPmids = step.results.results
+                    .map((r: any) => r.article.pmid || r.article.id)
+                    .filter((id: string) => id);
+            }
+
+            const result = await researchStreamApi.comparePMIDs({
+                retrieved_pmids: retrievedPmids,
+                expected_pmids: expectedPmids
+            });
+
+            setComparisonResult(result);
+        } catch (error) {
+            console.error('Comparison failed:', error);
+        } finally {
+            setIsComparing(false);
+        }
+    };
+
     return (
         <div className="space-y-4">
             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-4">
@@ -890,17 +981,78 @@ function CompareResultsView({ step, compareIds, onCompareIdsChange }: { step: Wo
                 />
                 <button
                     type="button"
-                    className="mt-3 px-4 py-2 text-sm bg-yellow-600 text-white rounded hover:bg-yellow-700"
+                    onClick={runComparison}
+                    disabled={isComparing || !compareIds.trim()}
+                    className={`mt-3 px-4 py-2 text-sm rounded ${
+                        isComparing || !compareIds.trim()
+                            ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed'
+                            : 'bg-yellow-600 text-white hover:bg-yellow-700'
+                    }`}
                 >
-                    Run Comparison
+                    {isComparing ? 'Comparing...' : 'Run Comparison'}
                 </button>
             </div>
 
-            {compareIds && (
-                <div className="border border-gray-200 dark:border-gray-700 rounded p-4">
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Comparison results will appear here
-                    </p>
+            {comparisonResult && (
+                <div className="space-y-4">
+                    {/* Metrics Summary */}
+                    <div className="grid grid-cols-3 gap-3">
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-3 text-center">
+                            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                                {(comparisonResult.recall * 100).toFixed(1)}%
+                            </p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Recall</p>
+                        </div>
+                        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded p-3 text-center">
+                            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                                {(comparisonResult.precision * 100).toFixed(1)}%
+                            </p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Precision</p>
+                        </div>
+                        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-3 text-center">
+                            <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                                {(comparisonResult.f1_score * 100).toFixed(1)}%
+                            </p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">F1 Score</p>
+                        </div>
+                    </div>
+
+                    {/* Details */}
+                    <div className="grid grid-cols-3 gap-3">
+                        <div className="border border-gray-200 dark:border-gray-700 rounded p-3">
+                            <div className="flex items-center gap-2 mb-2">
+                                <CheckCircleIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                    Matched ({comparisonResult.matched_count})
+                                </span>
+                            </div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400 max-h-32 overflow-y-auto font-mono">
+                                {comparisonResult.matched.join(', ') || 'None'}
+                            </div>
+                        </div>
+                        <div className="border border-gray-200 dark:border-gray-700 rounded p-3">
+                            <div className="flex items-center gap-2 mb-2">
+                                <XCircleIcon className="h-4 w-4 text-red-600 dark:text-red-400" />
+                                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                    Missed ({comparisonResult.missed_count})
+                                </span>
+                            </div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400 max-h-32 overflow-y-auto font-mono">
+                                {comparisonResult.missed.join(', ') || 'None'}
+                            </div>
+                        </div>
+                        <div className="border border-gray-200 dark:border-gray-700 rounded p-3">
+                            <div className="flex items-center gap-2 mb-2">
+                                <PlusIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                    Extra ({comparisonResult.extra_count})
+                                </span>
+                            </div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400 max-h-32 overflow-y-auto font-mono">
+                                {comparisonResult.extra.join(', ') || 'None'}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
