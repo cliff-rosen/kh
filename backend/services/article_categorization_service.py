@@ -6,13 +6,16 @@ articles to presentation categories. Used by pipeline execution and can be used
 standalone for ad-hoc categorization tasks.
 """
 
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, TYPE_CHECKING
 from datetime import datetime
 import json
 import asyncio
 
 from models import WipArticle, Article
 from schemas.research_stream import Category
+
+if TYPE_CHECKING:
+    from schemas.canonical_types import CanonicalResearchArticle
 
 
 class ArticleCategorizationService:
@@ -265,6 +268,29 @@ class ArticleCategorizationService:
 
         Args:
             articles: List of WipArticle instances
+            categories: List of category definitions
+            max_concurrent: Maximum number of concurrent categorizations
+
+        Returns:
+            List of tuples: (article, assigned_category_ids)
+        """
+        return await self.categorize_articles_batch(
+            articles=articles,
+            categories=categories,
+            max_concurrent=max_concurrent
+        )
+
+    async def categorize_canonical_articles_batch(
+        self,
+        articles: List['CanonicalResearchArticle'],
+        categories: List[Dict],
+        max_concurrent: int = 10
+    ) -> List[Tuple['CanonicalResearchArticle', List[str]]]:
+        """
+        Categorize multiple CanonicalResearchArticles in parallel.
+
+        Args:
+            articles: List of CanonicalResearchArticle instances
             categories: List of category definitions
             max_concurrent: Maximum number of concurrent categorizations
 

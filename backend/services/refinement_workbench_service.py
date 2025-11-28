@@ -158,7 +158,7 @@ class RefinementWorkbenchService:
             return []
 
         # Use centralized batch evaluation from SemanticFilterService
-        batch_results = await self.filter_service.evaluate_articles_batch(
+        batch_results = await self.filter_service.evaluate_canonical_articles_batch(
             articles=articles,
             filter_criteria=filter_criteria,
             threshold=threshold,
@@ -210,7 +210,7 @@ class RefinementWorkbenchService:
             return []
 
         # Use centralized batch categorization from ArticleCategorizationService
-        batch_results = await self.categorization_service.categorize_articles_batch(
+        batch_results = await self.categorization_service.categorize_canonical_articles_batch(
             articles=articles,
             categories=categories,
             max_concurrent=10

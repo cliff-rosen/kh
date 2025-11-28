@@ -6,11 +6,14 @@ whether articles meet specific relevance criteria. Used by pipeline execution
 and can be used standalone for ad-hoc filtering tasks.
 """
 
-from typing import Tuple, List, Any
+from typing import Tuple, List, Any, TYPE_CHECKING
 from datetime import datetime
 import asyncio
 
 from models import WipArticle, Article
+
+if TYPE_CHECKING:
+    from schemas.canonical_types import CanonicalResearchArticle
 
 
 class SemanticFilterService:
@@ -257,6 +260,32 @@ class SemanticFilterService:
 
         Args:
             articles: List of WipArticle instances
+            filter_criteria: Natural language description of relevance criteria
+            threshold: Minimum score for article to pass
+            max_concurrent: Maximum number of concurrent evaluations
+
+        Returns:
+            List of tuples: (article, is_relevant, score, reasoning)
+        """
+        return await self.evaluate_articles_batch(
+            articles=articles,
+            filter_criteria=filter_criteria,
+            threshold=threshold,
+            max_concurrent=max_concurrent
+        )
+
+    async def evaluate_canonical_articles_batch(
+        self,
+        articles: List['CanonicalResearchArticle'],
+        filter_criteria: str,
+        threshold: float = 0.7,
+        max_concurrent: int = 10
+    ) -> List[Tuple['CanonicalResearchArticle', bool, float, str]]:
+        """
+        Evaluate multiple CanonicalResearchArticles in parallel.
+
+        Args:
+            articles: List of CanonicalResearchArticle instances
             filter_criteria: Natural language description of relevance criteria
             threshold: Minimum score for article to pass
             max_concurrent: Maximum number of concurrent evaluations
