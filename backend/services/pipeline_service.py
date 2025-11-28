@@ -143,7 +143,7 @@ class PipelineService:
                 }
             )
 
-            # === STAGE 1.5: Generate Pipeline Execution ID ===
+            # === STAGE 2: Generate Pipeline Execution ID ===
             execution_id = str(uuid.uuid4())
 
             yield PipelineStatus(
@@ -152,9 +152,6 @@ class PipelineService:
                 {"execution_id": execution_id}
             )
 
-            # === STAGE 2: Clear Previous WIP Data ===
-            # Note: We don't clear old data - each execution is independent
-            # Old wip_articles remain for historical analysis
             yield PipelineStatus("cleanup", "Ready to begin retrieval (keeping historical WIP data)")
 
             # === STAGE 3: Execute Retrieval ===
@@ -215,26 +212,7 @@ class PipelineService:
                 {"total_retrieved": total_retrieved}
             )
 
-            # === STAGE 4: Deduplicate Within Retrieval Units ===
-            yield PipelineStatus("dedup_group", "Deduplicating within queries...")
-
-            unit_dedup_stats = {}
-
-            for broad_query in queries:
-                dupes_found = await self._deduplicate_within_unit(
-                    research_stream_id=research_stream_id,
-                    execution_id=execution_id,
-                    retrieval_unit_id=broad_query.query_id
-                )
-                unit_dedup_stats[broad_query.query_id] = dupes_found
-
-                yield PipelineStatus(
-                    "dedup_group",
-                    f"Found {dupes_found} duplicates in query",
-                    {"query_id": broad_query.query_id, "duplicates": dupes_found}
-                )
-
-            # === STAGE 5: Apply Semantic Filters ===
+            # === STAGE 4: Apply Semantic Filters ===
             yield PipelineStatus("filter", "Applying semantic filters...")
 
             filter_stats = {}
@@ -267,7 +245,7 @@ class PipelineService:
                     }
                 )
 
-            # === STAGE 6: Deduplicate Globally ===
+            # === STAGE 5: Deduplicate Globally ===
             yield PipelineStatus("dedup_global", "Deduplicating across all groups...")
 
             global_dupes = await self._deduplicate_globally(research_stream_id, execution_id)
@@ -278,7 +256,7 @@ class PipelineService:
                 {"duplicates": global_dupes}
             )
 
-            # === STAGE 7: Categorize Articles ===
+            # === STAGE 6: Categorize Articles ===
             yield PipelineStatus("categorize", "Categorizing articles into presentation categories...")
 
             categorized_count = await self._categorize_articles(
@@ -293,7 +271,7 @@ class PipelineService:
                 {"categorized": categorized_count}
             )
 
-            # === STAGE 8: Generate Summaries ===
+            # === STAGE 7: Generate Summaries ===
             yield PipelineStatus("summary", "Generating executive summaries...")
 
             executive_summary, category_summaries = await self._generate_summaries(
@@ -309,7 +287,7 @@ class PipelineService:
                 {"categories": len(category_summaries)}
             )
 
-            # === STAGE 9: Generate Report ===
+            # === STAGE 8: Generate Report ===
             yield PipelineStatus("report", "Generating report...")
 
             report = await self._generate_report(
@@ -443,62 +421,6 @@ class PipelineService:
 
         self.db.commit()
         return len(articles)
-
-    async def _deduplicate_within_unit(
-        self,
-        research_stream_id: int,
-        execution_id: str,
-        retrieval_unit_id: str
-    ) -> int:
-        """
-        Find and mark duplicates within a retrieval unit (concept or broad query) for this execution.
-        Duplicates are identified by DOI or title similarity.
-
-        Args:
-            research_stream_id: Stream ID (for context, not used in query)
-            execution_id: UUID of this pipeline execution
-            retrieval_unit_id: Retrieval unit ID (concept_id or query_id)
-
-        Returns:
-            Number of duplicates found
-        """
-        # Get all non-duplicate articles for this unit in THIS execution only
-        articles = self.db.query(WipArticle).filter(
-            and_(
-                WipArticle.pipeline_execution_id == execution_id,
-                WipArticle.retrieval_group_id == retrieval_unit_id,
-                WipArticle.is_duplicate == False
-            )
-        ).all()
-
-        duplicates_found = 0
-        seen_dois = {}
-        seen_titles = {}
-
-        for article in articles:
-            # Check DOI-based deduplication
-            if article.doi and article.doi.strip():
-                doi_normalized = article.doi.lower().strip()
-                if doi_normalized in seen_dois:
-                    # Mark as duplicate
-                    article.is_duplicate = True
-                    article.duplicate_of_id = seen_dois[doi_normalized]
-                    duplicates_found += 1
-                else:
-                    seen_dois[doi_normalized] = article.id
-
-            # Check title-based deduplication (exact match, case-insensitive)
-            elif article.title:
-                title_normalized = article.title.lower().strip()
-                if title_normalized in seen_titles:
-                    article.is_duplicate = True
-                    article.duplicate_of_id = seen_titles[title_normalized]
-                    duplicates_found += 1
-                else:
-                    seen_titles[title_normalized] = article.id
-
-        self.db.commit()
-        return duplicates_found
 
     async def _apply_semantic_filter(
         self,
