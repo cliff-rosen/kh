@@ -739,6 +739,7 @@ function ResultsPane({ step, stepNumber, view, onViewChange }: ResultsPaneProps)
                 {step.results && (
                     <div className="flex gap-2">
                         <button
+                            type="button"
                             onClick={() => onViewChange('raw')}
                             className={`px-3 py-1 text-sm rounded ${
                                 view === 'raw'
@@ -749,6 +750,7 @@ function ResultsPane({ step, stepNumber, view, onViewChange }: ResultsPaneProps)
                             Raw
                         </button>
                         <button
+                            type="button"
                             onClick={() => onViewChange('compare')}
                             className={`px-3 py-1 text-sm rounded ${
                                 view === 'compare'
@@ -759,6 +761,7 @@ function ResultsPane({ step, stepNumber, view, onViewChange }: ResultsPaneProps)
                             Compare
                         </button>
                         <button
+                            type="button"
                             onClick={() => onViewChange('analyze')}
                             className={`px-3 py-1 text-sm rounded ${
                                 view === 'analyze'

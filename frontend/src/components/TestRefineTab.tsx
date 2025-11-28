@@ -19,6 +19,7 @@ export default function TestRefineTab({ streamId, stream }: TestRefineTabProps) 
             <div className="border-b border-gray-200 dark:border-gray-700">
                 <nav className="-mb-px flex space-x-8">
                     <button
+                        type="button"
                         onClick={() => setActiveSubTab('workbench')}
                         className={`
                             py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap
@@ -31,6 +32,7 @@ export default function TestRefineTab({ streamId, stream }: TestRefineTabProps) 
                         Refinement Workbench
                     </button>
                     <button
+                        type="button"
                         onClick={() => setActiveSubTab('pipeline')}
                         className={`
                             py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap
