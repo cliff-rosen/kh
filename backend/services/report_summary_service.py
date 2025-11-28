@@ -72,7 +72,7 @@ class ReportSummaryService:
         - Be written for an executive audience (technical but accessible)
         - Focus on insights and implications, not just listing papers
 
-        Write in a professional, analytical tone."""
+        Write in a professional, analytical tone. Include only the summary with no heading or other text."""
 
         user_prompt = f"""Generate an executive summary for this research report.
 
