@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 class SemanticFilterService:
     """Service for evaluating article relevance using semantic filtering"""
 
-    async def evaluate_article_relevance(
+    async def _evaluate_single(
         self,
         article_title: str,
         article_abstract: str,
@@ -29,7 +29,8 @@ class SemanticFilterService:
         threshold: float = 0.7
     ) -> Tuple[bool, float, str]:
         """
-        Use LLM to evaluate if an article meets semantic filter criteria.
+        Evaluate a single article against filter criteria using LLM.
+        Private method - use batch methods for production code.
 
         Args:
             article_title: Title of the article
@@ -128,58 +129,6 @@ class SemanticFilterService:
         is_relevant = score >= threshold
         return is_relevant, score, reasoning
 
-    async def evaluate_wip_article(
-        self,
-        article: WipArticle,
-        filter_criteria: str,
-        threshold: float = 0.7
-    ) -> Tuple[bool, float, str]:
-        """
-        Evaluate a WipArticle using semantic filtering.
-
-        Args:
-            article: WipArticle instance
-            filter_criteria: Natural language description of relevance criteria
-            threshold: Minimum score for article to pass
-
-        Returns:
-            Tuple of (is_relevant, score, reasoning)
-        """
-        return await self.evaluate_article_relevance(
-            article_title=article.title,
-            article_abstract=article.abstract,
-            article_journal=article.journal,
-            article_year=article.year,
-            filter_criteria=filter_criteria,
-            threshold=threshold
-        )
-
-    async def evaluate_article(
-        self,
-        article: Article,
-        filter_criteria: str,
-        threshold: float = 0.7
-    ) -> Tuple[bool, float, str]:
-        """
-        Evaluate an Article using semantic filtering.
-
-        Args:
-            article: Article instance
-            filter_criteria: Natural language description of relevance criteria
-            threshold: Minimum score for article to pass
-
-        Returns:
-            Tuple of (is_relevant, score, reasoning)
-        """
-        return await self.evaluate_article_relevance(
-            article_title=article.title,
-            article_abstract=article.abstract,
-            article_journal=article.journal,
-            article_year=article.year,
-            filter_criteria=filter_criteria,
-            threshold=threshold
-        )
-
     async def evaluate_articles_batch(
         self,
         articles: List[Any],
@@ -227,7 +176,7 @@ class SemanticFilterService:
                     else:
                         raise ValueError(f"Unsupported article type: {type(article)}")
 
-                    is_relevant, score, reasoning = await self.evaluate_article_relevance(
+                    is_relevant, score, reasoning = await self._evaluate_single(
                         article_title=title,
                         article_abstract=abstract or "",
                         article_journal=journal,
