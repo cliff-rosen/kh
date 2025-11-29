@@ -48,6 +48,7 @@ export default function QueryRefinementWorkbench({ streamId, stream }: QueryRefi
     ]);
     const [focusedStepId, setFocusedStepId] = useState<string>('step_1');
     const [resultView, setResultView] = useState<ResultView>('raw');
+    const [resultsPaneCollapsed, setResultsPaneCollapsed] = useState(false);
 
     const addStep = (type: StepType) => {
         const newStep: WorkflowStep = {
@@ -114,9 +115,9 @@ export default function QueryRefinementWorkbench({ streamId, stream }: QueryRefi
             </div>
 
             {/* Two-Column Layout */}
-            <div className="grid grid-cols-[40%_60%] gap-6">
+            <div className={`flex gap-6 ${resultsPaneCollapsed ? '' : 'grid grid-cols-[40%_60%]'}`}>
                 {/* Left: Workflow Steps */}
-                <div className="space-y-4">
+                <div className={`space-y-4 ${resultsPaneCollapsed ? 'flex-1' : ''}`}>
                     {steps.map((step, index) => (
                         <div key={step.id}>
                             {index > 0 && (
@@ -165,12 +166,26 @@ export default function QueryRefinementWorkbench({ streamId, stream }: QueryRefi
                 </div>
 
                 {/* Right: Results Pane */}
-                <ResultsPane
-                    step={focusedStep}
-                    stepNumber={steps.findIndex(s => s.id === focusedStepId) + 1}
-                    view={resultView}
-                    onViewChange={setResultView}
-                />
+                {resultsPaneCollapsed ? (
+                    <div className="flex items-start">
+                        <button
+                            type="button"
+                            onClick={() => setResultsPaneCollapsed(false)}
+                            className="flex items-center justify-center w-8 h-12 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-l-lg border border-gray-300 dark:border-gray-600 transition-colors"
+                            title="Expand results pane"
+                        >
+                            <ChevronLeftIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        </button>
+                    </div>
+                ) : (
+                    <ResultsPane
+                        step={focusedStep}
+                        stepNumber={steps.findIndex(s => s.id === focusedStepId) + 1}
+                        view={resultView}
+                        onViewChange={setResultView}
+                        onCollapse={() => setResultsPaneCollapsed(true)}
+                    />
+                )}
             </div>
         </div>
     );
@@ -898,9 +913,10 @@ interface ResultsPaneProps {
     stepNumber: number;
     view: ResultView;
     onViewChange: (view: ResultView) => void;
+    onCollapse: () => void;
 }
 
-function ResultsPane({ step, stepNumber, view, onViewChange }: ResultsPaneProps) {
+function ResultsPane({ step, stepNumber, view, onViewChange, onCollapse }: ResultsPaneProps) {
     const [compareIds, setCompareIds] = useState('');
 
     if (!step) {
@@ -922,13 +938,23 @@ function ResultsPane({ step, stepNumber, view, onViewChange }: ResultsPaneProps)
                     <h3 className="font-medium text-gray-900 dark:text-white">
                         Step {stepNumber} Results
                     </h3>
-                    {step.results && (
-                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                            {step.type === 'source' && step.results.total_count !== undefined && step.results.total_count !== step.results.count
-                                ? `${step.results.count} of ${step.results.total_count} articles`
-                                : `${step.results.count} articles`}
-                        </span>
-                    )}
+                    <div className="flex items-center gap-3">
+                        {step.results && (
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                                {step.type === 'source' && step.results.total_count !== undefined && step.results.total_count !== step.results.count
+                                    ? `${step.results.count} of ${step.results.total_count} articles`
+                                    : `${step.results.count} articles`}
+                            </span>
+                        )}
+                        <button
+                            type="button"
+                            onClick={onCollapse}
+                            className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                            title="Collapse results pane"
+                        >
+                            <ChevronRightIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* View Mode Tabs */}
