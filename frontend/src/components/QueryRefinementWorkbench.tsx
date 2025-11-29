@@ -825,19 +825,20 @@ function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream, on
                                 : 'bg-purple-600 hover:bg-purple-700 text-white'
                         }`}
                     >
-                {isRunning ? (
-                    <>
-                        <ArrowPathIcon className="h-5 w-5 animate-spin" />
-                        Running...
-                    </>
-                ) : (
-                    <>
-                        <PlayIcon className="h-5 w-5" />
-                        Run Filter
-                    </>
-                )}
-            </button>
-
+                        {isRunning ? (
+                            <>
+                                <ArrowPathIcon className="h-5 w-5 animate-spin" />
+                                Running...
+                            </>
+                        ) : (
+                            <>
+                                <PlayIcon className="h-5 w-5" />
+                                Run Filter
+                            </>
+                        )}
+                    </button>
+                );
+            })()}
         </div>
     );
 }
