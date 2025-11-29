@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CalendarIcon, DocumentTextIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, DocumentTextIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
 import { Report, ReportWithArticles, ReportArticle } from '../types';
@@ -10,6 +10,7 @@ import { reportApi } from '../lib/api/reportApi';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { useResearchStream } from '../context/ResearchStreamContext';
 import PipelineAnalyticsModal from '../components/PipelineAnalyticsModal';
+import ExecutionConfigModal from '../components/ExecutionConfigModal';
 
 type ReportView = 'all' | 'by-category';
 
@@ -27,6 +28,7 @@ export default function ReportsPage() {
     const [streamDetails, setStreamDetails] = useState<ResearchStream | null>(null);
     const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
     const [showAnalytics, setShowAnalytics] = useState(false);
+    const [showExecutionConfig, setShowExecutionConfig] = useState(false);
     const [executiveSummaryCollapsed, setExecutiveSummaryCollapsed] = useState(false);
 
     const hasStreams = researchStreams.length > 0;
@@ -400,6 +402,16 @@ export default function ReportsPage() {
                                                 </button>
                                             </div>
 
+                                            {/* Execution Config Button */}
+                                            <button
+                                                onClick={() => setShowExecutionConfig(true)}
+                                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-gray-600 hover:bg-gray-700 text-white"
+                                                title="View execution configuration snapshot"
+                                            >
+                                                <Cog6ToothIcon className="h-3.5 w-3.5" />
+                                                Config
+                                            </button>
+
                                             {/* Pipeline Analytics Button (Test Reports Only) */}
                                             {isTestReport && (
                                                 <button
@@ -583,6 +595,15 @@ export default function ReportsPage() {
                 <PipelineAnalyticsModal
                     reportId={selectedReport.report_id}
                     onClose={() => setShowAnalytics(false)}
+                />
+            )}
+
+            {/* Execution Config Modal */}
+            {showExecutionConfig && selectedReport && selectedReport.retrieval_params && (
+                <ExecutionConfigModal
+                    reportName={selectedReport.report_name}
+                    retrievalParams={selectedReport.retrieval_params}
+                    onClose={() => setShowExecutionConfig(false)}
                 />
             )}
         </div>

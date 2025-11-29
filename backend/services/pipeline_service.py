@@ -721,12 +721,17 @@ class PipelineService:
         Returns:
             The created Report object
         """
-        # Build retrieval_params
-        retrieval_params = {}
-        if start_date:
-            retrieval_params["start_date"] = start_date
-        if end_date:
-            retrieval_params["end_date"] = end_date
+        # Build execution configuration snapshot (full config used for this report)
+        retrieval_params = {
+            # Date range
+            "start_date": start_date,
+            "end_date": end_date,
+
+            # Full configuration snapshot
+            "retrieval_config": stream.retrieval_config.model_dump() if stream.retrieval_config else None,
+            "presentation_config": stream.presentation_config.model_dump() if stream.presentation_config else None,
+            "semantic_space": stream.semantic_space.model_dump() if stream.semantic_space else None,
+        }
 
         # Build enrichments (LLM-generated content)
         enrichments = {
