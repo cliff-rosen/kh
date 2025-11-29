@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeftIcon, CogIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 
 import {
@@ -25,10 +25,14 @@ type TabType = 'semantic' | 'retrieval' | 'presentation' | 'execute';
 export default function EditStreamPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { researchStreams, loadResearchStreams, updateResearchStream, deleteResearchStream, isLoading, error, clearError } = useResearchStream();
 
     const [stream, setStream] = useState<any>(null);
-    const [activeTab, setActiveTab] = useState<TabType>('semantic');
+
+    // Check URL params for initial tab
+    const initialTab = (searchParams.get('tab') as TabType) || 'semantic';
+    const [activeTab, setActiveTab] = useState<TabType>(initialTab);
     const [form, setForm] = useState({
         stream_name: '',
         report_frequency: ReportFrequency.WEEKLY,

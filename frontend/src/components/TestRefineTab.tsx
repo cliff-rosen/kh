@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import QueryRefinementWorkbench from './QueryRefinementWorkbench';
 import ExecutePipelineTab from './ExecutePipelineTab';
 import { ResearchStream } from '../types';
@@ -11,7 +12,12 @@ interface TestRefineTabProps {
 type SubTab = 'workbench' | 'pipeline';
 
 export default function TestRefineTab({ streamId, stream }: TestRefineTabProps) {
-    const [activeSubTab, setActiveSubTab] = useState<SubTab>('workbench');
+    const [searchParams] = useSearchParams();
+
+    // Check URL params for initial subtab
+    const urlSubTab = searchParams.get('subtab') as SubTab;
+    const initialSubTab = urlSubTab || 'workbench';
+    const [activeSubTab, setActiveSubTab] = useState<SubTab>(initialSubTab);
 
     return (
         <div className="space-y-6">

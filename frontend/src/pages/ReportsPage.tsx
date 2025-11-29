@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CalendarIcon, DocumentTextIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
@@ -16,6 +16,7 @@ type ReportView = 'all' | 'by-category';
 
 export default function ReportsPage() {
     const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
     const { researchStreams, loadResearchStreams } = useResearchStream();
     const [selectedStream, setSelectedStream] = useState('');
     const [reports, setReports] = useState<Report[]>([]);
@@ -231,22 +232,33 @@ export default function ReportsPage() {
 
             {hasStreams && (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-                    <div className="flex items-center gap-4">
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Research Stream:
-                        </label>
-                        <select
-                            value={selectedStream}
-                            onChange={(e) => setSelectedStream(e.target.value)}
-                            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white min-w-64"
-                        >
-                            <option value="">Select a research stream...</option>
-                            {researchStreams.map(stream => (
-                                <option key={stream.stream_id} value={stream.stream_id}>
-                                    {stream.stream_name}
-                                </option>
-                            ))}
-                        </select>
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Research Stream:
+                            </label>
+                            <select
+                                value={selectedStream}
+                                onChange={(e) => setSelectedStream(e.target.value)}
+                                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white min-w-64"
+                            >
+                                <option value="">Select a research stream...</option>
+                                {researchStreams.map(stream => (
+                                    <option key={stream.stream_id} value={stream.stream_id}>
+                                        {stream.stream_name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        {selectedStream && (
+                            <button
+                                onClick={() => navigate(`/streams/${selectedStream}/edit?tab=execute&subtab=pipeline`)}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                            >
+                                <DocumentTextIcon className="h-5 w-5" />
+                                Run Pipeline
+                            </button>
+                        )}
                     </div>
                 </div>
             )}
