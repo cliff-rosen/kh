@@ -727,10 +727,10 @@ class PipelineService:
             "start_date": start_date,
             "end_date": end_date,
 
-            # Full configuration snapshot
-            "retrieval_config": stream.retrieval_config.model_dump() if stream.retrieval_config else None,
-            "presentation_config": stream.presentation_config.model_dump() if stream.presentation_config else None,
-            "semantic_space": stream.semantic_space.model_dump() if stream.semantic_space else None,
+            # Full configuration snapshot (mode='json' ensures datetime objects are serialized as strings)
+            "retrieval_config": stream.retrieval_config.model_dump(mode='json') if stream.retrieval_config else None,
+            "presentation_config": stream.presentation_config.model_dump(mode='json') if stream.presentation_config else None,
+            "semantic_space": stream.semantic_space.model_dump(mode='json') if stream.semantic_space else None,
         }
 
         # Build enrichments (LLM-generated content)
