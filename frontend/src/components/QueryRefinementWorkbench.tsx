@@ -264,7 +264,7 @@ function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFo
                         <SourceStepContent step={step} onUpdate={onUpdate} stream={stream} streamId={streamId} />
                     )}
                     {step.type === 'filter' && (
-                        <FilterStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} streamId={streamId} />
+                        <FilterStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} streamId={streamId} stream={stream} />
                     )}
                     {step.type === 'categorize' && (
                         <CategorizeStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} streamId={streamId} />
@@ -550,7 +550,7 @@ function SourceStepContent({ step, onUpdate, stream, streamId }: { step: Workflo
 // Filter Step
 // ============================================================================
 
-function FilterStepContent({ step, onUpdate, previousSteps, streamId }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; previousSteps: WorkflowStep[]; streamId: number }) {
+function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; previousSteps: WorkflowStep[]; streamId: number; stream: ResearchStream }) {
     const [isRunning, setIsRunning] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const config = step.config;
