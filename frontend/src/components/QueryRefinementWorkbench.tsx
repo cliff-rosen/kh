@@ -226,11 +226,10 @@ function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFo
 
     return (
         <div
-            className={`border rounded-lg overflow-hidden transition-colors ${
-                isFocused
+            className={`border rounded-lg overflow-hidden transition-colors ${isFocused
                     ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800'
                     : 'border-gray-300 dark:border-gray-600'
-            }`}
+                }`}
             onClick={onFocus}
         >
             {/* Header */}
@@ -423,7 +422,7 @@ function SourceStepContent({ step, onUpdate, stream, streamId, onExpandResults, 
                                 <option value="">Select a query...</option>
                                 {broadQueries.map((query, index) => (
                                     <option key={index} value={index.toString()}>
-                                        Broad Query {index + 1}: {query.label || query.query_expression?.substring(0, 50)}
+                                        Broad Query {index + 1}: {query.query_expression?.substring(0, 50)}
                                     </option>
                                 ))}
                             </select>
@@ -567,11 +566,10 @@ function SourceStepContent({ step, onUpdate, stream, streamId, onExpandResults, 
                 type="button"
                 onClick={runQuery}
                 disabled={isRunning || (config.sourceType === 'query' && (!config.selectedQuery || !config.startDate || !config.endDate)) || (config.sourceType === 'manual' && !config.manualIds)}
-                className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
-                    isRunning || (config.sourceType === 'query' && !config.selectedQuery)
+                className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${isRunning || (config.sourceType === 'query' && !config.selectedQuery)
                         ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                         : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}
+                    }`}
             >
                 {isRunning ? (
                     <>
@@ -826,11 +824,10 @@ function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream, on
                         type="button"
                         onClick={runFilter}
                         disabled={isRunning || !config.inputStep || !hasValidCriteria}
-                        className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
-                            isRunning || !config.inputStep || !hasValidCriteria
+                        className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${isRunning || !config.inputStep || !hasValidCriteria
                                 ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                                 : 'bg-purple-600 hover:bg-purple-700 text-white'
-                        }`}
+                            }`}
                     >
                         {isRunning ? (
                             <>
@@ -926,11 +923,10 @@ function CategorizeStepContent({ step, onUpdate, previousSteps, streamId, onExpa
                 type="button"
                 onClick={runCategorize}
                 disabled={isRunning || !config.inputStep}
-                className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
-                    isRunning || !config.inputStep
+                className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${isRunning || !config.inputStep
                         ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                         : 'bg-green-600 hover:bg-green-700 text-white'
-                }`}
+                    }`}
             >
                 {isRunning ? (
                     <>
@@ -1008,33 +1004,30 @@ function ResultsPane({ step, stepNumber, view, onViewChange, onCollapse }: Resul
                         <button
                             type="button"
                             onClick={() => onViewChange('raw')}
-                            className={`px-3 py-1 text-sm rounded ${
-                                view === 'raw'
+                            className={`px-3 py-1 text-sm rounded ${view === 'raw'
                                     ? 'bg-blue-600 text-white'
                                     : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                            }`}
+                                }`}
                         >
                             Raw
                         </button>
                         <button
                             type="button"
                             onClick={() => onViewChange('compare')}
-                            className={`px-3 py-1 text-sm rounded ${
-                                view === 'compare'
+                            className={`px-3 py-1 text-sm rounded ${view === 'compare'
                                     ? 'bg-blue-600 text-white'
                                     : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                            }`}
+                                }`}
                         >
                             Compare
                         </button>
                         <button
                             type="button"
                             onClick={() => onViewChange('analyze')}
-                            className={`px-3 py-1 text-sm rounded ${
-                                view === 'analyze'
+                            className={`px-3 py-1 text-sm rounded ${view === 'analyze'
                                     ? 'bg-blue-600 text-white'
                                     : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                            }`}
+                                }`}
                         >
                             Analyze
                         </button>
@@ -1253,11 +1246,10 @@ function CompareResultsView({ step, compareIds, onCompareIdsChange }: { step: Wo
                     type="button"
                     onClick={runComparison}
                     disabled={isComparing || !compareIds.trim()}
-                    className={`mt-3 px-4 py-2 text-sm rounded ${
-                        isComparing || !compareIds.trim()
+                    className={`mt-3 px-4 py-2 text-sm rounded ${isComparing || !compareIds.trim()
                             ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed'
                             : 'bg-yellow-600 text-white hover:bg-yellow-700'
-                    }`}
+                        }`}
                 >
                     {isComparing ? 'Comparing...' : 'Run Comparison'}
                 </button>

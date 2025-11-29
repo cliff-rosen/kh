@@ -78,7 +78,7 @@ class RefinementWorkbenchService:
             max_results=100,  # Reasonable limit for testing
             start_date=start_date_formatted,
             end_date=end_date_formatted,
-            date_type="entry",
+            date_type="publication",
             sort_by="relevance"
         )
 
