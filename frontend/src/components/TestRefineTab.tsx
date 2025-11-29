@@ -7,11 +7,12 @@ import { ResearchStream } from '../types';
 interface TestRefineTabProps {
     streamId: number;
     stream: ResearchStream;
+    onStreamUpdate: () => void;
 }
 
 type SubTab = 'workbench' | 'pipeline';
 
-export default function TestRefineTab({ streamId, stream }: TestRefineTabProps) {
+export default function TestRefineTab({ streamId, stream, onStreamUpdate }: TestRefineTabProps) {
     const [searchParams] = useSearchParams();
 
     // Check URL params for initial subtab
@@ -55,7 +56,7 @@ export default function TestRefineTab({ streamId, stream }: TestRefineTabProps) 
 
             {/* Sub-Tab Content */}
             <div>
-                {activeSubTab === 'workbench' && <QueryRefinementWorkbench streamId={streamId} stream={stream} />}
+                {activeSubTab === 'workbench' && <QueryRefinementWorkbench streamId={streamId} stream={stream} onStreamUpdate={onStreamUpdate} />}
                 {activeSubTab === 'pipeline' && <ExecutePipelineTab streamId={streamId} />}
             </div>
         </div>

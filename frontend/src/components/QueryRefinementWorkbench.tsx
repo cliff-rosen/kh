@@ -22,6 +22,7 @@ import { CanonicalResearchArticle } from '../types/canonical_types';
 interface QueryRefinementWorkbenchProps {
     streamId: number;
     stream: ResearchStream;
+    onStreamUpdate: () => void;
 }
 
 type StepType = 'source' | 'filter' | 'categorize';
@@ -37,7 +38,7 @@ interface WorkflowStep {
 
 type ResultView = 'raw' | 'compare' | 'analyze';
 
-export default function QueryRefinementWorkbench({ streamId, stream }: QueryRefinementWorkbenchProps) {
+export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpdate }: QueryRefinementWorkbenchProps) {
     const [steps, setSteps] = useState<WorkflowStep[]>([
         {
             id: 'step_1',
@@ -138,6 +139,7 @@ export default function QueryRefinementWorkbench({ streamId, stream }: QueryRefi
                                 stream={stream}
                                 streamId={streamId}
                                 onExpandResults={() => setResultsPaneCollapsed(false)}
+                                onStreamUpdate={onStreamUpdate}
                             />
                         </div>
                     ))}
@@ -209,9 +211,10 @@ interface WorkflowStepCardProps {
     stream: ResearchStream;
     streamId: number;
     onExpandResults: () => void;
+    onStreamUpdate: () => void;
 }
 
-function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFocus, isFocused, previousSteps, stream, streamId, onExpandResults }: WorkflowStepCardProps) {
+function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFocus, isFocused, previousSteps, stream, streamId, onExpandResults, onStreamUpdate }: WorkflowStepCardProps) {
     const stepConfig = {
         source: { title: 'Source', icon: BeakerIcon, color: 'blue' },
         filter: { title: 'Filter', icon: FunnelIcon, color: 'purple' },
@@ -279,10 +282,10 @@ function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFo
             {step.expanded && (
                 <div className="p-4 bg-white dark:bg-gray-900">
                     {step.type === 'source' && (
-                        <SourceStepContent step={step} onUpdate={onUpdate} stream={stream} streamId={streamId} onExpandResults={onExpandResults} />
+                        <SourceStepContent step={step} onUpdate={onUpdate} stream={stream} streamId={streamId} onExpandResults={onExpandResults} onStreamUpdate={onStreamUpdate} />
                     )}
                     {step.type === 'filter' && (
-                        <FilterStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} streamId={streamId} stream={stream} onExpandResults={onExpandResults} />
+                        <FilterStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} streamId={streamId} stream={stream} onExpandResults={onExpandResults} onStreamUpdate={onStreamUpdate} />
                     )}
                     {step.type === 'categorize' && (
                         <CategorizeStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} streamId={streamId} onExpandResults={onExpandResults} />
@@ -297,7 +300,7 @@ function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFo
 // Source Step
 // ============================================================================
 
-function SourceStepContent({ step, onUpdate, stream, streamId, onExpandResults }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; stream: ResearchStream; streamId: number; onExpandResults: () => void }) {
+function SourceStepContent({ step, onUpdate, stream, streamId, onExpandResults, onStreamUpdate }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; stream: ResearchStream; streamId: number; onExpandResults: () => void; onStreamUpdate: () => void }) {
     const [isRunning, setIsRunning] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const config = step.config;
@@ -474,6 +477,8 @@ function SourceStepContent({ step, onUpdate, stream, streamId, onExpandResults }
                                                             queryIndex,
                                                             testExpression
                                                         );
+                                                        // Refresh stream data from backend
+                                                        await onStreamUpdate();
                                                         // Reset test expression to match saved
                                                         onUpdate({ config: { ...config, testQueryExpression: undefined } });
                                                         alert('Query updated successfully!');
@@ -589,7 +594,7 @@ function SourceStepContent({ step, onUpdate, stream, streamId, onExpandResults }
 // Filter Step
 // ============================================================================
 
-function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream, onExpandResults }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; previousSteps: WorkflowStep[]; streamId: number; stream: ResearchStream; onExpandResults: () => void }) {
+function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream, onExpandResults, onStreamUpdate }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; previousSteps: WorkflowStep[]; streamId: number; stream: ResearchStream; onExpandResults: () => void; onStreamUpdate: () => void }) {
     const [isRunning, setIsRunning] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const config = step.config;
@@ -764,6 +769,8 @@ function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream, on
                                                         threshold: testThreshold
                                                     }
                                                 );
+                                                // Refresh stream data from backend
+                                                await onStreamUpdate();
                                                 // Reset to match saved
                                                 onUpdate({ config: { ...config, enabled: undefined, criteria: undefined, threshold: undefined } });
                                                 alert('Filter updated successfully!');

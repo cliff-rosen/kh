@@ -26,7 +26,7 @@ export default function EditStreamPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const { researchStreams, loadResearchStreams, updateResearchStream, deleteResearchStream, isLoading, error, clearError } = useResearchStream();
+    const { researchStreams, loadResearchStreams, loadResearchStream, updateResearchStream, deleteResearchStream, isLoading, error, clearError } = useResearchStream();
 
     const [stream, setStream] = useState<any>(null);
 
@@ -476,7 +476,11 @@ export default function EditStreamPage() {
 
                         {/* Layer 4: Test & Refine Tab */}
                         {activeTab === 'execute' && stream && (
-                            <TestRefineTab streamId={parseInt(id!)} stream={stream} />
+                            <TestRefineTab
+                                streamId={parseInt(id!)}
+                                stream={stream}
+                                onStreamUpdate={() => loadResearchStream(parseInt(id!))}
+                            />
                         )}
 
                     </form>
