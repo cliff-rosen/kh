@@ -92,6 +92,50 @@ class RefinementWorkbenchService:
 
         return articles, enriched_metadata
 
+    async def test_custom_query(
+        self,
+        query_expression: str,
+        start_date: str,
+        end_date: str
+    ) -> Tuple[List[CanonicalResearchArticle], Dict]:
+        """
+        Test a custom query expression (not necessarily saved to stream).
+
+        Args:
+            query_expression: PubMed query expression to test
+            start_date: Start date (YYYY-MM-DD)
+            end_date: End date (YYYY-MM-DD)
+
+        Returns:
+            Tuple of (articles, metadata dict)
+        """
+        if not query_expression or not query_expression.strip():
+            raise ValueError("Query expression cannot be empty")
+
+        # Convert YYYY-MM-DD to YYYY/MM/DD for PubMed API
+        start_date_formatted = start_date.replace("-", "/")
+        end_date_formatted = end_date.replace("-", "/")
+
+        # Execute query on PubMed
+        articles, metadata = self.pubmed_service.search_articles(
+            query=query_expression,
+            max_results=self.MAX_ARTICLES_PER_SOURCE,
+            start_date=start_date_formatted,
+            end_date=end_date_formatted,
+            date_type="entry",
+            sort_by="relevance"
+        )
+
+        # Add additional metadata
+        enriched_metadata = {
+            "query_expression": query_expression,
+            "start_date": start_date,
+            "end_date": end_date,
+            **metadata
+        }
+
+        return articles, enriched_metadata
+
     async def fetch_manual_pmids(
         self,
         pmids: List[str]

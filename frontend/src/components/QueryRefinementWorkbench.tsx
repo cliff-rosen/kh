@@ -299,14 +299,28 @@ function SourceStepContent({ step, onUpdate, stream, streamId }: { step: Workflo
                     throw new Error('Invalid query selection');
                 }
 
-                // Note: Backend always uses the saved query from the stream
-                // If user has modified testQueryExpression, they need to "Update Stream" first
-                const response = await researchStreamApi.runQuery({
-                    stream_id: streamId,
-                    query_index: queryIndex,
-                    start_date: config.startDate,
-                    end_date: config.endDate
-                });
+                const savedQuery = broadQueries[queryIndex];
+                const savedExpression = savedQuery?.query_expression || '';
+                const testExpression = config.testQueryExpression || savedExpression;
+                const hasChanges = testExpression !== savedExpression;
+
+                let response;
+                if (hasChanges) {
+                    // Test custom query expression (allows testing before saving)
+                    response = await researchStreamApi.testCustomQuery({
+                        query_expression: testExpression,
+                        start_date: config.startDate,
+                        end_date: config.endDate
+                    });
+                } else {
+                    // Run saved query from stream
+                    response = await researchStreamApi.runQuery({
+                        stream_id: streamId,
+                        query_index: queryIndex,
+                        start_date: config.startDate,
+                        end_date: config.endDate
+                    });
+                }
 
                 onUpdate({
                     results: response
@@ -446,22 +460,25 @@ function SourceStepContent({ step, onUpdate, stream, streamId }: { step: Workflo
                                                     }
                                                 }}
                                                 className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md font-medium"
+                                                title="Save this modified query to the stream configuration"
                                             >
-                                                Update Stream
+                                                💾 Save to Stream
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => onUpdate({ config: { ...config, testQueryExpression: savedExpression } })}
                                                 className="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-700 text-white rounded-md font-medium"
+                                                title="Discard changes and revert to saved query"
                                             >
-                                                Revert
+                                                ↶ Revert
                                             </button>
                                         </div>
                                     )}
 
                                     {!hasChanges && (
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                                            Matches saved query expression
+                                        <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                                            <CheckCircleIcon className="h-3 w-3" />
+                                            Using saved query from stream
                                         </p>
                                     )}
                                 </div>

@@ -21,6 +21,12 @@ export interface RunQueryRequest {
     end_date: string;    // YYYY-MM-DD
 }
 
+export interface TestCustomQueryRequest {
+    query_expression: string;
+    start_date: string;  // YYYY-MM-DD
+    end_date: string;    // YYYY-MM-DD
+}
+
 export interface ManualPMIDsRequest {
     pmids: string[];
 }
@@ -492,6 +498,17 @@ export const researchStreamApi = {
     async runQuery(request: RunQueryRequest): Promise<SourceResponse> {
         const response = await api.post(
             '/api/refinement-workbench/source/run-query',
+            request
+        );
+        return response.data;
+    },
+
+    /**
+     * Test a custom query expression (not necessarily saved to stream)
+     */
+    async testCustomQuery(request: TestCustomQueryRequest): Promise<SourceResponse> {
+        const response = await api.post(
+            '/api/refinement-workbench/source/test-custom-query',
             request
         );
         return response.data;

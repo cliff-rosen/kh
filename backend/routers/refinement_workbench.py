@@ -33,6 +33,13 @@ class RunQueryRequest(BaseModel):
     end_date: str = Field(..., description="End date (YYYY-MM-DD)")
 
 
+class TestCustomQueryRequest(BaseModel):
+    """Request to test a custom query expression (not necessarily saved to stream)"""
+    query_expression: str = Field(..., description="PubMed query expression to test")
+    start_date: str = Field(..., description="Start date (YYYY-MM-DD)")
+    end_date: str = Field(..., description="End date (YYYY-MM-DD)")
+
+
 class ManualPMIDsRequest(BaseModel):
     """Request to fetch articles by PMID list"""
     pmids: List[str] = Field(..., description="List of PubMed IDs")
@@ -144,6 +151,43 @@ async def run_query(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Error running query: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post("/source/test-custom-query", response_model=SourceResponse)
+async def test_custom_query(
+    request: TestCustomQueryRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Test a custom query expression (not necessarily saved to stream).
+
+    This allows users to edit and test queries before saving them back to the stream.
+
+    Args:
+        request: Custom query expression and date range
+
+    Returns:
+        SourceResponse with retrieved articles and metadata
+    """
+    try:
+        service = RefinementWorkbenchService(db)
+        articles, metadata = await service.test_custom_query(
+            query_expression=request.query_expression,
+            start_date=request.start_date,
+            end_date=request.end_date
+        )
+        return SourceResponse(
+            articles=articles,
+            count=len(articles),
+            total_count=metadata.get("total_results", len(articles)),
+            metadata=metadata
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error testing custom query: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
