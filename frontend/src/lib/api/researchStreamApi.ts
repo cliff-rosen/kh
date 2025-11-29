@@ -187,6 +187,7 @@ export interface ExecutePipelineRequest {
     run_type?: 'test' | 'scheduled' | 'manual';
     start_date?: string;  // YYYY/MM/DD format
     end_date?: string;    // YYYY/MM/DD format
+    report_name?: string;  // Custom name for the report
 }
 
 export interface QueryTestRequest {

@@ -762,6 +762,7 @@ class ExecutePipelineRequest(BaseModel):
     run_type: Optional[str] = Field("test", description="Type of run: test, scheduled, or manual")
     start_date: Optional[str] = Field(None, description="Start date for retrieval (YYYY/MM/DD). Defaults to 7 days ago.")
     end_date: Optional[str] = Field(None, description="End date for retrieval (YYYY/MM/DD). Defaults to today.")
+    report_name: Optional[str] = Field(None, description="Custom name for the generated report. Defaults to YYYY.MM.DD format.")
 
 
 @router.post("/{stream_id}/execute-pipeline")
@@ -829,7 +830,8 @@ async def execute_pipeline(
                     user_id=current_user.user_id,
                     run_type=run_type_value,
                     start_date=start_date,
-                    end_date=end_date
+                    end_date=end_date,
+                    report_name=request.report_name
                 ):
                     # Format as SSE event
                     status_dict = status.to_dict()

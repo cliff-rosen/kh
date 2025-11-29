@@ -74,7 +74,8 @@ class PipelineService:
         user_id: int,
         run_type: RunType = RunType.TEST,
         start_date: Optional[str] = None,
-        end_date: Optional[str] = None
+        end_date: Optional[str] = None,
+        report_name: Optional[str] = None
     ) -> AsyncGenerator[PipelineStatus, None]:
         """
         Execute the full pipeline for a research stream and yield status updates.
@@ -96,6 +97,7 @@ class PipelineService:
             run_type: Type of run (TEST, SCHEDULED, MANUAL)
             start_date: Start date for retrieval (YYYY/MM/DD format)
             end_date: End date for retrieval (YYYY/MM/DD format)
+            report_name: Custom name for the generated report (defaults to YYYY.MM.DD)
 
         Yields:
             PipelineStatus: Status updates at each stage
@@ -314,7 +316,8 @@ class PipelineService:
                     "categorized": categorized_count
                 },
                 start_date=start_date,
-                end_date=end_date
+                end_date=end_date,
+                report_name=report_name
             )
 
             yield PipelineStatus(
@@ -696,7 +699,8 @@ class PipelineService:
         category_summaries: Dict[str, str],
         metrics: Dict,
         start_date: Optional[str] = None,
-        end_date: Optional[str] = None
+        end_date: Optional[str] = None,
+        report_name: Optional[str] = None
     ) -> Report:
         """
         Generate a report from the pipeline results.
@@ -712,6 +716,7 @@ class PipelineService:
             metrics: Pipeline execution metrics
             start_date: Start date for retrieval (YYYY/MM/DD format)
             end_date: End date for retrieval (YYYY/MM/DD format)
+            report_name: Custom name for the report (defaults to YYYY.MM.DD)
 
         Returns:
             The created Report object
@@ -731,12 +736,13 @@ class PipelineService:
 
         # Create report
         report_date = date.today()
-        report_name = report_date.strftime("%Y.%m.%d")  # Default format: YYYY.MM.DD
+        # Use provided report_name or default to YYYY.MM.DD format
+        final_report_name = report_name if report_name else report_date.strftime("%Y.%m.%d")
 
         report = Report(
             user_id=stream.user_id,
             research_stream_id=research_stream_id,
-            report_name=report_name,
+            report_name=final_report_name,
             report_date=report_date,
             run_type=run_type,
             retrieval_params=retrieval_params,

@@ -28,6 +28,14 @@ export default function ExecutePipelineTab({ streamId }: ExecutePipelineTabProps
     const [startDate, setStartDate] = useState(defaults.startDate);
     const [endDate, setEndDate] = useState(defaults.endDate);
 
+    // Generate default report name from today's date
+    const getDefaultReportName = () => {
+        const today = new Date();
+        return today.toISOString().split('T')[0].replace(/-/g, '.'); // YYYY.MM.DD
+    };
+
+    const [reportName, setReportName] = useState(getDefaultReportName());
+
     const executePipeline = async () => {
         setIsExecuting(true);
         setStatusLog([]);
@@ -43,7 +51,8 @@ export default function ExecutePipelineTab({ streamId }: ExecutePipelineTabProps
             const stream = researchStreamApi.executePipeline(streamId, {
                 run_type: 'test',
                 start_date: formattedStartDate,
-                end_date: formattedEndDate
+                end_date: formattedEndDate,
+                report_name: reportName
             });
 
             for await (const status of stream) {
@@ -139,6 +148,22 @@ export default function ExecutePipelineTab({ streamId }: ExecutePipelineTabProps
                     Execute the complete pipeline end-to-end: retrieval, deduplication, filtering, categorization, and report generation.
                     This creates a full test report with real-time progress updates.
                 </p>
+            </div>
+
+            {/* Report Name */}
+            <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg p-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Report Name</h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    Name for the generated report. Defaults to today's date.
+                </p>
+                <input
+                    type="text"
+                    value={reportName}
+                    onChange={(e) => setReportName(e.target.value)}
+                    disabled={isExecuting}
+                    placeholder="YYYY.MM.DD"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+                />
             </div>
 
             {/* Date Range Selection */}
