@@ -75,8 +75,19 @@ export default function ReportsPage() {
                     const streamReports = await reportApi.getReportsForStream(Number(selectedStream));
                     setReports(streamReports);
 
-                    // Auto-select the first report
-                    if (streamReports.length > 0) {
+                    // Auto-select report from URL param, or fall back to first report
+                    const reportParam = searchParams.get('report');
+                    if (reportParam) {
+                        const reportId = Number(reportParam);
+                        const report = streamReports.find(r => r.report_id === reportId);
+                        if (report) {
+                            loadReportDetails(reportId);
+                        } else if (streamReports.length > 0) {
+                            // Report not found, select first report
+                            loadReportDetails(streamReports[0].report_id);
+                        }
+                    } else if (streamReports.length > 0) {
+                        // No report param, select first report
                         loadReportDetails(streamReports[0].report_id);
                     }
                 } catch (err: any) {
@@ -91,7 +102,7 @@ export default function ReportsPage() {
             };
             loadStreamAndReports();
         }
-    }, [selectedStream]);
+    }, [selectedStream, searchParams]);
 
     const loadReportDetails = async (reportId: number) => {
         setLoadingReportDetails(true);

@@ -202,7 +202,7 @@ export default function ExecutePipelineTab({ streamId }: ExecutePipelineTabProps
 
                 {reportId && (
                     <a
-                        href={`/reports/${reportId}`}
+                        href={`/reports?stream=${streamId}&report=${reportId}`}
                         className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md font-medium transition-colors"
                     >
                         <CheckCircleIcon className="h-5 w-5" />

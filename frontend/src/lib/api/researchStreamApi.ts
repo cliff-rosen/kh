@@ -335,21 +335,6 @@ export const researchStreamApi = {
     // ========================================================================
 
     /**
-     * Propose retrieval concepts based on semantic space analysis
-     */
-    async proposeRetrievalConcepts(streamId: number): Promise<{
-        proposed_concepts: Concept[];
-        analysis: any;
-        reasoning: string;
-        coverage_check: any;
-    }> {
-        const response = await api.post(
-            `/api/research-streams/${streamId}/retrieval/propose-concepts`
-        );
-        return response.data;
-    },
-
-    /**
      * Propose broad search strategy (alternative to concepts)
      *
      * Generates 1-3 broad, simple search queries that cast a wide net
@@ -378,6 +363,21 @@ export const researchStreamApi = {
         const response = await api.post(
             `/api/research-streams/${streamId}/retrieval/generate-broad-filter`,
             { broad_query: broadQuery }
+        );
+        return response.data;
+    },
+
+    /**
+     * Propose retrieval concepts based on semantic space analysis
+     */
+    async proposeRetrievalConcepts(streamId: number): Promise<{
+        proposed_concepts: Concept[];
+        analysis: any;
+        reasoning: string;
+        coverage_check: any;
+    }> {
+        const response = await api.post(
+            `/api/research-streams/${streamId}/retrieval/propose-concepts`
         );
         return response.data;
     },
