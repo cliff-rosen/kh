@@ -19,6 +19,7 @@ class RefinementWorkbenchService:
     """Service for refinement workbench operations"""
 
     def __init__(self, db: Session):
+        self.MAX_ARTICLES_PER_SOURCE = 500
         self.db = db
         self.pubmed_service = PubMedService()
         self.filter_service = SemanticFilterService()
