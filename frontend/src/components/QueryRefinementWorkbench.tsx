@@ -3,6 +3,7 @@ import {
     BeakerIcon,
     ChevronDownIcon,
     ChevronRightIcon,
+    ChevronLeftIcon,
     PlayIcon,
     ArrowPathIcon,
     PlusIcon,
@@ -136,6 +137,7 @@ export default function QueryRefinementWorkbench({ streamId, stream }: QueryRefi
                                 previousSteps={steps.slice(0, index)}
                                 stream={stream}
                                 streamId={streamId}
+                                onExpandResults={() => setResultsPaneCollapsed(false)}
                             />
                         </div>
                     ))}
@@ -206,9 +208,10 @@ interface WorkflowStepCardProps {
     previousSteps: WorkflowStep[];
     stream: ResearchStream;
     streamId: number;
+    onExpandResults: () => void;
 }
 
-function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFocus, isFocused, previousSteps, stream, streamId }: WorkflowStepCardProps) {
+function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFocus, isFocused, previousSteps, stream, streamId, onExpandResults }: WorkflowStepCardProps) {
     const stepConfig = {
         source: { title: 'Source', icon: BeakerIcon, color: 'blue' },
         filter: { title: 'Filter', icon: FunnelIcon, color: 'purple' },
@@ -276,13 +279,13 @@ function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFo
             {step.expanded && (
                 <div className="p-4 bg-white dark:bg-gray-900">
                     {step.type === 'source' && (
-                        <SourceStepContent step={step} onUpdate={onUpdate} stream={stream} streamId={streamId} />
+                        <SourceStepContent step={step} onUpdate={onUpdate} stream={stream} streamId={streamId} onExpandResults={onExpandResults} />
                     )}
                     {step.type === 'filter' && (
-                        <FilterStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} streamId={streamId} stream={stream} />
+                        <FilterStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} streamId={streamId} stream={stream} onExpandResults={onExpandResults} />
                     )}
                     {step.type === 'categorize' && (
-                        <CategorizeStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} streamId={streamId} />
+                        <CategorizeStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} streamId={streamId} onExpandResults={onExpandResults} />
                     )}
                 </div>
             )}
@@ -294,7 +297,7 @@ function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFo
 // Source Step
 // ============================================================================
 
-function SourceStepContent({ step, onUpdate, stream, streamId }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; stream: ResearchStream; streamId: number }) {
+function SourceStepContent({ step, onUpdate, stream, streamId, onExpandResults }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; stream: ResearchStream; streamId: number; onExpandResults: () => void }) {
     const [isRunning, setIsRunning] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const config = step.config;
@@ -340,6 +343,8 @@ function SourceStepContent({ step, onUpdate, stream, streamId }: { step: Workflo
                 onUpdate({
                     results: response
                 });
+                // Auto-expand results pane
+                onExpandResults();
             } else if (config.sourceType === 'manual') {
                 // Fetch manual PMIDs
                 const pmids = config.manualIds
@@ -356,6 +361,8 @@ function SourceStepContent({ step, onUpdate, stream, streamId }: { step: Workflo
                 onUpdate({
                     results: response
                 });
+                // Auto-expand results pane
+                onExpandResults();
             }
         } catch (err) {
             console.error('Error running source:', err);
@@ -582,7 +589,7 @@ function SourceStepContent({ step, onUpdate, stream, streamId }: { step: Workflo
 // Filter Step
 // ============================================================================
 
-function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; previousSteps: WorkflowStep[]; streamId: number; stream: ResearchStream }) {
+function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream, onExpandResults }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; previousSteps: WorkflowStep[]; streamId: number; stream: ResearchStream; onExpandResults: () => void }) {
     const [isRunning, setIsRunning] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const config = step.config;
@@ -600,7 +607,20 @@ function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream }: 
                 throw new Error('No input articles selected');
             }
 
-            if (!config.criteria) {
+            // Get filter criteria - use current test value
+            const sourceStep = previousSteps.find(s => s.type === 'source' && s.config.sourceType === 'query');
+            let savedFilter: any = null;
+            if (sourceStep && sourceStep.config.selectedQuery) {
+                const queryIndex = parseInt(sourceStep.config.selectedQuery);
+                const broadQueries = stream.retrieval_config?.broad_search?.queries || [];
+                const query = broadQueries[queryIndex];
+                savedFilter = query?.semantic_filter;
+            }
+
+            const testCriteria = config.criteria !== undefined ? config.criteria : (savedFilter?.criteria || '');
+            const testThreshold = config.threshold !== undefined ? config.threshold : (savedFilter?.threshold || 0.7);
+
+            if (!testCriteria || testCriteria.trim() === '') {
                 throw new Error('Filter criteria is required');
             }
 
@@ -608,13 +628,15 @@ function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream }: 
 
             const response = await researchStreamApi.filterArticles({
                 articles,
-                filter_criteria: config.criteria,
-                threshold: config.threshold || 0.7
+                filter_criteria: testCriteria,
+                threshold: testThreshold
             });
 
             onUpdate({
                 results: response
             });
+            // Auto-expand results pane
+            onExpandResults();
         } catch (err) {
             console.error('Error running filter:', err);
             setError(err instanceof Error ? err.message : 'Failed to run filter');
@@ -780,16 +802,29 @@ function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream }: 
                 </div>
             )}
 
-            <button
-                type="button"
-                onClick={runFilter}
-                disabled={isRunning || !config.inputStep || !config.criteria}
-                className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
-                    isRunning || !config.inputStep || !config.criteria
-                        ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                        : 'bg-purple-600 hover:bg-purple-700 text-white'
-                }`}
-            >
+            {(() => {
+                const sourceStep = previousSteps.find(s => s.type === 'source' && s.config.sourceType === 'query');
+                let savedFilter: any = null;
+                if (sourceStep && sourceStep.config.selectedQuery) {
+                    const queryIndex = parseInt(sourceStep.config.selectedQuery);
+                    const broadQueries = stream.retrieval_config?.broad_search?.queries || [];
+                    const query = broadQueries[queryIndex];
+                    savedFilter = query?.semantic_filter;
+                }
+                const testCriteria = config.criteria !== undefined ? config.criteria : (savedFilter?.criteria || '');
+                const hasValidCriteria = testCriteria && testCriteria.trim() !== '';
+
+                return (
+                    <button
+                        type="button"
+                        onClick={runFilter}
+                        disabled={isRunning || !config.inputStep || !hasValidCriteria}
+                        className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
+                            isRunning || !config.inputStep || !hasValidCriteria
+                                ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                                : 'bg-purple-600 hover:bg-purple-700 text-white'
+                        }`}
+                    >
                 {isRunning ? (
                     <>
                         <ArrowPathIcon className="h-5 w-5 animate-spin" />
@@ -811,7 +846,7 @@ function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream }: 
 // Categorize Step
 // ============================================================================
 
-function CategorizeStepContent({ step, onUpdate, previousSteps, streamId }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; previousSteps: WorkflowStep[]; streamId: number }) {
+function CategorizeStepContent({ step, onUpdate, previousSteps, streamId, onExpandResults }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; previousSteps: WorkflowStep[]; streamId: number; onExpandResults: () => void }) {
     const [isRunning, setIsRunning] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const config = step.config;
@@ -839,6 +874,8 @@ function CategorizeStepContent({ step, onUpdate, previousSteps, streamId }: { st
             onUpdate({
                 results: response
             });
+            // Auto-expand results pane
+            onExpandResults();
         } catch (err) {
             console.error('Error running categorization:', err);
             setError(err instanceof Error ? err.message : 'Failed to run categorization');
