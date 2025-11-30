@@ -18,26 +18,21 @@ export enum ReportFrequency {
     MONTHLY = 'monthly'
 }
 
-export interface Category {
-    id: string; // Unique identifier for this category (e.g., 'medical_health')
-    name: string; // Display name for the category
-    topics: string[]; // List of topic_ids from semantic space covered by this category
-    specific_inclusions: string[]; // Category-specific inclusion criteria
-}
 
 // ============================================================================
 // Retrieval Configuration - Concept-Based
 // ============================================================================
 
-export interface SourceQuery {
-    query_expression: string;  // Source-specific query expression
-    enabled: boolean;  // Whether this source is active
-}
 
 export interface SemanticFilter {
     enabled: boolean;
     criteria: string;  // Text description of what should pass/fail
     threshold: number;  // 0.0 to 1.0 confidence threshold
+}
+
+export interface SourceQuery {
+    query_expression: string;  // Source-specific query expression
+    enabled: boolean;  // Whether this source is active
 }
 
 export enum VolumeStatus {
@@ -128,44 +123,17 @@ export interface RetrievalConfig {
     article_limit_per_week?: number;  // Maximum articles per week
 }
 
-// ============================================================================
-// Legacy Types (for backward compatibility during transition)
-// ============================================================================
-
-export interface GenerationMetadata {
-    generated_at: string;  // ISO 8601 datetime
-    generated_by: string;  // Who/what generated this (e.g., 'llm:gpt-4', 'user:manual')
-    reasoning: string;  // Explanation of why this was generated
-    confidence?: number;  // 0-1 confidence score
-    inputs_considered: string[];  // topic_ids, entity_ids considered
-    human_edited: boolean;  // Has a human edited this
+export interface Category {
+    id: string; // Unique identifier for this category (e.g., 'medical_health')
+    name: string; // Display name for the category
+    topics: string[]; // List of topic_ids from semantic space covered by this category
+    specific_inclusions: string[]; // Category-specific inclusion criteria
 }
 
 export interface PresentationConfig {
     categories: Category[];    // How to organize results in reports
 }
 
-// ============================================================================
-// Information Sources
-// ============================================================================
-
-export enum SourceType {
-    ACADEMIC_DATABASE = 'academic_database',
-    SEARCH_ENGINE = 'search_engine',
-    PREPRINT_SERVER = 'preprint_server',
-    CLINICAL_TRIALS = 'clinical_trials',
-    PATENT_DATABASE = 'patent_database',
-    REGULATORY_DATABASE = 'regulatory_database'
-}
-
-export interface InformationSource {
-    source_id: string;
-    name: string;
-    source_type: SourceType;
-    description: string;
-    query_syntax: string;
-    url: string;
-}
 
 export interface ResearchStream {
     // === CORE IDENTITY ===
@@ -194,4 +162,26 @@ export interface ResearchStream {
     // === AGGREGATED DATA ===
     report_count?: number;
     latest_report_date?: string | null;  // ISO 8601 date string
+}
+
+// ============================================================================
+// Information Sources
+// ============================================================================
+
+export enum SourceType {
+    ACADEMIC_DATABASE = 'academic_database',
+    SEARCH_ENGINE = 'search_engine',
+    PREPRINT_SERVER = 'preprint_server',
+    CLINICAL_TRIALS = 'clinical_trials',
+    PATENT_DATABASE = 'patent_database',
+    REGULATORY_DATABASE = 'regulatory_database'
+}
+
+export interface InformationSource {
+    source_id: string;
+    name: string;
+    source_type: SourceType;
+    description: string;
+    query_syntax: string;
+    url: string;
 }
