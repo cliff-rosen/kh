@@ -1,18 +1,13 @@
 """
-Domain types and streaming response types for general-purpose chat system
+General chat domain types and streaming response types
 
-Domain types (used across service and router):
-- GeneralChatMessage, ActionMetadata, SuggestedValue, SuggestedAction, CustomPayload
-
-Streaming response types (used by service, consumed by router):
-- ChatPayload, ChatAgentResponse, ChatStatusResponse
-
-Request/Response types (used by service):
-- ChatRequest (used by service method signature, consumed by router)
+Domain types: GeneralChatMessage, ActionMetadata, SuggestedValue, SuggestedAction, CustomPayload
+Streaming response types: ChatPayload, ChatAgentResponse, ChatStatusResponse
+Request model (ChatRequest) is in routers/general_chat.py
 """
 
 from pydantic import BaseModel
-from typing import List, Dict, Optional, Any, Literal
+from typing import List, Optional, Any, Literal
 
 
 # ============================================================================
@@ -20,7 +15,7 @@ from typing import List, Dict, Optional, Any, Literal
 # ============================================================================
 
 class GeneralChatMessage(BaseModel):
-    """Simple chat message for general chat API (not to be confused with schemas.chat.ChatMessage)"""
+    """Simple chat message for general chat API"""
     role: Literal["user", "assistant"]
     content: str
     timestamp: str
@@ -51,19 +46,6 @@ class CustomPayload(BaseModel):
     """Custom payload for specialized chat responses"""
     type: str
     data: Any
-
-
-# ============================================================================
-# Request Types (used by service and router)
-# ============================================================================
-
-class ChatRequest(BaseModel):
-    """Request model for general chat endpoint"""
-    message: str
-    context: Dict[str, Any]
-    interaction_type: Literal["text_input", "value_selected", "action_executed"]
-    action_metadata: Optional[ActionMetadata] = None
-    conversation_history: List[GeneralChatMessage]
 
 
 # ============================================================================

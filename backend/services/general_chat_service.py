@@ -10,7 +10,6 @@ import os
 import logging
 
 from schemas.general_chat import (
-    ChatRequest,
     ChatPayload,
     ChatAgentResponse,
     ChatStatusResponse,
@@ -33,9 +32,12 @@ class GeneralChatService:
         self.user_id = user_id
         self.client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 
-    async def stream_chat_message(self, request: ChatRequest) -> AsyncGenerator[str, None]:
+    async def stream_chat_message(self, request) -> AsyncGenerator[str, None]:
         """
         Stream a chat message response with status updates via SSE.
+
+        Args:
+            request: ChatRequest object (defined in routers.general_chat)
 
         Yields JSON strings of ChatAgentResponse or ChatStatusResponse
         """
