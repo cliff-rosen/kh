@@ -6,7 +6,7 @@ Defines all payload types and context builder this page supports.
 import json
 import logging
 from typing import Dict, Any
-from .registry import PayloadConfig, register_page
+from .registry import PayloadConfig, ClientAction, register_page
 
 logger = logging.getLogger(__name__)
 
@@ -354,5 +354,14 @@ def build_context(context: Dict[str, Any]) -> str:
         return _build_semantic_tab_context(context)
 
 
+# Define available client actions for edit_research_stream page
+EDIT_STREAM_CLIENT_ACTIONS = [
+    ClientAction(
+        action="close_chat",
+        description="Close the chat tray"
+    ),
+]
+
+
 # Register page configuration on module import
-register_page("edit_research_stream", EDIT_STREAM_PAYLOADS, build_context)
+register_page("edit_research_stream", EDIT_STREAM_PAYLOADS, build_context, EDIT_STREAM_CLIENT_ACTIONS)

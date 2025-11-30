@@ -13,7 +13,7 @@ from schemas.general_chat import (
     ChatResponsePayload
 )
 # Import chat payloads package (auto-registers all page configurations)
-from services.chat_payloads import get_page_payloads, get_page_context_builder, has_page_payloads
+from services.chat_payloads import get_page_payloads, get_page_context_builder, get_page_client_actions, has_page_payloads
 
 logger = logging.getLogger(__name__)
 
@@ -213,6 +213,23 @@ class GeneralChatService:
             for config in payload_configs
         ])
 
+        # Get available client actions
+        client_actions = get_page_client_actions(current_page)
+        client_actions_text = ""
+        if client_actions:
+            actions_list = "\n".join([
+                f"- {action.action}: {action.description}" +
+                (f" (parameters: {', '.join(action.parameters)})" if action.parameters else "")
+                for action in client_actions
+            ])
+            client_actions_text = f"""
+
+            AVAILABLE CLIENT ACTIONS:
+            You can suggest these client-side actions using SUGGESTED_ACTIONS format with handler='client':
+            {actions_list}
+
+            ONLY suggest client actions from the list above. Do not invent new client actions."""
+
         return f"""You are a helpful AI assistant for Knowledge Horizon.
 
         {page_context}
@@ -230,6 +247,7 @@ class GeneralChatService:
         Choose the appropriate payload type based on what the user needs:
 
         {payload_instructions}
+        {client_actions_text}
 
         IMPORTANT:
         - Only use payloads when they add value

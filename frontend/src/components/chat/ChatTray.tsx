@@ -94,10 +94,17 @@ export default function ChatTray({ initialContext, payloadHandlers }: ChatTrayPr
 
     const handleActionClick = async (action: any) => {
         if (action.handler === 'client') {
-            // For now, just log client actions
+            // Handle client-side actions
             console.log('Client action:', action);
-            if (action.action === 'close') {
-                setIsOpen(false);
+
+            // Execute the client action
+            switch (action.action) {
+                case 'close_chat':
+                    setIsOpen(false);
+                    break;
+                // Add more client action handlers as needed
+                default:
+                    console.warn('Unknown client action:', action.action);
             }
         } else {
             // Send server action
