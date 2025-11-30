@@ -38,16 +38,6 @@ class ChatMessage(BaseModel):
     created_at: datetime = Field(description="When the message was created")
     updated_at: datetime = Field(description="When the message was last updated")
 
-# Chat API Request/Response models
-class CreateChatMessageRequest(BaseModel):
-    """Request to create a new chat message"""
-    role: MessageRole = Field(description="Role of the message sender")
-    content: str = Field(description="Content of the message")
-    message_metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Optional metadata")
-
-class CreateChatMessageResponse(BaseModel):
-    """Response when creating a new chat message"""
-    message: ChatMessage = Field(description="Created chat message")
 
 class AssetReference(BaseModel):
     """Lightweight asset reference for chat requests"""

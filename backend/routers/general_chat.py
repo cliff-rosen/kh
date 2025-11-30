@@ -5,17 +5,40 @@ General-purpose chat endpoint
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
+from pydantic import BaseModel
+from typing import List, Dict, Any, Optional, Literal
 import logging
 
 from database import get_db
 from models import User
 from routers.auth import get_current_user
-from schemas.general_chat import ChatRequest, ChatResponse, ChatAgentResponse, ChatStatusResponse
+from schemas.general_chat import (
+    GeneralChatMessage,
+    ActionMetadata,
+    SuggestedValue,
+    SuggestedAction,
+    CustomPayload,
+    ChatAgentResponse,
+    ChatStatusResponse
+)
 from services.general_chat_service import GeneralChatService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+
+
+# ============================================================================
+# API Request Model for General Chat Endpoint
+# ============================================================================
+
+class ChatRequest(BaseModel):
+    """Request model for general chat endpoint"""
+    message: str
+    context: Dict[str, Any]
+    interaction_type: Literal["text_input", "value_selected", "action_executed"]
+    action_metadata: Optional[ActionMetadata] = None
+    conversation_history: List[GeneralChatMessage]
 
 
 @router.post("/stream",

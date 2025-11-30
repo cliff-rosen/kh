@@ -1,36 +1,44 @@
 """
-Schemas for general-purpose chat system
+Domain types and streaming response types for general-purpose chat system
+
+Domain types (used across service and router):
+- GeneralChatMessage, ActionMetadata, SuggestedValue, SuggestedAction, CustomPayload
+
+Streaming response types (used by service, consumed by router):
+- ChatPayload, ChatAgentResponse, ChatStatusResponse
+
+API request model is in routers/general_chat.py (ChatRequest)
 """
 
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional, Literal
+from typing import List, Optional, Any, Literal
 
 
-class ChatMessage(BaseModel):
+# ============================================================================
+# Domain Types
+# ============================================================================
+
+class GeneralChatMessage(BaseModel):
+    """Simple chat message for general chat API (not to be confused with schemas.chat.ChatMessage)"""
     role: Literal["user", "assistant"]
     content: str
     timestamp: str
 
 
 class ActionMetadata(BaseModel):
+    """Metadata for action-based interactions"""
     action_identifier: str
     action_data: Optional[Any] = None
 
 
-class ChatRequest(BaseModel):
-    message: str
-    context: Dict[str, Any]
-    interaction_type: Literal["text_input", "value_selected", "action_executed"]
-    action_metadata: Optional[ActionMetadata] = None
-    conversation_history: List[ChatMessage]
-
-
 class SuggestedValue(BaseModel):
+    """A suggested value that the user can select"""
     label: str
     value: str
 
 
 class SuggestedAction(BaseModel):
+    """A suggested action button"""
     label: str
     action: str
     handler: Literal["client", "server"]
@@ -39,19 +47,13 @@ class SuggestedAction(BaseModel):
 
 
 class CustomPayload(BaseModel):
+    """Custom payload for specialized chat responses"""
     type: str
     data: Any
 
 
-class ChatResponse(BaseModel):
-    message: str
-    suggested_values: Optional[List[SuggestedValue]] = None
-    suggested_actions: Optional[List[SuggestedAction]] = None
-    payload: Optional[CustomPayload] = None
-
-
 # ============================================================================
-# SSE Streaming Response Types
+# Streaming Response Types (constructed by service, streamed by router)
 # ============================================================================
 
 class ChatPayload(BaseModel):

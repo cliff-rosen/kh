@@ -32,17 +32,6 @@ export interface ChatMessage {
     updated_at: string;
 }
 
-// Chat persistence API request/response types
-export interface CreateChatMessageRequest {
-    role: MessageRole;
-    content: string;
-    message_metadata?: Record<string, any>;
-}
-
-export interface CreateChatMessageResponse {
-    message: ChatMessage;
-}
-
 // ============================================================================
 // General Purpose Chat System Types
 // ============================================================================
