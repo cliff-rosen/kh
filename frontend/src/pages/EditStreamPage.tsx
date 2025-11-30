@@ -539,16 +539,36 @@ export default function EditStreamPage() {
 
             {/* Chat Tray */}
             <ChatTray
+                key={activeTab}  // Force re-mount when tab changes to ensure context updates
                 initialContext={{
                     current_page: "edit_research_stream",
                     entity_type: "research_stream",
                     entity_id: stream?.stream_id,
                     stream_name: stream?.stream_name,
                     active_tab: activeTab,
-                    current_schema: {
+                    // Tab-specific context
+                    current_schema: activeTab === 'semantic' ? {
                         stream_name: form.stream_name,
                         purpose: stream?.purpose || "",
                         semantic_space: form.semantic_space
+                    } : activeTab === 'retrieval' ? {
+                        stream_name: form.stream_name,
+                        retrieval_config: form.retrieval_config,
+                        semantic_space: {
+                            topics: form.semantic_space.topics  // Include topics for reference
+                        }
+                    } : activeTab === 'presentation' ? {
+                        stream_name: form.stream_name,
+                        semantic_space: {
+                            topics: form.semantic_space.topics  // Include topics for reference
+                        },
+                        categories: form.categories
+                    } : {
+                        // execute tab - include everything
+                        stream_name: form.stream_name,
+                        semantic_space: form.semantic_space,
+                        retrieval_config: form.retrieval_config,
+                        categories: form.categories
                     }
                 }}
                 payloadHandlers={{
