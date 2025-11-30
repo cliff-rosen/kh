@@ -41,50 +41,12 @@ export interface CreateChatMessageResponse {
     message: ChatMessage;
 }
 
-// Lightweight asset reference for chat requests
-export type AssetReference = {
-    id: string;
-    name: string;
-    description: string;
-    type: string;
-    subtype?: string;
-    metadata?: Record<string, any>;
-}
-
 export interface ChatRequest {
     messages: ChatMessage[];
     payload?: {
         // Additional context data
     };
 }
-
-// Legacy response types (may be used elsewhere)
-export interface MissionDefinitionResponse {
-    response_type: 'MISSION_DEFINITION' | 'INTERVIEW_QUESTION';
-    response_content: string;
-    mission_proposal?: {
-        title: string;
-        goal: string;
-        success_criteria: string[];
-        required_inputs: string[];
-        expected_outputs: string[];
-        possible_stage_sequence: string[];
-    };
-    information_gaps?: string[];
-    confidence_level?: string;
-}
-
-export interface SupervisorResponse {
-    response_type: 'FINAL_ANSWER' | 'MISSION_SPECIALIST' | 'WORKFLOW_SPECIALIST';
-    response_content: string;
-    result_details: any;
-}
-
-
-export interface HopPayload {
-    hop: any; // Could be more specific if Hop type is available
-}
-
 
 // Core streaming response types (matches backend)
 export interface AgentResponse {
