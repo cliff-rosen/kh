@@ -1,18 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon } from '@heroicons/react/24/solid';
 import { useGeneralChat } from '../../hooks/useGeneralChat';
-import { InteractionType } from '../../types/chat';
-
-interface PayloadHandler {
-    render: (payload: any, callbacks: { onAccept?: (data: any) => void; onReject?: () => void }) => React.ReactNode;
-    onAccept?: (payload: any, pageState?: any) => void;
-    onReject?: (payload: any) => void;
-    renderOptions?: {
-        panelWidth?: string;
-        headerTitle?: string;
-        headerIcon?: string;
-    };
-}
+import { InteractionType, PayloadHandler } from '../../types/chat';
 
 interface ChatTrayProps {
     initialContext?: Record<string, any>;

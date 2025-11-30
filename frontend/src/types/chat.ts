@@ -1,3 +1,6 @@
+// ============================================================================
+// Chat Persistence Types (used for chat history storage)
+// ============================================================================
 
 export enum MessageRole {
     USER = 'user',
@@ -7,7 +10,6 @@ export enum MessageRole {
     STATUS = 'status'
 }
 
-// Chat persistence models
 export interface Chat {
     id: string;
     user_session_id: string;
@@ -30,7 +32,7 @@ export interface ChatMessage {
     updated_at: string;
 }
 
-// Chat API Request/Response types
+// Chat persistence API request/response types
 export interface CreateChatMessageRequest {
     role: MessageRole;
     content: string;
@@ -40,6 +42,10 @@ export interface CreateChatMessageRequest {
 export interface CreateChatMessageResponse {
     message: ChatMessage;
 }
+
+// ============================================================================
+// Legacy Chat System Types (chatApi.ts)
+// ============================================================================
 
 export interface ChatRequest {
     messages: ChatMessage[];
@@ -110,21 +116,14 @@ export interface ActionMetadata {
     action_data?: any;
 }
 
-export interface GeneralChatRequest {
-    message: string;
-    context: Record<string, any>;
-    interaction_type: InteractionType;
-    action_metadata?: ActionMetadata;
-    conversation_history: Array<{
-        role: 'user' | 'assistant';
-        content: string;
-        timestamp: string;
-    }>;
-}
-
-export interface GeneralChatResponse {
-    message: string;
-    suggested_values?: SuggestedValue[];
-    suggested_actions?: SuggestedAction[];
-    payload?: CustomPayload;
+// PayloadHandler interface for ChatTray
+export interface PayloadHandler {
+    render: (payload: any, callbacks: { onAccept?: (data: any) => void; onReject?: () => void }) => React.ReactNode;
+    onAccept?: (payload: any, pageState?: any) => void;
+    onReject?: (payload: any) => void;
+    renderOptions?: {
+        panelWidth?: string;
+        headerTitle?: string;
+        headerIcon?: string;
+    };
 }

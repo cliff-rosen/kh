@@ -1,5 +1,28 @@
 import { makeStreamRequest } from './streamUtils';
-import { GeneralChatRequest } from '../../types/chat';
+import { InteractionType, ActionMetadata, SuggestedValue, SuggestedAction, CustomPayload } from '../../types/chat';
+
+// ============================================================================
+// General Chat API Request/Response Types
+// ============================================================================
+
+export interface GeneralChatRequest {
+    message: string;
+    context: Record<string, any>;
+    interaction_type: InteractionType;
+    action_metadata?: ActionMetadata;
+    conversation_history: Array<{
+        role: 'user' | 'assistant';
+        content: string;
+        timestamp: string;
+    }>;
+}
+
+export interface GeneralChatResponse {
+    message: string;
+    suggested_values?: SuggestedValue[];
+    suggested_actions?: SuggestedAction[];
+    payload?: CustomPayload;
+}
 
 export interface ChatStreamChunk {
     token?: string | null;
