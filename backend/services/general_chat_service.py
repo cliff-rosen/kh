@@ -11,8 +11,6 @@ import logging
 
 from schemas.general_chat import (
     ChatPayload,
-    ChatAgentResponse,
-    ChatStatusResponse,
     SuggestedValue,
     SuggestedAction,
     CustomPayload
@@ -39,8 +37,12 @@ class GeneralChatService:
         Args:
             request: ChatRequest object (defined in routers.general_chat)
 
-        Yields JSON strings of ChatAgentResponse or ChatStatusResponse
+        Yields JSON strings matching ChatAgentResponse or ChatStatusResponse schemas
+        (Response models defined in routers.general_chat)
         """
+        # Late import to avoid circular dependency
+        from routers.general_chat import ChatAgentResponse, ChatStatusResponse
+
         try:
             # Build system prompt
             system_prompt = self._build_system_prompt(request.context)

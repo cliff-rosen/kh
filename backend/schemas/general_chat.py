@@ -1,9 +1,9 @@
 """
-General chat domain types and streaming response types
+General chat domain types and payload types
 
 Domain types: GeneralChatMessage, ActionMetadata, SuggestedValue, SuggestedAction, CustomPayload
-Streaming response types: ChatPayload, ChatAgentResponse, ChatStatusResponse
-Request model (ChatRequest) is in routers/general_chat.py
+Payload type: ChatPayload (used within response payloads)
+Request/Response models (ChatRequest, ChatAgentResponse, ChatStatusResponse) are in routers/general_chat.py
 """
 
 from pydantic import BaseModel
@@ -50,7 +50,7 @@ class ActionMetadata(BaseModel):
 
 
 # ============================================================================
-# Streaming Response Types (constructed by service, streamed by router)
+# Payload Type (used within response payloads)
 # ============================================================================
 
 class ChatPayload(BaseModel):
@@ -59,21 +59,3 @@ class ChatPayload(BaseModel):
     suggested_values: Optional[List[SuggestedValue]] = None
     suggested_actions: Optional[List[SuggestedAction]] = None
     payload: Optional[CustomPayload] = None
-
-
-class ChatAgentResponse(BaseModel):
-    """Agent response with typed payload for chat"""
-    token: Optional[str] = None
-    response_text: Optional[str] = None
-    payload: Optional[ChatPayload] = None
-    status: Optional[str] = None
-    error: Optional[str] = None
-    debug: Optional[Any] = None
-
-
-class ChatStatusResponse(BaseModel):
-    """Status response for chat"""
-    status: str
-    payload: Optional[Any] = None
-    error: Optional[str] = None
-    debug: Optional[Any] = None

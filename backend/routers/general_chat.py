@@ -15,8 +15,7 @@ from routers.auth import get_current_user
 from schemas.general_chat import (
     GeneralChatMessage,
     ActionMetadata,
-    ChatAgentResponse,
-    ChatStatusResponse
+    ChatPayload
 )
 from services.general_chat_service import GeneralChatService
 
@@ -26,7 +25,7 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 
 # ============================================================================
-# Request Model
+# Request/Response Models
 # ============================================================================
 
 class ChatRequest(BaseModel):
@@ -36,6 +35,24 @@ class ChatRequest(BaseModel):
     interaction_type: Literal["text_input", "value_selected", "action_executed"]
     action_metadata: Optional[ActionMetadata] = None
     conversation_history: List[GeneralChatMessage]
+
+
+class ChatAgentResponse(BaseModel):
+    """Agent response with typed payload for chat"""
+    token: Optional[str] = None
+    response_text: Optional[str] = None
+    payload: Optional[ChatPayload] = None
+    status: Optional[str] = None
+    error: Optional[str] = None
+    debug: Optional[Any] = None
+
+
+class ChatStatusResponse(BaseModel):
+    """Status response for chat"""
+    status: str
+    payload: Optional[Any] = None
+    error: Optional[str] = None
+    debug: Optional[Any] = None
 
 
 @router.post("/stream",
