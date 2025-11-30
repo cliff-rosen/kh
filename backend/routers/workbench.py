@@ -27,7 +27,6 @@ from services.extraction_service import ExtractionService, get_extraction_servic
 from services.article_group_service import ArticleGroupService
 from services.article_group_detail_service import ArticleGroupDetailService
 from services.feature_preset_service import FeaturePresetService
-from services.chat_quick_action_service import ChatQuickActionService
 
 router = APIRouter(prefix="/workbench", tags=["workbench"])
 
@@ -139,34 +138,7 @@ class UpdateFeaturePresetRequest(BaseModel):
     category: Optional[str] = None
     features: List[FeatureDefinition]
 
-# Chat Quick Action Models
-class QuickActionResponse(BaseModel):
-    """Single chat quick action response"""
-    id: str
-    name: str
-    prompt: str
-    description: Optional[str] = None
-    scope: str
-    user_id: Optional[int] = None
-    position: int
-
-class QuickActionsResponse(BaseModel):
-    """Response with available quick actions"""
-    actions: List[QuickActionResponse]
-
-class CreateQuickActionRequest(BaseModel):
-    """Request to create a new quick action"""
-    name: str
-    prompt: str
-    description: Optional[str] = None
-    position: Optional[int] = None
-
-class UpdateQuickActionRequest(BaseModel):
-    """Request to update a quick action"""
-    name: Optional[str] = None
-    prompt: Optional[str] = None
-    description: Optional[str] = None
-    position: Optional[int] = None
+# Chat Quick Action Models - Removed (legacy code)
 
 # Company Profile Models
 class CompanyProfileResponse(BaseModel):
@@ -551,153 +523,7 @@ async def duplicate_feature_preset(
 
 
 # ================== CHAT QUICK ACTION ENDPOINTS ==================
-
-@router.get("/quick-actions", response_model=QuickActionsResponse)
-async def get_quick_actions(
-    current_user: User = Depends(validate_token),
-    db: Session = Depends(get_db)
-):
-    """Get available chat quick actions for user (global + user's own)."""
-    action_service = ChatQuickActionService(db)
-    
-    # Get all actions available to this user (global + their own)
-    action_dicts = action_service.get_available_actions(user_id=current_user.user_id)
-    
-    # Convert to QuickActionResponse format
-    actions = [
-        QuickActionResponse(
-            id=action_dict['id'],
-            name=action_dict['name'],
-            prompt=action_dict['prompt'],
-            description=action_dict['description'],
-            scope=action_dict['scope'],
-            user_id=action_dict['user_id'],
-            position=action_dict['position']
-        )
-        for action_dict in action_dicts
-    ]
-    
-    return QuickActionsResponse(actions=actions)
-
-
-@router.post("/quick-actions", response_model=QuickActionResponse)
-async def create_quick_action(
-    request: CreateQuickActionRequest,
-    current_user: User = Depends(validate_token),
-    db: Session = Depends(get_db)
-):
-    """Create a new user quick action."""
-    action_service = ChatQuickActionService(db)
-    
-    # Create the action
-    action_dict = action_service.create_action(
-        user_id=current_user.user_id,
-        name=request.name,
-        prompt=request.prompt,
-        description=request.description,
-        position=request.position
-    )
-    
-    return QuickActionResponse(
-        id=action_dict['id'],
-        name=action_dict['name'],
-        prompt=action_dict['prompt'],
-        description=action_dict['description'],
-        scope=action_dict['scope'],
-        user_id=action_dict['user_id'],
-        position=action_dict['position']
-    )
-
-
-@router.put("/quick-actions/{action_id}", response_model=QuickActionResponse)
-async def update_quick_action(
-    action_id: str,
-    request: UpdateQuickActionRequest,
-    current_user: User = Depends(validate_token),
-    db: Session = Depends(get_db)
-):
-    """Update a user's quick action."""
-    action_service = ChatQuickActionService(db)
-    
-    # Update the action
-    action_dict = action_service.update_action(
-        action_id=action_id,
-        user_id=current_user.user_id,
-        name=request.name,
-        prompt=request.prompt,
-        description=request.description,
-        position=request.position
-    )
-    
-    if not action_dict:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Quick action not found or access denied"
-        )
-    
-    return QuickActionResponse(
-        id=action_dict['id'],
-        name=action_dict['name'],
-        prompt=action_dict['prompt'],
-        description=action_dict['description'],
-        scope=action_dict['scope'],
-        user_id=action_dict['user_id'],
-        position=action_dict['position']
-    )
-
-
-@router.delete("/quick-actions/{action_id}")
-async def delete_quick_action(
-    action_id: str,
-    current_user: User = Depends(validate_token),
-    db: Session = Depends(get_db)
-):
-    """Delete a user's quick action."""
-    action_service = ChatQuickActionService(db)
-    
-    success = action_service.delete_action(action_id, current_user.user_id)
-    
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Quick action not found or access denied"
-        )
-    
-    return {"success": True, "message": "Quick action deleted successfully"}
-
-
-@router.post("/quick-actions/{action_id}/duplicate", response_model=QuickActionResponse)
-async def duplicate_quick_action(
-    action_id: str,
-    name: Optional[str] = None,
-    current_user: User = Depends(validate_token),
-    db: Session = Depends(get_db)
-):
-    """Duplicate a quick action (global or user's own) as a new user action."""
-    action_service = ChatQuickActionService(db)
-    
-    # Duplicate the action
-    action_dict = action_service.duplicate_action(
-        action_id=action_id,
-        user_id=current_user.user_id,
-        new_name=name
-    )
-    
-    if not action_dict:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Quick action not found or access denied"
-        )
-    
-    return QuickActionResponse(
-        id=action_dict['id'],
-        name=action_dict['name'],
-        prompt=action_dict['prompt'],
-        description=action_dict['description'],
-        scope=action_dict['scope'],
-        user_id=action_dict['user_id'],
-        position=action_dict['position']
-    )
+# Removed: chat_quick_actions table and service no longer exist (legacy code)
 
 
 # ================== COMPANY PROFILE ENDPOINTS ==================
