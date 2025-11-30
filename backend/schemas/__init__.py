@@ -13,13 +13,11 @@ from .auth import (
 from .chat import (
     MessageRole,
     AssetReference,
-    Chat,
-    ChatMessage,
-    CreateChatMessageRequest,
-    CreateChatMessageResponse
- )
+    ChatMessage
+)
 
 # User session schemas removed - Knowledge Horizon uses simplified auth
+# Chat persistence model removed - not used (only ChatMessage for LLM interactions)
 
 
 __all__ = [
@@ -29,14 +27,9 @@ __all__ = [
     'UserResponse',
     'Token',
     'TokenData',
-    
-    # Chat schemas
+
+    # Core chat schemas (for LLM interactions)
     'MessageRole',
     'AssetReference',
-    'Chat',
     'ChatMessage',
-    'CreateChatMessageRequest',
-    'CreateChatMessageResponse',
-
-# User Session schemas removed for Knowledge Horizon
 ]  

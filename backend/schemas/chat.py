@@ -1,35 +1,27 @@
-from typing import List, Optional, Any, Dict
+"""
+Core chat types for LLM interactions
+
+These types are used across the application for structuring messages to LLMs.
+Not to be confused with schemas/general_chat.py which is for the general chat API.
+"""
+
+from typing import Optional, Any, Dict
 from pydantic import BaseModel, Field
 from datetime import datetime
 from enum import Enum
 
 
-### BOT REQUEST ###
-### CHAT ###
-
-
 class MessageRole(str, Enum):
+    """Role of a message in a chat conversation"""
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
     TOOL = "tool"
     STATUS = "status"
 
-# Chat persistence models
-class Chat(BaseModel):
-    """Chat conversation within a user session"""
-    id: str = Field(description="Unique identifier for the chat")
-    user_session_id: str = Field(description="ID of the parent user session")
-    title: Optional[str] = Field(default=None, description="Optional title for the chat")
-    chat_metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional chat metadata")
-    created_at: datetime = Field(description="When the chat was created")
-    updated_at: datetime = Field(description="When the chat was last updated")
-    
-    # Relationships (populated by services)
-    messages: List['ChatMessage'] = Field(default_factory=list, description="Messages in this chat")
 
 class ChatMessage(BaseModel):
-    """Individual message within a chat"""
+    """Individual message for LLM interactions"""
     id: str = Field(description="Unique identifier for the message")
     chat_id: str = Field(description="ID of the parent chat")
     role: MessageRole = Field(description="Role of the message sender")

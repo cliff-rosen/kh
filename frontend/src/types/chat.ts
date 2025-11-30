@@ -1,5 +1,5 @@
 // ============================================================================
-// Chat Persistence Types (used for chat history storage)
+// Core Chat Types (for LLM interactions)
 // ============================================================================
 
 export enum MessageRole {
@@ -8,18 +8,6 @@ export enum MessageRole {
     SYSTEM = 'system',
     TOOL = 'tool',
     STATUS = 'status'
-}
-
-export interface Chat {
-    id: string;
-    user_session_id: string;
-    title?: string;
-    chat_metadata: Record<string, any>;
-    created_at: string;
-    updated_at: string;
-
-    // Relationships (populated by services)
-    messages: ChatMessage[];
 }
 
 export interface ChatMessage {
