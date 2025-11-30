@@ -10,8 +10,10 @@ Import this package to automatically register all page configurations.
 from .registry import (
     PayloadConfig,
     PageConfig,
+    ClientAction,
     get_page_payloads,
     get_page_context_builder,
+    get_page_client_actions,
     has_page_payloads,
     register_page
 )
@@ -24,8 +26,10 @@ from . import new_stream
 __all__ = [
     'PayloadConfig',
     'PageConfig',
+    'ClientAction',
     'get_page_payloads',
     'get_page_context_builder',
+    'get_page_client_actions',
     'has_page_payloads',
     'register_page'
 ]
