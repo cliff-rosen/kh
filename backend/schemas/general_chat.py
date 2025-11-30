@@ -21,12 +21,6 @@ class GeneralChatMessage(BaseModel):
     timestamp: str
 
 
-class ActionMetadata(BaseModel):
-    """Metadata for action-based interactions"""
-    action_identifier: str
-    action_data: Optional[Any] = None
-
-
 class SuggestedValue(BaseModel):
     """A suggested value that the user can select"""
     label: str
@@ -46,6 +40,13 @@ class CustomPayload(BaseModel):
     """Custom payload for specialized chat responses"""
     type: str
     data: Any
+
+
+class ActionMetadata(BaseModel):
+    """Metadata for action-based interactions"""
+    action_identifier: str
+    action_data: Optional[Any] = None
+
 
 
 # ============================================================================

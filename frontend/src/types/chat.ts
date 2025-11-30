@@ -1,26 +1,4 @@
 // ============================================================================
-// Core Chat Types (for LLM interactions)
-// ============================================================================
-
-export enum MessageRole {
-    USER = 'user',
-    ASSISTANT = 'assistant',
-    SYSTEM = 'system',
-    TOOL = 'tool',
-    STATUS = 'status'
-}
-
-export interface ChatMessage {
-    id: string;
-    chat_id: string;
-    role: MessageRole;
-    content: string;
-    message_metadata: Record<string, any>;
-    created_at: string;
-    updated_at: string;
-}
-
-// ============================================================================
 // General Purpose Chat System Types
 // ============================================================================
 
