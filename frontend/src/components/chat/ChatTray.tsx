@@ -11,6 +11,7 @@ interface ChatTrayProps {
 function getDefaultHeaderTitle(payloadType: string): string {
     const titles: Record<string, string> = {
         'schema_proposal': 'Schema Proposal',
+        'presentation_categories': 'Presentation Categories',
         'stream_suggestions': 'Stream Suggestions',
         'portfolio_insights': 'Portfolio Insights',
         'quick_setup': 'Quick Setup',
@@ -23,6 +24,7 @@ function getDefaultHeaderTitle(payloadType: string): string {
 function getDefaultHeaderIcon(payloadType: string): string {
     const icons: Record<string, string> = {
         'schema_proposal': '📋',
+        'presentation_categories': '📊',
         'stream_suggestions': '💡',
         'portfolio_insights': '📊',
         'quick_setup': '🚀',
@@ -217,10 +219,11 @@ export default function ChatTray({ initialContext, payloadHandlers }: ChatTrayPr
                                         <p className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
                                             <span className="font-medium">
                                                 {message.custom_payload.type === 'schema_proposal' && '📋 Schema proposal ready'}
+                                                {message.custom_payload.type === 'presentation_categories' && '📊 Presentation categories ready'}
                                                 {message.custom_payload.type === 'stream_suggestions' && '💡 Stream suggestions ready'}
                                                 {message.custom_payload.type === 'portfolio_insights' && '📊 Portfolio insights ready'}
                                                 {message.custom_payload.type === 'quick_setup' && '🚀 Quick setup ready'}
-                                                {!['schema_proposal', 'stream_suggestions', 'portfolio_insights', 'quick_setup'].includes(message.custom_payload.type) && '✨ Content ready'}
+                                                {!['schema_proposal', 'presentation_categories', 'stream_suggestions', 'portfolio_insights', 'quick_setup'].includes(message.custom_payload.type) && '✨ Content ready'}
                                             </span>
                                             <span className="text-xs opacity-75">(see panel to the right)</span>
                                         </p>

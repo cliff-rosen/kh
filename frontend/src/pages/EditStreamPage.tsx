@@ -19,6 +19,7 @@ import RetrievalConfigForm from '../components/RetrievalConfigForm';
 import TestRefineTab from '../components/TestRefineTab';
 import ChatTray from '../components/chat/ChatTray';
 import SchemaProposalCard from '../components/chat/SchemaProposalCard';
+import PresentationCategoriesCard from '../components/chat/PresentationCategoriesCard';
 
 type TabType = 'semantic' | 'retrieval' | 'presentation' | 'execute';
 
@@ -239,6 +240,25 @@ export default function EditStreamPage() {
 
     const handleSchemaProposalReject = () => {
         console.log('Schema proposal rejected');
+    };
+
+    const handlePresentationCategoriesAccept = (proposalData: any) => {
+        const categories = proposalData.categories || [];
+
+        console.log('Applying presentation categories:', categories);
+
+        // Update the form with the proposed categories
+        setForm({
+            ...form,
+            categories: categories
+        });
+
+        // Show a success message
+        alert('Presentation categories have been applied to the form. Click "Save Changes" to persist them.');
+    };
+
+    const handlePresentationCategoriesReject = () => {
+        console.log('Presentation categories proposal rejected');
     };
 
     if (isLoading) {
@@ -546,6 +566,22 @@ export default function EditStreamPage() {
                             panelWidth: '500px',
                             headerTitle: 'Schema Proposal',
                             headerIcon: '📋'
+                        }
+                    },
+                    presentation_categories: {
+                        render: (payload, callbacks) => (
+                            <PresentationCategoriesCard
+                                proposal={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: handlePresentationCategoriesAccept,
+                        onReject: handlePresentationCategoriesReject,
+                        renderOptions: {
+                            panelWidth: '600px',
+                            headerTitle: 'Presentation Categories',
+                            headerIcon: '📊'
                         }
                     }
                 }}
