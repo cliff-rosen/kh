@@ -58,14 +58,14 @@ export default function ChatTray({ initialContext, payloadHandlers }: ChatTrayPr
     // Detect new payloads and show in floating panel
     useEffect(() => {
         const latestMessage = messages[messages.length - 1];
-        if (latestMessage?.payload?.type && latestMessage.payload.data) {
-            const payloadType = latestMessage.payload.type;
+        if (latestMessage?.custom_payload?.type && latestMessage.custom_payload.data) {
+            const payloadType = latestMessage.custom_payload.type;
 
             // Check if we have a handler for this payload type
             if (payloadHandlers && payloadHandlers[payloadType]) {
                 setActivePayload({
                     type: payloadType,
-                    data: latestMessage.payload.data
+                    data: latestMessage.custom_payload.data
                 });
             }
         }
@@ -211,16 +211,16 @@ export default function ChatTray({ initialContext, payloadHandlers }: ChatTrayPr
                                     </div>
                                 )}
 
-                                {/* Payload Indicator */}
-                                {message.payload?.type && message.payload?.data && (
+                                {/* Custom Payload Indicator */}
+                                {message.custom_payload?.type && message.custom_payload?.data && (
                                     <div className="mt-3 ml-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
                                         <p className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
                                             <span className="font-medium">
-                                                {message.payload.type === 'schema_proposal' && '📋 Schema proposal ready'}
-                                                {message.payload.type === 'stream_suggestions' && '💡 Stream suggestions ready'}
-                                                {message.payload.type === 'portfolio_insights' && '📊 Portfolio insights ready'}
-                                                {message.payload.type === 'quick_setup' && '🚀 Quick setup ready'}
-                                                {!['schema_proposal', 'stream_suggestions', 'portfolio_insights', 'quick_setup'].includes(message.payload.type) && '✨ Content ready'}
+                                                {message.custom_payload.type === 'schema_proposal' && '📋 Schema proposal ready'}
+                                                {message.custom_payload.type === 'stream_suggestions' && '💡 Stream suggestions ready'}
+                                                {message.custom_payload.type === 'portfolio_insights' && '📊 Portfolio insights ready'}
+                                                {message.custom_payload.type === 'quick_setup' && '🚀 Quick setup ready'}
+                                                {!['schema_proposal', 'stream_suggestions', 'portfolio_insights', 'quick_setup'].includes(message.custom_payload.type) && '✨ Content ready'}
                                             </span>
                                             <span className="text-xs opacity-75">(see panel to the right)</span>
                                         </p>

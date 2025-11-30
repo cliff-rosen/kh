@@ -15,7 +15,7 @@ from routers.auth import get_current_user
 from schemas.general_chat import (
     GeneralChatMessage,
     ActionMetadata,
-    ChatPayload
+    ChatResponsePayload
 )
 from services.general_chat_service import GeneralChatService
 
@@ -37,11 +37,11 @@ class ChatRequest(BaseModel):
     conversation_history: List[GeneralChatMessage]
 
 
-class ChatAgentResponse(BaseModel):
-    """Agent response with typed payload for chat"""
+class ChatStreamChunk(BaseModel):
+    """Streaming response chunk from chat endpoint"""
     token: Optional[str] = None
     response_text: Optional[str] = None
-    payload: Optional[ChatPayload] = None
+    payload: Optional[ChatResponsePayload] = None
     status: Optional[str] = None
     error: Optional[str] = None
     debug: Optional[Any] = None
@@ -64,7 +64,7 @@ class ChatStatusResponse(BaseModel):
                 "text/event-stream": {
                     "schema": {
                         "oneOf": [
-                            ChatAgentResponse.model_json_schema(),
+                            ChatStreamChunk.model_json_schema(),
                             ChatStatusResponse.model_json_schema()
                         ]
                     }
@@ -103,7 +103,7 @@ async def chat_stream(
 
         except Exception as e:
             logger.error(f"Error in chat stream: {str(e)}")
-            error_response = ChatAgentResponse(
+            error_response = ChatStreamChunk(
                 token=None,
                 response_text=None,
                 payload=None,

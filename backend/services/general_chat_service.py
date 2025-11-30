@@ -10,7 +10,7 @@ import os
 import logging
 
 from schemas.general_chat import (
-    ChatPayload,
+    ChatResponsePayload,
     SuggestedValue,
     SuggestedAction,
     CustomPayload
@@ -37,11 +37,11 @@ class GeneralChatService:
         Args:
             request: ChatRequest object (defined in routers.general_chat)
 
-        Yields JSON strings matching ChatAgentResponse or ChatStatusResponse schemas
+        Yields JSON strings matching ChatStreamChunk or ChatStatusResponse schemas
         (Response models defined in routers.general_chat)
         """
         # Late import to avoid circular dependency
-        from routers.general_chat import ChatAgentResponse, ChatStatusResponse
+        from routers.general_chat import ChatStreamChunk, ChatStatusResponse
 
         try:
             # Build system prompt
@@ -85,7 +85,7 @@ class GeneralChatService:
                 for text in stream_manager.text_stream:
                     collected_text += text
                     # Stream each token as it arrives
-                    token_response = ChatAgentResponse(
+                    token_response = ChatStreamChunk(
                         token=text,
                         response_text=None,
                         payload=None,
@@ -99,15 +99,15 @@ class GeneralChatService:
             parsed = self._parse_llm_response(collected_text, request.context.get("current_page", "unknown"))
 
             # Build final payload
-            final_payload = ChatPayload(
+            final_payload = ChatResponsePayload(
                 message=parsed["message"],
                 suggested_values=parsed.get("suggested_values"),
                 suggested_actions=parsed.get("suggested_actions"),
-                payload=parsed.get("payload")
+                custom_payload=parsed.get("custom_payload")
             )
 
             # Send final response with structured data
-            final_response = ChatAgentResponse(
+            final_response = ChatStreamChunk(
                 token=None,
                 response_text=None,
                 payload=final_payload,
@@ -119,7 +119,7 @@ class GeneralChatService:
 
         except Exception as e:
             logger.error(f"Error in chat service: {str(e)}", exc_info=True)
-            error_response = ChatAgentResponse(
+            error_response = ChatStreamChunk(
                 token=None,
                 response_text=None,
                 payload=None,
@@ -271,7 +271,7 @@ class GeneralChatService:
             "message": "",
             "suggested_values": None,
             "suggested_actions": None,
-            "payload": None
+            "custom_payload": None
         }
 
         # Get registered payload configs to know what markers to look for
@@ -410,6 +410,6 @@ class GeneralChatService:
             payload_text = "\n".join(payload_lines).strip()
             parsed_payload = config.parser(payload_text)
             if parsed_payload:
-                result["payload"] = parsed_payload
+                result["custom_payload"] = parsed_payload
         except Exception as e:
             logger.warning(f"Failed to parse {config.type} payload: {e}")

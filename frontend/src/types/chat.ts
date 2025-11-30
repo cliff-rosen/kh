@@ -14,7 +14,7 @@ export interface GeneralChatMessage {
     timestamp: string;
     suggested_values?: SuggestedValue[];
     suggested_actions?: SuggestedAction[];
-    payload?: CustomPayload;
+    custom_payload?: CustomPayload;
 }
 
 export interface SuggestedValue {

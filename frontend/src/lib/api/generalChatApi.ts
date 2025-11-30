@@ -17,17 +17,17 @@ export interface GeneralChatRequest {
     }>;
 }
 
-export interface GeneralChatResponse {
+export interface ChatResponsePayload {
     message: string;
     suggested_values?: SuggestedValue[];
     suggested_actions?: SuggestedAction[];
-    payload?: CustomPayload;
+    custom_payload?: CustomPayload;
 }
 
 export interface ChatStreamChunk {
     token?: string | null;
     response_text?: string | null;
-    payload?: any;
+    payload?: ChatResponsePayload | null;
     status?: string | null;
     error?: string | null;
     debug?: any;

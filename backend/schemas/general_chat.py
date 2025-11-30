@@ -2,8 +2,8 @@
 General chat domain types and payload types
 
 Domain types: GeneralChatMessage, ActionMetadata, SuggestedValue, SuggestedAction, CustomPayload
-Payload type: ChatPayload (used within response payloads)
-Request/Response models (ChatRequest, ChatAgentResponse, ChatStatusResponse) are in routers/general_chat.py
+Response payload type: ChatResponsePayload (structured final response)
+Request/Response models (ChatRequest, ChatStreamChunk, ChatStatusResponse) are in routers/general_chat.py
 """
 
 from pydantic import BaseModel
@@ -50,12 +50,12 @@ class ActionMetadata(BaseModel):
 
 
 # ============================================================================
-# Payload Type (used within response payloads)
+# Response Payload Type (structured final response data)
 # ============================================================================
 
-class ChatPayload(BaseModel):
-    """The specific typed payload for chat responses"""
+class ChatResponsePayload(BaseModel):
+    """Structured payload for final chat responses"""
     message: str
     suggested_values: Optional[List[SuggestedValue]] = None
     suggested_actions: Optional[List[SuggestedAction]] = None
-    payload: Optional[CustomPayload] = None
+    custom_payload: Optional[CustomPayload] = None

@@ -64,7 +64,7 @@ export function useGeneralChat(initialContext?: Record<string, any>) {
                         timestamp: new Date().toISOString(),
                         suggested_values: chunk.payload.suggested_values,
                         suggested_actions: chunk.payload.suggested_actions,
-                        payload: chunk.payload.payload
+                        custom_payload: chunk.payload.custom_payload
                     };
                     setMessages(prev => [...prev, assistantMessage]);
                     setStreamingText('');

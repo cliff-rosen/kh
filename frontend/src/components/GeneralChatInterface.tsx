@@ -123,14 +123,14 @@ export default function GeneralChatInterface({
                             </div>
                         )}
 
-                        {/* Payload Display (basic for now) */}
-                        {message.payload && (
+                        {/* Custom Payload Display (basic for now) */}
+                        {message.custom_payload && (
                             <div className="mt-3 ml-2 p-3 bg-gray-50 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600">
                                 <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">
-                                    Payload: {message.payload.type}
+                                    Payload: {message.custom_payload.type}
                                 </div>
                                 <pre className="text-xs text-gray-700 dark:text-gray-300 overflow-x-auto">
-                                    {JSON.stringify(message.payload.data, null, 2)}
+                                    {JSON.stringify(message.custom_payload.data, null, 2)}
                                 </pre>
                             </div>
                         )}
