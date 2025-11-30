@@ -10,6 +10,7 @@ import os
 import logging
 
 from schemas.general_chat import (
+    ChatRequest,
     ChatPayload,
     ChatAgentResponse,
     ChatStatusResponse,
@@ -19,11 +20,6 @@ from schemas.general_chat import (
 )
 # Import chat payloads package (auto-registers all page configurations)
 from services.chat_payloads import get_page_payloads, get_page_context_builder, has_page_payloads
-
-# Import request type from router to avoid repeating definition
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from routers.general_chat import ChatRequest
 
 logger = logging.getLogger(__name__)
 

@@ -7,11 +7,12 @@ Domain types (used across service and router):
 Streaming response types (used by service, consumed by router):
 - ChatPayload, ChatAgentResponse, ChatStatusResponse
 
-API request model is in routers/general_chat.py (ChatRequest)
+Request/Response types (used by service):
+- ChatRequest (used by service method signature, consumed by router)
 """
 
 from pydantic import BaseModel
-from typing import List, Optional, Any, Literal
+from typing import List, Dict, Optional, Any, Literal
 
 
 # ============================================================================
@@ -50,6 +51,19 @@ class CustomPayload(BaseModel):
     """Custom payload for specialized chat responses"""
     type: str
     data: Any
+
+
+# ============================================================================
+# Request Types (used by service and router)
+# ============================================================================
+
+class ChatRequest(BaseModel):
+    """Request model for general chat endpoint"""
+    message: str
+    context: Dict[str, Any]
+    interaction_type: Literal["text_input", "value_selected", "action_executed"]
+    action_metadata: Optional[ActionMetadata] = None
+    conversation_history: List[GeneralChatMessage]
 
 
 # ============================================================================
