@@ -10,10 +10,7 @@ import os
 import logging
 
 from schemas.general_chat import (
-    ChatResponsePayload,
-    SuggestedValue,
-    SuggestedAction,
-    CustomPayload
+    ChatResponsePayload
 )
 # Import chat payloads package (auto-registers all page configurations)
 from services.chat_payloads import get_page_payloads, get_page_context_builder, has_page_payloads
