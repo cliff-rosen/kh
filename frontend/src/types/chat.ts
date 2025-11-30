@@ -44,37 +44,6 @@ export interface CreateChatMessageResponse {
 }
 
 // ============================================================================
-// Legacy Chat System Types (chatApi.ts)
-// ============================================================================
-
-export interface ChatRequest {
-    messages: ChatMessage[];
-    payload?: {
-        // Additional context data
-    };
-}
-
-// Core streaming response types (matches backend)
-export interface AgentResponse {
-    token: string | null;
-    response_text: string | null;
-    payload: object | string | null;
-    status: string | null;
-    error: string | null;
-    debug: string | object | null;
-}
-
-export interface StatusResponse {
-    status: string;
-    payload: string | object | null;
-    error: string | null;
-    debug: string | object | null;
-}
-
-// Union type for all possible stream responses
-export type StreamResponse = AgentResponse | StatusResponse;
-
-// ============================================================================
 // General Purpose Chat System Types
 // ============================================================================
 
