@@ -14,6 +14,7 @@ class PayloadConfig:
     parse_marker: str  # What to look for in LLM response, e.g., "SCHEMA_PROPOSAL:"
     llm_instructions: str  # Instructions for LLM on when/how to use this payload
     parser: Callable[[str], Dict[str, Any]]  # Function to parse this payload type
+    relevant_tabs: Optional[List[str]] = None  # Which tabs this payload is relevant for (None = all tabs)
 
 
 @dataclass

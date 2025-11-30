@@ -69,6 +69,7 @@ EDIT_STREAM_PAYLOADS = [
         type="schema_proposal",
         parse_marker="SCHEMA_PROPOSAL:",
         parser=parse_schema_proposal,
+        relevant_tabs=["semantic"],  # Only relevant on semantic tab
         llm_instructions="""
         SCHEMA_PROPOSAL - Use when user asks for recommendations/proposals AND you have enough context:
 
@@ -104,6 +105,7 @@ EDIT_STREAM_PAYLOADS = [
         type="validation_results",
         parse_marker="VALIDATION_RESULTS:",
         parser=parse_validation_results,
+        relevant_tabs=["semantic"],  # Only relevant on semantic tab
         llm_instructions="""
         VALIDATION_RESULTS - Use when analyzing current schema values for issues:
 
@@ -141,6 +143,7 @@ EDIT_STREAM_PAYLOADS = [
         type="import_suggestions",
         parse_marker="IMPORT_SUGGESTIONS:",
         parser=parse_import_suggestions,
+        relevant_tabs=["semantic"],  # Only relevant on semantic tab
         llm_instructions="""
         IMPORT_SUGGESTIONS - Use when suggesting templates or starting points:
 
@@ -166,6 +169,7 @@ EDIT_STREAM_PAYLOADS = [
         type="presentation_categories",
         parse_marker="PRESENTATION_CATEGORIES:",
         parser=parse_presentation_categories,
+        relevant_tabs=["presentation"],  # Only relevant on presentation tab
         llm_instructions="""
         PRESENTATION_CATEGORIES - Use when user asks for help organizing articles into categories:
 

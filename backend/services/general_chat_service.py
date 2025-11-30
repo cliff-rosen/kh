@@ -93,7 +93,7 @@ class GeneralChatService:
                     yield token_response.model_dump_json()
 
             # Parse the LLM response to extract structured data
-            parsed = self._parse_llm_response(collected_text, request.context.get("current_page", "unknown"))
+            parsed = self._parse_llm_response(collected_text, request.context)
 
             # Build final payload
             final_payload = ChatResponsePayload(
@@ -192,12 +192,22 @@ class GeneralChatService:
     def _build_payload_aware_prompt(self, current_page: str, context: Dict[str, Any]) -> str:
         """Build system prompt dynamically based on registered payload types for this page."""
         # Get registered payload configurations
-        payload_configs = get_page_payloads(current_page)
+        all_payload_configs = get_page_payloads(current_page)
+
+        # Filter payloads based on active_tab if present
+        active_tab = context.get("active_tab")
+        if active_tab:
+            payload_configs = [
+                config for config in all_payload_configs
+                if config.relevant_tabs is None or active_tab in config.relevant_tabs
+            ]
+        else:
+            payload_configs = all_payload_configs
 
         # Build page-specific context section
         page_context = self._build_page_context(current_page, context)
 
-        # Build payload instructions from all registered configs
+        # Build payload instructions from filtered configs
         payload_instructions = "\n\n".join([
             f"{config.llm_instructions}"
             for config in payload_configs
@@ -257,7 +267,7 @@ class GeneralChatService:
 
         Respond with MESSAGE and optional SUGGESTED_VALUES or SUGGESTED_ACTIONS."""
 
-    def _parse_llm_response(self, response_text: str, current_page: str) -> Dict[str, Any]:
+    def _parse_llm_response(self, response_text: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """
         Parse LLM response to extract structured components.
         Dynamically handles all registered payload types for the current page.
@@ -272,7 +282,19 @@ class GeneralChatService:
         }
 
         # Get registered payload configs to know what markers to look for
-        payload_configs = get_page_payloads(current_page)
+        current_page = context.get("current_page", "unknown")
+        all_payload_configs = get_page_payloads(current_page)
+
+        # Filter payloads based on active_tab if present
+        active_tab = context.get("active_tab")
+        if active_tab:
+            payload_configs = [
+                config for config in all_payload_configs
+                if config.relevant_tabs is None or active_tab in config.relevant_tabs
+            ]
+        else:
+            payload_configs = all_payload_configs
+
         payload_markers = {config.parse_marker: config for config in payload_configs}
 
         lines = response_text.split('\n')
