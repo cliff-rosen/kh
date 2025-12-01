@@ -174,6 +174,11 @@ export default function RetrievalConfigForm({
                     <div className="flex items-center gap-3">
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                             Retrieval Strategy
+                            {!hasNoConfig && (
+                                <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
+                                    ({showConcepts ? 'Concept-Based' : showBroadSearch ? 'Broad Search' : 'Unknown'})
+                                </span>
+                            )}
                         </label>
                         {!hasNoConfig && (
                             <button
@@ -185,14 +190,16 @@ export default function RetrievalConfigForm({
                             </button>
                         )}
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => navigate(`/streams/${id}/retrieval-wizard`)}
-                        className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-colors"
-                    >
-                        <SparklesIcon className="h-4 w-4" />
-                        Launch Wizard
-                    </button>
+                    {!hasNoConfig && (
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/streams/${id}/retrieval-wizard`)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-colors"
+                        >
+                            <SparklesIcon className="h-4 w-4" />
+                            Launch Wizard
+                        </button>
+                    )}
                 </div>
 
                 {hasNoConfig ? (
@@ -227,9 +234,19 @@ export default function RetrievalConfigForm({
                                 </p>
                             </button>
                         </div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-4 text-center">
-                            Or use the Retrieval Wizard to automatically generate and configure your strategy
-                        </p>
+                        <div className="mt-6 text-center">
+                            <button
+                                type="button"
+                                onClick={() => navigate(`/streams/${id}/retrieval-wizard`)}
+                                className="inline-flex items-center gap-2 px-6 py-3 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-colors font-medium"
+                            >
+                                <SparklesIcon className="h-5 w-5" />
+                                Launch Wizard
+                            </button>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                                Let AI automatically generate and configure your strategy
+                            </p>
+                        </div>
                     </div>
                 ) : showConcepts ? (
                     /* Concept-Based Retrieval Configuration */
