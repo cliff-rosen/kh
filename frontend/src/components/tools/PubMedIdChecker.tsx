@@ -64,7 +64,10 @@ export default function PubMedIdChecker() {
     };
 
     const handleCopyToClipboard = async (type: 'captured' | 'missed' | 'all') => {
-        if (!results) return;
+        if (!results) {
+            alert('No results available to copy');
+            return;
+        }
 
         let idsToCopy: string[] = [];
 
@@ -83,15 +86,43 @@ export default function PubMedIdChecker() {
             idsToCopy = results.results.map(r => r.pubmed_id);
         }
 
+        if (idsToCopy.length === 0) {
+            alert(`No ${type} IDs to copy`);
+            return;
+        }
+
         // Create newline-separated list for pasting into workbench
         const text = idsToCopy.join('\n');
 
         try {
-            await navigator.clipboard.writeText(text);
-            setCopiedType(type);
-            setTimeout(() => setCopiedType(null), 2000);
+            // Try modern Clipboard API first
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+                setCopiedType(type);
+                setTimeout(() => setCopiedType(null), 2000);
+                return;
+            }
+
+            // Fallback to older method for non-secure contexts
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textarea);
+
+            if (successful) {
+                setCopiedType(type);
+                setTimeout(() => setCopiedType(null), 2000);
+            } else {
+                alert('Failed to copy to clipboard. Please copy manually.');
+            }
         } catch (err) {
             console.error('Failed to copy to clipboard:', err);
+            alert(`Failed to copy to clipboard: ${err instanceof Error ? err.message : 'Unknown error'}`);
         }
     };
 
