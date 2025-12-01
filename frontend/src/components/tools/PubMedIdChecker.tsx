@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { CheckCircleIcon, XCircleIcon, MagnifyingGlassIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, XCircleIcon, MagnifyingGlassIcon, ArrowPathIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
+import { CheckIcon } from '@heroicons/react/24/solid';
 import { toolsApi, PubMedIdCheckResponse } from '../../lib/api/toolsApi';
 
 export default function PubMedIdChecker() {
@@ -10,6 +11,7 @@ export default function PubMedIdChecker() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [results, setResults] = useState<PubMedIdCheckResponse | null>(null);
+    const [copiedType, setCopiedType] = useState<string | null>(null);
 
     const handleCheck = async () => {
         if (!query.trim()) {
@@ -59,6 +61,38 @@ export default function PubMedIdChecker() {
         setEndDate('');
         setResults(null);
         setError(null);
+    };
+
+    const handleCopyToClipboard = async (type: 'captured' | 'missed' | 'all') => {
+        if (!results) return;
+
+        let idsToCopy: string[] = [];
+
+        if (type === 'captured') {
+            // IDs found in both the query and the provided list (intersection)
+            idsToCopy = results.results
+                .filter(r => r.captured)
+                .map(r => r.pubmed_id);
+        } else if (type === 'missed') {
+            // IDs in the list but not captured by the query
+            idsToCopy = results.results
+                .filter(r => !r.captured)
+                .map(r => r.pubmed_id);
+        } else {
+            // All IDs from the original list
+            idsToCopy = results.results.map(r => r.pubmed_id);
+        }
+
+        // Create newline-separated list for pasting into workbench
+        const text = idsToCopy.join('\n');
+
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopiedType(type);
+            setTimeout(() => setCopiedType(null), 2000);
+        } catch (err) {
+            console.error('Failed to copy to clipboard:', err);
+        }
     };
 
     return (
@@ -184,26 +218,80 @@ export default function PubMedIdChecker() {
                         <div className="grid grid-cols-4 gap-4">
                             <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                                 <div className="text-sm text-blue-600 dark:text-blue-400 mb-1">Total IDs</div>
-                                <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+                                <div className="text-2xl font-bold text-blue-900 dark:text-blue-100 mb-2">
                                     {results.total_ids}
                                 </div>
+                                <button
+                                    onClick={() => handleCopyToClipboard('all')}
+                                    className="flex items-center gap-1 text-xs text-blue-700 dark:text-blue-300 hover:underline"
+                                    title="Copy all IDs (newline-separated)"
+                                >
+                                    {copiedType === 'all' ? (
+                                        <>
+                                            <CheckIcon className="h-4 w-4" />
+                                            Copied!
+                                        </>
+                                    ) : (
+                                        <>
+                                            <ClipboardDocumentIcon className="h-4 w-4" />
+                                            Copy IDs
+                                        </>
+                                    )}
+                                </button>
                             </div>
                             <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
                                 <div className="text-sm text-green-600 dark:text-green-400 mb-1">Captured</div>
-                                <div className="text-2xl font-bold text-green-900 dark:text-green-100">
+                                <div className="text-2xl font-bold text-green-900 dark:text-green-100 mb-2">
                                     {results.captured_count}
                                 </div>
+                                <button
+                                    onClick={() => handleCopyToClipboard('captured')}
+                                    className="flex items-center gap-1 text-xs text-green-700 dark:text-green-300 hover:underline"
+                                    title="Copy captured IDs (newline-separated) - perfect for pasting into workbench"
+                                >
+                                    {copiedType === 'captured' ? (
+                                        <>
+                                            <CheckIcon className="h-4 w-4" />
+                                            Copied!
+                                        </>
+                                    ) : (
+                                        <>
+                                            <ClipboardDocumentIcon className="h-4 w-4" />
+                                            Copy IDs
+                                        </>
+                                    )}
+                                </button>
                             </div>
                             <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
                                 <div className="text-sm text-red-600 dark:text-red-400 mb-1">Missed</div>
-                                <div className="text-2xl font-bold text-red-900 dark:text-red-100">
+                                <div className="text-2xl font-bold text-red-900 dark:text-red-100 mb-2">
                                     {results.missed_count}
                                 </div>
+                                <button
+                                    onClick={() => handleCopyToClipboard('missed')}
+                                    className="flex items-center gap-1 text-xs text-red-700 dark:text-red-300 hover:underline"
+                                    title="Copy missed IDs (newline-separated)"
+                                >
+                                    {copiedType === 'missed' ? (
+                                        <>
+                                            <CheckIcon className="h-4 w-4" />
+                                            Copied!
+                                        </>
+                                    ) : (
+                                        <>
+                                            <ClipboardDocumentIcon className="h-4 w-4" />
+                                            Copy IDs
+                                        </>
+                                    )}
+                                </button>
                             </div>
                             <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                                 <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Query Results</div>
                                 <div className="text-2xl font-bold text-gray-900 dark:text-white">
                                     {results.query_total_results}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                    Total from query
                                 </div>
                             </div>
                         </div>
