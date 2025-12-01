@@ -227,7 +227,10 @@ class RetrievalConfig(BaseModel):
         None,
         description="Broad search retrieval (mutually exclusive with concepts)"
     )
-    article_limit_per_week: Optional[int] = Field(None, description="Maximum articles per week")
+    article_limit_per_week: Optional[int] = Field(
+        None,
+        description="Maximum articles per week (FUTURE FEATURE - not yet implemented in pipeline)"
+    )
 
     def get_concepts_for_topic(self, topic_id: str) -> List[Concept]:
         """Get all concepts that cover a specific topic"""

@@ -264,7 +264,7 @@ def _build_retrieval_tab_context(context: Dict[str, Any]) -> str:
 
     Key concepts:
     1. retrieval_config.concepts: Search concepts with boolean operators (AND, OR, NOT) and specific terms
-    2. retrieval_config.article_limit_per_week: How many articles to retrieve per week
+    2. retrieval_config.broad_search: Simple, wide-net queries optimized for weekly monitoring
 
     The retrieval wizard helps users create effective search queries from their semantic topics. You can:
     - Explain how concepts map to semantic topics
