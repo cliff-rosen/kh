@@ -39,7 +39,7 @@ class PubMedIdCheckRequest(BaseModel):
     pubmed_ids: List[str] = Field(..., description="List of PubMed IDs to check")
     start_date: Optional[str] = Field(None, description="Start date for filtering (YYYY/MM/DD)")
     end_date: Optional[str] = Field(None, description="End date for filtering (YYYY/MM/DD)")
-    date_type: Optional[str] = Field('entry', description="Date type for filtering (entry, publication, etc.)")
+    date_type: Optional[str] = Field('publication', description="Date type for filtering (publication=DP [default/matches pipeline], entry=EDAT, pubmed=PDAT, completion=DCOM)")
 
 
 class PubMedIdCheckResult(BaseModel):
@@ -136,11 +136,12 @@ async def check_pubmed_ids(
 
         # FAST: Get just the IDs from the query (no article fetching)
         pubmed_service = PubMedService()
-        logger.info(f"Fetching IDs for query (fast): {request.query_expression}")
+        logger.info(f"Fetching IDs for query with date_type={request.date_type}: {request.query_expression}")
 
+        # Use same max_results as pipeline to ensure consistency
         pmids_from_query, total_count = pubmed_service.get_article_ids(
             query=request.query_expression,
-            max_results=10000,  # Get many IDs (fast since we're not fetching articles)
+            max_results=500,  # Match pipeline's MAX_ARTICLES_PER_SOURCE
             sort_by='relevance',
             start_date=start_date,
             end_date=end_date,

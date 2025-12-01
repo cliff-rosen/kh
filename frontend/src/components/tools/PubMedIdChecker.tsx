@@ -8,6 +8,7 @@ export default function PubMedIdChecker() {
     const [pubmedIds, setPubmedIds] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    const [dateType, setDateType] = useState('publication'); // Default to 'publication' to match pipeline
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [results, setResults] = useState<PubMedIdCheckResponse | null>(null);
@@ -43,7 +44,8 @@ export default function PubMedIdChecker() {
                 query_expression: query,
                 pubmed_ids: idList,
                 start_date: startDate || undefined,
-                end_date: endDate || undefined
+                end_date: endDate || undefined,
+                date_type: dateType
             });
 
             setResults(response);
@@ -59,6 +61,7 @@ export default function PubMedIdChecker() {
         setPubmedIds('');
         setStartDate('');
         setEndDate('');
+        setDateType('publication');
         setResults(null);
         setError(null);
     };
@@ -178,7 +181,7 @@ export default function PubMedIdChecker() {
                 </div>
 
                 {/* Date Range (Optional) */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             Start Date <span className="text-xs text-gray-500 dark:text-gray-400">(optional)</span>
@@ -200,6 +203,21 @@ export default function PubMedIdChecker() {
                             onChange={(e) => setEndDate(e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                         />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Date Type <span className="text-xs text-gray-500 dark:text-gray-400">(Publication Date matches pipeline reports)</span>
+                        </label>
+                        <select
+                            value={dateType}
+                            onChange={(e) => setDateType(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                        >
+                            <option value="publication">Publication Date (DP) - default, matches reports</option>
+                            <option value="entry">Entry Date (EDAT)</option>
+                            <option value="pubmed">PubMed Date (PDAT)</option>
+                            <option value="completion">Completion Date (DCOM)</option>
+                        </select>
                     </div>
                 </div>
 

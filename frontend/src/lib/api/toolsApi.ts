@@ -19,7 +19,7 @@ export interface PubMedIdCheckRequest {
     pubmed_ids: string[];
     start_date?: string;  // YYYY/MM/DD
     end_date?: string;    // YYYY/MM/DD
-    date_type?: string;   // 'entry', 'publication', etc.
+    date_type?: string;   // 'publication' (DP - default, matches reports), 'entry' (EDAT), 'pubmed' (PDAT), 'completion' (DCOM)
 }
 
 export interface PubMedIdCheckResult {
