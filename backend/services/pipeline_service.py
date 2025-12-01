@@ -393,7 +393,7 @@ class PipelineService:
                 max_results=self.MAX_ARTICLES_PER_SOURCE,
                 start_date=start_date,
                 end_date=end_date,
-                date_type="entry",  # Use entry date for weekly reports
+                date_type="pubmed",  # Use entry date for weekly reports
                 sort_by="relevance"  # Most relevant first
             )
         else:

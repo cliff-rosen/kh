@@ -670,7 +670,7 @@ class QueryTestRequest(BaseModel):
     max_results: int = Field(10, ge=1, le=100, description="Maximum sample articles to return")
     start_date: Optional[str] = Field(None, description="Start date for filtering (YYYY/MM/DD) - PubMed only")
     end_date: Optional[str] = Field(None, description="End date for filtering (YYYY/MM/DD) - PubMed only")
-    date_type: Optional[str] = Field('entry', description="Date type for filtering (entry, publication, etc.) - PubMed only")
+    date_type: Optional[str] = Field('publication', description="Date type for filtering (entry, publication, etc.) - PubMed only")
     sort_by: Optional[str] = Field('relevance', description="Sort order (relevance, date) - PubMed only")
 
 

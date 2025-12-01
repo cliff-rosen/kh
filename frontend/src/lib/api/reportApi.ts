@@ -43,5 +43,12 @@ export const reportApi = {
             pubmed_ids: pubmedIds
         });
         return response.data;
+    },
+
+    /**
+     * Delete a report
+     */
+    async deleteReport(reportId: number): Promise<void> {
+        await api.delete(`/api/reports/${reportId}`);
     }
 };

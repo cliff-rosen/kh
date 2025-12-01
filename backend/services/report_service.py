@@ -7,7 +7,7 @@ from sqlalchemy import and_
 from typing import List, Optional, Dict, Any
 from datetime import date
 
-from models import Report, ReportArticleAssociation, Article
+from models import Report, ReportArticleAssociation, Article, WipArticle
 from schemas.report import Report as ReportSchema
 
 
@@ -111,3 +111,36 @@ class ReportService:
         report_dict['articles'] = articles
 
         return report_dict
+
+    def delete_report(self, report_id: int, user_id: int) -> bool:
+        """
+        Delete a report and its associated data (wip_articles, article associations).
+        Returns True if report was deleted, False if not found or unauthorized.
+        """
+        # Find the report
+        report = self.db.query(Report).filter(
+            and_(
+                Report.report_id == report_id,
+                Report.user_id == user_id
+            )
+        ).first()
+
+        if not report:
+            return False
+
+        # Delete wip_articles associated with this pipeline execution (if any)
+        if report.pipeline_execution_id:
+            self.db.query(WipArticle).filter(
+                WipArticle.pipeline_execution_id == report.pipeline_execution_id
+            ).delete()
+
+        # Delete article associations (due to foreign key constraints)
+        self.db.query(ReportArticleAssociation).filter(
+            ReportArticleAssociation.report_id == report_id
+        ).delete()
+
+        # Delete the report
+        self.db.delete(report)
+        self.db.commit()
+
+        return True

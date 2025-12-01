@@ -63,6 +63,24 @@ async def get_report_with_articles(
 
     return report
 
+
+@router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a report"""
+    service = ReportService(db)
+    deleted = service.delete_report(report_id, current_user.user_id)
+
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found"
+        )
+
+
 @router.get("/{report_id}/pipeline-analytics", response_model=Dict[str, Any])
 async def get_pipeline_analytics(
     report_id: int,

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { CalendarIcon, DocumentTextIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, DocumentTextIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
 import { Report, ReportWithArticles, ReportArticle } from '../types';
@@ -123,6 +123,32 @@ export default function ReportsPage() {
 
     const handleReportClick = (report: Report) => {
         loadReportDetails(report.report_id);
+    };
+
+    const handleDeleteReport = async (reportId: number, reportName: string) => {
+        if (!confirm(`Are you sure you want to delete "${reportName}"? This action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            await reportApi.deleteReport(reportId);
+
+            // Remove from local state
+            const updatedReports = reports.filter(r => r.report_id !== reportId);
+            setReports(updatedReports);
+
+            // If we just deleted the selected report, select the first remaining report
+            if (selectedReport?.report_id === reportId) {
+                if (updatedReports.length > 0) {
+                    loadReportDetails(updatedReports[0].report_id);
+                } else {
+                    setSelectedReport(null);
+                }
+            }
+        } catch (err) {
+            console.error('Error deleting report:', err);
+            alert('Failed to delete report. Please try again.');
+        }
     };
 
     // Helper function to organize articles by category
@@ -322,14 +348,16 @@ export default function ReportsPage() {
                                     {reports.map((report) => (
                                         <div
                                             key={report.report_id}
-                                            onClick={() => handleReportClick(report)}
-                                            className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 cursor-pointer transition-all ${selectedReport?.report_id === report.report_id
+                                            className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 transition-all ${selectedReport?.report_id === report.report_id
                                                 ? 'ring-2 ring-blue-600'
                                                 : 'hover:shadow-md'
                                                 }`}
                                         >
                                             <div className="flex items-start justify-between mb-2">
-                                                <div className="w-full">
+                                                <div
+                                                    className="flex-1 cursor-pointer"
+                                                    onClick={() => handleReportClick(report)}
+                                                >
                                                     <h3 className="font-semibold text-gray-900 dark:text-white">
                                                         {report.report_name}
                                                     </h3>
@@ -342,6 +370,16 @@ export default function ReportsPage() {
                                                         </p>
                                                     )}
                                                 </div>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteReport(report.report_id, report.report_name);
+                                                    }}
+                                                    className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                                                    title="Delete report"
+                                                >
+                                                    <TrashIcon className="h-5 w-5" />
+                                                </button>
                                             </div>
                                         </div>
                                     ))}
