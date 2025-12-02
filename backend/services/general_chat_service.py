@@ -3,7 +3,7 @@ General-purpose chat service
 Handles LLM interaction for the general chat system
 """
 
-from typing import Dict, Any, AsyncGenerator
+from typing import Dict, Any, AsyncGenerator, List, Optional
 from sqlalchemy.orm import Session
 import anthropic
 import os
@@ -21,11 +21,130 @@ CHAT_MODEL = "claude-sonnet-4-20250514"
 CHAT_MAX_TOKENS = 2000
 
 
+def _format_report_articles(articles: List[Dict[str, Any]]) -> str:
+    """Format articles for the prompt, keeping it concise."""
+    if not articles:
+        return "No articles in this report."
+
+    formatted = []
+    for i, article in enumerate(articles[:30], 1):  # Limit to 30 articles to avoid token limits
+        authors_str = ", ".join(article.get("authors", [])[:3])
+        if len(article.get("authors", [])) > 3:
+            authors_str += " et al."
+
+        entry = f"""
+        {i}. "{article.get('title', 'Untitled')}"
+        Authors: {authors_str or 'Unknown'}
+        Journal: {article.get('journal', 'Unknown')} ({article.get('year', 'Unknown')})
+        Relevance: {f"{int(article.get('relevance_score', 0) * 100)}%" if article.get('relevance_score') else 'Not scored'}
+        Category: {article.get('category', 'Uncategorized')}"""
+
+        # Add relevance rationale if available (truncated)
+        if article.get("relevance_rationale"):
+            rationale = article["relevance_rationale"][:150]
+            if len(article["relevance_rationale"]) > 150:
+                rationale += "..."
+            entry += f"\n   Why relevant: {rationale}"
+
+        # Add abstract snippet if available (first 200 chars)
+        if article.get("abstract"):
+            abstract = article["abstract"][:200]
+            if len(article["abstract"]) > 200:
+                abstract += "..."
+            entry += f"\n   Abstract: {abstract}"
+
+        formatted.append(entry)
+
+    result = "\n".join(formatted)
+    if len(articles) > 30:
+        result += f"\n\n... and {len(articles) - 30} more articles"
+    return result
+
+
 class GeneralChatService:
     def __init__(self, db: Session, user_id: int):
         self.db = db
         self.user_id = user_id
         self.client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+
+    def _load_report_context(self, report_id: int) -> Optional[str]:
+        """
+        Load report data from database and format it for the LLM context.
+        Returns None if report not found or access denied.
+        """
+        from models import Report, ReportArticleAssociation, Article
+
+        # Load report
+        report = self.db.query(Report).filter(
+            Report.report_id == report_id,
+            Report.user_id == self.user_id
+        ).first()
+
+        if not report:
+            return None
+
+        # Load articles
+        article_associations = self.db.query(ReportArticleAssociation, Article).join(
+            Article, ReportArticleAssociation.article_id == Article.article_id
+        ).filter(
+            ReportArticleAssociation.report_id == report_id
+        ).all()
+
+        # Build article summaries
+        articles_context = []
+        for assoc, article in article_associations:
+            articles_context.append({
+                "title": article.title,
+                "authors": article.authors or [],
+                "abstract": article.abstract,
+                "journal": article.journal,
+                "year": str(article.publication_date.year) if article.publication_date else None,
+                "relevance_score": assoc.relevance_score,
+                "relevance_rationale": assoc.relevance_rationale,
+                "category": assoc.presentation_categories[0] if assoc.presentation_categories else None
+            })
+
+        # Build enrichments context
+        enrichments = report.enrichments or {}
+        executive_summary = enrichments.get("executive_summary", "")
+        category_summaries = enrichments.get("category_summaries", {})
+
+        # Format category summaries
+        category_summaries_text = ""
+        if category_summaries:
+            formatted = []
+            for category, summary in category_summaries.items():
+                formatted.append(f"\n### {category}\n{summary}")
+            category_summaries_text = "\n".join(formatted)
+
+        # Format highlights
+        highlights_text = "No key highlights available."
+        if report.key_highlights:
+            highlights_text = "\n".join(f"- {h}" for h in report.key_highlights)
+
+        # Build full report context
+        return f"""
+        === REPORT DATA (loaded from database) ===
+
+        Report Name: {report.report_name}
+        Report Date: {report.report_date}
+        Total Articles: {len(articles_context)}
+
+        === EXECUTIVE SUMMARY ===
+        {executive_summary if executive_summary else "No executive summary available."}
+
+        === KEY HIGHLIGHTS ===
+        {highlights_text}
+
+        === THEMATIC ANALYSIS ===
+        {report.thematic_analysis if report.thematic_analysis else "No thematic analysis available."}
+
+        === CATEGORY SUMMARIES ===
+        {category_summaries_text if category_summaries_text else "No category summaries available."}
+
+        === ARTICLES IN THIS REPORT ===
+        {_format_report_articles(articles_context)}
+        """
 
     async def stream_chat_message(self, request) -> AsyncGenerator[str, None]:
         """
@@ -261,11 +380,27 @@ class GeneralChatService:
         # Get the context builder from the registry
         context_builder = get_page_context_builder(current_page)
 
+        base_context = ""
         if context_builder:
-            return context_builder(context)
+            base_context = context_builder(context)
+        else:
+            # Default context for unregistered pages
+            base_context = f"The user is currently on: {current_page}"
 
-        # Default context for unregistered pages
-        return f"The user is currently on: {current_page}"
+        # For reports page, enrich with actual report data from database
+        if current_page == "reports" and context.get("report_id"):
+            report_id = context.get("report_id")
+            try:
+                report_data = self._load_report_context(report_id)
+                if report_data:
+                    base_context += "\n" + report_data
+                else:
+                    base_context += "\n\n(Unable to load report data - report may not exist or access denied)"
+            except Exception as e:
+                logger.warning(f"Failed to load report context for report_id={report_id}: {e}")
+                base_context += f"\n\n(Error loading report data: {str(e)})"
+
+        return base_context
 
     def _build_user_prompt(
         self,

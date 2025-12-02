@@ -22,6 +22,7 @@ from .registry import (
 from . import edit_stream
 from . import streams_list
 from . import new_stream
+from . import reports
 
 __all__ = [
     'PayloadConfig',

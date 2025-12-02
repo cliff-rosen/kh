@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CalendarIcon, DocumentTextIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
@@ -11,6 +11,7 @@ import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { useResearchStream } from '../context/ResearchStreamContext';
 import PipelineAnalyticsModal from '../components/PipelineAnalyticsModal';
 import ExecutionConfigModal from '../components/ExecutionConfigModal';
+import ChatTray from '../components/chat/ChatTray';
 
 type ReportView = 'all' | 'by-category';
 
@@ -31,6 +32,17 @@ export default function ReportsPage() {
     const [showAnalytics, setShowAnalytics] = useState(false);
     const [showExecutionConfig, setShowExecutionConfig] = useState(false);
     const [executiveSummaryCollapsed, setExecutiveSummaryCollapsed] = useState(false);
+
+    // Chat context for the general chat system
+    const chatContext = useMemo(() => {
+        if (!selectedReport) return undefined;
+        return {
+            current_page: 'reports',
+            report_id: selectedReport.report_id,
+            report_name: selectedReport.report_name,
+            article_count: selectedReport.articles?.length || 0
+        };
+    }, [selectedReport]);
 
     const hasStreams = researchStreams.length > 0;
     const isTestReport = selectedReport?.run_type?.toLowerCase() === 'test';
@@ -657,6 +669,9 @@ export default function ReportsPage() {
                     onClose={() => setShowExecutionConfig(false)}
                 />
             )}
+
+            {/* Chat Tray - uses general chat with report context */}
+            {chatContext && <ChatTray initialContext={chatContext} />}
         </div>
     );
 }
