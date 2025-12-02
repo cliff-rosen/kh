@@ -28,9 +28,9 @@ class ArticleCategorizationService:
         article_journal: str = None,
         article_year: str = None,
         categories: List[Dict] = None
-    ) -> List[str]:
+    ) -> str:
         """
-        Use LLM to assign presentation categories to an article.
+        Use LLM to assign ONE presentation category to an article.
 
         Args:
             article_title: Title of the article
@@ -40,10 +40,10 @@ class ArticleCategorizationService:
             categories: List of category definitions with id, name, topics, specific_inclusions
 
         Returns:
-            List of category IDs that apply to this article
+            Single category ID that best fits this article, or None if no good fit
         """
         if not categories:
-            return []
+            return None
 
         # Prepare article content
         article_content = f"""
@@ -62,13 +62,18 @@ class ArticleCategorizationService:
         AVAILABLE CATEGORIES:
         {json.dumps(categories, indent=2)}
 
-        Analyze the article and determine which categories it belongs to. An article can belong to multiple categories or none.
+        Analyze the article and determine which ONE category it belongs to. Each article should be placed in exactly one category - choose the category that best fits the article's primary focus.
 
-        Return the list of category IDs that apply. Return an empty list if none apply.
+        If the article clearly doesn't fit any category, return null for the category_id.
 
         Respond with JSON:
         {{
-            "category_ids": ["category_id_1", "category_id_2", ...]
+            "category_id": "the_best_matching_category_id"
+        }}
+
+        Or if no good fit:
+        {{
+            "category_id": null
         }}
         """
 
@@ -80,12 +85,12 @@ class ArticleCategorizationService:
         response_schema = {
             "type": "object",
             "properties": {
-                "category_ids": {
-                    "type": "array",
-                    "items": {"type": "string"}
+                "category_id": {
+                    "type": ["string", "null"],
+                    "description": "The single category ID that best fits this article, or null if no good fit"
                 }
             },
-            "required": ["category_ids"]
+            "required": ["category_id"]
         }
 
         system_prompt = "You are categorizing research articles into presentation categories for user reports."
@@ -122,22 +127,22 @@ class ArticleCategorizationService:
         else:
             response_data = llm_response
 
-        return response_data.get("category_ids", [])
+        return response_data.get("category_id", None)
 
     async def categorize_wip_article(
         self,
         article: WipArticle,
         categories: List[Dict]
-    ) -> List[str]:
+    ) -> str:
         """
-        Categorize a WipArticle into presentation categories.
+        Categorize a WipArticle into ONE presentation category.
 
         Args:
             article: WipArticle instance
             categories: List of category definitions
 
         Returns:
-            List of category IDs that apply to this article
+            Single category ID that best fits this article, or None
         """
         return await self.categorize_article(
             article_title=article.title,
@@ -151,16 +156,16 @@ class ArticleCategorizationService:
         self,
         article: Article,
         categories: List[Dict]
-    ) -> List[str]:
+    ) -> str:
         """
-        Categorize a regular Article into presentation categories.
+        Categorize a regular Article into ONE presentation category.
 
         Args:
             article: Article instance
             categories: List of category definitions
 
         Returns:
-            List of category IDs that apply to this article
+            Single category ID that best fits this article, or None
         """
         return await self.categorize_article(
             article_title=article.title,
@@ -197,7 +202,7 @@ class ArticleCategorizationService:
         articles: List[Any],
         categories: List[Dict],
         max_concurrent: int = 10
-    ) -> List[Tuple[Any, List[str]]]:
+    ) -> List[Tuple[Any, str]]:
         """
         Categorize multiple articles in parallel with rate limiting.
 
@@ -210,16 +215,17 @@ class ArticleCategorizationService:
             max_concurrent: Maximum number of concurrent LLM categorizations (default: 10)
 
         Returns:
-            List of tuples: (article, assigned_category_ids)
+            List of tuples: (article, assigned_category_id)
+            Each article gets exactly one category ID (or None).
             Results are in the same order as input articles.
         """
         if not articles or not categories:
-            return [(article, []) for article in articles]
+            return [(article, None) for article in articles]
 
         # Create semaphore to limit concurrent LLM calls (avoid rate limits)
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def categorize_single(article: Any) -> Tuple[Any, List[str]]:
+        async def categorize_single(article: Any) -> Tuple[Any, str]:
             """Categorize a single article with rate limiting"""
             async with semaphore:
                 try:
@@ -237,17 +243,17 @@ class ArticleCategorizationService:
                     else:
                         raise ValueError(f"Unsupported article type: {type(article)}")
 
-                    assigned_categories = await self.categorize_article(
+                    assigned_category = await self.categorize_article(
                         article_title=title,
                         article_abstract=abstract or "",
                         article_journal=journal,
                         article_year=str(year) if year else None,
                         categories=categories
                     )
-                    return article, assigned_categories
+                    return article, assigned_category
                 except Exception as e:
-                    # On error, return empty category list
-                    return article, []
+                    # On error, return None
+                    return article, None
 
         # Execute all categorizations in parallel
         results = await asyncio.gather(
@@ -262,7 +268,7 @@ class ArticleCategorizationService:
         articles: List[WipArticle],
         categories: List[Dict],
         max_concurrent: int = 10
-    ) -> List[Tuple[WipArticle, List[str]]]:
+    ) -> List[Tuple[WipArticle, str]]:
         """
         Categorize multiple WipArticles in parallel.
 
@@ -272,7 +278,8 @@ class ArticleCategorizationService:
             max_concurrent: Maximum number of concurrent categorizations
 
         Returns:
-            List of tuples: (article, assigned_category_ids)
+            List of tuples: (article, assigned_category_id)
+            Each article gets exactly one category ID (or None).
         """
         return await self.categorize_articles_batch(
             articles=articles,
@@ -285,7 +292,7 @@ class ArticleCategorizationService:
         articles: List['CanonicalResearchArticle'],
         categories: List[Dict],
         max_concurrent: int = 10
-    ) -> List[Tuple['CanonicalResearchArticle', List[str]]]:
+    ) -> List[Tuple['CanonicalResearchArticle', str]]:
         """
         Categorize multiple CanonicalResearchArticles in parallel.
 
@@ -295,7 +302,8 @@ class ArticleCategorizationService:
             max_concurrent: Maximum number of concurrent categorizations
 
         Returns:
-            List of tuples: (article, assigned_category_ids)
+            List of tuples: (article, assigned_category_id)
+            Each article gets exactly one category ID (or None).
         """
         return await self.categorize_articles_batch(
             articles=articles,

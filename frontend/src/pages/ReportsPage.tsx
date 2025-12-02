@@ -170,15 +170,16 @@ export default function ReportsPage() {
         };
 
         // Group articles by category
+        // Each article is assigned to exactly one category (stored as single-item array)
         selectedReport.articles?.forEach(article => {
             if (!article.presentation_categories || article.presentation_categories.length === 0) {
                 categoryMap['uncategorized'].articles.push(article);
             } else {
-                article.presentation_categories.forEach(catId => {
-                    if (categoryMap[catId]) {
-                        categoryMap[catId].articles.push(article);
-                    }
-                });
+                // Article should have exactly one category
+                const catId = article.presentation_categories[0];
+                if (categoryMap[catId]) {
+                    categoryMap[catId].articles.push(article);
+                }
             }
         });
 

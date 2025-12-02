@@ -617,8 +617,10 @@ class PipelineService:
         )
 
         # Update database with results
-        for article, assigned_categories in results:
-            article.presentation_categories = assigned_categories
+        for article, assigned_category in results:
+            # Store as single-item list for backward compatibility with DB schema
+            # presentation_categories is stored as a JSONB array in the database
+            article.presentation_categories = [assigned_category] if assigned_category else []
 
         self.db.commit()
         return len(articles)
@@ -657,9 +659,10 @@ class PipelineService:
         category_summaries = {}
         for category in presentation_config.categories:
             # Get articles in this category
+            # presentation_categories is stored as a list for DB compatibility but should only have one item
             category_articles = [
                 article for article in wip_articles
-                if category.id in article.presentation_categories
+                if article.presentation_categories and category.id in article.presentation_categories
             ]
 
             if not category_articles:

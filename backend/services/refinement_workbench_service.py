@@ -263,10 +263,10 @@ class RefinementWorkbenchService:
 
         # Convert batch results to expected format
         results = []
-        for article, assigned_categories in batch_results:
+        for article, assigned_category in batch_results:
             results.append({
                 "article": article,
-                "assigned_categories": assigned_categories
+                "assigned_category": assigned_category  # Now returns single category ID instead of list
             })
 
         return results

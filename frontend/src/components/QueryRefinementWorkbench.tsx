@@ -1094,11 +1094,11 @@ function RawResultsView({ step }: { step: WorkflowStep }) {
                             </p>
                             <p className="text-gray-900 dark:text-white mb-2">{result.article.title}</p>
                             <div className="flex gap-1 flex-wrap">
-                                {result.assigned_categories.map((catId: string) => (
-                                    <span key={catId} className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 text-xs rounded">
-                                        {catId}
+                                {result.assigned_category && (
+                                    <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 text-xs rounded">
+                                        {result.assigned_category}
                                     </span>
-                                ))}
+                                )}
                             </div>
                         </div>
                     ))}
