@@ -20,7 +20,8 @@ from services.chat_payloads import (
     get_page_client_actions,
     get_page_tools,
     has_page_payloads,
-    ToolConfig
+    ToolConfig,
+    ToolResult
 )
 
 logger = logging.getLogger(__name__)
@@ -218,6 +219,7 @@ class GeneralChatService:
             # Agentic loop - continue until we get a final response or hit max iterations
             iteration = 0
             collected_text = ""
+            accumulated_payload = None  # Store payload from tool execution
 
             while iteration < MAX_TOOL_ITERATIONS:
                 iteration += 1
@@ -259,6 +261,7 @@ class GeneralChatService:
 
                         # Execute the tool (run in thread pool to avoid blocking)
                         tool_config = tools_by_name.get(tool_name)
+                        tool_result_str = ""
                         if tool_config:
                             try:
                                 # Run sync tool executor in thread pool
@@ -269,7 +272,15 @@ class GeneralChatService:
                                     self.user_id,
                                     request.context
                                 )
-                                tool_result_str = str(tool_result) if not isinstance(tool_result, str) else tool_result
+                                # Handle ToolResult or plain string
+                                if isinstance(tool_result, ToolResult):
+                                    tool_result_str = tool_result.text
+                                    if tool_result.payload:
+                                        accumulated_payload = tool_result.payload
+                                elif isinstance(tool_result, str):
+                                    tool_result_str = tool_result
+                                else:
+                                    tool_result_str = str(tool_result)
                             except Exception as e:
                                 logger.error(f"Tool execution error: {e}", exc_info=True)
                                 tool_result_str = f"Error executing tool: {str(e)}"
@@ -340,12 +351,15 @@ class GeneralChatService:
             # Parse the LLM response to extract structured data
             parsed = self._parse_llm_response(collected_text, request.context)
 
+            # Use accumulated payload from tool execution, or parsed payload from LLM
+            custom_payload = accumulated_payload or parsed.get("custom_payload")
+
             # Build final payload
             final_payload = ChatResponsePayload(
                 message=parsed["message"],
                 suggested_values=parsed.get("suggested_values"),
                 suggested_actions=parsed.get("suggested_actions"),
-                custom_payload=parsed.get("custom_payload")
+                custom_payload=custom_payload
             )
 
             # Send final response with structured data

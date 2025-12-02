@@ -4,9 +4,9 @@ Defines context builder and tools for report chat functionality.
 """
 
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Union
 from sqlalchemy.orm import Session
-from .registry import ClientAction, ToolConfig, register_page
+from .registry import ClientAction, ToolConfig, ToolResult, register_page
 
 logger = logging.getLogger(__name__)
 
@@ -120,9 +120,10 @@ def execute_get_pubmed_article(
     db: Session,
     user_id: int,
     context: Dict[str, Any]
-) -> str:
+) -> Union[str, ToolResult]:
     """
     Retrieve a specific PubMed article by PMID.
+    Returns a ToolResult with both text for LLM and payload for frontend card.
     """
     from services.pubmed_service import PubMedService
 
@@ -153,7 +154,7 @@ def execute_get_pubmed_article(
         if article.doi:
             doi_info = f"\n        DOI: {article.doi}"
 
-        result = f"""
+        text_result = f"""
         === PubMed Article ===
         PMID: {article.PMID}
         Title: {article.title}
@@ -165,7 +166,26 @@ def execute_get_pubmed_article(
         === Abstract ===
         {article.abstract or 'No abstract available.'}
         """
-        return result
+
+        # Build payload for frontend card
+        payload = {
+            "type": "pubmed_article",
+            "data": {
+                "pmid": article.PMID,
+                "title": article.title,
+                "authors": article.authors,
+                "journal": article.journal,
+                "year": article.year,
+                "volume": article.volume,
+                "issue": article.issue,
+                "pages": article.pages,
+                "abstract": article.abstract,
+                "pmc_id": article.pmc_id if article.pmc_id else None,
+                "doi": article.doi if article.doi else None
+            }
+        }
+
+        return ToolResult(text=text_result, payload=payload)
 
     except Exception as e:
         logger.error(f"PubMed fetch error: {e}", exc_info=True)

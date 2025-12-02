@@ -27,12 +27,19 @@ class ClientAction:
 
 
 @dataclass
+class ToolResult:
+    """Result from a tool execution that can include both text for LLM and payload for frontend."""
+    text: str  # Text result to send back to LLM
+    payload: Optional[Dict[str, Any]] = None  # Optional payload to send to frontend (type, data)
+
+
+@dataclass
 class ToolConfig:
     """Configuration for a tool that the LLM can call."""
     name: str  # Tool name (e.g., "search_pubmed")
     description: str  # Description for the LLM
     input_schema: Dict[str, Any]  # JSON schema for tool parameters
-    executor: Callable[[Dict[str, Any], Session, int, Dict[str, Any]], Any]  # (params, db, user_id, context) -> result
+    executor: Callable[[Dict[str, Any], Session, int, Dict[str, Any]], Any]  # (params, db, user_id, context) -> str | ToolResult
 
 
 @dataclass

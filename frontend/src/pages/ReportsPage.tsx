@@ -5,6 +5,7 @@ import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
 import { Report, ReportWithArticles, ReportArticle } from '../types';
 import { ResearchStream, Category } from '../types';
+import { PayloadHandler } from '../types/chat';
 
 import { reportApi } from '../lib/api/reportApi';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
@@ -12,6 +13,7 @@ import { useResearchStream } from '../context/ResearchStreamContext';
 import PipelineAnalyticsModal from '../components/PipelineAnalyticsModal';
 import ExecutionConfigModal from '../components/ExecutionConfigModal';
 import ChatTray from '../components/chat/ChatTray';
+import PubMedArticleCard, { PubMedArticleData } from '../components/chat/PubMedArticleCard';
 
 type ReportView = 'all' | 'by-category';
 
@@ -43,6 +45,20 @@ export default function ReportsPage() {
             article_count: selectedReport.articles?.length || 0
         };
     }, [selectedReport]);
+
+    // Payload handlers for ChatTray - handles custom payloads from the chat
+    const payloadHandlers = useMemo<Record<string, PayloadHandler>>(() => ({
+        pubmed_article: {
+            render: (data: PubMedArticleData) => (
+                <PubMedArticleCard article={data} />
+            ),
+            renderOptions: {
+                panelWidth: '550px',
+                headerTitle: 'PubMed Article',
+                headerIcon: '📄'
+            }
+        }
+    }), []);
 
     const hasStreams = researchStreams.length > 0;
     const isTestReport = selectedReport?.run_type?.toLowerCase() === 'test';
@@ -671,7 +687,7 @@ export default function ReportsPage() {
             )}
 
             {/* Chat Tray - uses general chat with report context */}
-            {chatContext && <ChatTray initialContext={chatContext} />}
+            {chatContext && <ChatTray initialContext={chatContext} payloadHandlers={payloadHandlers} />}
         </div>
     );
 }
