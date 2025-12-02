@@ -12,6 +12,7 @@ export function useGeneralChat(initialContext?: Record<string, any>) {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [streamingText, setStreamingText] = useState('');
+    const [statusText, setStatusText] = useState<string | null>(null);
 
     const sendMessage = useCallback(async (
         content: string,
@@ -29,6 +30,7 @@ export function useGeneralChat(initialContext?: Record<string, any>) {
         setIsLoading(true);
         setError(null);
         setStreamingText('');
+        setStatusText(null);
 
         try {
             // Stream the response
@@ -50,8 +52,14 @@ export function useGeneralChat(initialContext?: Record<string, any>) {
                     break;
                 }
 
-                // Handle token streaming
+                // Handle status updates (e.g., "Thinking...", "Using search_pubmed...")
+                if (chunk.status && chunk.status !== 'streaming' && chunk.status !== 'complete') {
+                    setStatusText(chunk.status);
+                }
+
+                // Handle token streaming - clear status when tokens start flowing
                 if (chunk.token) {
+                    setStatusText(null);
                     collectedText += chunk.token;
                     setStreamingText(collectedText);
                 }
@@ -68,6 +76,7 @@ export function useGeneralChat(initialContext?: Record<string, any>) {
                     };
                     setMessages(prev => [...prev, assistantMessage]);
                     setStreamingText('');
+                    setStatusText(null);
                 }
             }
 
@@ -104,6 +113,7 @@ export function useGeneralChat(initialContext?: Record<string, any>) {
         isLoading,
         error,
         streamingText,
+        statusText,
         sendMessage,
         updateContext,
         reset

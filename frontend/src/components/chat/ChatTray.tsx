@@ -36,7 +36,7 @@ function getDefaultHeaderIcon(payloadType: string): string {
 
 export default function ChatTray({ initialContext, payloadHandlers }: ChatTrayProps) {
     const [isOpen, setIsOpen] = useState(false);
-    const { messages, sendMessage, isLoading, streamingText, updateContext } = useGeneralChat(initialContext);
+    const { messages, sendMessage, isLoading, streamingText, statusText, updateContext } = useGeneralChat(initialContext);
     const [input, setInput] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -265,7 +265,7 @@ export default function ChatTray({ initialContext, payloadHandlers }: ChatTrayPr
                                             <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
                                         </div>
                                         <span className="text-sm text-gray-600 dark:text-gray-400">
-                                            Thinking...
+                                            {statusText || 'Thinking...'}
                                         </span>
                                     </div>
                                 </div>
