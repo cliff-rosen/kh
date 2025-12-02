@@ -11,9 +11,11 @@ from .registry import (
     PayloadConfig,
     PageConfig,
     ClientAction,
+    ToolConfig,
     get_page_payloads,
     get_page_context_builder,
     get_page_client_actions,
+    get_page_tools,
     has_page_payloads,
     register_page
 )
@@ -28,9 +30,11 @@ __all__ = [
     'PayloadConfig',
     'PageConfig',
     'ClientAction',
+    'ToolConfig',
     'get_page_payloads',
     'get_page_context_builder',
     'get_page_client_actions',
+    'get_page_tools',
     'has_page_payloads',
     'register_page'
 ]

@@ -4,7 +4,8 @@ Defines available payload types and their LLM instructions for each page.
 """
 
 from typing import Dict, List, Any, Callable, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from sqlalchemy.orm import Session
 
 
 @dataclass
@@ -26,11 +27,21 @@ class ClientAction:
 
 
 @dataclass
+class ToolConfig:
+    """Configuration for a tool that the LLM can call."""
+    name: str  # Tool name (e.g., "search_pubmed")
+    description: str  # Description for the LLM
+    input_schema: Dict[str, Any]  # JSON schema for tool parameters
+    executor: Callable[[Dict[str, Any], Session, int, Dict[str, Any]], Any]  # (params, db, user_id, context) -> result
+
+
+@dataclass
 class PageConfig:
-    """Configuration for a page including payloads and context builder."""
+    """Configuration for a page including payloads, tools, and context builder."""
     payloads: List[PayloadConfig]
     context_builder: Callable[[Dict[str, Any]], str]  # Function to build context section
     client_actions: Optional[List[ClientAction]] = None  # Available client actions for this page
+    tools: Optional[List[ToolConfig]] = None  # Available tools for this page
 
 
 class PayloadRegistry:
@@ -39,12 +50,20 @@ class PayloadRegistry:
     def __init__(self):
         self._registry: Dict[str, PageConfig] = {}
 
-    def register_page(self, page: str, payloads: List[PayloadConfig], context_builder: Callable[[Dict[str, Any]], str], client_actions: Optional[List[ClientAction]] = None):
-        """Register page configuration including payloads, context builder, and client actions."""
+    def register_page(
+        self,
+        page: str,
+        payloads: List[PayloadConfig],
+        context_builder: Callable[[Dict[str, Any]], str],
+        client_actions: Optional[List[ClientAction]] = None,
+        tools: Optional[List[ToolConfig]] = None
+    ):
+        """Register page configuration including payloads, context builder, client actions, and tools."""
         self._registry[page] = PageConfig(
             payloads=payloads,
             context_builder=context_builder,
-            client_actions=client_actions or []
+            client_actions=client_actions or [],
+            tools=tools or []
         )
 
     def get_payloads(self, page: str) -> List[PayloadConfig]:
@@ -62,6 +81,11 @@ class PayloadRegistry:
         page_config = self._registry.get(page)
         return page_config.client_actions if page_config else []
 
+    def get_tools(self, page: str) -> List[ToolConfig]:
+        """Get all tools for a page."""
+        page_config = self._registry.get(page)
+        return page_config.tools if page_config else []
+
     def has_page(self, page: str) -> bool:
         """Check if a page is registered."""
         return page in self._registry
@@ -71,9 +95,15 @@ class PayloadRegistry:
 _payload_registry = PayloadRegistry()
 
 
-def register_page(page: str, payloads: List[PayloadConfig], context_builder: Callable[[Dict[str, Any]], str], client_actions: Optional[List[ClientAction]] = None):
-    """Register page configuration including payloads, context builder, and client actions."""
-    _payload_registry.register_page(page, payloads, context_builder, client_actions)
+def register_page(
+    page: str,
+    payloads: List[PayloadConfig],
+    context_builder: Callable[[Dict[str, Any]], str],
+    client_actions: Optional[List[ClientAction]] = None,
+    tools: Optional[List[ToolConfig]] = None
+):
+    """Register page configuration including payloads, context builder, client actions, and tools."""
+    _payload_registry.register_page(page, payloads, context_builder, client_actions, tools)
 
 
 def get_page_payloads(page: str) -> List[PayloadConfig]:
@@ -89,6 +119,11 @@ def get_page_context_builder(page: str) -> Optional[Callable[[Dict[str, Any]], s
 def get_page_client_actions(page: str) -> List[ClientAction]:
     """Get all client actions for a page."""
     return _payload_registry.get_client_actions(page)
+
+
+def get_page_tools(page: str) -> List[ToolConfig]:
+    """Get all tools for a page."""
+    return _payload_registry.get_tools(page)
 
 
 def has_page_payloads(page: str) -> bool:

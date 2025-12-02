@@ -13,12 +13,20 @@ from schemas.general_chat import (
     ChatResponsePayload
 )
 # Import chat payloads package (auto-registers all page configurations)
-from services.chat_payloads import get_page_payloads, get_page_context_builder, get_page_client_actions, has_page_payloads
+from services.chat_payloads import (
+    get_page_payloads,
+    get_page_context_builder,
+    get_page_client_actions,
+    get_page_tools,
+    has_page_payloads,
+    ToolConfig
+)
 
 logger = logging.getLogger(__name__)
 
 CHAT_MODEL = "claude-sonnet-4-20250514"
 CHAT_MAX_TOKENS = 2000
+MAX_TOOL_ITERATIONS = 5  # Prevent runaway loops
 
 
 def _format_report_articles(articles: List[Dict[str, Any]]) -> str:
@@ -59,6 +67,18 @@ def _format_report_articles(articles: List[Dict[str, Any]]) -> str:
     if len(articles) > 30:
         result += f"\n\n... and {len(articles) - 30} more articles"
     return result
+
+
+def _tools_to_anthropic_format(tools: List[ToolConfig]) -> List[Dict[str, Any]]:
+    """Convert ToolConfig objects to Anthropic API tool format."""
+    return [
+        {
+            "name": tool.name,
+            "description": tool.description,
+            "input_schema": tool.input_schema
+        }
+        for tool in tools
+    ]
 
 
 class GeneralChatService:
@@ -149,6 +169,7 @@ class GeneralChatService:
     async def stream_chat_message(self, request) -> AsyncGenerator[str, None]:
         """
         Stream a chat message response with status updates via SSE.
+        Supports an agentic loop where the LLM can call tools.
 
         Args:
             request: ChatRequest object (defined in routers.general_chat)
@@ -177,39 +198,139 @@ class GeneralChatService:
             ]
             messages.append({"role": "user", "content": user_prompt})
 
+            # Get tools for this page
+            current_page = request.context.get("current_page", "unknown")
+            page_tools = get_page_tools(current_page)
+            tools_by_name = {tool.name: tool for tool in page_tools}
+            anthropic_tools = _tools_to_anthropic_format(page_tools) if page_tools else None
+
             # Send status update that we're calling the LLM
             status_response = ChatStatusResponse(
                 status="Thinking...",
-                payload={"context": request.context.get("current_page", "unknown")},
+                payload={"context": current_page},
                 error=None,
                 debug=None
             )
             yield status_response.model_dump_json()
 
-            # Call Claude API with streaming
+            # Agentic loop - continue until we get a final response or hit max iterations
+            iteration = 0
             collected_text = ""
 
-            stream = self.client.messages.stream(
-                model=CHAT_MODEL,
-                max_tokens=CHAT_MAX_TOKENS,
-                temperature=0.0,
-                system=system_prompt,
-                messages=messages
-            )
+            while iteration < MAX_TOOL_ITERATIONS:
+                iteration += 1
 
-            with stream as stream_manager:
-                for text in stream_manager.text_stream:
-                    collected_text += text
-                    # Stream each token as it arrives
-                    token_response = ChatStreamChunk(
-                        token=text,
-                        response_text=None,
-                        payload=None,
-                        status="streaming",
-                        error=None,
-                        debug=None
+                # Call Claude API - use non-streaming for tool calls, streaming for final response
+                if anthropic_tools:
+                    # When tools are available, we need to check for tool use
+                    response = self.client.messages.create(
+                        model=CHAT_MODEL,
+                        max_tokens=CHAT_MAX_TOKENS,
+                        temperature=0.0,
+                        system=system_prompt,
+                        messages=messages,
+                        tools=anthropic_tools
                     )
-                    yield token_response.model_dump_json()
+
+                    # Check if the response contains tool use
+                    tool_use_blocks = [block for block in response.content if block.type == "tool_use"]
+                    text_blocks = [block for block in response.content if block.type == "text"]
+
+                    if tool_use_blocks:
+                        # Process tool calls
+                        tool_block = tool_use_blocks[0]  # Handle one tool at a time
+                        tool_name = tool_block.name
+                        tool_input = tool_block.input
+                        tool_use_id = tool_block.id
+
+                        logger.info(f"Tool call: {tool_name} with input: {tool_input}")
+
+                        # Send status update about tool execution
+                        tool_status = ChatStatusResponse(
+                            status=f"Using {tool_name}...",
+                            payload={"tool": tool_name},
+                            error=None,
+                            debug=None
+                        )
+                        yield tool_status.model_dump_json()
+
+                        # Execute the tool
+                        tool_config = tools_by_name.get(tool_name)
+                        if tool_config:
+                            try:
+                                tool_result = tool_config.executor(
+                                    tool_input,
+                                    self.db,
+                                    self.user_id,
+                                    request.context
+                                )
+                                tool_result_str = str(tool_result) if not isinstance(tool_result, str) else tool_result
+                            except Exception as e:
+                                logger.error(f"Tool execution error: {e}", exc_info=True)
+                                tool_result_str = f"Error executing tool: {str(e)}"
+                        else:
+                            tool_result_str = f"Unknown tool: {tool_name}"
+
+                        # Add assistant message with tool use and tool result to messages
+                        messages.append({
+                            "role": "assistant",
+                            "content": response.content
+                        })
+                        messages.append({
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": tool_use_id,
+                                    "content": tool_result_str
+                                }
+                            ]
+                        })
+
+                        # Continue the loop to get the next response
+                        continue
+
+                    else:
+                        # No tool use - extract text and finish
+                        for block in text_blocks:
+                            collected_text += block.text
+                        # Stream the collected text token by token for UX
+                        for char in collected_text:
+                            token_response = ChatStreamChunk(
+                                token=char,
+                                response_text=None,
+                                payload=None,
+                                status="streaming",
+                                error=None,
+                                debug=None
+                            )
+                            yield token_response.model_dump_json()
+                        break
+
+                else:
+                    # No tools - use streaming as before
+                    stream = self.client.messages.stream(
+                        model=CHAT_MODEL,
+                        max_tokens=CHAT_MAX_TOKENS,
+                        temperature=0.0,
+                        system=system_prompt,
+                        messages=messages
+                    )
+
+                    with stream as stream_manager:
+                        for text in stream_manager.text_stream:
+                            collected_text += text
+                            # Stream each token as it arrives
+                            token_response = ChatStreamChunk(
+                                token=text,
+                                response_text=None,
+                                payload=None,
+                                status="streaming",
+                                error=None,
+                                debug=None
+                            )
+                            yield token_response.model_dump_json()
+                    break  # No tools means we're done after first response
 
             # Parse the LLM response to extract structured data
             parsed = self._parse_llm_response(collected_text, request.context)
