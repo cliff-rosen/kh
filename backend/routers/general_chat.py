@@ -116,4 +116,7 @@ async def chat_stream(
                 "data": error_response.model_dump_json()
             }
 
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(
+        event_generator(),
+        ping=1  # Send ping every 1 second to keep connection alive and flush buffers
+    )

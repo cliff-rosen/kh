@@ -6,6 +6,7 @@ Handles LLM interaction for the general chat system
 from typing import Dict, Any, AsyncGenerator, List, Optional
 from sqlalchemy.orm import Session
 import anthropic
+import asyncio
 import os
 import logging
 
@@ -86,6 +87,7 @@ class GeneralChatService:
         self.db = db
         self.user_id = user_id
         self.client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+        self.async_client = anthropic.AsyncAnthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 
     def _load_report_context(self, report_id: int) -> Optional[str]:
         """
@@ -220,10 +222,11 @@ class GeneralChatService:
             while iteration < MAX_TOOL_ITERATIONS:
                 iteration += 1
 
-                # Call Claude API - use non-streaming for tool calls, streaming for final response
+                # Call Claude API - use async for tool calls to allow status updates to flush
                 if anthropic_tools:
                     # When tools are available, we need to check for tool use
-                    response = self.client.messages.create(
+                    # Use async client so status messages can be sent while waiting
+                    response = await self.async_client.messages.create(
                         model=CHAT_MODEL,
                         max_tokens=CHAT_MAX_TOKENS,
                         temperature=0.0,
@@ -254,11 +257,13 @@ class GeneralChatService:
                         )
                         yield tool_status.model_dump_json()
 
-                        # Execute the tool
+                        # Execute the tool (run in thread pool to avoid blocking)
                         tool_config = tools_by_name.get(tool_name)
                         if tool_config:
                             try:
-                                tool_result = tool_config.executor(
+                                # Run sync tool executor in thread pool
+                                tool_result = await asyncio.to_thread(
+                                    tool_config.executor,
                                     tool_input,
                                     self.db,
                                     self.user_id,
