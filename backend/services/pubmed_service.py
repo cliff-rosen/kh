@@ -167,6 +167,19 @@ class PubMedArticle():
                 for abstract_text in abstract_texts:
                     abstract += ''.join(abstract_text.itertext())
 
+        # Extract ArticleIdList for PMC ID and DOI
+        pmc_id = ""
+        doi = ""
+        if pubmed_data_node is not None:
+            article_id_list = pubmed_data_node.find('.//ArticleIdList')
+            if article_id_list is not None:
+                for article_id in article_id_list.findall('.//ArticleId'):
+                    id_type = article_id.get('IdType', '')
+                    if id_type == 'pmc' and article_id.text:
+                        pmc_id = article_id.text
+                    elif id_type == 'doi' and article_id.text:
+                        doi = article_id.text
+
         citation = f"{authors} {title} {journal}. {year};{volume}({issue}):{pages}."
 
         return PubMedArticle(
@@ -184,7 +197,9 @@ class PubMedArticle():
                     year=year,
                     volume=volume,
                     issue=issue,
-                    pages=pages
+                    pages=pages,
+                    pmc_id=pmc_id,
+                    doi=doi
                     )
 
     def __init__(self, **kwargs: Any) -> None:
@@ -204,6 +219,8 @@ class PubMedArticle():
         self.issue = kwargs['issue']
         self.pages = kwargs['pages']
         self.medium = kwargs['medium']
+        self.pmc_id = kwargs.get('pmc_id', '')
+        self.doi = kwargs.get('doi', '')
 
     def __str__(self) -> str:
         line = "===================================================\n"        
@@ -591,6 +608,93 @@ class PubMedService:
             high += batch_size
 
         return articles
+
+    def get_pmc_full_text(self, pmc_id: str) -> Optional[str]:
+        """
+        Fetch full text from PubMed Central for an article with a PMC ID.
+
+        Args:
+            pmc_id: The PMC ID (e.g., "PMC1234567" or just "1234567")
+
+        Returns:
+            The full text of the article as plain text, or None if not available.
+        """
+        # Normalize PMC ID
+        if pmc_id.upper().startswith('PMC'):
+            pmc_id = pmc_id[3:]
+
+        url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+        params = {
+            'db': 'pmc',
+            'id': pmc_id,
+            'rettype': 'xml'
+        }
+
+        if self.api_key:
+            params['api_key'] = self.api_key
+
+        try:
+            response = requests.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            xml_content = response.text
+
+            # Parse the XML to extract text content
+            root = ET.fromstring(xml_content)
+
+            # Extract all text from body sections
+            text_parts = []
+
+            # Get the article title
+            title = root.find('.//article-title')
+            if title is not None:
+                text_parts.append(f"# {''.join(title.itertext())}\n")
+
+            # Get abstract
+            abstract = root.find('.//abstract')
+            if abstract is not None:
+                text_parts.append("## Abstract\n")
+                for p in abstract.findall('.//p'):
+                    text_parts.append(''.join(p.itertext()) + "\n")
+
+            # Get body sections
+            body = root.find('.//body')
+            if body is not None:
+                for sec in body.findall('.//sec'):
+                    # Get section title
+                    sec_title = sec.find('./title')
+                    if sec_title is not None:
+                        text_parts.append(f"\n## {''.join(sec_title.itertext())}\n")
+
+                    # Get paragraphs in section
+                    for p in sec.findall('./p'):
+                        text_parts.append(''.join(p.itertext()) + "\n")
+
+            if text_parts:
+                return '\n'.join(text_parts)
+            else:
+                logger.warning(f"No text content found in PMC article {pmc_id}")
+                return None
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching PMC article {pmc_id}: {e}")
+            return None
+        except ET.ParseError as e:
+            logger.error(f"Error parsing PMC XML for {pmc_id}: {e}")
+            return None
+
+
+def get_pmc_full_text(pmc_id: str) -> Optional[str]:
+    """
+    Module-level function to fetch full text from PubMed Central.
+
+    Args:
+        pmc_id: The PMC ID (e.g., "PMC1234567" or just "1234567")
+
+    Returns:
+        The full text of the article, or None if not available.
+    """
+    service = PubMedService()
+    return service.get_pmc_full_text(pmc_id)
 
 
 # Keep the old function for backward compatibility but have it call the new one
