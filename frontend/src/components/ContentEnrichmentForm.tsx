@@ -8,7 +8,7 @@
  * Features:
  * - Collapsible slug reference panel (left)
  * - Prompt editors (center)
- * - Collapsible results pane (right)
+ * - Three-mode results pane: collapsed, side panel, full modal
  * - Test with sample data or existing reports
  */
 
@@ -21,8 +21,12 @@ import {
     ExclamationTriangleIcon,
     ChevronLeftIcon,
     ChevronRightIcon,
+    ChevronDownIcon,
     ClipboardDocumentIcon,
-    SparklesIcon
+    SparklesIcon,
+    ArrowsPointingOutIcon,
+    ArrowsPointingInIcon,
+    XMarkIcon
 } from '@heroicons/react/24/outline';
 import {
     promptWorkbenchApi,
@@ -40,6 +44,7 @@ interface ContentEnrichmentFormProps {
 }
 
 type PromptType = 'executive_summary' | 'category_summary';
+type ResultsPaneMode = 'collapsed' | 'side' | 'full';
 
 export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnrichmentFormProps) {
     // State for prompts
@@ -64,7 +69,8 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [slugsPaneCollapsed, setSlugsPaneCollapsed] = useState(false);
-    const [resultsPaneCollapsed, setResultsPaneCollapsed] = useState(true);
+    const [resultsPaneMode, setResultsPaneMode] = useState<ResultsPaneMode>('collapsed');
+    const [showRenderedPrompts, setShowRenderedPrompts] = useState(false);
 
     // Load initial data
     useEffect(() => {
@@ -176,8 +182,10 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
 
             const result = await promptWorkbenchApi.testPrompt(request);
             setTestResult(result);
-            // Auto-expand results pane when results arrive
-            setResultsPaneCollapsed(false);
+            // Auto-expand to side panel when results arrive
+            setResultsPaneMode('side');
+            // Default to hiding rendered prompts so user sees LLM response first
+            setShowRenderedPrompts(false);
         } catch (err: any) {
             console.error('Error testing prompt:', err);
             setError(err.message || 'Failed to test prompt');
@@ -202,353 +210,426 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
     const currentPrompt = prompts[activePromptType];
     const currentSlugs = availableSlugs[activePromptType] || [];
 
-    return (
-        <div className="space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                        <SparklesIcon className="h-5 w-5 text-purple-500" />
-                        Content Enrichment
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        Customize prompts for report summaries
-                    </p>
+    // Results panel content (shared between side and full modes)
+    const ResultsContent = ({ isFullMode = false }: { isFullMode?: boolean }) => (
+        <div className={`space-y-4 ${isFullMode ? 'max-w-4xl mx-auto' : ''}`}>
+            {!testResult ? (
+                <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                    <BeakerIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">Run a test to see results</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    {isUsingDefaults && (
-                        <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                            <CheckIcon className="h-4 w-4" />
-                            Using defaults
-                        </span>
-                    )}
-                    {hasChanges && (
-                        <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                            <ExclamationTriangleIcon className="h-4 w-4" />
-                            Unsaved changes
-                        </span>
-                    )}
-                    <button
-                        type="button"
-                        onClick={resetToDefaults}
-                        disabled={isUsingDefaults}
-                        className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        Reset to Defaults
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleSave}
-                        disabled={!hasChanges || saving}
-                        className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                        {saving ? (
-                            <>
-                                <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                                Saving...
-                            </>
-                        ) : (
-                            'Save Changes'
-                        )}
-                    </button>
-                </div>
-            </div>
-
-            {error && (
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-800 dark:text-red-200 text-sm">
-                    {error}
-                </div>
-            )}
-
-            {/* Prompt Type Tabs */}
-            <div className="border-b border-gray-200 dark:border-gray-700">
-                <nav className="-mb-px flex space-x-8">
-                    <button
-                        type="button"
-                        onClick={() => setActivePromptType('executive_summary')}
-                        className={`py-3 px-1 border-b-2 text-sm font-medium ${
-                            activePromptType === 'executive_summary'
-                                ? 'border-purple-500 text-purple-600 dark:text-purple-400'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
-                        }`}
-                    >
-                        Executive Summary
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setActivePromptType('category_summary')}
-                        className={`py-3 px-1 border-b-2 text-sm font-medium ${
-                            activePromptType === 'category_summary'
-                                ? 'border-purple-500 text-purple-600 dark:text-purple-400'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
-                        }`}
-                    >
-                        Category Summary
-                    </button>
-                </nav>
-            </div>
-
-            {/* Three-Panel Layout */}
-            <div className="flex gap-4">
-                {/* Left: Slugs Panel (collapsible) */}
-                {slugsPaneCollapsed ? (
-                    <div className="flex items-start">
+            ) : (
+                <>
+                    {/* Rendered Prompts (collapsible) */}
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                         <button
                             type="button"
-                            onClick={() => setSlugsPaneCollapsed(false)}
-                            className="flex items-center justify-center w-8 h-12 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-r-lg border border-gray-300 dark:border-gray-600 transition-colors"
-                            title="Expand slugs pane"
+                            onClick={() => setShowRenderedPrompts(!showRenderedPrompts)}
+                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 flex items-center justify-between text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                         >
-                            <ChevronRightIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Rendered Prompts
+                            </span>
+                            <ChevronDownIcon className={`h-4 w-4 text-gray-500 transition-transform ${showRenderedPrompts ? 'rotate-180' : ''}`} />
                         </button>
-                    </div>
-                ) : (
-                    <div className="w-64 flex-shrink-0">
-                        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 h-full">
-                            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Available Slugs
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() => setSlugsPaneCollapsed(true)}
-                                    className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
-                                    title="Collapse slugs pane"
-                                >
-                                    <ChevronLeftIcon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-                                </button>
-                            </div>
-                            <div className="p-3 space-y-2 max-h-[500px] overflow-y-auto">
-                                {currentSlugs.map((slug) => (
-                                    <div
-                                        key={slug.slug}
-                                        className="group flex flex-col gap-1 p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                                        onClick={() => copyToClipboard(slug.slug)}
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <code className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 px-1.5 py-0.5 rounded font-mono">
-                                                {slug.slug}
-                                            </code>
-                                            <ClipboardDocumentIcon className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100" />
-                                        </div>
-                                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                                            {slug.description}
-                                        </span>
+                        {showRenderedPrompts && (
+                            <div className="p-4 space-y-4 border-t border-gray-200 dark:border-gray-700">
+                                {/* System Prompt */}
+                                <div>
+                                    <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                        System Prompt
+                                    </h5>
+                                    <div className={`bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700 overflow-y-auto ${isFullMode ? 'max-h-64' : 'max-h-32'}`}>
+                                        <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono">
+                                            {testResult.rendered_system_prompt}
+                                        </pre>
                                     </div>
-                                ))}
+                                </div>
+
+                                {/* User Prompt */}
+                                <div>
+                                    <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                        User Prompt
+                                    </h5>
+                                    <div className={`bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700 overflow-y-auto ${isFullMode ? 'max-h-64' : 'max-h-32'}`}>
+                                        <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono">
+                                            {testResult.rendered_user_prompt}
+                                        </pre>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* LLM Response */}
+                    {testResult.llm_response && (
+                        <div>
+                            <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                LLM Response
+                            </h5>
+                            <div className={`bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800 overflow-y-auto ${isFullMode ? 'max-h-[60vh]' : 'max-h-64'}`}>
+                                <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                                    {testResult.llm_response}
+                                </p>
                             </div>
                         </div>
+                    )}
+
+                    {/* Error */}
+                    {testResult.error && (
+                        <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 border border-red-200 dark:border-red-800">
+                            <p className="text-sm text-red-800 dark:text-red-200">
+                                Error: {testResult.error}
+                            </p>
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
+    );
+
+    return (
+        <>
+            <div className="space-y-4">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                            <SparklesIcon className="h-5 w-5 text-purple-500" />
+                            Content Enrichment
+                        </h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            Customize prompts for report summaries
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        {isUsingDefaults && (
+                            <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                                <CheckIcon className="h-4 w-4" />
+                                Using defaults
+                            </span>
+                        )}
+                        {hasChanges && (
+                            <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                <ExclamationTriangleIcon className="h-4 w-4" />
+                                Unsaved changes
+                            </span>
+                        )}
+                        <button
+                            type="button"
+                            onClick={resetToDefaults}
+                            disabled={isUsingDefaults}
+                            className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Reset to Defaults
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleSave}
+                            disabled={!hasChanges || saving}
+                            className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            {saving ? (
+                                <>
+                                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : (
+                                'Save Changes'
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                {error && (
+                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-800 dark:text-red-200 text-sm">
+                        {error}
                     </div>
                 )}
 
-                {/* Center: Prompt Editors */}
-                <div className="flex-1 space-y-4 min-w-0">
-                    {/* System Prompt */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            System Prompt
-                        </label>
-                        <textarea
-                            value={currentPrompt?.system_prompt || ''}
-                            onChange={(e) => updatePrompt(activePromptType, 'system_prompt', e.target.value)}
-                            rows={6}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                            placeholder="Define the LLM's role and guidelines..."
-                        />
-                    </div>
-
-                    {/* User Prompt Template */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            User Prompt Template
-                            <span className="text-gray-400 font-normal ml-2">(Use slugs like {'{stream.purpose}'})</span>
-                        </label>
-                        <textarea
-                            value={currentPrompt?.user_prompt_template || ''}
-                            onChange={(e) => updatePrompt(activePromptType, 'user_prompt_template', e.target.value)}
-                            rows={10}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                            placeholder="Write the prompt template with slugs..."
-                        />
-                    </div>
-
-                    {/* Testing Section */}
-                    <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                        <div className="flex items-center justify-between mb-4">
-                            <h4 className="text-md font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                                <BeakerIcon className="h-5 w-5 text-blue-500" />
-                                Test Prompt
-                            </h4>
-                            <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-2">
-                                    <label className="text-sm text-gray-600 dark:text-gray-400">Data source:</label>
-                                    <select
-                                        value={testMode}
-                                        onChange={(e) => setTestMode(e.target.value as 'report' | 'paste')}
-                                        className="px-3 py-1.5 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800"
-                                    >
-                                        <option value="report">From Report</option>
-                                        <option value="paste">Paste JSON</option>
-                                    </select>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={handleTest}
-                                    disabled={isTesting}
-                                    className="px-4 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
-                                >
-                                    {isTesting ? (
-                                        <>
-                                            <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                                            Testing...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <BeakerIcon className="h-4 w-4" />
-                                            Run Test
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Test Data Input */}
-                        <div>
-                            {testMode === 'report' ? (
-                                <div className="flex items-center gap-4">
-                                    <div>
-                                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Report</label>
-                                        <select
-                                            value={selectedReportId || ''}
-                                            onChange={(e) => setSelectedReportId(Number(e.target.value))}
-                                            className="px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-48"
-                                        >
-                                            {reports.map(report => (
-                                                <option key={report.report_id} value={report.report_id}>
-                                                    {report.report_name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    {activePromptType === 'category_summary' && (
-                                        <div>
-                                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Category ID</label>
-                                            <input
-                                                type="text"
-                                                value={selectedCategoryId}
-                                                onChange={(e) => setSelectedCategoryId(e.target.value)}
-                                                placeholder="e.g., clinical_outcomes"
-                                                className="px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-48 placeholder-gray-400 dark:placeholder-gray-500"
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div>
-                                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Sample Data (JSON)</label>
-                                    <textarea
-                                        value={pastedData}
-                                        onChange={(e) => setPastedData(e.target.value)}
-                                        rows={4}
-                                        placeholder='{"stream": {"name": "...", "purpose": "..."}, "articles": {"count": "10", "formatted": "..."}}'
-                                        className="w-full px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 font-mono placeholder-gray-400 dark:placeholder-gray-500"
-                                    />
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Right: Results Panel (collapsible) */}
-                {resultsPaneCollapsed ? (
-                    <div className="flex items-start">
+                {/* Prompt Type Tabs */}
+                <div className="border-b border-gray-200 dark:border-gray-700">
+                    <nav className="-mb-px flex space-x-8">
                         <button
                             type="button"
-                            onClick={() => setResultsPaneCollapsed(false)}
-                            className="flex items-center justify-center w-8 h-12 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-l-lg border border-gray-300 dark:border-gray-600 transition-colors"
-                            title="Expand results pane"
+                            onClick={() => setActivePromptType('executive_summary')}
+                            className={`py-3 px-1 border-b-2 text-sm font-medium ${
+                                activePromptType === 'executive_summary'
+                                    ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                            }`}
                         >
-                            <ChevronLeftIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                            Executive Summary
                         </button>
-                    </div>
-                ) : (
-                    <div className="w-96 flex-shrink-0">
-                        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 h-full">
-                            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                                    <DocumentTextIcon className="h-4 w-4 text-green-500" />
-                                    Test Results
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() => setResultsPaneCollapsed(true)}
-                                    className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
-                                    title="Collapse results pane"
-                                >
-                                    <ChevronRightIcon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-                                </button>
+                        <button
+                            type="button"
+                            onClick={() => setActivePromptType('category_summary')}
+                            className={`py-3 px-1 border-b-2 text-sm font-medium ${
+                                activePromptType === 'category_summary'
+                                    ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                            }`}
+                        >
+                            Category Summary
+                        </button>
+                    </nav>
+                </div>
+
+                {/* Three-Panel Layout */}
+                <div className="flex gap-4">
+                    {/* Left: Slugs Panel (collapsible) */}
+                    {slugsPaneCollapsed ? (
+                        <div className="flex items-start">
+                            <button
+                                type="button"
+                                onClick={() => setSlugsPaneCollapsed(false)}
+                                className="flex items-center justify-center w-8 h-12 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-r-lg border border-gray-300 dark:border-gray-600 transition-colors"
+                                title="Expand slugs pane"
+                            >
+                                <ChevronRightIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="w-64 flex-shrink-0">
+                            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 h-full">
+                                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        Available Slugs
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSlugsPaneCollapsed(true)}
+                                        className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                        title="Collapse slugs pane"
+                                    >
+                                        <ChevronLeftIcon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                                    </button>
+                                </div>
+                                <div className="p-3 space-y-2 max-h-[500px] overflow-y-auto">
+                                    {currentSlugs.map((slug) => (
+                                        <div
+                                            key={slug.slug}
+                                            className="group flex flex-col gap-1 p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                                            onClick={() => copyToClipboard(slug.slug)}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <code className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 px-1.5 py-0.5 rounded font-mono">
+                                                    {slug.slug}
+                                                </code>
+                                                <ClipboardDocumentIcon className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100" />
+                                            </div>
+                                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                {slug.description}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                            <div className="p-3 space-y-4 max-h-[600px] overflow-y-auto">
-                                {!testResult ? (
-                                    <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                                        <BeakerIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                                        <p className="text-sm">Run a test to see results</p>
+                        </div>
+                    )}
+
+                    {/* Center: Prompt Editors */}
+                    <div className="flex-1 space-y-4 min-w-0">
+                        {/* System Prompt */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                System Prompt
+                            </label>
+                            <textarea
+                                value={currentPrompt?.system_prompt || ''}
+                                onChange={(e) => updatePrompt(activePromptType, 'system_prompt', e.target.value)}
+                                rows={6}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                placeholder="Define the LLM's role and guidelines..."
+                            />
+                        </div>
+
+                        {/* User Prompt Template */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                User Prompt Template
+                                <span className="text-gray-400 font-normal ml-2">(Use slugs like {'{stream.purpose}'})</span>
+                            </label>
+                            <textarea
+                                value={currentPrompt?.user_prompt_template || ''}
+                                onChange={(e) => updatePrompt(activePromptType, 'user_prompt_template', e.target.value)}
+                                rows={10}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                placeholder="Write the prompt template with slugs..."
+                            />
+                        </div>
+
+                        {/* Testing Section */}
+                        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                            <div className="flex items-center justify-between mb-4">
+                                <h4 className="text-md font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                                    <BeakerIcon className="h-5 w-5 text-blue-500" />
+                                    Test Prompt
+                                </h4>
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-sm text-gray-600 dark:text-gray-400">Data source:</label>
+                                        <select
+                                            value={testMode}
+                                            onChange={(e) => setTestMode(e.target.value as 'report' | 'paste')}
+                                            className="px-3 py-1.5 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800"
+                                        >
+                                            <option value="report">From Report</option>
+                                            <option value="paste">Paste JSON</option>
+                                        </select>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleTest}
+                                        disabled={isTesting}
+                                        className="px-4 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+                                    >
+                                        {isTesting ? (
+                                            <>
+                                                <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                                Testing...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <BeakerIcon className="h-4 w-4" />
+                                                Run Test
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Test Data Input */}
+                            <div>
+                                {testMode === 'report' ? (
+                                    <div className="flex items-center gap-4">
+                                        <div>
+                                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Report</label>
+                                            <select
+                                                value={selectedReportId || ''}
+                                                onChange={(e) => setSelectedReportId(Number(e.target.value))}
+                                                className="px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-48"
+                                            >
+                                                {reports.map(report => (
+                                                    <option key={report.report_id} value={report.report_id}>
+                                                        {report.report_name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        {activePromptType === 'category_summary' && (
+                                            <div>
+                                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Category ID</label>
+                                                <input
+                                                    type="text"
+                                                    value={selectedCategoryId}
+                                                    onChange={(e) => setSelectedCategoryId(e.target.value)}
+                                                    placeholder="e.g., clinical_outcomes"
+                                                    className="px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-48 placeholder-gray-400 dark:placeholder-gray-500"
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                 ) : (
-                                    <>
-                                        {/* Rendered System Prompt */}
-                                        <div>
-                                            <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                                                System Prompt
-                                            </h5>
-                                            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 max-h-32 overflow-y-auto">
-                                                <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono">
-                                                    {testResult.rendered_system_prompt}
-                                                </pre>
-                                            </div>
-                                        </div>
-
-                                        {/* Rendered User Prompt */}
-                                        <div>
-                                            <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                                                User Prompt
-                                            </h5>
-                                            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 max-h-32 overflow-y-auto">
-                                                <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono">
-                                                    {testResult.rendered_user_prompt}
-                                                </pre>
-                                            </div>
-                                        </div>
-
-                                        {/* LLM Response */}
-                                        {testResult.llm_response && (
-                                            <div>
-                                                <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                                                    LLM Response
-                                                </h5>
-                                                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 border border-green-200 dark:border-green-800 max-h-64 overflow-y-auto">
-                                                    <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                                                        {testResult.llm_response}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Error */}
-                                        {testResult.error && (
-                                            <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 border border-red-200 dark:border-red-800">
-                                                <p className="text-sm text-red-800 dark:text-red-200">
-                                                    Error: {testResult.error}
-                                                </p>
-                                            </div>
-                                        )}
-                                    </>
+                                    <div>
+                                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Sample Data (JSON)</label>
+                                        <textarea
+                                            value={pastedData}
+                                            onChange={(e) => setPastedData(e.target.value)}
+                                            rows={4}
+                                            placeholder='{"stream": {"name": "...", "purpose": "..."}, "articles": {"count": "10", "formatted": "..."}}'
+                                            className="w-full px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 font-mono placeholder-gray-400 dark:placeholder-gray-500"
+                                        />
+                                    </div>
                                 )}
                             </div>
                         </div>
                     </div>
-                )}
+
+                    {/* Right: Results Panel (three modes) */}
+                    {resultsPaneMode === 'collapsed' ? (
+                        <div className="flex items-start">
+                            <button
+                                type="button"
+                                onClick={() => setResultsPaneMode('side')}
+                                className="flex items-center justify-center w-8 h-12 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-l-lg border border-gray-300 dark:border-gray-600 transition-colors"
+                                title="Expand results pane"
+                            >
+                                <ChevronLeftIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                            </button>
+                        </div>
+                    ) : resultsPaneMode === 'side' ? (
+                        <div className="w-96 flex-shrink-0">
+                            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 h-full">
+                                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                        <DocumentTextIcon className="h-4 w-4 text-green-500" />
+                                        Test Results
+                                    </span>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setResultsPaneMode('full')}
+                                            className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                            title="Expand to full screen"
+                                        >
+                                            <ArrowsPointingOutIcon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setResultsPaneMode('collapsed')}
+                                            className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                            title="Collapse results pane"
+                                        >
+                                            <ChevronRightIcon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="p-3 max-h-[600px] overflow-y-auto">
+                                    <ResultsContent />
+                                </div>
+                            </div>
+                        </div>
+                    ) : null}
+                </div>
             </div>
-        </div>
+
+            {/* Full Screen Modal */}
+            {resultsPaneMode === 'full' && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+                        {/* Modal Header */}
+                        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                <DocumentTextIcon className="h-5 w-5 text-green-500" />
+                                Test Results
+                            </h3>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setResultsPaneMode('side')}
+                                    className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                    title="Minimize to side panel"
+                                >
+                                    <ArrowsPointingInIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setResultsPaneMode('collapsed')}
+                                    className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                    title="Close"
+                                >
+                                    <XMarkIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                                </button>
+                            </div>
+                        </div>
+                        {/* Modal Content */}
+                        <div className="p-6 overflow-y-auto flex-1">
+                            <ResultsContent isFullMode />
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
     );
 }
