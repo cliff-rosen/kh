@@ -17,11 +17,12 @@ import SemanticSpaceForm from '../components/SemanticSpaceForm';
 import PresentationForm from '../components/PresentationForm';
 import RetrievalConfigForm from '../components/RetrievalConfigForm';
 import TestRefineTab from '../components/TestRefineTab';
+import ContentEnrichmentForm from '../components/ContentEnrichmentForm';
 import ChatTray from '../components/chat/ChatTray';
 import SchemaProposalCard from '../components/chat/SchemaProposalCard';
 import PresentationCategoriesCard from '../components/chat/PresentationCategoriesCard';
 
-type TabType = 'semantic' | 'retrieval' | 'presentation' | 'execute';
+type TabType = 'semantic' | 'retrieval' | 'presentation' | 'enrichment' | 'execute';
 
 export default function EditStreamPage() {
     const { id } = useParams<{ id: string }>();
@@ -411,6 +412,19 @@ export default function EditStreamPage() {
                             </button>
                             <button
                                 type="button"
+                                onClick={() => setActiveTab('enrichment')}
+                                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'enrichment'
+                                    ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                                    }`}
+                            >
+                                <div className="flex flex-col items-start">
+                                    <span>Layer 4: Content Enrichment</span>
+                                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Customize summary prompts</span>
+                                </div>
+                            </button>
+                            <button
+                                type="button"
                                 onClick={() => setActiveTab('execute')}
                                 className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'execute'
                                     ? 'border-orange-500 text-orange-600 dark:text-orange-400'
@@ -418,7 +432,7 @@ export default function EditStreamPage() {
                                     }`}
                             >
                                 <div className="flex flex-col items-start">
-                                    <span>Test & Refine</span>
+                                    <span>Layer 5: Test & Refine</span>
                                     <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Refine queries and run pipeline</span>
                                 </div>
                             </button>
@@ -494,7 +508,15 @@ export default function EditStreamPage() {
                             </div>
                         )}
 
-                        {/* Layer 4: Test & Refine Tab */}
+                        {/* Layer 4: Content Enrichment Tab */}
+                        {activeTab === 'enrichment' && stream && (
+                            <ContentEnrichmentForm
+                                streamId={parseInt(id!)}
+                                onSave={() => loadResearchStream(parseInt(id!))}
+                            />
+                        )}
+
+                        {/* Layer 5: Test & Refine Tab */}
                         {activeTab === 'execute' && stream && (
                             <TestRefineTab
                                 streamId={parseInt(id!)}

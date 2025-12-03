@@ -4,9 +4,11 @@ Report Summary Service - Generates executive summaries for reports using LLM
 This service generates:
 1. Executive summary for all articles in the report
 2. Category-specific summaries for each presentation category
+
+Supports custom prompts via enrichment_config with slug replacement.
 """
 
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional, Any
 from openai import AsyncOpenAI
 import httpx
 
@@ -30,7 +32,9 @@ class ReportSummaryService:
         self,
         wip_articles: List,
         stream_purpose: str,
-        category_summaries: Dict[str, str]
+        category_summaries: Dict[str, str],
+        stream_name: str = "",
+        enrichment_config: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Generate an executive summary for the entire report.
@@ -39,6 +43,8 @@ class ReportSummaryService:
             wip_articles: List of WipArticle objects included in the report
             stream_purpose: Purpose of the research stream
             category_summaries: Dict mapping category_id to category summary
+            stream_name: Name of the research stream (for custom prompts)
+            enrichment_config: Optional custom prompts config
 
         Returns:
             Executive summary text
@@ -60,36 +66,59 @@ class ReportSummaryService:
             for category_id, summary in category_summaries.items()
         ])
 
-        system_prompt = """You are an expert research analyst who specializes in synthesizing scientific literature.
+        # Check for custom prompt
+        custom_prompt = self._get_custom_prompt(enrichment_config, "executive_summary")
 
-        Your task is to write a concise executive summary of a research report.
+        if custom_prompt:
+            # Use custom prompt with slug replacement
+            context = {
+                "stream": {
+                    "name": stream_name,
+                    "purpose": stream_purpose
+                },
+                "articles": {
+                    "count": str(len(wip_articles)),
+                    "formatted": self._format_articles_for_prompt(article_info)
+                },
+                "categories": {
+                    "count": str(len(category_summaries)),
+                    "summaries": category_summaries_text
+                }
+            }
+            system_prompt = self._render_slugs(custom_prompt.get("system_prompt", ""), context)
+            user_prompt = self._render_slugs(custom_prompt.get("user_prompt_template", ""), context)
+        else:
+            # Use default prompts
+            system_prompt = """You are an expert research analyst who specializes in synthesizing scientific literature.
 
-        The summary should:
-        - Be 3-5 paragraphs (200-400 words total)
-        - Highlight the most important findings and trends
-        - Identify key themes across the literature
-        - Note any significant developments or breakthroughs
-        - Be written for an executive audience (technical but accessible)
-        - Focus on insights and implications, not just listing papers
+            Your task is to write a concise executive summary of a research report.
 
-        Write in a professional, analytical tone. Include only the summary with no heading or other text."""
+            The summary should:
+            - Be 3-5 paragraphs (200-400 words total)
+            - Highlight the most important findings and trends
+            - Identify key themes across the literature
+            - Note any significant developments or breakthroughs
+            - Be written for an executive audience (technical but accessible)
+            - Focus on insights and implications, not just listing papers
 
-        user_prompt = f"""Generate an executive summary for this research report.
+            Write in a professional, analytical tone. Include only the summary with no heading or other text."""
 
-        # Research Stream Purpose
-        {stream_purpose}
+            user_prompt = f"""Generate an executive summary for this research report.
 
-        # Report Statistics
-        - Total articles: {len(wip_articles)}
-        - Categories covered: {len(category_summaries)}
+            # Research Stream Purpose
+            {stream_purpose}
 
-        # Category Summaries
-        {category_summaries_text}
+            # Report Statistics
+            - Total articles: {len(wip_articles)}
+            - Categories covered: {len(category_summaries)}
 
-        # Sample Articles (representative of the full report)
-        {self._format_articles_for_prompt(article_info)}
+            # Category Summaries
+            {category_summaries_text}
 
-        Generate a comprehensive executive summary that synthesizes the key findings and themes across all articles."""
+            # Sample Articles (representative of the full report)
+            {self._format_articles_for_prompt(article_info)}
+
+            Generate a comprehensive executive summary that synthesizes the key findings and themes across all articles."""
 
         response = await self.client.chat.completions.create(
             model=self.model,
@@ -108,7 +137,10 @@ class ReportSummaryService:
         category_name: str,
         category_description: str,
         wip_articles: List,
-        stream_purpose: str
+        stream_purpose: str,
+        stream_name: str = "",
+        category_topics: Optional[List[str]] = None,
+        enrichment_config: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Generate a summary for a specific category.
@@ -118,6 +150,9 @@ class ReportSummaryService:
             category_description: Description of what this category covers
             wip_articles: List of WipArticle objects in this category
             stream_purpose: Purpose of the research stream
+            stream_name: Name of the research stream (for custom prompts)
+            category_topics: List of topics in this category (for custom prompts)
+            enrichment_config: Optional custom prompts config
 
         Returns:
             Category summary text
@@ -136,31 +171,55 @@ class ReportSummaryService:
                 "abstract": article.abstract[:400] if article.abstract else None
             })
 
-        system_prompt = f"""You are an expert research analyst synthesizing scientific literature.
+        # Check for custom prompt
+        custom_prompt = self._get_custom_prompt(enrichment_config, "category_summary")
 
-        Your task is to write a concise summary of articles in the "{category_name}" category.
+        if custom_prompt:
+            # Use custom prompt with slug replacement
+            context = {
+                "stream": {
+                    "name": stream_name,
+                    "purpose": stream_purpose
+                },
+                "category": {
+                    "name": category_name,
+                    "description": category_description,
+                    "topics": ", ".join(category_topics) if category_topics else ""
+                },
+                "articles": {
+                    "count": str(len(wip_articles)),
+                    "formatted": self._format_articles_for_prompt(article_info)
+                }
+            }
+            system_prompt = self._render_slugs(custom_prompt.get("system_prompt", ""), context)
+            user_prompt = self._render_slugs(custom_prompt.get("user_prompt_template", ""), context)
+        else:
+            # Use default prompts
+            system_prompt = f"""You are an expert research analyst synthesizing scientific literature.
 
-        The summary should:
-        - Be 2-3 paragraphs (150-250 words total)
-        - Identify the main themes and findings in this category
-        - Highlight the most significant or impactful articles
-        - Note any emerging trends or patterns
-        - Be written for a technical audience familiar with the field
+            Your task is to write a concise summary of articles in the "{category_name}" category.
 
-        Write in a professional, analytical tone."""
+            The summary should:
+            - Be 2-3 paragraphs (150-250 words total)
+            - Identify the main themes and findings in this category
+            - Highlight the most significant or impactful articles
+            - Note any emerging trends or patterns
+            - Be written for a technical audience familiar with the field
 
-        user_prompt = f"""Generate a summary for the "{category_name}" category.
+            Write in a professional, analytical tone."""
 
-        # Category Description
-        {category_description}
+            user_prompt = f"""Generate a summary for the "{category_name}" category.
 
-        # Research Stream Purpose
-        {stream_purpose}
+            # Category Description
+            {category_description}
 
-        # Articles in This Category ({len(wip_articles)} total)
-        {self._format_articles_for_prompt(article_info)}
+            # Research Stream Purpose
+            {stream_purpose}
 
-        Generate a focused summary that captures the key insights from articles in this category."""
+            # Articles in This Category ({len(wip_articles)} total)
+            {self._format_articles_for_prompt(article_info)}
+
+            Generate a focused summary that captures the key insights from articles in this category."""
 
         response = await self.client.chat.completions.create(
             model=self.model,
@@ -196,3 +255,34 @@ class ReportSummaryService:
                 formatted.append(f"   Abstract: {article['abstract']}")
 
         return "\n\n".join(formatted)
+
+    def _get_custom_prompt(
+        self,
+        enrichment_config: Optional[Dict[str, Any]],
+        prompt_type: str
+    ) -> Optional[Dict[str, str]]:
+        """Get custom prompt from enrichment config if available"""
+        if not enrichment_config:
+            return None
+
+        prompts = enrichment_config.get("prompts", {})
+        return prompts.get(prompt_type)
+
+    def _render_slugs(self, template: str, context: Dict[str, Any]) -> str:
+        """Replace slugs in template with context values"""
+        result = template
+
+        # Replace nested slugs like {stream.name}, {articles.count}, etc.
+        for top_key, top_value in context.items():
+            if isinstance(top_value, dict):
+                for sub_key, sub_value in top_value.items():
+                    slug = f"{{{top_key}.{sub_key}}}"
+                    if isinstance(sub_value, list):
+                        result = result.replace(slug, ", ".join(str(v) for v in sub_value))
+                    else:
+                        result = result.replace(slug, str(sub_value))
+            else:
+                slug = f"{{{top_key}}}"
+                result = result.replace(slug, str(top_value))
+
+        return result

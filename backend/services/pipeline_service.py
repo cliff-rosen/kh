@@ -655,6 +655,11 @@ class PipelineService:
         if not wip_articles:
             return "No articles in this report.", {}
 
+        # Get enrichment_config if available (for custom prompts)
+        enrichment_config = None
+        if hasattr(stream, 'enrichment_config') and stream.enrichment_config:
+            enrichment_config = stream.enrichment_config.dict() if hasattr(stream.enrichment_config, 'dict') else stream.enrichment_config
+
         # Generate category summaries
         category_summaries = {}
         for category in presentation_config.categories:
@@ -679,7 +684,10 @@ class PipelineService:
                 category_name=category.name,
                 category_description=category_description,
                 wip_articles=category_articles,
-                stream_purpose=stream.purpose
+                stream_purpose=stream.purpose,
+                stream_name=stream.stream_name,
+                category_topics=category.topics,
+                enrichment_config=enrichment_config
             )
             category_summaries[category.id] = summary
 
@@ -687,7 +695,9 @@ class PipelineService:
         executive_summary = await self.summary_service.generate_executive_summary(
             wip_articles=wip_articles,
             stream_purpose=stream.purpose,
-            category_summaries=category_summaries
+            category_summaries=category_summaries,
+            stream_name=stream.stream_name,
+            enrichment_config=enrichment_config
         )
 
         return executive_summary, category_summaries

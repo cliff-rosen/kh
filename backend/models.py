@@ -116,6 +116,11 @@ class ResearchStream(Base):
     # Format: {"categories": [{...}, {...}]}
     presentation_config = Column(JSON, nullable=False)
 
+    # Layer 4: ENRICHMENT CONFIG - Custom prompts for content generation
+    # Stores EnrichmentConfig (custom prompts) as JSON
+    # Format: {"prompts": {"executive_summary": {...}, "category_summary": {...}}}
+    enrichment_config = Column(JSON, nullable=True)
+
     # === METADATA ===
     report_frequency = Column(Enum(ReportFrequency), default=ReportFrequency.WEEKLY)
     is_active = Column(Boolean, default=True)

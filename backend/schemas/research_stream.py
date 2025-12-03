@@ -261,6 +261,45 @@ class PresentationConfig(BaseModel):
     categories: List[Category] = Field(description="How to organize results in reports")
 
 
+# ============================================================================
+# Enrichment Configuration - Custom Prompts
+# ============================================================================
+
+class PromptTemplate(BaseModel):
+    """A customizable prompt template with slug support"""
+    system_prompt: str = Field(description="System prompt defining the LLM's role and guidelines")
+    user_prompt_template: str = Field(
+        description="User prompt template with slugs like {stream.purpose}, {articles.formatted}"
+    )
+
+
+class EnrichmentConfig(BaseModel):
+    """
+    Layer 4: Configuration for content enrichment (custom prompts).
+
+    Slugs available for executive_summary:
+    - {stream.name} - Name of the research stream
+    - {stream.purpose} - Purpose/description of the stream
+    - {articles.count} - Total number of articles
+    - {articles.formatted} - Formatted list of articles (title, authors, journal, year, abstract)
+    - {categories.count} - Number of categories
+    - {categories.summaries} - Formatted category summaries
+
+    Slugs available for category_summary:
+    - {stream.name} - Name of the research stream
+    - {stream.purpose} - Purpose/description of the stream
+    - {category.name} - Name of the current category
+    - {category.description} - Description of the category
+    - {category.topics} - List of topics in this category
+    - {articles.count} - Number of articles in this category
+    - {articles.formatted} - Formatted list of articles in this category
+    """
+    prompts: Dict[str, PromptTemplate] = Field(
+        default_factory=dict,
+        description="Custom prompts keyed by type: 'executive_summary', 'category_summary'"
+    )
+
+
 class ResearchStream(BaseModel):
     """Research stream with clean three-layer architecture"""
     # === CORE IDENTITY ===
@@ -279,6 +318,12 @@ class ResearchStream(BaseModel):
 
     # Layer 3: PRESENTATION CONFIG - How to organize results for users
     presentation_config: PresentationConfig = Field(description="Layer 3: Result organization and presentation")
+
+    # Layer 4: ENRICHMENT CONFIG - Custom prompts for content generation (optional)
+    enrichment_config: Optional[EnrichmentConfig] = Field(
+        None,
+        description="Layer 4: Custom prompts for summaries (None = use defaults)"
+    )
 
     # === METADATA ===
     report_frequency: ReportFrequency
