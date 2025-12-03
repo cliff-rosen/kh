@@ -63,6 +63,19 @@ def parse_presentation_categories(text: str) -> Dict[str, Any]:
         return None
 
 
+def parse_prompt_suggestions(text: str) -> Dict[str, Any]:
+    """Parse PROMPT_SUGGESTIONS JSON from LLM response."""
+    try:
+        suggestions_data = json.loads(text.strip())
+        return {
+            "type": "prompt_suggestions",
+            "data": suggestions_data
+        }
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse PROMPT_SUGGESTIONS JSON: {e}")
+        return None
+
+
 # Define payload configurations for edit_research_stream page
 EDIT_STREAM_PAYLOADS = [
     PayloadConfig(
@@ -207,6 +220,35 @@ EDIT_STREAM_PAYLOADS = [
         - Provide specific_inclusions that clarify what types of articles go in each category
         - Typically 3-5 categories work well for most research streams
         """
+    ),
+    PayloadConfig(
+        type="prompt_suggestions",
+        parse_marker="PROMPT_SUGGESTIONS:",
+        parser=parse_prompt_suggestions,
+        relevant_tabs=["enrichment"],  # Only relevant on enrichment tab
+        llm_instructions="""
+        PROMPT_SUGGESTIONS - Use when user asks for help improving their prompts:
+
+        PROMPT_SUGGESTIONS: {
+          "prompt_type": "executive_summary" or "category_summary",
+          "suggestions": [
+            {
+              "target": "system_prompt" or "user_prompt_template",
+              "current_issue": "Description of what could be improved",
+              "suggested_text": "The improved prompt text",
+              "reasoning": "Why this change would help"
+            }
+          ],
+          "general_advice": "Overall recommendations for prompt improvement"
+        }
+
+        Guidelines:
+        - Review the current prompts and identify specific improvements
+        - Consider the stream's purpose, domain, and topics when suggesting changes
+        - Ensure suggested prompts use the available slugs correctly
+        - Focus on clarity, specificity, and alignment with the research mandate
+        - Suggest using more context from the semantic space where appropriate
+        """
     )
 ]
 
@@ -333,6 +375,104 @@ def _build_execute_tab_context(context: Dict[str, Any]) -> str:
     This is where the rubber meets the road - testing that the semantic space, retrieval config, and presentation categories all work together."""
 
 
+def _build_enrichment_tab_context(context: Dict[str, Any]) -> str:
+    """Build context for the Content Enrichment tab (Layer 4)."""
+    current_schema = context.get("current_schema", {})
+    stream_name = current_schema.get("stream_name", "Not set")
+    purpose = current_schema.get("purpose", "Not set")
+    enrichment = current_schema.get("enrichment", {})
+
+    # Format topics for context
+    topics = current_schema.get("semantic_space", {}).get("topics", [])
+    topics_list = [f"  - {t.get('name', 'Unnamed')}: {t.get('description', '')[:100]}" for t in topics[:10]] if topics else ["  (No topics defined)"]
+
+    # Format categories for context
+    categories = current_schema.get("categories", [])
+    categories_list = [f"  - {c.get('name', 'Unnamed')}" for c in categories] if categories else ["  (No categories defined)"]
+
+    # Format enrichment config
+    if enrichment:
+        is_using_defaults = enrichment.get("is_using_defaults", True)
+        exec_summary = enrichment.get("executive_summary", {})
+        cat_summary = enrichment.get("category_summary", {})
+
+        # Format available slugs
+        exec_slugs = exec_summary.get("available_slugs", [])
+        exec_slugs_list = [f"    - {s.get('slug', '')}: {s.get('description', '')}" for s in exec_slugs] if exec_slugs else ["    (No slugs available)"]
+
+        cat_slugs = cat_summary.get("available_slugs", [])
+        cat_slugs_list = [f"    - {s.get('slug', '')}: {s.get('description', '')}" for s in cat_slugs] if cat_slugs else ["    (No slugs available)"]
+
+        enrichment_section = f"""
+    === CURRENT ENRICHMENT CONFIG ===
+    Using Defaults: {is_using_defaults}
+
+    EXECUTIVE SUMMARY PROMPT:
+    System Prompt:
+    ```
+    {exec_summary.get('system_prompt', '(Not set)')[:1500]}
+    ```
+
+    User Prompt Template:
+    ```
+    {exec_summary.get('user_prompt_template', '(Not set)')[:1500]}
+    ```
+
+    Available Slugs for Executive Summary:
+{chr(10).join(exec_slugs_list)}
+
+    CATEGORY SUMMARY PROMPT:
+    System Prompt:
+    ```
+    {cat_summary.get('system_prompt', '(Not set)')[:1500]}
+    ```
+
+    User Prompt Template:
+    ```
+    {cat_summary.get('user_prompt_template', '(Not set)')[:1500]}
+    ```
+
+    Available Slugs for Category Summary:
+{chr(10).join(cat_slugs_list)}
+    """
+    else:
+        enrichment_section = """
+    === ENRICHMENT CONFIG ===
+    (Enrichment config not yet loaded - user may need to wait for it to load)
+    """
+
+    return f"""The user is on the CONTENT ENRICHMENT tab (Layer 4: How to summarize results).
+
+    Current stream: {stream_name}
+    Purpose: {purpose}
+
+    Semantic Topics:
+{chr(10).join(topics_list)}
+
+    Presentation Categories:
+{chr(10).join(categories_list)}
+{enrichment_section}
+
+    CONTENT ENRICHMENT controls how the LLM generates summaries for reports:
+    1. Executive Summary - Synthesizes the entire report into key insights
+    2. Category Summary - Summarizes articles within each presentation category
+
+    Each prompt type has:
+    - System Prompt: Sets the LLM's role and guidelines
+    - User Prompt Template: The actual prompt with slugs that get replaced with real data
+
+    SLUGS are placeholders like {{stream.name}}, {{articles.count}}, {{category.name}} that get replaced
+    with actual data when the prompt runs. Users should use these to make prompts dynamic.
+
+    You can help by:
+    - Reviewing prompts and suggesting improvements
+    - Explaining what each slug provides
+    - Recommending prompts tailored to the stream's domain and purpose
+    - Suggesting how to make summaries more relevant to stakeholders
+    - Identifying missing context that could improve summary quality
+    - Helping align prompts with the semantic space topics and categories"""
+
+
 def build_context(context: Dict[str, Any]) -> str:
     """
     Build context section for edit_research_stream page.
@@ -347,6 +487,8 @@ def build_context(context: Dict[str, Any]) -> str:
         return _build_retrieval_tab_context(context)
     elif active_tab == "presentation":
         return _build_presentation_tab_context(context)
+    elif active_tab == "enrichment":
+        return _build_enrichment_tab_context(context)
     elif active_tab == "execute":
         return _build_execute_tab_context(context)
     else:
