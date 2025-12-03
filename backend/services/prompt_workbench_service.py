@@ -118,7 +118,7 @@ class PromptWorkbenchService:
 
         # Verify user has access via ResearchStreamService
         try:
-            stream = self.stream_service.get_research_stream(report.stream_id, user_id)
+            stream = self.stream_service.get_research_stream(report.research_stream_id, user_id)
         except HTTPException:
             raise PermissionError("You don't have access to this report")
 
