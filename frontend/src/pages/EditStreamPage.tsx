@@ -19,6 +19,7 @@ import RetrievalConfigForm from '../components/RetrievalConfigForm';
 import TestRefineTab from '../components/TestRefineTab';
 import ContentEnrichmentForm from '../components/ContentEnrichmentForm';
 import ChatTray from '../components/chat/ChatTray';
+import { promptWorkbenchApi, PromptTemplate, SlugInfo } from '../lib/api/promptWorkbenchApi';
 import SchemaProposalCard from '../components/chat/SchemaProposalCard';
 import PresentationCategoriesCard from '../components/chat/PresentationCategoriesCard';
 
@@ -31,6 +32,14 @@ export default function EditStreamPage() {
     const { researchStreams, loadResearchStreams, loadResearchStream, updateResearchStream, deleteResearchStream, isLoading, error, clearError } = useResearchStream();
 
     const [stream, setStream] = useState<any>(null);
+
+    // Enrichment config state for chat context
+    const [enrichmentConfig, setEnrichmentConfig] = useState<{
+        prompts: Record<string, PromptTemplate>;
+        defaults: Record<string, PromptTemplate>;
+        availableSlugs: Record<string, SlugInfo[]>;
+        isUsingDefaults: boolean;
+    } | null>(null);
 
     // Check URL params for initial tab
     const initialTab = (searchParams.get('tab') as TabType) || 'semantic';
@@ -139,6 +148,34 @@ export default function EditStreamPage() {
         }
     }, [id, researchStreams]);
 
+    // Load enrichment config for chat context when on enrichment tab
+    useEffect(() => {
+        const loadEnrichmentConfig = async () => {
+            if (!id || activeTab !== 'enrichment') return;
+
+            try {
+                const [defaultsResponse, configResponse] = await Promise.all([
+                    promptWorkbenchApi.getDefaults(),
+                    promptWorkbenchApi.getStreamEnrichmentConfig(Number(id))
+                ]);
+
+                const currentPrompts = configResponse.enrichment_config?.prompts
+                    ? { ...defaultsResponse.prompts, ...configResponse.enrichment_config.prompts }
+                    : defaultsResponse.prompts;
+
+                setEnrichmentConfig({
+                    prompts: currentPrompts,
+                    defaults: defaultsResponse.prompts,
+                    availableSlugs: defaultsResponse.available_slugs,
+                    isUsingDefaults: configResponse.is_using_defaults
+                });
+            } catch (err) {
+                console.error('Failed to load enrichment config for chat:', err);
+            }
+        };
+
+        loadEnrichmentConfig();
+    }, [id, activeTab]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -583,6 +620,30 @@ export default function EditStreamPage() {
                         stream_name: form.stream_name,
                         semantic_space: {
                             topics: form.semantic_space.topics  // Include topics for reference
+                        },
+                        categories: form.categories
+                    } : activeTab === 'enrichment' ? {
+                        // Enrichment tab - include prompts and context
+                        stream_name: form.stream_name,
+                        purpose: stream?.purpose || "",
+                        enrichment: enrichmentConfig ? {
+                            is_using_defaults: enrichmentConfig.isUsingDefaults,
+                            executive_summary: {
+                                system_prompt: enrichmentConfig.prompts.executive_summary?.system_prompt,
+                                user_prompt_template: enrichmentConfig.prompts.executive_summary?.user_prompt_template,
+                                available_slugs: enrichmentConfig.availableSlugs.executive_summary
+                            },
+                            category_summary: {
+                                system_prompt: enrichmentConfig.prompts.category_summary?.system_prompt,
+                                user_prompt_template: enrichmentConfig.prompts.category_summary?.user_prompt_template,
+                                available_slugs: enrichmentConfig.availableSlugs.category_summary
+                            },
+                            defaults: enrichmentConfig.defaults
+                        } : null,
+                        // Include stream context for prompt suggestions
+                        semantic_space: {
+                            topics: form.semantic_space.topics,
+                            domain: form.semantic_space.domain
                         },
                         categories: form.categories
                     } : {

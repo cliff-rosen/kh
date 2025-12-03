@@ -660,8 +660,8 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                             </button>
                         </div>
                     ) : resultsPaneMode === 'side' ? (
-                        <div className="w-96 flex-shrink-0">
-                            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 h-full">
+                        <div className="w-96 flex-shrink-0 h-[600px]">
+                            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 h-full flex flex-col">
                                 <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <DocumentTextIcon className="h-4 w-4 text-green-500" />
@@ -714,7 +714,7 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                                         </button>
                                     </div>
                                 </div>
-                                <div className="p-3 max-h-[600px] overflow-y-auto">
+                                <div className="p-3 flex-1 overflow-y-auto">
                                     <ResultsContent />
                                 </div>
                             </div>
