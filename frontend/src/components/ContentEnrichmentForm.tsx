@@ -239,7 +239,7 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                                     <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
                                         System Prompt
                                     </h5>
-                                    <div className={`bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700 overflow-y-auto ${isFullMode ? 'max-h-64' : 'max-h-32'}`}>
+                                    <div className={`bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700 overflow-y-auto resize-y ${isFullMode ? 'min-h-[200px] max-h-[50vh]' : 'min-h-[120px] max-h-[300px]'}`}>
                                         <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono">
                                             {testResult.rendered_system_prompt}
                                         </pre>
@@ -251,7 +251,7 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                                     <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
                                         User Prompt
                                     </h5>
-                                    <div className={`bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700 overflow-y-auto ${isFullMode ? 'max-h-64' : 'max-h-32'}`}>
+                                    <div className={`bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700 overflow-y-auto resize-y ${isFullMode ? 'min-h-[200px] max-h-[50vh]' : 'min-h-[120px] max-h-[300px]'}`}>
                                         <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono">
                                             {testResult.rendered_user_prompt}
                                         </pre>
@@ -263,11 +263,11 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
 
                     {/* LLM Response */}
                     {testResult.llm_response && (
-                        <div>
+                        <div className="flex flex-col">
                             <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
                                 LLM Response
                             </h5>
-                            <div className={`bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800 overflow-y-auto ${isFullMode ? 'max-h-[60vh]' : 'max-h-64'}`}>
+                            <div className={`bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800 overflow-y-auto resize-y ${isFullMode ? 'min-h-[300px] flex-1' : 'min-h-[200px]'}`}>
                                 <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
                                     {testResult.llm_response}
                                 </p>
@@ -431,21 +431,20 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                     {/* Center: Prompt Editors */}
                     <div className="flex-1 space-y-4 min-w-0">
                         {/* System Prompt */}
-                        <div>
+                        <div className="flex flex-col">
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 System Prompt
                             </label>
                             <textarea
                                 value={currentPrompt?.system_prompt || ''}
                                 onChange={(e) => updatePrompt(activePromptType, 'system_prompt', e.target.value)}
-                                rows={6}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-purple-500 focus:border-transparent min-h-[150px]"
                                 placeholder="Define the LLM's role and guidelines..."
                             />
                         </div>
 
                         {/* User Prompt Template */}
-                        <div>
+                        <div className="flex flex-col flex-1">
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 User Prompt Template
                                 <span className="text-gray-400 font-normal ml-2">(Use slugs like {'{stream.purpose}'})</span>
@@ -453,8 +452,7 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                             <textarea
                                 value={currentPrompt?.user_prompt_template || ''}
                                 onChange={(e) => updatePrompt(activePromptType, 'user_prompt_template', e.target.value)}
-                                rows={10}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-purple-500 focus:border-transparent min-h-[250px]"
                                 placeholder="Write the prompt template with slugs..."
                             />
                         </div>
