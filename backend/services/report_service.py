@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from typing import List, Optional, Dict, Any
 from datetime import date
+from fastapi import HTTPException, status
 
 from models import Report, ReportArticleAssociation, Article, WipArticle
 from schemas.report import Report as ReportSchema
@@ -14,6 +15,35 @@ from schemas.report import Report as ReportSchema
 class ReportService:
     def __init__(self, db: Session):
         self.db = db
+
+    def get_report(self, report_id: int, user_id: int) -> Report:
+        """
+        Get a report by ID for a user.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID (for ownership verification)
+
+        Returns:
+            Report ORM model
+
+        Raises:
+            HTTPException: 404 if report not found or user doesn't have access
+        """
+        report = self.db.query(Report).filter(
+            and_(
+                Report.report_id == report_id,
+                Report.user_id == user_id
+            )
+        ).first()
+
+        if not report:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+
+        return report
 
     def get_reports_for_stream(self, research_stream_id: int, user_id: int) -> List[ReportSchema]:
         """Get all reports for a research stream"""
