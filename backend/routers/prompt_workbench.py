@@ -101,6 +101,8 @@ async def update_stream_enrichment_config(
     current_user: User = Depends(get_current_user)
 ):
     """Update enrichment config for a stream (set to null to reset to defaults)"""
+    logger.info(f"Updating enrichment config for stream {stream_id}: {request.enrichment_config}")
+
     # Verify ownership (raises 404 if not found/not authorized)
     stream_service = ResearchStreamService(db)
     stream_service.get_research_stream(stream_id, current_user.user_id)
@@ -108,6 +110,7 @@ async def update_stream_enrichment_config(
     service = PromptWorkbenchService(db)
     service.update_enrichment_config(stream_id, request.enrichment_config)
 
+    logger.info(f"Enrichment config saved for stream {stream_id}")
     return {"status": "success", "message": "Enrichment config updated"}
 
 

@@ -207,7 +207,9 @@ export default function ContentEnrichmentForm({
         setError(null);
         try {
             const config: EnrichmentConfig | null = isUsingDefaults ? null : { prompts };
+            console.log('Saving enrichment config:', { isUsingDefaults, config, prompts });
             await promptWorkbenchApi.updateStreamEnrichmentConfig(streamId, config);
+            console.log('Save successful');
             setHasChanges(false);
             onSave?.();
         } catch (err: any) {

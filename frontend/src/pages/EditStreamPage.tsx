@@ -620,14 +620,17 @@ export default function EditStreamPage() {
                         >
                             Cancel
                         </button>
-                        <button
-                            type="submit"
-                            form="edit-stream-form"
-                            disabled={isLoading}
-                            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                        >
-                            {isLoading ? 'Saving...' : 'Save Changes'}
-                        </button>
+                        {/* Hide main save button on enrichment tab - it has its own save */}
+                        {activeTab !== 'enrichment' && (
+                            <button
+                                type="submit"
+                                form="edit-stream-form"
+                                disabled={isLoading}
+                                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                            >
+                                {isLoading ? 'Saving...' : 'Save Changes'}
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

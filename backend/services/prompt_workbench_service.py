@@ -68,6 +68,7 @@ class PromptWorkbenchService:
     ) -> None:
         """Update enrichment config for a stream"""
         config_dict = enrichment_config.dict() if enrichment_config else None
+        logger.info(f"PromptWorkbenchService.update_enrichment_config: stream_id={stream_id}, config_dict={config_dict}")
         self.stream_service.update_enrichment_config(stream_id, config_dict)
 
     async def test_prompt(

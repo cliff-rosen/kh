@@ -2,6 +2,7 @@
 Research Stream service for managing research streams
 """
 
+import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 from typing import List, Optional, Dict, Any
@@ -9,6 +10,8 @@ from datetime import datetime, date
 from fastapi import HTTPException, status
 
 from models import ResearchStream, Report
+
+logger = logging.getLogger(__name__)
 from schemas.research_stream import ResearchStream as ResearchStreamSchema
 from schemas.research_stream import StreamType, ReportFrequency
 
@@ -352,10 +355,12 @@ class ResearchStreamService:
         if not stream:
             raise ValueError(f"Research stream with ID {stream_id} not found")
 
+        logger.info(f"Setting enrichment_config for stream {stream_id}: {enrichment_config}")
         stream.enrichment_config = enrichment_config
 
-        if enrichment_config is not None:
-            flag_modified(stream, "enrichment_config")
+        # Always flag as modified since we're updating the column
+        flag_modified(stream, "enrichment_config")
 
         stream.updated_at = datetime.utcnow()
         self.db.commit()
+        logger.info(f"Committed enrichment_config for stream {stream_id}")
