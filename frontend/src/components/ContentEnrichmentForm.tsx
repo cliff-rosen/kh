@@ -46,6 +46,15 @@ interface ContentEnrichmentFormProps {
 type PromptType = 'executive_summary' | 'category_summary';
 type ResultsPaneMode = 'collapsed' | 'side' | 'full';
 
+interface HistoryEntry {
+    id: number;
+    timestamp: Date;
+    promptType: PromptType;
+    prompts: PromptTemplate;
+    dataSource: { type: 'report'; reportId: number; categoryId?: string } | { type: 'paste' };
+    result: TestPromptResponse;
+}
+
 export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnrichmentFormProps) {
     // State for prompts
     const [activePromptType, setActivePromptType] = useState<PromptType>('executive_summary');
@@ -61,8 +70,12 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
     const [selectedReportId, setSelectedReportId] = useState<number | null>(null);
     const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
     const [pastedData, setPastedData] = useState('');
-    const [testResult, setTestResult] = useState<TestPromptResponse | null>(null);
     const [isTesting, setIsTesting] = useState(false);
+
+    // History state for time travel
+    const [history, setHistory] = useState<HistoryEntry[]>([]);
+    const [historyIndex, setHistoryIndex] = useState<number>(-1); // -1 means no history yet
+    const [nextHistoryId, setNextHistoryId] = useState(1);
 
     // UI state
     const [loading, setLoading] = useState(true);
@@ -156,7 +169,6 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
         if (!prompts[activePromptType]) return;
 
         setIsTesting(true);
-        setTestResult(null);
         setError(null);
 
         try {
@@ -165,23 +177,46 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                 prompt: prompts[activePromptType]
             };
 
+            let dataSource: HistoryEntry['dataSource'];
+
             if (testMode === 'report' && selectedReportId) {
                 request.report_id = selectedReportId;
+                dataSource = { type: 'report', reportId: selectedReportId };
                 if (activePromptType === 'category_summary' && selectedCategoryId) {
                     request.category_id = selectedCategoryId;
+                    dataSource.categoryId = selectedCategoryId;
                 }
             } else if (testMode === 'paste' && pastedData) {
                 try {
                     request.sample_data = JSON.parse(pastedData);
+                    dataSource = { type: 'paste' };
                 } catch {
                     setError('Invalid JSON in sample data');
                     setIsTesting(false);
                     return;
                 }
+            } else {
+                setError('Please select a report or paste sample data');
+                setIsTesting(false);
+                return;
             }
 
             const result = await promptWorkbenchApi.testPrompt(request);
-            setTestResult(result);
+
+            // Add to history
+            const newEntry: HistoryEntry = {
+                id: nextHistoryId,
+                timestamp: new Date(),
+                promptType: activePromptType,
+                prompts: { ...prompts[activePromptType] },
+                dataSource,
+                result
+            };
+
+            setHistory(prev => [...prev, newEntry]);
+            setHistoryIndex(history.length); // Point to the new entry
+            setNextHistoryId(prev => prev + 1);
+
             // Auto-expand to side panel when results arrive
             setResultsPaneMode('side');
             // Default to hiding rendered prompts so user sees LLM response first
@@ -199,6 +234,44 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
         navigator.clipboard.writeText(text);
     };
 
+    // History navigation
+    const currentHistoryEntry = historyIndex >= 0 && historyIndex < history.length
+        ? history[historyIndex]
+        : null;
+
+    const canNavigatePrev = historyIndex > 0;
+    const canNavigateNext = historyIndex < history.length - 1;
+
+    const navigatePrev = () => {
+        if (canNavigatePrev) {
+            setHistoryIndex(prev => prev - 1);
+        }
+    };
+
+    const navigateNext = () => {
+        if (canNavigateNext) {
+            setHistoryIndex(prev => prev + 1);
+        }
+    };
+
+    const isViewingLatest = historyIndex === history.length - 1;
+
+    // Restore prompts from a history entry
+    const restorePromptsFromHistory = (entry: HistoryEntry) => {
+        setPrompts(prev => ({
+            ...prev,
+            [entry.promptType]: { ...entry.prompts }
+        }));
+        setActivePromptType(entry.promptType);
+        setHasChanges(true);
+        setIsUsingDefaults(false);
+    };
+
+    // Format timestamp for display
+    const formatTimestamp = (date: Date) => {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center p-12">
@@ -211,82 +284,112 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
     const currentSlugs = availableSlugs[activePromptType] || [];
 
     // Results panel content (shared between side and full modes)
-    const ResultsContent = ({ isFullMode = false }: { isFullMode?: boolean }) => (
-        <div className={`space-y-4 ${isFullMode ? 'max-w-4xl mx-auto' : ''}`}>
-            {!testResult ? (
-                <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                    <BeakerIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p className="text-sm">Run a test to see results</p>
-                </div>
-            ) : (
-                <>
-                    {/* Rendered Prompts (collapsible) */}
-                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                        <button
-                            type="button"
-                            onClick={() => setShowRenderedPrompts(!showRenderedPrompts)}
-                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 flex items-center justify-between text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        >
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Rendered Prompts
-                            </span>
-                            <ChevronDownIcon className={`h-4 w-4 text-gray-500 transition-transform ${showRenderedPrompts ? 'rotate-180' : ''}`} />
-                        </button>
-                        {showRenderedPrompts && (
-                            <div className="p-4 space-y-4 border-t border-gray-200 dark:border-gray-700">
-                                {/* System Prompt */}
-                                <div>
-                                    <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                                        System Prompt
-                                    </h5>
-                                    <div className={`bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700 overflow-y-auto resize-y ${isFullMode ? 'min-h-[200px] max-h-[50vh]' : 'min-h-[120px] max-h-[300px]'}`}>
-                                        <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono">
-                                            {testResult.rendered_system_prompt}
-                                        </pre>
+    const ResultsContent = ({ isFullMode = false }: { isFullMode?: boolean }) => {
+        const entry = currentHistoryEntry;
+        const testResult = entry?.result;
+
+        return (
+            <div className={`space-y-4 ${isFullMode ? 'max-w-4xl mx-auto' : ''}`}>
+                {!entry ? (
+                    <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                        <BeakerIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <p className="text-sm">Run a test to see results</p>
+                    </div>
+                ) : (
+                    <>
+                        {/* Entry metadata */}
+                        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 pb-2 border-b border-gray-200 dark:border-gray-700">
+                            <div className="flex items-center gap-2">
+                                <span className="font-medium">{formatTimestamp(entry.timestamp)}</span>
+                                <span className="px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                                    {entry.promptType === 'executive_summary' ? 'Executive' : 'Category'}
+                                </span>
+                                {entry.dataSource.type === 'report' && (
+                                    <span className="text-gray-400">
+                                        Report #{entry.dataSource.reportId}
+                                        {entry.dataSource.categoryId && ` → ${entry.dataSource.categoryId}`}
+                                    </span>
+                                )}
+                            </div>
+                            {!isViewingLatest && (
+                                <button
+                                    type="button"
+                                    onClick={() => restorePromptsFromHistory(entry)}
+                                    className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                                >
+                                    Restore Prompts
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Rendered Prompts (collapsible) */}
+                        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                            <button
+                                type="button"
+                                onClick={() => setShowRenderedPrompts(!showRenderedPrompts)}
+                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 flex items-center justify-between text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            >
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Rendered Prompts
+                                </span>
+                                <ChevronDownIcon className={`h-4 w-4 text-gray-500 transition-transform ${showRenderedPrompts ? 'rotate-180' : ''}`} />
+                            </button>
+                            {showRenderedPrompts && testResult && (
+                                <div className="p-4 space-y-4 border-t border-gray-200 dark:border-gray-700">
+                                    {/* System Prompt */}
+                                    <div>
+                                        <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                            System Prompt
+                                        </h5>
+                                        <div className={`bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700 overflow-y-auto resize-y ${isFullMode ? 'min-h-[200px] max-h-[50vh]' : 'min-h-[120px] max-h-[300px]'}`}>
+                                            <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono">
+                                                {testResult.rendered_system_prompt}
+                                            </pre>
+                                        </div>
+                                    </div>
+
+                                    {/* User Prompt */}
+                                    <div>
+                                        <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                            User Prompt
+                                        </h5>
+                                        <div className={`bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700 overflow-y-auto resize-y ${isFullMode ? 'min-h-[200px] max-h-[50vh]' : 'min-h-[120px] max-h-[300px]'}`}>
+                                            <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono">
+                                                {testResult.rendered_user_prompt}
+                                            </pre>
+                                        </div>
                                     </div>
                                 </div>
+                            )}
+                        </div>
 
-                                {/* User Prompt */}
-                                <div>
-                                    <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                                        User Prompt
-                                    </h5>
-                                    <div className={`bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700 overflow-y-auto resize-y ${isFullMode ? 'min-h-[200px] max-h-[50vh]' : 'min-h-[120px] max-h-[300px]'}`}>
-                                        <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono">
-                                            {testResult.rendered_user_prompt}
-                                        </pre>
-                                    </div>
+                        {/* LLM Response */}
+                        {testResult?.llm_response && (
+                            <div className="flex flex-col">
+                                <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                    LLM Response
+                                </h5>
+                                <div className={`bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800 overflow-y-auto resize-y ${isFullMode ? 'min-h-[300px] flex-1' : 'min-h-[200px]'}`}>
+                                    <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                                        {testResult.llm_response}
+                                    </p>
                                 </div>
                             </div>
                         )}
-                    </div>
 
-                    {/* LLM Response */}
-                    {testResult.llm_response && (
-                        <div className="flex flex-col">
-                            <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                                LLM Response
-                            </h5>
-                            <div className={`bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800 overflow-y-auto resize-y ${isFullMode ? 'min-h-[300px] flex-1' : 'min-h-[200px]'}`}>
-                                <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                                    {testResult.llm_response}
+                        {/* Error */}
+                        {testResult?.error && (
+                            <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 border border-red-200 dark:border-red-800">
+                                <p className="text-sm text-red-800 dark:text-red-200">
+                                    Error: {testResult.error}
                                 </p>
                             </div>
-                        </div>
-                    )}
-
-                    {/* Error */}
-                    {testResult.error && (
-                        <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 border border-red-200 dark:border-red-800">
-                            <p className="text-sm text-red-800 dark:text-red-200">
-                                Error: {testResult.error}
-                            </p>
-                        </div>
-                    )}
-                </>
-            )}
-        </div>
-    );
+                        )}
+                    </>
+                )}
+            </div>
+        );
+    };
 
     return (
         <>
@@ -560,10 +663,38 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                         <div className="w-96 flex-shrink-0">
                             <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 h-full">
                                 <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                    <div className="flex items-center gap-2">
                                         <DocumentTextIcon className="h-4 w-4 text-green-500" />
-                                        Test Results
-                                    </span>
+                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            Test Results
+                                        </span>
+                                        {/* History navigation */}
+                                        {history.length > 0 && (
+                                            <div className="flex items-center gap-1 ml-2 pl-2 border-l border-gray-300 dark:border-gray-600">
+                                                <button
+                                                    type="button"
+                                                    onClick={navigatePrev}
+                                                    disabled={!canNavigatePrev}
+                                                    className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                                    title="Previous run"
+                                                >
+                                                    <ChevronLeftIcon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                                                </button>
+                                                <span className="text-xs text-gray-500 dark:text-gray-400 min-w-[3rem] text-center">
+                                                    {historyIndex + 1} / {history.length}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={navigateNext}
+                                                    disabled={!canNavigateNext}
+                                                    className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                                    title="Next run"
+                                                >
+                                                    <ChevronRightIcon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                     <div className="flex items-center gap-1">
                                         <button
                                             type="button"
@@ -598,10 +729,38 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                     <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
                         {/* Modal Header */}
                         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                                <DocumentTextIcon className="h-5 w-5 text-green-500" />
-                                Test Results
-                            </h3>
+                            <div className="flex items-center gap-3">
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                    <DocumentTextIcon className="h-5 w-5 text-green-500" />
+                                    Test Results
+                                </h3>
+                                {/* History navigation */}
+                                {history.length > 0 && (
+                                    <div className="flex items-center gap-1 ml-2 pl-3 border-l border-gray-300 dark:border-gray-600">
+                                        <button
+                                            type="button"
+                                            onClick={navigatePrev}
+                                            disabled={!canNavigatePrev}
+                                            className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                            title="Previous run"
+                                        >
+                                            <ChevronLeftIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                                        </button>
+                                        <span className="text-sm text-gray-500 dark:text-gray-400 min-w-[4rem] text-center">
+                                            {historyIndex + 1} / {history.length}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={navigateNext}
+                                            disabled={!canNavigateNext}
+                                            className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                            title="Next run"
+                                        >
+                                            <ChevronRightIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                             <div className="flex items-center gap-2">
                                 <button
                                     type="button"
