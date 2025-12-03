@@ -26,9 +26,16 @@ class PromptWorkbenchService:
 
     def __init__(self, db: Session):
         self.db = db
-        self.summary_service = ReportSummaryService()
+        self._summary_service = None  # Lazy-loaded - only needed for testing prompts
         self.stream_service = ResearchStreamService(db)
         self.report_service = ReportService(db)
+
+    @property
+    def summary_service(self) -> ReportSummaryService:
+        """Lazy-load summary service only when needed (for LLM calls)"""
+        if self._summary_service is None:
+            self._summary_service = ReportSummaryService()
+        return self._summary_service
 
     def _convert_to_prompt_templates(self, prompts_dict: Dict[str, Dict]) -> Dict[str, PromptTemplate]:
         """Convert dict-based prompts to PromptTemplate objects"""

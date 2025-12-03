@@ -110,15 +110,19 @@ export default function ContentEnrichmentForm({
             setLoading(true);
             setError(null);
             try {
-                // Load defaults and slugs
-                const defaultsResponse = await promptWorkbenchApi.getDefaults();
+                // Load all data in parallel
+                const [defaultsResponse, configResponse, streamReports] = await Promise.all([
+                    promptWorkbenchApi.getDefaults(),
+                    promptWorkbenchApi.getStreamEnrichmentConfig(streamId),
+                    reportApi.getReportsForStream(streamId)
+                ]);
+
+                // Apply defaults and slugs
                 setDefaults(defaultsResponse.prompts);
                 setAvailableSlugs(defaultsResponse.available_slugs);
 
-                // Load stream's enrichment config
-                const configResponse = await promptWorkbenchApi.getStreamEnrichmentConfig(streamId);
+                // Apply enrichment config
                 setIsUsingDefaults(configResponse.is_using_defaults);
-
                 if (configResponse.enrichment_config?.prompts) {
                     // Merge with defaults for any missing prompt types
                     setPrompts({
@@ -129,8 +133,7 @@ export default function ContentEnrichmentForm({
                     setPrompts(defaultsResponse.prompts);
                 }
 
-                // Load reports for testing
-                const streamReports = await reportApi.getReportsForStream(streamId);
+                // Apply reports
                 setReports(streamReports);
                 if (streamReports.length > 0) {
                     setSelectedReportId(streamReports[0].report_id);
