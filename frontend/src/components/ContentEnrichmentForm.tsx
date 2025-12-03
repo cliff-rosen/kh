@@ -227,7 +227,7 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                     <button
                         onClick={resetToDefaults}
                         disabled={isUsingDefaults}
-                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         Reset to Defaults
                     </button>
@@ -365,7 +365,7 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                             <select
                                 value={testMode}
                                 onChange={(e) => setTestMode(e.target.value as 'report' | 'paste')}
-                                className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800"
+                                className="px-3 py-1.5 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800"
                             >
                                 <option value="report">From Report</option>
                                 <option value="paste">Paste JSON</option>
@@ -396,11 +396,11 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                     {testMode === 'report' ? (
                         <div className="flex items-center gap-4">
                             <div>
-                                <label className="block text-xs text-gray-500 mb-1">Report</label>
+                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Report</label>
                                 <select
                                     value={selectedReportId || ''}
                                     onChange={(e) => setSelectedReportId(Number(e.target.value))}
-                                    className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-48"
+                                    className="px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-48"
                                 >
                                     {reports.map(report => (
                                         <option key={report.report_id} value={report.report_id}>
@@ -411,26 +411,26 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                             </div>
                             {activePromptType === 'category_summary' && (
                                 <div>
-                                    <label className="block text-xs text-gray-500 mb-1">Category ID</label>
+                                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Category ID</label>
                                     <input
                                         type="text"
                                         value={selectedCategoryId}
                                         onChange={(e) => setSelectedCategoryId(e.target.value)}
                                         placeholder="e.g., clinical_outcomes"
-                                        className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-48"
+                                        className="px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-48 placeholder-gray-400 dark:placeholder-gray-500"
                                     />
                                 </div>
                             )}
                         </div>
                     ) : (
                         <div>
-                            <label className="block text-xs text-gray-500 mb-1">Sample Data (JSON)</label>
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Sample Data (JSON)</label>
                             <textarea
                                 value={pastedData}
                                 onChange={(e) => setPastedData(e.target.value)}
                                 rows={4}
                                 placeholder='{"stream": {"name": "...", "purpose": "..."}, "articles": {"count": "10", "formatted": "..."}}'
-                                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 font-mono"
+                                className="w-full px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 font-mono placeholder-gray-400 dark:placeholder-gray-500"
                             />
                         </div>
                     )}
