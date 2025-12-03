@@ -112,6 +112,39 @@ class ReportService:
 
         return report_dict
 
+    def get_wip_articles_for_report(self, report_id: int, user_id: int, included_only: bool = True) -> List[WipArticle]:
+        """
+        Get WIP articles for a report.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID (for ownership verification)
+            included_only: If True, only return articles with included_in_report=True
+
+        Returns:
+            List of WipArticle objects
+        """
+        # Get the report to verify ownership and get pipeline_execution_id
+        report = self.db.query(Report).filter(
+            and_(
+                Report.report_id == report_id,
+                Report.user_id == user_id
+            )
+        ).first()
+
+        if not report or not report.pipeline_execution_id:
+            return []
+
+        # Build query
+        query = self.db.query(WipArticle).filter(
+            WipArticle.pipeline_execution_id == report.pipeline_execution_id
+        )
+
+        if included_only:
+            query = query.filter(WipArticle.included_in_report == True)
+
+        return query.all()
+
     def delete_report(self, report_id: int, user_id: int) -> bool:
         """
         Delete a report and its associated data (wip_articles, article associations).

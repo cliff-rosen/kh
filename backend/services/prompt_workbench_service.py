@@ -16,6 +16,7 @@ from models import Report, WipArticle
 from schemas.research_stream import EnrichmentConfig, PromptTemplate, ResearchStream as ResearchStreamSchema
 from services.report_summary_service import ReportSummaryService, DEFAULT_PROMPTS, AVAILABLE_SLUGS
 from services.research_stream_service import ResearchStreamService
+from services.report_service import ReportService
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class PromptWorkbenchService:
         self.db = db
         self.summary_service = ReportSummaryService()
         self.stream_service = ResearchStreamService(db)
+        self.report_service = ReportService(db)
 
     def _convert_to_prompt_templates(self, prompts_dict: Dict[str, Dict]) -> Dict[str, PromptTemplate]:
         """Convert dict-based prompts to PromptTemplate objects"""
@@ -122,10 +124,10 @@ class PromptWorkbenchService:
         except HTTPException:
             raise PermissionError("You don't have access to this report")
 
-        # Get articles
-        wip_articles = self.db.query(WipArticle).filter(
-            WipArticle.report_id == report_id
-        ).all()
+        # Get articles that were included in the report
+        wip_articles = self.report_service.get_wip_articles_for_report(
+            report_id, user_id, included_only=True
+        )
 
         if prompt_type == "executive_summary":
             return self._build_executive_summary_context(stream, wip_articles, report)
@@ -161,6 +163,11 @@ class PromptWorkbenchService:
                 for cat_id, summary in report.enrichments["category_summaries"].items()
             ])
 
+        # Get category count from presentation_config (which is a Pydantic model)
+        category_count = 0
+        if stream.presentation_config:
+            category_count = len(stream.presentation_config.categories)
+
         return {
             "stream": {
                 "name": stream.stream_name,
@@ -171,7 +178,7 @@ class PromptWorkbenchService:
                 "formatted": articles_formatted
             },
             "categories": {
-                "count": len(stream.presentation_config.get("categories", [])) if stream.presentation_config else 0,
+                "count": category_count,
                 "summaries": category_summaries
             }
         }
@@ -183,8 +190,9 @@ class PromptWorkbenchService:
         category_id: str
     ) -> Dict[str, Any]:
         """Build context for category summary prompt"""
-        categories = stream.presentation_config.get("categories", []) if stream.presentation_config else []
-        category = next((c for c in categories if c.get("id") == category_id), None)
+        # presentation_config is a Pydantic model, categories is a list of Category objects
+        categories = stream.presentation_config.categories if stream.presentation_config else []
+        category = next((c for c in categories if c.id == category_id), None)
         if not category:
             raise ValueError(f"Category {category_id} not found in stream")
 
@@ -210,9 +218,9 @@ class PromptWorkbenchService:
                 "purpose": stream.purpose
             },
             "category": {
-                "name": category.get("name", "Unknown"),
-                "description": ", ".join(category.get("topics", [])),
-                "topics": category.get("topics", [])
+                "name": category.name,
+                "description": ", ".join(category.topics),
+                "topics": category.topics
             },
             "articles": {
                 "count": len(category_articles),

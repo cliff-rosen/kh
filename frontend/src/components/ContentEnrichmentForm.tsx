@@ -6,9 +6,10 @@
  * - Category Summary prompt
  *
  * Features:
- * - Slug reference panel
+ * - Collapsible slug reference panel (left)
+ * - Prompt editors (center)
+ * - Collapsible results pane (right)
  * - Test with sample data or existing reports
- * - Preview rendered prompts and LLM output
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -18,7 +19,7 @@ import {
     ArrowPathIcon,
     CheckIcon,
     ExclamationTriangleIcon,
-    ChevronDownIcon,
+    ChevronLeftIcon,
     ChevronRightIcon,
     ClipboardDocumentIcon,
     SparklesIcon
@@ -62,7 +63,8 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [showSlugs, setShowSlugs] = useState(true);
+    const [slugsPaneCollapsed, setSlugsPaneCollapsed] = useState(false);
+    const [resultsPaneCollapsed, setResultsPaneCollapsed] = useState(true);
 
     // Load initial data
     useEffect(() => {
@@ -174,6 +176,8 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
 
             const result = await promptWorkbenchApi.testPrompt(request);
             setTestResult(result);
+            // Auto-expand results pane when results arrive
+            setResultsPaneCollapsed(false);
         } catch (err: any) {
             console.error('Error testing prompt:', err);
             setError(err.message || 'Failed to test prompt');
@@ -199,7 +203,7 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
     const currentSlugs = availableSlugs[activePromptType] || [];
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -284,9 +288,61 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                 </nav>
             </div>
 
-            <div className="grid grid-cols-3 gap-6">
-                {/* Prompt Editor (2 columns) */}
-                <div className="col-span-2 space-y-4">
+            {/* Three-Panel Layout */}
+            <div className="flex gap-4">
+                {/* Left: Slugs Panel (collapsible) */}
+                {slugsPaneCollapsed ? (
+                    <div className="flex items-start">
+                        <button
+                            type="button"
+                            onClick={() => setSlugsPaneCollapsed(false)}
+                            className="flex items-center justify-center w-8 h-12 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-r-lg border border-gray-300 dark:border-gray-600 transition-colors"
+                            title="Expand slugs pane"
+                        >
+                            <ChevronRightIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        </button>
+                    </div>
+                ) : (
+                    <div className="w-64 flex-shrink-0">
+                        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 h-full">
+                            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Available Slugs
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setSlugsPaneCollapsed(true)}
+                                    className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                    title="Collapse slugs pane"
+                                >
+                                    <ChevronLeftIcon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                                </button>
+                            </div>
+                            <div className="p-3 space-y-2 max-h-[500px] overflow-y-auto">
+                                {currentSlugs.map((slug) => (
+                                    <div
+                                        key={slug.slug}
+                                        className="group flex flex-col gap-1 p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                                        onClick={() => copyToClipboard(slug.slug)}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <code className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 px-1.5 py-0.5 rounded font-mono">
+                                                {slug.slug}
+                                            </code>
+                                            <ClipboardDocumentIcon className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100" />
+                                        </div>
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                                            {slug.description}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Center: Prompt Editors */}
+                <div className="flex-1 space-y-4 min-w-0">
                     {/* System Prompt */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -295,7 +351,7 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                         <textarea
                             value={currentPrompt?.system_prompt || ''}
                             onChange={(e) => updatePrompt(activePromptType, 'system_prompt', e.target.value)}
-                            rows={8}
+                            rows={6}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                             placeholder="Define the LLM's role and guidelines..."
                         />
@@ -305,195 +361,191 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                     <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             User Prompt Template
-                            <span className="text-gray-400 font-normal ml-2">(Use slugs like {'{stream.purpose}'}, {'{articles.formatted}'})</span>
+                            <span className="text-gray-400 font-normal ml-2">(Use slugs like {'{stream.purpose}'})</span>
                         </label>
                         <textarea
                             value={currentPrompt?.user_prompt_template || ''}
                             onChange={(e) => updatePrompt(activePromptType, 'user_prompt_template', e.target.value)}
-                            rows={12}
+                            rows={10}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                             placeholder="Write the prompt template with slugs..."
                         />
                     </div>
-                </div>
 
-                {/* Slug Reference (1 column) */}
-                <div className="space-y-4">
-                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                        <button
-                            type="button"
-                            onClick={() => setShowSlugs(!showSlugs)}
-                            className="w-full px-4 py-3 flex items-center justify-between text-left"
-                        >
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Available Slugs
-                            </span>
-                            {showSlugs ? (
-                                <ChevronDownIcon className="h-5 w-5 text-gray-400" />
-                            ) : (
-                                <ChevronRightIcon className="h-5 w-5 text-gray-400" />
-                            )}
-                        </button>
-                        {showSlugs && (
-                            <div className="px-4 pb-4 space-y-2">
-                                {currentSlugs.map((slug) => (
-                                    <div
-                                        key={slug.slug}
-                                        className="group flex items-start gap-2 p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                                        onClick={() => copyToClipboard(slug.slug)}
+                    {/* Testing Section */}
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                        <div className="flex items-center justify-between mb-4">
+                            <h4 className="text-md font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                                <BeakerIcon className="h-5 w-5 text-blue-500" />
+                                Test Prompt
+                            </h4>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <label className="text-sm text-gray-600 dark:text-gray-400">Data source:</label>
+                                    <select
+                                        value={testMode}
+                                        onChange={(e) => setTestMode(e.target.value as 'report' | 'paste')}
+                                        className="px-3 py-1.5 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800"
                                     >
-                                        <code className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 px-1.5 py-0.5 rounded font-mono">
-                                            {slug.slug}
-                                        </code>
-                                        <span className="text-xs text-gray-500 dark:text-gray-400 flex-1">
-                                            {slug.description}
-                                        </span>
-                                        <ClipboardDocumentIcon className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100" />
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Testing Section */}
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-                <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-md font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                        <BeakerIcon className="h-5 w-5 text-blue-500" />
-                        Test Prompt
-                    </h4>
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                            <label className="text-sm text-gray-600 dark:text-gray-400">Data source:</label>
-                            <select
-                                value={testMode}
-                                onChange={(e) => setTestMode(e.target.value as 'report' | 'paste')}
-                                className="px-3 py-1.5 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800"
-                            >
-                                <option value="report">From Report</option>
-                                <option value="paste">Paste JSON</option>
-                            </select>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={handleTest}
-                            disabled={isTesting}
-                            className="px-4 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
-                        >
-                            {isTesting ? (
-                                <>
-                                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                                    Testing...
-                                </>
-                            ) : (
-                                <>
-                                    <BeakerIcon className="h-4 w-4" />
-                                    Run Test
-                                </>
-                            )}
-                        </button>
-                    </div>
-                </div>
-
-                {/* Test Data Input */}
-                <div className="mb-4">
-                    {testMode === 'report' ? (
-                        <div className="flex items-center gap-4">
-                            <div>
-                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Report</label>
-                                <select
-                                    value={selectedReportId || ''}
-                                    onChange={(e) => setSelectedReportId(Number(e.target.value))}
-                                    className="px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-48"
+                                        <option value="report">From Report</option>
+                                        <option value="paste">Paste JSON</option>
+                                    </select>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleTest}
+                                    disabled={isTesting}
+                                    className="px-4 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
                                 >
-                                    {reports.map(report => (
-                                        <option key={report.report_id} value={report.report_id}>
-                                            {report.report_name}
-                                        </option>
-                                    ))}
-                                </select>
+                                    {isTesting ? (
+                                        <>
+                                            <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                            Testing...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <BeakerIcon className="h-4 w-4" />
+                                            Run Test
+                                        </>
+                                    )}
+                                </button>
                             </div>
-                            {activePromptType === 'category_summary' && (
+                        </div>
+
+                        {/* Test Data Input */}
+                        <div>
+                            {testMode === 'report' ? (
+                                <div className="flex items-center gap-4">
+                                    <div>
+                                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Report</label>
+                                        <select
+                                            value={selectedReportId || ''}
+                                            onChange={(e) => setSelectedReportId(Number(e.target.value))}
+                                            className="px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-48"
+                                        >
+                                            {reports.map(report => (
+                                                <option key={report.report_id} value={report.report_id}>
+                                                    {report.report_name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    {activePromptType === 'category_summary' && (
+                                        <div>
+                                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Category ID</label>
+                                            <input
+                                                type="text"
+                                                value={selectedCategoryId}
+                                                onChange={(e) => setSelectedCategoryId(e.target.value)}
+                                                placeholder="e.g., clinical_outcomes"
+                                                className="px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-48 placeholder-gray-400 dark:placeholder-gray-500"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
                                 <div>
-                                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Category ID</label>
-                                    <input
-                                        type="text"
-                                        value={selectedCategoryId}
-                                        onChange={(e) => setSelectedCategoryId(e.target.value)}
-                                        placeholder="e.g., clinical_outcomes"
-                                        className="px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-48 placeholder-gray-400 dark:placeholder-gray-500"
+                                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Sample Data (JSON)</label>
+                                    <textarea
+                                        value={pastedData}
+                                        onChange={(e) => setPastedData(e.target.value)}
+                                        rows={4}
+                                        placeholder='{"stream": {"name": "...", "purpose": "..."}, "articles": {"count": "10", "formatted": "..."}}'
+                                        className="w-full px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 font-mono placeholder-gray-400 dark:placeholder-gray-500"
                                     />
                                 </div>
                             )}
                         </div>
-                    ) : (
-                        <div>
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Sample Data (JSON)</label>
-                            <textarea
-                                value={pastedData}
-                                onChange={(e) => setPastedData(e.target.value)}
-                                rows={4}
-                                placeholder='{"stream": {"name": "...", "purpose": "..."}, "articles": {"count": "10", "formatted": "..."}}'
-                                className="w-full px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 font-mono placeholder-gray-400 dark:placeholder-gray-500"
-                            />
-                        </div>
-                    )}
+                    </div>
                 </div>
 
-                {/* Test Results */}
-                {testResult && (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            {/* Rendered System Prompt */}
-                            <div>
-                                <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Rendered System Prompt
-                                </h5>
-                                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700 max-h-48 overflow-y-auto">
-                                    <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono">
-                                        {testResult.rendered_system_prompt}
-                                    </pre>
-                                </div>
+                {/* Right: Results Panel (collapsible) */}
+                {resultsPaneCollapsed ? (
+                    <div className="flex items-start">
+                        <button
+                            type="button"
+                            onClick={() => setResultsPaneCollapsed(false)}
+                            className="flex items-center justify-center w-8 h-12 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-l-lg border border-gray-300 dark:border-gray-600 transition-colors"
+                            title="Expand results pane"
+                        >
+                            <ChevronLeftIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        </button>
+                    </div>
+                ) : (
+                    <div className="w-96 flex-shrink-0">
+                        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 h-full">
+                            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                    <DocumentTextIcon className="h-4 w-4 text-green-500" />
+                                    Test Results
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setResultsPaneCollapsed(true)}
+                                    className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                    title="Collapse results pane"
+                                >
+                                    <ChevronRightIcon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                                </button>
                             </div>
+                            <div className="p-3 space-y-4 max-h-[600px] overflow-y-auto">
+                                {!testResult ? (
+                                    <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                        <BeakerIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                                        <p className="text-sm">Run a test to see results</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {/* Rendered System Prompt */}
+                                        <div>
+                                            <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                                System Prompt
+                                            </h5>
+                                            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 max-h-32 overflow-y-auto">
+                                                <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono">
+                                                    {testResult.rendered_system_prompt}
+                                                </pre>
+                                            </div>
+                                        </div>
 
-                            {/* Rendered User Prompt */}
-                            <div>
-                                <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Rendered User Prompt
-                                </h5>
-                                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700 max-h-48 overflow-y-auto">
-                                    <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono">
-                                        {testResult.rendered_user_prompt}
-                                    </pre>
-                                </div>
+                                        {/* Rendered User Prompt */}
+                                        <div>
+                                            <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                                User Prompt
+                                            </h5>
+                                            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 max-h-32 overflow-y-auto">
+                                                <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono">
+                                                    {testResult.rendered_user_prompt}
+                                                </pre>
+                                            </div>
+                                        </div>
+
+                                        {/* LLM Response */}
+                                        {testResult.llm_response && (
+                                            <div>
+                                                <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                                    LLM Response
+                                                </h5>
+                                                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 border border-green-200 dark:border-green-800 max-h-64 overflow-y-auto">
+                                                    <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                                                        {testResult.llm_response}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Error */}
+                                        {testResult.error && (
+                                            <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 border border-red-200 dark:border-red-800">
+                                                <p className="text-sm text-red-800 dark:text-red-200">
+                                                    Error: {testResult.error}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
                             </div>
                         </div>
-
-                        {/* LLM Response */}
-                        {testResult.llm_response && (
-                            <div>
-                                <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
-                                    <DocumentTextIcon className="h-4 w-4 text-green-500" />
-                                    LLM Response
-                                </h5>
-                                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
-                                    <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                                        {testResult.llm_response}
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Error */}
-                        {testResult.error && (
-                            <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 border border-red-200 dark:border-red-800">
-                                <p className="text-sm text-red-800 dark:text-red-200">
-                                    Error: {testResult.error}
-                                </p>
-                            </div>
-                        )}
                     </div>
                 )}
             </div>
