@@ -225,6 +225,7 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                         </span>
                     )}
                     <button
+                        type="button"
                         onClick={resetToDefaults}
                         disabled={isUsingDefaults}
                         className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -232,6 +233,7 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                         Reset to Defaults
                     </button>
                     <button
+                        type="button"
                         onClick={handleSave}
                         disabled={!hasChanges || saving}
                         className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
@@ -258,6 +260,7 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
             <div className="border-b border-gray-200 dark:border-gray-700">
                 <nav className="-mb-px flex space-x-8">
                     <button
+                        type="button"
                         onClick={() => setActivePromptType('executive_summary')}
                         className={`py-3 px-1 border-b-2 text-sm font-medium ${
                             activePromptType === 'executive_summary'
@@ -268,6 +271,7 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                         Executive Summary
                     </button>
                     <button
+                        type="button"
                         onClick={() => setActivePromptType('category_summary')}
                         className={`py-3 px-1 border-b-2 text-sm font-medium ${
                             activePromptType === 'category_summary'
@@ -317,6 +321,7 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                 <div className="space-y-4">
                     <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                         <button
+                            type="button"
                             onClick={() => setShowSlugs(!showSlugs)}
                             className="w-full px-4 py-3 flex items-center justify-between text-left"
                         >
@@ -372,6 +377,7 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
                             </select>
                         </div>
                         <button
+                            type="button"
                             onClick={handleTest}
                             disabled={isTesting}
                             className="px-4 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
