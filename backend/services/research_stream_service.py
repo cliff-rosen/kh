@@ -311,3 +311,51 @@ class ResearchStreamService:
     def toggle_stream_status(self, stream_id: int, is_active: bool) -> ResearchStream:
         """Toggle the active status of a research stream"""
         return self.update_research_stream(stream_id, {"is_active": is_active})
+
+    def get_enrichment_config(self, stream_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get enrichment config for a stream.
+
+        Args:
+            stream_id: Research stream ID
+
+        Returns:
+            Enrichment config dict or None if not set
+        """
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == stream_id
+        ).first()
+
+        if not stream:
+            raise ValueError(f"Research stream with ID {stream_id} not found")
+
+        return stream.enrichment_config
+
+    def update_enrichment_config(
+        self,
+        stream_id: int,
+        enrichment_config: Optional[Dict[str, Any]]
+    ) -> None:
+        """
+        Update enrichment config for a stream.
+
+        Args:
+            stream_id: Research stream ID
+            enrichment_config: New enrichment config dict, or None to reset to defaults
+        """
+        from sqlalchemy.orm.attributes import flag_modified
+
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == stream_id
+        ).first()
+
+        if not stream:
+            raise ValueError(f"Research stream with ID {stream_id} not found")
+
+        stream.enrichment_config = enrichment_config
+
+        if enrichment_config is not None:
+            flag_modified(stream, "enrichment_config")
+
+        stream.updated_at = datetime.utcnow()
+        self.db.commit()
