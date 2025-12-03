@@ -38,9 +38,23 @@ import {
 import { reportApi } from '../lib/api/reportApi';
 import { Report } from '../types';
 
+interface PromptSuggestion {
+    target: 'system_prompt' | 'user_prompt_template';
+    current_issue: string;
+    suggested_text: string;
+    reasoning: string;
+}
+
+interface AppliedPromptSuggestions {
+    prompt_type: 'executive_summary' | 'category_summary';
+    suggestions: PromptSuggestion[];
+}
+
 interface ContentEnrichmentFormProps {
     streamId: number;
     onSave?: () => void;
+    appliedSuggestions?: AppliedPromptSuggestions | null;
+    onSuggestionsApplied?: () => void;
 }
 
 type PromptType = 'executive_summary' | 'category_summary';
@@ -55,7 +69,12 @@ interface HistoryEntry {
     result: TestPromptResponse;
 }
 
-export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnrichmentFormProps) {
+export default function ContentEnrichmentForm({
+    streamId,
+    onSave,
+    appliedSuggestions,
+    onSuggestionsApplied
+}: ContentEnrichmentFormProps) {
     // State for prompts
     const [activePromptType, setActivePromptType] = useState<PromptType>('executive_summary');
     const [prompts, setPrompts] = useState<Record<string, PromptTemplate>>({});
@@ -126,6 +145,41 @@ export default function ContentEnrichmentForm({ streamId, onSave }: ContentEnric
 
         loadData();
     }, [streamId]);
+
+    // Apply suggestions from chat when received
+    useEffect(() => {
+        if (appliedSuggestions && appliedSuggestions.suggestions.length > 0) {
+            const promptType = appliedSuggestions.prompt_type;
+
+            // Switch to the relevant prompt type tab
+            setActivePromptType(promptType);
+
+            // Apply each suggestion
+            setPrompts(prev => {
+                const updated = { ...prev };
+                const currentPrompt = { ...prev[promptType] };
+
+                for (const suggestion of appliedSuggestions.suggestions) {
+                    if (suggestion.target === 'system_prompt') {
+                        currentPrompt.system_prompt = suggestion.suggested_text;
+                    } else if (suggestion.target === 'user_prompt_template') {
+                        currentPrompt.user_prompt_template = suggestion.suggested_text;
+                    }
+                }
+
+                updated[promptType] = currentPrompt;
+                return updated;
+            });
+
+            setHasChanges(true);
+            setIsUsingDefaults(false);
+
+            // Notify parent that suggestions have been applied
+            if (onSuggestionsApplied) {
+                onSuggestionsApplied();
+            }
+        }
+    }, [appliedSuggestions, onSuggestionsApplied]);
 
     // Track changes
     const updatePrompt = useCallback((type: PromptType, field: 'system_prompt' | 'user_prompt_template', value: string) => {

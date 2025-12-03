@@ -22,8 +22,21 @@ import ChatTray from '../components/chat/ChatTray';
 import { promptWorkbenchApi, PromptTemplate, SlugInfo } from '../lib/api/promptWorkbenchApi';
 import SchemaProposalCard from '../components/chat/SchemaProposalCard';
 import PresentationCategoriesCard from '../components/chat/PresentationCategoriesCard';
+import PromptSuggestionsCard from '../components/chat/PromptSuggestionsCard';
 
 type TabType = 'semantic' | 'retrieval' | 'presentation' | 'enrichment' | 'execute';
+
+interface PromptSuggestion {
+    target: 'system_prompt' | 'user_prompt_template';
+    current_issue: string;
+    suggested_text: string;
+    reasoning: string;
+}
+
+interface AppliedPromptSuggestions {
+    prompt_type: 'executive_summary' | 'category_summary';
+    suggestions: PromptSuggestion[];
+}
 
 export default function EditStreamPage() {
     const { id } = useParams<{ id: string }>();
@@ -40,6 +53,9 @@ export default function EditStreamPage() {
         availableSlugs: Record<string, SlugInfo[]>;
         isUsingDefaults: boolean;
     } | null>(null);
+
+    // State for prompt suggestions from chat
+    const [appliedPromptSuggestions, setAppliedPromptSuggestions] = useState<AppliedPromptSuggestions | null>(null);
 
     // Check URL params for initial tab
     const initialTab = (searchParams.get('tab') as TabType) || 'semantic';
@@ -299,6 +315,24 @@ export default function EditStreamPage() {
         console.log('Presentation categories proposal rejected');
     };
 
+    const handlePromptSuggestionsAccept = (payload: AppliedPromptSuggestions) => {
+        console.log('Applying prompt suggestions:', payload);
+        setAppliedPromptSuggestions(payload);
+        // Switch to enrichment tab if not already there
+        if (activeTab !== 'enrichment') {
+            setActiveTab('enrichment');
+        }
+    };
+
+    const handlePromptSuggestionsReject = () => {
+        console.log('Prompt suggestions rejected');
+    };
+
+    const handlePromptSuggestionsApplied = () => {
+        // Clear the applied suggestions after they've been applied
+        setAppliedPromptSuggestions(null);
+    };
+
     if (isLoading) {
         return (
             <div className="max-w-7xl mx-auto p-6">
@@ -550,6 +584,8 @@ export default function EditStreamPage() {
                             <ContentEnrichmentForm
                                 streamId={parseInt(id!)}
                                 onSave={() => loadResearchStream(parseInt(id!))}
+                                appliedSuggestions={appliedPromptSuggestions}
+                                onSuggestionsApplied={handlePromptSuggestionsApplied}
                             />
                         )}
 
@@ -685,6 +721,22 @@ export default function EditStreamPage() {
                             panelWidth: '600px',
                             headerTitle: 'Presentation Categories',
                             headerIcon: '📊'
+                        }
+                    },
+                    prompt_suggestions: {
+                        render: (payload, callbacks) => (
+                            <PromptSuggestionsCard
+                                proposal={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: handlePromptSuggestionsAccept,
+                        onReject: handlePromptSuggestionsReject,
+                        renderOptions: {
+                            panelWidth: '550px',
+                            headerTitle: 'Prompt Suggestions',
+                            headerIcon: '✨'
                         }
                     }
                 }}
