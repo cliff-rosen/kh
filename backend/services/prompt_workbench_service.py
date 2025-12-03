@@ -2,9 +2,10 @@
 Prompt Workbench Service
 
 Handles business logic for:
-- Default prompts and slug definitions
 - Stream enrichment config management
 - Prompt testing with sample data or reports
+
+Default prompts are sourced from ReportSummaryService (single source of truth).
 """
 
 import logging
@@ -13,95 +14,10 @@ from typing import Dict, Any, Optional, List
 
 from models import Report, WipArticle
 from schemas.research_stream import EnrichmentConfig, PromptTemplate, ResearchStream as ResearchStreamSchema
-from services.report_summary_service import ReportSummaryService
+from services.report_summary_service import ReportSummaryService, DEFAULT_PROMPTS, AVAILABLE_SLUGS
 from services.research_stream_service import ResearchStreamService
 
 logger = logging.getLogger(__name__)
-
-
-# =============================================================================
-# Default Prompts
-# =============================================================================
-
-DEFAULT_PROMPTS = {
-    "executive_summary": PromptTemplate(
-        system_prompt="""You are an expert research analyst who specializes in synthesizing scientific literature.
-
-    Your task is to write a concise executive summary of a research report.
-
-    The summary should:
-    - Be 3-5 paragraphs (200-400 words total)
-    - Highlight the most important findings and trends
-    - Identify key themes across the literature
-    - Note any significant developments or breakthroughs
-    - Be written for an executive audience (technical but accessible)
-    - Focus on insights and implications, not just listing papers
-
-    Write in a professional, analytical tone. Include only the summary with no heading or other text.""",
-        user_prompt_template="""Generate an executive summary for this research report.
-
-    # Research Stream Purpose
-    {stream.purpose}
-
-    # Report Statistics
-    - Total articles: {articles.count}
-    - Categories covered: {categories.count}
-
-    # Category Summaries
-    {categories.summaries}
-
-    # Sample Articles (representative of the full report)
-    {articles.formatted}
-
-    Generate a comprehensive executive summary that synthesizes the key findings and themes across all articles."""
-    ),
-    "category_summary": PromptTemplate(
-        system_prompt="""You are an expert research analyst synthesizing scientific literature.
-
-    Your task is to write a concise summary of articles in the "{category.name}" category.
-
-    The summary should:
-    - Be 2-3 paragraphs (150-250 words total)
-    - Identify the main themes and findings in this category
-    - Highlight the most significant or impactful articles
-    - Note any emerging trends or patterns
-    - Be written for a technical audience familiar with the field
-
-    Write in a professional, analytical tone.""",
-        user_prompt_template="""Generate a summary for the "{category.name}" category.
-
-    # Category Description
-    {category.description}
-
-    # Research Stream Purpose
-    {stream.purpose}
-
-    # Articles in This Category ({articles.count} total)
-    {articles.formatted}
-
-    Generate a focused summary that captures the key insights from articles in this category."""
-    )
-}
-
-AVAILABLE_SLUGS = {
-    "executive_summary": [
-        {"slug": "{stream.name}", "description": "Name of the research stream"},
-        {"slug": "{stream.purpose}", "description": "Purpose/description of the stream"},
-        {"slug": "{articles.count}", "description": "Total number of articles in the report"},
-        {"slug": "{articles.formatted}", "description": "Formatted list of articles (title, authors, journal, year, abstract)"},
-        {"slug": "{categories.count}", "description": "Number of categories in the report"},
-        {"slug": "{categories.summaries}", "description": "Formatted category summaries (if available)"},
-    ],
-    "category_summary": [
-        {"slug": "{stream.name}", "description": "Name of the research stream"},
-        {"slug": "{stream.purpose}", "description": "Purpose/description of the stream"},
-        {"slug": "{category.name}", "description": "Name of the current category"},
-        {"slug": "{category.description}", "description": "Description of what this category covers"},
-        {"slug": "{category.topics}", "description": "List of topics in this category"},
-        {"slug": "{articles.count}", "description": "Number of articles in this category"},
-        {"slug": "{articles.formatted}", "description": "Formatted list of articles in this category"},
-    ]
-}
 
 
 class PromptWorkbenchService:
@@ -112,10 +28,20 @@ class PromptWorkbenchService:
         self.summary_service = ReportSummaryService()
         self.stream_service = ResearchStreamService(db)
 
+    def _convert_to_prompt_templates(self, prompts_dict: Dict[str, Dict]) -> Dict[str, PromptTemplate]:
+        """Convert dict-based prompts to PromptTemplate objects"""
+        return {
+            key: PromptTemplate(
+                system_prompt=value["system_prompt"],
+                user_prompt_template=value["user_prompt_template"]
+            )
+            for key, value in prompts_dict.items()
+        }
+
     def get_defaults(self) -> Dict[str, Any]:
         """Get default prompts and available slugs"""
         return {
-            "prompts": DEFAULT_PROMPTS,
+            "prompts": self._convert_to_prompt_templates(DEFAULT_PROMPTS),
             "available_slugs": AVAILABLE_SLUGS
         }
 
@@ -130,7 +56,7 @@ class PromptWorkbenchService:
         return {
             "enrichment_config": enrichment_config,
             "is_using_defaults": enrichment_config is None,
-            "defaults": DEFAULT_PROMPTS
+            "defaults": self._convert_to_prompt_templates(DEFAULT_PROMPTS)
         }
 
     def update_enrichment_config(
