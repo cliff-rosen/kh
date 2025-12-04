@@ -34,6 +34,8 @@ from services.semantic_filter_service import SemanticFilterService
 from services.article_categorization_service import ArticleCategorizationService
 from services.research_stream_service import ResearchStreamService
 from services.report_summary_service import ReportSummaryService
+from services.wip_article_service import WipArticleService
+from services.report_service import ReportService
 
 
 class PipelineStatus:
@@ -63,6 +65,8 @@ class PipelineService:
     def __init__(self, db: Session):
         self.db = db
         self.research_stream_service = ResearchStreamService(db)
+        self.wip_article_service = WipArticleService(db)
+        self.report_service = ReportService(db)
         self.pubmed_service = PubMedService()
         self.filter_service = SemanticFilterService()
         self.categorization_service = ArticleCategorizationService()
@@ -400,7 +404,7 @@ class PipelineService:
             # Other sources not yet implemented
             pass
 
-        # Store results in wip_articles
+        # Store results in wip_articles using WipArticleService
         # Articles are CanonicalResearchArticle objects (Pydantic models)
         for article in articles:
             # Parse publication_date string to date object if present
@@ -412,29 +416,24 @@ class PipelineService:
                 except (ValueError, AttributeError):
                     pass  # Skip invalid dates
 
-            wip_article = WipArticle(
+            self.wip_article_service.create_wip_article(
                 research_stream_id=research_stream_id,
                 pipeline_execution_id=execution_id,
-                retrieval_group_id=retrieval_unit_id,  # Store concept_id or query_id
+                retrieval_group_id=retrieval_unit_id,
                 source_id=source.source_id,
                 title=article.title,
                 url=article.url,
                 authors=article.authors or [],
                 publication_date=pub_date,
                 abstract=article.abstract,
-                summary=article.snippet,  # Use snippet as summary
                 pmid=article.pmid or (article.id if article.source == 'pubmed' else None),
                 doi=article.doi,
                 journal=article.journal,
-                year=str(article.publication_year) if article.publication_year else None,
-                article_metadata=article.metadata or {},
-                is_duplicate=False,
-                passed_semantic_filter=None,  # Not yet filtered
-                included_in_report=False
+                year=int(article.publication_year) if article.publication_year else None,
+                source_specific_id=article.id
             )
-            self.db.add(wip_article)
 
-        self.db.commit()
+        self.wip_article_service.commit()
         return len(articles)
 
     async def _apply_semantic_filter(
@@ -457,14 +456,7 @@ class PipelineService:
             Tuple of (passed_count, rejected_count)
         """
         # Get all non-duplicate articles for this unit that haven't been filtered yet
-        articles = self.db.query(WipArticle).filter(
-            and_(
-                WipArticle.pipeline_execution_id == execution_id,
-                WipArticle.retrieval_group_id == retrieval_unit_id,
-                WipArticle.is_duplicate == False,
-                WipArticle.passed_semantic_filter == None
-            )
-        ).all()
+        articles = self.wip_article_service.get_for_filtering(execution_id, retrieval_unit_id)
 
         if not articles:
             return 0, 0
@@ -477,20 +469,23 @@ class PipelineService:
             max_concurrent=10
         )
 
-        # Update database with results
+        # Update database with results using WipArticleService
         passed = 0
         rejected = 0
 
         for article, is_relevant, score, reasoning in results:
+            self.wip_article_service.update_filter_result(
+                article=article,
+                passed=is_relevant,
+                score=score,
+                rejection_reason=reasoning if not is_relevant else None
+            )
             if is_relevant:
-                article.passed_semantic_filter = True
                 passed += 1
             else:
-                article.passed_semantic_filter = False
-                article.filter_rejection_reason = reasoning
                 rejected += 1
 
-        self.db.commit()
+        self.wip_article_service.commit()
         return passed, rejected
 
     async def _deduplicate_globally(self, research_stream_id: int, execution_id: str) -> int:
@@ -505,17 +500,8 @@ class PipelineService:
         Returns:
             Number of duplicates found
         """
-        # Get all articles that passed filtering and aren't already marked as duplicates in THIS execution
-        articles = self.db.query(WipArticle).filter(
-            and_(
-                WipArticle.pipeline_execution_id == execution_id,
-                WipArticle.is_duplicate == False,
-                or_(
-                    WipArticle.passed_semantic_filter == True,
-                    WipArticle.passed_semantic_filter == None  # Groups without filters
-                )
-            )
-        ).all()
+        # Get all articles that passed filtering and aren't already marked as duplicates
+        articles = self.wip_article_service.get_for_deduplication(execution_id)
 
         duplicates_found = 0
         seen_dois = {}
@@ -526,23 +512,21 @@ class PipelineService:
             if article.doi and article.doi.strip():
                 doi_normalized = article.doi.lower().strip()
                 if doi_normalized in seen_dois:
-                    article.is_duplicate = True
-                    article.duplicate_of_id = seen_dois[doi_normalized]
+                    self.wip_article_service.mark_as_duplicate(article, seen_dois[doi_normalized])
                     duplicates_found += 1
                 else:
-                    seen_dois[doi_normalized] = article.id
+                    seen_dois[doi_normalized] = article.pmid or str(article.id)
 
             # Check title-based deduplication
             elif article.title:
                 title_normalized = article.title.lower().strip()
                 if title_normalized in seen_titles:
-                    article.is_duplicate = True
-                    article.duplicate_of_id = seen_titles[title_normalized]
+                    self.wip_article_service.mark_as_duplicate(article, seen_titles[title_normalized])
                     duplicates_found += 1
                 else:
-                    seen_titles[title_normalized] = article.id
+                    seen_titles[title_normalized] = article.pmid or str(article.id)
 
-        self.db.commit()
+        self.wip_article_service.commit()
         return duplicates_found
 
     async def _mark_articles_for_report(self, execution_id: str) -> int:
@@ -559,21 +543,9 @@ class PipelineService:
         Returns:
             Number of articles marked for inclusion
         """
-        articles = self.db.query(WipArticle).filter(
-            and_(
-                WipArticle.pipeline_execution_id == execution_id,
-                WipArticle.is_duplicate == False,
-                or_(
-                    WipArticle.passed_semantic_filter == True,
-                    WipArticle.passed_semantic_filter == None
-                )
-            )
-        ).all()
-
-        for article in articles:
-            article.included_in_report = True
-
-        self.db.commit()
+        articles = self.wip_article_service.get_for_inclusion(execution_id)
+        self.wip_article_service.mark_all_for_inclusion(articles)
+        self.wip_article_service.commit()
         return len(articles)
 
     async def _categorize_articles(
@@ -594,12 +566,7 @@ class PipelineService:
             Number of articles categorized
         """
         # Get all articles marked for report inclusion (to categorize them)
-        articles = self.db.query(WipArticle).filter(
-            and_(
-                WipArticle.pipeline_execution_id == execution_id,
-                WipArticle.included_in_report == True
-            )
-        ).all()
+        articles = self.wip_article_service.get_included_articles(execution_id)
 
         if not articles:
             return 0
@@ -616,14 +583,10 @@ class PipelineService:
             max_concurrent=10
         )
 
-        # Update database with results
-        for article, assigned_category in results:
-            # Store as single-item list for backward compatibility with DB schema
-            # presentation_categories is stored as a JSONB array in the database
-            article.presentation_categories = [assigned_category] if assigned_category else []
-
-        self.db.commit()
-        return len(articles)
+        # Update database with results using WipArticleService
+        categorized = self.wip_article_service.bulk_update_categories(results)
+        self.wip_article_service.commit()
+        return categorized
 
     async def _generate_summaries(
         self,
@@ -645,12 +608,7 @@ class PipelineService:
             Tuple of (executive_summary, category_summaries_dict)
         """
         # Get all articles marked for report inclusion
-        wip_articles = self.db.query(WipArticle).filter(
-            and_(
-                WipArticle.pipeline_execution_id == execution_id,
-                WipArticle.included_in_report == True
-            )
-        ).all()
+        wip_articles = self.wip_article_service.get_included_articles(execution_id)
 
         if not wip_articles:
             return "No articles in this report.", {}
@@ -752,33 +710,28 @@ class PipelineService:
             "category_summaries": category_summaries
         }
 
-        # Create report
-        report_date = date.today()
+        # Create report using ReportService
+        report_date_obj = date.today()
         # Use provided report_name or default to YYYY.MM.DD format
-        final_report_name = report_name if report_name else report_date.strftime("%Y.%m.%d")
+        final_report_name = report_name if report_name else report_date_obj.strftime("%Y.%m.%d")
 
-        report = Report(
+        report = self.report_service.create_report(
             user_id=stream.user_id,
             research_stream_id=research_stream_id,
-            report_name=final_report_name,
-            report_date=report_date,
-            run_type=run_type,
-            retrieval_params=retrieval_params,
-            enrichments=enrichments,
-            pipeline_metrics=metrics,
-            pipeline_execution_id=execution_id,  # Link to this execution's WIP data
-            is_read=False
+            report_date=report_date_obj,
+            title=final_report_name,
+            pipeline_execution_id=execution_id,
+            executive_summary=executive_summary,
+            enrichments=enrichments
         )
-        self.db.add(report)
-        self.db.flush()  # Get report_id
+        # Set additional fields not in the service method
+        report.run_type = run_type
+        report.retrieval_params = retrieval_params
+        report.pipeline_metrics = metrics
+        report.is_read = False
 
         # Get all articles marked for report inclusion
-        wip_articles = self.db.query(WipArticle).filter(
-            and_(
-                WipArticle.pipeline_execution_id == execution_id,
-                WipArticle.included_in_report == True
-            )
-        ).all()
+        wip_articles = self.wip_article_service.get_included_articles(execution_id)
 
         # Create or get Article records, then create associations
         for idx, wip_article in enumerate(wip_articles):

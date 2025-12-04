@@ -1,18 +1,32 @@
 """
 Report Service for Knowledge Horizon
+
+This service is the ONLY place that should write to the Report and
+ReportArticleAssociation tables. All other services should use this
+service for report-related operations.
 """
 
+import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from typing import List, Optional, Dict, Any
-from datetime import date
+from datetime import date, datetime
 from fastapi import HTTPException, status
 
 from models import Report, ReportArticleAssociation, Article, WipArticle
 from schemas.report import Report as ReportSchema
 
+logger = logging.getLogger(__name__)
+
 
 class ReportService:
+    """
+    Service for all Report and ReportArticleAssociation operations.
+
+    This is the single source of truth for Report table access.
+    Only this service should write to the Report and ReportArticleAssociation tables.
+    """
+
     def __init__(self, db: Session):
         self.db = db
 
@@ -207,3 +221,193 @@ class ReportService:
         self.db.commit()
 
         return True
+
+    # =========================================================================
+    # CREATE Operations
+    # =========================================================================
+
+    def create_report(
+        self,
+        user_id: int,
+        research_stream_id: int,
+        report_date: date,
+        title: str,
+        pipeline_execution_id: Optional[str] = None,
+        executive_summary: Optional[str] = None,
+        enrichments: Optional[Dict[str, Any]] = None
+    ) -> Report:
+        """
+        Create a new report.
+
+        Args:
+            user_id: Owner user ID
+            research_stream_id: Associated research stream ID
+            report_date: Date of the report
+            title: Report title
+            pipeline_execution_id: Optional pipeline execution ID
+            executive_summary: Optional executive summary
+            enrichments: Optional enrichments dict (category summaries, etc.)
+
+        Returns:
+            Created Report instance
+        """
+        report = Report(
+            user_id=user_id,
+            research_stream_id=research_stream_id,
+            report_date=report_date,
+            title=title,
+            pipeline_execution_id=pipeline_execution_id,
+            executive_summary=executive_summary,
+            enrichments=enrichments or {},
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        self.db.add(report)
+        self.db.flush()  # Get the report_id
+        return report
+
+    def create_article_association(
+        self,
+        report_id: int,
+        article_id: int,
+        ranking: int,
+        relevance_score: Optional[float] = None,
+        relevance_rationale: Optional[str] = None,
+        presentation_categories: Optional[List[str]] = None
+    ) -> ReportArticleAssociation:
+        """
+        Create a report-article association.
+
+        Args:
+            report_id: Report ID
+            article_id: Article ID
+            ranking: Article ranking in the report
+            relevance_score: Optional relevance score
+            relevance_rationale: Optional relevance explanation
+            presentation_categories: Optional list of category IDs
+
+        Returns:
+            Created ReportArticleAssociation instance
+        """
+        association = ReportArticleAssociation(
+            report_id=report_id,
+            article_id=article_id,
+            ranking=ranking,
+            relevance_score=relevance_score,
+            relevance_rationale=relevance_rationale,
+            presentation_categories=presentation_categories or [],
+            is_starred=False,
+            is_read=False
+        )
+        self.db.add(association)
+        return association
+
+    def update_report_enrichments(
+        self,
+        report: Report,
+        executive_summary: Optional[str] = None,
+        enrichments: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """
+        Update report enrichments (executive summary, category summaries).
+
+        Args:
+            report: Report instance to update
+            executive_summary: New executive summary
+            enrichments: New enrichments dict
+        """
+        if executive_summary is not None:
+            report.executive_summary = executive_summary
+        if enrichments is not None:
+            report.enrichments = enrichments
+        report.updated_at = datetime.utcnow()
+
+    # =========================================================================
+    # Extended READ Operations
+    # =========================================================================
+
+    def get_report_with_wip_articles(
+        self,
+        report_id: int,
+        user_id: int
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get report with all WIP articles for analytics/debugging.
+
+        Args:
+            report_id: Report ID
+            user_id: User ID for ownership verification
+
+        Returns:
+            Dict with report data and wip_articles, or None if not found
+        """
+        report = self.db.query(Report).filter(
+            and_(
+                Report.report_id == report_id,
+                Report.user_id == user_id
+            )
+        ).first()
+
+        if not report:
+            return None
+
+        # Get WIP articles if pipeline execution exists
+        wip_articles = []
+        if report.pipeline_execution_id:
+            wip_articles = self.db.query(WipArticle).filter(
+                WipArticle.pipeline_execution_id == report.pipeline_execution_id
+            ).all()
+
+        return {
+            "report": report,
+            "wip_articles": wip_articles
+        }
+
+    def get_report_article_associations(
+        self,
+        report_id: int
+    ) -> List[ReportArticleAssociation]:
+        """
+        Get all article associations for a report.
+
+        Args:
+            report_id: Report ID
+
+        Returns:
+            List of ReportArticleAssociation instances with joined Article data
+        """
+        return self.db.query(ReportArticleAssociation).join(Article).filter(
+            ReportArticleAssociation.report_id == report_id
+        ).all()
+
+    def get_report_pmids(self, report_id: int) -> Dict[str, Article]:
+        """
+        Get a mapping of PMIDs to Articles for a report.
+
+        Args:
+            report_id: Report ID
+
+        Returns:
+            Dict mapping PMID -> Article
+        """
+        associations = self.db.query(ReportArticleAssociation).join(Article).filter(
+            ReportArticleAssociation.report_id == report_id
+        ).all()
+
+        return {
+            assoc.article.pmid: assoc.article
+            for assoc in associations
+            if assoc.article.pmid
+        }
+
+    # =========================================================================
+    # COMMIT Operations
+    # =========================================================================
+
+    def commit(self) -> None:
+        """Commit pending changes to the database."""
+        self.db.commit()
+
+    def flush(self) -> None:
+        """Flush pending changes without committing."""
+        self.db.flush()
