@@ -337,47 +337,101 @@ export default function EditStreamPage() {
     const handleRetrievalProposalAccept = (proposalData: any) => {
         console.log('Applying retrieval proposal:', proposalData);
 
-        const isBroadSearch = proposalData.proposal_type === 'broad_search';
+        const updateType = proposalData.update_type || 'both';
+        const hasQueries = proposalData.queries && proposalData.queries.length > 0;
+        const hasFilters = proposalData.filters && proposalData.filters.length > 0;
 
-        if (isBroadSearch && proposalData.broad_search) {
-            // Apply broad search strategy
-            setForm(prev => ({
-                ...prev,
-                retrieval_config: {
-                    ...prev.retrieval_config,
-                    broad_search: {
-                        queries: proposalData.broad_search.queries.map((q: any) => ({
+        setForm(prev => {
+            const newConfig = { ...prev.retrieval_config };
+
+            // Apply query updates
+            if ((updateType === 'queries_only' || updateType === 'both') && hasQueries) {
+                // Determine if we're working with broad_search or concepts
+                if (newConfig.broad_search) {
+                    // Update broad search queries
+                    const existingQueries = newConfig.broad_search.queries || [];
+                    const updatedQueries = [...existingQueries];
+
+                    for (const q of proposalData.queries) {
+                        const existingIndex = updatedQueries.findIndex((eq) => eq.query_id === q.query_id);
+                        const existingQuery = existingIndex >= 0 ? updatedQueries[existingIndex] : null;
+
+                        const newQuery = {
                             query_id: q.query_id,
-                            name: q.name,
-                            query: q.query_string,
+                            search_terms: existingQuery?.search_terms || [],
+                            query_expression: q.query_string,
+                            rationale: q.rationale || '',
                             covered_topics: q.covered_topics,
-                            rationale: q.rationale
+                            estimated_weekly_volume: existingQuery?.estimated_weekly_volume || null,
+                            semantic_filter: existingQuery?.semantic_filter || { enabled: false, criteria: '', threshold: 0.7 }
+                        };
+
+                        if (existingIndex >= 0) {
+                            updatedQueries[existingIndex] = newQuery;
+                        } else {
+                            updatedQueries.push(newQuery);
+                        }
+                    }
+
+                    newConfig.broad_search = {
+                        ...newConfig.broad_search,
+                        queries: updatedQueries
+                    };
+                } else {
+                    // Create new broad_search config
+                    newConfig.broad_search = {
+                        queries: proposalData.queries.map((q: any) => ({
+                            query_id: q.query_id,
+                            search_terms: [],
+                            query_expression: q.query_string,
+                            rationale: q.rationale || '',
+                            covered_topics: q.covered_topics,
+                            estimated_weekly_volume: null,
+                            semantic_filter: { enabled: false, criteria: '', threshold: 0.7 }
                         })),
-                        strategy_rationale: proposalData.broad_search.strategy_rationale,
+                        strategy_rationale: 'Created from chat proposal',
                         coverage_analysis: {}
-                    },
-                    concepts: null  // Clear concepts if switching to broad search
+                    };
                 }
-            }));
-        } else if (proposalData.concepts) {
-            // Apply concepts strategy
-            setForm(prev => ({
+            }
+
+            // Apply filter updates
+            if ((updateType === 'filters_only' || updateType === 'both') && hasFilters) {
+                if (newConfig.broad_search?.queries) {
+                    const updatedQueries = newConfig.broad_search.queries.map((q: any) => {
+                        const filterUpdate = proposalData.filters.find((f: any) => f.target_id === q.query_id);
+                        if (filterUpdate) {
+                            return {
+                                ...q,
+                                semantic_filter: filterUpdate.semantic_filter
+                            };
+                        }
+                        return q;
+                    });
+                    newConfig.broad_search = {
+                        ...newConfig.broad_search,
+                        queries: updatedQueries
+                    };
+                } else if (newConfig.concepts) {
+                    const updatedConcepts = newConfig.concepts.map((c: any) => {
+                        const filterUpdate = proposalData.filters.find((f: any) => f.target_id === c.concept_id);
+                        if (filterUpdate) {
+                            return {
+                                ...c,
+                                semantic_filter: filterUpdate.semantic_filter
+                            };
+                        }
+                        return c;
+                    });
+                    newConfig.concepts = updatedConcepts;
+                }
+            }
+
+            return {
                 ...prev,
-                retrieval_config: {
-                    ...prev.retrieval_config,
-                    concepts: proposalData.concepts.map((c: any) => ({
-                        concept_id: c.concept_id,
-                        name: c.name,
-                        search_query: c.search_query,
-                        covered_topics: c.covered_topics,
-                        entity_pattern: [],
-                        relationship_edges: [],
-                        relationship_description: c.rationale || ''
-                    })),
-                    broad_search: null  // Clear broad search if switching to concepts
-                }
-            }));
-        }
+                retrieval_config: newConfig
+            };
+        });
 
         alert('Retrieval configuration has been applied to the form. Click "Save Changes" to persist.');
     };

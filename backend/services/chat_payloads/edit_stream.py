@@ -240,42 +240,48 @@ EDIT_STREAM_PAYLOADS = [
         parser=parse_retrieval_proposal,
         relevant_tabs=["retrieval"],  # Only relevant on retrieval tab
         llm_instructions="""
-        RETRIEVAL_PROPOSAL - Use when user asks for help with search queries or filters:
+        RETRIEVAL_PROPOSAL - Use when user asks for help with search queries or filters.
+
+        You can propose changes to QUERIES ONLY, FILTERS ONLY, or BOTH depending on what the user asks for.
 
         RETRIEVAL_PROPOSAL: {
-          "proposal_type": "broad_search" or "concepts",
-          "broad_search": {
-            "queries": [
-              {
-                "query_id": "q1",
-                "name": "Main search query",
-                "query_string": "PubMed search string here",
-                "covered_topics": ["topic_1", "topic_2"],
-                "rationale": "Why this query covers these topics"
-              }
-            ],
-            "strategy_rationale": "Overall explanation of the search strategy"
-          },
-          "concepts": [
+          "update_type": "queries_only" | "filters_only" | "both",
+          "target_ids": ["q1", "c1"],  // Which query/concept IDs to update (omit for new or all)
+
+          // Include this section for query updates (when update_type is "queries_only" or "both")
+          "queries": [
             {
-              "concept_id": "c1",
-              "name": "Concept name",
-              "search_query": "PubMed boolean search string",
-              "covered_topics": ["topic_1"],
-              "rationale": "Why this concept covers this topic"
+              "query_id": "q1",
+              "name": "Query name",
+              "query_string": "PubMed search string",
+              "covered_topics": ["topic_1", "topic_2"],
+              "rationale": "Why this query works"
             }
           ],
-          "changes_summary": "Brief description of what changed from current config",
-          "reasoning": "Why these changes will improve retrieval"
+
+          // Include this section for filter updates (when update_type is "filters_only" or "both")
+          "filters": [
+            {
+              "target_id": "q1",  // Which query/concept this filter applies to
+              "semantic_filter": {
+                "enabled": true,
+                "criteria": "Include articles that specifically discuss X in the context of Y. Exclude general reviews without specific findings.",
+                "threshold": 0.7
+              }
+            }
+          ],
+
+          "changes_summary": "Brief description of what changed",
+          "reasoning": "Why these changes will improve results"
         }
 
         Guidelines:
-        - Review the current retrieval config and semantic topics
-        - For broad_search: propose simple, high-recall queries (1-3 queries max)
-        - For concepts: propose focused boolean queries per topic
-        - Always reference topic IDs from the semantic space
-        - Explain the rationale for each query
-        - PubMed query syntax: use AND, OR, NOT, field tags like [Title/Abstract], [MeSH Terms]
+        - If user asks about FILTERS: use update_type "filters_only" and only include "filters" array
+        - If user asks about QUERIES/SEARCHES: use update_type "queries_only" and only include "queries" array
+        - If user wants both or a complete overhaul: use update_type "both"
+        - Semantic filter criteria should be specific and actionable
+        - Filter threshold: 0.5-0.6 for lenient, 0.7-0.8 for balanced, 0.9+ for strict
+        - PubMed query syntax: AND, OR, NOT, field tags like [Title/Abstract], [MeSH Terms]
         """
     ),
     PayloadConfig(
@@ -360,14 +366,27 @@ def _build_retrieval_tab_context(context: Dict[str, Any]) -> str:
     retrieval_config = current_schema.get("retrieval_config", {})
     retrieval_section = ""
 
+    def format_filter(f):
+        if not f or not f.get("enabled"):
+            return "Filter: disabled"
+        return f"Filter: enabled (threshold: {f.get('threshold', 0.7)}) - {f.get('criteria', 'No criteria')[:60]}..."
+
     if retrieval_config.get("broad_search"):
         broad_search = retrieval_config["broad_search"]
         queries = broad_search.get("queries", [])
         queries_list = []
         for q in queries:
+            query_id = q.get("query_id", "unknown")
             query_str = q.get("query_string", q.get("query", ""))
             covered = ", ".join(q.get("covered_topics", []))
-            queries_list.append(f"    - {q.get('name', 'Unnamed')}: {query_str[:100]}{'...' if len(query_str) > 100 else ''}\n      Covers: {covered}")
+            sem_filter = q.get("semantic_filter", {})
+            filter_info = format_filter(sem_filter)
+            queries_list.append(
+                f"    [{query_id}] {q.get('name', 'Unnamed')}:\n"
+                f"      Query: {query_str[:100]}{'...' if len(query_str) > 100 else ''}\n"
+                f"      Covers: {covered}\n"
+                f"      {filter_info}"
+            )
 
         retrieval_section = f"""
     === CURRENT RETRIEVAL STRATEGY: BROAD SEARCH ===
@@ -380,9 +399,17 @@ def _build_retrieval_tab_context(context: Dict[str, Any]) -> str:
         concepts = retrieval_config["concepts"]
         concepts_list = []
         for c in concepts:
+            concept_id = c.get("concept_id", "unknown")
             search_query = c.get("search_query", "")
             covered = ", ".join(c.get("covered_topics", []))
-            concepts_list.append(f"    - {c.get('name', c.get('concept_id', 'Unnamed'))}: {search_query[:80]}{'...' if len(search_query) > 80 else ''}\n      Covers: {covered}")
+            sem_filter = c.get("semantic_filter", {})
+            filter_info = format_filter(sem_filter)
+            concepts_list.append(
+                f"    [{concept_id}] {c.get('name', 'Unnamed')}:\n"
+                f"      Query: {search_query[:80]}{'...' if len(search_query) > 80 else ''}\n"
+                f"      Covers: {covered}\n"
+                f"      {filter_info}"
+            )
 
         retrieval_section = f"""
     === CURRENT RETRIEVAL STRATEGY: CONCEPTS ===
