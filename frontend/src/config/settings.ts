@@ -15,14 +15,14 @@ const isLocalhost = currentHost === 'localhost' || currentHost === '127.0.0.1';
 const productionSettings: Settings = {
     apiUrl: 'https://api.knowledgehorizon.ai',
     appName: 'Knowledge Horizon',
-    logoUrl: '/cognify-icon.svg'  // Using existing icon
+    logoUrl: '/kh-logo.png'
 };
 
 const developmentSettings: Settings = {
     // Use the current host for the API URL in development
     apiUrl: isLocalhost ? 'http://localhost:8000' : `http://${currentHost}:8000`,
     appName: 'Knowledge Horizon (Dev)',
-    logoUrl: '/cognify-icon.svg'  // Using existing icon
+    logoUrl: '/kh-logo.png'
 };
 
 // Select settings based on environment
