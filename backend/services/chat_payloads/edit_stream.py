@@ -76,6 +76,19 @@ def parse_prompt_suggestions(text: str) -> Dict[str, Any]:
         return None
 
 
+def parse_retrieval_proposal(text: str) -> Dict[str, Any]:
+    """Parse RETRIEVAL_PROPOSAL JSON from LLM response."""
+    try:
+        proposal_data = json.loads(text.strip())
+        return {
+            "type": "retrieval_proposal",
+            "data": proposal_data
+        }
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse RETRIEVAL_PROPOSAL JSON: {e}")
+        return None
+
+
 # Define payload configurations for edit_research_stream page
 EDIT_STREAM_PAYLOADS = [
     PayloadConfig(
@@ -222,6 +235,50 @@ EDIT_STREAM_PAYLOADS = [
         """
     ),
     PayloadConfig(
+        type="retrieval_proposal",
+        parse_marker="RETRIEVAL_PROPOSAL:",
+        parser=parse_retrieval_proposal,
+        relevant_tabs=["retrieval"],  # Only relevant on retrieval tab
+        llm_instructions="""
+        RETRIEVAL_PROPOSAL - Use when user asks for help with search queries or filters:
+
+        RETRIEVAL_PROPOSAL: {
+          "proposal_type": "broad_search" or "concepts",
+          "broad_search": {
+            "queries": [
+              {
+                "query_id": "q1",
+                "name": "Main search query",
+                "query_string": "PubMed search string here",
+                "covered_topics": ["topic_1", "topic_2"],
+                "rationale": "Why this query covers these topics"
+              }
+            ],
+            "strategy_rationale": "Overall explanation of the search strategy"
+          },
+          "concepts": [
+            {
+              "concept_id": "c1",
+              "name": "Concept name",
+              "search_query": "PubMed boolean search string",
+              "covered_topics": ["topic_1"],
+              "rationale": "Why this concept covers this topic"
+            }
+          ],
+          "changes_summary": "Brief description of what changed from current config",
+          "reasoning": "Why these changes will improve retrieval"
+        }
+
+        Guidelines:
+        - Review the current retrieval config and semantic topics
+        - For broad_search: propose simple, high-recall queries (1-3 queries max)
+        - For concepts: propose focused boolean queries per topic
+        - Always reference topic IDs from the semantic space
+        - Explain the rationale for each query
+        - PubMed query syntax: use AND, OR, NOT, field tags like [Title/Abstract], [MeSH Terms]
+        """
+    ),
+    PayloadConfig(
         type="prompt_suggestions",
         parse_marker="PROMPT_SUGGESTIONS:",
         parser=parse_prompt_suggestions,
@@ -294,27 +351,71 @@ def _build_retrieval_tab_context(context: Dict[str, Any]) -> str:
     """Build context for the Retrieval Config tab (Layer 2)."""
     current_schema = context.get("current_schema", {})
     stream_name = current_schema.get("stream_name", "Not set")
+
+    # Format topics
     topics = current_schema.get("semantic_space", {}).get("topics", [])
-    topics_summary = f"{len(topics)} topics defined" if topics else "No topics defined yet"
+    topics_list = [f"  - {t.get('topic_id', 'unknown')}: {t.get('name', 'Unnamed')}" for t in topics] if topics else ["  (No topics defined)"]
+
+    # Format current retrieval config
+    retrieval_config = current_schema.get("retrieval_config", {})
+    retrieval_section = ""
+
+    if retrieval_config.get("broad_search"):
+        broad_search = retrieval_config["broad_search"]
+        queries = broad_search.get("queries", [])
+        queries_list = []
+        for q in queries:
+            query_str = q.get("query_string", q.get("query", ""))
+            covered = ", ".join(q.get("covered_topics", []))
+            queries_list.append(f"    - {q.get('name', 'Unnamed')}: {query_str[:100]}{'...' if len(query_str) > 100 else ''}\n      Covers: {covered}")
+
+        retrieval_section = f"""
+    === CURRENT RETRIEVAL STRATEGY: BROAD SEARCH ===
+    Strategy Rationale: {broad_search.get('strategy_rationale', 'Not specified')}
+
+    Queries ({len(queries)}):
+{chr(10).join(queries_list) if queries_list else '    (No queries defined)'}
+"""
+    elif retrieval_config.get("concepts"):
+        concepts = retrieval_config["concepts"]
+        concepts_list = []
+        for c in concepts:
+            search_query = c.get("search_query", "")
+            covered = ", ".join(c.get("covered_topics", []))
+            concepts_list.append(f"    - {c.get('name', c.get('concept_id', 'Unnamed'))}: {search_query[:80]}{'...' if len(search_query) > 80 else ''}\n      Covers: {covered}")
+
+        retrieval_section = f"""
+    === CURRENT RETRIEVAL STRATEGY: CONCEPTS ===
+    Number of concepts: {len(concepts)}
+
+    Concepts:
+{chr(10).join(concepts_list) if concepts_list else '    (No concepts defined)'}
+"""
+    else:
+        retrieval_section = """
+    === CURRENT RETRIEVAL STRATEGY ===
+    No retrieval strategy configured yet.
+"""
 
     return f"""The user is on the RETRIEVAL CONFIG tab (Layer 2: How to find & filter).
 
     Current stream: {stream_name}
-    Semantic topics defined: {topics_summary}
 
-    RETRIEVAL CONFIG translates the semantic space into specific search strategies for finding relevant articles from PubMed and other sources. This layer is about HOW to query and filter, not WHAT information matters (that's Layer 1).
+    Semantic Topics (from Layer 1):
+{chr(10).join(topics_list)}
+{retrieval_section}
 
-    Key concepts:
-    1. retrieval_config.concepts: Search concepts with boolean operators (AND, OR, NOT) and specific terms
-    2. retrieval_config.broad_search: Simple, wide-net queries optimized for weekly monitoring
+    RETRIEVAL CONFIG translates the semantic space into specific search strategies for finding relevant articles from PubMed and other sources.
 
-    The retrieval wizard helps users create effective search queries from their semantic topics. You can:
-    - Explain how concepts map to semantic topics
-    - Help troubleshoot retrieval strategies
-    - Suggest refinements to search terms
-    - Guide users on using the wizard for AI-assisted setup
+    Two retrieval strategies are available:
+    1. BROAD SEARCH: Simple, high-recall queries (1-3 queries) that cast a wide net. Best for weekly monitoring.
+    2. CONCEPTS: Focused boolean queries per topic with entity patterns. Best for precise retrieval.
 
-    This layer derives from the semantic space but expresses it as executable search logic."""
+    You can help by:
+    - Proposing new or improved search queries using RETRIEVAL_PROPOSAL
+    - Explaining PubMed query syntax (AND, OR, NOT, field tags)
+    - Suggesting how to improve topic coverage
+    - Troubleshooting why certain searches might not be working"""
 
 
 def _build_presentation_tab_context(context: Dict[str, Any]) -> str:

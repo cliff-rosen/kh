@@ -23,6 +23,7 @@ import { promptWorkbenchApi, PromptTemplate, SlugInfo } from '../lib/api/promptW
 import SchemaProposalCard from '../components/chat/SchemaProposalCard';
 import PresentationCategoriesCard from '../components/chat/PresentationCategoriesCard';
 import PromptSuggestionsCard from '../components/chat/PromptSuggestionsCard';
+import RetrievalProposalCard from '../components/chat/RetrievalProposalCard';
 
 type TabType = 'semantic' | 'retrieval' | 'presentation' | 'enrichment' | 'execute';
 
@@ -331,6 +332,58 @@ export default function EditStreamPage() {
     const handlePromptSuggestionsApplied = () => {
         // Clear the applied suggestions after they've been applied
         setAppliedPromptSuggestions(null);
+    };
+
+    const handleRetrievalProposalAccept = (proposalData: any) => {
+        console.log('Applying retrieval proposal:', proposalData);
+
+        const isBroadSearch = proposalData.proposal_type === 'broad_search';
+
+        if (isBroadSearch && proposalData.broad_search) {
+            // Apply broad search strategy
+            setForm(prev => ({
+                ...prev,
+                retrieval_config: {
+                    ...prev.retrieval_config,
+                    broad_search: {
+                        queries: proposalData.broad_search.queries.map((q: any) => ({
+                            query_id: q.query_id,
+                            name: q.name,
+                            query: q.query_string,
+                            covered_topics: q.covered_topics,
+                            rationale: q.rationale
+                        })),
+                        strategy_rationale: proposalData.broad_search.strategy_rationale,
+                        coverage_analysis: {}
+                    },
+                    concepts: null  // Clear concepts if switching to broad search
+                }
+            }));
+        } else if (proposalData.concepts) {
+            // Apply concepts strategy
+            setForm(prev => ({
+                ...prev,
+                retrieval_config: {
+                    ...prev.retrieval_config,
+                    concepts: proposalData.concepts.map((c: any) => ({
+                        concept_id: c.concept_id,
+                        name: c.name,
+                        search_query: c.search_query,
+                        covered_topics: c.covered_topics,
+                        entity_pattern: [],
+                        relationship_edges: [],
+                        relationship_description: c.rationale || ''
+                    })),
+                    broad_search: null  // Clear broad search if switching to concepts
+                }
+            }));
+        }
+
+        alert('Retrieval configuration has been applied to the form. Click "Save Changes" to persist.');
+    };
+
+    const handleRetrievalProposalReject = () => {
+        console.log('Retrieval proposal rejected');
     };
 
     if (isLoading) {
@@ -740,6 +793,22 @@ export default function EditStreamPage() {
                             panelWidth: '550px',
                             headerTitle: 'Prompt Suggestions',
                             headerIcon: '✨'
+                        }
+                    },
+                    retrieval_proposal: {
+                        render: (payload, callbacks) => (
+                            <RetrievalProposalCard
+                                proposal={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: handleRetrievalProposalAccept,
+                        onReject: handleRetrievalProposalReject,
+                        renderOptions: {
+                            panelWidth: '600px',
+                            headerTitle: 'Retrieval Proposal',
+                            headerIcon: '🔍'
                         }
                     }
                 }}
