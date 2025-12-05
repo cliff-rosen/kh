@@ -727,8 +727,8 @@ export default function EditStreamPage() {
                         >
                             Cancel
                         </button>
-                        {/* Hide main save button on enrichment tab - it has its own save */}
-                        {activeTab !== 'enrichment' && (
+                        {/* Hide main save button on enrichment and execute tabs - they have their own controls */}
+                        {activeTab !== 'enrichment' && activeTab !== 'execute' && (
                             <button
                                 type="submit"
                                 form="edit-stream-form"
