@@ -77,7 +77,7 @@ class PipelineService:
         self,
         research_stream_id: int,
         user_id: int,
-        run_type: RunType = RunType.TEST,
+        run_type: RunType = RunType.MANUAL,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         report_name: Optional[str] = None

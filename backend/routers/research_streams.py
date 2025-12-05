@@ -759,7 +759,7 @@ async def test_source_query(
 
 class ExecutePipelineRequest(BaseModel):
     """Request to execute the full pipeline for a research stream"""
-    run_type: Optional[str] = Field("test", description="Type of run: test, scheduled, or manual")
+    run_type: Optional[str] = Field("manual", description="Type of run: manual or scheduled")
     start_date: Optional[str] = Field(None, description="Start date for retrieval (YYYY/MM/DD). Defaults to 7 days ago.")
     end_date: Optional[str] = Field(None, description="End date for retrieval (YYYY/MM/DD). Defaults to today.")
     report_name: Optional[str] = Field(None, description="Custom name for the generated report. Defaults to YYYY.MM.DD format.")
@@ -795,7 +795,7 @@ async def execute_pipeline(
         stream = stream_service.get_research_stream(stream_id, current_user.user_id)
 
         # Parse run type
-        run_type_value = RunType.TEST
+        run_type_value = RunType.MANUAL
         if request.run_type:
             try:
                 run_type_value = RunType(request.run_type.lower())

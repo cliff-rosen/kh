@@ -40,9 +40,9 @@ class StreamType(str, PyEnum):
 
 class RunType(str, PyEnum):
     """Type of pipeline run"""
-    TEST = "test"         # Manual test run from UI
+    TEST = "test"         # Legacy: kept for backward compatibility
     SCHEDULED = "scheduled"  # Automated scheduled run
-    MANUAL = "manual"     # Manual run (not test)
+    MANUAL = "manual"     # Manual run triggered by user
 
 
 # Core User table
