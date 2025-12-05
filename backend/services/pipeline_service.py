@@ -21,6 +21,7 @@ from typing import AsyncGenerator, Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from datetime import date, datetime
+import asyncio
 import json
 import uuid
 
@@ -466,7 +467,7 @@ class PipelineService:
             articles=articles,
             filter_criteria=filter_criteria,
             threshold=threshold,
-            max_concurrent=10
+            max_concurrent=50
         )
 
         # Update database with results using WipArticleService
@@ -580,7 +581,7 @@ class PipelineService:
         results = await self.categorization_service.categorize_wip_articles_batch(
             articles=articles,
             categories=categories_desc,
-            max_concurrent=10
+            max_concurrent=50
         )
 
         # Update database with results using WipArticleService
@@ -618,19 +619,17 @@ class PipelineService:
         if hasattr(stream, 'enrichment_config') and stream.enrichment_config:
             enrichment_config = stream.enrichment_config.dict() if hasattr(stream.enrichment_config, 'dict') else stream.enrichment_config
 
-        # Generate category summaries
-        category_summaries = {}
-        for category in presentation_config.categories:
+        # Generate category summaries in parallel
+        async def generate_single_category_summary(category):
+            """Generate summary for a single category"""
             # Get articles in this category
-            # presentation_categories is stored as a list for DB compatibility but should only have one item
             category_articles = [
                 article for article in wip_articles
                 if article.presentation_categories and category.id in article.presentation_categories
             ]
 
             if not category_articles:
-                category_summaries[category.id] = "No articles in this category."
-                continue
+                return category.id, "No articles in this category."
 
             # Build category description
             category_description = f"{category.name}. "
@@ -647,7 +646,13 @@ class PipelineService:
                 category_topics=category.topics,
                 enrichment_config=enrichment_config
             )
-            category_summaries[category.id] = summary
+            return category.id, summary
+
+        # Run all category summaries in parallel
+        category_results = await asyncio.gather(
+            *[generate_single_category_summary(cat) for cat in presentation_config.categories]
+        )
+        category_summaries = dict(category_results)
 
         # Generate executive summary using category summaries
         executive_summary = await self.summary_service.generate_executive_summary(
