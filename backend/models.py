@@ -319,6 +319,9 @@ class WipArticle(Base):
     pages = Column(String(50))
     year = Column(String(4))
 
+    # Source-specific identifier (e.g., PubMed ID, Semantic Scholar ID, etc.)
+    source_specific_id = Column(String(255), index=True)
+
     # Metadata
     article_metadata = Column(JSON, default=dict)
 

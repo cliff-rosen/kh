@@ -251,16 +251,19 @@ class ReportService:
         Returns:
             Created Report instance
         """
+        # Build enrichments with executive_summary included
+        final_enrichments = enrichments or {}
+        if executive_summary:
+            final_enrichments["executive_summary"] = executive_summary
+
         report = Report(
             user_id=user_id,
             research_stream_id=research_stream_id,
             report_date=report_date,
-            title=title,
+            report_name=title,
             pipeline_execution_id=pipeline_execution_id,
-            executive_summary=executive_summary,
-            enrichments=enrichments or {},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            enrichments=final_enrichments,
+            created_at=datetime.utcnow()
         )
         self.db.add(report)
         self.db.flush()  # Get the report_id
