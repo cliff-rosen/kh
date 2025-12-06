@@ -13,7 +13,6 @@ from schemas.semantic_space import Topic, Entity, Relationship, SemanticSpace, S
 from schemas.sources import INFORMATION_SOURCES
 from schemas.canonical_types import CanonicalResearchArticle
 from services.research_stream_service import ResearchStreamService
-from services.smart_search_service import SmartSearchService
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +23,6 @@ class RetrievalQueryService:
     def __init__(self, db: Session):
         self.db = db
         self.stream_service = ResearchStreamService(db)
-        self.search_service = SmartSearchService()
 
 
     async def generate_query_for_concept(
