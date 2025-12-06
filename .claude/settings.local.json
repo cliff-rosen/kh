@@ -8,7 +8,13 @@
       "Bash(npm run lint:*)",
       "Bash(npx tsc:*)",
       "Bash(npx eslint:*)",
-      "WebFetch(domain:www.ncbi.nlm.nih.gov)"
+      "WebFetch(domain:www.ncbi.nlm.nih.gov)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(for service in article_group_detail_service article_group_service hop_service concept_proposal_service feature_preset_service iterative_answer_service smart_search_session_service broad_search_service extraction_service google_scholar_enrichment google_scholar_service search_service web_retrieval_service refinement_workbench_service retrieval_query_service)",
+      "Bash(do)",
+      "Bash(echo:*)",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": [],
