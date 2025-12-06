@@ -49,7 +49,7 @@ export default function ExecutePipelineTab({ streamId }: ExecutePipelineTabProps
 
             // Use the API method to execute pipeline
             const stream = researchStreamApi.executePipeline(streamId, {
-                run_type: 'test',
+                run_type: 'manual',
                 start_date: formattedStartDate,
                 end_date: formattedEndDate,
                 report_name: reportName
