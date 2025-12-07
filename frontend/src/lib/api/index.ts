@@ -1,6 +1,5 @@
 import axios from 'axios';
 import settings from '../../config/settings';
-import { getCurrentJourneyId } from '../utils/journeyTracking';
 
 // Add this to store the handleSessionExpired callback
 let sessionExpiredHandler: (() => void) | null = null;
@@ -26,30 +25,11 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-
-  // Add journey tracking header for SmartSearch2 and Google Scholar endpoints
-  // Analytics endpoints don't need this header since they get journey ID from URL parameter
-  if (config.url?.includes('/smart-search2/') || config.url?.includes('/google-scholar/')) {
-    // Use the context's function that properly syncs state
-    const getOrCreateJourneyId = (window as any).__getOrCreateJourneyId || getCurrentJourneyId;
-    const journeyId = getOrCreateJourneyId();
-    config.headers['X-Journey-Id'] = journeyId;
-  } else {
-    // For other endpoints, only add header if journey exists (don't create new one)
-    const journeyId = localStorage.getItem('currentJourneyId');
-    if (journeyId) {
-      config.headers['X-Journey-Id'] = journeyId;
-    }
-  }
-
   return config;
 });
 
 api.interceptors.response.use(
-  (response) => {
-    // Frontend owns journey ID - do not overwrite from backend
-    return response;
-  },
+  (response) => response,
   (error) => {
     console.log('API Error:', error);
     // Check for authentication/authorization errors
@@ -116,8 +96,5 @@ export const formatTimestamp = (timestamp: string): string => {
 // Export all APIs
 export * from './googleScholarApi';
 export * from './extractApi';
-
-// Unified workbench API (replaces tabelizer, articleGroup, articleWorkbench APIs)
-export * from './workbenchApi';
 export * from './profileApi';
 export * from './researchStreamApi'; 
