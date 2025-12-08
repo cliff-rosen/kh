@@ -44,6 +44,7 @@ class Report(BaseModel):
     created_at: datetime
     article_count: Optional[int] = None
     # Pipeline execution metadata
+    pipeline_execution_id: Optional[str] = None  # UUID linking to wip_articles
     run_type: Optional[str] = None  # 'test', 'scheduled', or 'manual'
     retrieval_params: Dict[str, Any] = {}  # Input parameters: start_date, end_date, etc.
     enrichments: Dict[str, Any] = {}  # LLM-generated content: executive_summary, category_summaries

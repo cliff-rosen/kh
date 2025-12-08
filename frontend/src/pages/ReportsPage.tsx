@@ -61,7 +61,7 @@ export default function ReportsPage() {
     }), []);
 
     const hasStreams = researchStreams.length > 0;
-    const isTestReport = selectedReport?.run_type?.toLowerCase() === 'test';
+    const hasPipelineData = selectedReport?.pipeline_execution_id != null;
 
     const toggleCategory = (categoryId: string) => {
         setCollapsedCategories(prev => {
@@ -491,8 +491,8 @@ export default function ReportsPage() {
                                                 Config
                                             </button>
 
-                                            {/* Pipeline Analytics Button (Test Reports Only) */}
-                                            {isTestReport && (
+                                            {/* Pipeline Analytics Button */}
+                                            {hasPipelineData && (
                                                 <button
                                                     onClick={() => setShowAnalytics(true)}
                                                     className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-purple-600 hover:bg-purple-700 text-white"
