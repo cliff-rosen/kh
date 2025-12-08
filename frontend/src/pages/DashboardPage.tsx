@@ -1,17 +1,21 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PencilIcon } from '@heroicons/react/24/outline';
 
 import { useAuth } from '../context/AuthContext';
 import { useResearchStream } from '../context/ResearchStreamContext';
+import { reportApi } from '../lib/api/reportApi';
+import { Report } from '../types';
 
 export default function DashboardPage() {
     const { user } = useAuth();
     const { researchStreams, loadResearchStreams, isLoading } = useResearchStream();
+    const [recentReports, setRecentReports] = useState<Report[]>([]);
     const navigate = useNavigate();
 
     useEffect(() => {
         loadResearchStreams();
+        reportApi.getRecentReports(3).then(setRecentReports).catch(console.error);
     }, [loadResearchStreams]);
 
     return (
@@ -56,11 +60,40 @@ export default function DashboardPage() {
                 {/* Recent Activity */}
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                        📈 Recent Activity
+                        📈 Recent Reports
                     </h3>
-                    <div className="text-gray-600 dark:text-gray-400 text-center py-8">
-                        No recent activity
-                    </div>
+                    {recentReports.length === 0 ? (
+                        <div className="text-gray-600 dark:text-gray-400 text-center py-8">
+                            No reports yet
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {recentReports.map((report) => {
+                                const stream = researchStreams.find(s => s.stream_id === report.research_stream_id);
+                                return (
+                                    <button
+                                        key={report.report_id}
+                                        onClick={() => navigate(`/reports?report=${report.report_id}`)}
+                                        className="w-full text-left p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                                    {stream?.stream_name || 'Unknown Stream'}
+                                                </div>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                    {report.report_name || new Date(report.report_date).toLocaleDateString()}
+                                                </div>
+                                            </div>
+                                            <div className="text-xs text-gray-400">
+                                                {report.article_count || 0} articles
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -204,8 +237,8 @@ export default function DashboardPage() {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${stream.is_active
-                                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                                    : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                                                 }`}>
                                                 <span className={`w-2 h-2 rounded-full mr-1.5 ${stream.is_active ? 'bg-green-500' : 'bg-gray-400'}`}></span>
                                                 {stream.is_active ? 'Active' : 'Inactive'}

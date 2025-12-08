@@ -15,6 +15,17 @@ from routers.auth import get_current_user
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 
+@router.get("/recent", response_model=List[Report])
+async def get_recent_reports(
+    limit: int = 5,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get recent reports across all streams for the current user"""
+    service = ReportService(db)
+    return service.get_recent_reports(current_user.user_id, limit)
+
+
 @router.get("/stream/{stream_id}", response_model=List[Report])
 async def get_reports_for_stream(
     stream_id: int,

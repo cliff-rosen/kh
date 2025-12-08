@@ -101,6 +101,23 @@ class ReportService:
         report_dict['article_count'] = article_count
         return ReportSchema(**report_dict)
 
+    def get_recent_reports(self, user_id: int, limit: int = 5) -> List[ReportSchema]:
+        """Get the most recent reports across all streams for a user"""
+        reports = self.db.query(Report).filter(
+            Report.user_id == user_id
+        ).order_by(Report.created_at.desc()).limit(limit).all()
+
+        result = []
+        for report in reports:
+            report_dict = ReportSchema.from_orm(report).dict()
+            article_count = self.db.query(ReportArticleAssociation).filter(
+                ReportArticleAssociation.report_id == report.report_id
+            ).count()
+            report_dict['article_count'] = article_count
+            result.append(ReportSchema(**report_dict))
+
+        return result
+
     def get_report_with_articles(self, report_id: int, user_id: int) -> Optional[Dict[str, Any]]:
         """Get a report with its associated articles"""
         report = self.db.query(Report).filter(

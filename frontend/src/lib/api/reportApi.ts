@@ -3,6 +3,14 @@ import { Report, ReportWithArticles } from '../../types';
 
 export const reportApi = {
     /**
+     * Get recent reports across all streams
+     */
+    async getRecentReports(limit: number = 5): Promise<Report[]> {
+        const response = await api.get(`/api/reports/recent?limit=${limit}`);
+        return response.data;
+    },
+
+    /**
      * Get all reports for a research stream
      */
     async getReportsForStream(streamId: number): Promise<Report[]> {
