@@ -46,7 +46,9 @@ export default function DashboardPage() {
                         </div>
                         <div className="flex justify-between">
                             <span className="text-gray-600 dark:text-gray-400">Reports Generated</span>
-                            <span className="font-semibold text-gray-900 dark:text-white">--</span>
+                            <span className="font-semibold text-gray-900 dark:text-white">
+                                {researchStreams.reduce((sum, s) => sum + (s.report_count || 0), 0)}
+                            </span>
                         </div>
                     </div>
                 </div>
