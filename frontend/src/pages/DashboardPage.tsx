@@ -73,7 +73,7 @@ export default function DashboardPage() {
                                 return (
                                     <button
                                         key={report.report_id}
-                                        onClick={() => navigate(`/reports?report=${report.report_id}`)}
+                                        onClick={() => navigate(`/reports?stream=${report.research_stream_id}&report=${report.report_id}`)}
                                         className="w-full text-left p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                                     >
                                         <div className="flex justify-between items-start">
