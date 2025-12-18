@@ -33,6 +33,13 @@ class PubMedQueryTestRequest(BaseModel):
     sort_by: Optional[str] = Field('relevance', description="Sort order (relevance, date)")
 
 
+class PubMedQueryTestResponse(BaseModel):
+    """Response from PubMed query test"""
+    articles: List[CanonicalResearchArticle] = Field(..., description="Articles returned")
+    total_results: int = Field(..., description="Total number of results matching the query")
+    returned_count: int = Field(..., description="Number of articles returned in this response")
+
+
 class PubMedIdCheckRequest(BaseModel):
     """Request to check which PubMed IDs are captured by a query"""
     query_expression: str = Field(..., description="PubMed query expression to test")
@@ -58,7 +65,7 @@ class PubMedIdCheckResponse(BaseModel):
     query_total_results: int = Field(..., description="Total results from query")
 
 
-@router.post("/pubmed/test-query", response_model=List[CanonicalResearchArticle])
+@router.post("/pubmed/test-query", response_model=PubMedQueryTestResponse)
 async def test_pubmed_query(
     request: PubMedQueryTestRequest,
     db: Session = Depends(get_db),
@@ -94,7 +101,11 @@ async def test_pubmed_query(
             sort_by=request.sort_by
         )
 
-        return articles
+        return PubMedQueryTestResponse(
+            articles=articles,
+            total_results=metadata.get("total_results", len(articles)),
+            returned_count=len(articles)
+        )
 
     except Exception as e:
         logger.error(f"PubMed query test failed: {e}", exc_info=True)

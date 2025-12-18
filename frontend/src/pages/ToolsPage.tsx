@@ -1,7 +1,28 @@
-import { WrenchScrewdriverIcon } from '@heroicons/react/24/outline';
+import { useState } from 'react';
+import { WrenchScrewdriverIcon, MagnifyingGlassIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import PubMedIdChecker from '../components/tools/PubMedIdChecker';
+import PubMedSearch from '../components/tools/PubMedSearch';
+
+type ToolTab = 'search' | 'id-checker';
+
+const tabs: { id: ToolTab; label: string; description: string; icon: React.ComponentType<{ className?: string }> }[] = [
+    {
+        id: 'search',
+        label: 'PubMed Search',
+        description: 'Search PubMed with custom queries and date filters',
+        icon: DocumentTextIcon,
+    },
+    {
+        id: 'id-checker',
+        label: 'PubMed ID Checker',
+        description: 'Test which PubMed IDs are captured by a search query',
+        icon: MagnifyingGlassIcon,
+    },
+];
 
 export default function ToolsPage() {
+    const [activeTab, setActiveTab] = useState<ToolTab>('search');
+
     return (
         <div className="max-w-7xl mx-auto px-4 py-8">
             {/* Page Header */}
@@ -17,9 +38,38 @@ export default function ToolsPage() {
                 </p>
             </div>
 
-            {/* Tools */}
-            <div className="space-y-8">
-                <PubMedIdChecker />
+            {/* Tab Navigation */}
+            <div className="mb-6">
+                <div className="border-b border-gray-200 dark:border-gray-700">
+                    <nav className="-mb-px flex space-x-8">
+                        {tabs.map((tab) => {
+                            const Icon = tab.icon;
+                            const isActive = activeTab === tab.id;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`
+                                        group inline-flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm
+                                        ${isActive
+                                            ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                                        }
+                                    `}
+                                >
+                                    <Icon className={`h-5 w-5 ${isActive ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'}`} />
+                                    {tab.label}
+                                </button>
+                            );
+                        })}
+                    </nav>
+                </div>
+            </div>
+
+            {/* Active Tool */}
+            <div>
+                {activeTab === 'search' && <PubMedSearch />}
+                {activeTab === 'id-checker' && <PubMedIdChecker />}
             </div>
         </div>
     );

@@ -14,6 +14,12 @@ export interface PubMedQueryTestRequest {
     sort_by?: string;     // 'relevance', 'date'
 }
 
+export interface PubMedQueryTestResponse {
+    articles: CanonicalResearchArticle[];
+    total_results: number;
+    returned_count: number;
+}
+
 export interface PubMedIdCheckRequest {
     query_expression: string;
     pubmed_ids: string[];
@@ -38,9 +44,9 @@ export interface PubMedIdCheckResponse {
 
 export const toolsApi = {
     /**
-     * Test a PubMed query and return articles
+     * Test a PubMed query and return articles with total count
      */
-    async testPubMedQuery(request: PubMedQueryTestRequest): Promise<CanonicalResearchArticle[]> {
+    async testPubMedQuery(request: PubMedQueryTestRequest): Promise<PubMedQueryTestResponse> {
         const response = await api.post('/api/tools/pubmed/test-query', request);
         return response.data;
     },
