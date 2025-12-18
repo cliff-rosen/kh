@@ -4,6 +4,7 @@ entity extraction, and claim/argument extraction.
 """
 
 from typing import List, Dict, Any, Optional, Literal
+from datetime import datetime
 from pydantic import BaseModel, Field
 from enum import Enum
 
@@ -181,3 +182,17 @@ class EntityExtractionLLMResponse(BaseModel):
 class ClaimExtractionLLMResponse(BaseModel):
     """Schema for LLM claim extraction"""
     claims: List[Dict[str, Any]] = Field(..., description="Extracted claims with evidence")
+
+
+# ============================================================================
+# Streaming Models
+# ============================================================================
+
+class AnalysisStreamMessage(BaseModel):
+    """Streaming status message for document analysis"""
+    type: Literal["status", "progress", "summary", "entities", "claims", "result", "error"] = Field(
+        ..., description="Message type"
+    )
+    message: str = Field(..., description="Human-readable message")
+    data: Optional[Dict[str, Any]] = Field(default=None, description="Additional data payload")
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())

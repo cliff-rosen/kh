@@ -154,3 +154,29 @@ export interface SelectedNode {
     type: 'executive' | 'section' | 'keypoint' | 'entity' | 'claim';
     data: any;
 }
+
+// ============================================================================
+// Streaming Types
+// ============================================================================
+
+export type AnalysisStreamMessageType =
+    | 'status'
+    | 'progress'
+    | 'summary'
+    | 'entities'
+    | 'claims'
+    | 'result'
+    | 'error';
+
+export interface AnalysisStreamMessage {
+    type: AnalysisStreamMessageType;
+    message: string;
+    data?: Record<string, any>;
+    timestamp: string;
+}
+
+export interface AnalysisProgress {
+    phase: 'hierarchical_summary' | 'entity_extraction' | 'claim_extraction' | null;
+    message: string;
+    isComplete: boolean;
+}

@@ -107,6 +107,25 @@ TASK_CONFIGS = {
             "description": "Complex extraction requiring deeper understanding"
         }
     },
+
+    # Document analysis tasks
+    "document_analysis": {
+        "hierarchical_summary": {
+            "model": "gpt-4.1",
+            "temperature": 0.3,
+            "description": "Hierarchical document summarization"
+        },
+        "entity_extraction": {
+            "model": "gpt-4.1",
+            "temperature": 0.1,
+            "description": "Entity extraction from documents"
+        },
+        "claim_extraction": {
+            "model": "gpt-4.1",
+            "temperature": 0.2,
+            "description": "Claim and argument extraction"
+        }
+    },
     
     # Default fallback
     "default": {

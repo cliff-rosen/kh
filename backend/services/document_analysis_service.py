@@ -3,11 +3,12 @@ Document Analysis Service
 
 LLM-powered document analysis with hierarchical summarization,
 entity extraction, and claim/argument extraction.
+Supports streaming progress updates.
 """
 
 import logging
 import uuid
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, AsyncGenerator
 from datetime import datetime
 
 from agents.prompts.base_prompt_caller import BasePromptCaller
@@ -26,14 +27,168 @@ from schemas.document_analysis import (
     GraphEdge,
     EntityCategory,
     ClaimType,
-    AnalysisOptions
+    AnalysisOptions,
+    AnalysisStreamMessage
 )
 
 logger = logging.getLogger(__name__)
 
 
 class DocumentAnalysisService:
-    """Service for comprehensive document analysis"""
+    """Service for comprehensive document analysis with streaming support"""
+
+    def _format_stream_message(self, message: AnalysisStreamMessage) -> str:
+        """Format a stream message as SSE data"""
+        return f"data: {message.model_dump_json()}\n\n"
+
+    async def analyze_document_streaming(
+        self,
+        document_text: str,
+        document_title: Optional[str] = None,
+        analysis_options: Optional[AnalysisOptions] = None
+    ) -> AsyncGenerator[str, None]:
+        """
+        Perform comprehensive document analysis with streaming progress updates.
+
+        Yields SSE-formatted messages with status updates and partial results.
+
+        Args:
+            document_text: The document text to analyze
+            document_title: Optional title for the document
+            analysis_options: Which analyses to perform
+
+        Yields:
+            SSE-formatted string messages with progress updates and results
+        """
+        document_id = str(uuid.uuid4())
+        options = analysis_options or AnalysisOptions()
+        title = document_title or self._detect_title(document_text)
+
+        logger.info(f"Starting streaming document analysis {document_id}, length={len(document_text)}")
+
+        # Initial status
+        yield self._format_stream_message(AnalysisStreamMessage(
+            type="status",
+            message="Starting document analysis...",
+            data={"document_id": document_id, "options": options.model_dump()}
+        ))
+
+        # Run analyses based on options
+        hierarchical_summary = None
+        entities: List[ExtractedEntity] = []
+        claims: List[ExtractedClaim] = []
+
+        try:
+            # Phase 1: Hierarchical Summary
+            if options.hierarchical_summary:
+                yield self._format_stream_message(AnalysisStreamMessage(
+                    type="progress",
+                    message="Extracting hierarchical summary...",
+                    data={"phase": "hierarchical_summary", "progress": 0}
+                ))
+
+                hierarchical_summary = await self._extract_hierarchical_summary(document_text)
+
+                yield self._format_stream_message(AnalysisStreamMessage(
+                    type="summary",
+                    message=f"Summary complete: {len(hierarchical_summary.sections)} sections, {hierarchical_summary.total_key_points} key points",
+                    data={
+                        "phase": "hierarchical_summary",
+                        "progress": 100,
+                        "result": hierarchical_summary.model_dump()
+                    }
+                ))
+
+            # Phase 2: Entity Extraction
+            if options.entity_extraction:
+                yield self._format_stream_message(AnalysisStreamMessage(
+                    type="progress",
+                    message="Extracting entities...",
+                    data={"phase": "entity_extraction", "progress": 0}
+                ))
+
+                entities = await self._extract_entities(document_text)
+
+                yield self._format_stream_message(AnalysisStreamMessage(
+                    type="entities",
+                    message=f"Extracted {len(entities)} entities",
+                    data={
+                        "phase": "entity_extraction",
+                        "progress": 100,
+                        "result": [e.model_dump() for e in entities]
+                    }
+                ))
+
+            # Phase 3: Claim Extraction
+            if options.claim_extraction:
+                yield self._format_stream_message(AnalysisStreamMessage(
+                    type="progress",
+                    message="Extracting claims and arguments...",
+                    data={"phase": "claim_extraction", "progress": 0}
+                ))
+
+                claims = await self._extract_claims(document_text, entities)
+
+                yield self._format_stream_message(AnalysisStreamMessage(
+                    type="claims",
+                    message=f"Extracted {len(claims)} claims",
+                    data={
+                        "phase": "claim_extraction",
+                        "progress": 100,
+                        "result": [c.model_dump() for c in claims]
+                    }
+                ))
+
+            # Build default summary if not requested
+            if hierarchical_summary is None:
+                hierarchical_summary = HierarchicalSummary(
+                    executive=ExecutiveSummary(
+                        summary="Analysis not requested",
+                        main_themes=[],
+                        key_conclusions=[]
+                    ),
+                    sections=[],
+                    total_key_points=0
+                )
+
+            # Generate graph data for React Flow
+            graph_nodes, graph_edges = self._generate_graph_data(
+                hierarchical_summary, entities, claims
+            )
+
+            # Build final result
+            result = DocumentAnalysisResult(
+                document_id=document_id,
+                title=title,
+                hierarchical_summary=hierarchical_summary,
+                entities=entities,
+                claims=claims,
+                graph_nodes=graph_nodes,
+                graph_edges=graph_edges,
+                analysis_metadata={
+                    "options": options.model_dump(),
+                    "document_length": len(document_text),
+                    "entity_count": len(entities),
+                    "claim_count": len(claims),
+                    "completed_at": datetime.utcnow().isoformat()
+                }
+            )
+
+            logger.info(f"Document analysis complete: {len(entities)} entities, {len(claims)} claims, {len(graph_nodes)} nodes")
+
+            yield self._format_stream_message(AnalysisStreamMessage(
+                type="result",
+                message="Analysis complete",
+                data={"result": result.model_dump()}
+            ))
+
+        except Exception as e:
+            logger.error(f"Document analysis failed: {e}", exc_info=True)
+            yield self._format_stream_message(AnalysisStreamMessage(
+                type="error",
+                message=f"Analysis failed: {str(e)}",
+                data={"error": str(e)}
+            ))
 
     async def analyze_document(
         self,
@@ -42,7 +197,7 @@ class DocumentAnalysisService:
         analysis_options: Optional[AnalysisOptions] = None
     ) -> DocumentAnalysisResult:
         """
-        Perform comprehensive document analysis.
+        Perform comprehensive document analysis (non-streaming).
 
         Args:
             document_text: The document text to analyze
@@ -52,62 +207,24 @@ class DocumentAnalysisService:
         Returns:
             DocumentAnalysisResult with all requested analyses
         """
-        document_id = str(uuid.uuid4())
-        options = analysis_options or AnalysisOptions()
+        # Consume the streaming generator and return final result
+        result = None
+        async for message in self.analyze_document_streaming(
+            document_text, document_title, analysis_options
+        ):
+            # Parse the SSE message to extract data
+            import json
+            if message.startswith("data: "):
+                data = json.loads(message[6:].strip())
+                if data.get("type") == "result":
+                    result = DocumentAnalysisResult(**data["data"]["result"])
+                elif data.get("type") == "error":
+                    raise Exception(data.get("message", "Analysis failed"))
 
-        logger.info(f"Starting document analysis {document_id}, length={len(document_text)}")
+        if result is None:
+            raise Exception("No result returned from analysis")
 
-        # Run analyses based on options
-        hierarchical_summary = None
-        entities: List[ExtractedEntity] = []
-        claims: List[ExtractedClaim] = []
-
-        if options.hierarchical_summary:
-            logger.info("Extracting hierarchical summary...")
-            hierarchical_summary = await self._extract_hierarchical_summary(document_text)
-
-        if options.entity_extraction:
-            logger.info("Extracting entities...")
-            entities = await self._extract_entities(document_text)
-
-        if options.claim_extraction:
-            logger.info("Extracting claims...")
-            claims = await self._extract_claims(document_text, entities)
-
-        # Build default summary if not requested
-        if hierarchical_summary is None:
-            hierarchical_summary = HierarchicalSummary(
-                executive=ExecutiveSummary(
-                    summary="Analysis not requested",
-                    main_themes=[],
-                    key_conclusions=[]
-                ),
-                sections=[],
-                total_key_points=0
-            )
-
-        # Generate graph data for React Flow
-        graph_nodes, graph_edges = self._generate_graph_data(
-            hierarchical_summary, entities, claims
-        )
-
-        logger.info(f"Document analysis complete: {len(entities)} entities, {len(claims)} claims, {len(graph_nodes)} nodes")
-
-        return DocumentAnalysisResult(
-            document_id=document_id,
-            title=document_title or self._detect_title(document_text),
-            hierarchical_summary=hierarchical_summary,
-            entities=entities,
-            claims=claims,
-            graph_nodes=graph_nodes,
-            graph_edges=graph_edges,
-            analysis_metadata={
-                "options": options.model_dump(),
-                "document_length": len(document_text),
-                "entity_count": len(entities),
-                "claim_count": len(claims)
-            }
-        )
+        return result
 
     async def _extract_hierarchical_summary(self, text: str) -> HierarchicalSummary:
         """Extract hierarchical summary using LLM"""
@@ -181,12 +298,12 @@ Provide your analysis in the specified JSON format."""
             "required": ["executive_summary", "main_themes", "key_conclusions", "sections"]
         }
 
-        task_config = get_task_config("extraction", "complex")
+        task_config = get_task_config("document_analysis", "hierarchical_summary")
         prompt_caller = BasePromptCaller(
             response_model=result_schema,
             system_message=system_prompt,
             model=task_config["model"],
-            temperature=0.3,
+            temperature=task_config.get("temperature", 0.3),
             reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(task_config["model"]) else None
         )
 
@@ -303,12 +420,12 @@ Provide your extraction in the specified JSON format."""
             "required": ["entities"]
         }
 
-        task_config = get_task_config("extraction", "default")
+        task_config = get_task_config("document_analysis", "entity_extraction")
         prompt_caller = BasePromptCaller(
             response_model=result_schema,
             system_message=system_prompt,
             model=task_config["model"],
-            temperature=0.1,
+            temperature=task_config.get("temperature", 0.1),
             reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(task_config["model"]) else None
         )
 
@@ -446,12 +563,12 @@ Provide your extraction in the specified JSON format."""
             "required": ["claims"]
         }
 
-        task_config = get_task_config("extraction", "complex")
+        task_config = get_task_config("document_analysis", "claim_extraction")
         prompt_caller = BasePromptCaller(
             response_model=result_schema,
             system_message=system_prompt,
             model=task_config["model"],
-            temperature=0.2,
+            temperature=task_config.get("temperature", 0.2),
             reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(task_config["model"]) else None
         )
 
