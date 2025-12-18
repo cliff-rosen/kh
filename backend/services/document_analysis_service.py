@@ -53,7 +53,10 @@ Analyze the provided document and create a comprehensive hierarchical summary wi
 - Identify the natural structure/sections of the document
 - Extract specific, actionable key points
 - Include relevant quotes or spans from the source when helpful
-- Assign importance scores (0-1) based on centrality to the document's purpose"""
+- Assign importance scores (0-1) based on centrality to the document's purpose
+
+## Document to Analyze
+{document_text}"""
 
         result_schema = {
             "type": "object",
@@ -134,7 +137,10 @@ Extract all significant entities from the document, including:
 - Include context mentions showing how entities appear in the document
 - Estimate importance (0-1) based on frequency and centrality
 - Identify relationships between entities where apparent
-- Be comprehensive but avoid extracting trivial mentions"""
+- Be comprehensive but avoid extracting trivial mentions
+
+## Document to Analyze
+{document_text}"""
 
         result_schema = {
             "type": "object",
@@ -199,7 +205,13 @@ Extract all significant claims, arguments, and assertions from the document:
 - Rate evidence strength (strong, moderate, weak)
 - Assign confidence scores (0-1) based on how well-supported claims are
 - Identify potential counter-arguments where relevant
-- Link claims to relevant entities mentioned in the document"""
+- Link claims to relevant entities mentioned in the document
+
+## Known Entities (for reference)
+{entity_context}
+
+## Document to Analyze
+{document_text}"""
 
         result_schema = {
             "type": "object",
@@ -363,15 +375,8 @@ class DocumentAnalysisService:
         """Extract hierarchical summary using LLM"""
         caller = self._get_summary_caller()
 
-        user_message = f"""Please analyze the following document and create a hierarchical summary.
-
-## Document
-{text}
-
-Extract the executive summary, main themes, key conclusions, and section-by-section breakdown."""
-
         response = await caller.invoke(
-            messages=[{"role": "user", "content": user_message}]
+            document_text=text
         )
 
         # Convert response to our models
@@ -413,15 +418,8 @@ Extract the executive summary, main themes, key conclusions, and section-by-sect
         """Extract entities using LLM"""
         caller = self._get_entity_caller()
 
-        user_message = f"""Please extract all significant entities from the following document.
-
-## Document
-{text}
-
-Identify people, organizations, concepts, locations, dates, and technical terms."""
-
         response = await caller.invoke(
-            messages=[{"role": "user", "content": user_message}]
+            document_text=text
         )
 
         response_dict = response.model_dump() if hasattr(response, 'model_dump') else dict(response)
@@ -467,17 +465,11 @@ Identify people, organizations, concepts, locations, dates, and technical terms.
 
         # Build entity context for the LLM
         entity_names = [e.name for e in entities]
-        entity_context = f"\n\nKnown entities in document: {', '.join(entity_names)}" if entity_names else ""
-
-        user_message = f"""Please extract all significant claims and arguments from the following document.{entity_context}
-
-## Document
-{text}
-
-Identify factual claims, causal claims, evaluative claims, recommendations, and predictions."""
+        entity_context = ', '.join(entity_names) if entity_names else "None identified"
 
         response = await caller.invoke(
-            messages=[{"role": "user", "content": user_message}]
+            document_text=text,
+            entity_context=entity_context
         )
 
         response_dict = response.model_dump() if hasattr(response, 'model_dump') else dict(response)
