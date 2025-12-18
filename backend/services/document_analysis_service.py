@@ -230,25 +230,25 @@ class DocumentAnalysisService:
         """Extract hierarchical summary using LLM"""
         system_prompt = """You are an expert document analyst who creates hierarchical summaries.
 
-Your task is to analyze documents and create comprehensive hierarchical summaries with:
-1. An executive summary (2-3 paragraphs capturing the essence)
-2. Main themes identified in the document
-3. Key conclusions or takeaways
-4. Section-by-section breakdown with key points
+        Your task is to analyze documents and create comprehensive hierarchical summaries with:
+        1. An executive summary (2-3 paragraphs capturing the essence)
+        2. Main themes identified in the document
+        3. Key conclusions or takeaways
+        4. Section-by-section breakdown with key points
 
-Guidelines:
-- Be thorough but concise
-- Identify the natural structure/sections of the document
-- Extract specific, actionable key points
-- Include relevant quotes or spans from the source when helpful
-- Assign importance scores (0-1) based on centrality to the document's purpose"""
+        Guidelines:
+        - Be thorough but concise
+        - Identify the natural structure/sections of the document
+        - Extract specific, actionable key points
+        - Include relevant quotes or spans from the source when helpful
+        - Assign importance scores (0-1) based on centrality to the document's purpose"""
 
         user_prompt = f"""Analyze the following document and create a hierarchical summary:
 
-DOCUMENT:
-{text}
+        DOCUMENT:
+        {text}
 
-Provide your analysis in the specified JSON format."""
+        Provide your analysis in the specified JSON format."""
 
         result_schema = {
             "type": "object",
@@ -367,26 +367,26 @@ Provide your analysis in the specified JSON format."""
         """Extract entities using LLM"""
         system_prompt = """You are an expert entity extraction system.
 
-Your task is to extract all significant entities from documents, including:
-- People (names, roles)
-- Organizations (companies, institutions)
-- Concepts (ideas, theories, methodologies)
-- Locations (places, regions)
-- Dates and time periods
-- Technical terms and domain-specific terminology
+        Your task is to extract all significant entities from documents, including:
+        - People (names, roles)
+        - Organizations (companies, institutions)
+        - Concepts (ideas, theories, methodologies)
+        - Locations (places, regions)
+        - Dates and time periods
+        - Technical terms and domain-specific terminology
 
-Guidelines:
-- Include context mentions showing how entities appear in the document
-- Estimate importance (0-1) based on frequency and centrality
-- Identify relationships between entities where apparent
-- Be comprehensive but avoid extracting trivial mentions"""
+        Guidelines:
+        - Include context mentions showing how entities appear in the document
+        - Estimate importance (0-1) based on frequency and centrality
+        - Identify relationships between entities where apparent
+        - Be comprehensive but avoid extracting trivial mentions"""
 
         user_prompt = f"""Extract all significant entities from the following document:
 
-DOCUMENT:
-{text}
+        DOCUMENT:
+        {text}
 
-Provide your extraction in the specified JSON format."""
+        Provide your extraction in the specified JSON format."""
 
         result_schema = {
             "type": "object",
@@ -495,28 +495,28 @@ Provide your extraction in the specified JSON format."""
 
         system_prompt = """You are an expert at identifying claims and arguments in documents.
 
-Your task is to extract all significant claims, arguments, and assertions, including:
-- Factual claims (statements of fact)
-- Causal claims (X causes/leads to Y)
-- Evaluative claims (judgments, assessments)
-- Recommendations (suggestions, proposals)
-- Predictions (forecasts, expectations)
+        Your task is to extract all significant claims, arguments, and assertions, including:
+        - Factual claims (statements of fact)
+        - Causal claims (X causes/leads to Y)
+        - Evaluative claims (judgments, assessments)
+        - Recommendations (suggestions, proposals)
+        - Predictions (forecasts, expectations)
 
-Guidelines:
-- Include supporting evidence from the document
-- Rate evidence strength (strong, moderate, weak)
-- Assign confidence scores (0-1) based on how well-supported claims are
-- Identify potential counter-arguments where relevant
-- Link claims to relevant entities mentioned in the document"""
+        Guidelines:
+        - Include supporting evidence from the document
+        - Rate evidence strength (strong, moderate, weak)
+        - Assign confidence scores (0-1) based on how well-supported claims are
+        - Identify potential counter-arguments where relevant
+        - Link claims to relevant entities mentioned in the document"""
 
         user_prompt = f"""Extract all significant claims and arguments from the following document.
 
-Known entities for reference: {entity_context}
+        Known entities for reference: {entity_context}
 
-DOCUMENT:
-{text}
+        DOCUMENT:
+        {text}
 
-Provide your extraction in the specified JSON format."""
+        Provide your extraction in the specified JSON format."""
 
         result_schema = {
             "type": "object",
