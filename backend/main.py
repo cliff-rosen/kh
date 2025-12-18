@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 # from routers import search, auth, workflow, tools, files, bot, asset
 # Import only Knowledge Horizon compatible routers (legacy routers removed)
-from routers import auth, llm, search, web_retrieval, pubmed, extraction, unified_search, lab, research_streams, research_stream_chat, profiles, reports, general_chat, tools, refinement_workbench, prompt_workbench, document_analysis
+from routers import auth, llm, search, web_retrieval, pubmed, extraction, unified_search, lab, research_streams, research_stream_chat, profiles, reports, general_chat, tools, refinement_workbench, prompt_workbench, document_analysis, articles
 from database import init_db
 from config import settings, setup_logging
 from middleware import LoggingMiddleware
@@ -69,6 +69,7 @@ app.include_router(tools.router)
 app.include_router(refinement_workbench.router)
 app.include_router(prompt_workbench.router)
 app.include_router(document_analysis.router)
+app.include_router(articles.router)
 # Smart Search 2 removed - legacy feature with EventType dependency
 
 # Legacy routers removed for Knowledge Horizon transition:

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { CalendarIcon, DocumentTextIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { CalendarIcon, DocumentTextIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon, TrashIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
 import { Report, ReportWithArticles, ReportArticle } from '../types';
@@ -261,13 +261,24 @@ export default function ReportsPage() {
                         </p>
                     )}
                 </div>
-                <button className="text-gray-400 hover:text-yellow-500 transition-colors">
-                    {article.is_starred ? (
-                        <StarIconSolid className="h-5 w-5 text-yellow-500" />
-                    ) : (
-                        <StarIcon className="h-5 w-5" />
+                <div className="flex items-center gap-2">
+                    {article.pmid && (
+                        <Link
+                            to={`/articles/${article.pmid}`}
+                            className="text-gray-400 hover:text-blue-500 transition-colors"
+                            title="View article details"
+                        >
+                            <ArrowTopRightOnSquareIcon className="h-5 w-5" />
+                        </Link>
                     )}
-                </button>
+                    <button className="text-gray-400 hover:text-yellow-500 transition-colors">
+                        {article.is_starred ? (
+                            <StarIconSolid className="h-5 w-5 text-yellow-500" />
+                        ) : (
+                            <StarIcon className="h-5 w-5" />
+                        )}
+                    </button>
+                </div>
             </div>
         </div>
     );

@@ -59,3 +59,5 @@ def get_search_count(
     except Exception as e:
         logger.error(f"Error in PubMed count endpoint: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
