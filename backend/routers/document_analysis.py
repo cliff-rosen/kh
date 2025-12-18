@@ -36,7 +36,7 @@ async def analyze_document(
     Returns structured analysis data including graph nodes/edges for visualization.
     """
     try:
-        logger.info(f"Document analysis request from user {current_user.id}, text length: {len(request.document_text)}")
+        logger.info(f"Document analysis request from user {current_user.user_id}, text length: {len(request.document_text)}")
 
         service = get_document_analysis_service()
 
