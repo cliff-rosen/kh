@@ -7,11 +7,12 @@ entity extraction, and claim/argument extraction.
 
 import logging
 import uuid
-import json
-from typing import Dict, Any, List, Optional
+from typing import Dict, List, Optional
+from datetime import datetime
 
 from agents.prompts.base_prompt_caller import BasePromptCaller
 from config.llm_models import get_task_config, supports_reasoning_effort
+from schemas.chat import ChatMessage, MessageRole
 from schemas.document_analysis import (
     DocumentAnalysisResult,
     HierarchicalSummary,
@@ -31,271 +32,8 @@ from schemas.document_analysis import (
 logger = logging.getLogger(__name__)
 
 
-# ============================================================================
-# Prompt Callers for Different Analysis Types
-# ============================================================================
-
-class HierarchicalSummaryPromptCaller(BasePromptCaller):
-    """Prompt caller for hierarchical document summarization"""
-
-    def __init__(self):
-        system_message = """You are an expert document analyst who creates hierarchical summaries.
-
-## Your Task
-Analyze the provided document and create a comprehensive hierarchical summary with:
-1. An executive summary (2-3 paragraphs capturing the essence)
-2. Main themes identified in the document
-3. Key conclusions or takeaways
-4. Section-by-section breakdown with key points
-
-## Guidelines
-- Be thorough but concise
-- Identify the natural structure/sections of the document
-- Extract specific, actionable key points
-- Include relevant quotes or spans from the source when helpful
-- Assign importance scores (0-1) based on centrality to the document's purpose
-
-## Document to Analyze
-{document_text}"""
-
-        result_schema = {
-            "type": "object",
-            "properties": {
-                "executive_summary": {
-                    "type": "string",
-                    "description": "2-3 paragraph executive summary"
-                },
-                "main_themes": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "3-5 main themes"
-                },
-                "key_conclusions": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "3-5 key conclusions"
-                },
-                "sections": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "title": {"type": "string"},
-                            "summary": {"type": "string"},
-                            "key_points": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "text": {"type": "string"},
-                                        "source_span": {"type": "string"},
-                                        "importance": {"type": "number"}
-                                    },
-                                    "required": ["text"]
-                                }
-                            },
-                            "source_spans": {
-                                "type": "array",
-                                "items": {"type": "string"}
-                            }
-                        },
-                        "required": ["title", "summary", "key_points"]
-                    }
-                }
-            },
-            "required": ["executive_summary", "main_themes", "key_conclusions", "sections"]
-        }
-
-        model_config = get_task_config("extraction", "complex")
-
-        super().__init__(
-            response_model=result_schema,
-            system_message=system_message,
-            messages_placeholder=False,
-            model=model_config["model"],
-            temperature=0.3,
-            reasoning_effort=model_config.get("reasoning_effort") if supports_reasoning_effort(model_config["model"]) else None
-        )
-
-
-class EntityExtractionPromptCaller(BasePromptCaller):
-    """Prompt caller for entity extraction"""
-
-    def __init__(self):
-        system_message = """You are an expert entity extraction system.
-
-## Your Task
-Extract all significant entities from the document, including:
-- People (names, roles)
-- Organizations (companies, institutions)
-- Concepts (ideas, theories, methodologies)
-- Locations (places, regions)
-- Dates and time periods
-- Technical terms and domain-specific terminology
-
-## Guidelines
-- Include context mentions showing how entities appear in the document
-- Estimate importance (0-1) based on frequency and centrality
-- Identify relationships between entities where apparent
-- Be comprehensive but avoid extracting trivial mentions
-
-## Document to Analyze
-{document_text}"""
-
-        result_schema = {
-            "type": "object",
-            "properties": {
-                "entities": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string"},
-                            "category": {
-                                "type": "string",
-                                "enum": ["person", "organization", "concept", "location", "date", "technical_term", "other"]
-                            },
-                            "description": {"type": "string"},
-                            "mentions": {
-                                "type": "array",
-                                "items": {"type": "string"}
-                            },
-                            "mention_count": {"type": "integer"},
-                            "importance": {"type": "number"},
-                            "related_entity_names": {
-                                "type": "array",
-                                "items": {"type": "string"}
-                            }
-                        },
-                        "required": ["name", "category", "mention_count", "importance"]
-                    }
-                }
-            },
-            "required": ["entities"]
-        }
-
-        model_config = get_task_config("extraction", "default")
-
-        super().__init__(
-            response_model=result_schema,
-            system_message=system_message,
-            messages_placeholder=False,
-            model=model_config["model"],
-            temperature=0.1,
-            reasoning_effort=model_config.get("reasoning_effort") if supports_reasoning_effort(model_config["model"]) else None
-        )
-
-
-class ClaimExtractionPromptCaller(BasePromptCaller):
-    """Prompt caller for claim/argument extraction"""
-
-    def __init__(self):
-        system_message = """You are an expert at identifying claims and arguments in documents.
-
-## Your Task
-Extract all significant claims, arguments, and assertions from the document:
-- Factual claims (statements of fact)
-- Causal claims (X causes/leads to Y)
-- Evaluative claims (judgments, assessments)
-- Recommendations (suggestions, proposals)
-- Predictions (forecasts, expectations)
-
-## Guidelines
-- Include supporting evidence from the document
-- Rate evidence strength (strong, moderate, weak)
-- Assign confidence scores (0-1) based on how well-supported claims are
-- Identify potential counter-arguments where relevant
-- Link claims to relevant entities mentioned in the document
-
-## Known Entities (for reference)
-{entity_context}
-
-## Document to Analyze
-{document_text}"""
-
-        result_schema = {
-            "type": "object",
-            "properties": {
-                "claims": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "claim": {"type": "string"},
-                            "claim_type": {
-                                "type": "string",
-                                "enum": ["factual", "causal", "evaluative", "recommendation", "prediction"]
-                            },
-                            "confidence": {"type": "number"},
-                            "evidence": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "text": {"type": "string"},
-                                        "source_span": {"type": "string"},
-                                        "strength": {
-                                            "type": "string",
-                                            "enum": ["strong", "moderate", "weak"]
-                                        }
-                                    },
-                                    "required": ["text", "strength"]
-                                }
-                            },
-                            "supporting_entity_names": {
-                                "type": "array",
-                                "items": {"type": "string"}
-                            },
-                            "counter_arguments": {
-                                "type": "array",
-                                "items": {"type": "string"}
-                            }
-                        },
-                        "required": ["claim", "claim_type", "confidence", "evidence"]
-                    }
-                }
-            },
-            "required": ["claims"]
-        }
-
-        model_config = get_task_config("extraction", "complex")
-
-        super().__init__(
-            response_model=result_schema,
-            system_message=system_message,
-            messages_placeholder=False,
-            model=model_config["model"],
-            temperature=0.2,
-            reasoning_effort=model_config.get("reasoning_effort") if supports_reasoning_effort(model_config["model"]) else None
-        )
-
-
-# ============================================================================
-# Main Document Analysis Service
-# ============================================================================
-
 class DocumentAnalysisService:
     """Service for comprehensive document analysis"""
-
-    def __init__(self):
-        self._summary_caller: Optional[HierarchicalSummaryPromptCaller] = None
-        self._entity_caller: Optional[EntityExtractionPromptCaller] = None
-        self._claim_caller: Optional[ClaimExtractionPromptCaller] = None
-
-    def _get_summary_caller(self) -> HierarchicalSummaryPromptCaller:
-        if self._summary_caller is None:
-            self._summary_caller = HierarchicalSummaryPromptCaller()
-        return self._summary_caller
-
-    def _get_entity_caller(self) -> EntityExtractionPromptCaller:
-        if self._entity_caller is None:
-            self._entity_caller = EntityExtractionPromptCaller()
-        return self._entity_caller
-
-    def _get_claim_caller(self) -> ClaimExtractionPromptCaller:
-        if self._claim_caller is None:
-            self._claim_caller = ClaimExtractionPromptCaller()
-        return self._claim_caller
 
     async def analyze_document(
         self,
@@ -373,15 +111,109 @@ class DocumentAnalysisService:
 
     async def _extract_hierarchical_summary(self, text: str) -> HierarchicalSummary:
         """Extract hierarchical summary using LLM"""
-        caller = self._get_summary_caller()
+        system_prompt = """You are an expert document analyst who creates hierarchical summaries.
 
-        response = await caller.invoke(
-            document_text=text
+Your task is to analyze documents and create comprehensive hierarchical summaries with:
+1. An executive summary (2-3 paragraphs capturing the essence)
+2. Main themes identified in the document
+3. Key conclusions or takeaways
+4. Section-by-section breakdown with key points
+
+Guidelines:
+- Be thorough but concise
+- Identify the natural structure/sections of the document
+- Extract specific, actionable key points
+- Include relevant quotes or spans from the source when helpful
+- Assign importance scores (0-1) based on centrality to the document's purpose"""
+
+        user_prompt = f"""Analyze the following document and create a hierarchical summary:
+
+DOCUMENT:
+{text}
+
+Provide your analysis in the specified JSON format."""
+
+        result_schema = {
+            "type": "object",
+            "properties": {
+                "executive_summary": {
+                    "type": "string",
+                    "description": "2-3 paragraph executive summary"
+                },
+                "main_themes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "3-5 main themes"
+                },
+                "key_conclusions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "3-5 key conclusions"
+                },
+                "sections": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string"},
+                            "summary": {"type": "string"},
+                            "key_points": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "text": {"type": "string"},
+                                        "source_span": {"type": "string"},
+                                        "importance": {"type": "number"}
+                                    },
+                                    "required": ["text"]
+                                }
+                            },
+                            "source_spans": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            }
+                        },
+                        "required": ["title", "summary", "key_points"]
+                    }
+                }
+            },
+            "required": ["executive_summary", "main_themes", "key_conclusions", "sections"]
+        }
+
+        task_config = get_task_config("extraction", "complex")
+        prompt_caller = BasePromptCaller(
+            response_model=result_schema,
+            system_message=system_prompt,
+            model=task_config["model"],
+            temperature=0.3,
+            reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(task_config["model"]) else None
         )
 
-        # Convert response to our models
-        response_dict = response.model_dump() if hasattr(response, 'model_dump') else dict(response)
+        user_message = ChatMessage(
+            id="temp_id",
+            chat_id="temp_chat",
+            role=MessageRole.USER,
+            content=user_prompt,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
 
+        result = await prompt_caller.invoke(
+            messages=[user_message],
+            return_usage=True
+        )
+
+        # Extract response
+        llm_response = result.result
+        if hasattr(llm_response, 'model_dump'):
+            response_dict = llm_response.model_dump()
+        elif hasattr(llm_response, 'dict'):
+            response_dict = llm_response.dict()
+        else:
+            response_dict = llm_response
+
+        # Convert response to our models
         sections = []
         total_key_points = 0
 
@@ -416,13 +248,92 @@ class DocumentAnalysisService:
 
     async def _extract_entities(self, text: str) -> List[ExtractedEntity]:
         """Extract entities using LLM"""
-        caller = self._get_entity_caller()
+        system_prompt = """You are an expert entity extraction system.
 
-        response = await caller.invoke(
-            document_text=text
+Your task is to extract all significant entities from documents, including:
+- People (names, roles)
+- Organizations (companies, institutions)
+- Concepts (ideas, theories, methodologies)
+- Locations (places, regions)
+- Dates and time periods
+- Technical terms and domain-specific terminology
+
+Guidelines:
+- Include context mentions showing how entities appear in the document
+- Estimate importance (0-1) based on frequency and centrality
+- Identify relationships between entities where apparent
+- Be comprehensive but avoid extracting trivial mentions"""
+
+        user_prompt = f"""Extract all significant entities from the following document:
+
+DOCUMENT:
+{text}
+
+Provide your extraction in the specified JSON format."""
+
+        result_schema = {
+            "type": "object",
+            "properties": {
+                "entities": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "category": {
+                                "type": "string",
+                                "enum": ["person", "organization", "concept", "location", "date", "technical_term", "other"]
+                            },
+                            "description": {"type": "string"},
+                            "mentions": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            },
+                            "mention_count": {"type": "integer"},
+                            "importance": {"type": "number"},
+                            "related_entity_names": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            }
+                        },
+                        "required": ["name", "category", "mention_count", "importance"]
+                    }
+                }
+            },
+            "required": ["entities"]
+        }
+
+        task_config = get_task_config("extraction", "default")
+        prompt_caller = BasePromptCaller(
+            response_model=result_schema,
+            system_message=system_prompt,
+            model=task_config["model"],
+            temperature=0.1,
+            reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(task_config["model"]) else None
         )
 
-        response_dict = response.model_dump() if hasattr(response, 'model_dump') else dict(response)
+        user_message = ChatMessage(
+            id="temp_id",
+            chat_id="temp_chat",
+            role=MessageRole.USER,
+            content=user_prompt,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+
+        result = await prompt_caller.invoke(
+            messages=[user_message],
+            return_usage=True
+        )
+
+        # Extract response
+        llm_response = result.result
+        if hasattr(llm_response, 'model_dump'):
+            response_dict = llm_response.model_dump()
+        elif hasattr(llm_response, 'dict'):
+            response_dict = llm_response.dict()
+        else:
+            response_dict = llm_response
 
         entities = []
         entity_name_to_id: Dict[str, str] = {}
@@ -461,18 +372,111 @@ class DocumentAnalysisService:
         entities: List[ExtractedEntity]
     ) -> List[ExtractedClaim]:
         """Extract claims using LLM"""
-        caller = self._get_claim_caller()
-
         # Build entity context for the LLM
         entity_names = [e.name for e in entities]
         entity_context = ', '.join(entity_names) if entity_names else "None identified"
 
-        response = await caller.invoke(
-            document_text=text,
-            entity_context=entity_context
+        system_prompt = """You are an expert at identifying claims and arguments in documents.
+
+Your task is to extract all significant claims, arguments, and assertions, including:
+- Factual claims (statements of fact)
+- Causal claims (X causes/leads to Y)
+- Evaluative claims (judgments, assessments)
+- Recommendations (suggestions, proposals)
+- Predictions (forecasts, expectations)
+
+Guidelines:
+- Include supporting evidence from the document
+- Rate evidence strength (strong, moderate, weak)
+- Assign confidence scores (0-1) based on how well-supported claims are
+- Identify potential counter-arguments where relevant
+- Link claims to relevant entities mentioned in the document"""
+
+        user_prompt = f"""Extract all significant claims and arguments from the following document.
+
+Known entities for reference: {entity_context}
+
+DOCUMENT:
+{text}
+
+Provide your extraction in the specified JSON format."""
+
+        result_schema = {
+            "type": "object",
+            "properties": {
+                "claims": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "claim": {"type": "string"},
+                            "claim_type": {
+                                "type": "string",
+                                "enum": ["factual", "causal", "evaluative", "recommendation", "prediction"]
+                            },
+                            "confidence": {"type": "number"},
+                            "evidence": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "text": {"type": "string"},
+                                        "source_span": {"type": "string"},
+                                        "strength": {
+                                            "type": "string",
+                                            "enum": ["strong", "moderate", "weak"]
+                                        }
+                                    },
+                                    "required": ["text", "strength"]
+                                }
+                            },
+                            "supporting_entity_names": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            },
+                            "counter_arguments": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            }
+                        },
+                        "required": ["claim", "claim_type", "confidence", "evidence"]
+                    }
+                }
+            },
+            "required": ["claims"]
+        }
+
+        task_config = get_task_config("extraction", "complex")
+        prompt_caller = BasePromptCaller(
+            response_model=result_schema,
+            system_message=system_prompt,
+            model=task_config["model"],
+            temperature=0.2,
+            reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(task_config["model"]) else None
         )
 
-        response_dict = response.model_dump() if hasattr(response, 'model_dump') else dict(response)
+        user_message = ChatMessage(
+            id="temp_id",
+            chat_id="temp_chat",
+            role=MessageRole.USER,
+            content=user_prompt,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+
+        result = await prompt_caller.invoke(
+            messages=[user_message],
+            return_usage=True
+        )
+
+        # Extract response
+        llm_response = result.result
+        if hasattr(llm_response, 'model_dump'):
+            response_dict = llm_response.model_dump()
+        elif hasattr(llm_response, 'dict'):
+            response_dict = llm_response.dict()
+        else:
+            response_dict = llm_response
 
         # Build entity name to ID map
         entity_name_to_id = {e.name.lower(): e.id for e in entities}

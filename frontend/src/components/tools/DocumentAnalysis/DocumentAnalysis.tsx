@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { DocumentTextIcon, ShareIcon, Squares2X2Icon } from '@heroicons/react/24/outline';
 import { DocumentInput } from './DocumentInput';
 import { TreeView } from './TreeView';
+import { GraphView } from './GraphView';
+import { SplitView } from './SplitView';
 import { documentAnalysisApi } from '../../../lib/api/documentAnalysisApi';
 import { DocumentAnalysisResult, ViewMode } from '../../../types/document_analysis';
 
@@ -134,22 +136,19 @@ export default function DocumentAnalysis() {
                             />
                         )}
                         {viewMode === 'graph' && (
-                            <div className="flex items-center justify-center h-96 text-gray-500 dark:text-gray-400">
-                                <div className="text-center">
-                                    <ShareIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                                    <p>Graph view coming soon</p>
-                                    <p className="text-sm">Interactive React Flow visualization</p>
-                                </div>
-                            </div>
+                            <GraphView
+                                results={results}
+                                onNodeSelect={handleNodeSelect}
+                                selectedNodeId={selectedNodeId}
+                            />
                         )}
                         {viewMode === 'split' && (
-                            <div className="flex items-center justify-center h-96 text-gray-500 dark:text-gray-400">
-                                <div className="text-center">
-                                    <Squares2X2Icon className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                                    <p>Split view coming soon</p>
-                                    <p className="text-sm">Side-by-side document and analysis</p>
-                                </div>
-                            </div>
+                            <SplitView
+                                results={results}
+                                originalText={documentText}
+                                onNodeSelect={handleNodeSelect}
+                                selectedNodeId={selectedNodeId}
+                            />
                         )}
                     </div>
                 </div>
