@@ -1,17 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import { CalendarIcon, DocumentTextIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon, TrashIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { CalendarIcon, DocumentTextIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
 import { Report, ReportWithArticles, ReportArticle } from '../types';
 import { ResearchStream, Category } from '../types';
 import { PayloadHandler } from '../types/chat';
+import { CanonicalResearchArticle } from '../types/canonical_types';
 
 import { reportApi } from '../lib/api/reportApi';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { useResearchStream } from '../context/ResearchStreamContext';
 import PipelineAnalyticsModal from '../components/PipelineAnalyticsModal';
 import ExecutionConfigModal from '../components/ExecutionConfigModal';
+import ArticleViewerModal from '../components/ArticleViewerModal';
 import ChatTray from '../components/chat/ChatTray';
 import PubMedArticleCard, { PubMedArticleData } from '../components/chat/PubMedArticleCard';
 
@@ -34,6 +36,11 @@ export default function ReportsPage() {
     const [showAnalytics, setShowAnalytics] = useState(false);
     const [showExecutionConfig, setShowExecutionConfig] = useState(false);
     const [executiveSummaryCollapsed, setExecutiveSummaryCollapsed] = useState(false);
+
+    // Article viewer modal state
+    const [articleViewerOpen, setArticleViewerOpen] = useState(false);
+    const [articleViewerArticles, setArticleViewerArticles] = useState<CanonicalResearchArticle[]>([]);
+    const [articleViewerInitialIndex, setArticleViewerInitialIndex] = useState(0);
 
     // Chat context for the general chat system
     const chatContext = useMemo(() => {
@@ -179,6 +186,31 @@ export default function ReportsPage() {
         }
     };
 
+    // Helper to convert ReportArticle to CanonicalResearchArticle for the modal
+    const convertToCanonical = (article: ReportArticle): CanonicalResearchArticle => ({
+        id: String(article.article_id),
+        source: 'pubmed',
+        pmid: article.pmid || undefined,
+        title: article.title,
+        authors: article.authors || [],
+        abstract: article.abstract || '',
+        journal: article.journal || '',
+        publication_year: article.year || undefined,
+        publication_date: undefined,
+        doi: article.doi || undefined,
+        url: article.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/` : undefined,
+        keywords: [],
+        mesh_terms: [],
+        source_metadata: {}
+    });
+
+    // Open article viewer with a group of articles
+    const openArticleViewer = (articles: ReportArticle[], clickedIndex: number) => {
+        setArticleViewerArticles(articles.map(convertToCanonical));
+        setArticleViewerInitialIndex(clickedIndex);
+        setArticleViewerOpen(true);
+    };
+
     // Helper function to organize articles by category
     const getArticlesByCategory = () => {
         if (!selectedReport || !streamDetails) return {};
@@ -217,11 +249,14 @@ export default function ReportsPage() {
         );
     };
 
-    const ArticleCard = ({ article, showAbstract = false }: { article: ReportArticle; showAbstract?: boolean }) => (
+    const ArticleCard = ({ article, showAbstract = false, onTitleClick }: { article: ReportArticle; showAbstract?: boolean; onTitleClick?: () => void }) => (
         <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
             <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
-                    <h4 className="font-medium text-gray-900 dark:text-white mb-2">
+                    <h4
+                        className={`font-medium text-gray-900 dark:text-white mb-2 ${onTitleClick ? 'cursor-pointer hover:text-blue-600 dark:hover:text-blue-400' : ''}`}
+                        onClick={onTitleClick}
+                    >
                         {article.title}
                     </h4>
                     {article.authors && article.authors.length > 0 && (
@@ -262,15 +297,6 @@ export default function ReportsPage() {
                     )}
                 </div>
                 <div className="flex items-center gap-2">
-                    {article.pmid && (
-                        <Link
-                            to={`/articles/${article.pmid}`}
-                            className="text-gray-400 hover:text-blue-500 transition-colors"
-                            title="View article details"
-                        >
-                            <ArrowTopRightOnSquareIcon className="h-5 w-5" />
-                        </Link>
-                    )}
                     <button className="text-gray-400 hover:text-yellow-500 transition-colors">
                         {article.is_starred ? (
                             <StarIconSolid className="h-5 w-5 text-yellow-500" />
@@ -585,8 +611,12 @@ export default function ReportsPage() {
                                                         Articles ({selectedReport.articles.length})
                                                     </h3>
                                                     <div className="space-y-3">
-                                                        {selectedReport.articles.map((article) => (
-                                                            <ArticleCard key={article.article_id} article={article} />
+                                                        {selectedReport.articles.map((article, idx) => (
+                                                            <ArticleCard
+                                                                key={article.article_id}
+                                                                article={article}
+                                                                onTitleClick={() => openArticleViewer(selectedReport.articles, idx)}
+                                                            />
                                                         ))}
                                                     </div>
                                                 </div>
@@ -652,8 +682,13 @@ export default function ReportsPage() {
                                                                             )}
                                                                             {/* Articles */}
                                                                             <div className="p-4 space-y-3">
-                                                                                {data.articles.map((article) => (
-                                                                                    <ArticleCard key={article.article_id} article={article} showAbstract={true} />
+                                                                                {data.articles.map((article, idx) => (
+                                                                                    <ArticleCard
+                                                                                        key={article.article_id}
+                                                                                        article={article}
+                                                                                        showAbstract={true}
+                                                                                        onTitleClick={() => openArticleViewer(data.articles, idx)}
+                                                                                    />
                                                                                 ))}
                                                                             </div>
                                                                         </div>
@@ -694,6 +729,15 @@ export default function ReportsPage() {
                     reportName={selectedReport.report_name}
                     retrievalParams={selectedReport.retrieval_params}
                     onClose={() => setShowExecutionConfig(false)}
+                />
+            )}
+
+            {/* Article Viewer Modal */}
+            {articleViewerOpen && articleViewerArticles.length > 0 && (
+                <ArticleViewerModal
+                    articles={articleViewerArticles}
+                    initialIndex={articleViewerInitialIndex}
+                    onClose={() => setArticleViewerOpen(false)}
                 />
             )}
 
