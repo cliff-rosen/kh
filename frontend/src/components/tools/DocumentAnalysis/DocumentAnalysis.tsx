@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from 'react';
-import { DocumentTextIcon, ShareIcon, Squares2X2Icon, XMarkIcon } from '@heroicons/react/24/outline';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { DocumentTextIcon, ShareIcon, Squares2X2Icon, XMarkIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { DocumentInput } from './DocumentInput';
 import { TreeView } from './TreeView';
 import { GraphView } from './GraphView';
@@ -31,6 +31,16 @@ export default function DocumentAnalysis() {
     const [progressSteps, setProgressSteps] = useState<ProgressStep[]>([]);
     const [currentMessage, setCurrentMessage] = useState<string>('');
     const abortControllerRef = useRef<AbortController | null>(null);
+
+    // Input section collapse state
+    const [isInputCollapsed, setIsInputCollapsed] = useState(false);
+
+    // Auto-collapse input when results appear
+    useEffect(() => {
+        if (results) {
+            setIsInputCollapsed(true);
+        }
+    }, [results]);
 
     const handleStreamMessage = useCallback((message: AnalysisStreamMessage) => {
         setCurrentMessage(message.message);
@@ -175,16 +185,53 @@ export default function DocumentAnalysis() {
 
     return (
         <div className="space-y-6">
-            {/* Input Section */}
-            <DocumentInput
-                documentText={documentText}
-                documentTitle={documentTitle}
-                onTextChange={setDocumentText}
-                onTitleChange={setDocumentTitle}
-                onAnalyze={handleAnalyze}
-                isAnalyzing={isAnalyzing}
-                error={error}
-            />
+            {/* Collapsible Input Section */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+                <button
+                    onClick={() => setIsInputCollapsed(!isInputCollapsed)}
+                    className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-750 rounded-t-lg transition-colors"
+                >
+                    <div className="flex items-center gap-2">
+                        {isInputCollapsed ? (
+                            <ChevronRightIcon className="h-5 w-5 text-gray-500" />
+                        ) : (
+                            <ChevronDownIcon className="h-5 w-5 text-gray-500" />
+                        )}
+                        <span className="font-medium text-gray-900 dark:text-white">
+                            Document Input
+                        </span>
+                        {isInputCollapsed && documentTitle && (
+                            <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
+                                — {documentTitle}
+                            </span>
+                        )}
+                        {isInputCollapsed && !documentTitle && documentText && (
+                            <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
+                                — {documentText.length.toLocaleString()} characters
+                            </span>
+                        )}
+                    </div>
+                    {isInputCollapsed && results && (
+                        <span className="text-xs text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded">
+                            Analysis Complete
+                        </span>
+                    )}
+                </button>
+
+                {!isInputCollapsed && (
+                    <div className="p-4 pt-0">
+                        <DocumentInput
+                            documentText={documentText}
+                            documentTitle={documentTitle}
+                            onTextChange={setDocumentText}
+                            onTitleChange={setDocumentTitle}
+                            onAnalyze={handleAnalyze}
+                            isAnalyzing={isAnalyzing}
+                            error={error}
+                        />
+                    </div>
+                )}
+            </div>
 
             {/* Progress Section */}
             {isAnalyzing && (

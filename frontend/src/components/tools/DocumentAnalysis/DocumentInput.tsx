@@ -23,7 +23,7 @@ export function DocumentInput({
     const isValid = charCount >= 50;
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
+        <div className="space-y-4">
             <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Document Title <span className="text-gray-400">(optional)</span>

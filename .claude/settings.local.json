@@ -18,7 +18,8 @@
       "Bash(dir \"C:\\\\code\\\\kh\\\\frontend\\\\src\")",
       "Bash(cat:*)",
       "Bash(dir:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(xargs ls:*)"
     ],
     "deny": [],
     "ask": [],

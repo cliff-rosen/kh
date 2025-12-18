@@ -181,7 +181,7 @@ export function GraphView({ results, onNodeSelect, selectedNodeId }: GraphViewPr
     }, [nodes, selectedNodeId]);
 
     return (
-        <div className="h-full w-full" style={{ minHeight: '500px' }}>
+        <div style={{ width: '100%', height: '500px' }}>
             <ReactFlow
                 nodes={nodesWithSelection}
                 edges={edges}

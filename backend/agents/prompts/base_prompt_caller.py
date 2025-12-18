@@ -22,7 +22,7 @@ AVAILABLE_MODELS = {
 }
 
 DEFAULT_MODEL = "gpt-5-mini"  # Default to the cost-effective GPT-5 mini model
-
+OPENAI_TIMEOUT = 120.0
 
 # Shared OpenAI client with higher connection limits for parallel processing
 _shared_openai_client = None
@@ -36,7 +36,7 @@ def get_shared_openai_client():
                 max_connections=1000,  # Total connection pool size
                 max_keepalive_connections=100,  # Keep-alive connections
             ),
-            timeout=httpx.Timeout(60.0)  # 60 second timeout
+            timeout=httpx.Timeout(OPENAI_TIMEOUT)
         )
         _shared_openai_client = AsyncOpenAI(http_client=http_client)
     return _shared_openai_client
