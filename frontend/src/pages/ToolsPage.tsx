@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { WrenchScrewdriverIcon, MagnifyingGlassIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import { WrenchScrewdriverIcon, MagnifyingGlassIcon, DocumentTextIcon, DocumentMagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import PubMedIdChecker from '../components/tools/PubMedIdChecker';
 import PubMedSearch from '../components/tools/PubMedSearch';
+import { DocumentAnalysis } from '../components/tools/DocumentAnalysis';
 
-type ToolTab = 'search' | 'id-checker';
+type ToolTab = 'search' | 'id-checker' | 'document-analysis';
 
 const tabs: { id: ToolTab; label: string; description: string; icon: React.ComponentType<{ className?: string }> }[] = [
     {
@@ -17,6 +18,12 @@ const tabs: { id: ToolTab; label: string; description: string; icon: React.Compo
         label: 'PubMed ID Checker',
         description: 'Test which PubMed IDs are captured by a search query',
         icon: MagnifyingGlassIcon,
+    },
+    {
+        id: 'document-analysis',
+        label: 'Document Analysis',
+        description: 'AI-powered document summarization and extraction',
+        icon: DocumentMagnifyingGlassIcon,
     },
 ];
 
@@ -70,6 +77,7 @@ export default function ToolsPage() {
             <div>
                 {activeTab === 'search' && <PubMedSearch />}
                 {activeTab === 'id-checker' && <PubMedIdChecker />}
+                {activeTab === 'document-analysis' && <DocumentAnalysis />}
             </div>
         </div>
     );
