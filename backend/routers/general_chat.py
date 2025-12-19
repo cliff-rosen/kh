@@ -15,7 +15,8 @@ from routers.auth import get_current_user
 from schemas.general_chat import (
     GeneralChatMessage,
     ActionMetadata,
-    ChatResponsePayload
+    StreamEvent,
+    ErrorEvent,
 )
 from services.general_chat_service import GeneralChatService
 
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 
 # ============================================================================
-# Request/Response Models
+# Request Model
 # ============================================================================
 
 class ChatRequest(BaseModel):
@@ -37,41 +38,8 @@ class ChatRequest(BaseModel):
     conversation_history: List[GeneralChatMessage]
 
 
-class ChatStreamChunk(BaseModel):
-    """Streaming response chunk from chat endpoint"""
-    token: Optional[str] = None
-    response_text: Optional[str] = None
-    payload: Optional[ChatResponsePayload] = None
-    status: Optional[str] = None
-    error: Optional[str] = None
-    debug: Optional[Any] = None
-
-
-class ChatStatusResponse(BaseModel):
-    """Status response for chat"""
-    status: str
-    payload: Optional[Any] = None
-    error: Optional[str] = None
-    debug: Optional[Any] = None
-
-
 @router.post("/stream",
     response_class=EventSourceResponse,
-    responses={
-        200: {
-            "description": "Server-Sent Events stream of chat responses",
-            "content": {
-                "text/event-stream": {
-                    "schema": {
-                        "oneOf": [
-                            ChatStreamChunk.model_json_schema(),
-                            ChatStatusResponse.model_json_schema()
-                        ]
-                    }
-                }
-            }
-        }
-    },
     summary="Stream chat responses",
     description="Streams chat responses in real-time using Server-Sent Events"
 )
@@ -83,9 +51,13 @@ async def chat_stream(
     """
     General purpose chat streaming endpoint.
 
-    Accepts user message with context and streams:
-    - Token-by-token response
-    - Final structured response with suggested values/actions
+    Accepts user message with context and streams typed events:
+    - text_delta: Streaming text tokens
+    - status: Status updates (thinking, using tool, etc.)
+    - tool_start: Tool execution begins
+    - tool_complete: Tool execution finished
+    - complete: Final structured response
+    - error: Error occurred
     """
 
     async def event_generator():
@@ -93,27 +65,19 @@ async def chat_stream(
         try:
             service = GeneralChatService(db, current_user.user_id)
 
-            # Stream the response from the service
-            async for chunk in service.stream_chat_message(request):
-                # Yield as SSE event
+            # Stream typed events from the service
+            async for event_json in service.stream_chat_message(request):
                 yield {
                     "event": "message",
-                    "data": chunk
+                    "data": event_json
                 }
 
         except Exception as e:
             logger.error(f"Error in chat stream: {str(e)}")
-            error_response = ChatStreamChunk(
-                token=None,
-                response_text=None,
-                payload=None,
-                status=None,
-                error=str(e),
-                debug=None
-            )
+            error_event = ErrorEvent(message=str(e))
             yield {
                 "event": "message",
-                "data": error_response.model_dump_json()
+                "data": error_event.model_dump_json()
             }
 
     return EventSourceResponse(

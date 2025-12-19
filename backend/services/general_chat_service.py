@@ -11,7 +11,13 @@ import os
 import logging
 
 from schemas.general_chat import (
-    ChatResponsePayload
+    ChatResponsePayload,
+    TextDeltaEvent,
+    StatusEvent,
+    ToolStartEvent,
+    ToolCompleteEvent,
+    CompleteEvent,
+    ErrorEvent,
 )
 # Import chat payloads package (auto-registers all page configurations)
 from services.chat_payloads import (
@@ -171,18 +177,14 @@ class GeneralChatService:
 
     async def stream_chat_message(self, request) -> AsyncGenerator[str, None]:
         """
-        Stream a chat message response with status updates via SSE.
+        Stream a chat message response with typed events via SSE.
         Supports an agentic loop where the LLM can call tools.
 
         Args:
             request: ChatRequest object (defined in routers.general_chat)
 
-        Yields JSON strings matching ChatStreamChunk or ChatStatusResponse schemas
-        (Response models defined in routers.general_chat)
+        Yields JSON strings of StreamEvent types (discriminated union)
         """
-        # Late import to avoid circular dependency
-        from routers.general_chat import ChatStreamChunk, ChatStatusResponse
-
         try:
             # Build system prompt
             system_prompt = self._build_system_prompt(request.context)
@@ -207,19 +209,14 @@ class GeneralChatService:
             tools_by_name = {tool.name: tool for tool in page_tools}
             anthropic_tools = _tools_to_anthropic_format(page_tools) if page_tools else None
 
-            # Send status update that we're calling the LLM
-            status_response = ChatStatusResponse(
-                status="Thinking...",
-                payload={"context": current_page},
-                error=None,
-                debug=None
-            )
-            yield status_response.model_dump_json()
+            # Send initial status
+            yield StatusEvent(message="Thinking...").model_dump_json()
 
             # Agentic loop - continue until we get a final response or hit max iterations
             iteration = 0
             collected_text = ""
             accumulated_payload = None  # Store payload from tool execution
+            tool_call_index = 0  # Track index for [[tool:N]] markers
 
             while iteration < MAX_TOOL_ITERATIONS:
                 iteration += 1
@@ -227,7 +224,6 @@ class GeneralChatService:
                 # Call Claude API - use async for tool calls to allow status updates to flush
                 if anthropic_tools:
                     # When tools are available, we need to check for tool use
-                    # Use async client so status messages can be sent while waiting
                     response = await self.async_client.messages.create(
                         model=CHAT_MODEL,
                         max_tokens=CHAT_MAX_TOKENS,
@@ -250,14 +246,12 @@ class GeneralChatService:
 
                         logger.info(f"Tool call: {tool_name} with input: {tool_input}")
 
-                        # Send status update about tool execution
-                        tool_status = ChatStatusResponse(
-                            status=f"Using {tool_name}...",
-                            payload={"tool": tool_name},
-                            error=None,
-                            debug=None
-                        )
-                        yield tool_status.model_dump_json()
+                        # Emit tool start event
+                        yield ToolStartEvent(
+                            tool=tool_name,
+                            input=tool_input,
+                            tool_use_id=tool_use_id
+                        ).model_dump_json()
 
                         # Execute the tool (run in thread pool to avoid blocking)
                         tool_config = tools_by_name.get(tool_name)
@@ -287,6 +281,18 @@ class GeneralChatService:
                         else:
                             tool_result_str = f"Unknown tool: {tool_name}"
 
+                        # Emit [[tool:N]] marker in text stream
+                        tool_marker = f"[[tool:{tool_call_index}]]"
+                        collected_text += tool_marker
+                        yield TextDeltaEvent(text=tool_marker).model_dump_json()
+
+                        # Emit tool complete event
+                        yield ToolCompleteEvent(
+                            tool=tool_name,
+                            index=tool_call_index
+                        ).model_dump_json()
+                        tool_call_index += 1
+
                         # Add assistant message with tool use and tool result to messages
                         messages.append({
                             "role": "assistant",
@@ -307,24 +313,16 @@ class GeneralChatService:
                         continue
 
                     else:
-                        # No tool use - extract text and finish
+                        # No tool use - extract text and stream it
                         for block in text_blocks:
-                            collected_text += block.text
-                        # Stream the collected text token by token for UX
-                        for char in collected_text:
-                            token_response = ChatStreamChunk(
-                                token=char,
-                                response_text=None,
-                                payload=None,
-                                status="streaming",
-                                error=None,
-                                debug=None
-                            )
-                            yield token_response.model_dump_json()
+                            block_text = block.text
+                            collected_text += block_text
+                            # Stream text in chunks for better UX
+                            yield TextDeltaEvent(text=block_text).model_dump_json()
                         break
 
                 else:
-                    # No tools - use streaming as before
+                    # No tools - use streaming
                     stream = self.client.messages.stream(
                         model=CHAT_MODEL,
                         max_tokens=CHAT_MAX_TOKENS,
@@ -336,16 +334,7 @@ class GeneralChatService:
                     with stream as stream_manager:
                         for text in stream_manager.text_stream:
                             collected_text += text
-                            # Stream each token as it arrives
-                            token_response = ChatStreamChunk(
-                                token=text,
-                                response_text=None,
-                                payload=None,
-                                status="streaming",
-                                error=None,
-                                debug=None
-                            )
-                            yield token_response.model_dump_json()
+                            yield TextDeltaEvent(text=text).model_dump_json()
                     break  # No tools means we're done after first response
 
             # Parse the LLM response to extract structured data
@@ -362,28 +351,12 @@ class GeneralChatService:
                 custom_payload=custom_payload
             )
 
-            # Send final response with structured data
-            final_response = ChatStreamChunk(
-                token=None,
-                response_text=None,
-                payload=final_payload,
-                status="complete",
-                error=None,
-                debug=None
-            )
-            yield final_response.model_dump_json()
+            # Emit complete event
+            yield CompleteEvent(payload=final_payload).model_dump_json()
 
         except Exception as e:
             logger.error(f"Error in chat service: {str(e)}", exc_info=True)
-            error_response = ChatStreamChunk(
-                token=None,
-                response_text=None,
-                payload=None,
-                status=None,
-                error=f"Service error: {str(e)}",
-                debug={"error_type": type(e).__name__}
-            )
-            yield error_response.model_dump_json()
+            yield ErrorEvent(message=f"Service error: {str(e)}").model_dump_json()
 
     def _get_response_format_instructions(self) -> str:
         """

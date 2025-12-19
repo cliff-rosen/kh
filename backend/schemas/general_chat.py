@@ -1,13 +1,13 @@
 """
-General chat domain types and payload types
+General chat domain types and stream event types
 
 Domain types: GeneralChatMessage, ActionMetadata, SuggestedValue, SuggestedAction, CustomPayload
 Response payload type: ChatResponsePayload (structured final response)
-Request/Response models (ChatRequest, ChatStreamChunk, ChatStatusResponse) are in routers/general_chat.py
+Stream event types: Discriminated union for SSE streaming
 """
 
 from pydantic import BaseModel
-from typing import List, Optional, Any, Literal
+from typing import List, Optional, Any, Literal, Union
 
 
 # ============================================================================
@@ -48,7 +48,6 @@ class ActionMetadata(BaseModel):
     action_data: Optional[Any] = None
 
 
-
 # ============================================================================
 # Response Payload Type (structured final response data)
 # ============================================================================
@@ -59,3 +58,74 @@ class ChatResponsePayload(BaseModel):
     suggested_values: Optional[List[SuggestedValue]] = None
     suggested_actions: Optional[List[SuggestedAction]] = None
     custom_payload: Optional[CustomPayload] = None
+
+
+# ============================================================================
+# Stream Event Types (discriminated union with explicit 'type' field)
+# ============================================================================
+
+class TextDeltaEvent(BaseModel):
+    """Streaming text token"""
+    type: Literal["text_delta"] = "text_delta"
+    text: str
+
+
+class StatusEvent(BaseModel):
+    """Status message (thinking, processing, etc.)"""
+    type: Literal["status"] = "status"
+    message: str
+
+
+class ToolStartEvent(BaseModel):
+    """Tool execution begins"""
+    type: Literal["tool_start"] = "tool_start"
+    tool: str
+    input: Any
+    tool_use_id: str
+
+
+class ToolProgressEvent(BaseModel):
+    """Tool execution progress update"""
+    type: Literal["tool_progress"] = "tool_progress"
+    tool: str
+    stage: str
+    message: str
+    progress: float  # 0.0 to 1.0
+    data: Optional[Any] = None
+
+
+class ToolCompleteEvent(BaseModel):
+    """Tool execution finished"""
+    type: Literal["tool_complete"] = "tool_complete"
+    tool: str
+    index: int  # Index for [[tool:N]] markers
+
+
+class CompleteEvent(BaseModel):
+    """Final response with payload"""
+    type: Literal["complete"] = "complete"
+    payload: ChatResponsePayload
+
+
+class ErrorEvent(BaseModel):
+    """Error occurred"""
+    type: Literal["error"] = "error"
+    message: str
+
+
+class CancelledEvent(BaseModel):
+    """Request was cancelled"""
+    type: Literal["cancelled"] = "cancelled"
+
+
+# Discriminated union of all stream event types
+StreamEvent = Union[
+    TextDeltaEvent,
+    StatusEvent,
+    ToolStartEvent,
+    ToolProgressEvent,
+    ToolCompleteEvent,
+    CompleteEvent,
+    ErrorEvent,
+    CancelledEvent
+]

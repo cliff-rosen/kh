@@ -1,45 +1,105 @@
 import { makeStreamRequest } from './streamUtils';
-import {
-    InteractionType,
-    ActionMetadata,
-    StreamEvent,
-    ChatResponsePayload,
-    SuggestedValue,
-    SuggestedAction,
-    CustomPayload
-} from '../../types/chat';
+import { InteractionType, ActionMetadata, SuggestedValue, SuggestedAction, CustomPayload, WorkspacePayload } from '../../types/chat';
 
 // ============================================================================
-// General Chat API Request Types
+// General Chat API Request/Response Types
 // ============================================================================
 
 export interface GeneralChatRequest {
     message: string;
-    context: Record<string, any>;
-    interaction_type: InteractionType;
+    conversation_id?: number;  // If provided, continues existing conversation
+    context?: Record<string, any>;
+    interaction_type?: InteractionType;
     action_metadata?: ActionMetadata;
-    conversation_history: Array<{
-        role: 'user' | 'assistant';
-        content: string;
-        timestamp: string;
-    }>;
+    enabled_tools?: string[];  // List of tool IDs to enable (undefined = all tools)
+    include_profile?: boolean;  // Whether to include user profile in context
 }
 
-// Re-export types for convenience
-export type {
-    StreamEvent,
-    ChatResponsePayload,
-    SuggestedValue,
-    SuggestedAction,
-    CustomPayload
-};
+export interface ChatResponsePayload {
+    message: string;
+    conversation_id?: number;  // The conversation this message belongs to
+    suggested_values?: SuggestedValue[];
+    suggested_actions?: SuggestedAction[];
+    custom_payload?: CustomPayload;
+    workspace_payload?: WorkspacePayload;  // Direct workspace payload from tools (takes precedence over parsed message payloads)
+}
+
+
+// ============================================================================
+// Stream Event Types (discriminated union with explicit 'type' field)
+// ============================================================================
+
+/** Streaming text token */
+export interface TextDeltaEvent {
+    type: 'text_delta';
+    text: string;
+}
+
+/** Status message (thinking, processing, etc.) */
+export interface StatusEvent {
+    type: 'status';
+    message: string;
+}
+
+/** Tool execution begins */
+export interface ToolStartEvent {
+    type: 'tool_start';
+    tool: string;
+    input: any;
+    tool_use_id: string;
+}
+
+/** Tool execution progress update */
+export interface ToolProgressEvent {
+    type: 'tool_progress';
+    tool: string;
+    stage: string;
+    message: string;
+    progress: number;  // 0.0 to 1.0
+    data?: any;
+}
+
+/** Tool execution finished */
+export interface ToolCompleteEvent {
+    type: 'tool_complete';
+    tool: string;
+    index: number;  // Index into tool_history
+}
+
+/** Final response with payload */
+export interface CompleteEvent {
+    type: 'complete';
+    payload: ChatResponsePayload;
+}
+
+/** Error occurred */
+export interface ErrorEvent {
+    type: 'error';
+    message: string;
+}
+
+/** Request was cancelled */
+export interface CancelledEvent {
+    type: 'cancelled';
+}
+
+/** Discriminated union of all stream event types */
+export type StreamEvent =
+    | TextDeltaEvent
+    | StatusEvent
+    | ToolStartEvent
+    | ToolProgressEvent
+    | ToolCompleteEvent
+    | CompleteEvent
+    | ErrorEvent
+    | CancelledEvent;
 
 export const generalChatApi = {
     /**
      * Stream chat messages from the backend
      * @param request - Chat request with message, context, and interaction type
      * @param signal - Optional AbortSignal for cancellation
-     * @returns AsyncGenerator that yields typed stream events
+     * @returns AsyncGenerator that yields stream events
      */
     async* streamMessage(
         request: GeneralChatRequest,
