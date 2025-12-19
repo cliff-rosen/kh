@@ -10,7 +10,7 @@ import {
     ChevronRightIcon,
     LinkIcon
 } from '@heroicons/react/24/outline';
-import { CheckBadgeIcon } from '@heroicons/react/24/solid';
+import { CheckBadgeIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid';
 import { documentAnalysisApi } from '../lib/api/documentAnalysisApi';
 import { articleApi, FullTextLink } from '../lib/api/articleApi';
 import { CanonicalResearchArticle } from '../types/canonical_types';
@@ -20,6 +20,8 @@ import {
     AnalysisStreamMessage
 } from '../types/document_analysis';
 import { TreeView, GraphView, SplitView } from './tools/DocumentAnalysis';
+import ChatTray from './chat/ChatTray';
+import { PayloadHandler } from '../types/chat';
 
 interface ProgressStep {
     id: string;
@@ -34,15 +36,24 @@ interface ArticleViewerModalProps {
     articles: CanonicalResearchArticle[];
     initialIndex?: number;
     onClose: () => void;
+    /** Chat context to pass to the embedded chat tray */
+    chatContext?: Record<string, any>;
+    /** Payload handlers for chat */
+    chatPayloadHandlers?: Record<string, PayloadHandler>;
 }
 
 export default function ArticleViewerModal({
     articles,
     initialIndex = 0,
-    onClose
+    onClose,
+    chatContext,
+    chatPayloadHandlers
 }: ArticleViewerModalProps) {
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
     const article = articles[currentIndex];
+
+    // Chat state
+    const [isChatOpen, setIsChatOpen] = useState(false);
 
     const hasPrevious = currentIndex > 0;
     const hasNext = currentIndex < articles.length - 1;
@@ -317,8 +328,28 @@ export default function ArticleViewerModal({
                     </button>
                 </div>
 
-                {/* Main content */}
-                <div className="flex-1 flex overflow-hidden">
+                {/* Main content - relative container for embedded chat */}
+                <div className="flex-1 flex overflow-hidden relative">
+                    {/* Embedded Chat Tray */}
+                    {chatContext && (
+                        <ChatTray
+                            embedded
+                            isOpen={isChatOpen}
+                            onOpenChange={setIsChatOpen}
+                            initialContext={{
+                                ...chatContext,
+                                current_article: article ? {
+                                    pmid: article.pmid,
+                                    title: article.title,
+                                    authors: article.authors,
+                                    journal: article.journal,
+                                    year: article.publication_year
+                                } : undefined
+                            }}
+                            payloadHandlers={chatPayloadHandlers}
+                        />
+                    )}
+
                     {/* Left sidebar */}
                     <div className="w-80 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden">
                         {/* Current article metadata - fixed height to prevent list jumping */}
@@ -790,6 +821,23 @@ export default function ArticleViewerModal({
                         </div>
                     </div>
                 </div>
+
+                {/* Footer with chat toggle */}
+                {chatContext && (
+                    <div className="flex-shrink-0 px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                        <button
+                            onClick={() => setIsChatOpen(!isChatOpen)}
+                            className={`p-2 rounded-lg transition-colors ${
+                                isChatOpen
+                                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                            }`}
+                            title={isChatOpen ? 'Close chat' : 'Open chat'}
+                        >
+                            <ChatBubbleLeftRightIcon className="h-5 w-5" />
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

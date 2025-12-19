@@ -738,11 +738,19 @@ export default function ReportsPage() {
                     articles={articleViewerArticles}
                     initialIndex={articleViewerInitialIndex}
                     onClose={() => setArticleViewerOpen(false)}
+                    chatContext={chatContext}
+                    chatPayloadHandlers={payloadHandlers}
                 />
             )}
 
-            {/* Chat Tray - uses general chat with report context */}
-            {chatContext && <ChatTray initialContext={chatContext} payloadHandlers={payloadHandlers} />}
+            {/* Chat Tray - uses general chat with report context, hidden when modal is open */}
+            {chatContext && (
+                <ChatTray
+                    initialContext={chatContext}
+                    payloadHandlers={payloadHandlers}
+                    hidden={articleViewerOpen}
+                />
+            )}
         </div>
     );
 }

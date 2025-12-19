@@ -6,6 +6,14 @@ import { InteractionType, PayloadHandler } from '../../types/chat';
 interface ChatTrayProps {
     initialContext?: Record<string, any>;
     payloadHandlers?: Record<string, PayloadHandler>;
+    /** Hide the chat tray completely (used when modal takes over) */
+    hidden?: boolean;
+    /** Render in embedded mode (relative positioning, no toggle button) */
+    embedded?: boolean;
+    /** Controlled open state (for embedded mode) */
+    isOpen?: boolean;
+    /** Callback when open state changes (for embedded mode) */
+    onOpenChange?: (open: boolean) => void;
 }
 
 function getDefaultHeaderTitle(payloadType: string): string {
@@ -34,8 +42,25 @@ function getDefaultHeaderIcon(payloadType: string): string {
     return icons[payloadType] || '✨';
 }
 
-export default function ChatTray({ initialContext, payloadHandlers }: ChatTrayProps) {
-    const [isOpen, setIsOpen] = useState(false);
+export default function ChatTray({
+    initialContext,
+    payloadHandlers,
+    hidden = false,
+    embedded = false,
+    isOpen: controlledIsOpen,
+    onOpenChange
+}: ChatTrayProps) {
+    const [internalIsOpen, setInternalIsOpen] = useState(false);
+
+    // Use controlled state if provided, otherwise use internal state
+    const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
+    const setIsOpen = (open: boolean) => {
+        if (onOpenChange) {
+            onOpenChange(open);
+        } else {
+            setInternalIsOpen(open);
+        }
+    };
     const { messages, sendMessage, isLoading, streamingText, statusText, updateContext } = useGeneralChat(initialContext);
     const [input, setInput] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -119,10 +144,20 @@ export default function ChatTray({ initialContext, payloadHandlers }: ChatTrayPr
         }
     };
 
+    // Don't render anything if hidden
+    if (hidden) {
+        return null;
+    }
+
+    // Positioning classes differ between fixed (global) and embedded modes
+    const trayClasses = embedded
+        ? `absolute top-0 left-0 h-full w-80 bg-white dark:bg-gray-900 shadow-2xl transform transition-transform duration-300 ease-in-out z-10 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`
+        : `fixed top-0 left-0 h-full w-96 bg-white dark:bg-gray-900 shadow-2xl transform transition-transform duration-300 ease-in-out z-50 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`;
+
     return (
         <>
-            {/* Toggle Button - Fixed position in bottom-left */}
-            {!isOpen && (
+            {/* Toggle Button - Fixed position in bottom-left (only for non-embedded mode) */}
+            {!embedded && !isOpen && (
                 <button
                     onClick={() => setIsOpen(true)}
                     className="fixed bottom-6 left-6 z-50 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
@@ -133,10 +168,7 @@ export default function ChatTray({ initialContext, payloadHandlers }: ChatTrayPr
             )}
 
             {/* Chat Tray - Slides in from left */}
-            <div
-                className={`fixed top-0 left-0 h-full w-96 bg-white dark:bg-gray-900 shadow-2xl transform transition-transform duration-300 ease-in-out z-50 ${isOpen ? 'translate-x-0' : '-translate-x-full'
-                    }`}
-            >
+            <div className={trayClasses}>
                 <div className="flex flex-col h-full">
                     {/* Header */}
                     <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
@@ -299,16 +331,16 @@ export default function ChatTray({ initialContext, payloadHandlers }: ChatTrayPr
                 </div>
             </div>
 
-            {/* Overlay when open */}
-            {isOpen && (
+            {/* Overlay when open (only for non-embedded mode) */}
+            {!embedded && isOpen && (
                 <div
                     className="fixed inset-0 bg-black bg-opacity-25 z-40"
                     onClick={() => setIsOpen(false)}
                 />
             )}
 
-            {/* Floating Payload Panel */}
-            {activePayload && (() => {
+            {/* Floating Payload Panel (only for non-embedded mode) */}
+            {!embedded && activePayload && (() => {
                 const handler = payloadHandlers?.[activePayload.type];
                 const renderOptions = handler?.renderOptions || {};
                 const panelWidth = renderOptions.panelWidth || '500px';
