@@ -27,15 +27,68 @@ interface ProgressStep {
 
 type WorkspaceTab = 'overview' | 'analysis' | 'notes';
 
-interface ArticleViewerModalProps {
+export interface AdjacentArticleInfo {
+    pmid?: string;
+    title: string;
+}
+
+export interface ArticleViewerModalProps {
     articles: CanonicalResearchArticle[];
     initialIndex?: number;
     onClose: () => void;
+    // Optional external navigation - when provided, these override internal navigation
+    onPrevious?: () => void;
+    onNext?: () => void;
+    previousArticle?: AdjacentArticleInfo;
+    nextArticle?: AdjacentArticleInfo;
 }
 
-export default function ArticleViewerModal({ articles, initialIndex = 0, onClose }: ArticleViewerModalProps) {
+export default function ArticleViewerModal({
+    articles,
+    initialIndex = 0,
+    onClose,
+    onPrevious,
+    onNext,
+    previousArticle,
+    nextArticle
+}: ArticleViewerModalProps) {
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
     const article = articles[currentIndex];
+
+    // Determine if we're using external or internal navigation
+    const useExternalNav = onPrevious !== undefined || onNext !== undefined;
+
+    // For internal navigation, derive previous/next from articles array
+    const hasPrevious = useExternalNav ? !!onPrevious : currentIndex > 0;
+    const hasNext = useExternalNav ? !!onNext : currentIndex < articles.length - 1;
+
+    const prevInfo: AdjacentArticleInfo | undefined = useExternalNav
+        ? previousArticle
+        : currentIndex > 0
+            ? { pmid: articles[currentIndex - 1].pmid, title: articles[currentIndex - 1].title }
+            : undefined;
+
+    const nextInfo: AdjacentArticleInfo | undefined = useExternalNav
+        ? nextArticle
+        : currentIndex < articles.length - 1
+            ? { pmid: articles[currentIndex + 1].pmid, title: articles[currentIndex + 1].title }
+            : undefined;
+
+    const handlePrevious = useCallback(() => {
+        if (useExternalNav && onPrevious) {
+            onPrevious();
+        } else if (currentIndex > 0) {
+            setCurrentIndex(currentIndex - 1);
+        }
+    }, [useExternalNav, onPrevious, currentIndex]);
+
+    const handleNext = useCallback(() => {
+        if (useExternalNav && onNext) {
+            onNext();
+        } else if (currentIndex < articles.length - 1) {
+            setCurrentIndex(currentIndex + 1);
+        }
+    }, [useExternalNav, onNext, currentIndex, articles.length]);
 
     // Workspace state
     const [activeTab, setActiveTab] = useState<WorkspaceTab>('overview');
@@ -71,15 +124,15 @@ export default function ArticleViewerModal({ articles, initialIndex = 0, onClose
     // Handle arrow keys for navigation
     useEffect(() => {
         const handleArrowKeys = (e: KeyboardEvent) => {
-            if (e.key === 'ArrowLeft' && currentIndex > 0) {
-                setCurrentIndex(currentIndex - 1);
-            } else if (e.key === 'ArrowRight' && currentIndex < articles.length - 1) {
-                setCurrentIndex(currentIndex + 1);
+            if (e.key === 'ArrowLeft' && hasPrevious) {
+                handlePrevious();
+            } else if (e.key === 'ArrowRight' && hasNext) {
+                handleNext();
             }
         };
         window.addEventListener('keydown', handleArrowKeys);
         return () => window.removeEventListener('keydown', handleArrowKeys);
-    }, [currentIndex, articles.length]);
+    }, [hasPrevious, hasNext, handlePrevious, handleNext]);
 
     const handleStreamMessage = useCallback((message: AnalysisStreamMessage) => {
         setCurrentMessage(message.message);
@@ -227,24 +280,26 @@ export default function ArticleViewerModal({ articles, initialIndex = 0, onClose
                 <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center gap-4">
                         {/* Navigation arrows */}
-                        {articles.length > 1 && (
+                        {(hasPrevious || hasNext) && (
                             <div className="flex items-center gap-1">
                                 <button
-                                    onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
-                                    disabled={currentIndex === 0}
+                                    onClick={handlePrevious}
+                                    disabled={!hasPrevious}
                                     className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                    title="Previous article (Left arrow)"
+                                    title={prevInfo ? `Previous: ${prevInfo.title.substring(0, 50)}${prevInfo.title.length > 50 ? '...' : ''}${prevInfo.pmid ? ` (PMID: ${prevInfo.pmid})` : ''}` : 'Previous article (Left arrow)'}
                                 >
                                     <ChevronLeftIcon className="h-5 w-5" />
                                 </button>
-                                <span className="text-sm text-gray-500 min-w-[60px] text-center">
-                                    {currentIndex + 1} / {articles.length}
-                                </span>
+                                {!useExternalNav && articles.length > 1 && (
+                                    <span className="text-sm text-gray-500 min-w-[60px] text-center">
+                                        {currentIndex + 1} / {articles.length}
+                                    </span>
+                                )}
                                 <button
-                                    onClick={() => setCurrentIndex(Math.min(articles.length - 1, currentIndex + 1))}
-                                    disabled={currentIndex === articles.length - 1}
+                                    onClick={handleNext}
+                                    disabled={!hasNext}
                                     className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                    title="Next article (Right arrow)"
+                                    title={nextInfo ? `Next: ${nextInfo.title.substring(0, 50)}${nextInfo.title.length > 50 ? '...' : ''}${nextInfo.pmid ? ` (PMID: ${nextInfo.pmid})` : ''}` : 'Next article (Right arrow)'}
                                 >
                                     <ChevronRightIcon className="h-5 w-5" />
                                 </button>
