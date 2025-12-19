@@ -290,7 +290,7 @@ export default function ArticleViewerModal({
                     {/* Left sidebar */}
                     <div className="w-80 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden">
                         {/* Current article metadata - fixed height to prevent list jumping */}
-                        <div className="h-[350px] flex-shrink-0 p-4 space-y-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-y-auto">
+                        <div className="h-[475px] flex-shrink-0 p-4 space-y-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-y-auto">
                             {/* Title */}
                             <h1 className="text-base font-bold text-gray-900 dark:text-white leading-tight">
                                 {article.title}
