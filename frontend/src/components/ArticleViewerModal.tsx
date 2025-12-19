@@ -27,68 +27,37 @@ interface ProgressStep {
 
 type WorkspaceTab = 'overview' | 'analysis' | 'notes';
 
-export interface AdjacentArticleInfo {
-    pmid?: string;
-    title: string;
-}
-
-export interface ArticleViewerModalProps {
+interface ArticleViewerModalProps {
     articles: CanonicalResearchArticle[];
     initialIndex?: number;
     onClose: () => void;
-    // Optional external navigation - when provided, these override internal navigation
-    onPrevious?: () => void;
-    onNext?: () => void;
-    previousArticle?: AdjacentArticleInfo;
-    nextArticle?: AdjacentArticleInfo;
 }
 
 export default function ArticleViewerModal({
     articles,
     initialIndex = 0,
-    onClose,
-    onPrevious,
-    onNext,
-    previousArticle,
-    nextArticle
+    onClose
 }: ArticleViewerModalProps) {
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
     const article = articles[currentIndex];
 
-    // Determine if we're using external or internal navigation
-    const useExternalNav = onPrevious !== undefined || onNext !== undefined;
+    const hasPrevious = currentIndex > 0;
+    const hasNext = currentIndex < articles.length - 1;
 
-    // For internal navigation, derive previous/next from articles array
-    const hasPrevious = useExternalNav ? !!onPrevious : currentIndex > 0;
-    const hasNext = useExternalNav ? !!onNext : currentIndex < articles.length - 1;
-
-    const prevInfo: AdjacentArticleInfo | undefined = useExternalNav
-        ? previousArticle
-        : currentIndex > 0
-            ? { pmid: articles[currentIndex - 1].pmid, title: articles[currentIndex - 1].title }
-            : undefined;
-
-    const nextInfo: AdjacentArticleInfo | undefined = useExternalNav
-        ? nextArticle
-        : currentIndex < articles.length - 1
-            ? { pmid: articles[currentIndex + 1].pmid, title: articles[currentIndex + 1].title }
-            : undefined;
+    const prevArticle = hasPrevious ? articles[currentIndex - 1] : null;
+    const nextArticle = hasNext ? articles[currentIndex + 1] : null;
 
     const handlePrevious = useCallback(() => {
-        if (useExternalNav && onPrevious) {
-            onPrevious();
-        } else if (currentIndex > 0) {
+        if (currentIndex > 0) {
             setCurrentIndex(currentIndex - 1);
         }
-    }, [useExternalNav, onPrevious, currentIndex]);
+    }, [currentIndex]);
 
     const handleNext = useCallback(() => {
-        if (useExternalNav && onNext) {
-            onNext();
-        } else if (currentIndex < articles.length - 1) {
+        if (currentIndex < articles.length - 1) {
             setCurrentIndex(currentIndex + 1);
         }
-    }, [useExternalNav, onNext, currentIndex, articles.length]);
+    }, [currentIndex, articles.length]);
 
     // Workspace state
     const [activeTab, setActiveTab] = useState<WorkspaceTab>('overview');
@@ -280,26 +249,24 @@ export default function ArticleViewerModal({
                 <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center gap-4">
                         {/* Navigation arrows */}
-                        {(hasPrevious || hasNext) && (
+                        {articles.length > 1 && (
                             <div className="flex items-center gap-1">
                                 <button
                                     onClick={handlePrevious}
                                     disabled={!hasPrevious}
                                     className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                    title={prevInfo ? `Previous: ${prevInfo.title.substring(0, 50)}${prevInfo.title.length > 50 ? '...' : ''}${prevInfo.pmid ? ` (PMID: ${prevInfo.pmid})` : ''}` : 'Previous article (Left arrow)'}
+                                    title={prevArticle ? `Previous: ${prevArticle.title.substring(0, 50)}${prevArticle.title.length > 50 ? '...' : ''}` : 'Previous article'}
                                 >
                                     <ChevronLeftIcon className="h-5 w-5" />
                                 </button>
-                                {!useExternalNav && articles.length > 1 && (
-                                    <span className="text-sm text-gray-500 min-w-[60px] text-center">
-                                        {currentIndex + 1} / {articles.length}
-                                    </span>
-                                )}
+                                <span className="text-sm text-gray-500 min-w-[60px] text-center">
+                                    {currentIndex + 1} / {articles.length}
+                                </span>
                                 <button
                                     onClick={handleNext}
                                     disabled={!hasNext}
                                     className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                    title={nextInfo ? `Next: ${nextInfo.title.substring(0, 50)}${nextInfo.title.length > 50 ? '...' : ''}${nextInfo.pmid ? ` (PMID: ${nextInfo.pmid})` : ''}` : 'Next article (Right arrow)'}
+                                    title={nextArticle ? `Next: ${nextArticle.title.substring(0, 50)}${nextArticle.title.length > 50 ? '...' : ''}` : 'Next article'}
                                 >
                                     <ChevronRightIcon className="h-5 w-5" />
                                 </button>
@@ -322,39 +289,8 @@ export default function ArticleViewerModal({
                 <div className="flex-1 flex overflow-hidden">
                     {/* Left sidebar */}
                     <div className="w-80 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden">
-                        {/* Article list (if multiple) */}
-                        {articles.length > 1 && (
-                            <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 max-h-[40%] overflow-y-auto">
-                                <div className="p-2">
-                                    <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide px-2 py-1">
-                                        Articles ({articles.length})
-                                    </h3>
-                                    <div className="space-y-1">
-                                        {articles.map((art, idx) => (
-                                            <button
-                                                key={art.id}
-                                                onClick={() => setCurrentIndex(idx)}
-                                                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                                                    idx === currentIndex
-                                                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100'
-                                                        : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
-                                                }`}
-                                            >
-                                                <div className="font-medium leading-tight line-clamp-2">
-                                                    {truncateTitle(art.title, 60)}
-                                                </div>
-                                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                    {art.publication_year} {art.journal && `• ${art.journal.substring(0, 20)}`}
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Current article metadata */}
-                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                        {/* Current article metadata - fixed height to prevent list jumping */}
+                        <div className="h-[350px] flex-shrink-0 p-4 space-y-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-y-auto">
                             {/* Title */}
                             <h1 className="text-base font-bold text-gray-900 dark:text-white leading-tight">
                                 {article.title}
@@ -494,6 +430,37 @@ export default function ArticleViewerModal({
                                 </div>
                             )}
                         </div>
+
+                        {/* Article list (if multiple) */}
+                        {articles.length > 1 && (
+                            <div className="flex-1 overflow-y-auto">
+                                <div className="p-2">
+                                    <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide px-2 py-1">
+                                        Articles ({articles.length})
+                                    </h3>
+                                    <div className="space-y-1">
+                                        {articles.map((art, idx) => (
+                                            <button
+                                                key={art.id}
+                                                onClick={() => setCurrentIndex(idx)}
+                                                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                                                    idx === currentIndex
+                                                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100'
+                                                        : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
+                                                }`}
+                                            >
+                                                <div className="font-medium leading-tight line-clamp-2">
+                                                    {truncateTitle(art.title, 60)}
+                                                </div>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                    {art.publication_year} {art.journal && `• ${art.journal.substring(0, 20)}`}
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Right workspace - Tabbed content */}
