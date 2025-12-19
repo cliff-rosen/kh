@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon } from '@heroicons/react/24/solid';
 import { useGeneralChat } from '../../hooks/useGeneralChat';
 import { InteractionType, PayloadHandler } from '../../types/chat';
+import { MarkdownRenderer } from '../common/MarkdownRenderer';
 
 interface ChatTrayProps {
     initialContext?: Record<string, any>;
@@ -210,7 +211,9 @@ export default function ChatTray({
                                             : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow'
                                             }`}
                                     >
-                                        <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+                                        <div className="text-sm">
+                                            <MarkdownRenderer content={message.content} compact />
+                                        </div>
                                         <p className="text-xs opacity-70 mt-1">
                                             {new Date(message.timestamp).toLocaleTimeString()}
                                         </p>
@@ -254,8 +257,9 @@ export default function ChatTray({
                                     </div>
                                 )}
 
-                                {/* Custom Payload Indicator */}
-                                {message.custom_payload?.type && message.custom_payload?.data && (
+                                {/* Custom Payload Indicator - only show in non-embedded mode with known payload types */}
+                                {!embedded && message.custom_payload?.type && message.custom_payload?.data &&
+                                 ['schema_proposal', 'presentation_categories', 'stream_suggestions', 'portfolio_insights', 'quick_setup'].includes(message.custom_payload.type) && (
                                     <div className="mt-3 ml-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
                                         <p className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
                                             <span className="font-medium">
@@ -264,7 +268,6 @@ export default function ChatTray({
                                                 {message.custom_payload.type === 'stream_suggestions' && '💡 Stream suggestions ready'}
                                                 {message.custom_payload.type === 'portfolio_insights' && '📊 Portfolio insights ready'}
                                                 {message.custom_payload.type === 'quick_setup' && '🚀 Quick setup ready'}
-                                                {!['schema_proposal', 'presentation_categories', 'stream_suggestions', 'portfolio_insights', 'quick_setup'].includes(message.custom_payload.type) && '✨ Content ready'}
                                             </span>
                                             <span className="text-xs opacity-75">(see panel to the right)</span>
                                         </p>
@@ -277,7 +280,9 @@ export default function ChatTray({
                         {streamingText && (
                             <div className="flex justify-start">
                                 <div className="max-w-[85%] rounded-lg px-4 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow">
-                                    <div className="text-sm whitespace-pre-wrap">{streamingText}</div>
+                                    <div className="text-sm">
+                                        <MarkdownRenderer content={streamingText} compact />
+                                    </div>
                                     <div className="flex items-center gap-1 mt-1">
                                         <div className="animate-pulse flex gap-1">
                                             <div className="w-1 h-1 bg-blue-600 rounded-full"></div>
