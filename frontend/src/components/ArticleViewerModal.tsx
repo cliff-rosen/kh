@@ -7,9 +7,12 @@ import {
     BeakerIcon,
     PencilSquareIcon,
     ChevronLeftIcon,
-    ChevronRightIcon
+    ChevronRightIcon,
+    LinkIcon
 } from '@heroicons/react/24/outline';
+import { CheckBadgeIcon } from '@heroicons/react/24/solid';
 import { documentAnalysisApi } from '../lib/api/documentAnalysisApi';
+import { articleApi, FullTextLink } from '../lib/api/articleApi';
 import { CanonicalResearchArticle } from '../types/canonical_types';
 import {
     DocumentAnalysisResult,
@@ -63,6 +66,10 @@ export default function ArticleViewerModal({
     const [activeTab, setActiveTab] = useState<WorkspaceTab>('overview');
     const [notes, setNotes] = useState<string>('');
 
+    // Full text links state - keyed by pmid to cache results
+    const [fullTextLinksCache, setFullTextLinksCache] = useState<Record<string, FullTextLink[]>>({});
+    const [loadingLinks, setLoadingLinks] = useState(false);
+
     // Analysis state - keyed by article id to preserve results when navigating
     const [analysisCache, setAnalysisCache] = useState<Record<string, DocumentAnalysisResult>>({});
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -80,6 +87,31 @@ export default function ArticleViewerModal({
         setAnalysisError(null);
         setSelectedNodeId(null);
     }, [currentIndex]);
+
+    // Fetch full text links when article changes (on demand, cached)
+    const currentLinks = article?.pmid ? fullTextLinksCache[article.pmid] : undefined;
+
+    const fetchFullTextLinks = useCallback(async () => {
+        if (!article?.pmid || fullTextLinksCache[article.pmid]) return;
+
+        setLoadingLinks(true);
+        try {
+            const response = await articleApi.getFullTextLinks(article.pmid);
+            setFullTextLinksCache(prev => ({
+                ...prev,
+                [article.pmid as string]: response.links
+            }));
+        } catch (error) {
+            console.error('Failed to fetch full text links:', error);
+            // Cache empty array to prevent repeated failed requests
+            setFullTextLinksCache(prev => ({
+                ...prev,
+                [article.pmid as string]: []
+            }));
+        } finally {
+            setLoadingLinks(false);
+        }
+    }, [article?.pmid, fullTextLinksCache]);
 
     // Handle escape key
     useEffect(() => {
@@ -126,7 +158,7 @@ export default function ArticleViewerModal({
             case 'progress':
                 if (message.data?.phase) {
                     const phaseId = message.data.phase === 'hierarchical_summary' ? 'summary' :
-                                   message.data.phase === 'entity_extraction' ? 'entities' : 'claims';
+                        message.data.phase === 'entity_extraction' ? 'entities' : 'claims';
                     setProgressSteps(prev => prev.map(step =>
                         step.id === phaseId ? { ...step, status: 'active' } : step
                     ));
@@ -306,8 +338,8 @@ export default function ArticleViewerModal({
                                 </p>
                             </div>
 
-                            {/* Journal & Year - always same height */}
-                            <div className="mt-3 grid grid-cols-2 gap-4 h-[40px]">
+                            {/* Journal, Year & PMID - always same height */}
+                            <div className="mt-3 grid grid-cols-3 gap-3 h-[40px]">
                                 <div>
                                     <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                                         Journal
@@ -324,6 +356,14 @@ export default function ArticleViewerModal({
                                         {article.publication_year || '—'}
                                     </p>
                                 </div>
+                                <div>
+                                    <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                        PMID
+                                    </h3>
+                                    <p className="text-sm text-gray-700 dark:text-gray-300 font-mono">
+                                        {article.pmid || '—'}
+                                    </p>
+                                </div>
                             </div>
 
                             {/* Divider */}
@@ -335,6 +375,7 @@ export default function ArticleViewerModal({
                                     Full Text
                                 </h3>
                                 <div className="space-y-2">
+                                    {/* PMC link if available from our data */}
                                     {article.source_metadata?.pmc_id && (
                                         <a
                                             href={`https://www.ncbi.nlm.nih.gov/pmc/articles/${article.source_metadata.pmc_id}/`}
@@ -343,7 +384,10 @@ export default function ArticleViewerModal({
                                             className="block px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md hover:bg-green-100 dark:hover:bg-green-900/30"
                                         >
                                             <div className="flex items-center justify-between">
-                                                <span className="font-medium text-green-700 dark:text-green-300">PubMed Central</span>
+                                                <div className="flex items-center gap-1.5">
+                                                    <CheckBadgeIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                                    <span className="font-medium text-green-700 dark:text-green-300">PubMed Central</span>
+                                                </div>
                                                 <ArrowTopRightOnSquareIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
                                             </div>
                                             <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
@@ -352,6 +396,81 @@ export default function ArticleViewerModal({
                                         </a>
                                     )}
 
+                                    {/* Links fetched from PubMed LinkOut */}
+                                    {currentLinks && currentLinks.length > 0 && currentLinks.map((link, idx) => (
+                                        <a
+                                            key={`${link.provider}-${idx}`}
+                                            href={link.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className={`block px-3 py-2 rounded-md ${link.is_free
+                                                    ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900/30'
+                                                    : 'bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
+                                                }`}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-1.5">
+                                                    {link.is_free && <CheckBadgeIcon className="h-4 w-4 text-green-600 dark:text-green-400" />}
+                                                    <span className={`font-medium truncate ${link.is_free
+                                                            ? 'text-green-700 dark:text-green-300'
+                                                            : 'text-gray-700 dark:text-gray-300'
+                                                        }`}>
+                                                        {link.provider}
+                                                    </span>
+                                                </div>
+                                                <ArrowTopRightOnSquareIcon className={`h-4 w-4 flex-shrink-0 ${link.is_free
+                                                        ? 'text-green-600 dark:text-green-400'
+                                                        : 'text-gray-500 dark:text-gray-400'
+                                                    }`} />
+                                            </div>
+                                            {link.categories.length > 0 && (
+                                                <p className={`text-xs mt-0.5 truncate ${link.is_free
+                                                        ? 'text-green-600 dark:text-green-400'
+                                                        : 'text-gray-500 dark:text-gray-400'
+                                                    }`}>
+                                                    {link.is_free ? 'Free full text' : link.categories.slice(0, 2).join(', ')}
+                                                </p>
+                                            )}
+                                        </a>
+                                    ))}
+
+                                    {/* Button to fetch more links */}
+                                    {currentLinks === undefined && (
+                                        <button
+                                            onClick={fetchFullTextLinks}
+                                            disabled={loadingLinks}
+                                            className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-left"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-1.5">
+                                                    <LinkIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                                                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                                                        {loadingLinks ? 'Loading...' : 'Find full text options'}
+                                                    </span>
+                                                </div>
+                                                {loadingLinks && (
+                                                    <svg className="animate-spin h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                    </svg>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                Check PubMed for additional sources
+                                            </p>
+                                        </button>
+                                    )}
+
+                                    {/* Show message if links were fetched but none found */}
+                                    {currentLinks !== undefined && currentLinks.length === 0 && !article.source_metadata?.pmc_id && (
+                                        <div className="px-3 py-2 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-md">
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                No additional full text sources found
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* DOI link */}
                                     {article.doi && (
                                         <a
                                             href={`https://doi.org/${article.doi}`}
@@ -369,6 +488,7 @@ export default function ArticleViewerModal({
                                         </a>
                                     )}
 
+                                    {/* PubMed link - always shown */}
                                     <a
                                         href={`https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`}
                                         target="_blank"
@@ -399,11 +519,10 @@ export default function ArticleViewerModal({
                                             <button
                                                 key={art.id}
                                                 onClick={() => setCurrentIndex(idx)}
-                                                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                                                    idx === currentIndex
-                                                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100'
-                                                        : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
-                                                }`}
+                                                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${idx === currentIndex
+                                                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100'
+                                                    : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
+                                                    }`}
                                             >
                                                 <div className="font-medium leading-tight line-clamp-2">
                                                     {truncateTitle(art.title, 60)}
@@ -427,11 +546,10 @@ export default function ArticleViewerModal({
                                 <button
                                     key={id}
                                     onClick={() => setActiveTab(id)}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${
-                                        activeTab === id
-                                            ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white'
-                                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
-                                    }`}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${activeTab === id
+                                        ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white'
+                                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+                                        }`}
                                 >
                                     <Icon className="h-4 w-4" />
                                     {label}
@@ -491,7 +609,7 @@ export default function ArticleViewerModal({
                                                 AI Summary
                                             </h3>
                                             <p className="text-gray-700 dark:text-gray-300 mb-4">
-                                                {analysisResults.hierarchical_summary.executive_summary.main_finding}
+                                                {analysisResults.hierarchical_summary.executive.main_themes.join(', ')}
                                             </p>
                                             <div className="flex items-center gap-4">
                                                 <div className="text-center px-4 py-2 bg-gray-50 dark:bg-gray-900 rounded">
@@ -546,12 +664,11 @@ export default function ArticleViewerModal({
                                                 <div className="space-y-3">
                                                     {progressSteps.map((step) => (
                                                         <div key={step.id} className="flex items-center gap-3">
-                                                            <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
-                                                                step.status === 'pending' ? 'bg-gray-200 dark:bg-gray-700' :
+                                                            <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${step.status === 'pending' ? 'bg-gray-200 dark:bg-gray-700' :
                                                                 step.status === 'active' ? 'bg-blue-500 animate-pulse' :
-                                                                step.status === 'complete' ? 'bg-green-500' :
-                                                                'bg-red-500'
-                                                            }`}>
+                                                                    step.status === 'complete' ? 'bg-green-500' :
+                                                                        'bg-red-500'
+                                                                }`}>
                                                                 {step.status === 'active' && (
                                                                     <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                                                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -568,12 +685,11 @@ export default function ArticleViewerModal({
                                                                 )}
                                                             </div>
                                                             <div className="flex-1">
-                                                                <span className={`text-sm font-medium ${
-                                                                    step.status === 'pending' ? 'text-gray-400' :
+                                                                <span className={`text-sm font-medium ${step.status === 'pending' ? 'text-gray-400' :
                                                                     step.status === 'active' ? 'text-blue-600 dark:text-blue-400' :
-                                                                    step.status === 'complete' ? 'text-green-600 dark:text-green-400' :
-                                                                    'text-red-600'
-                                                                }`}>
+                                                                        step.status === 'complete' ? 'text-green-600 dark:text-green-400' :
+                                                                            'text-red-600'
+                                                                    }`}>
                                                                     {step.label}
                                                                 </span>
                                                                 {step.result && (
@@ -620,11 +736,10 @@ export default function ArticleViewerModal({
                                                         <button
                                                             key={id}
                                                             onClick={() => setViewMode(id)}
-                                                            className={`px-3 py-1 rounded text-sm ${
-                                                                viewMode === id
-                                                                    ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                                                                    : 'text-gray-600 dark:text-gray-400'
-                                                            }`}
+                                                            className={`px-3 py-1 rounded text-sm ${viewMode === id
+                                                                ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                                                                : 'text-gray-600 dark:text-gray-400'
+                                                                }`}
                                                         >
                                                             {label}
                                                         </button>

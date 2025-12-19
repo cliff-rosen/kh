@@ -609,6 +609,86 @@ class PubMedService:
 
         return articles
 
+    def get_full_text_links(self, pmid: str) -> List[Dict[str, Any]]:
+        """
+        Get full text link options for a PubMed article using the ELink API.
+
+        Args:
+            pmid: PubMed ID
+
+        Returns:
+            List of link dictionaries with provider, url, category, and is_free info
+        """
+        url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi"
+        params = {
+            'dbfrom': 'pubmed',
+            'id': pmid,
+            'cmd': 'llinks',
+            'retmode': 'json'
+        }
+
+        if self.api_key:
+            params['api_key'] = self.api_key
+
+        try:
+            response = requests.get(url, params=params, timeout=15)
+            response.raise_for_status()
+            data = response.json()
+
+            links = []
+
+            # Parse the linksets from the response
+            linksets = data.get('linksets', [])
+            for linkset in linksets:
+                idurllist = linkset.get('idurllist', [])
+                for idurl in idurllist:
+                    objurls = idurl.get('objurls', [])
+                    for objurl in objurls:
+                        provider = objurl.get('provider', {}).get('name', 'Unknown')
+                        url_value = objurl.get('url', {}).get('value', '')
+                        # Categories is a list of strings, not objects
+                        categories = objurl.get('categories', [])
+                        # Attributes contains subscription/free info
+                        attributes = objurl.get('attributes', [])
+
+                        # Determine if it's free based on attributes
+                        # Free articles won't have "subscription/membership/fee required"
+                        is_free = not any(
+                            'subscription' in attr.lower() or 'fee' in attr.lower()
+                            for attr in attributes
+                        )
+                        # Also check if any attribute explicitly says free
+                        if any('free' in attr.lower() for attr in attributes):
+                            is_free = True
+
+                        if url_value:
+                            links.append({
+                                'provider': provider,
+                                'url': url_value,
+                                'categories': categories,  # Already a list of strings
+                                'is_free': is_free
+                            })
+
+            # Deduplicate by URL
+            seen_urls = set()
+            unique_links = []
+            for link in links:
+                if link['url'] not in seen_urls:
+                    seen_urls.add(link['url'])
+                    unique_links.append(link)
+
+            # Sort: free links first, then by provider name
+            unique_links.sort(key=lambda x: (not x['is_free'], x['provider'].lower()))
+
+            return unique_links
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching full text links for PMID {pmid}: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Error parsing full text links for PMID {pmid}: {e}")
+            return []
+
     def get_pmc_full_text(self, pmc_id: str) -> Optional[str]:
         """
         Fetch full text from PubMed Central for an article with a PMC ID.
@@ -744,3 +824,17 @@ def search_pubmed_count(search_term: str) -> int:
     service = PubMedService()
     _, count = service._get_article_ids(search_term, max_results=1)  # Only get count, not actual results
     return count
+
+
+def get_full_text_links(pmid: str) -> List[Dict[str, Any]]:
+    """
+    Get full text link options for a PubMed article using the ELink API.
+
+    Args:
+        pmid: PubMed ID
+
+    Returns:
+        List of link dictionaries with provider, url, and category info
+    """
+    service = PubMedService()
+    return service.get_full_text_links(pmid)
