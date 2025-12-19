@@ -150,8 +150,9 @@ export default function ChatTray({
     }
 
     // Positioning classes differ between fixed (global) and embedded modes
+    // Embedded mode uses flex-based layout that pushes content instead of overlaying
     const trayClasses = embedded
-        ? `absolute top-0 left-0 h-full w-80 bg-white dark:bg-gray-900 shadow-2xl transform transition-transform duration-300 ease-in-out z-10 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`
+        ? `h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out flex-shrink-0 overflow-hidden ${isOpen ? 'w-80' : 'w-0'}`
         : `fixed top-0 left-0 h-full w-96 bg-white dark:bg-gray-900 shadow-2xl transform transition-transform duration-300 ease-in-out z-50 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`;
 
     return (
@@ -167,9 +168,10 @@ export default function ChatTray({
                 </button>
             )}
 
-            {/* Chat Tray - Slides in from left */}
+            {/* Chat Tray - Slides in from left (or pushes content in embedded mode) */}
             <div className={trayClasses}>
-                <div className="flex flex-col h-full">
+                {/* Inner container with fixed width to prevent content collapse during transition */}
+                <div className={`flex flex-col h-full ${embedded ? 'w-80' : 'w-96'}`}>
                     {/* Header */}
                     <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
                         <div className="flex items-center gap-2">

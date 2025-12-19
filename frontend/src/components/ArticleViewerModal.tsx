@@ -328,8 +328,8 @@ export default function ArticleViewerModal({
                     </button>
                 </div>
 
-                {/* Main content - relative container for embedded chat */}
-                <div className="flex-1 flex overflow-hidden relative">
+                {/* Main content */}
+                <div className="flex-1 flex overflow-hidden">
                     {/* Embedded Chat Tray */}
                     {chatContext && (
                         <ChatTray
