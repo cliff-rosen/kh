@@ -342,10 +342,59 @@ export default function ArticleViewerModal({ articles, initialIndex = 0, onClose
                             {/* Divider */}
                             <hr className="border-gray-200 dark:border-gray-700" />
 
-                            {/* External Links */}
+                            {/* Full Text Access */}
                             <div>
                                 <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                                    Links
+                                    Full Text Access
+                                </h3>
+                                <div className="space-y-2">
+                                    {article.source_metadata?.pmc_id ? (
+                                        <a
+                                            href={`https://www.ncbi.nlm.nih.gov/pmc/articles/${article.source_metadata.pmc_id}/`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="block px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md hover:bg-green-100 dark:hover:bg-green-900/30"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <span className="font-medium text-green-700 dark:text-green-300">PubMed Central</span>
+                                                <ArrowTopRightOnSquareIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                            </div>
+                                            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                                                Free full text available
+                                            </p>
+                                        </a>
+                                    ) : (
+                                        <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md">
+                                            <span className="text-sm text-gray-500 dark:text-gray-400">No free full text</span>
+                                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                                Not available in PubMed Central
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {article.doi && (
+                                        <a
+                                            href={`https://doi.org/${article.doi}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="block px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <span className="font-medium text-amber-700 dark:text-amber-300">Publisher Site</span>
+                                                <ArrowTopRightOnSquareIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                                            </div>
+                                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                                                May require subscription
+                                            </p>
+                                        </a>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Reference Links */}
+                            <div>
+                                <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                                    Reference
                                 </h3>
                                 <div className="space-y-2">
                                     {article.pmid && (
@@ -355,31 +404,18 @@ export default function ArticleViewerModal({ articles, initialIndex = 0, onClose
                                             rel="noopener noreferrer"
                                             className="flex items-center justify-between px-3 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-md text-sm hover:bg-blue-100 dark:hover:bg-blue-900/30"
                                         >
-                                            <span>PubMed</span>
+                                            <div>
+                                                <span className="font-medium">PubMed</span>
+                                                <span className="text-xs text-blue-500 dark:text-blue-400 ml-2">PMID: {article.pmid}</span>
+                                            </div>
                                             <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                                         </a>
                                     )}
                                     {article.doi && (
-                                        <a
-                                            href={`https://doi.org/${article.doi}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center justify-between px-3 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-md text-sm hover:bg-green-100 dark:hover:bg-green-900/30"
-                                        >
-                                            <span>DOI</span>
-                                            <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                                        </a>
-                                    )}
-                                    {article.source_metadata?.pmc_id && (
-                                        <a
-                                            href={`https://www.ncbi.nlm.nih.gov/pmc/articles/${article.source_metadata.pmc_id}/`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center justify-between px-3 py-2 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-md text-sm hover:bg-purple-100 dark:hover:bg-purple-900/30"
-                                        >
-                                            <span>Full Text (PMC)</span>
-                                            <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                                        </a>
+                                        <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-md">
+                                            <span className="text-xs text-gray-500 dark:text-gray-400">DOI: </span>
+                                            <span className="text-xs text-gray-700 dark:text-gray-300 font-mono">{article.doi}</span>
+                                        </div>
                                     )}
                                 </div>
                             </div>
