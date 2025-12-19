@@ -290,56 +290,52 @@ export default function ArticleViewerModal({
                     {/* Left sidebar */}
                     <div className="w-80 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden">
                         {/* Current article metadata - fixed height to prevent list jumping */}
-                        <div className="h-[475px] flex-shrink-0 p-4 space-y-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-y-auto">
-                            {/* Title */}
-                            <h1 className="text-base font-bold text-gray-900 dark:text-white leading-tight">
+                        <div className="h-[475px] flex-shrink-0 p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-y-auto">
+                            {/* Title - fixed 3 lines max */}
+                            <h1 className="text-base font-bold text-gray-900 dark:text-white leading-tight line-clamp-3 h-[60px]">
                                 {article.title}
                             </h1>
 
-                            {/* Authors */}
-                            <div>
-                                <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+                            {/* Authors - single line */}
+                            <div className="mt-3 h-[40px]">
+                                <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                                     Authors
                                 </h3>
-                                <p className="text-sm text-gray-700 dark:text-gray-300">
+                                <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
                                     {formatAuthors(article.authors)}
                                 </p>
                             </div>
 
-                            {/* Journal & Year */}
-                            <div className="grid grid-cols-2 gap-4">
-                                {article.journal && (
-                                    <div>
-                                        <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
-                                            Journal
-                                        </h3>
-                                        <p className="text-sm text-gray-700 dark:text-gray-300">
-                                            {article.journal}
-                                        </p>
-                                    </div>
-                                )}
-                                {article.publication_year && (
-                                    <div>
-                                        <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
-                                            Year
-                                        </h3>
-                                        <p className="text-sm text-gray-700 dark:text-gray-300">
-                                            {article.publication_year}
-                                        </p>
-                                    </div>
-                                )}
+                            {/* Journal & Year - always same height */}
+                            <div className="mt-3 grid grid-cols-2 gap-4 h-[40px]">
+                                <div>
+                                    <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                        Journal
+                                    </h3>
+                                    <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                                        {article.journal || '—'}
+                                    </p>
+                                </div>
+                                <div>
+                                    <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                        Year
+                                    </h3>
+                                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                                        {article.publication_year || '—'}
+                                    </p>
+                                </div>
                             </div>
 
                             {/* Divider */}
-                            <hr className="border-gray-200 dark:border-gray-700" />
+                            <hr className="my-4 border-gray-200 dark:border-gray-700" />
 
                             {/* Full Text Access */}
                             <div>
                                 <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                                    Full Text Access
+                                    Full Text
                                 </h3>
                                 <div className="space-y-2">
-                                    {article.source_metadata?.pmc_id ? (
+                                    {article.source_metadata?.pmc_id && (
                                         <a
                                             href={`https://www.ncbi.nlm.nih.gov/pmc/articles/${article.source_metadata.pmc_id}/`}
                                             target="_blank"
@@ -350,17 +346,10 @@ export default function ArticleViewerModal({
                                                 <span className="font-medium text-green-700 dark:text-green-300">PubMed Central</span>
                                                 <ArrowTopRightOnSquareIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
                                             </div>
-                                            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                                                Free full text available
+                                            <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                                                Free full text
                                             </p>
                                         </a>
-                                    ) : (
-                                        <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md">
-                                            <span className="text-sm text-gray-500 dark:text-gray-400">No free full text</span>
-                                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                                                Not available in PubMed Central
-                                            </p>
-                                        </div>
                                     )}
 
                                     {article.doi && (
@@ -371,64 +360,31 @@ export default function ArticleViewerModal({
                                             className="block px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md hover:bg-amber-100 dark:hover:bg-amber-900/30"
                                         >
                                             <div className="flex items-center justify-between">
-                                                <span className="font-medium text-amber-700 dark:text-amber-300">Publisher Site</span>
+                                                <span className="font-medium text-amber-700 dark:text-amber-300">Publisher / DOI</span>
                                                 <ArrowTopRightOnSquareIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                                             </div>
-                                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
                                                 May require subscription
                                             </p>
                                         </a>
                                     )}
-                                </div>
-                            </div>
 
-                            {/* Reference Links */}
-                            <div>
-                                <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                                    Reference
-                                </h3>
-                                <div className="space-y-2">
-                                    {article.pmid && (
-                                        <a
-                                            href={`https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center justify-between px-3 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-md text-sm hover:bg-blue-100 dark:hover:bg-blue-900/30"
-                                        >
-                                            <div>
-                                                <span className="font-medium">PubMed</span>
-                                                <span className="text-xs text-blue-500 dark:text-blue-400 ml-2">PMID: {article.pmid}</span>
-                                            </div>
-                                            <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                                        </a>
-                                    )}
-                                    {article.doi && (
-                                        <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-md">
-                                            <span className="text-xs text-gray-500 dark:text-gray-400">DOI: </span>
-                                            <span className="text-xs text-gray-700 dark:text-gray-300 font-mono">{article.doi}</span>
+                                    <a
+                                        href={`https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="block px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-medium text-blue-700 dark:text-blue-300">PubMed</span>
+                                            <ArrowTopRightOnSquareIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                                         </div>
-                                    )}
+                                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                                            Abstract & links · PMID: {article.pmid}
+                                        </p>
+                                    </a>
                                 </div>
                             </div>
-
-                            {/* Keywords */}
-                            {article.keywords && article.keywords.length > 0 && (
-                                <div>
-                                    <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                                        Keywords
-                                    </h3>
-                                    <div className="flex flex-wrap gap-1">
-                                        {article.keywords.map((kw, idx) => (
-                                            <span
-                                                key={idx}
-                                                className="px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded text-xs"
-                                            >
-                                                {kw}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
                         </div>
 
                         {/* Article list (if multiple) */}
