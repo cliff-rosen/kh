@@ -2,13 +2,17 @@
 Articles API endpoints - fetches from local database
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import User, Article
+from models import User
 from schemas.canonical_types import CanonicalResearchArticle
+from services.article_service import ArticleService
 from routers.auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/articles", tags=["articles"])
 
@@ -23,35 +27,22 @@ async def get_article_by_pmid(
     Get an article by its PMID from the local database.
     This fetches from our stored articles, not from PubMed directly.
     """
-    article = db.query(Article).filter(Article.pmid == pmid).first()
+    try:
+        service = ArticleService(db)
+        article = service.get_article_by_pmid(pmid)
 
-    if not article:
+        if not article:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Article with PMID {pmid} not found in database"
+            )
+
+        return article
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching article {pmid}: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Article with PMID {pmid} not found in database"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching article: {str(e)}"
         )
-
-    # Convert to CanonicalResearchArticle
-    return CanonicalResearchArticle(
-        id=str(article.article_id),
-        source="pubmed",
-        pmid=article.pmid,
-        title=article.title,
-        authors=article.authors or [],
-        abstract=article.abstract or article.summary or "",
-        journal=article.journal or "",
-        publication_year=article.year,
-        publication_date=article.publication_date.isoformat() if article.publication_date else None,
-        doi=article.doi,
-        url=f"https://pubmed.ncbi.nlm.nih.gov/{article.pmid}/" if article.pmid else article.url,
-        keywords=[],
-        mesh_terms=[],
-        source_metadata={
-            "volume": article.volume,
-            "issue": article.issue,
-            "pages": article.pages,
-            "medium": article.medium,
-            "ai_summary": article.ai_summary,
-            "theme_tags": article.theme_tags or []
-        }
-    )
