@@ -360,9 +360,18 @@ export default function ArticleViewerModal({
                                     <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                                         PMID
                                     </h3>
-                                    <p className="text-sm text-gray-700 dark:text-gray-300 font-mono">
-                                        {article.pmid || '—'}
-                                    </p>
+                                    {article.pmid ? (
+                                        <a
+                                            href={`https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-sm text-blue-600 dark:text-blue-400 font-mono hover:underline"
+                                        >
+                                            {article.pmid}
+                                        </a>
+                                    ) : (
+                                        <p className="text-sm text-gray-700 dark:text-gray-300 font-mono">—</p>
+                                    )}
                                 </div>
                             </div>
 
@@ -487,22 +496,6 @@ export default function ArticleViewerModal({
                                             </p>
                                         </a>
                                     )}
-
-                                    {/* PubMed link - always shown */}
-                                    <a
-                                        href={`https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="block px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/30"
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <span className="font-medium text-blue-700 dark:text-blue-300">PubMed</span>
-                                            <ArrowTopRightOnSquareIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                                        </div>
-                                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
-                                            Abstract & links · PMID: {article.pmid}
-                                        </p>
-                                    </a>
                                 </div>
                             </div>
                         </div>
