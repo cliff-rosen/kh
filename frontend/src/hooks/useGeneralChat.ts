@@ -109,7 +109,8 @@ export function useGeneralChat(options: UseGeneralChatOptions = {}) {
                             timestamp: new Date().toISOString(),
                             suggested_values: responsePayload.suggested_values,
                             suggested_actions: responsePayload.suggested_actions,
-                            custom_payload: responsePayload.custom_payload
+                            custom_payload: responsePayload.custom_payload,
+                            tool_history: responsePayload.tool_history
                         };
                         setMessages(prev => [...prev, assistantMessage]);
                         setStreamingText('');

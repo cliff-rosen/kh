@@ -84,7 +84,7 @@ This document outlines the migration from the current **page-aware chat_payloads
 ### Frontend
 
 - `payloadHandlers` prop passed inline to ChatTray per page
-- No dedicated ChatPanel component - rendering mixed into ChatTray
+- ChatTray is one component with all rendering
 - Tool progress shown but not inline tool results
 - No `[[tool:N]]` marker parsing
 
@@ -120,7 +120,7 @@ class ToolConfig:
 
 ### Frontend
 
-- **ChatPanel component** (within ChatTray) handles:
+- **ChatTray** is enhanced to include:
   - Message display (user and assistant)
   - Streaming text with typing indicator
   - Chat input with send/cancel buttons
@@ -130,12 +130,11 @@ class ToolConfig:
   - **View all tools**: Button/link to see all tool calls together
   - **Suggested values**: Clickable chips for quick input
   - **Suggested actions**: Action buttons with callbacks
-  - Payload rendering from tool results
-- ChatTray orchestrates ChatPanel and provides context
+  - Floating payload panel (spawns when payload received)
 - **Global payload registry** (`payloadRegistry.ts`):
-  - Maps payload types to components: `{ 'pubmed_article': PubMedArticleCard, ... }`
+  - Maps payload types to handlers: `{ 'pubmed_article': { render, onAccept, onReject }, ... }`
   - Replaces per-page `payloadHandlers` prop
-  - Existing payload components (PubMedArticleCard, SchemaProposalCard, etc.) reused
+  - Pages can still provide callbacks for page-specific behavior
 
 ---
 
@@ -167,45 +166,40 @@ class ToolConfig:
    - Use global tool registry: `get_all_tools()` instead of `get_page_tools()`
    - Remove page-aware tool lookup
 
-### Phase 3: Frontend ChatPanel
+### Phase 3: Frontend ChatTray Enhancements
 
-1. **Create ChatPanel component**
-   - Extract message rendering from ChatTray into ChatPanel
-   - Handle message display, streaming text, input
-   - ChatTray wraps ChatPanel and provides context/handlers
-
-2. **Tool progress display**
+1. **Tool progress display**
    - Show progress cards during tool execution
    - Display stage, message, progress percentage
    - Update in real-time as `tool_progress` events arrive
 
-3. **Add `[[tool:N]]` marker parsing**
+2. **Add `[[tool:N]]` marker parsing**
    - Parse markers in assistant message text
    - Replace with inline ToolResultCard using `tool_history[N]`
 
-4. **Create ToolResultCard component**
+3. **Create ToolResultCard component**
    - Shows tool name, input summary, output/result
    - Clickable to expand full details
    - Compact inline view vs expanded view
 
-5. **Tool call list and navigation**
+4. **Tool call list and navigation**
    - Show all tool calls in chat message
    - Click individual tool → show details
    - "View all tools" option → show all tool calls together
 
-6. **Add payload rendering via global registry**
-   - Create `payloadRegistry.ts` mapping payload types to components
+5. **Add payload rendering via global registry**
+   - Create `payloadRegistry.ts` mapping payload types to handlers
    - Same pattern as current `payloadHandlers`, but global instead of per-page
-   - Example: `{ 'pubmed_article': PubMedArticleCard, 'schema_proposal': SchemaProposalCard }`
-   - ChatPanel looks up component by `custom_payload.type` and renders it
+   - Example: `{ 'pubmed_article': { render, onAccept, onReject, renderOptions } }`
+   - ChatTray looks up handler by `custom_payload.type` and renders in floating panel
    - Existing payload components (PubMedArticleCard, etc.) migrate unchanged
 
-7. **Suggested values and actions**
+6. **Suggested values and actions**
    - Render suggested values as clickable chips below message
    - Render suggested actions as buttons
    - Wire up accept/reject callbacks
 
-8. **Ensure tool_history in custom_payload**
+7. **Ensure tool_history in custom_payload**
    - Backend already collects this in `CompleteEvent`
    - Frontend uses it for `[[tool:N]]` replacement and tool list
 
@@ -229,7 +223,6 @@ class ToolConfig:
 | `backend/tools/executor.py` | Streaming tool execution |
 | `backend/tools/builtin/__init__.py` | Auto-register tools |
 | `backend/tools/builtin/pubmed.py` | Migrated PubMed tools |
-| `frontend/src/components/chat/ChatPanel.tsx` | Message display, streaming, payloads |
 | `frontend/src/components/chat/ToolResultCard.tsx` | Inline tool display |
 | `frontend/src/lib/chat/payloadRegistry.ts` | Global payload type → component mapping |
 
@@ -239,7 +232,7 @@ class ToolConfig:
 |------|---------|
 | `backend/services/agent_loop.py` | Support generator tools, yield ToolProgress |
 | `backend/services/general_chat_service.py` | Use global registry |
-| `frontend/src/components/chat/ChatTray.tsx` | Use ChatPanel, remove inline rendering |
+| `frontend/src/components/chat/ChatTray.tsx` | Add tool markers, global registry, tool cards |
 | `frontend/src/hooks/useGeneralChat.ts` | Ensure tool_history available |
 
 ### Deleted Files

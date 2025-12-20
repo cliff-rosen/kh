@@ -1,8 +1,14 @@
 """
 Payload Configuration Registry
 Defines available payload types and their LLM instructions for each page.
+
+MIGRATION NOTE:
+- ToolConfig and ToolResult are DEPRECATED - use tools.registry instead
+- Tools should be registered via backend/tools/registry.py
+- PayloadConfig, context builders, and client actions are still in use
 """
 
+import warnings
 from typing import Dict, List, Any, Callable, Optional
 from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
@@ -28,14 +34,23 @@ class ClientAction:
 
 @dataclass
 class ToolResult:
-    """Result from a tool execution that can include both text for LLM and payload for frontend."""
+    """
+    DEPRECATED: Use tools.registry.ToolResult instead.
+
+    Result from a tool execution that can include both text for LLM and payload for frontend.
+    """
     text: str  # Text result to send back to LLM
     payload: Optional[Dict[str, Any]] = None  # Optional payload to send to frontend (type, data)
 
 
 @dataclass
 class ToolConfig:
-    """Configuration for a tool that the LLM can call."""
+    """
+    DEPRECATED: Use tools.registry.ToolConfig instead.
+
+    Configuration for a tool that the LLM can call.
+    Tools should now be registered via backend/tools/registry.py
+    """
     name: str  # Tool name (e.g., "search_pubmed")
     description: str  # Description for the LLM
     input_schema: Dict[str, Any]  # JSON schema for tool parameters
@@ -129,7 +144,17 @@ def get_page_client_actions(page: str) -> List[ClientAction]:
 
 
 def get_page_tools(page: str) -> List[ToolConfig]:
-    """Get all tools for a page."""
+    """
+    DEPRECATED: Use tools.get_all_tools() or tools.get_tools_dict() instead.
+
+    Get all tools for a page. This function is deprecated as tools are now
+    registered globally via backend/tools/registry.py
+    """
+    warnings.warn(
+        "get_page_tools is deprecated. Use tools.get_all_tools() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     return _payload_registry.get_tools(page)
 
 

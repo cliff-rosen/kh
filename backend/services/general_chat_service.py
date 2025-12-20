@@ -21,14 +21,15 @@ from schemas.general_chat import (
     CompleteEvent,
     ErrorEvent,
 )
-# Import chat payloads package (auto-registers all page configurations)
+# Import chat payloads package (for page context builders and payloads)
 from services.chat_payloads import (
     get_page_payloads,
     get_page_context_builder,
     get_page_client_actions,
-    get_page_tools,
     has_page_payloads,
 )
+# Import global tool registry
+from tools import get_all_tools, get_tools_dict
 from services.agent_loop import (
     run_agent_loop,
     CancellationToken,
@@ -93,10 +94,9 @@ class GeneralChatService:
             ]
             messages.append({"role": "user", "content": user_prompt})
 
-            # Get tools for this page
+            # Get all globally registered tools
             current_page = request.context.get("current_page", "unknown")
-            page_tools = get_page_tools(current_page)
-            tools_by_name = {tool.name: tool for tool in page_tools}
+            tools_by_name = get_tools_dict()
 
             # Send initial status
             yield StatusEvent(message="Thinking...").model_dump_json()
@@ -177,7 +177,8 @@ class GeneralChatService:
                 message=parsed["message"],
                 suggested_values=parsed.get("suggested_values"),
                 suggested_actions=parsed.get("suggested_actions"),
-                custom_payload=custom_payload
+                custom_payload=custom_payload,
+                tool_history=tool_call_history if tool_call_history else None
             )
 
             # Emit complete event

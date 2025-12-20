@@ -4,7 +4,8 @@ import {
     ActionMetadata,
     SuggestedValue,
     SuggestedAction,
-    CustomPayload
+    CustomPayload,
+    ToolHistoryEntry
 } from '../../types/chat';
 
 // ============================================================================
@@ -33,6 +34,7 @@ export interface ChatResponsePayload {
     suggested_values?: SuggestedValue[];
     suggested_actions?: SuggestedAction[];
     custom_payload?: CustomPayload;
+    tool_history?: ToolHistoryEntry[];
 }
 
 

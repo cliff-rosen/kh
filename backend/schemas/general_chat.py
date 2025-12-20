@@ -52,12 +52,20 @@ class ActionMetadata(BaseModel):
 # Response Payload Type (structured final response data)
 # ============================================================================
 
+class ToolHistoryEntry(BaseModel):
+    """Record of a tool call made during the response"""
+    tool_name: str
+    input: Any
+    output: Any
+
+
 class ChatResponsePayload(BaseModel):
     """Structured payload for final chat responses"""
     message: str
     suggested_values: Optional[List[SuggestedValue]] = None
     suggested_actions: Optional[List[SuggestedAction]] = None
     custom_payload: Optional[CustomPayload] = None
+    tool_history: Optional[List[ToolHistoryEntry]] = None
 
 
 # ============================================================================

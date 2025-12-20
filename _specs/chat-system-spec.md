@@ -2,109 +2,129 @@
 
 ## Table of Contents
 
-1. [Overview & Architecture](#1-overview--architecture)
-2. [Streaming Protocol](#2-streaming-protocol)
-   - [SSE Format](#sse-format)
-   - [Event Types](#event-types)
-   - [Event Flow](#event-flow)
-3. [Tool System](#3-tool-system)
-   - [Backend: Tool Configuration](#backend-tool-configuration)
-   - [Backend: Tool Registry](#backend-tool-registry)
-   - [Streaming Tools](#streaming-tools)
-   - [Tool Execution](#tool-execution)
-4. [Workspace System](#4-workspace-system)
-   - [Workspace Modes](#workspace-modes)
-   - [Payload View Registry](#payload-view-registry)
-   - [Workflow View Registry](#workflow-view-registry)
-   - [Adding New Payload Types](#adding-new-payload-types)
-5. [Response Payloads](#5-response-payloads)
-   - [ChatResponsePayload Structure](#chatresponsepayload-structure)
-   - [WorkspacePayload Structure](#workspacepayload-structure)
-   - [Tool History](#tool-history)
-6. [Frontend Implementation](#6-frontend-implementation)
-   - [useGeneralChat Hook](#usegeneralchat-hook)
-   - [MainPage Layout](#mainpage-layout)
-   - [ChatPanel Component](#chatpanel-component)
-   - [WorkspacePanel Component](#workspacepanel-component)
-7. [Backend Implementation](#7-backend-implementation)
-   - [GeneralChatService](#generalchatservice)
-   - [Agent Loop Integration](#agent-loop-integration)
-   - [Conversation Persistence](#conversation-persistence)
-8. [File Structure](#8-file-structure)
+1. [Overview](#1-overview)
+2. [Architecture](#2-architecture)
+3. [Streaming Protocol](#3-streaming-protocol)
+4. [Backend: Tool System](#4-backend-tool-system)
+5. [Backend: Agent Loop](#5-backend-agent-loop)
+6. [Frontend: ChatTray](#6-frontend-chattray)
+7. [Frontend: Tool Display](#7-frontend-tool-display)
+8. [Frontend: Payload Handlers](#8-frontend-payload-handlers)
+9. [Response Payloads](#9-response-payloads)
+10. [File Structure](#10-file-structure)
 
 ---
 
-## 1. Overview & Architecture
+## 1. Overview
 
-The chat system provides streaming LLM interactions with tool support using a **workspace-centric** architecture. It uses Server-Sent Events (SSE) to stream typed events from backend to frontend, following a discriminated union pattern for type safety.
+The chat system provides streaming LLM interactions with tool support. It can be embedded in any page via the **ChatTray** component, which contains a **ChatPanel** for all chat functionality.
 
-The system is **tool-centric** rather than page-aware: tools are globally registered and return workspace payloads that are displayed in a unified workspace panel.
+### Key Features
 
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                                 MAINPAGE                                       │
-│  ┌────────────┐  ┌────────────────┐  ┌──────────────────┐  ┌──────────────┐  │
-│  │ Sidebar    │  │  ChatPanel     │  │  WorkspacePanel  │  │ ContextPanel │  │
-│  │            │  │                │  │                  │  │              │  │
-│  │ Convo List │  │ useGeneralChat │  │ View Registry    │  │ Tools/Assets │  │
-│  └────────────┘  └────────────────┘  └──────────────────┘  └──────────────┘  │
-└──────────────────────────────────────────────────────────────────────────────┘
-                                ▲
-                                │ SSE Stream
-                                │
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                              BACKEND                                          │
-│  ┌──────────────────┐    ┌─────────────┐    ┌────────────────────────┐      │
-│  │ GeneralChatSvc   │───►│ Agent Loop  │───►│   Tool Registry        │      │
-│  │                  │    │             │    │   - Global tools       │      │
-│  │  Maps events to  │    │ Call Model  │    │   - Streaming support  │      │
-│  │  SSE format      │    │ → Tools     │    │   - workspace_payload  │      │
-│  │                  │    │ → Repeat    │    └────────────────────────┘      │
-│  └──────────────────┘    └─────────────┘                                     │
-│                                │                                              │
-│                                ▼                                              │
-│                         ┌─────────────┐                                      │
-│                         │ Anthropic   │                                      │
-│                         │    API      │                                      │
-│                         └─────────────┘                                      │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
+**Backend**
+- SSE streaming with discriminated union events
+- Global tool registry (tools available regardless of page)
+- Generator-based streaming tools with progress updates
+- Multi-turn agent loop (call model → tools → repeat)
 
-### Key Architectural Decisions
-
-| Aspect | Design Choice |
-|--------|---------------|
-| **Tool Registration** | Global registry - tools available regardless of UI state |
-| **Payload Handling** | View registry maps payload types to components |
-| **Workspace Display** | Unified WorkspacePanel with discriminated union modes |
-| **State Management** | useGeneralChat hook with conversation persistence |
-| **Streaming** | Generator-based tools yield ToolProgress updates |
+**Frontend**
+- Message display with streaming text
+- Tool progress display during execution
+- Inline tool cards via `[[tool:N]]` markers
+- Clickable tools to view details
+- Custom payload rendering via global registry
+- Suggested values/actions
 
 ---
 
-## 2. Streaming Protocol
+## 2. Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                                  ANY PAGE                                     │
+│                                                                               │
+│   ┌───────────────────────────────────────────────────────────────────────┐  │
+│   │                              ChatTray                                  │  │
+│   │                                                                        │  │
+│   │  ┌─────────────────────────┐   ┌────────────────────────────────────┐ │  │
+│   │  │     Message Area        │   │      Floating Payload Panel        │ │  │
+│   │  │                         │   │      (spawns when payload          │ │  │
+│   │  │  - Messages             │   │       received)                    │ │  │
+│   │  │  - Streaming text       │   │                                    │ │  │
+│   │  │  - Tool progress        │   │  Renders via payloadHandler        │ │  │
+│   │  │  - Inline tool cards    │   │  with onAccept/onReject callbacks  │ │  │
+│   │  │  - Suggested values     │   │  that can update page state        │ │  │
+│   │  │  - Suggested actions    │   │                                    │ │  │
+│   │  ├─────────────────────────┤   └────────────────────────────────────┘ │  │
+│   │  │     Input Area          │                                          │  │
+│   │  │  - Text input           │                                          │  │
+│   │  │  - Send/Cancel buttons  │                                          │  │
+│   │  └─────────────────────────┘                                          │  │
+│   └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                               │
+│   Page can pass payloadHandlers with callbacks that update page state        │
+│                                                                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                      ▲
+                                      │ SSE Stream
+                                      │
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                                   BACKEND                                     │
+│                                                                               │
+│  ┌────────────────┐   ┌─────────────┐   ┌────────────────┐                   │
+│  │ GeneralChatSvc │──►│ Agent Loop  │──►│ Tool Registry  │                   │
+│  │                │   │             │   │                │                   │
+│  │ Maps events    │   │ Call Model  │   │ Global tools   │                   │
+│  │ to SSE format  │   │ → Tools     │   │ ToolProgress   │                   │
+│  │                │   │ → Repeat    │   │ ToolResult     │                   │
+│  └────────────────┘   └─────────────┘   └────────────────┘                   │
+│                              │                                                │
+│                              ▼                                                │
+│                       ┌─────────────┐                                        │
+│                       │ Anthropic   │                                        │
+│                       │    API      │                                        │
+│                       └─────────────┘                                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Component Responsibilities
+
+| Component | Responsibility |
+|-----------|----------------|
+| **ChatTray** | Complete chat UI: messages, input, and spawnable payload panel |
+| **useGeneralChat** | Hook for chat state management and SSE handling |
+| **payloadHandlers** | Per-page handlers with render + callbacks (onAccept/onReject) that can update page state |
+| **GeneralChatService** | Backend service, runs agent loop, streams SSE events |
+| **Agent Loop** | Multi-turn tool execution |
+| **Tool Registry** | Global tool definitions |
+
+---
+
+## 3. Streaming Protocol
 
 ### SSE Format
 
-Events are sent as Server-Sent Events with JSON payloads:
+Events are sent as Server-Sent Events with JSON payloads. Each event has a `type` field for discrimination:
 
 ```
 data: {"type": "status", "message": "Thinking..."}
 
 data: {"type": "text_delta", "text": "Hello"}
 
-data: {"type": "tool_progress", "tool": "analyze_reviews", "stage": "phase1", "message": "Getting overview...", "progress": 0.25}
+data: {"type": "tool_start", "tool": "search_pubmed", "input": {...}, "tool_use_id": "toolu_123"}
+
+data: {"type": "tool_progress", "tool": "search_pubmed", "stage": "searching", "message": "Found 15 results", "progress": 0.5}
+
+data: {"type": "tool_complete", "tool": "search_pubmed", "index": 0}
 
 data: {"type": "complete", "payload": {...}}
 ```
-
-Each event has a `type` field for discrimination, enabling type-safe handling via `switch (event.type)`.
 
 ### Event Types
 
 | Event | Description | Key Fields |
 |-------|-------------|------------|
-| `status` | Status/thinking indicator | `message` |
+| `status` | Status indicator | `message` |
 | `text_delta` | Streaming text token | `text` |
 | `tool_start` | Tool execution begins | `tool`, `input`, `tool_use_id` |
 | `tool_progress` | Tool progress update | `tool`, `stage`, `message`, `progress`, `data` |
@@ -112,32 +132,6 @@ Each event has a `type` field for discrimination, enabling type-safe handling vi
 | `complete` | Final response | `payload` (ChatResponsePayload) |
 | `error` | Error occurred | `message` |
 | `cancelled` | Request cancelled | (none) |
-
-#### Event Schemas
-
-```typescript
-// Backend: schemas/general_chat.py
-// Frontend: lib/api/generalChatApi.ts
-
-// Streaming text
-{ "type": "text_delta", "text": "Hello" }
-
-// Tool lifecycle with progress
-{ "type": "tool_start", "tool": "analyze_reviews", "input": {"business_name": "..."}, "tool_use_id": "toolu_123" }
-{ "type": "tool_progress", "tool": "analyze_reviews", "stage": "phase2_negative", "message": "Fetching negative reviews...", "progress": 0.4, "data": {"negative_count": 15} }
-{ "type": "tool_complete", "tool": "analyze_reviews", "index": 0 }
-
-// Final response with workspace_payload
-{
-  "type": "complete",
-  "payload": {
-    "message": "I analyzed the reviews...",
-    "conversation_id": 123,
-    "workspace_payload": { "type": "review_analysis", "title": "...", "content": "...", "data": {...} },
-    "custom_payload": { "type": "tool_history", "data": [...] }
-  }
-}
-```
 
 ### Event Flow
 
@@ -153,35 +147,33 @@ User sends message
 ┌───────────────┐
 │  text_delta   │  Streaming tokens...
 │  text_delta   │
-│  text_delta   │
 └───────────────┘
         │
-        ▼ (if tools requested)
+        ▼ (if tool requested)
 ┌───────────────┐
 │  tool_start   │  Tool begins
-│ tool_progress │  Stage updates with progress %
-│ tool_progress │  More updates...
-│ tool_complete │  Tool done, emits [[tool:0]] marker
+│ tool_progress │  Progress updates...
+│ tool_complete │  Tool done
 └───────────────┘
         │
-        ▼ (loop back for more text/tools)
+        ▼ (agent may call more tools or generate more text)
 ┌───────────────┐
 │  text_delta   │  More streaming...
 └───────────────┘
         │
         ▼
 ┌───────────────┐
-│   complete    │  Final payload with workspace_payload
+│   complete    │  Final payload with tool_history
 └───────────────┘
 ```
 
 ---
 
-## 3. Tool System
+## 4. Backend: Tool System
 
-Tools are capabilities the agent can invoke regardless of UI state. They are globally registered and can return workspace payloads for rich visualization.
+Tools are globally registered and available regardless of which page the chat is on.
 
-### Backend: Tool Configuration
+### Tool Configuration
 
 Location: `backend/tools/registry.py`
 
@@ -189,561 +181,149 @@ Location: `backend/tools/registry.py`
 @dataclass
 class ToolProgress:
     """Progress update from a streaming tool."""
-    stage: str                          # Current stage name
-    message: str                        # Human-readable status
-    data: Optional[Dict[str, Any]]      # Structured data for UI
-    progress: Optional[float]           # 0-1 progress indicator
+    stage: str                      # Current stage name
+    message: str                    # Human-readable status
+    progress: float                 # 0.0 to 1.0
+    data: Optional[Dict] = None     # Structured data for UI
 
 @dataclass
 class ToolResult:
-    """Result from a tool execution."""
-    text: str                           # Text result for LLM
-    data: Optional[Dict[str, Any]]      # Structured data
-    workspace_payload: Optional[Dict]   # Payload to display in workspace
+    """Result from tool execution."""
+    text: str                       # Text result for LLM
+    payload: Optional[Dict] = None  # Structured data for custom_payload
 
 @dataclass
 class ToolConfig:
-    """Configuration for a tool the agent can use."""
-    name: str                           # Tool name (e.g., "analyze_reviews")
-    description: str                    # Description for LLM
-    input_schema: Dict[str, Any]        # JSON schema for parameters
-    executor: Callable                  # Function that executes the tool
-    output_schema: Optional[Dict]       # JSON schema for validation
-    category: str = "general"           # Tool category
-    streaming: bool = False             # If True, yields ToolProgress
+    """Configuration for a tool."""
+    name: str                       # Tool name
+    description: str                # Description for LLM
+    input_schema: Dict              # JSON schema for parameters
+    executor: Callable              # Function that executes the tool
+    streaming: bool = False         # If True, executor yields ToolProgress
 ```
 
-### Backend: Tool Registry
+### Tool Registry
 
 ```python
-# Global registry instance
-_tool_registry = ToolRegistry()
+# Global registry
+_tool_registry: Dict[str, ToolConfig] = {}
 
 def register_tool(tool: ToolConfig):
-    """Register a tool in the global registry."""
-    _tool_registry.register(tool)
+    """Register a tool globally."""
+    _tool_registry[tool.name] = tool
+
+def get_tool(name: str) -> Optional[ToolConfig]:
+    """Get a tool by name."""
+    return _tool_registry.get(name)
 
 def get_all_tools() -> List[ToolConfig]:
     """Get all registered tools."""
-    return _tool_registry.get_all()
-
-def get_tools_for_anthropic() -> List[Dict[str, Any]]:
-    """Get all tools in Anthropic API format."""
-    return _tool_registry.to_anthropic_format()
+    return list(_tool_registry.values())
 ```
 
 ### Streaming Tools
 
-Streaming tools yield `ToolProgress` updates before returning the final `ToolResult`:
+Streaming tools yield `ToolProgress` before returning `ToolResult`:
 
 ```python
-def execute_analyze_reviews(
+def execute_search_pubmed(
     params: Dict[str, Any],
-    db: Any,
+    db: Session,
     user_id: int,
     context: Dict[str, Any]
 ) -> Generator[ToolProgress, None, ToolResult]:
-    """
-    Human-intuition review analysis with 4-phase streaming.
-    """
-    yield ToolProgress(
-        stage="phase1_overview",
-        message="Getting business overview...",
-        data={"phase": 1}
-    )
-
-    # ... do work ...
+    """Search PubMed with progress updates."""
 
     yield ToolProgress(
-        stage="phase2_negative",
-        message=f"Found {count} negative reviews",
-        progress=0.5,
-        data={"negative_count": count}
+        stage="searching",
+        message="Searching PubMed...",
+        progress=0.2
     )
 
-    # ... more work ...
+    results = pubmed_api.search(params["query"])
+
+    yield ToolProgress(
+        stage="processing",
+        message=f"Found {len(results)} articles",
+        progress=0.8
+    )
 
     return ToolResult(
-        text="Analysis complete...",
-        data=result.to_dict(),
-        workspace_payload={
-            "type": "review_analysis",
-            "title": f"Review Analysis: {business_name}",
-            "content": verdict.summary,
-            "data": result.to_dict()
+        text=f"Found {len(results)} articles matching '{params['query']}'",
+        payload={
+            "type": "pubmed_results",
+            "data": results
         }
     )
 ```
 
-### Tool Execution
+### Non-Streaming Tools
 
-Location: `backend/tools/executor.py`
-
-The executor handles both streaming and non-streaming tools:
+Non-streaming tools return `ToolResult` directly (or just a string):
 
 ```python
-async def execute_streaming_tool(
-    tool_config: ToolConfig,
-    tool_input: Dict[str, Any],
-    db: Any,
-    user_id: int,
-    context: Dict[str, Any],
-    cancellation_token: Optional[CancellationToken] = None
-) -> AsyncGenerator[Union[ToolProgress, Tuple[str, Any, Any]], None]:
-    """
-    Execute a streaming tool, yielding progress updates and finally the result.
-
-    Yields:
-        ToolProgress for progress updates
-        (text, data, workspace_payload) tuple as final result
-    """
-```
-
-Key features:
-- Runs tool executor in separate thread via `asyncio.to_thread`
-- Supports cancellation via `cancellation_token`
-- Handles both generator (streaming) and direct return (non-streaming) tools
-- Validates output against `output_schema` if defined
-
----
-
-## 4. Workspace System
-
-The workspace system provides a unified panel for displaying tool results and other payloads.
-
-### Workspace Modes
-
-Location: `frontend/src/lib/workspace/workspaceMode.ts`
-
-```typescript
-export type WorkspaceMode =
-    | { mode: 'empty' }
-    | { mode: 'workflow'; instance: WorkflowInstanceState; handlers: WorkflowHandlers }
-    | { mode: 'workflow_loading'; handlers?: WorkflowHandlers | null }
-    | { mode: 'tool'; tool: ToolCall }
-    | { mode: 'tool_history'; history: ToolCall[] }
-    | { mode: 'payload'; payload: WorkspacePayload };
-```
-
-The `getWorkspaceMode()` function determines the current mode based on state, with explicit priority:
-
-1. Workflow loading (processing but no instance yet)
-2. Active workflow instance
-3. Single tool inspection
-4. Tool history inspection
-5. Payload display
-6. Empty state (default)
-
-### Payload View Registry
-
-Location: `frontend/src/lib/workspace/workspaceRegistry.tsx`
-
-Maps payload types to their view components:
-
-```typescript
-export const payloadViewRegistry: PayloadViewRegistry = {
-    // Agent creation/update
-    'agent_create': AgentPayloadView,
-    'agent_update': AgentPayloadView,
-
-    // Table display
-    'table': TablePayloadView,
-
-    // Research workflow
-    'research': ResearchWorkflowView,
-    'research_result': ResearchResultView,
-
-    // Review analysis
-    'review_collection': ReviewCollectionView,
-    'review_analysis': ReviewAnalysisView,
-
-    // Entity verification
-    'entity_verification': EntityVerificationView,
-
-    // Workflow graph design
-    'workflow_graph': WorkflowGraphView,
-
-    // Standard types (draft, summary, data, code) use StandardPayloadView fallback
-};
-
-export function getPayloadView(payloadType: string): React.ComponentType<PayloadViewProps> {
-    return payloadViewRegistry[payloadType] || StandardPayloadView;
-}
-```
-
-### Workflow View Registry
-
-For custom workflow execution views:
-
-```typescript
-export const workflowViewRegistry: WorkflowViewRegistry = {
-    'vendor_finder': VendorFinderWorkflowView,
-    // Other workflows use generic WorkflowExecutionView
-};
-
-export function getWorkflowView(workflowId: string): React.ComponentType<WorkflowViewProps> {
-    return workflowViewRegistry[workflowId] || WorkflowExecutionView;
-}
-```
-
-### Adding New Payload Types
-
-1. **Backend: Return workspace_payload from tool**
-   ```python
-   return ToolResult(
-       text="...",
-       workspace_payload={
-           "type": "my_new_type",
-           "title": "My Title",
-           "content": "Summary text",
-           "data": { ... }
-       }
-   )
-   ```
-
-2. **Frontend: Create view component**
-   ```typescript
-   // components/panels/workspace/MyNewTypeView.tsx
-   export default function MyNewTypeView({ payload }: PayloadViewProps) {
-       const data = payload.data as MyNewTypeData;
-       return <div>...</div>;
-   }
-   ```
-
-3. **Register in workspace registry**
-   ```typescript
-   // lib/workspace/workspaceRegistry.tsx
-   export const payloadViewRegistry: PayloadViewRegistry = {
-       // ... existing entries
-       'my_new_type': MyNewTypeView,
-   };
-   ```
-
-4. **Add type config for styling**
-   ```typescript
-   // components/panels/workspace/types.ts
-   export const payloadTypeConfig: Record<string, PayloadTypeConfig> = {
-       // ... existing entries
-       my_new_type: {
-           icon: MyIcon,
-           color: 'text-blue-500',
-           bg: 'bg-blue-50 dark:bg-blue-900/20',
-           border: 'border-blue-200 dark:border-blue-800',
-           label: 'My New Type',
-           editable: false
-       }
-   };
-   ```
-
-5. **Add TypeScript interface**
-   ```typescript
-   // types/chat.ts
-   export type WorkspacePayloadType = '...' | 'my_new_type';
-
-   export interface MyNewTypeData {
-       // ... fields
-   }
-   ```
-
----
-
-## 5. Response Payloads
-
-### ChatResponsePayload Structure
-
-```typescript
-// Backend: schemas/general_chat.py
-class ChatResponsePayload(BaseModel):
-    message: str                                    # LLM text (may contain [[tool:N]] markers)
-    conversation_id: Optional[int]                  # Conversation this belongs to
-    suggested_values: Optional[List[SuggestedValue]]
-    suggested_actions: Optional[List[SuggestedAction]]
-    custom_payload: Optional[CustomPayload]         # Tool history or other custom data
-    workspace_payload: Optional[Any]                # Direct workspace payload from tools
-
-// Frontend: types/chat.ts
-interface GeneralChatMessage {
-    role: 'user' | 'assistant';
-    content: string;
-    timestamp: string;
-    suggested_values?: SuggestedValue[];
-    suggested_actions?: SuggestedAction[];
-    custom_payload?: CustomPayload;
-    workspace_payload?: WorkspacePayload;
-}
-```
-
-### WorkspacePayload Structure
-
-```typescript
-export interface WorkspacePayload {
-    type: WorkspacePayloadType;
-    title: string;
-    content: string;
-    data?: any;                          // Structured data for the view
-    agent_data?: AgentPayloadData;       // For agent_create/agent_update
-    table_data?: TablePayloadData;       // For table type
-    research_data?: ResearchWorkflow;    // For research workflow
-    // ... other type-specific fields
-}
-
-export type WorkspacePayloadType =
-    | 'draft' | 'summary' | 'data' | 'code'
-    | 'agent_create' | 'agent_update'
-    | 'table' | 'research' | 'research_result'
-    | 'workflow_graph'
-    | 'review_collection' | 'review_analysis';
-```
-
-### Tool History
-
-Tool calls are tracked and included in the final response:
-
-```typescript
-// custom_payload in complete event
-{
-    "type": "tool_history",
-    "data": [
-        {
-            "tool_name": "analyze_reviews",
-            "input": { "business_name": "...", "location": "...", "source": "yelp" },
-            "output": "Analysis complete...",
-            "workspace_payload": { "type": "review_analysis", ... }
+def execute_get_article(params: Dict, db: Session, user_id: int, context: Dict) -> ToolResult:
+    """Get a single article by PMID."""
+    article = pubmed_api.get_article(params["pmid"])
+    return ToolResult(
+        text=f"Retrieved article: {article['title']}",
+        payload={
+            "type": "pubmed_article",
+            "data": article
         }
-    ]
-}
-```
-
-Tool markers `[[tool:N]]` in the message text can be replaced with inline tool cards using `tool_history[N]`.
-
----
-
-## 6. Frontend Implementation
-
-### useGeneralChat Hook
-
-Location: `frontend/src/hooks/useGeneralChat.ts`
-
-#### State
-
-```typescript
-{
-    // Chat state
-    messages: GeneralChatMessage[];
-    context: Record<string, any>;
-    isLoading: boolean;
-    error: string | null;
-    streamingText: string;
-    statusText: string | null;
-    activeToolProgress: ActiveToolProgress | null;
-
-    // Conversation persistence
-    conversationId: number | null;
-    conversations: Conversation[];
-    isLoadingConversation: boolean;
-    isLoadingConversations: boolean;
-}
-
-interface ActiveToolProgress {
-    toolName: string;
-    updates: ToolProgressEvent[];
-}
-```
-
-#### Actions
-
-```typescript
-{
-    // Chat actions
-    sendMessage(content: string, type?: InteractionType, metadata?: ActionMetadata): void;
-    cancelRequest(): void;
-    updateContext(updates: Record<string, any>): void;
-    reset(): void;
-
-    // Conversation actions
-    newConversation(): Promise<number>;
-    loadConversation(id: number): Promise<void>;
-    deleteConversation(id: number): Promise<void>;
-    refreshConversations(): Promise<void>;
-}
-```
-
-#### Event Handling
-
-```typescript
-for await (const event of generalChatApi.streamMessage(request, signal)) {
-    switch (event.type) {
-        case 'status':
-            setStatusText(event.message);
-            break;
-
-        case 'text_delta':
-            setStatusText(null);
-            collectedText += event.text;
-            setStreamingText(collectedText);
-            break;
-
-        case 'tool_start':
-            setStatusText(`Running ${event.tool}...`);
-            setActiveToolProgress({ toolName: event.tool, updates: [] });
-            break;
-
-        case 'tool_progress':
-            setActiveToolProgress(prev => ({
-                ...prev,
-                updates: [...prev.updates, event]
-            }));
-            break;
-
-        case 'tool_complete':
-            setActiveToolProgress(null);
-            setStatusText(null);
-            break;
-
-        case 'complete':
-            // Add message with workspace_payload
-            setMessages(prev => [...prev, {
-                role: 'assistant',
-                content: event.payload.message,
-                workspace_payload: event.payload.workspace_payload,
-                custom_payload: event.payload.custom_payload,
-                // ...
-            }]);
-            break;
-    }
-}
-```
-
-### MainPage Layout
-
-Location: `frontend/src/pages/MainPage.tsx`
-
-Four-panel layout:
-
-```
-┌──────────┬─────────────────┬──────────────────┬─────────────┐
-│          │                 │                  │             │
-│ Sidebar  │   ChatPanel     │  WorkspacePanel  │ ContextPanel│
-│          │                 │                  │             │
-│ Convo    │ Messages        │ Payload View     │ Tools       │
-│ List     │ Input           │ or Workflow      │ Assets      │
-│          │ Progress        │ or Empty         │ Settings    │
-│          │                 │                  │             │
-└──────────┴─────────────────┴──────────────────┴─────────────┘
-```
-
-- **Sidebar**: Conversation history list (collapsible)
-- **ChatPanel**: Chat messages, input, streaming text, tool progress
-- **WorkspacePanel**: Renders based on `getWorkspaceMode()` discriminated union
-- **ContextPanel**: Tool toggles, assets, settings (collapsible)
-
-### ChatPanel Component
-
-Location: `frontend/src/components/panels/ChatPanel.tsx`
-
-Handles:
-- Message display (user and assistant)
-- Streaming text with typing indicator
-- Tool progress cards during execution
-- Input with send/cancel buttons
-- Suggested values/actions
-
-### WorkspacePanel Component
-
-Location: `frontend/src/components/panels/WorkspacePanel.tsx`
-
-Renders the appropriate view based on workspace mode:
-
-```typescript
-function WorkspacePanel({ payload, workflowInstance, ... }) {
-    const mode = getWorkspaceMode({
-        workflowInstance,
-        workflowHandlers,
-        isWorkflowProcessing,
-        currentWorkflowEvent,
-        selectedTool,
-        selectedToolHistory,
-        activePayload: payload
-    });
-
-    switch (mode.mode) {
-        case 'empty':
-            return <EmptyWorkspace />;
-        case 'workflow':
-            const WorkflowView = getWorkflowView(mode.instance.workflow.id);
-            return <WorkflowView instance={mode.instance} handlers={mode.handlers} />;
-        case 'payload':
-            const PayloadView = getPayloadView(mode.payload.type);
-            return <PayloadView payload={mode.payload} />;
-        // ...
-    }
-}
+    )
 ```
 
 ---
 
-## 7. Backend Implementation
+## 5. Backend: Agent Loop
 
-### GeneralChatService
-
-Location: `backend/services/general_chat_service.py`
-
-```python
-class GeneralChatService:
-    """Service for primary agent chat interactions."""
-
-    async def stream_chat_message(
-        self,
-        request,
-        cancellation_token: Optional[CancellationToken] = None
-    ) -> AsyncGenerator[str, None]:
-        """
-        Stream a chat message response with tool support via SSE.
-        """
-        # 1. Setup conversation (create/load, save user message)
-        conversation_id = self._setup_conversation(request, user_prompt)
-
-        # 2. Load message history
-        messages = self._load_message_history(conversation_id)
-
-        # 3. Get tools configuration
-        tools_by_name, tool_descriptions, context = self._get_tools_config(...)
-
-        # 4. Build system prompt
-        system_prompt = self._build_system_prompt(tool_descriptions, ...)
-
-        # 5. Run agent loop
-        async for event in run_agent_loop(...):
-            if isinstance(event, AgentTextDelta):
-                yield TextDeltaEvent(text=event.text).model_dump_json()
-            elif isinstance(event, AgentToolProgress):
-                yield ToolProgressEvent(...).model_dump_json()
-            # ... map all event types
-
-        # 6. Extract workspace_payload from tool results
-        workspace_payload = None
-        for tool_call in reversed(tool_call_history):
-            if tool_call.get("workspace_payload"):
-                workspace_payload = tool_call["workspace_payload"]
-                break
-
-        # 7. Save assistant message
-        self.conv_service.add_message(conversation_id, "assistant", collected_text, ...)
-
-        # 8. Yield final CompleteEvent
-        yield CompleteEvent(payload=ChatResponsePayload(
-            message=collected_text,
-            conversation_id=conversation_id,
-            workspace_payload=workspace_payload,
-            custom_payload={"type": "tool_history", "data": tool_call_history}
-        )).model_dump_json()
-```
-
-### Agent Loop Integration
+The agent loop handles multi-turn tool execution.
 
 Location: `backend/services/agent_loop.py`
 
-The agent loop handles multi-turn tool execution:
+### Event Types
+
+```python
+@dataclass
+class AgentThinking(AgentEvent):
+    message: str
+
+@dataclass
+class AgentTextDelta(AgentEvent):
+    text: str
+
+@dataclass
+class AgentToolStart(AgentEvent):
+    tool_name: str
+    tool_input: Dict
+    tool_use_id: str
+
+@dataclass
+class AgentToolProgress(AgentEvent):
+    tool_name: str
+    stage: str
+    message: str
+    progress: float
+    data: Optional[Any] = None
+
+@dataclass
+class AgentToolComplete(AgentEvent):
+    tool_name: str
+    result_text: str
+    result_data: Any
+
+@dataclass
+class AgentComplete(AgentEvent):
+    text: str
+    tool_calls: List[Dict]
+
+@dataclass
+class AgentError(AgentEvent):
+    error: str
+```
+
+### Agent Loop Function
 
 ```python
 async def run_agent_loop(
@@ -761,86 +341,549 @@ async def run_agent_loop(
     stream_text: bool = True
 ) -> AsyncGenerator[AgentEvent, None]:
     """
-    Run the agent loop with tool execution support.
+    Run agent loop with tool execution.
 
-    Yields:
-        AgentThinking, AgentTextDelta, AgentToolStart,
-        AgentToolProgress, AgentToolComplete, AgentComplete/AgentError
+    Loop:
+    1. Call model
+    2. If tool_use blocks, execute tools
+    3. Add tool results to messages
+    4. Repeat until no more tool calls or max iterations
     """
 ```
 
-### Conversation Persistence
+### GeneralChatService Integration
 
-Location: `backend/services/conversation_service.py`
+```python
+class GeneralChatService:
+    async def stream_chat_message(self, request, cancellation_token) -> AsyncGenerator[str, None]:
+        # Build system prompt and messages
+        # Get tools from global registry
+        tools = {t.name: t for t in get_all_tools()}
 
-- `create_conversation()` - Create new conversation
-- `get_conversation(id)` - Load existing conversation
-- `add_message(conversation_id, role, content, tool_calls)` - Save message
-- `get_messages(conversation_id)` - Load message history
-- `auto_title_if_needed(conversation_id)` - Generate title from first message
+        # Run agent loop and map events to SSE
+        async for event in run_agent_loop(...):
+            if isinstance(event, AgentTextDelta):
+                yield TextDeltaEvent(text=event.text).model_dump_json()
+            elif isinstance(event, AgentToolStart):
+                yield ToolStartEvent(tool=event.tool_name, ...).model_dump_json()
+            elif isinstance(event, AgentToolProgress):
+                yield ToolProgressEvent(...).model_dump_json()
+            # ... etc
+
+        # Yield final complete event with tool_history
+        yield CompleteEvent(payload=ChatResponsePayload(
+            message=collected_text,
+            custom_payload={"type": "tool_history", "data": tool_call_history}
+        )).model_dump_json()
+```
 
 ---
 
-## 8. File Structure
+## 6. Frontend: ChatTray
+
+ChatTray is a complete chat component that includes the message area, input, and a spawnable payload panel. It can be embedded in any page.
+
+### ChatTray Props
+
+```typescript
+interface ChatTrayProps {
+    initialContext?: Record<string, any>;
+    payloadHandlers?: Record<string, PayloadHandler>;  // Handlers with render + callbacks
+    hidden?: boolean;
+    embedded?: boolean;
+    isOpen?: boolean;
+    onOpenChange?: (open: boolean) => void;
+}
+```
+
+### ChatTray Structure
+
+```typescript
+function ChatTray({ initialContext, payloadHandlers, ... }: ChatTrayProps) {
+    const chat = useGeneralChat({ initialContext });
+    const [activePayload, setActivePayload] = useState<{ type: string; data: any } | null>(null);
+
+    // Detect new payloads and show in floating panel
+    useEffect(() => {
+        const latestMessage = messages[messages.length - 1];
+        if (latestMessage?.custom_payload?.type) {
+            if (payloadHandlers?.[latestMessage.custom_payload.type]) {
+                setActivePayload({
+                    type: latestMessage.custom_payload.type,
+                    data: latestMessage.custom_payload.data
+                });
+            }
+        }
+    }, [messages, payloadHandlers]);
+
+    return (
+        <>
+            {/* Main Chat Panel */}
+            <div className="chat-tray">
+                {/* Message Area */}
+                <div className="messages">
+                    {messages.map(msg => <MessageBubble message={msg} />)}
+                    {streamingText && <StreamingMessage text={streamingText} />}
+                    {activeToolProgress && <ToolProgressCard progress={activeToolProgress} />}
+                    {statusText && <StatusIndicator text={statusText} />}
+                </div>
+
+                {/* Input Area */}
+                <ChatInput onSend={sendMessage} onCancel={cancelRequest} isLoading={isLoading} />
+            </div>
+
+            {/* Floating Payload Panel - spawns adjacent to chat */}
+            {activePayload && (
+                <PayloadPanel
+                    payload={activePayload}
+                    handler={payloadHandlers[activePayload.type]}
+                    onClose={() => setActivePayload(null)}
+                />
+            )}
+        </>
+    );
+}
+```
+
+### Floating Payload Panel
+
+When a payload is received and a handler exists, a panel spawns next to the chat:
+
+```typescript
+function PayloadPanel({ payload, handler, onClose }) {
+    return (
+        <div className="fixed top-0 left-96 h-full bg-white shadow-2xl">
+            <div className="header">
+                <h3>{handler.renderOptions?.headerTitle}</h3>
+                <button onClick={onClose}>×</button>
+            </div>
+
+            <div className="content">
+                {handler.render(payload.data, {
+                    onAccept: (data) => {
+                        handler.onAccept?.(data);  // Callback can update page state
+                        onClose();
+                    },
+                    onReject: () => {
+                        handler.onReject?.(payload.data);  // Callback can update page state
+                        onClose();
+                    }
+                })}
+            </div>
+        </div>
+    );
+}
+```
+
+### useGeneralChat Hook
+
+```typescript
+interface UseGeneralChatReturn {
+    // State
+    messages: GeneralChatMessage[];
+    streamingText: string;
+    statusText: string | null;
+    activeToolProgress: ActiveToolProgress | null;
+    isLoading: boolean;
+    error: string | null;
+
+    // Actions
+    sendMessage: (content: string) => void;
+    cancelRequest: () => void;
+    updateContext: (updates: Record<string, any>) => void;
+    reset: () => void;
+}
+
+interface ActiveToolProgress {
+    toolName: string;
+    updates: ToolProgressEvent[];
+}
+```
+
+### Event Handling
+
+```typescript
+for await (const event of generalChatApi.streamMessage(request, signal)) {
+    switch (event.type) {
+        case 'status':
+            setStatusText(event.message);
+            break;
+
+        case 'text_delta':
+            setStatusText(null);
+            collectedText += event.text;
+            setStreamingText(collectedText);
+            break;
+
+        case 'tool_start':
+            setActiveToolProgress({ toolName: event.tool, updates: [] });
+            break;
+
+        case 'tool_progress':
+            setActiveToolProgress(prev => ({
+                ...prev!,
+                updates: [...prev!.updates, event]
+            }));
+            break;
+
+        case 'tool_complete':
+            setActiveToolProgress(null);
+            break;
+
+        case 'complete':
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: event.payload.message,
+                custom_payload: event.payload.custom_payload,
+                suggested_values: event.payload.suggested_values,
+                suggested_actions: event.payload.suggested_actions
+            }]);
+            setStreamingText('');
+            break;
+
+        case 'error':
+            setError(event.message);
+            break;
+    }
+}
+```
+
+---
+
+## 7. Frontend: Tool Display
+
+### During Streaming: Tool Progress Card
+
+While a tool is executing, show a progress card:
+
+```typescript
+function ToolProgressCard({ progress }: { progress: ActiveToolProgress }) {
+    const latestUpdate = progress.updates[progress.updates.length - 1];
+
+    return (
+        <div className="tool-progress-card">
+            <div className="tool-name">{progress.toolName}</div>
+            {latestUpdate && (
+                <>
+                    <div className="stage">{latestUpdate.stage}</div>
+                    <div className="message">{latestUpdate.message}</div>
+                    <ProgressBar value={latestUpdate.progress} />
+                </>
+            )}
+        </div>
+    );
+}
+```
+
+### After Complete: Inline Tool Cards
+
+After the response is complete, parse `[[tool:N]]` markers and replace with inline cards:
+
+```typescript
+function MessageBubble({ message, toolHistory }: Props) {
+    // Parse [[tool:N]] markers
+    const parts = parseToolMarkers(message.content);
+
+    return (
+        <div className="message">
+            {parts.map(part => {
+                if (part.type === 'text') {
+                    return <span>{part.text}</span>;
+                } else {
+                    // part.type === 'tool', part.index is N
+                    const tool = toolHistory?.[part.index];
+                    return <InlineToolCard tool={tool} />;
+                }
+            })}
+        </div>
+    );
+}
+
+function parseToolMarkers(text: string): Part[] {
+    // Split on [[tool:N]] pattern
+    const regex = /\[\[tool:(\d+)\]\]/g;
+    // ... return array of {type: 'text', text} | {type: 'tool', index}
+}
+```
+
+### Inline Tool Card
+
+Compact card that can be expanded:
+
+```typescript
+function InlineToolCard({ tool }: { tool: ToolHistoryEntry }) {
+    const [expanded, setExpanded] = useState(false);
+
+    return (
+        <div className="inline-tool-card" onClick={() => setExpanded(!expanded)}>
+            <div className="tool-header">
+                <ToolIcon name={tool.tool_name} />
+                <span className="tool-name">{formatToolName(tool.tool_name)}</span>
+            </div>
+
+            {expanded && (
+                <div className="tool-details">
+                    <div className="input">
+                        <strong>Input:</strong>
+                        <pre>{JSON.stringify(tool.input, null, 2)}</pre>
+                    </div>
+                    <div className="output">
+                        <strong>Output:</strong>
+                        <pre>{typeof tool.output === 'string' ? tool.output : JSON.stringify(tool.output, null, 2)}</pre>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+```
+
+### View All Tools
+
+Button to show all tool calls from a message:
+
+```typescript
+function MessageBubble({ message, toolHistory }: Props) {
+    const [showAllTools, setShowAllTools] = useState(false);
+
+    return (
+        <div className="message">
+            {/* Message content with inline tools */}
+
+            {toolHistory && toolHistory.length > 0 && (
+                <button onClick={() => setShowAllTools(true)}>
+                    View all {toolHistory.length} tool calls
+                </button>
+            )}
+
+            {showAllTools && (
+                <ToolHistoryPanel
+                    tools={toolHistory}
+                    onClose={() => setShowAllTools(false)}
+                />
+            )}
+        </div>
+    );
+}
+```
+
+---
+
+## 8. Frontend: Payload Handlers
+
+Payload handlers are passed per-page to ChatTray. They define how to render payloads AND provide callbacks that can update page state when the user accepts or rejects a payload.
+
+### PayloadHandler Interface
+
+```typescript
+interface PayloadHandler {
+    render: (data: any, callbacks: PayloadCallbacks) => React.ReactNode;
+    onAccept?: (data: any) => void;   // Called when user accepts - can update page state
+    onReject?: (data: any) => void;   // Called when user rejects - can update page state
+    renderOptions?: {
+        panelWidth?: string;
+        headerTitle?: string;
+        headerIcon?: string;
+    };
+}
+
+interface PayloadCallbacks {
+    onAccept: (data: any) => void;
+    onReject: () => void;
+}
+```
+
+### Passing Payload Handlers to ChatTray
+
+Each page defines its own handlers with callbacks that integrate with the page's state:
+
+```typescript
+// Example: ReportsPage.tsx
+function ReportsPage() {
+    const [schema, setSchema] = useState(null);
+
+    const payloadHandlers = useMemo(() => ({
+        pubmed_article: {
+            render: (data) => <PubMedArticleCard article={data} />,
+            renderOptions: {
+                panelWidth: '550px',
+                headerTitle: 'PubMed Article',
+                headerIcon: '📄'
+            }
+        },
+        schema_proposal: {
+            render: (data, callbacks) => (
+                <SchemaProposalCard
+                    proposal={data}
+                    onAccept={callbacks.onAccept}
+                    onReject={callbacks.onReject}
+                />
+            ),
+            onAccept: (data) => {
+                setSchema(data);  // Updates page state!
+                toast.success('Schema applied');
+            },
+            onReject: (data) => {
+                toast.info('Schema rejected');
+            },
+            renderOptions: {
+                headerTitle: 'Schema Proposal'
+            }
+        }
+    }), []);
+
+    return (
+        <div>
+            {/* Page content that uses schema state */}
+            <ChatTray
+                initialContext={{ current_page: 'reports' }}
+                payloadHandlers={payloadHandlers}
+            />
+        </div>
+    );
+}
+```
+
+### How Payloads Flow
+
+1. **Backend tool returns payload:**
+   ```python
+   return ToolResult(
+       text="Here's the article...",
+       payload={
+           "type": "pubmed_article",
+           "data": { "pmid": "12345", "title": "...", ... }
+       }
+   )
+   ```
+
+2. **ChatTray receives `custom_payload` in complete event**
+
+3. **ChatTray checks if `payloadHandlers[payload.type]` exists**
+
+4. **If handler exists, floating panel spawns with:**
+   - The component from `handler.render(data, callbacks)`
+   - Accept/reject callbacks wired up to `handler.onAccept` / `handler.onReject`
+
+5. **When user accepts/rejects:**
+   - Handler callback fires (can update page state)
+   - Panel closes
+
+### Global Payload Registry (Migration)
+
+For the migration, we're moving from per-page `payloadHandlers` to a global registry:
+
+```typescript
+// lib/chat/payloadRegistry.ts
+const payloadRegistry: Record<string, PayloadHandler> = {
+    'pubmed_article': {
+        render: (data) => <PubMedArticleCard article={data} />,
+        renderOptions: { panelWidth: '550px', headerTitle: 'PubMed Article' }
+    },
+    'schema_proposal': {
+        render: (data, callbacks) => <SchemaProposalCard proposal={data} {...callbacks} />,
+        renderOptions: { headerTitle: 'Schema Proposal' }
+    }
+};
+
+export function getPayloadHandler(type: string): PayloadHandler | null {
+    return payloadRegistry[type] || null;
+}
+```
+
+Pages can still provide `onAccept`/`onReject` callbacks for page-specific behavior while using global renderers.
+
+---
+
+## 9. Response Payloads
+
+### ChatResponsePayload
+
+```typescript
+interface ChatResponsePayload {
+    message: string;                              // LLM text (may contain [[tool:N]] markers)
+    suggested_values?: SuggestedValue[];          // Quick input suggestions
+    suggested_actions?: SuggestedAction[];        // Action buttons
+    custom_payload?: {                            // Custom data
+        type: string;                             // Payload type for registry lookup
+        data: any;                                // Payload data
+    };
+}
+
+interface SuggestedValue {
+    label: string;
+    value: string;
+}
+
+interface SuggestedAction {
+    label: string;
+    action: string;
+    handler?: 'client' | 'server';
+}
+```
+
+### Tool History
+
+Tool calls are tracked in `custom_payload` with type `"tool_history"`:
+
+```typescript
+{
+    "type": "tool_history",
+    "data": [
+        {
+            "tool_name": "search_pubmed",
+            "input": { "query": "..." },
+            "output": "Found 15 articles..."
+        },
+        {
+            "tool_name": "get_pubmed_article",
+            "input": { "pmid": "12345678" },
+            "output": { "title": "...", "abstract": "..." }
+        }
+    ]
+}
+```
+
+The `[[tool:N]]` markers in the message text reference `tool_history[N]`.
+
+---
+
+## 10. File Structure
 
 ```
 backend/
 ├── schemas/
-│   └── general_chat.py              # Domain types + Stream event types
+│   └── general_chat.py              # Stream event types, ChatResponsePayload
 ├── services/
-│   ├── agent_loop.py                # Generic agent loop (reusable)
-│   ├── general_chat_service.py      # Chat service using agent loop
-│   └── conversation_service.py      # Conversation persistence
+│   ├── agent_loop.py                # Agent loop with tool execution
+│   └── general_chat_service.py      # Chat service, SSE streaming
 ├── tools/
+│   ├── __init__.py
 │   ├── registry.py                  # ToolConfig, ToolResult, ToolProgress
-│   ├── executor.py                  # Streaming tool execution
-│   └── builtin/                     # Tool implementations
-│       ├── __init__.py              # Auto-registers all tools
-│       ├── research.py              # deep_research tool
-│       ├── review_analyzer.py       # analyze_reviews tool
-│       └── ...
+│   ├── executor.py                  # Tool execution (streaming + non-streaming)
+│   └── builtin/
+│       ├── __init__.py              # Auto-registers tools
+│       └── pubmed.py                # PubMed tools
 └── routers/
     └── general_chat.py              # SSE endpoint
 
 frontend/
 ├── lib/
-│   ├── workspace/
-│   │   ├── workspaceMode.ts         # Discriminated union for modes
-│   │   ├── workspaceRegistry.tsx    # View registries
-│   │   └── index.ts
-│   └── api/
-│       ├── generalChatApi.ts        # Stream event types + API client
-│       └── conversationApi.ts       # Conversation CRUD
+│   ├── api/
+│   │   └── generalChatApi.ts        # Stream event types, API client
+│   └── chat/
+│       └── payloadRegistry.ts       # Global payload type → handler mapping (migration)
 ├── hooks/
 │   └── useGeneralChat.ts            # Chat state management
-├── components/panels/
-│   ├── ChatPanel.tsx                # Chat UI
-│   ├── WorkspacePanel.tsx           # Workspace container
-│   └── workspace/                   # View components
-│       ├── types.ts                 # PayloadTypeConfig
-│       ├── StandardPayloadView.tsx  # Default view
-│       ├── TablePayloadView.tsx
-│       ├── ReviewAnalysisView.tsx
-│       ├── ResearchResultView.tsx
-│       └── ...
-├── pages/
-│   └── MainPage.tsx                 # Four-panel layout
+├── components/
+│   └── chat/
+│       ├── ChatTray.tsx             # Complete chat UI + spawnable payload panel
+│       ├── ToolProgressCard.tsx     # Tool progress during execution
+│       ├── InlineToolCard.tsx       # Inline tool result card
+│       ├── ToolHistoryPanel.tsx     # View all tools panel
+│       ├── PubMedArticleCard.tsx    # Payload component
+│       ├── SchemaProposalCard.tsx   # Payload component
+│       └── ...                      # Other payload components
 └── types/
-    └── chat.ts                      # Domain types + payload interfaces
+    └── chat.ts                      # TypeScript interfaces
 ```
-
----
-
-## Appendix: Comparison with Old Architecture
-
-| Aspect | Old (Page-Aware ChatTray) | Current (Workspace-Centric) |
-|--------|---------------------------|----------------------------|
-| **Primary UI** | ChatTray component per page | MainPage with WorkspacePanel |
-| **Payload Handling** | Page-specific PayloadHandlers | Global View Registry |
-| **Tool System** | Basic executor → string/ToolResult | Streaming generators with ToolProgress |
-| **State Management** | Local to ChatTray | useGeneralChat hook + persistence |
-| **Extensibility** | Requires page code changes | Registry-based (add view + register) |
-| **Context Building** | Per-page context builders | Global context from frontend |
-| **Tool Registration** | Page-registered tools | Global tool registry |
-
-See `_specs/chat_system_evolution.md` for detailed migration notes.

@@ -15,6 +15,7 @@ export interface GeneralChatMessage {
     suggested_values?: SuggestedValue[];
     suggested_actions?: SuggestedAction[];
     custom_payload?: CustomPayload;
+    tool_history?: ToolHistoryEntry[];
 }
 
 export interface SuggestedValue {
@@ -33,6 +34,12 @@ export interface SuggestedAction {
 export interface CustomPayload {
     type: string;
     data: any;
+}
+
+export interface ToolHistoryEntry {
+    tool_name: string;
+    input: Record<string, any>;
+    output: string | Record<string, any>;
 }
 
 export interface ActionMetadata {

@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon } from '@heroicons/react/24/solid';
 import { useGeneralChat } from '../../hooks/useGeneralChat';
-import { InteractionType, PayloadHandler } from '../../types/chat';
+import { InteractionType, PayloadHandler, ToolHistoryEntry } from '../../types/chat';
 import { MarkdownRenderer } from '../common/MarkdownRenderer';
+import ToolResultCard, { ToolHistoryPanel } from './ToolResultCard';
+import { getPayloadHandler } from '../../lib/chat/payloadRegistry';
 
 interface ChatTrayProps {
     initialContext?: Record<string, any>;
@@ -43,6 +45,96 @@ function getDefaultHeaderIcon(payloadType: string): string {
     return icons[payloadType] || '✨';
 }
 
+/**
+ * Parse message content and replace [[tool:N]] markers with ToolResultCard components.
+ * Returns an array of React nodes (strings and ToolResultCard components).
+ */
+function parseToolMarkers(
+    content: string,
+    toolHistory?: ToolHistoryEntry[]
+): React.ReactNode[] {
+    if (!toolHistory || toolHistory.length === 0) {
+        return [content];
+    }
+
+    const markerPattern = /\[\[tool:(\d+)\]\]/g;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = markerPattern.exec(content)) !== null) {
+        // Add text before the marker
+        if (match.index > lastIndex) {
+            parts.push(content.slice(lastIndex, match.index));
+        }
+
+        // Get the tool by index
+        const toolIndex = parseInt(match[1], 10);
+        const tool = toolHistory[toolIndex];
+
+        if (tool) {
+            parts.push(
+                <ToolResultCard
+                    key={`tool-${toolIndex}`}
+                    tool={tool}
+                    compact={true}
+                />
+            );
+        } else {
+            // If tool not found, keep the marker as-is
+            parts.push(match[0]);
+        }
+
+        lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining text after last marker
+    if (lastIndex < content.length) {
+        parts.push(content.slice(lastIndex));
+    }
+
+    return parts;
+}
+
+/**
+ * Component that renders message content with tool markers replaced by ToolResultCard.
+ * Handles mixed content: markdown text + inline tool cards.
+ */
+function MessageContent({
+    content,
+    toolHistory,
+    compact = true
+}: {
+    content: string;
+    toolHistory?: ToolHistoryEntry[];
+    compact?: boolean;
+}) {
+    const parsedParts = useMemo(
+        () => parseToolMarkers(content, toolHistory),
+        [content, toolHistory]
+    );
+
+    // If no tool markers, just render markdown normally
+    if (parsedParts.length === 1 && typeof parsedParts[0] === 'string') {
+        return <MarkdownRenderer content={content} compact={compact} />;
+    }
+
+    // Render mixed content: markdown sections + tool cards
+    return (
+        <>
+            {parsedParts.map((part, index) => {
+                if (typeof part === 'string') {
+                    return part.trim() ? (
+                        <MarkdownRenderer key={index} content={part} compact={compact} />
+                    ) : null;
+                }
+                // It's a ToolResultCard component
+                return <span key={index} className="inline-block my-1">{part}</span>;
+            })}
+        </>
+    );
+}
+
 export default function ChatTray({
     initialContext,
     payloadHandlers,
@@ -67,6 +159,7 @@ export default function ChatTray({
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const [activePayload, setActivePayload] = useState<{ type: string; data: any } | null>(null);
+    const [showToolHistoryFor, setShowToolHistoryFor] = useState<number | null>(null);
 
     // Update context when initialContext changes
     useEffect(() => {
@@ -89,8 +182,11 @@ export default function ChatTray({
         if (latestMessage?.custom_payload?.type && latestMessage.custom_payload.data) {
             const payloadType = latestMessage.custom_payload.type;
 
-            // Check if we have a handler for this payload type
-            if (payloadHandlers && payloadHandlers[payloadType]) {
+            // Check if we have a handler for this payload type (local or global)
+            const hasLocalHandler = payloadHandlers && payloadHandlers[payloadType];
+            const hasGlobalHandler = getPayloadHandler(payloadType);
+
+            if (hasLocalHandler || hasGlobalHandler) {
                 setActivePayload({
                     type: payloadType,
                     data: latestMessage.custom_payload.data
@@ -212,11 +308,24 @@ export default function ChatTray({
                                             }`}
                                     >
                                         <div className="text-sm">
-                                            <MarkdownRenderer content={message.content} compact />
+                                            <MessageContent
+                                                content={message.content}
+                                                toolHistory={message.tool_history}
+                                                compact
+                                            />
                                         </div>
                                         <p className="text-xs opacity-70 mt-1">
                                             {new Date(message.timestamp).toLocaleTimeString()}
                                         </p>
+                                        {/* Tool history summary button */}
+                                        {message.tool_history && message.tool_history.length > 0 && (
+                                            <button
+                                                onClick={() => setShowToolHistoryFor(idx)}
+                                                className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                                            >
+                                                <span>View {message.tool_history.length} tool{message.tool_history.length > 1 ? 's' : ''} used</span>
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
 
@@ -382,7 +491,8 @@ export default function ChatTray({
 
             {/* Floating Payload Panel (only for non-embedded mode) */}
             {!embedded && activePayload && (() => {
-                const handler = payloadHandlers?.[activePayload.type];
+                // Check local handlers first, then fall back to global registry
+                const handler = payloadHandlers?.[activePayload.type] || getPayloadHandler(activePayload.type);
                 const renderOptions = handler?.renderOptions || {};
                 const panelWidth = renderOptions.panelWidth || '500px';
                 const headerTitle = renderOptions.headerTitle || getDefaultHeaderTitle(activePayload.type);
@@ -433,6 +543,14 @@ export default function ChatTray({
                     </div>
                 );
             })()}
+
+            {/* Tool History Panel */}
+            {showToolHistoryFor !== null && messages[showToolHistoryFor]?.tool_history && (
+                <ToolHistoryPanel
+                    tools={messages[showToolHistoryFor].tool_history!}
+                    onClose={() => setShowToolHistoryFor(null)}
+                />
+            )}
         </>
     );
 }

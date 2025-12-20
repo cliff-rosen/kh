@@ -17,7 +17,7 @@ from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Tuple, U
 import anthropic
 from sqlalchemy.orm import Session
 
-from services.chat_payloads import ToolConfig, ToolResult
+from tools.registry import ToolConfig, ToolResult, ToolProgress
 
 logger = logging.getLogger(__name__)
 
@@ -384,7 +384,7 @@ async def _process_tools(
                 if cancellation_token.is_cancelled:
                     raise asyncio.CancelledError(f"Tool {tool_name} cancelled before execution")
 
-                # Run sync tool executor in thread pool
+                # Run tool executor - may return a generator for streaming tools
                 tool_result = await asyncio.to_thread(
                     tool_config.executor,
                     tool_input,
@@ -393,8 +393,38 @@ async def _process_tools(
                     context
                 )
 
-                # Handle ToolResult or plain string
-                if isinstance(tool_result, ToolResult):
+                # Check if result is a generator (streaming tool)
+                if hasattr(tool_result, '__next__'):
+                    # It's a generator - collect progress and result
+                    def run_generator(gen):
+                        results = []
+                        try:
+                            while True:
+                                item = next(gen)
+                                results.append(('progress', item))
+                        except StopIteration as e:
+                            results.append(('result', e.value))
+                        return results
+
+                    items = await asyncio.to_thread(run_generator, tool_result)
+                    for item_type, item_value in items:
+                        if item_type == 'progress' and isinstance(item_value, ToolProgress):
+                            yield AgentToolProgress(
+                                tool_name=tool_name,
+                                stage=item_value.stage,
+                                message=item_value.message,
+                                progress=item_value.progress,
+                                data=item_value.data
+                            )
+                        elif item_type == 'result':
+                            if isinstance(item_value, ToolResult):
+                                tool_result_str = item_value.text
+                                tool_result_data = item_value.payload
+                            elif isinstance(item_value, str):
+                                tool_result_str = item_value
+                            else:
+                                tool_result_str = str(item_value) if item_value else ""
+                elif isinstance(tool_result, ToolResult):
                     tool_result_str = tool_result.text
                     tool_result_data = tool_result.payload
                 elif isinstance(tool_result, str):
