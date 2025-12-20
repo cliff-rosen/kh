@@ -46,76 +46,54 @@ function getDefaultHeaderIcon(payloadType: string): string {
 }
 
 /**
- * Parse message content and replace [[tool:N]] markers with ToolResultCard components.
- * Returns an array of React nodes (strings and ToolResultCard components).
- */
-function parseToolMarkers(
-    content: string,
-    toolHistory?: ToolHistoryEntry[]
-): React.ReactNode[] {
-    if (!toolHistory || toolHistory.length === 0) {
-        return [content];
-    }
-
-    const markerPattern = /\[\[tool:(\d+)\]\]/g;
-    const parts: React.ReactNode[] = [];
-    let lastIndex = 0;
-    let match;
-
-    while ((match = markerPattern.exec(content)) !== null) {
-        // Add text before the marker
-        if (match.index > lastIndex) {
-            parts.push(content.slice(lastIndex, match.index));
-        }
-
-        // Get the tool by index
-        const toolIndex = parseInt(match[1], 10);
-        const tool = toolHistory[toolIndex];
-
-        if (tool) {
-            parts.push(
-                <ToolResultCard
-                    key={`tool-${toolIndex}`}
-                    tool={tool}
-                    compact={true}
-                />
-            );
-        } else {
-            // If tool not found, keep the marker as-is
-            parts.push(match[0]);
-        }
-
-        lastIndex = match.index + match[0].length;
-    }
-
-    // Add remaining text after last marker
-    if (lastIndex < content.length) {
-        parts.push(content.slice(lastIndex));
-    }
-
-    return parts;
-}
-
-/**
  * Component that renders message content with tool markers replaced by ToolResultCard.
  * Handles mixed content: markdown text + inline tool cards.
  */
 function MessageContent({
     content,
     toolHistory,
-    compact = true
+    compact = true,
+    onToolClick
 }: {
     content: string;
     toolHistory?: ToolHistoryEntry[];
     compact?: boolean;
+    onToolClick?: (tool: ToolHistoryEntry) => void;
 }) {
-    const parsedParts = useMemo(
-        () => parseToolMarkers(content, toolHistory),
-        [content, toolHistory]
-    );
+    type ParsedPart = { type: 'text'; content: string } | { type: 'tool'; toolIndex: number };
+
+    const parsedParts = useMemo((): ParsedPart[] => {
+        if (!toolHistory || toolHistory.length === 0) {
+            return [{ type: 'text', content }];
+        }
+
+        const markerPattern = /\[\[tool:(\d+)\]\]/g;
+        const parts: ParsedPart[] = [];
+        let lastIndex = 0;
+        let match;
+
+        while ((match = markerPattern.exec(content)) !== null) {
+            if (match.index > lastIndex) {
+                parts.push({ type: 'text', content: content.slice(lastIndex, match.index) });
+            }
+            const toolIndex = parseInt(match[1], 10);
+            if (toolHistory[toolIndex]) {
+                parts.push({ type: 'tool', toolIndex });
+            } else {
+                parts.push({ type: 'text', content: match[0] });
+            }
+            lastIndex = match.index + match[0].length;
+        }
+
+        if (lastIndex < content.length) {
+            parts.push({ type: 'text', content: content.slice(lastIndex) });
+        }
+
+        return parts;
+    }, [content, toolHistory]);
 
     // If no tool markers, just render markdown normally
-    if (parsedParts.length === 1 && typeof parsedParts[0] === 'string') {
+    if (parsedParts.length === 1 && parsedParts[0].type === 'text') {
         return <MarkdownRenderer content={content} compact={compact} />;
     }
 
@@ -123,13 +101,21 @@ function MessageContent({
     return (
         <>
             {parsedParts.map((part, index) => {
-                if (typeof part === 'string') {
-                    return part.trim() ? (
-                        <MarkdownRenderer key={index} content={part} compact={compact} />
+                if (part.type === 'text') {
+                    return part.content.trim() ? (
+                        <MarkdownRenderer key={index} content={part.content} compact={compact} />
                     ) : null;
                 }
-                // It's a ToolResultCard component
-                return <span key={index} className="inline-block my-1">{part}</span>;
+                // It's a tool marker
+                const tool = toolHistory![part.toolIndex];
+                return (
+                    <span key={index} className="inline-block my-1">
+                        <ToolResultCard
+                            tool={tool}
+                            onClick={() => onToolClick?.(tool)}
+                        />
+                    </span>
+                );
             })}
         </>
     );
@@ -159,7 +145,7 @@ export default function ChatTray({
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const [activePayload, setActivePayload] = useState<{ type: string; data: any } | null>(null);
-    const [showToolHistoryFor, setShowToolHistoryFor] = useState<number | null>(null);
+    const [toolsToShow, setToolsToShow] = useState<ToolHistoryEntry[] | null>(null);
 
     // Update context when initialContext changes
     useEffect(() => {
@@ -312,6 +298,7 @@ export default function ChatTray({
                                                 content={message.content}
                                                 toolHistory={message.tool_history}
                                                 compact
+                                                onToolClick={(tool) => setToolsToShow([tool])}
                                             />
                                         </div>
                                         <p className="text-xs opacity-70 mt-1">
@@ -320,7 +307,7 @@ export default function ChatTray({
                                         {/* Tool history summary button */}
                                         {message.tool_history && message.tool_history.length > 0 && (
                                             <button
-                                                onClick={() => setShowToolHistoryFor(idx)}
+                                                onClick={() => setToolsToShow(message.tool_history!)}
                                                 className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                                             >
                                                 <span>View {message.tool_history.length} tool{message.tool_history.length > 1 ? 's' : ''} used</span>
@@ -545,10 +532,10 @@ export default function ChatTray({
             })()}
 
             {/* Tool History Panel */}
-            {showToolHistoryFor !== null && messages[showToolHistoryFor]?.tool_history && (
+            {toolsToShow && (
                 <ToolHistoryPanel
-                    tools={messages[showToolHistoryFor].tool_history!}
-                    onClose={() => setShowToolHistoryFor(null)}
+                    tools={toolsToShow}
+                    onClose={() => setToolsToShow(null)}
                 />
             )}
         </>
