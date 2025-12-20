@@ -19,9 +19,10 @@ def execute_search_pubmed(
     db: Session,
     user_id: int,
     context: Dict[str, Any]
-) -> str:
+) -> Union[str, ToolResult]:
     """
     Execute a PubMed search and return formatted results.
+    Returns a ToolResult with both text for LLM and payload for frontend table.
     """
     from services.pubmed_service import PubMedService
 
@@ -41,8 +42,13 @@ def execute_search_pubmed(
         if not articles:
             return f"No articles found for query: {query}"
 
+        total_results = metadata.get('total_results', len(articles))
+
         # Format results for the LLM
-        results = [f"Found {metadata.get('total_results', len(articles))} total results. Showing top {len(articles)}:\n"]
+        text_results = [f"Found {total_results} total results. Showing top {len(articles)}:\n"]
+
+        # Build payload data for frontend
+        articles_data = []
 
         for i, article in enumerate(articles, 1):
             # Get authors - handle both list and string formats
@@ -54,16 +60,43 @@ def execute_search_pubmed(
             else:
                 authors_str = str(authors) if authors else "Unknown"
 
-            result = f"""
-            {i}. "{article.title}"
-            PMID: {article.pmid or article.id}
-            Authors: {authors_str}
-            Journal: {article.journal or 'Unknown'} ({article.publication_date or 'Unknown'})
-            Abstract: {(article.abstract or 'No abstract')[:300]}{'...' if article.abstract and len(article.abstract) > 300 else ''}
-            """
-            results.append(result)
+            pmid = article.pmid or article.id
+            journal = article.journal or 'Unknown'
+            year = article.publication_date or 'Unknown'
 
-        return "\n".join(results)
+            # Text for LLM
+            text_results.append(f"""
+            {i}. "{article.title}"
+            PMID: {pmid}
+            Authors: {authors_str}
+            Journal: {journal} ({year})
+            Abstract: {(article.abstract or 'No abstract')[:300]}{'...' if article.abstract and len(article.abstract) > 300 else ''}
+            """)
+
+            # Data for frontend payload
+            articles_data.append({
+                "pmid": str(pmid),
+                "title": article.title,
+                "authors": authors_str,
+                "journal": journal,
+                "year": str(year),
+                "abstract": article.abstract or "",
+                "has_free_full_text": bool(getattr(article, 'pmc_id', None))
+            })
+
+        text_result = "\n".join(text_results)
+
+        payload = {
+            "type": "pubmed_search_results",
+            "data": {
+                "query": query,
+                "total_results": total_results,
+                "showing": len(articles),
+                "articles": articles_data
+            }
+        }
+
+        return ToolResult(text=text_result, payload=payload)
 
     except Exception as e:
         logger.error(f"PubMed search error: {e}", exc_info=True)

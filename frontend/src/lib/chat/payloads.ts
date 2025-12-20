@@ -11,9 +11,10 @@
 import React from 'react';
 import { registerPayloadHandler } from './payloadRegistry';
 import PubMedArticleCard, { PubMedArticleData } from '../../components/chat/PubMedArticleCard';
+import PubMedSearchResultsCard, { PubMedSearchResultsData } from '../../components/chat/PubMedSearchResultsCard';
 
 // ============================================================================
-// PubMed Article Handler
+// PubMed Article Handler (single article details)
 // ============================================================================
 
 registerPayloadHandler('pubmed_article', {
@@ -22,6 +23,19 @@ registerPayloadHandler('pubmed_article', {
         panelWidth: '550px',
         headerTitle: 'PubMed Article',
         headerIcon: '📄'
+    }
+});
+
+// ============================================================================
+// PubMed Search Results Handler (table of search results)
+// ============================================================================
+
+registerPayloadHandler('pubmed_search_results', {
+    render: (data: PubMedSearchResultsData) => React.createElement(PubMedSearchResultsCard, { data }),
+    renderOptions: {
+        panelWidth: '800px',
+        headerTitle: 'PubMed Search Results',
+        headerIcon: '🔍'
     }
 });
 
