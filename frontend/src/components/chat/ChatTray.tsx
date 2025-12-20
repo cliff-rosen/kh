@@ -163,9 +163,13 @@ export default function ChatTray({
     }, [messages, streamingText]);
 
     // Detect new payloads and show in floating panel
+    // Payloads come through custom_payload regardless of source (tool or LLM)
     useEffect(() => {
         const latestMessage = messages[messages.length - 1];
-        if (latestMessage?.custom_payload?.type && latestMessage.custom_payload.data) {
+        if (!latestMessage) return;
+
+        // Check custom_payload - this is where all payloads arrive (from tools or LLM)
+        if (latestMessage.custom_payload?.type && latestMessage.custom_payload.data) {
             const payloadType = latestMessage.custom_payload.type;
 
             // Check if we have a handler for this payload type (local or global)

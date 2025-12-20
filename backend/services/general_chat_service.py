@@ -104,6 +104,7 @@ class GeneralChatService:
             # Run the agent loop
             collected_text = ""
             tool_call_history = []
+            collected_payloads = []  # Payloads from tools (separate from tool_history)
             tool_call_index = 0  # Track index for tool complete events
 
             async for event in run_agent_loop(
@@ -161,24 +162,23 @@ class GeneralChatService:
 
                 elif isinstance(event, (AgentComplete, AgentCancelled)):
                     tool_call_history = event.tool_calls
+                    # Get payloads from tools (separate from tool_history which is for diagnostics)
+                    collected_payloads = event.payloads
 
                 elif isinstance(event, AgentError):
                     yield ErrorEvent(message=event.error).model_dump_json()
                     return
 
-            # Extract payload from the last tool that returned one
-            accumulated_payload = None
-            if tool_call_history:
-                for tool_call in reversed(tool_call_history):
-                    if tool_call.get("output") and isinstance(tool_call["output"], dict):
-                        accumulated_payload = tool_call["output"]
-                        break
-
             # Parse the LLM response to extract structured data
             parsed = self._parse_llm_response(collected_text, request.context)
 
-            # Use accumulated payload from tool execution, or parsed payload from LLM
-            custom_payload = accumulated_payload or parsed.get("custom_payload")
+            # Use the last payload from tool execution, or parsed payload from LLM
+            # Payloads are collected separately from tool_history (which is for diagnostics)
+            custom_payload = None
+            if collected_payloads:
+                custom_payload = collected_payloads[-1]  # Use the most recent payload
+            if not custom_payload:
+                custom_payload = parsed.get("custom_payload")
 
             # Build final payload
             final_payload = ChatResponsePayload(

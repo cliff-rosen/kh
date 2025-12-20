@@ -70,7 +70,7 @@ export default function ToolResultCard({ tool, onClick }: ToolResultCardProps) {
     );
 }
 
-/** Expanded view of a tool call - used inside panels */
+/** Expanded view of a tool call - used inside panels (diagnostic view) */
 export function ToolResultExpanded({ tool }: { tool: ToolHistoryEntry }) {
     return (
         <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
@@ -84,7 +84,7 @@ export function ToolResultExpanded({ tool }: { tool: ToolHistoryEntry }) {
                 <CollapsibleContent
                     label="Input"
                     content={JSON.stringify(tool.input, null, 2)}
-                    defaultExpanded={true}
+                    defaultExpanded={false}
                 />
                 <CollapsibleContent
                     label="Output"

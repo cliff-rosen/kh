@@ -82,6 +82,7 @@ class AgentComplete(AgentEvent):
     """Emitted when the agent loop completes successfully."""
     text: str
     tool_calls: List[Dict[str, Any]]
+    payloads: List[Dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -89,6 +90,7 @@ class AgentCancelled(AgentEvent):
     """Emitted when the agent loop is cancelled."""
     text: str
     tool_calls: List[Dict[str, Any]]
+    payloads: List[Dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -97,6 +99,7 @@ class AgentError(AgentEvent):
     error: str
     text: str = ""
     tool_calls: List[Dict[str, Any]] = field(default_factory=list)
+    payloads: List[Dict[str, Any]] = field(default_factory=list)
 
 
 # =============================================================================
@@ -115,6 +118,7 @@ class _ToolsResult:
     """Final result from _process_tools generator."""
     tool_results: List[Dict]
     tool_records: List[Dict]
+    payloads: List[Dict]
 
 
 # =============================================================================
@@ -187,13 +191,14 @@ async def run_agent_loop(
     api_kwargs = _build_api_kwargs(model, max_tokens, temperature, system_prompt, messages, tools)
     collected_text = ""
     tool_call_history: List[Dict[str, Any]] = []
+    collected_payloads: List[Dict[str, Any]] = []
 
     yield AgentThinking(message="Starting...")
 
     try:
         for iteration in range(1, max_iterations + 1):
             if cancellation_token.is_cancelled:
-                yield AgentCancelled(text=collected_text, tool_calls=tool_call_history)
+                yield AgentCancelled(text=collected_text, tool_calls=tool_call_history, payloads=collected_payloads)
                 return
 
             logger.debug(f"Agent loop iteration {iteration}")
@@ -208,7 +213,7 @@ async def run_agent_loop(
                     yield event
 
             if cancellation_token.is_cancelled:
-                yield AgentCancelled(text=collected_text, tool_calls=tool_call_history)
+                yield AgentCancelled(text=collected_text, tool_calls=tool_call_history, payloads=collected_payloads)
                 return
 
             # 2. Check for tool use
@@ -216,7 +221,7 @@ async def run_agent_loop(
 
             if not tool_use_blocks:
                 logger.info(f"Agent loop complete after {iteration} iterations")
-                yield AgentComplete(text=collected_text, tool_calls=tool_call_history)
+                yield AgentComplete(text=collected_text, tool_calls=tool_call_history, payloads=collected_payloads)
                 return
 
             # 3. Process tools
@@ -227,6 +232,7 @@ async def run_agent_loop(
                 if isinstance(event, _ToolsResult):
                     tool_results = event.tool_results
                     tool_call_history.extend(event.tool_records)
+                    collected_payloads.extend(event.payloads)
                 else:
                     yield event
 
@@ -240,16 +246,17 @@ async def run_agent_loop(
 
         # Max iterations reached
         logger.warning(f"Agent loop reached max iterations ({max_iterations})")
-        yield AgentComplete(text=collected_text, tool_calls=tool_call_history)
+        yield AgentComplete(text=collected_text, tool_calls=tool_call_history, payloads=collected_payloads)
 
     except asyncio.CancelledError:
-        yield AgentCancelled(text=collected_text, tool_calls=tool_call_history)
+        yield AgentCancelled(text=collected_text, tool_calls=tool_call_history, payloads=collected_payloads)
     except Exception as e:
         logger.error(f"Agent loop error: {e}", exc_info=True)
         yield AgentError(
             error=_format_error_message(e),
             text=collected_text,
-            tool_calls=tool_call_history
+            tool_calls=tool_call_history,
+            payloads=collected_payloads
         )
 
 
@@ -354,10 +361,11 @@ async def _process_tools(
 
     Yields:
         AgentToolStart, AgentToolProgress, AgentToolComplete events
-        _ToolsResult as final item with results and records
+        _ToolsResult as final item with results, records, and payloads
     """
     tool_results = []
     tool_records = []
+    payloads = []
 
     for tool_block in tool_use_blocks:
         tool_name = tool_block.name
@@ -441,13 +449,17 @@ async def _process_tools(
         if cancellation_token.is_cancelled:
             raise asyncio.CancelledError("Cancelled after tool execution")
 
-        # Record tool call
+        # Record tool call - always store text output for diagnostics
         tool_record = {
             "tool_name": tool_name,
             "input": tool_input,
-            "output": tool_result_data if tool_result_data else tool_result_str
+            "output": tool_result_str  # Always text for diagnostic viewing
         }
         tool_records.append(tool_record)
+
+        # Collect payload separately if present
+        if tool_result_data:
+            payloads.append(tool_result_data)
 
         # Collect result for message
         tool_results.append({
@@ -462,7 +474,7 @@ async def _process_tools(
             result_data=tool_result_data
         )
 
-    yield _ToolsResult(tool_results=tool_results, tool_records=tool_records)
+    yield _ToolsResult(tool_results=tool_results, tool_records=tool_records, payloads=payloads)
 
 
 # =============================================================================
