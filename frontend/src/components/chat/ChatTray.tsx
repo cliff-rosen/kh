@@ -294,7 +294,34 @@ export default function ChatTray({
                             </div>
                         )}
 
-                        {isLoading && !streamingText && (
+                        {/* Tool progress indicator - shown during tool execution even with streaming text */}
+                        {isLoading && activeToolProgress && (
+                            <div className="flex justify-start">
+                                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-2">
+                                    <div className="flex items-center gap-2">
+                                        <div className="animate-spin h-4 w-4 border-2 border-amber-500 border-t-transparent rounded-full"></div>
+                                        <span className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                                            {activeToolProgress.toolName.replace(/_/g, ' ')}
+                                        </span>
+                                        <button
+                                            onClick={cancelRequest}
+                                            className="ml-2 text-xs text-gray-400 hover:text-red-500 transition-colors"
+                                            title="Cancel"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                    {activeToolProgress.updates.length > 0 && (
+                                        <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                                            {activeToolProgress.updates[activeToolProgress.updates.length - 1]?.message}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Thinking indicator - only when no streaming text and no active tool */}
+                        {isLoading && !streamingText && !activeToolProgress && (
                             <div className="flex justify-start">
                                 <div className="bg-white dark:bg-gray-800 rounded-lg px-4 py-2 shadow">
                                     <div className="flex items-center gap-2">
@@ -314,16 +341,6 @@ export default function ChatTray({
                                             ✕
                                         </button>
                                     </div>
-                                    {activeToolProgress && (
-                                        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                            <span className="font-medium">{activeToolProgress.toolName.replace(/_/g, ' ')}</span>
-                                            {activeToolProgress.updates.length > 0 && (
-                                                <span className="ml-2">
-                                                    {activeToolProgress.updates[activeToolProgress.updates.length - 1]?.message}
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         )}

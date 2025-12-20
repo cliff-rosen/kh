@@ -1,10 +1,9 @@
 import { useState, useCallback, useRef } from 'react';
-import { generalChatApi } from '../lib/api/generalChatApi';
+import { generalChatApi, ToolProgressEvent } from '../lib/api/generalChatApi';
 import {
     GeneralChatMessage,
     InteractionType,
-    ActionMetadata,
-    ToolProgressEvent
+    ActionMetadata
 } from '../types/chat';
 
 export interface ActiveToolProgress {
@@ -71,9 +70,9 @@ export function useGeneralChat(options: UseGeneralChatOptions = {}) {
             }, abortController.signal)) {
                 switch (event.type) {
                     case 'text_delta':
-                        // Clear status when streaming text
+                        // Clear status when streaming text (tool status will override if needed)
+                        // Don't clear activeToolProgress here - it's cleared by tool_complete
                         setStatusText(null);
-                        setActiveToolProgress(null);
                         collectedText += event.text;
                         setStreamingText(collectedText);
                         break;
