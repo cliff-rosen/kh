@@ -1,13 +1,14 @@
 """
 Chat Payloads Package
 
-This package contains page-specific payload configurations and context builders.
+This package contains page-specific LLM payload configurations.
 Each module defines payloads and context for a specific page in the application.
 
-MIGRATION NOTE:
-- Tools have been migrated to the global tools registry (backend/tools/)
-- ToolConfig and get_page_tools are deprecated - use tools.registry instead
-- PayloadConfig, context builders, and client actions are still in use
+Payloads can come from two sources:
+1. LLM output - Parsed from structured text using PayloadConfig
+2. Tools - Returned via ToolResult.payload from backend/tools/
+
+Both flow through custom_payload to the frontend for rendering.
 
 Import this package to automatically register all page configurations.
 """
@@ -21,10 +22,6 @@ from .registry import (
     get_page_client_actions,
     has_page_payloads,
     register_page,
-    # Deprecated - use tools.registry instead
-    ToolConfig,
-    ToolResult,
-    get_page_tools,
 )
 
 # Import all page configurations to register them
@@ -42,8 +39,4 @@ __all__ = [
     'get_page_client_actions',
     'has_page_payloads',
     'register_page',
-    # Deprecated exports (for backward compatibility)
-    'ToolConfig',
-    'ToolResult',
-    'get_page_tools',
 ]

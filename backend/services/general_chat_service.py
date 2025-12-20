@@ -421,8 +421,12 @@ class GeneralChatService:
     def _parse_llm_response(self, response_text: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """
         Parse LLM response to extract structured components.
-        For now, just return the message as-is since we removed the structured format.
+
+        Looks for payload markers (e.g., SCHEMA_PROPOSAL:) in the LLM output
+        and extracts structured payloads using registered parsers.
         """
+        current_page = context.get("current_page", "unknown")
+
         result = {
             "message": response_text.strip(),
             "suggested_values": None,
@@ -430,7 +434,66 @@ class GeneralChatService:
             "custom_payload": None
         }
 
+        # Get payload configurations for this page
+        payload_configs = get_page_payloads(current_page)
+        if not payload_configs:
+            return result
+
+        # Look for payload markers in the response
+        for config in payload_configs:
+            marker = config.parse_marker
+            if marker in response_text:
+                # Find the JSON content after the marker
+                marker_pos = response_text.find(marker)
+                after_marker = response_text[marker_pos + len(marker):].strip()
+
+                # Extract JSON - find the matching braces
+                json_content = self._extract_json(after_marker)
+                if json_content:
+                    # Parse using the registered parser
+                    parsed = config.parser(json_content)
+                    if parsed:
+                        result["custom_payload"] = parsed
+                        # Remove the payload from the message for cleaner display
+                        payload_text = marker + json_content
+                        result["message"] = response_text.replace(payload_text, "").strip()
+                        break  # Only use first matched payload
+
         return result
+
+    def _extract_json(self, text: str) -> Optional[str]:
+        """Extract a JSON object from the start of text, handling nested braces."""
+        if not text.startswith('{'):
+            return None
+
+        depth = 0
+        in_string = False
+        escape_next = False
+
+        for i, char in enumerate(text):
+            if escape_next:
+                escape_next = False
+                continue
+
+            if char == '\\':
+                escape_next = True
+                continue
+
+            if char == '"' and not escape_next:
+                in_string = not in_string
+                continue
+
+            if in_string:
+                continue
+
+            if char == '{':
+                depth += 1
+            elif char == '}':
+                depth -= 1
+                if depth == 0:
+                    return text[:i + 1]
+
+        return None
 
     def _format_report_articles(articles: List[Dict[str, Any]]) -> str:
         """Format articles for the prompt, keeping it concise."""
