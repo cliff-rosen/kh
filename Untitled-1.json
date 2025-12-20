@@ -1,0 +1,48 @@
+{
+    "type": "complete",
+    "payload": {
+        "message": "I'll retrieve the details for PMID 41420798 for you.[[tool:0]]\n\nI've retrieved the article details for PMID 41420798. This is a recent 2025 study published in *Inflammation* about **Palmatine's protective effects against acute lung injury**.\n\n**Key findings:**\n- **Compound**: Palmatine (PAL) - a naturally derived isoquinoline alkaloid\n- **Mechanism**: Suppresses NLRP3 inflammasome activation and pyroptosis (inflammatory cell death)\n- **Model**: LPS-induced acute lung injury in mice and cell cultures\n- **Results**: Reduced lung inflammation, tissue damage, and inflammatory markers (TNF-α, IL-6, IL-1β, IL-18)\n\n**Notable aspects:**\n- Uses multi-omics approach (transcriptomics + metabolomics)\n- Shows metabolic reprogramming involving fatty acid oxidation\n- Targets key inflammatory pathways (NOD-like receptor signaling, cytosolic DNA sensing)\n\nThis research could be relevant to your **Peripheral Neuropathy Treatment Updates** stream, as NLRP3 inflammasome activation is also implicated in neuropathic pain, or potentially your **Gut-Brain Axis** stream if you reactivate it, since inflammation is a key link between gut and brain health.\n\nWould you like me to get the full text if it's available, or search for related articles on any of these topics?",
+        "suggested_values": null,
+        "suggested_actions": null,
+        "custom_payload": {
+            "type": "pubmed_article",
+            "data": {
+                "pmid": "41420798",
+                "title": "Palmatine Attenuates Lipopolysaccharide-Induced Acute Lung Injury Via Suppression of NLRP3 Inflammasome Activation, Pyroptosis, and Metabolic Remodeling.",
+                "authors": "Ning P, Wu J, Long Q, et al",
+                "journal": "Inflammation",
+                "year": "2025",
+                "volume": "",
+                "issue": "",
+                "pages": "",
+                "abstract": "Acute lung injury (ALI) is a critical condition characterized by uncontrolled inflammation, respiratory insufficiency, and tissue damage, often triggered by pneumonia or sepsis. Aberrant activation of the NOD-like receptor thermal protein domain associated protein 3 (NLRP3) inflammasome and subsequent pyroptosis are key drivers of ALI pathogenesis. Palmatine (PAL), a naturally derived isoquinoline alkaloid with diverse pharmacological effects, was investigated for the therapeutic potential against lipopolysaccharide (LPS)-induced ALI in this study, focusing on NLRP3 inflammasome, pyroptosis, and metabolic regulation. Our findings showed that PAL significantly suppressed NLRP3 inflammasome activation and pyroptosis in LPS/adenosine triphosphate (ATP)-stimulated THP-1 macrophages and inhibited M1 macrophage polarization. In C57BL/6J mice subjected to intratracheal LPS challenge, PAL alleviated lung histopathological injury, decreased tumor necrosis factor-α, interleukin (IL)-6, IL-1β, and IL-18 levels in bronchoalveolar lavage fluid, and reduced lung wet-to-dry ratio and lung tissue myeloperoxidase activity. Transcriptomic analysis revealed that PAL markedly attenuated LPS-induced upregulation of NLRP3 and Gasdermin-D (GSDMD). PAL also downregulated the mRNA expression of Caspase-1, Apoptosis-associated speck-like protein (Asc), High-mobility group box 1 (Hmgb1), Il1b, and Il18, as well as the protein levels of cleaved Caspase-1 (p20), GSDMD-N and Caspase-11 in lung tissue. Metabolomic profiling indicated PAL-driven metabolic reprogramming involving the oxidation of branched-chain fatty acids and very long-chain fatty acids. Integrated multi-omics analysis highlighted cytosolic DNA-sensing and NOD-like receptor signaling as key pathways underlying PAL's effects. Collectively, PAL mitigates ALI by inhibiting NLRP3 inflammasome activation, suppressing pyroptosis, and reprogramming metabolism, supporting its potential as a therapeutic candidate.",
+                "pmc_id": null,
+                "doi": "10.1007/s10753-025-02358-6"
+            }
+        },
+        "tool_history": [
+            {
+                "tool_name": "get_pubmed_article",
+                "input": {
+                    "pmid": "41420798"
+                },
+                "output": {
+                    "type": "pubmed_article",
+                    "data": {
+                        "pmid": "41420798",
+                        "title": "Palmatine Attenuates Lipopolysaccharide-Induced Acute Lung Injury Via Suppression of NLRP3 Inflammasome Activation, Pyroptosis, and Metabolic Remodeling.",
+                        "authors": "Ning P, Wu J, Long Q, et al",
+                        "journal": "Inflammation",
+                        "year": "2025",
+                        "volume": "",
+                        "issue": "",
+                        "pages": "",
+                        "abstract": "Acute lung injury (ALI) is a critical condition characterized by uncontrolled inflammation, respiratory insufficiency, and tissue damage, often triggered by pneumonia or sepsis. Aberrant activation of the NOD-like receptor thermal protein domain associated protein 3 (NLRP3) inflammasome and subsequent pyroptosis are key drivers of ALI pathogenesis. Palmatine (PAL), a naturally derived isoquinoline alkaloid with diverse pharmacological effects, was investigated for the therapeutic potential against lipopolysaccharide (LPS)-induced ALI in this study, focusing on NLRP3 inflammasome, pyroptosis, and metabolic regulation. Our findings showed that PAL significantly suppressed NLRP3 inflammasome activation and pyroptosis in LPS/adenosine triphosphate (ATP)-stimulated THP-1 macrophages and inhibited M1 macrophage polarization. In C57BL/6J mice subjected to intratracheal LPS challenge, PAL alleviated lung histopathological injury, decreased tumor necrosis factor-α, interleukin (IL)-6, IL-1β, and IL-18 levels in bronchoalveolar lavage fluid, and reduced lung wet-to-dry ratio and lung tissue myeloperoxidase activity. Transcriptomic analysis revealed that PAL markedly attenuated LPS-induced upregulation of NLRP3 and Gasdermin-D (GSDMD). PAL also downregulated the mRNA expression of Caspase-1, Apoptosis-associated speck-like protein (Asc), High-mobility group box 1 (Hmgb1), Il1b, and Il18, as well as the protein levels of cleaved Caspase-1 (p20), GSDMD-N and Caspase-11 in lung tissue. Metabolomic profiling indicated PAL-driven metabolic reprogramming involving the oxidation of branched-chain fatty acids and very long-chain fatty acids. Integrated multi-omics analysis highlighted cytosolic DNA-sensing and NOD-like receptor signaling as key pathways underlying PAL's effects. Collectively, PAL mitigates ALI by inhibiting NLRP3 inflammasome activation, suppressing pyroptosis, and reprogramming metabolism, supporting its potential as a therapeutic candidate.",
+                        "pmc_id": null,
+                        "doi": "10.1007/s10753-025-02358-6"
+                    }
+                }
+            }
+        ]
+    }
+}

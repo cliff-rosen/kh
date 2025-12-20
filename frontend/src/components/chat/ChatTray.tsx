@@ -4,7 +4,7 @@ import { useGeneralChat } from '../../hooks/useGeneralChat';
 import { InteractionType, PayloadHandler, ToolHistoryEntry } from '../../types/chat';
 import { MarkdownRenderer } from '../common/MarkdownRenderer';
 import ToolResultCard, { ToolHistoryPanel } from './ToolResultCard';
-import { getPayloadHandler } from '../../lib/chat/payloadRegistry';
+import { getPayloadHandler } from '../../lib/chat'; // Import from index to trigger payload registration
 
 interface ChatTrayProps {
     initialContext?: Record<string, any>;
