@@ -145,6 +145,14 @@ class GeneralChatService:
                     ).model_dump_json()
 
                 elif isinstance(event, AgentToolComplete):
+                    # Create marker token and inject into text stream
+                    tool_marker = f"[[tool:{tool_call_index}]]"
+                    collected_text += tool_marker
+
+                    # Emit marker as text_delta so frontend sees it in stream
+                    yield TextDeltaEvent(text=tool_marker).model_dump_json()
+
+                    # Emit tool_complete event with matching index
                     yield ToolCompleteEvent(
                         tool=event.tool_name,
                         index=tool_call_index

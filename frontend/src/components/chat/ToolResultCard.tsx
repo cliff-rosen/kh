@@ -16,9 +16,44 @@ function formatToolName(name: string): string {
 
 function formatOutput(output: string | Record<string, any>): string {
     if (typeof output === 'string') {
-        return output.length > 200 ? output.substring(0, 200) + '...' : output;
+        return output;
     }
     return JSON.stringify(output, null, 2);
+}
+
+interface CollapsibleContentProps {
+    content: string;
+    label: string;
+    defaultExpanded?: boolean;
+}
+
+function CollapsibleContent({ content, label, defaultExpanded = true }: CollapsibleContentProps) {
+    const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+    const isLong = content.length > 500;
+
+    return (
+        <div>
+            <div className="flex items-center justify-between mb-1">
+                <div className="font-medium text-gray-600 dark:text-gray-400">{label}</div>
+                {isLong && (
+                    <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                        {isExpanded ? 'Collapse' : 'Expand'}
+                    </button>
+                )}
+            </div>
+            <pre className={`bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto text-gray-700 dark:text-gray-300 whitespace-pre-wrap ${isLong && !isExpanded ? 'max-h-32 overflow-hidden' : ''}`}>
+                {content}
+            </pre>
+            {isLong && !isExpanded && (
+                <div className="text-xs text-gray-500 mt-1">
+                    Content truncated. Click "Expand" to see full output.
+                </div>
+            )}
+        </div>
+    );
 }
 
 export default function ToolResultCard({ tool, compact = true }: ToolResultCardProps) {
@@ -28,7 +63,7 @@ export default function ToolResultCard({ tool, compact = true }: ToolResultCardP
         return (
             <button
                 onClick={() => setExpanded(true)}
-                className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-xs text-gray-700 dark:text-gray-300 transition-colors"
+                className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-800/60 border border-blue-300 dark:border-blue-700 rounded text-xs text-blue-700 dark:text-blue-300 transition-colors cursor-pointer"
             >
                 <WrenchScrewdriverIcon className="h-3.5 w-3.5" />
                 <span className="font-medium">{formatToolName(tool.tool_name)}</span>
@@ -55,22 +90,20 @@ export default function ToolResultCard({ tool, compact = true }: ToolResultCardP
             </button>
 
             {expanded && (
-                <div className="p-3 space-y-3 text-sm">
+                <div className="p-4 space-y-4 text-sm">
                     {/* Input */}
-                    <div>
-                        <div className="font-medium text-gray-600 dark:text-gray-400 mb-1">Input</div>
-                        <pre className="bg-gray-100 dark:bg-gray-900 p-2 rounded text-xs overflow-x-auto text-gray-700 dark:text-gray-300">
-                            {JSON.stringify(tool.input, null, 2)}
-                        </pre>
-                    </div>
+                    <CollapsibleContent
+                        label="Input"
+                        content={JSON.stringify(tool.input, null, 2)}
+                        defaultExpanded={true}
+                    />
 
                     {/* Output */}
-                    <div>
-                        <div className="font-medium text-gray-600 dark:text-gray-400 mb-1">Output</div>
-                        <pre className="bg-gray-100 dark:bg-gray-900 p-2 rounded text-xs overflow-x-auto text-gray-700 dark:text-gray-300 max-h-60 overflow-y-auto whitespace-pre-wrap">
-                            {formatOutput(tool.output)}
-                        </pre>
-                    </div>
+                    <CollapsibleContent
+                        label="Output"
+                        content={formatOutput(tool.output)}
+                        defaultExpanded={true}
+                    />
                 </div>
             )}
         </div>
@@ -84,20 +117,20 @@ interface ToolHistoryPanelProps {
 
 export function ToolHistoryPanel({ tools, onClose }: ToolHistoryPanelProps) {
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                    <h3 className="font-semibold text-gray-900 dark:text-white">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50">
+            <div className="absolute inset-4 bg-white dark:bg-gray-800 shadow-xl flex flex-col rounded-lg">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                         Tool Calls ({tools.length})
                     </h3>
                     <button
                         onClick={onClose}
-                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl leading-none"
                     >
                         &times;
                     </button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     {tools.map((tool, idx) => (
                         <ToolResultCard key={idx} tool={tool} compact={false} />
                     ))}
