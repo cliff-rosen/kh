@@ -195,12 +195,13 @@ export default function ReportsPage() {
         authors: article.authors || [],
         abstract: article.abstract || '',
         journal: article.journal || '',
-        publication_year: article.year || undefined,
+        publication_year: article.year ? parseInt(article.year, 10) : undefined,
         publication_date: undefined,
         doi: article.doi || undefined,
         url: article.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/` : undefined,
         keywords: [],
         mesh_terms: [],
+        categories: [],
         source_metadata: {}
     });
 

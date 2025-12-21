@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     XMarkIcon,
     DocumentMagnifyingGlassIcon,
@@ -54,6 +54,21 @@ export default function ArticleViewerModal({
 
     // Chat state
     const [isChatOpen, setIsChatOpen] = useState(false);
+
+    // Memoize chat context to include current article info
+    const articleChatContext = useMemo(() => {
+        if (!chatContext) return undefined;
+        return {
+            ...chatContext,
+            current_article: article ? {
+                pmid: article.pmid,
+                title: article.title,
+                authors: article.authors,
+                journal: article.journal,
+                year: article.publication_year
+            } : undefined
+        };
+    }, [chatContext, article]);
 
     const hasPrevious = currentIndex > 0;
     const hasNext = currentIndex < articles.length - 1;
@@ -331,21 +346,12 @@ export default function ArticleViewerModal({
                 {/* Main content */}
                 <div className="flex-1 flex overflow-hidden">
                     {/* Embedded Chat Tray */}
-                    {chatContext && (
+                    {articleChatContext && (
                         <ChatTray
                             embedded
                             isOpen={isChatOpen}
                             onOpenChange={setIsChatOpen}
-                            initialContext={{
-                                ...chatContext,
-                                current_article: article ? {
-                                    pmid: article.pmid,
-                                    title: article.title,
-                                    authors: article.authors,
-                                    journal: article.journal,
-                                    year: article.publication_year
-                                } : undefined
-                            }}
+                            initialContext={articleChatContext}
                             payloadHandlers={chatPayloadHandlers}
                         />
                     )}
@@ -823,7 +829,7 @@ export default function ArticleViewerModal({
                 </div>
 
                 {/* Footer with chat toggle */}
-                {chatContext && (
+                {articleChatContext && (
                     <div className="flex-shrink-0 px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                         <button
                             onClick={() => setIsChatOpen(!isChatOpen)}
