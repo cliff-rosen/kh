@@ -47,11 +47,12 @@ export default function ReportsPage() {
         if (!selectedReport) return undefined;
         return {
             current_page: 'reports',
+            stream_id: selectedStream ? parseInt(selectedStream, 10) : undefined,
             report_id: selectedReport.report_id,
             report_name: selectedReport.report_name,
             article_count: selectedReport.articles?.length || 0
         };
-    }, [selectedReport]);
+    }, [selectedReport, selectedStream]);
 
     // Payload handlers for ChatTray - handles custom payloads from the chat
     const payloadHandlers = useMemo<Record<string, PayloadHandler>>(() => ({
