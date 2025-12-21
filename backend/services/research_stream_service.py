@@ -98,7 +98,8 @@ class ResearchStreamService:
         report_frequency: ReportFrequency,
         semantic_space: Dict[str, Any],
         retrieval_config: Dict[str, Any],
-        presentation_config: Dict[str, Any]
+        presentation_config: Dict[str, Any],
+        chat_instructions: Optional[str] = None
     ) -> ResearchStream:
         """Create a new research stream with three-layer architecture"""
 
@@ -112,6 +113,7 @@ class ResearchStreamService:
             stream_name=stream_name,
             purpose=purpose,
             report_frequency=report_frequency,
+            chat_instructions=chat_instructions,
             semantic_space=semantic_space,
             retrieval_config=retrieval_config,
             presentation_config=presentation_config,

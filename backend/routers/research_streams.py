@@ -56,6 +56,7 @@ class ResearchStreamCreateRequest(BaseModel):
     stream_name: str = Field(..., min_length=1, max_length=255)
     purpose: str = Field(..., min_length=1, description="Why this stream exists")
     report_frequency: ReportFrequency
+    chat_instructions: Optional[str] = Field(None, description="Stream-specific instructions for the chat assistant")
     # Three-layer architecture
     semantic_space: SemanticSpace = Field(..., description="Layer 1: What information matters")
     retrieval_config: RetrievalConfig = Field(..., description="Layer 2: How to find & filter")
@@ -67,6 +68,7 @@ class ResearchStreamUpdateRequest(BaseModel):
     purpose: Optional[str] = None
     report_frequency: Optional[ReportFrequency] = None
     is_active: Optional[bool] = None
+    chat_instructions: Optional[str] = Field(None, description="Stream-specific instructions for the chat assistant")
     # Three-layer architecture
     semantic_space: Optional[SemanticSpace] = None
     retrieval_config: Optional[RetrievalConfig] = None
@@ -117,6 +119,7 @@ async def create_research_stream(
         stream_name=request.stream_name,
         purpose=request.purpose,
         report_frequency=request.report_frequency,
+        chat_instructions=request.chat_instructions,
         semantic_space=semantic_space_dict,
         retrieval_config=retrieval_config_dict,
         presentation_config=presentation_config_dict
