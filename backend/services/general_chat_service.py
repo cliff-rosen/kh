@@ -200,10 +200,13 @@ class GeneralChatService:
         """
         Load report data from database and format it for the LLM context.
         Returns None if report not found or access denied.
-        """
-        from models import Report, ReportArticleAssociation, Article, ResearchStream
 
-        # Load report with research stream
+        Note: Stream-specific chat instructions are loaded separately by
+        _load_stream_instructions() based on stream_id in context.
+        """
+        from models import Report, ReportArticleAssociation, Article
+
+        # Load report
         report = self.db.query(Report).filter(
             Report.report_id == report_id,
             Report.user_id == self.user_id
@@ -211,23 +214,6 @@ class GeneralChatService:
 
         if not report:
             return None
-
-        # Load the associated research stream for chat instructions
-        stream = None
-        stream_instructions_section = ""
-        if report.research_stream_id:
-            stream = self.db.query(ResearchStream).filter(
-                ResearchStream.stream_id == report.research_stream_id
-            ).first()
-            if stream and stream.chat_instructions:
-                stream_instructions_section = f"""
-        === STREAM-SPECIFIC INSTRUCTIONS ===
-        The following instructions define how to analyze and respond about articles in this stream:
-
-        {stream.chat_instructions}
-
-        === END STREAM INSTRUCTIONS ===
-        """
 
         # Load articles
         article_associations = self.db.query(ReportArticleAssociation, Article).join(
@@ -269,7 +255,7 @@ class GeneralChatService:
             highlights_text = "\n".join(f"- {h}" for h in report.key_highlights)
 
         # Build full report context
-        return f"""{stream_instructions_section}
+        return f"""
         === REPORT DATA (loaded from database) ===
 
         Report Name: {report.report_name}
@@ -404,6 +390,11 @@ class GeneralChatService:
             # Default context for unregistered pages
             base_context = f"The user is currently on: {current_page}"
 
+        # Load stream-specific chat instructions if stream_id is in context
+        stream_instructions = self._load_stream_instructions(context)
+        if stream_instructions:
+            base_context = stream_instructions + "\n" + base_context
+
         # For reports page, enrich with actual report data from database
         if current_page == "reports" and context.get("report_id"):
             report_id = context.get("report_id")
@@ -418,6 +409,45 @@ class GeneralChatService:
                 base_context += f"\n\n(Error loading report data: {str(e)})"
 
         return base_context
+
+    def _load_stream_instructions(self, context: Dict[str, Any]) -> Optional[str]:
+        """
+        Load stream-specific chat instructions based on stream_id in context.
+        Returns formatted instructions section or None if not available.
+        """
+        from models import ResearchStream, Report
+
+        stream_id = context.get("stream_id")
+
+        # If no direct stream_id, try to get it from report_id
+        if not stream_id and context.get("report_id"):
+            report = self.db.query(Report).filter(
+                Report.report_id == context.get("report_id"),
+                Report.user_id == self.user_id
+            ).first()
+            if report:
+                stream_id = report.research_stream_id
+
+        if not stream_id:
+            return None
+
+        # Load the stream
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == stream_id,
+            ResearchStream.user_id == self.user_id
+        ).first()
+
+        if not stream or not stream.chat_instructions:
+            return None
+
+        return f"""
+        === STREAM-SPECIFIC INSTRUCTIONS ===
+        The following instructions define how to analyze and respond about articles in this stream:
+
+        {stream.chat_instructions}
+
+        === END STREAM INSTRUCTIONS ===
+        """
 
     def _build_user_prompt(
         self,
