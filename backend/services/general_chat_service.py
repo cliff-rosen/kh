@@ -201,9 +201,9 @@ class GeneralChatService:
         Load report data from database and format it for the LLM context.
         Returns None if report not found or access denied.
         """
-        from models import Report, ReportArticleAssociation, Article
+        from models import Report, ReportArticleAssociation, Article, ResearchStream
 
-        # Load report
+        # Load report with research stream
         report = self.db.query(Report).filter(
             Report.report_id == report_id,
             Report.user_id == self.user_id
@@ -211,6 +211,23 @@ class GeneralChatService:
 
         if not report:
             return None
+
+        # Load the associated research stream for chat instructions
+        stream = None
+        stream_instructions_section = ""
+        if report.research_stream_id:
+            stream = self.db.query(ResearchStream).filter(
+                ResearchStream.stream_id == report.research_stream_id
+            ).first()
+            if stream and stream.chat_instructions:
+                stream_instructions_section = f"""
+        === STREAM-SPECIFIC INSTRUCTIONS ===
+        The following instructions define how to analyze and respond about articles in this stream:
+
+        {stream.chat_instructions}
+
+        === END STREAM INSTRUCTIONS ===
+        """
 
         # Load articles
         article_associations = self.db.query(ReportArticleAssociation, Article).join(
@@ -252,7 +269,7 @@ class GeneralChatService:
             highlights_text = "\n".join(f"- {h}" for h in report.key_highlights)
 
         # Build full report context
-        return f"""
+        return f"""{stream_instructions_section}
         === REPORT DATA (loaded from database) ===
 
         Report Name: {report.report_name}

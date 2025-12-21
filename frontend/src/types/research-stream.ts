@@ -153,6 +153,9 @@ export interface ResearchStream {
     // Layer 3: PRESENTATION CONFIG - How to organize results for users
     presentation_config: PresentationConfig;
 
+    // === CHAT CONFIGURATION ===
+    chat_instructions?: string | null;  // Stream-specific instructions for the AI chat assistant
+
     // === METADATA ===
     report_frequency: ReportFrequency;
     is_active: boolean;

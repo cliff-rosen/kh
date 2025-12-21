@@ -10,7 +10,7 @@ import QuickSetupCard from '../components/chat/QuickSetupCard';
 
 export default function StreamsPage() {
     const navigate = useNavigate();
-    const { researchStreams, loadResearchStreams, isLoading } = useResearchStream();
+    const { researchStreams, loadResearchStreams, isLoading, error, clearError } = useResearchStream();
 
     useEffect(() => {
         loadResearchStreams();
@@ -59,6 +59,18 @@ export default function StreamsPage() {
                     New Stream
                 </button>
             </div>
+
+            {error && (
+                <div className="mb-6 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-700 rounded-lg p-4">
+                    <p className="text-red-800 dark:text-red-200">{error}</p>
+                    <button
+                        onClick={clearError}
+                        className="mt-2 text-sm text-red-600 dark:text-red-400 hover:underline"
+                    >
+                        Dismiss
+                    </button>
+                </div>
+            )}
 
             {isLoading ? (
                 <div className="flex items-center justify-center py-12">

@@ -325,6 +325,12 @@ class ResearchStream(BaseModel):
         description="Layer 4: Custom prompts for summaries (None = use defaults)"
     )
 
+    # === CHAT CONFIGURATION ===
+    chat_instructions: Optional[str] = Field(
+        None,
+        description="Stream-specific instructions for the chat assistant (e.g., classification rules, domain expertise)"
+    )
+
     # === METADATA ===
     report_frequency: ReportFrequency
     is_active: bool = True

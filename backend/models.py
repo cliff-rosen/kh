@@ -121,6 +121,12 @@ class ResearchStream(Base):
     # Format: {"prompts": {"executive_summary": {...}, "category_summary": {...}}}
     enrichment_config = Column(JSON, nullable=True)
 
+    # === CHAT CONFIGURATION ===
+    # Stream-specific instructions for the chat assistant
+    # These are included in the system prompt when chatting about this stream/reports
+    # Example: Classification rules, domain expertise, special terminology
+    chat_instructions = Column(Text, nullable=True)
+
     # === METADATA ===
     report_frequency = Column(Enum(ReportFrequency), default=ReportFrequency.WEEKLY)
     is_active = Column(Boolean, default=True)
