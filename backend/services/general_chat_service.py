@@ -295,13 +295,19 @@ class GeneralChatService:
         """Build system prompt based on user's context."""
         current_page = context.get("current_page", "unknown")
 
+        # Load stream-specific instructions (applies to all pages)
+        stream_instructions = self._load_stream_instructions(context) or ""
+        print(f"Stream instructions: {stream_instructions}")
+        
         # Check if this page has registered payload types
         if has_page_payloads(current_page):
-            return self._build_payload_aware_prompt(current_page, context)
+            return self._build_payload_aware_prompt(current_page, context, stream_instructions)
 
         # Regular conversational prompt
         return f"""You are a helpful AI assistant for Knowledge Horizon,
         a biomedical research intelligence platform.
+
+        {stream_instructions}
 
         The user is currently on: {current_page}
 
@@ -311,7 +317,7 @@ class GeneralChatService:
         Help users understand what they can do in the application.
         """
 
-    def _build_payload_aware_prompt(self, current_page: str, context: Dict[str, Any]) -> str:
+    def _build_payload_aware_prompt(self, current_page: str, context: Dict[str, Any], stream_instructions: str = "") -> str:
         """Build system prompt dynamically based on registered payload types for this page."""
         # Get registered payload configurations
         all_payload_configs = get_page_payloads(current_page)
@@ -354,6 +360,8 @@ class GeneralChatService:
 
         return f"""You are a helpful AI assistant for Knowledge Horizon.
 
+        {stream_instructions}
+
         {page_context}
 
         YOUR ROLE:
@@ -389,11 +397,6 @@ class GeneralChatService:
         else:
             # Default context for unregistered pages
             base_context = f"The user is currently on: {current_page}"
-
-        # Load stream-specific chat instructions if stream_id is in context
-        stream_instructions = self._load_stream_instructions(context)
-        if stream_instructions:
-            base_context = stream_instructions + "\n" + base_context
 
         # For reports page, enrich with actual report data from database
         if current_page == "reports" and context.get("report_id"):
@@ -542,7 +545,7 @@ class GeneralChatService:
 
         return None
 
-    def _format_report_articles(articles: List[Dict[str, Any]]) -> str:
+    def _format_report_articles(self, articles: List[Dict[str, Any]]) -> str:
         """Format articles for the prompt, keeping it concise."""
         if not articles:
             return "No articles in this report."
