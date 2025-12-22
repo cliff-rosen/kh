@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon } from '@heroicons/react/24/solid';
+import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { useGeneralChat } from '../../hooks/useGeneralChat';
 import { InteractionType, PayloadHandler, ToolHistoryEntry } from '../../types/chat';
 import { MarkdownRenderer } from '../common/MarkdownRenderer';
@@ -140,7 +140,7 @@ export default function ChatTray({
             setInternalIsOpen(open);
         }
     };
-    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, updateContext } = useGeneralChat({ initialContext });
+    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, updateContext, reset } = useGeneralChat({ initialContext });
     const [input, setInput] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -267,13 +267,25 @@ export default function ChatTray({
                                 Chat Assistant
                             </h3>
                         </div>
-                        <button
-                            onClick={() => setIsOpen(false)}
-                            className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
-                            aria-label="Close chat"
-                        >
-                            <XMarkIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                            {messages.length > 0 && (
+                                <button
+                                    onClick={reset}
+                                    className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                    aria-label="Clear chat"
+                                    title="Clear chat"
+                                >
+                                    <TrashIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                                </button>
+                            )}
+                            <button
+                                onClick={() => setIsOpen(false)}
+                                className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                aria-label="Close chat"
+                            >
+                                <XMarkIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                            </button>
+                        </div>
                     </div>
 
                     {/* Messages */}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PencilIcon } from '@heroicons/react/24/outline';
 
@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useResearchStream } from '../context/ResearchStreamContext';
 import { reportApi } from '../lib/api/reportApi';
 import { Report } from '../types';
+import ChatTray from '../components/chat/ChatTray';
 
 export default function DashboardPage() {
     const { user } = useAuth();
@@ -17,6 +18,12 @@ export default function DashboardPage() {
         loadResearchStreams();
         reportApi.getRecentReports(3).then(setRecentReports).catch(console.error);
     }, [loadResearchStreams]);
+
+    const chatContext = useMemo(() => ({
+        current_page: 'dashboard',
+        stream_count: researchStreams.length,
+        active_stream_count: researchStreams.filter(s => s.is_active).length
+    }), [researchStreams]);
 
     return (
         <div className="max-w-7xl mx-auto p-6">
@@ -260,6 +267,8 @@ export default function DashboardPage() {
                     </div>
                 </div>
             )}
+
+            <ChatTray initialContext={chatContext} />
         </div>
     );
 }
