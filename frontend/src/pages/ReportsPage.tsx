@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { CalendarIcon, DocumentTextIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
 import { Report, ReportWithArticles, ReportArticle } from '../types';
@@ -467,80 +467,66 @@ export default function ReportsPage() {
                             <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
                                 {/* Report Header */}
                                 <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-                                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                                        {selectedReport.report_name}
-                                    </h2>
+                                    {/* First line: Title (left) + Config/Analytics icons (right) */}
                                     <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-                                        <span className="flex items-center gap-1">
-                                            <CalendarIcon className="h-4 w-4" />
-                                            Generated {new Date(selectedReport.created_at).toLocaleDateString()}
-                                        </span>
-                                        {selectedReport.retrieval_params?.start_date && selectedReport.retrieval_params?.end_date && (
-                                            <span>
-                                                Date Range: {new Date(selectedReport.retrieval_params.start_date).toLocaleDateString()} - {new Date(selectedReport.retrieval_params.end_date).toLocaleDateString()}
-                                            </span>
-                                        )}
-                                        <span>{selectedReport.articles?.length || 0} articles</span>
-                                        {selectedReport.key_highlights?.length > 0 && (
-                                            <span>{selectedReport.key_highlights.length} key insights</span>
-                                        )}
-                                        {selectedReport.run_type && (
-                                            <span className="inline-block px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 uppercase">
-                                                {selectedReport.run_type}
-                                            </span>
-                                        )}
-                                        </div>
-
-                                        {/* View Selector and Analytics Button */}
-                                        <div className="flex gap-4 items-center">
-                                            {/* Article View Buttons */}
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => setReportView('all')}
-                                                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                                                        reportView === 'all'
-                                                            ? 'bg-blue-600 text-white'
-                                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                                    }`}
-                                                >
-                                                    <ListBulletIcon className="h-4 w-4" />
-                                                    All Articles
-                                                </button>
-                                                <button
-                                                    onClick={() => setReportView('by-category')}
-                                                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                                                        reportView === 'by-category'
-                                                            ? 'bg-blue-600 text-white'
-                                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                                    }`}
-                                                >
-                                                    <Squares2X2Icon className="h-4 w-4" />
-                                                    By Category
-                                                </button>
-                                            </div>
-
-                                            {/* Execution Config Button */}
+                                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                                            {selectedReport.report_name}
+                                        </h2>
+                                        <div className="flex items-center gap-2">
                                             <button
                                                 onClick={() => setShowExecutionConfig(true)}
-                                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-gray-600 hover:bg-gray-700 text-white"
+                                                className="p-2 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                                                 title="View execution configuration snapshot"
                                             >
-                                                <Cog6ToothIcon className="h-3.5 w-3.5" />
-                                                Config
+                                                <Cog6ToothIcon className="h-5 w-5" />
                                             </button>
-
-                                            {/* Pipeline Analytics Button */}
                                             {hasPipelineData && (
                                                 <button
                                                     onClick={() => setShowAnalytics(true)}
-                                                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-purple-600 hover:bg-purple-700 text-white"
+                                                    className="p-2 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                                                     title="View pipeline analytics and detailed metrics"
                                                 >
-                                                    <ChartBarIcon className="h-3.5 w-3.5" />
-                                                    Analytics
+                                                    <ChartBarIcon className="h-5 w-5" />
                                                 </button>
                                             )}
+                                        </div>
+                                    </div>
+
+                                    {/* Second line: Dates (left) + View buttons (right) */}
+                                    <div className="flex items-center justify-between mt-3">
+                                        <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+                                            <span>
+                                                Generated: {new Date(selectedReport.created_at).toLocaleDateString()}
+                                            </span>
+                                            {selectedReport.retrieval_params?.start_date && selectedReport.retrieval_params?.end_date && (
+                                                <span>
+                                                    Report range: {new Date(selectedReport.retrieval_params.start_date).toLocaleDateString()} – {new Date(selectedReport.retrieval_params.end_date).toLocaleDateString()}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setReportView('all')}
+                                                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                                                    reportView === 'all'
+                                                        ? 'bg-blue-600 text-white'
+                                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                                }`}
+                                            >
+                                                <ListBulletIcon className="h-4 w-4" />
+                                                All Articles
+                                            </button>
+                                            <button
+                                                onClick={() => setReportView('by-category')}
+                                                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                                                    reportView === 'by-category'
+                                                        ? 'bg-blue-600 text-white'
+                                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                                }`}
+                                            >
+                                                <Squares2X2Icon className="h-4 w-4" />
+                                                By Category
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
