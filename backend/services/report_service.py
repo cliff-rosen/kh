@@ -422,6 +422,250 @@ class ReportService:
         }
 
     # =========================================================================
+    # Article Association Operations
+    # =========================================================================
+
+    def get_article_association(
+        self,
+        report_id: int,
+        article_id: int,
+        user_id: int
+    ) -> Optional[ReportArticleAssociation]:
+        """
+        Get a specific article association, verifying report ownership.
+
+        Args:
+            report_id: The report ID
+            article_id: The article ID
+            user_id: The user ID (for ownership verification)
+
+        Returns:
+            ReportArticleAssociation or None if not found
+        """
+        # Verify report exists and belongs to user
+        report = self.db.query(Report).filter(
+            and_(
+                Report.report_id == report_id,
+                Report.user_id == user_id
+            )
+        ).first()
+
+        if not report:
+            return None
+
+        # Find the association
+        return self.db.query(ReportArticleAssociation).filter(
+            and_(
+                ReportArticleAssociation.report_id == report_id,
+                ReportArticleAssociation.article_id == article_id
+            )
+        ).first()
+
+    def update_article_notes(
+        self,
+        report_id: int,
+        article_id: int,
+        user_id: int,
+        notes: Optional[str]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Update notes for an article within a report.
+
+        Args:
+            report_id: The report ID
+            article_id: The article ID
+            user_id: The user ID (for ownership verification)
+            notes: The notes text (or None to clear)
+
+        Returns:
+            Dict with updated notes, or None if association not found
+        """
+        association = self.get_article_association(report_id, article_id, user_id)
+        if not association:
+            return None
+
+        association.notes = notes
+        self.db.commit()
+
+        return {"notes": association.notes}
+
+    def update_article_enrichments(
+        self,
+        report_id: int,
+        article_id: int,
+        user_id: int,
+        ai_enrichments: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Update AI enrichments for an article within a report.
+
+        Args:
+            report_id: The report ID
+            article_id: The article ID
+            user_id: The user ID (for ownership verification)
+            ai_enrichments: The enrichments dict
+
+        Returns:
+            Dict with updated enrichments, or None if association not found
+        """
+        association = self.get_article_association(report_id, article_id, user_id)
+        if not association:
+            return None
+
+        association.ai_enrichments = ai_enrichments
+        self.db.commit()
+
+        return {"ai_enrichments": association.ai_enrichments}
+
+    def get_article_metadata(
+        self,
+        report_id: int,
+        article_id: int,
+        user_id: int
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get notes and AI enrichments for an article within a report.
+
+        Args:
+            report_id: The report ID
+            article_id: The article ID
+            user_id: The user ID (for ownership verification)
+
+        Returns:
+            Dict with notes and ai_enrichments, or None if not found
+        """
+        association = self.get_article_association(report_id, article_id, user_id)
+        if not association:
+            return None
+
+        return {
+            "notes": association.notes,
+            "ai_enrichments": association.ai_enrichments
+        }
+
+    # =========================================================================
+    # Pipeline Analytics
+    # =========================================================================
+
+    def get_pipeline_analytics(
+        self,
+        report_id: int,
+        user_id: int
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get pipeline execution analytics for a report.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID (for ownership verification)
+
+        Returns:
+            Dict with analytics data, or None if report not found.
+            Raises ValueError if report has no pipeline execution data.
+        """
+        # Verify report exists and belongs to user
+        report = self.db.query(Report).filter(
+            and_(
+                Report.report_id == report_id,
+                Report.user_id == user_id
+            )
+        ).first()
+
+        if not report:
+            return None
+
+        # Check for pipeline execution ID
+        if not report.pipeline_execution_id:
+            raise ValueError("This report does not have pipeline execution data (legacy report)")
+
+        # Get all wip_articles for this execution
+        wip_articles = self.db.query(WipArticle).filter(
+            WipArticle.pipeline_execution_id == report.pipeline_execution_id
+        ).all()
+
+        # Calculate analytics
+        total_retrieved = len(wip_articles)
+        duplicates = sum(1 for a in wip_articles if a.is_duplicate)
+        filtered_out = sum(1 for a in wip_articles if a.passed_semantic_filter == False)
+        passed_filter = sum(1 for a in wip_articles if a.passed_semantic_filter == True)
+        included_in_report = sum(1 for a in wip_articles if a.included_in_report)
+
+        # Group by retrieval group
+        groups: Dict[str, Dict[str, Any]] = {}
+        for article in wip_articles:
+            if article.retrieval_group_id not in groups:
+                groups[article.retrieval_group_id] = {
+                    'group_id': article.retrieval_group_id,
+                    'total': 0,
+                    'duplicates': 0,
+                    'filtered_out': 0,
+                    'passed_filter': 0,
+                    'included': 0
+                }
+            groups[article.retrieval_group_id]['total'] += 1
+            if article.is_duplicate:
+                groups[article.retrieval_group_id]['duplicates'] += 1
+            if article.passed_semantic_filter == False:
+                groups[article.retrieval_group_id]['filtered_out'] += 1
+            if article.passed_semantic_filter == True:
+                groups[article.retrieval_group_id]['passed_filter'] += 1
+            if article.included_in_report:
+                groups[article.retrieval_group_id]['included'] += 1
+
+        # Get filter rejection reasons
+        rejection_reasons: Dict[str, int] = {}
+        for article in wip_articles:
+            if article.filter_rejection_reason:
+                reason = article.filter_rejection_reason[:100]  # Truncate for grouping
+                rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
+
+        # Categorization stats
+        category_counts: Dict[str, int] = {}
+        for article in wip_articles:
+            if article.presentation_categories:
+                for cat_id in article.presentation_categories:
+                    category_counts[cat_id] = category_counts.get(cat_id, 0) + 1
+
+        # Serialize wip_articles for client
+        wip_articles_data = []
+        for article in wip_articles:
+            wip_articles_data.append({
+                'id': article.id,
+                'title': article.title,
+                'retrieval_group_id': article.retrieval_group_id,
+                'is_duplicate': article.is_duplicate,
+                'duplicate_of_id': article.duplicate_of_id,
+                'passed_semantic_filter': article.passed_semantic_filter,
+                'filter_rejection_reason': article.filter_rejection_reason,
+                'included_in_report': article.included_in_report,
+                'presentation_categories': article.presentation_categories,
+                'authors': article.authors,
+                'journal': article.journal,
+                'year': article.year,
+                'pmid': article.pmid,
+                'doi': article.doi,
+                'abstract': article.abstract
+            })
+
+        return {
+            'report_id': report_id,
+            'run_type': report.run_type.value if report.run_type else None,
+            'report_date': report.report_date.isoformat(),
+            'pipeline_metrics': report.pipeline_metrics,
+            'summary': {
+                'total_retrieved': total_retrieved,
+                'duplicates': duplicates,
+                'filtered_out': filtered_out,
+                'passed_filter': passed_filter,
+                'included_in_report': included_in_report
+            },
+            'by_group': list(groups.values()),
+            'rejection_reasons': rejection_reasons,
+            'category_counts': category_counts,
+            'wip_articles': wip_articles_data
+        }
+
+    # =========================================================================
     # COMMIT Operations
     # =========================================================================
 

@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 
 from database import get_db
-from models import User, WipArticle, Report as ReportModel, ReportArticleAssociation
+from models import User
 from schemas.report import Report, ReportWithArticles
 from services.report_service import ReportService
 from routers.auth import get_current_user
@@ -20,6 +20,7 @@ class UpdateArticleNotesRequest(BaseModel):
 
 class UpdateArticleEnrichmentsRequest(BaseModel):
     ai_enrichments: Dict[str, Any]
+
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -111,111 +112,23 @@ async def get_pipeline_analytics(
     Get pipeline execution analytics for a test report.
     Returns detailed analytics including wip_articles data for debugging and analysis.
     """
-    # Verify report exists and belongs to user
-    report = db.query(ReportModel).filter(
-        ReportModel.report_id == report_id,
-        ReportModel.user_id == current_user.user_id
-    ).first()
+    service = ReportService(db)
 
-    if not report:
+    try:
+        analytics = service.get_pipeline_analytics(report_id, current_user.user_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+
+    if not analytics:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Report not found"
         )
 
-    # Get execution ID from report
-    if not report.pipeline_execution_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="This report does not have pipeline execution data (legacy report)"
-        )
-
-    # Get all wip_articles for this execution
-    wip_articles = db.query(WipArticle).filter(
-        WipArticle.pipeline_execution_id == report.pipeline_execution_id
-    ).all()
-
-    # Calculate analytics
-    total_retrieved = len(wip_articles)
-    duplicates = sum(1 for a in wip_articles if a.is_duplicate)
-    filtered_out = sum(1 for a in wip_articles if a.passed_semantic_filter == False)
-    passed_filter = sum(1 for a in wip_articles if a.passed_semantic_filter == True)
-    included_in_report = sum(1 for a in wip_articles if a.included_in_report)
-
-    # Group by retrieval group
-    groups = {}
-    for article in wip_articles:
-        if article.retrieval_group_id not in groups:
-            groups[article.retrieval_group_id] = {
-                'group_id': article.retrieval_group_id,
-                'total': 0,
-                'duplicates': 0,
-                'filtered_out': 0,
-                'passed_filter': 0,
-                'included': 0
-            }
-        groups[article.retrieval_group_id]['total'] += 1
-        if article.is_duplicate:
-            groups[article.retrieval_group_id]['duplicates'] += 1
-        if article.passed_semantic_filter == False:
-            groups[article.retrieval_group_id]['filtered_out'] += 1
-        if article.passed_semantic_filter == True:
-            groups[article.retrieval_group_id]['passed_filter'] += 1
-        if article.included_in_report:
-            groups[article.retrieval_group_id]['included'] += 1
-
-    # Get filter rejection reasons
-    rejection_reasons = {}
-    for article in wip_articles:
-        if article.filter_rejection_reason:
-            reason = article.filter_rejection_reason[:100]  # Truncate for grouping
-            rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
-
-    # Categorization stats
-    category_counts = {}
-    for article in wip_articles:
-        if article.presentation_categories:
-            for cat_id in article.presentation_categories:
-                category_counts[cat_id] = category_counts.get(cat_id, 0) + 1
-
-    # Serialize wip_articles for client
-    wip_articles_data = []
-    for article in wip_articles:
-        wip_articles_data.append({
-            'id': article.id,
-            'title': article.title,
-            'retrieval_group_id': article.retrieval_group_id,
-            'is_duplicate': article.is_duplicate,
-            'duplicate_of_id': article.duplicate_of_id,
-            'passed_semantic_filter': article.passed_semantic_filter,
-            'filter_rejection_reason': article.filter_rejection_reason,
-            'included_in_report': article.included_in_report,
-            'presentation_categories': article.presentation_categories,
-            'authors': article.authors,
-            'journal': article.journal,
-            'year': article.year,
-            'pmid': article.pmid,
-            'doi': article.doi,
-            'abstract': article.abstract
-        })
-
-    return {
-        'report_id': report_id,
-        'run_type': report.run_type.value if report.run_type else None,
-        'report_date': report.report_date.isoformat(),
-        'pipeline_metrics': report.pipeline_metrics,
-        'summary': {
-            'total_retrieved': total_retrieved,
-            'duplicates': duplicates,
-            'filtered_out': filtered_out,
-            'passed_filter': passed_filter,
-            'included_in_report': included_in_report
-        },
-        'by_group': list(groups.values()),
-        'rejection_reasons': rejection_reasons,
-        'category_counts': category_counts,
-        'wip_articles': wip_articles_data
-    }
+    return analytics
 
 
 @router.patch("/{report_id}/articles/{article_id}/notes")
@@ -227,35 +140,18 @@ async def update_article_notes(
     current_user: User = Depends(get_current_user)
 ):
     """Update notes for an article within a report"""
-    # Verify report exists and belongs to user
-    report = db.query(ReportModel).filter(
-        ReportModel.report_id == report_id,
-        ReportModel.user_id == current_user.user_id
-    ).first()
+    service = ReportService(db)
+    result = service.update_article_notes(
+        report_id, article_id, current_user.user_id, request.notes
+    )
 
-    if not report:
+    if not result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Report not found"
+            detail="Report or article not found"
         )
 
-    # Find the association
-    association = db.query(ReportArticleAssociation).filter(
-        ReportArticleAssociation.report_id == report_id,
-        ReportArticleAssociation.article_id == article_id
-    ).first()
-
-    if not association:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Article not found in this report"
-        )
-
-    # Update notes
-    association.notes = request.notes
-    db.commit()
-
-    return {"status": "ok", "notes": association.notes}
+    return {"status": "ok", **result}
 
 
 @router.patch("/{report_id}/articles/{article_id}/enrichments")
@@ -267,35 +163,18 @@ async def update_article_enrichments(
     current_user: User = Depends(get_current_user)
 ):
     """Update AI enrichments for an article within a report"""
-    # Verify report exists and belongs to user
-    report = db.query(ReportModel).filter(
-        ReportModel.report_id == report_id,
-        ReportModel.user_id == current_user.user_id
-    ).first()
+    service = ReportService(db)
+    result = service.update_article_enrichments(
+        report_id, article_id, current_user.user_id, request.ai_enrichments
+    )
 
-    if not report:
+    if not result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Report not found"
+            detail="Report or article not found"
         )
 
-    # Find the association
-    association = db.query(ReportArticleAssociation).filter(
-        ReportArticleAssociation.report_id == report_id,
-        ReportArticleAssociation.article_id == article_id
-    ).first()
-
-    if not association:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Article not found in this report"
-        )
-
-    # Update AI enrichments
-    association.ai_enrichments = request.ai_enrichments
-    db.commit()
-
-    return {"status": "ok", "ai_enrichments": association.ai_enrichments}
+    return {"status": "ok", **result}
 
 
 @router.get("/{report_id}/articles/{article_id}/metadata")
@@ -305,32 +184,14 @@ async def get_article_metadata(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get notes and stance analysis for an article within a report"""
-    # Verify report exists and belongs to user
-    report = db.query(ReportModel).filter(
-        ReportModel.report_id == report_id,
-        ReportModel.user_id == current_user.user_id
-    ).first()
+    """Get notes and AI enrichments for an article within a report"""
+    service = ReportService(db)
+    result = service.get_article_metadata(report_id, article_id, current_user.user_id)
 
-    if not report:
+    if not result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Report not found"
+            detail="Report or article not found"
         )
 
-    # Find the association
-    association = db.query(ReportArticleAssociation).filter(
-        ReportArticleAssociation.report_id == report_id,
-        ReportArticleAssociation.article_id == article_id
-    ).first()
-
-    if not association:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Article not found in this report"
-        )
-
-    return {
-        "notes": association.notes,
-        "ai_enrichments": association.ai_enrichments
-    }
+    return result
