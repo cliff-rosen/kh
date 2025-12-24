@@ -3,7 +3,9 @@ import { makeStreamRequest } from './streamUtils';
 import {
     DocumentAnalysisRequest,
     DocumentAnalysisResult,
-    AnalysisStreamMessage
+    AnalysisStreamMessage,
+    StanceAnalysisRequest,
+    StanceAnalysisResult
 } from '../../types/document_analysis';
 
 export const documentAnalysisApi = {
@@ -91,6 +93,15 @@ export const documentAnalysisApi = {
         }
 
         return finalResult;
+    },
+
+    /**
+     * Analyze an article's stance (pro-defense vs pro-plaintiff)
+     * Uses stream-specific classification instructions
+     */
+    async analyzeStance(request: StanceAnalysisRequest): Promise<StanceAnalysisResult> {
+        const response = await api.post('/api/tools/document-analysis/analyze-stance', request);
+        return response.data;
     },
 
     /**

@@ -14,7 +14,9 @@ from services.document_analysis_service import get_document_analysis_service
 from schemas.document_analysis import (
     DocumentAnalysisRequest,
     DocumentAnalysisResult,
-    AnalysisOptions
+    AnalysisOptions,
+    StanceAnalysisRequest,
+    StanceAnalysisResult
 )
 
 logger = logging.getLogger(__name__)
@@ -116,6 +118,62 @@ async def analyze_document_stream(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to start document analysis: {str(e)}"
+        )
+
+
+@router.post("/analyze-stance", response_model=StanceAnalysisResult)
+async def analyze_article_stance(
+    request: StanceAnalysisRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_service.validate_token)
+):
+    """
+    Analyze an article's stance (pro-defense vs pro-plaintiff) based on
+    stream-specific classification instructions.
+
+    Requires a stream_id to load the stream's chat_instructions which define
+    the classification criteria.
+    """
+    from models import ResearchStream
+
+    try:
+        # Load the research stream to get context and instructions
+        stream = db.query(ResearchStream).filter(
+            ResearchStream.stream_id == request.stream_id,
+            ResearchStream.user_id == current_user.user_id
+        ).first()
+
+        if not stream:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Research stream {request.stream_id} not found"
+            )
+
+        logger.info(f"Stance analysis request from user {current_user.user_id} for stream {stream.stream_name}")
+
+        service = get_document_analysis_service()
+
+        result = await service.analyze_article_stance(
+            article_title=request.article.title,
+            article_abstract=request.article.abstract,
+            article_authors=request.article.authors,
+            article_journal=request.article.journal,
+            article_year=request.article.publication_year,
+            stream_name=stream.stream_name,
+            stream_purpose=stream.purpose,
+            chat_instructions=stream.chat_instructions
+        )
+
+        logger.info(f"Stance analysis complete: {result.get('stance')} (confidence: {result.get('confidence')})")
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Stance analysis failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Stance analysis failed: {str(e)}"
         )
 
 

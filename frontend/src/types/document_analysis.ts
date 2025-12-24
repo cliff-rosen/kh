@@ -180,3 +180,32 @@ export interface AnalysisProgress {
     message: string;
     isComplete: boolean;
 }
+
+// ============================================================================
+// Article Stance Analysis Types
+// ============================================================================
+
+export type StanceType = 'pro-defense' | 'pro-plaintiff' | 'neutral' | 'mixed' | 'unclear';
+
+export interface ArticleInfo {
+    title: string;
+    abstract?: string;
+    authors?: string[];
+    journal?: string;
+    publication_year?: number;
+    pmid?: string;
+    doi?: string;
+}
+
+export interface StanceAnalysisRequest {
+    article: ArticleInfo;
+    stream_id: number;
+}
+
+export interface StanceAnalysisResult {
+    stance: StanceType;
+    confidence: number;
+    analysis: string;
+    key_factors: string[];
+    relevant_quotes: string[];
+}

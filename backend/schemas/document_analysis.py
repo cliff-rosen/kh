@@ -196,3 +196,35 @@ class AnalysisStreamMessage(BaseModel):
     message: str = Field(..., description="Human-readable message")
     data: Optional[Dict[str, Any]] = Field(default=None, description="Additional data payload")
     timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+
+
+# ============================================================================
+# Article Stance Analysis Models
+# ============================================================================
+
+class ArticleInfo(BaseModel):
+    """Article information for stance analysis"""
+    title: str = Field(..., description="Article title")
+    abstract: Optional[str] = Field(None, description="Article abstract")
+    authors: Optional[List[str]] = Field(default_factory=list, description="Article authors")
+    journal: Optional[str] = Field(None, description="Journal name")
+    publication_year: Optional[int] = Field(None, description="Publication year")
+    pmid: Optional[str] = Field(None, description="PubMed ID")
+    doi: Optional[str] = Field(None, description="DOI")
+
+
+class StanceAnalysisRequest(BaseModel):
+    """Request for article stance analysis"""
+    article: ArticleInfo = Field(..., description="Article to analyze")
+    stream_id: int = Field(..., description="Research stream ID for context and instructions")
+
+
+class StanceAnalysisResult(BaseModel):
+    """Result of article stance analysis"""
+    stance: Literal["pro-defense", "pro-plaintiff", "neutral", "mixed", "unclear"] = Field(
+        ..., description="Overall stance classification"
+    )
+    confidence: float = Field(..., ge=0, le=1, description="Confidence in the classification (0-1)")
+    analysis: str = Field(..., description="Detailed analysis explanation")
+    key_factors: List[str] = Field(default_factory=list, description="Key factors influencing the stance")
+    relevant_quotes: List[str] = Field(default_factory=list, description="Relevant quotes from the abstract")

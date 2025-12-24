@@ -783,6 +783,143 @@ class DocumentAnalysisService:
 
         return nodes, edges
 
+    async def analyze_article_stance(
+        self,
+        article_title: str,
+        article_abstract: Optional[str],
+        article_authors: Optional[List[str]],
+        article_journal: Optional[str],
+        article_year: Optional[int],
+        stream_name: str,
+        stream_purpose: Optional[str],
+        chat_instructions: Optional[str]
+    ) -> Dict:
+        """
+        Analyze an article's stance (pro-defense vs pro-plaintiff) based on
+        stream-specific instructions.
+
+        Args:
+            article_title: Article title
+            article_abstract: Article abstract
+            article_authors: List of authors
+            article_journal: Journal name
+            article_year: Publication year
+            stream_name: Research stream name
+            stream_purpose: Stream's stated purpose
+            chat_instructions: Stream-specific classification instructions
+
+        Returns:
+            Dict with stance, confidence, analysis, key_factors, relevant_quotes
+        """
+        from schemas.document_analysis import StanceAnalysisResult
+
+        if not article_abstract:
+            return StanceAnalysisResult(
+                stance="unclear",
+                confidence=0.0,
+                analysis="No abstract available for analysis.",
+                key_factors=[],
+                relevant_quotes=[]
+            ).model_dump()
+
+        # Build the article context
+        authors_str = ", ".join(article_authors) if article_authors else "Unknown authors"
+        article_context = f"""
+        ARTICLE INFORMATION:
+        Title: {article_title}
+        Authors: {authors_str}
+        Journal: {article_journal or "Unknown"}
+        Year: {article_year or "Unknown"}
+
+        ABSTRACT:
+        {article_abstract}
+        """
+
+        # Build the system prompt with stream context and instructions
+        system_prompt = f"""You are an expert analyst evaluating scientific articles for their relevance and stance in litigation contexts.
+
+        RESEARCH STREAM CONTEXT:
+        Stream Name: {stream_name}
+        Purpose: {stream_purpose or "Not specified"}
+
+        CLASSIFICATION INSTRUCTIONS:
+        {chat_instructions or "Analyze the article's stance on the subject matter, determining whether it supports defense positions, plaintiff positions, is neutral, or mixed."}
+
+        Your task is to analyze the provided article and determine its stance with respect to the classification criteria above.
+
+        Be thorough in your analysis but concise in your explanation."""
+
+        user_prompt = f"""Please analyze the following article:
+
+        {article_context}
+
+        Provide your stance analysis as specified."""
+
+        result_schema = {
+            "type": "object",
+            "properties": {
+                "stance": {
+                    "type": "string",
+                    "enum": ["pro-defense", "pro-plaintiff", "neutral", "mixed", "unclear"]
+                },
+                "confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                },
+                "analysis": {"type": "string"},
+                "key_factors": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                },
+                "relevant_quotes": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                }
+            },
+            "required": ["stance", "confidence", "analysis", "key_factors", "relevant_quotes"]
+        }
+
+        task_config = get_task_config("document_analysis", "stance_analysis")
+        prompt_caller = BasePromptCaller(
+            response_model=result_schema,
+            system_message=system_prompt,
+            model=task_config["model"],
+            temperature=task_config.get("temperature", 0.2),
+            reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(task_config["model"]) else None
+        )
+
+        user_message = ChatMessage(
+            id="temp_id",
+            chat_id="temp_chat",
+            role=MessageRole.USER,
+            content=user_prompt,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+
+        result = await prompt_caller.invoke(
+            messages=[user_message],
+            return_usage=True
+        )
+
+        # Extract response
+        llm_response = result.result
+        if hasattr(llm_response, 'model_dump'):
+            response_dict = llm_response.model_dump()
+        elif hasattr(llm_response, 'dict'):
+            response_dict = llm_response.dict()
+        else:
+            response_dict = llm_response
+
+        return StanceAnalysisResult(
+            stance=response_dict.get("stance", "unclear"),
+            confidence=response_dict.get("confidence", 0.5),
+            analysis=response_dict.get("analysis", ""),
+            key_factors=response_dict.get("key_factors", []),
+            relevant_quotes=response_dict.get("relevant_quotes", [])
+        ).model_dump()
+
 
 # ============================================================================
 # Singleton

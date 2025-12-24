@@ -1,34 +1,23 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     XMarkIcon,
-    DocumentMagnifyingGlassIcon,
     ArrowTopRightOnSquareIcon,
-    DocumentTextIcon,
     BeakerIcon,
     PencilSquareIcon,
     ChevronLeftIcon,
     ChevronRightIcon,
-    LinkIcon
+    LinkIcon,
+    ShieldCheckIcon,
+    ScaleIcon,
+    ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { CheckBadgeIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid';
 import { documentAnalysisApi } from '../lib/api/documentAnalysisApi';
 import { articleApi, FullTextLink } from '../lib/api/articleApi';
 import { CanonicalResearchArticle } from '../types/canonical_types';
-import {
-    DocumentAnalysisResult,
-    ViewMode,
-    AnalysisStreamMessage
-} from '../types/document_analysis';
-import { TreeView, GraphView, SplitView } from './tools/DocumentAnalysis';
+import { StanceAnalysisResult, StanceType } from '../types/document_analysis';
 import ChatTray from './chat/ChatTray';
 import { PayloadHandler } from '../types/chat';
-
-interface ProgressStep {
-    id: string;
-    label: string;
-    status: 'pending' | 'active' | 'complete' | 'error';
-    result?: string;
-}
 
 type WorkspaceTab = 'analysis' | 'notes' | 'links';
 
@@ -96,21 +85,17 @@ export default function ArticleViewerModal({
     const [fullTextLinksCache, setFullTextLinksCache] = useState<Record<string, FullTextLink[]>>({});
     const [loadingLinks, setLoadingLinks] = useState(false);
 
-    // Analysis state - keyed by article id to preserve results when navigating
-    const [analysisCache, setAnalysisCache] = useState<Record<string, DocumentAnalysisResult>>({});
+    // Stance analysis state - keyed by article id to preserve results when navigating
+    const [stanceCache, setStanceCache] = useState<Record<string, StanceAnalysisResult>>({});
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisError, setAnalysisError] = useState<string | null>(null);
-    const [progressSteps, setProgressSteps] = useState<ProgressStep[]>([]);
-    const [currentMessage, setCurrentMessage] = useState<string>('');
-    const [viewMode, setViewMode] = useState<ViewMode>('tree');
-    const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-    const analysisResults = article ? analysisCache[article.id] : null;
+    const stanceResult = article ? stanceCache[article.id] : null;
+    const streamId = chatContext?.stream_id as number | undefined;
 
-    // Reset state when switching articles (but keep analysis cache)
+    // Reset error state when switching articles (cache is preserved)
     useEffect(() => {
         setAnalysisError(null);
-        setSelectedNodeId(null);
     }, [currentIndex]);
 
     // Fetch full text links when article changes (on demand, cached)
@@ -160,108 +145,56 @@ export default function ArticleViewerModal({
         return () => window.removeEventListener('keydown', handleArrowKeys);
     }, [hasPrevious, hasNext, handlePrevious, handleNext]);
 
-    const handleStreamMessage = useCallback((message: AnalysisStreamMessage) => {
-        setCurrentMessage(message.message);
-
-        switch (message.type) {
-            case 'status':
-                if (message.data?.options) {
-                    const steps: ProgressStep[] = [];
-                    if (message.data.options.hierarchical_summary) {
-                        steps.push({ id: 'summary', label: 'Hierarchical Summary', status: 'pending' });
-                    }
-                    if (message.data.options.entity_extraction) {
-                        steps.push({ id: 'entities', label: 'Entity Extraction', status: 'pending' });
-                    }
-                    if (message.data.options.claim_extraction) {
-                        steps.push({ id: 'claims', label: 'Claim Extraction', status: 'pending' });
-                    }
-                    setProgressSteps(steps);
-                }
-                break;
-
-            case 'progress':
-                if (message.data?.phase) {
-                    const phaseId = message.data.phase === 'hierarchical_summary' ? 'summary' :
-                        message.data.phase === 'entity_extraction' ? 'entities' : 'claims';
-                    setProgressSteps(prev => prev.map(step =>
-                        step.id === phaseId ? { ...step, status: 'active' } : step
-                    ));
-                }
-                break;
-
-            case 'summary':
-                setProgressSteps(prev => prev.map(step =>
-                    step.id === 'summary' ? {
-                        ...step,
-                        status: 'complete',
-                        result: `${message.data?.result?.sections?.length || 0} sections`
-                    } : step
-                ));
-                break;
-
-            case 'entities':
-                setProgressSteps(prev => prev.map(step =>
-                    step.id === 'entities' ? {
-                        ...step,
-                        status: 'complete',
-                        result: `${message.data?.result?.length || 0} entities`
-                    } : step
-                ));
-                break;
-
-            case 'claims':
-                setProgressSteps(prev => prev.map(step =>
-                    step.id === 'claims' ? {
-                        ...step,
-                        status: 'complete',
-                        result: `${message.data?.result?.length || 0} claims`
-                    } : step
-                ));
-                break;
-
-            case 'error':
-                setProgressSteps(prev => prev.map(step =>
-                    step.status === 'active' ? { ...step, status: 'error' } : step
-                ));
-                break;
-        }
-    }, []);
-
     const runAnalysis = async () => {
         if (!article?.abstract) {
             setAnalysisError('No abstract available for analysis');
             return;
         }
 
+        if (!streamId) {
+            setAnalysisError('No research stream context available');
+            return;
+        }
+
         setIsAnalyzing(true);
         setAnalysisError(null);
-        setProgressSteps([]);
-        setCurrentMessage('Starting analysis...');
 
         try {
-            const result = await documentAnalysisApi.analyzeDocumentStream(
-                {
-                    document_text: article.abstract,
-                    document_title: article.title,
-                    analysis_options: {
-                        hierarchical_summary: true,
-                        entity_extraction: true,
-                        claim_extraction: true
-                    }
+            const result = await documentAnalysisApi.analyzeStance({
+                article: {
+                    title: article.title,
+                    abstract: article.abstract,
+                    authors: article.authors,
+                    journal: article.journal,
+                    publication_year: article.publication_year,
+                    pmid: article.pmid,
+                    doi: article.doi
                 },
-                handleStreamMessage
-            );
+                stream_id: streamId
+            });
 
-            if (result) {
-                setAnalysisCache(prev => ({ ...prev, [article.id]: result }));
-                setSelectedNodeId('executive');
-                setActiveTab('analysis');
-            }
+            setStanceCache(prev => ({ ...prev, [article.id]: result }));
+            setActiveTab('analysis');
         } catch (err) {
             setAnalysisError(err instanceof Error ? err.message : 'Analysis failed');
         } finally {
             setIsAnalyzing(false);
+        }
+    };
+
+    // Helper to get stance display info
+    const getStanceInfo = (stance: StanceType) => {
+        switch (stance) {
+            case 'pro-defense':
+                return { label: 'Pro-Defense', color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-100 dark:bg-blue-900/30', icon: ShieldCheckIcon };
+            case 'pro-plaintiff':
+                return { label: 'Pro-Plaintiff', color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-100 dark:bg-red-900/30', icon: ExclamationTriangleIcon };
+            case 'neutral':
+                return { label: 'Neutral', color: 'text-gray-600 dark:text-gray-400', bgColor: 'bg-gray-100 dark:bg-gray-700', icon: ScaleIcon };
+            case 'mixed':
+                return { label: 'Mixed', color: 'text-amber-600 dark:text-amber-400', bgColor: 'bg-amber-100 dark:bg-amber-900/30', icon: ScaleIcon };
+            default:
+                return { label: 'Unclear', color: 'text-gray-500 dark:text-gray-500', bgColor: 'bg-gray-100 dark:bg-gray-700', icon: ScaleIcon };
         }
     };
 
@@ -279,12 +212,6 @@ export default function ArticleViewerModal({
         { id: 'analysis' as WorkspaceTab, label: 'Analysis', icon: BeakerIcon },
         { id: 'notes' as WorkspaceTab, label: 'Notes', icon: PencilSquareIcon },
         { id: 'links' as WorkspaceTab, label: 'Full Text', icon: LinkIcon }
-    ];
-
-    const viewModes = [
-        { id: 'tree' as ViewMode, label: 'Tree' },
-        { id: 'graph' as ViewMode, label: 'Graph' },
-        { id: 'split' as ViewMode, label: 'Split' }
     ];
 
     if (!article) {
@@ -477,7 +404,7 @@ export default function ArticleViewerModal({
                             </div>
 
                             {/* Quick action for analysis - hidden when Analysis tab is active, but space preserved */}
-                            {article.abstract && !analysisResults && !isAnalyzing && (
+                            {article.abstract && !stanceResult && !isAnalyzing && streamId && (
                                 <div className={`mt-4 ${activeTab === 'analysis' ? 'invisible' : ''}`}>
                                     <button
                                         onClick={runAnalysis}
@@ -490,7 +417,7 @@ export default function ArticleViewerModal({
                             )}
                             {isAnalyzing && (
                                 <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-                                    {currentMessage}
+                                    Analyzing article stance...
                                 </p>
                             )}
                         </div>
@@ -508,9 +435,9 @@ export default function ArticleViewerModal({
                                 >
                                     <Icon className="h-4 w-4" />
                                     {label}
-                                    {id === 'analysis' && analysisResults && (
-                                        <span className="ml-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs">
-                                            {analysisResults.entities.length + analysisResults.claims.length}
+                                    {id === 'analysis' && stanceResult && (
+                                        <span className={`ml-1 px-1.5 py-0.5 ${getStanceInfo(stanceResult.stance).bgColor} ${getStanceInfo(stanceResult.stance).color} rounded text-xs`}>
+                                            {getStanceInfo(stanceResult.stance).label}
                                         </span>
                                     )}
                                 </button>
@@ -522,14 +449,19 @@ export default function ArticleViewerModal({
                             {/* Analysis Tab */}
                             {activeTab === 'analysis' && (
                                 <div className="h-full flex flex-col">
-                                    {!analysisResults && !isAnalyzing && (
+                                    {/* Empty state - no analysis yet */}
+                                    {!stanceResult && !isAnalyzing && !analysisError && (
                                         <div className="flex-1 flex items-center justify-center">
-                                            <div className="text-center">
-                                                <DocumentMagnifyingGlassIcon className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                                            <div className="text-center max-w-md">
+                                                <ScaleIcon className="h-12 w-12 mx-auto text-gray-400 mb-4" />
                                                 <p className="text-gray-600 dark:text-gray-400 mb-4">
-                                                    {article.abstract ? 'Run AI analysis to extract insights from this article' : 'No abstract available for analysis'}
+                                                    {!streamId
+                                                        ? 'No research stream context available for stance analysis'
+                                                        : article.abstract
+                                                            ? 'Run AI analysis to evaluate this article\'s stance'
+                                                            : 'No abstract available for analysis'}
                                                 </p>
-                                                {article.abstract && (
+                                                {article.abstract && streamId && (
                                                     <button
                                                         onClick={runAnalysis}
                                                         className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -542,122 +474,111 @@ export default function ArticleViewerModal({
                                         </div>
                                     )}
 
+                                    {/* Loading state */}
                                     {isAnalyzing && (
                                         <div className="flex-1 flex items-center justify-center">
-                                            <div className="w-full max-w-md p-6">
-                                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 text-center">
-                                                    {currentMessage}
+                                            <div className="text-center">
+                                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                                                <p className="text-gray-600 dark:text-gray-400">
+                                                    Analyzing article stance...
                                                 </p>
-                                                <div className="space-y-3">
-                                                    {progressSteps.map((step) => (
-                                                        <div key={step.id} className="flex items-center gap-3">
-                                                            <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${step.status === 'pending' ? 'bg-gray-200 dark:bg-gray-700' :
-                                                                step.status === 'active' ? 'bg-blue-500 animate-pulse' :
-                                                                    step.status === 'complete' ? 'bg-green-500' :
-                                                                        'bg-red-500'
-                                                                }`}>
-                                                                {step.status === 'active' && (
-                                                                    <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                                    </svg>
-                                                                )}
-                                                                {step.status === 'complete' && (
-                                                                    <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                                    </svg>
-                                                                )}
-                                                                {step.status === 'error' && (
-                                                                    <XMarkIcon className="h-4 w-4 text-white" />
-                                                                )}
-                                                            </div>
-                                                            <div className="flex-1">
-                                                                <span className={`text-sm font-medium ${step.status === 'pending' ? 'text-gray-400' :
-                                                                    step.status === 'active' ? 'text-blue-600 dark:text-blue-400' :
-                                                                        step.status === 'complete' ? 'text-green-600 dark:text-green-400' :
-                                                                            'text-red-600'
-                                                                    }`}>
-                                                                    {step.label}
-                                                                </span>
-                                                                {step.result && (
-                                                                    <span className="ml-2 text-xs text-gray-500">({step.result})</span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
                                             </div>
                                         </div>
                                     )}
 
+                                    {/* Error state */}
                                     {analysisError && (
                                         <div className="p-4">
                                             <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                                                 <p className="text-red-800 dark:text-red-200">{analysisError}</p>
+                                                {streamId && article.abstract && (
+                                                    <button
+                                                        onClick={runAnalysis}
+                                                        className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-red-600 text-white rounded-md hover:bg-red-700"
+                                                    >
+                                                        Try Again
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     )}
 
-                                    {analysisResults && (
-                                        <div className="flex-1 flex flex-col p-4 gap-4">
-                                            {/* Stats bar */}
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-6">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-2xl font-bold text-blue-600">{analysisResults.hierarchical_summary.sections.length}</span>
-                                                        <span className="text-sm text-gray-500">Sections</span>
+                                    {/* Results state */}
+                                    {stanceResult && (
+                                        <div className="p-6 space-y-6">
+                                            {/* Stance header */}
+                                            <div className={`p-6 rounded-lg ${getStanceInfo(stanceResult.stance).bgColor}`}>
+                                                <div className="flex items-center gap-4">
+                                                    {(() => {
+                                                        const StanceIcon = getStanceInfo(stanceResult.stance).icon;
+                                                        return <StanceIcon className={`h-12 w-12 ${getStanceInfo(stanceResult.stance).color}`} />;
+                                                    })()}
+                                                    <div>
+                                                        <h3 className={`text-2xl font-bold ${getStanceInfo(stanceResult.stance).color}`}>
+                                                            {getStanceInfo(stanceResult.stance).label}
+                                                        </h3>
+                                                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                            Confidence: {Math.round(stanceResult.confidence * 100)}%
+                                                        </p>
                                                     </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-2xl font-bold text-green-600">{analysisResults.entities.length}</span>
-                                                        <span className="text-sm text-gray-500">Entities</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-2xl font-bold text-purple-600">{analysisResults.claims.length}</span>
-                                                        <span className="text-sm text-gray-500">Claims</span>
-                                                    </div>
-                                                </div>
-
-                                                {/* View toggle */}
-                                                <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-                                                    {viewModes.map(({ id, label }) => (
-                                                        <button
-                                                            key={id}
-                                                            onClick={() => setViewMode(id)}
-                                                            className={`px-3 py-1 rounded text-sm ${viewMode === id
-                                                                ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                                                                : 'text-gray-600 dark:text-gray-400'
-                                                                }`}
-                                                        >
-                                                            {label}
-                                                        </button>
-                                                    ))}
                                                 </div>
                                             </div>
 
-                                            {/* Visualization */}
-                                            <div className="flex-1 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden" style={{ minHeight: '400px' }}>
-                                                {viewMode === 'tree' && (
-                                                    <TreeView
-                                                        results={analysisResults}
-                                                        onNodeSelect={setSelectedNodeId}
-                                                        selectedNodeId={selectedNodeId}
-                                                    />
-                                                )}
-                                                {viewMode === 'graph' && (
-                                                    <GraphView
-                                                        results={analysisResults}
-                                                        onNodeSelect={setSelectedNodeId}
-                                                        selectedNodeId={selectedNodeId}
-                                                    />
-                                                )}
-                                                {viewMode === 'split' && (
-                                                    <SplitView
-                                                        results={analysisResults}
-                                                        originalText={article.abstract || ''}
-                                                        onNodeSelect={setSelectedNodeId}
-                                                        selectedNodeId={selectedNodeId}
-                                                    />
-                                                )}
+                                            {/* Analysis explanation */}
+                                            <div>
+                                                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                                                    Analysis
+                                                </h4>
+                                                <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                                                    {stanceResult.analysis}
+                                                </p>
+                                            </div>
+
+                                            {/* Key factors */}
+                                            {stanceResult.key_factors.length > 0 && (
+                                                <div>
+                                                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                                                        Key Factors
+                                                    </h4>
+                                                    <ul className="space-y-2">
+                                                        {stanceResult.key_factors.map((factor, idx) => (
+                                                            <li key={idx} className="flex items-start gap-2">
+                                                                <CheckBadgeIcon className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                                                                <span className="text-gray-700 dark:text-gray-300">{factor}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+
+                                            {/* Relevant quotes */}
+                                            {stanceResult.relevant_quotes.length > 0 && (
+                                                <div>
+                                                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                                                        Relevant Quotes
+                                                    </h4>
+                                                    <div className="space-y-3">
+                                                        {stanceResult.relevant_quotes.map((quote, idx) => (
+                                                            <blockquote
+                                                                key={idx}
+                                                                className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic text-gray-600 dark:text-gray-400"
+                                                            >
+                                                                "{quote}"
+                                                            </blockquote>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Re-analyze button */}
+                                            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                                                <button
+                                                    onClick={runAnalysis}
+                                                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                                                >
+                                                    <BeakerIcon className="h-4 w-4" />
+                                                    Re-analyze
+                                                </button>
                                             </div>
                                         </div>
                                     )}

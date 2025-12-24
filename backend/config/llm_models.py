@@ -124,6 +124,11 @@ TASK_CONFIGS = {
             "model": "gpt-4.1",
             "temperature": 0.2,
             "description": "Claim and argument extraction"
+        },
+        "stance_analysis": {
+            "model": "gpt-4.1",
+            "temperature": 0.2,
+            "description": "Article stance analysis (pro-defense vs pro-plaintiff)"
         }
     },
     
