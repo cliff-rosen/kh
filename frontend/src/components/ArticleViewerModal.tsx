@@ -476,9 +476,9 @@ export default function ArticleViewerModal({
                                 )}
                             </div>
 
-                            {/* Quick action for analysis */}
+                            {/* Quick action for analysis - hidden when Analysis tab is active, but space preserved */}
                             {article.abstract && !analysisResults && !isAnalyzing && (
-                                <div className="mt-4">
+                                <div className={`mt-4 ${activeTab === 'analysis' ? 'invisible' : ''}`}>
                                     <button
                                         onClick={runAnalysis}
                                         className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -534,8 +534,8 @@ export default function ArticleViewerModal({
                                                         onClick={runAnalysis}
                                                         className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                                                     >
-                                                        <DocumentMagnifyingGlassIcon className="h-5 w-5" />
-                                                        Run Analysis
+                                                        <BeakerIcon className="h-5 w-5" />
+                                                        Run AI Analysis
                                                     </button>
                                                 )}
                                             </div>
