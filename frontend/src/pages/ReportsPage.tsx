@@ -202,7 +202,10 @@ export default function ReportsPage() {
         keywords: [],
         mesh_terms: [],
         categories: [],
-        source_metadata: {}
+        source_metadata: {},
+        // Pass through report-specific metadata
+        notes: article.notes,
+        ai_enrichments: article.ai_enrichments
     });
 
     // Open article viewer with a group of articles

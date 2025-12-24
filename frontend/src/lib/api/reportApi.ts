@@ -1,5 +1,10 @@
 import { api } from './index';
-import { Report, ReportWithArticles } from '../../types';
+import { Report, ReportWithArticles, ArticleEnrichments } from '../../types';
+
+export interface ArticleMetadata {
+    notes: string | null;
+    ai_enrichments: ArticleEnrichments | null;
+}
 
 export const reportApi = {
     /**
@@ -58,5 +63,27 @@ export const reportApi = {
      */
     async deleteReport(reportId: number): Promise<void> {
         await api.delete(`/api/reports/${reportId}`);
+    },
+
+    /**
+     * Get article metadata (notes and stance analysis) for an article in a report
+     */
+    async getArticleMetadata(reportId: number, articleId: number): Promise<ArticleMetadata> {
+        const response = await api.get(`/api/reports/${reportId}/articles/${articleId}/metadata`);
+        return response.data;
+    },
+
+    /**
+     * Update notes for an article in a report
+     */
+    async updateArticleNotes(reportId: number, articleId: number, notes: string | null): Promise<void> {
+        await api.patch(`/api/reports/${reportId}/articles/${articleId}/notes`, { notes });
+    },
+
+    /**
+     * Update AI enrichments for an article in a report
+     */
+    async updateArticleEnrichments(reportId: number, articleId: number, aiEnrichments: ArticleEnrichments): Promise<void> {
+        await api.patch(`/api/reports/${reportId}/articles/${articleId}/enrichments`, { ai_enrichments: aiEnrichments });
     }
 };

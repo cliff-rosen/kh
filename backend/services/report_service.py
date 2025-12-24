@@ -162,7 +162,8 @@ class ReportService:
                 'is_starred': assoc.is_starred,
                 'is_read': assoc.is_read,
                 'notes': assoc.notes,
-                'presentation_categories': assoc.presentation_categories or []
+                'presentation_categories': assoc.presentation_categories or [],
+                'ai_enrichments': assoc.ai_enrichments
             }
             articles.append(article_dict)
 

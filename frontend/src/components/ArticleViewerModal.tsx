@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
     XMarkIcon,
     ArrowTopRightOnSquareIcon,
@@ -14,6 +14,7 @@ import {
 import { CheckBadgeIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid';
 import { documentAnalysisApi } from '../lib/api/documentAnalysisApi';
 import { articleApi, FullTextLink } from '../lib/api/articleApi';
+import { reportApi } from '../lib/api/reportApi';
 import { CanonicalResearchArticle } from '../types/canonical_types';
 import { StanceAnalysisResult, StanceType } from '../types/document_analysis';
 import ChatTray from './chat/ChatTray';
@@ -79,7 +80,6 @@ export default function ArticleViewerModal({
 
     // Workspace state
     const [activeTab, setActiveTab] = useState<WorkspaceTab>('analysis');
-    const [notes, setNotes] = useState<string>('');
 
     // Full text links state - keyed by pmid to cache results
     const [fullTextLinksCache, setFullTextLinksCache] = useState<Record<string, FullTextLink[]>>({});
@@ -90,13 +90,68 @@ export default function ArticleViewerModal({
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisError, setAnalysisError] = useState<string | null>(null);
 
+    // Notes state - keyed by article id
+    const [notesCache, setNotesCache] = useState<Record<string, string>>({});
+    const [isSavingNotes, setIsSavingNotes] = useState(false);
+    const notesDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
     const stanceResult = article ? stanceCache[article.id] : null;
+    const currentNotes = article ? (notesCache[article.id] ?? '') : '';
     const streamId = chatContext?.stream_id as number | undefined;
+    const reportId = chatContext?.report_id as number | undefined;
+
+    // Initialize caches from article data when article changes
+    useEffect(() => {
+        if (!article) return;
+
+        // Skip if we already have cached data for this article
+        if (stanceCache[article.id] !== undefined || notesCache[article.id] !== undefined) return;
+
+        // Initialize from article data (passed from report)
+        if (article.ai_enrichments?.stance_analysis) {
+            setStanceCache(prev => ({ ...prev, [article.id]: article.ai_enrichments!.stance_analysis! }));
+        }
+        setNotesCache(prev => ({ ...prev, [article.id]: article.notes ?? '' }));
+    }, [article?.id]);
 
     // Reset error state when switching articles (cache is preserved)
     useEffect(() => {
         setAnalysisError(null);
     }, [currentIndex]);
+
+    // Save notes with debouncing
+    const handleNotesChange = useCallback((newNotes: string) => {
+        if (!article || !reportId) return;
+
+        setNotesCache(prev => ({ ...prev, [article.id]: newNotes }));
+
+        // Clear existing timeout
+        if (notesDebounceRef.current) {
+            clearTimeout(notesDebounceRef.current);
+        }
+
+        // Set new timeout to save
+        notesDebounceRef.current = setTimeout(async () => {
+            setIsSavingNotes(true);
+            try {
+                const articleIdNum = parseInt(article.id, 10);
+                await reportApi.updateArticleNotes(reportId, articleIdNum, newNotes || null);
+            } catch (err) {
+                console.error('Failed to save notes:', err);
+            } finally {
+                setIsSavingNotes(false);
+            }
+        }, 1000); // 1 second debounce
+    }, [article?.id, reportId]);
+
+    // Cleanup debounce on unmount
+    useEffect(() => {
+        return () => {
+            if (notesDebounceRef.current) {
+                clearTimeout(notesDebounceRef.current);
+            }
+        };
+    }, []);
 
     // Fetch full text links when article changes (on demand, cached)
     const currentLinks = article?.pmid ? fullTextLinksCache[article.pmid] : undefined;
@@ -173,8 +228,20 @@ export default function ArticleViewerModal({
                 stream_id: streamId
             });
 
+            // Update local cache
             setStanceCache(prev => ({ ...prev, [article.id]: result }));
             setActiveTab('analysis');
+
+            // Persist to backend if we have a report context
+            if (reportId) {
+                try {
+                    const articleIdNum = parseInt(article.id, 10);
+                    await reportApi.updateArticleEnrichments(reportId, articleIdNum, { stance_analysis: result });
+                } catch (saveErr) {
+                    console.error('Failed to save stance analysis:', saveErr);
+                    // Don't fail the operation - the analysis is still visible locally
+                }
+            }
         } catch (err) {
             setAnalysisError(err instanceof Error ? err.message : 'Analysis failed');
         } finally {
@@ -588,17 +655,26 @@ export default function ArticleViewerModal({
                             {/* Notes Tab */}
                             {activeTab === 'notes' && (
                                 <div className="h-full flex flex-col p-4">
-                                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                        Notes
-                                    </h2>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                            Notes
+                                        </h2>
+                                        {isSavingNotes && (
+                                            <span className="text-xs text-gray-500 flex items-center gap-1">
+                                                <div className="animate-spin rounded-full h-3 w-3 border-b border-gray-500"></div>
+                                                Saving...
+                                            </span>
+                                        )}
+                                    </div>
                                     <textarea
-                                        value={notes}
-                                        onChange={(e) => setNotes(e.target.value)}
+                                        value={currentNotes}
+                                        onChange={(e) => handleNotesChange(e.target.value)}
                                         placeholder="Add your notes about this article..."
                                         className="flex-1 w-full p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        disabled={!reportId}
                                     />
                                     <p className="mt-2 text-xs text-gray-500">
-                                        Notes are saved locally in this session
+                                        {reportId ? 'Notes are saved automatically' : 'Notes require a report context to save'}
                                     </p>
                                 </div>
                             )}

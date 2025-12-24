@@ -6,6 +6,7 @@
  */
 
 import { SchemaType } from './base';
+import { ArticleEnrichments } from './report';
 
 // --- Canonical Type Interfaces ---
 
@@ -79,6 +80,10 @@ export interface CanonicalResearchArticle {
     // System metadata
     indexed_at?: string;
     retrieved_at?: string;
+
+    // Report-specific metadata (when article is from a report)
+    notes?: string;
+    ai_enrichments?: ArticleEnrichments | null;
 }
 
 export interface CanonicalEmail {

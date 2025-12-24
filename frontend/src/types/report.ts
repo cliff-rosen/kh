@@ -1,3 +1,10 @@
+import { StanceAnalysisResult } from './document_analysis';
+
+export interface ArticleEnrichments {
+    stance_analysis?: StanceAnalysisResult;
+    // Add other enrichment types here as needed
+}
+
 export interface ReportArticle {
     article_id: number;
     title: string;
@@ -17,6 +24,7 @@ export interface ReportArticle {
     is_read?: boolean;
     notes?: string;
     presentation_categories?: string[];  // List of category IDs
+    ai_enrichments?: ArticleEnrichments | null;
 }
 
 export interface Report {

@@ -243,6 +243,9 @@ class ReportArticleAssociation(Base):
     # Presentation categorization
     presentation_categories = Column(JSON, default=list)  # List of presentation category IDs
 
+    # AI-generated enrichments (stance analysis, summaries, etc.)
+    ai_enrichments = Column(JSON, nullable=True)
+
     # Relationships
     report = relationship("Report", back_populates="article_associations")
     article = relationship("Article", back_populates="report_associations")

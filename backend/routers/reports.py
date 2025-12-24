@@ -4,13 +4,22 @@ Reports API endpoints
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from pydantic import BaseModel
 
 from database import get_db
-from models import User, WipArticle, Report as ReportModel
+from models import User, WipArticle, Report as ReportModel, ReportArticleAssociation
 from schemas.report import Report, ReportWithArticles
 from services.report_service import ReportService
 from routers.auth import get_current_user
+
+
+class UpdateArticleNotesRequest(BaseModel):
+    notes: Optional[str] = None
+
+
+class UpdateArticleEnrichmentsRequest(BaseModel):
+    ai_enrichments: Dict[str, Any]
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -206,4 +215,122 @@ async def get_pipeline_analytics(
         'rejection_reasons': rejection_reasons,
         'category_counts': category_counts,
         'wip_articles': wip_articles_data
+    }
+
+
+@router.patch("/{report_id}/articles/{article_id}/notes")
+async def update_article_notes(
+    report_id: int,
+    article_id: int,
+    request: UpdateArticleNotesRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update notes for an article within a report"""
+    # Verify report exists and belongs to user
+    report = db.query(ReportModel).filter(
+        ReportModel.report_id == report_id,
+        ReportModel.user_id == current_user.user_id
+    ).first()
+
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found"
+        )
+
+    # Find the association
+    association = db.query(ReportArticleAssociation).filter(
+        ReportArticleAssociation.report_id == report_id,
+        ReportArticleAssociation.article_id == article_id
+    ).first()
+
+    if not association:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Article not found in this report"
+        )
+
+    # Update notes
+    association.notes = request.notes
+    db.commit()
+
+    return {"status": "ok", "notes": association.notes}
+
+
+@router.patch("/{report_id}/articles/{article_id}/enrichments")
+async def update_article_enrichments(
+    report_id: int,
+    article_id: int,
+    request: UpdateArticleEnrichmentsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update AI enrichments for an article within a report"""
+    # Verify report exists and belongs to user
+    report = db.query(ReportModel).filter(
+        ReportModel.report_id == report_id,
+        ReportModel.user_id == current_user.user_id
+    ).first()
+
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found"
+        )
+
+    # Find the association
+    association = db.query(ReportArticleAssociation).filter(
+        ReportArticleAssociation.report_id == report_id,
+        ReportArticleAssociation.article_id == article_id
+    ).first()
+
+    if not association:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Article not found in this report"
+        )
+
+    # Update AI enrichments
+    association.ai_enrichments = request.ai_enrichments
+    db.commit()
+
+    return {"status": "ok", "ai_enrichments": association.ai_enrichments}
+
+
+@router.get("/{report_id}/articles/{article_id}/metadata")
+async def get_article_metadata(
+    report_id: int,
+    article_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get notes and stance analysis for an article within a report"""
+    # Verify report exists and belongs to user
+    report = db.query(ReportModel).filter(
+        ReportModel.report_id == report_id,
+        ReportModel.user_id == current_user.user_id
+    ).first()
+
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found"
+        )
+
+    # Find the association
+    association = db.query(ReportArticleAssociation).filter(
+        ReportArticleAssociation.report_id == report_id,
+        ReportArticleAssociation.article_id == article_id
+    ).first()
+
+    if not association:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Article not found in this report"
+        )
+
+    return {
+        "notes": association.notes,
+        "ai_enrichments": association.ai_enrichments
     }
