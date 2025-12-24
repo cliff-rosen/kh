@@ -19,6 +19,7 @@ import { CanonicalResearchArticle } from '../types/canonical_types';
 import { StanceAnalysisResult, StanceType } from '../types/document_analysis';
 import ChatTray from './chat/ChatTray';
 import { PayloadHandler } from '../types/chat';
+import { MarkdownRenderer } from './common/MarkdownRenderer';
 
 type WorkspaceTab = 'analysis' | 'notes' | 'links';
 
@@ -460,9 +461,11 @@ export default function ArticleViewerModal({
                             {/* Abstract */}
                             <div className="mt-4">
                                 {article.abstract ? (
-                                    <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
-                                        {article.abstract}
-                                    </p>
+                                    <MarkdownRenderer
+                                        content={article.abstract}
+                                        className="text-sm"
+                                        compact
+                                    />
                                 ) : (
                                     <p className="text-gray-500 dark:text-gray-400 italic text-sm">
                                         No abstract available

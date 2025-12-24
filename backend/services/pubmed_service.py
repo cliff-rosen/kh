@@ -164,8 +164,18 @@ class PubMedArticle():
         if abstract_node is not None:
             abstract_texts = abstract_node.findall('.//AbstractText')
             if abstract_texts is not None and len(abstract_texts) > 0:
+                abstract_parts = []
                 for abstract_text in abstract_texts:
-                    abstract += ''.join(abstract_text.itertext())
+                    text_content = ''.join(abstract_text.itertext()).strip()
+                    # Check for section label (structured abstracts)
+                    label = abstract_text.get('Label')
+                    if label:
+                        # Format as section header with the label
+                        abstract_parts.append(f"**{label}**: {text_content}")
+                    else:
+                        abstract_parts.append(text_content)
+                # Join sections with double newlines for readability
+                abstract = "\n\n".join(abstract_parts)
 
         # Extract ArticleIdList for PMC ID and DOI
         pmc_id = ""
