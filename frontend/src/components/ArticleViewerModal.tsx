@@ -267,8 +267,7 @@ export default function ArticleViewerModal({
 
     const formatAuthors = (authors: string[]) => {
         if (!authors || authors.length === 0) return 'Unknown authors';
-        if (authors.length <= 3) return authors.join(', ');
-        return `${authors.slice(0, 3).join(', ')} et al.`;
+        return authors.join(', ');
     };
 
     const truncateTitle = (title: string, maxLength: number = 80) => {
@@ -401,13 +400,17 @@ export default function ArticleViewerModal({
                                 {formatAuthors(article.authors)}
                             </p>
 
-                            {/* Journal, Year, PMID row */}
-                            <div className="mt-3 flex items-center gap-4 text-sm">
+                            {/* Journal, Date, PMID row */}
+                            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                                 {article.journal && (
-                                    <span className="text-gray-700 dark:text-gray-300">{article.journal}</span>
+                                    <span className="text-gray-700 dark:text-gray-300 font-medium">{article.journal}</span>
                                 )}
-                                {article.publication_year && (
-                                    <span className="text-gray-500 dark:text-gray-400">{article.publication_year}</span>
+                                {(article.publication_date || article.publication_year) && (
+                                    <span className="text-gray-500 dark:text-gray-400">
+                                        {article.publication_date
+                                            ? new Date(article.publication_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                                            : article.publication_year}
+                                    </span>
                                 )}
                                 {article.pmid && (
                                     <a
@@ -427,11 +430,38 @@ export default function ArticleViewerModal({
                                         rel="noopener noreferrer"
                                         className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                                     >
-                                        DOI
+                                        DOI: {article.doi}
                                         <ArrowTopRightOnSquareIcon className="h-3 w-3" />
                                     </a>
                                 )}
                             </div>
+
+                            {/* Keywords */}
+                            {article.keywords && article.keywords.length > 0 && (
+                                <div className="mt-3">
+                                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Keywords: </span>
+                                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                                        {article.keywords.join(', ')}
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* MeSH Terms */}
+                            {article.mesh_terms && article.mesh_terms.length > 0 && (
+                                <div className="mt-2">
+                                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">MeSH Terms: </span>
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                        {article.mesh_terms.map((term, idx) => (
+                                            <span
+                                                key={idx}
+                                                className="inline-block px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded"
+                                            >
+                                                {term}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Abstract */}
                             <div className="mt-4">
