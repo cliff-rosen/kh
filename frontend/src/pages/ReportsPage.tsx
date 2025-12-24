@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { DocumentTextIcon, StarIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
+import { DocumentTextIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 import { Report, ReportWithArticles, ReportArticle } from '../types';
 import { ResearchStream, Category } from '../types';
@@ -252,22 +251,26 @@ export default function ReportsPage() {
     };
 
     const ArticleCard = ({ article, showAbstract = false, onTitleClick }: { article: ReportArticle; showAbstract?: boolean; onTitleClick?: () => void }) => (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-            <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                    <h4
-                        className={`font-medium text-gray-900 dark:text-white mb-2 ${onTitleClick ? 'cursor-pointer hover:text-blue-600 dark:hover:text-blue-400' : ''}`}
-                        onClick={onTitleClick}
-                    >
+        <div
+            onClick={onTitleClick}
+            className={`border border-gray-200 dark:border-gray-700 rounded-lg p-4 transition-all ${
+                onTitleClick
+                    ? 'cursor-pointer hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md hover:bg-blue-50/50 dark:hover:bg-blue-900/10'
+                    : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+            }`}
+        >
+            <div className="flex items-start gap-4">
+                <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-blue-600 dark:text-blue-400 mb-1 group-hover:underline">
                         {article.title}
                     </h4>
                     {article.authors && article.authors.length > 0 && (
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                             {article.authors.slice(0, 3).join(', ')}
                             {article.authors.length > 3 && ` et al.`}
                         </p>
                     )}
-                    <div className="flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-500 mb-2">
+                    <div className="flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-500">
                         {article.journal && <span>{article.journal}</span>}
                         {article.year && <span>• {article.year}</span>}
                         {article.pmid && <span>• PMID: {article.pmid}</span>}
@@ -279,34 +282,15 @@ export default function ReportsPage() {
                             </p>
                         </div>
                     )}
-                    {article.relevance_score && (
-                        <div className="flex items-center gap-2 mt-2">
-                            <div className="h-2 w-24 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                <div
-                                    className="h-full bg-blue-600"
-                                    style={{ width: `${article.relevance_score * 100}%` }}
-                                ></div>
-                            </div>
-                            <span className="text-xs text-gray-600 dark:text-gray-400">
-                                {Math.round(article.relevance_score * 100)}% relevant
-                            </span>
-                        </div>
-                    )}
                     {article.relevance_rationale && (
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 italic">
                             {article.relevance_rationale}
                         </p>
                     )}
                 </div>
-                <div className="flex items-center gap-2">
-                    <button className="text-gray-400 hover:text-yellow-500 transition-colors">
-                        {article.is_starred ? (
-                            <StarIconSolid className="h-5 w-5 text-yellow-500" />
-                        ) : (
-                            <StarIcon className="h-5 w-5" />
-                        )}
-                    </button>
-                </div>
+                {onTitleClick && (
+                    <ChevronRightIcon className="h-5 w-5 text-gray-400 flex-shrink-0 mt-1" />
+                )}
             </div>
         </div>
     );
@@ -630,18 +614,6 @@ export default function ReportsPage() {
                                                                                 {data.articles.length} article{data.articles.length !== 1 ? 's' : ''}
                                                                             </span>
                                                                         </div>
-                                                                        {!isCollapsed && data.category.topics.length > 0 && (
-                                                                            <div className="mt-2 ml-7 flex flex-wrap gap-2">
-                                                                                {data.category.topics.map((topic, idx) => (
-                                                                                    <span
-                                                                                        key={idx}
-                                                                                        className="inline-block px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 rounded"
-                                                                                    >
-                                                                                        {topic}
-                                                                                    </span>
-                                                                                ))}
-                                                                            </div>
-                                                                        )}
                                                                     </button>
                                                                     {/* Category Articles - Collapsible */}
                                                                     {!isCollapsed && (
