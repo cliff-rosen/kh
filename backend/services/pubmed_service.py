@@ -170,11 +170,11 @@ class PubMedArticle():
                     # Check for section label (structured abstracts)
                     label = abstract_text.get('Label')
                     if label:
-                        # Format as section header with the label
-                        abstract_parts.append(f"**{label}**: {text_content}")
+                        # Format as section header with text on new line
+                        abstract_parts.append(f"**{label}**\n{text_content}")
                     else:
                         abstract_parts.append(text_content)
-                # Join sections with double newlines for readability
+                # Join sections with blank lines for proper markdown paragraph separation
                 abstract = "\n\n".join(abstract_parts)
 
         # Extract ArticleIdList for PMC ID and DOI
