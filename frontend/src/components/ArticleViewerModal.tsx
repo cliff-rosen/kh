@@ -30,7 +30,7 @@ interface ProgressStep {
     result?: string;
 }
 
-type WorkspaceTab = 'overview' | 'analysis' | 'notes';
+type WorkspaceTab = 'analysis' | 'notes' | 'links';
 
 interface ArticleViewerModalProps {
     articles: CanonicalResearchArticle[];
@@ -89,7 +89,7 @@ export default function ArticleViewerModal({
     }, [currentIndex, articles.length]);
 
     // Workspace state
-    const [activeTab, setActiveTab] = useState<WorkspaceTab>('overview');
+    const [activeTab, setActiveTab] = useState<WorkspaceTab>('analysis');
     const [notes, setNotes] = useState<string>('');
 
     // Full text links state - keyed by pmid to cache results
@@ -107,9 +107,8 @@ export default function ArticleViewerModal({
 
     const analysisResults = article ? analysisCache[article.id] : null;
 
-    // Reset tab when switching articles (but keep analysis cache)
+    // Reset state when switching articles (but keep analysis cache)
     useEffect(() => {
-        setActiveTab('overview');
         setAnalysisError(null);
         setSelectedNodeId(null);
     }, [currentIndex]);
@@ -278,9 +277,9 @@ export default function ArticleViewerModal({
     };
 
     const tabs = [
-        { id: 'overview' as WorkspaceTab, label: 'Overview', icon: DocumentTextIcon },
         { id: 'analysis' as WorkspaceTab, label: 'Analysis', icon: BeakerIcon },
-        { id: 'notes' as WorkspaceTab, label: 'Notes', icon: PencilSquareIcon }
+        { id: 'notes' as WorkspaceTab, label: 'Notes', icon: PencilSquareIcon },
+        { id: 'links' as WorkspaceTab, label: 'Full Text', icon: LinkIcon }
     ];
 
     const viewModes = [
@@ -356,189 +355,9 @@ export default function ArticleViewerModal({
                         />
                     )}
 
-                    {/* Left sidebar */}
-                    <div className="w-80 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden">
-                        {/* Current article metadata - fixed height to prevent list jumping */}
-                        <div className="h-[475px] flex-shrink-0 p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-y-auto">
-                            {/* Title - fixed 3 lines max */}
-                            <h1 className="text-base font-bold text-gray-900 dark:text-white leading-tight line-clamp-3 h-[60px]">
-                                {article.title}
-                            </h1>
-
-                            {/* Authors - single line */}
-                            <div className="mt-3 h-[40px]">
-                                <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                    Authors
-                                </h3>
-                                <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
-                                    {formatAuthors(article.authors)}
-                                </p>
-                            </div>
-
-                            {/* Journal, Year & PMID - always same height */}
-                            <div className="mt-3 grid grid-cols-3 gap-3 h-[40px]">
-                                <div>
-                                    <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                        Journal
-                                    </h3>
-                                    <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
-                                        {article.journal || '—'}
-                                    </p>
-                                </div>
-                                <div>
-                                    <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                        Year
-                                    </h3>
-                                    <p className="text-sm text-gray-700 dark:text-gray-300">
-                                        {article.publication_year || '—'}
-                                    </p>
-                                </div>
-                                <div>
-                                    <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                        PMID
-                                    </h3>
-                                    {article.pmid ? (
-                                        <a
-                                            href={`https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-sm text-blue-600 dark:text-blue-400 font-mono hover:underline"
-                                        >
-                                            {article.pmid}
-                                        </a>
-                                    ) : (
-                                        <p className="text-sm text-gray-700 dark:text-gray-300 font-mono">—</p>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Divider */}
-                            <hr className="my-4 border-gray-200 dark:border-gray-700" />
-
-                            {/* Full Text Access */}
-                            <div>
-                                <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                                    Full Text
-                                </h3>
-                                <div className="space-y-2">
-                                    {/* PMC link if available from our data */}
-                                    {article.source_metadata?.pmc_id && (
-                                        <a
-                                            href={`https://www.ncbi.nlm.nih.gov/pmc/articles/${article.source_metadata.pmc_id}/`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="block px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md hover:bg-green-100 dark:hover:bg-green-900/30"
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-1.5">
-                                                    <CheckBadgeIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
-                                                    <span className="font-medium text-green-700 dark:text-green-300">PubMed Central</span>
-                                                </div>
-                                                <ArrowTopRightOnSquareIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
-                                            </div>
-                                            <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                                                Free full text
-                                            </p>
-                                        </a>
-                                    )}
-
-                                    {/* Links fetched from PubMed LinkOut */}
-                                    {currentLinks && currentLinks.length > 0 && currentLinks.map((link, idx) => (
-                                        <a
-                                            key={`${link.provider}-${idx}`}
-                                            href={link.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className={`block px-3 py-2 rounded-md ${link.is_free
-                                                    ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900/30'
-                                                    : 'bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
-                                                }`}
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-1.5">
-                                                    {link.is_free && <CheckBadgeIcon className="h-4 w-4 text-green-600 dark:text-green-400" />}
-                                                    <span className={`font-medium truncate ${link.is_free
-                                                            ? 'text-green-700 dark:text-green-300'
-                                                            : 'text-gray-700 dark:text-gray-300'
-                                                        }`}>
-                                                        {link.provider}
-                                                    </span>
-                                                </div>
-                                                <ArrowTopRightOnSquareIcon className={`h-4 w-4 flex-shrink-0 ${link.is_free
-                                                        ? 'text-green-600 dark:text-green-400'
-                                                        : 'text-gray-500 dark:text-gray-400'
-                                                    }`} />
-                                            </div>
-                                            {link.categories.length > 0 && (
-                                                <p className={`text-xs mt-0.5 truncate ${link.is_free
-                                                        ? 'text-green-600 dark:text-green-400'
-                                                        : 'text-gray-500 dark:text-gray-400'
-                                                    }`}>
-                                                    {link.is_free ? 'Free full text' : link.categories.slice(0, 2).join(', ')}
-                                                </p>
-                                            )}
-                                        </a>
-                                    ))}
-
-                                    {/* Button to fetch more links */}
-                                    {currentLinks === undefined && (
-                                        <button
-                                            onClick={fetchFullTextLinks}
-                                            disabled={loadingLinks}
-                                            className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-left"
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-1.5">
-                                                    <LinkIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                                                    <span className="font-medium text-gray-700 dark:text-gray-300">
-                                                        {loadingLinks ? 'Loading...' : 'Find full text options'}
-                                                    </span>
-                                                </div>
-                                                {loadingLinks && (
-                                                    <svg className="animate-spin h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
-                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                    </svg>
-                                                )}
-                                            </div>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                                Check PubMed for additional sources
-                                            </p>
-                                        </button>
-                                    )}
-
-                                    {/* Show message if links were fetched but none found */}
-                                    {currentLinks !== undefined && currentLinks.length === 0 && !article.source_metadata?.pmc_id && (
-                                        <div className="px-3 py-2 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-md">
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                No additional full text sources found
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    {/* DOI link */}
-                                    {article.doi && (
-                                        <a
-                                            href={`https://doi.org/${article.doi}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="block px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md hover:bg-amber-100 dark:hover:bg-amber-900/30"
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <span className="font-medium text-amber-700 dark:text-amber-300">Publisher / DOI</span>
-                                                <ArrowTopRightOnSquareIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                                            </div>
-                                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
-                                                May require subscription
-                                            </p>
-                                        </a>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Article list (if multiple) */}
-                        {articles.length > 1 && (
+                    {/* Left sidebar - Article list (only if multiple articles) */}
+                    {articles.length > 1 && (
+                        <div className="w-64 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden">
                             <div className="flex-1 overflow-y-auto">
                                 <div className="p-2">
                                     <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide px-2 py-1">
@@ -555,23 +374,99 @@ export default function ArticleViewerModal({
                                                     }`}
                                             >
                                                 <div className="font-medium leading-tight line-clamp-2">
-                                                    {truncateTitle(art.title, 60)}
+                                                    {truncateTitle(art.title, 50)}
                                                 </div>
                                                 <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                    {art.publication_year} {art.journal && `• ${art.journal.substring(0, 20)}`}
+                                                    {art.publication_year} {art.journal && `• ${art.journal.substring(0, 15)}`}
                                                 </div>
                                             </button>
                                         ))}
                                     </div>
                                 </div>
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
 
-                    {/* Right workspace - Tabbed content */}
+                    {/* Main panel */}
                     <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-gray-800">
+                        {/* Article header section */}
+                        <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-6">
+                            {/* Title */}
+                            <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
+                                {article.title}
+                            </h1>
+
+                            {/* Authors */}
+                            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                                {formatAuthors(article.authors)}
+                            </p>
+
+                            {/* Journal, Year, PMID row */}
+                            <div className="mt-3 flex items-center gap-4 text-sm">
+                                {article.journal && (
+                                    <span className="text-gray-700 dark:text-gray-300">{article.journal}</span>
+                                )}
+                                {article.publication_year && (
+                                    <span className="text-gray-500 dark:text-gray-400">{article.publication_year}</span>
+                                )}
+                                {article.pmid && (
+                                    <a
+                                        href={`https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 dark:text-blue-400 font-mono hover:underline flex items-center gap-1"
+                                    >
+                                        PMID: {article.pmid}
+                                        <ArrowTopRightOnSquareIcon className="h-3 w-3" />
+                                    </a>
+                                )}
+                                {article.doi && (
+                                    <a
+                                        href={`https://doi.org/${article.doi}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                                    >
+                                        DOI
+                                        <ArrowTopRightOnSquareIcon className="h-3 w-3" />
+                                    </a>
+                                )}
+                            </div>
+
+                            {/* Abstract */}
+                            <div className="mt-4">
+                                {article.abstract ? (
+                                    <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
+                                        {article.abstract}
+                                    </p>
+                                ) : (
+                                    <p className="text-gray-500 dark:text-gray-400 italic text-sm">
+                                        No abstract available
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Quick action for analysis */}
+                            {article.abstract && !analysisResults && !isAnalyzing && (
+                                <div className="mt-4">
+                                    <button
+                                        onClick={runAnalysis}
+                                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                                    >
+                                        <BeakerIcon className="h-4 w-4" />
+                                        Run AI Analysis
+                                    </button>
+                                </div>
+                            )}
+                            {isAnalyzing && (
+                                <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                                    {currentMessage}
+                                </p>
+                            )}
+                        </div>
+
                         {/* Tab bar */}
-                        <div className="flex-shrink-0 flex items-center gap-1 px-4 pt-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                        <div className="flex-shrink-0 flex items-center gap-1 px-4 pt-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                             {tabs.map(({ id, label, icon: Icon }) => (
                                 <button
                                     key={id}
@@ -594,74 +489,6 @@ export default function ArticleViewerModal({
 
                         {/* Tab content */}
                         <div className="flex-1 overflow-y-auto">
-                            {/* Overview Tab */}
-                            {activeTab === 'overview' && (
-                                <div className="p-6 space-y-6">
-                                    {/* Abstract */}
-                                    <div>
-                                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                            Abstract
-                                        </h2>
-                                        {article.abstract ? (
-                                            <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
-                                                {article.abstract}
-                                            </p>
-                                        ) : (
-                                            <p className="text-gray-500 dark:text-gray-400 italic">
-                                                No abstract available
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    {/* Quick Actions */}
-                                    {article.abstract && !analysisResults && (
-                                        <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                                            <button
-                                                onClick={runAnalysis}
-                                                disabled={isAnalyzing}
-                                                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                                <DocumentMagnifyingGlassIcon className="h-5 w-5" />
-                                                {isAnalyzing ? 'Analyzing...' : 'Run AI Analysis'}
-                                            </button>
-                                            {isAnalyzing && (
-                                                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                                                    {currentMessage}
-                                                </p>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Analysis summary if available */}
-                                    {analysisResults && (
-                                        <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                                            <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
-                                                AI Summary
-                                            </h3>
-                                            <p className="text-gray-700 dark:text-gray-300 mb-4">
-                                                {analysisResults.hierarchical_summary.executive.main_themes.join(', ')}
-                                            </p>
-                                            <div className="flex items-center gap-4">
-                                                <div className="text-center px-4 py-2 bg-gray-50 dark:bg-gray-900 rounded">
-                                                    <div className="text-xl font-bold text-blue-600">{analysisResults.entities.length}</div>
-                                                    <div className="text-xs text-gray-500">Entities</div>
-                                                </div>
-                                                <div className="text-center px-4 py-2 bg-gray-50 dark:bg-gray-900 rounded">
-                                                    <div className="text-xl font-bold text-purple-600">{analysisResults.claims.length}</div>
-                                                    <div className="text-xs text-gray-500">Claims</div>
-                                                </div>
-                                                <button
-                                                    onClick={() => setActiveTab('analysis')}
-                                                    className="ml-auto text-sm text-blue-600 hover:underline"
-                                                >
-                                                    View full analysis
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
                             {/* Analysis Tab */}
                             {activeTab === 'analysis' && (
                                 <div className="h-full flex flex-col">
@@ -822,6 +649,120 @@ export default function ArticleViewerModal({
                                     <p className="mt-2 text-xs text-gray-500">
                                         Notes are saved locally in this session
                                     </p>
+                                </div>
+                            )}
+
+                            {/* Full Text Links Tab */}
+                            {activeTab === 'links' && (
+                                <div className="p-6">
+                                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                                        Full Text Access
+                                    </h2>
+                                    <div className="space-y-3 max-w-xl">
+                                        {/* PMC link if available */}
+                                        {article.source_metadata?.pmc_id && (
+                                            <a
+                                                href={`https://www.ncbi.nlm.nih.gov/pmc/articles/${article.source_metadata.pmc_id}/`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="block px-4 py-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30"
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <CheckBadgeIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
+                                                        <span className="font-medium text-green-700 dark:text-green-300">PubMed Central</span>
+                                                    </div>
+                                                    <ArrowTopRightOnSquareIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
+                                                </div>
+                                                <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                                                    Free full text available
+                                                </p>
+                                            </a>
+                                        )}
+
+                                        {/* Links from PubMed LinkOut */}
+                                        {currentLinks && currentLinks.length > 0 && currentLinks.map((link, idx) => (
+                                            <a
+                                                key={`${link.provider}-${idx}`}
+                                                href={link.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className={`block px-4 py-3 rounded-lg ${link.is_free
+                                                    ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900/30'
+                                                    : 'bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
+                                                    }`}
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        {link.is_free && <CheckBadgeIcon className="h-5 w-5 text-green-600 dark:text-green-400" />}
+                                                        <span className={`font-medium ${link.is_free ? 'text-green-700 dark:text-green-300' : 'text-gray-700 dark:text-gray-300'}`}>
+                                                            {link.provider}
+                                                        </span>
+                                                    </div>
+                                                    <ArrowTopRightOnSquareIcon className={`h-5 w-5 ${link.is_free ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`} />
+                                                </div>
+                                                {link.categories.length > 0 && (
+                                                    <p className={`text-sm mt-1 ${link.is_free ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                                                        {link.is_free ? 'Free full text' : link.categories.join(', ')}
+                                                    </p>
+                                                )}
+                                            </a>
+                                        ))}
+
+                                        {/* Button to fetch links */}
+                                        {currentLinks === undefined && (
+                                            <button
+                                                onClick={fetchFullTextLinks}
+                                                disabled={loadingLinks}
+                                                className="w-full px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 text-left"
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <LinkIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                                        <span className="font-medium text-blue-700 dark:text-blue-300">
+                                                            {loadingLinks ? 'Searching...' : 'Search for full text options'}
+                                                        </span>
+                                                    </div>
+                                                    {loadingLinks && (
+                                                        <svg className="animate-spin h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24">
+                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                        </svg>
+                                                    )}
+                                                </div>
+                                                <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                                                    Check PubMed LinkOut for additional sources
+                                                </p>
+                                            </button>
+                                        )}
+
+                                        {/* No links found message */}
+                                        {currentLinks !== undefined && currentLinks.length === 0 && !article.source_metadata?.pmc_id && (
+                                            <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg">
+                                                <p className="text-gray-500 dark:text-gray-400">
+                                                    No additional full text sources found in PubMed LinkOut
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {/* DOI link */}
+                                        {article.doi && (
+                                            <a
+                                                href={`https://doi.org/${article.doi}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="block px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <span className="font-medium text-amber-700 dark:text-amber-300">Publisher (via DOI)</span>
+                                                    <ArrowTopRightOnSquareIcon className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                                                </div>
+                                                <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
+                                                    May require subscription or purchase
+                                                </p>
+                                            </a>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>
