@@ -416,39 +416,23 @@ export default function ReportsPage() {
                                     {reports.map((report) => (
                                         <div
                                             key={report.report_id}
-                                            className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 transition-all ${selectedReport?.report_id === report.report_id
+                                            onClick={() => handleReportClick(report)}
+                                            className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 cursor-pointer transition-all ${selectedReport?.report_id === report.report_id
                                                 ? 'ring-2 ring-blue-600'
                                                 : 'hover:shadow-md'
                                                 }`}
                                         >
-                                            <div className="flex items-start justify-between mb-2">
-                                                <div
-                                                    className="flex-1 cursor-pointer"
-                                                    onClick={() => handleReportClick(report)}
-                                                >
-                                                    <h3 className="font-semibold text-gray-900 dark:text-white">
-                                                        {report.report_name}
-                                                    </h3>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                        {report.article_count || 0} articles
-                                                    </p>
-                                                    {report.retrieval_params?.start_date && report.retrieval_params?.end_date && (
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                            {new Date(report.retrieval_params.start_date).toLocaleDateString()} - {new Date(report.retrieval_params.end_date).toLocaleDateString()}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleDeleteReport(report.report_id, report.report_name);
-                                                    }}
-                                                    className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                                                    title="Delete report"
-                                                >
-                                                    <TrashIcon className="h-5 w-5" />
-                                                </button>
-                                            </div>
+                                            <h3 className="font-semibold text-gray-900 dark:text-white">
+                                                {report.report_name}
+                                            </h3>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                {report.article_count || 0} articles
+                                            </p>
+                                            {report.retrieval_params?.start_date && report.retrieval_params?.end_date && (
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                    {new Date(report.retrieval_params.start_date).toLocaleDateString()} - {new Date(report.retrieval_params.end_date).toLocaleDateString()}
+                                                </p>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
@@ -489,6 +473,13 @@ export default function ReportsPage() {
                                                     <ChartBarIcon className="h-5 w-5" />
                                                 </button>
                                             )}
+                                            <button
+                                                onClick={() => handleDeleteReport(selectedReport.report_id, selectedReport.report_name)}
+                                                className="p-2 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400"
+                                                title="Delete report"
+                                            >
+                                                <TrashIcon className="h-5 w-5" />
+                                            </button>
                                         </div>
                                     </div>
 
