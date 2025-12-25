@@ -31,6 +31,8 @@ interface ArticleViewerModalProps {
     chatContext?: Record<string, any>;
     /** Payload handlers for chat */
     chatPayloadHandlers?: Record<string, PayloadHandler>;
+    /** Callback when article data is updated (notes, enrichments) */
+    onArticleUpdate?: (articleId: string, updates: { notes?: string; ai_enrichments?: any }) => void;
 }
 
 export default function ArticleViewerModal({
@@ -38,7 +40,8 @@ export default function ArticleViewerModal({
     initialIndex = 0,
     onClose,
     chatContext,
-    chatPayloadHandlers
+    chatPayloadHandlers,
+    onArticleUpdate
 }: ArticleViewerModalProps) {
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
     const article = articles[currentIndex];
@@ -105,14 +108,15 @@ export default function ArticleViewerModal({
     useEffect(() => {
         if (!article) return;
 
-        // Skip if we already have cached data for this article
-        if (stanceCache[article.id] !== undefined || notesCache[article.id] !== undefined) return;
-
-        // Initialize from article data (passed from report)
-        if (article.ai_enrichments?.stance_analysis) {
+        // Initialize stance from article data if not already cached
+        if (stanceCache[article.id] === undefined && article.ai_enrichments?.stance_analysis) {
             setStanceCache(prev => ({ ...prev, [article.id]: article.ai_enrichments!.stance_analysis! }));
         }
-        setNotesCache(prev => ({ ...prev, [article.id]: article.notes ?? '' }));
+
+        // Initialize notes from article data if not already cached
+        if (notesCache[article.id] === undefined) {
+            setNotesCache(prev => ({ ...prev, [article.id]: article.notes ?? '' }));
+        }
     }, [article?.id]);
 
     // Reset error state when switching articles (cache is preserved)
@@ -137,13 +141,15 @@ export default function ArticleViewerModal({
             try {
                 const articleIdNum = parseInt(article.id, 10);
                 await reportApi.updateArticleNotes(reportId, articleIdNum, newNotes || null);
+                // Notify parent of the update
+                onArticleUpdate?.(article.id, { notes: newNotes });
             } catch (err) {
                 console.error('Failed to save notes:', err);
             } finally {
                 setIsSavingNotes(false);
             }
         }, 1000); // 1 second debounce
-    }, [article?.id, reportId]);
+    }, [article?.id, reportId, onArticleUpdate]);
 
     // Cleanup debounce on unmount
     useEffect(() => {
@@ -237,7 +243,10 @@ export default function ArticleViewerModal({
             if (reportId) {
                 try {
                     const articleIdNum = parseInt(article.id, 10);
-                    await reportApi.updateArticleEnrichments(reportId, articleIdNum, { stance_analysis: result });
+                    const enrichments = { stance_analysis: result };
+                    await reportApi.updateArticleEnrichments(reportId, articleIdNum, enrichments);
+                    // Notify parent of the update
+                    onArticleUpdate?.(article.id, { ai_enrichments: enrichments });
                 } catch (saveErr) {
                     console.error('Failed to save stance analysis:', saveErr);
                     // Don't fail the operation - the analysis is still visible locally

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { DocumentTextIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon, TrashIcon } from '@heroicons/react/24/outline';
 
@@ -40,6 +40,29 @@ export default function ReportsPage() {
     const [articleViewerOpen, setArticleViewerOpen] = useState(false);
     const [articleViewerArticles, setArticleViewerArticles] = useState<CanonicalResearchArticle[]>([]);
     const [articleViewerInitialIndex, setArticleViewerInitialIndex] = useState(0);
+
+    // Handle article updates from the modal (notes, enrichments)
+    const handleArticleUpdate = useCallback((articleId: string, updates: { notes?: string; ai_enrichments?: any }) => {
+        // Update the modal's article list
+        setArticleViewerArticles(prev => prev.map(article =>
+            article.id === articleId
+                ? { ...article, ...updates }
+                : article
+        ));
+
+        // Also update the source report data so changes persist
+        if (selectedReport) {
+            const articleIdNum = parseInt(articleId, 10);
+            setSelectedReport(prev => prev ? {
+                ...prev,
+                articles: prev.articles?.map(article =>
+                    article.article_id === articleIdNum
+                        ? { ...article, ...updates }
+                        : article
+                )
+            } : null);
+        }
+    }, [selectedReport]);
 
     // Chat context for the general chat system
     const chatContext = useMemo(() => {
@@ -694,6 +717,7 @@ export default function ReportsPage() {
                     onClose={() => setArticleViewerOpen(false)}
                     chatContext={chatContext}
                     chatPayloadHandlers={payloadHandlers}
+                    onArticleUpdate={handleArticleUpdate}
                 />
             )}
 
