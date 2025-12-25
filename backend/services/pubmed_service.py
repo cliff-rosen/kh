@@ -126,39 +126,47 @@ class PubMedArticle():
         logger.debug(f"  date_revised: {date_revised}")
         logger.debug(f"  article_date: {article_date}")
         logger.debug(f"  entry_date: {entry_date}")
-        # Get pub_date from year/month/day already extracted
+        # Get pub_date from year/month/day - always produce valid YYYY-MM-DD format
+        # Month name to number mapping for text months
+        month_map = {
+            'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+            'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
+            'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+        }
         if year:
             pub_date = year
             if pubdate_node is not None:
                 month_node = pubdate_node.find(".//Month")
                 day_node = pubdate_node.find(".//Day")
-                if month_node is not None:
-                    month = month_node.text
-                    pub_date += f"-{month.zfill(2)}"
-                    if day_node is not None:
-                        day = day_node.text
-                        pub_date += f"-{day.zfill(2)}"
+                if month_node is not None and month_node.text:
+                    month_text = month_node.text.strip()
+                    # Handle text months (Jan, Feb, etc.) or numeric
+                    if month_text.lower()[:3] in month_map:
+                        month_num = month_map[month_text.lower()[:3]]
+                    elif month_text.isdigit():
+                        month_num = month_text.zfill(2)
+                    else:
+                        month_num = "01"  # Default if unrecognized
+                    pub_date += f"-{month_num}"
+                    # Add day (default to 01 if not present)
+                    if day_node is not None and day_node.text:
+                        pub_date += f"-{day_node.text.strip().zfill(2)}"
+                    else:
+                        pub_date += "-01"
                 else:
                     pub_date += "-01-01"  # Default to Jan 1 if no month
 
-        MAX_AUTHOR_COUNT = 3
+        # Parse all authors - no truncation, store complete list
         author_list = []
-        author_node_list = []
         if author_list_node is not None:
-            author_node_list = author_list_node.findall('.//Author')
-        for author_node in author_node_list[0:3]:
-            last_name_node = author_node.find('.//LastName')
-            if  last_name_node is not None:
-                last_name = last_name_node.text
-                initials_node = author_node.find('.//Initials')
-                if initials_node is not None:
-                    initials = initials_node.text
-                else:
-                    initials = ""
-                author_list.append(f"{last_name} {initials}")
+            for author_node in author_list_node.findall('.//Author'):
+                last_name_node = author_node.find('.//LastName')
+                if last_name_node is not None:
+                    last_name = last_name_node.text
+                    initials_node = author_node.find('.//Initials')
+                    initials = initials_node.text if initials_node is not None else ""
+                    author_list.append(f"{last_name} {initials}".strip())
         authors = ', '.join(author_list)
-        if len(author_node_list) > MAX_AUTHOR_COUNT:
-            authors += ', et al'
 
         abstract = ""
         if abstract_node is not None:
