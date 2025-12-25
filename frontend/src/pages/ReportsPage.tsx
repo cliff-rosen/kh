@@ -1,11 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { DocumentTextIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon, TrashIcon, Bars2Icon, Bars3BottomLeftIcon } from '@heroicons/react/24/outline';
 
 import { Report, ReportWithArticles, ReportArticle } from '../types';
 import { ResearchStream, Category } from '../types';
 import { PayloadHandler } from '../types/chat';
-import { CanonicalResearchArticle } from '../types/canonical_types';
 
 import { reportApi } from '../lib/api/reportApi';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
@@ -17,6 +16,7 @@ import ChatTray from '../components/chat/ChatTray';
 import PubMedArticleCard, { PubMedArticleData } from '../components/chat/PubMedArticleCard';
 
 type ReportView = 'all' | 'by-category';
+type CardFormat = 'compact' | 'expanded';
 
 export default function ReportsPage() {
     const [searchParams] = useSearchParams();
@@ -30,6 +30,7 @@ export default function ReportsPage() {
     const [error, setError] = useState<string | null>(null);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [reportView, setReportView] = useState<ReportView>('all');
+    const [cardFormat, setCardFormat] = useState<CardFormat>('compact');
     const [streamDetails, setStreamDetails] = useState<ResearchStream | null>(null);
     const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
     const [showAnalytics, setShowAnalytics] = useState(false);
@@ -38,25 +39,24 @@ export default function ReportsPage() {
 
     // Article viewer modal state
     const [articleViewerOpen, setArticleViewerOpen] = useState(false);
-    const [articleViewerArticles, setArticleViewerArticles] = useState<CanonicalResearchArticle[]>([]);
+    const [articleViewerArticles, setArticleViewerArticles] = useState<ReportArticle[]>([]);
     const [articleViewerInitialIndex, setArticleViewerInitialIndex] = useState(0);
 
     // Handle article updates from the modal (notes, enrichments)
-    const handleArticleUpdate = useCallback((articleId: string, updates: { notes?: string; ai_enrichments?: any }) => {
+    const handleArticleUpdate = useCallback((articleId: number, updates: { notes?: string; ai_enrichments?: any }) => {
         // Update the modal's article list
         setArticleViewerArticles(prev => prev.map(article =>
-            article.id === articleId
+            article.article_id === articleId
                 ? { ...article, ...updates }
                 : article
         ));
 
         // Also update the source report data so changes persist
         if (selectedReport) {
-            const articleIdNum = parseInt(articleId, 10);
             setSelectedReport(prev => prev ? {
                 ...prev,
                 articles: prev.articles?.map(article =>
-                    article.article_id === articleIdNum
+                    article.article_id === articleId
                         ? { ...article, ...updates }
                         : article
                 )
@@ -209,31 +209,9 @@ export default function ReportsPage() {
         }
     };
 
-    // Helper to convert ReportArticle to CanonicalResearchArticle for the modal
-    const convertToCanonical = (article: ReportArticle): CanonicalResearchArticle => ({
-        id: String(article.article_id),
-        source: 'pubmed',
-        pmid: article.pmid || undefined,
-        title: article.title,
-        authors: article.authors || [],
-        abstract: article.abstract || '',
-        journal: article.journal || '',
-        publication_year: article.year ? parseInt(article.year, 10) : undefined,
-        publication_date: undefined,
-        doi: article.doi || undefined,
-        url: article.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/` : undefined,
-        keywords: [],
-        mesh_terms: [],
-        categories: [],
-        source_metadata: {},
-        // Pass through report-specific metadata
-        notes: article.notes,
-        ai_enrichments: article.ai_enrichments
-    });
-
     // Open article viewer with a group of articles
     const openArticleViewer = (articles: ReportArticle[], clickedIndex: number) => {
-        setArticleViewerArticles(articles.map(convertToCanonical));
+        setArticleViewerArticles(articles);
         setArticleViewerInitialIndex(clickedIndex);
         setArticleViewerOpen(true);
     };
@@ -298,7 +276,9 @@ export default function ReportsPage() {
                     )}
                     <div className="flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-500">
                         {article.journal && <span>{article.journal}</span>}
-                        {article.year && <span>• {article.year}</span>}
+                        {article.publication_date && (
+                            <span>• {new Date(article.publication_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                        )}
                         {article.pmid && <span>• PMID: {article.pmid}</span>}
                     </div>
                     {showAbstract && article.abstract && (
@@ -505,29 +485,57 @@ export default function ReportsPage() {
                                                 </span>
                                             )}
                                         </div>
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => setReportView('all')}
-                                                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                                                    reportView === 'all'
-                                                        ? 'bg-blue-600 text-white'
-                                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                                }`}
-                                            >
-                                                <ListBulletIcon className="h-4 w-4" />
-                                                All Articles
-                                            </button>
-                                            <button
-                                                onClick={() => setReportView('by-category')}
-                                                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                                                    reportView === 'by-category'
-                                                        ? 'bg-blue-600 text-white'
-                                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                                }`}
-                                            >
-                                                <Squares2X2Icon className="h-4 w-4" />
-                                                By Category
-                                            </button>
+                                        <div className="flex items-center gap-4">
+                                            {/* View mode toggle */}
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setReportView('all')}
+                                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                                                        reportView === 'all'
+                                                            ? 'bg-blue-600 text-white'
+                                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                                    }`}
+                                                >
+                                                    <ListBulletIcon className="h-4 w-4" />
+                                                    All Articles
+                                                </button>
+                                                <button
+                                                    onClick={() => setReportView('by-category')}
+                                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                                                        reportView === 'by-category'
+                                                            ? 'bg-blue-600 text-white'
+                                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                                    }`}
+                                                >
+                                                    <Squares2X2Icon className="h-4 w-4" />
+                                                    By Category
+                                                </button>
+                                            </div>
+                                            {/* Card format toggle */}
+                                            <div className="flex gap-1 border-l border-gray-300 dark:border-gray-600 pl-4">
+                                                <button
+                                                    onClick={() => setCardFormat('compact')}
+                                                    className={`p-1.5 rounded-md transition-colors ${
+                                                        cardFormat === 'compact'
+                                                            ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white'
+                                                            : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                                    }`}
+                                                    title="Compact view"
+                                                >
+                                                    <Bars2Icon className="h-4 w-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => setCardFormat('expanded')}
+                                                    className={`p-1.5 rounded-md transition-colors ${
+                                                        cardFormat === 'expanded'
+                                                            ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white'
+                                                            : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                                    }`}
+                                                    title="Expanded view with abstracts"
+                                                >
+                                                    <Bars3BottomLeftIcon className="h-4 w-4" />
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -604,6 +612,7 @@ export default function ReportsPage() {
                                                             <ArticleCard
                                                                 key={article.article_id}
                                                                 article={article}
+                                                                showAbstract={cardFormat === 'expanded'}
                                                                 onTitleClick={() => openArticleViewer(selectedReport.articles, idx)}
                                                             />
                                                         ))}
@@ -663,7 +672,7 @@ export default function ReportsPage() {
                                                                                     <ArticleCard
                                                                                         key={article.article_id}
                                                                                         article={article}
-                                                                                        showAbstract={true}
+                                                                                        showAbstract={cardFormat === 'expanded'}
                                                                                         onTitleClick={() => openArticleViewer(data.articles, idx)}
                                                                                     />
                                                                                 ))}

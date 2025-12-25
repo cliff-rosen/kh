@@ -15,7 +15,7 @@ import { CheckBadgeIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/sol
 import { documentAnalysisApi } from '../lib/api/documentAnalysisApi';
 import { articleApi, FullTextLink } from '../lib/api/articleApi';
 import { reportApi } from '../lib/api/reportApi';
-import { CanonicalResearchArticle } from '../types/canonical_types';
+import { ReportArticle } from '../types/report';
 import { StanceAnalysisResult, StanceType } from '../types/document_analysis';
 import ChatTray from './chat/ChatTray';
 import { PayloadHandler } from '../types/chat';
@@ -24,7 +24,7 @@ import { MarkdownRenderer } from './common/MarkdownRenderer';
 type WorkspaceTab = 'analysis' | 'notes' | 'links';
 
 interface ArticleViewerModalProps {
-    articles: CanonicalResearchArticle[];
+    articles: ReportArticle[];
     initialIndex?: number;
     onClose: () => void;
     /** Chat context to pass to the embedded chat tray */
@@ -32,7 +32,7 @@ interface ArticleViewerModalProps {
     /** Payload handlers for chat */
     chatPayloadHandlers?: Record<string, PayloadHandler>;
     /** Callback when article data is updated (notes, enrichments) */
-    onArticleUpdate?: (articleId: string, updates: { notes?: string; ai_enrichments?: any }) => void;
+    onArticleUpdate?: (articleId: number, updates: { notes?: string; ai_enrichments?: any }) => void;
 }
 
 export default function ArticleViewerModal({
@@ -45,6 +45,7 @@ export default function ArticleViewerModal({
 }: ArticleViewerModalProps) {
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
     const article = articles[currentIndex];
+    const articleId = article?.article_id;
 
     // Chat state
     const [isChatOpen, setIsChatOpen] = useState(false);
@@ -59,7 +60,7 @@ export default function ArticleViewerModal({
                 title: article.title,
                 authors: article.authors,
                 journal: article.journal,
-                year: article.publication_year
+                year: article.year || (article.publication_date ? article.publication_date.split('-')[0] : undefined)
             } : undefined
         };
     }, [chatContext, article]);
@@ -99,25 +100,25 @@ export default function ArticleViewerModal({
     const [isSavingNotes, setIsSavingNotes] = useState(false);
     const notesDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
-    const stanceResult = article ? stanceCache[article.id] : null;
-    const currentNotes = article ? (notesCache[article.id] ?? '') : '';
+    const stanceResult = articleId ? stanceCache[articleId] : null;
+    const currentNotes = articleId ? (notesCache[articleId] ?? '') : '';
     const streamId = chatContext?.stream_id as number | undefined;
     const reportId = chatContext?.report_id as number | undefined;
 
     // Initialize caches from article data when article changes
     useEffect(() => {
-        if (!article) return;
+        if (!article || !articleId) return;
 
         // Initialize stance from article data if not already cached
-        if (stanceCache[article.id] === undefined && article.ai_enrichments?.stance_analysis) {
-            setStanceCache(prev => ({ ...prev, [article.id]: article.ai_enrichments!.stance_analysis! }));
+        if (stanceCache[articleId] === undefined && article.ai_enrichments?.stance_analysis) {
+            setStanceCache(prev => ({ ...prev, [articleId]: article.ai_enrichments!.stance_analysis! }));
         }
 
         // Initialize notes from article data if not already cached
-        if (notesCache[article.id] === undefined) {
-            setNotesCache(prev => ({ ...prev, [article.id]: article.notes ?? '' }));
+        if (notesCache[articleId] === undefined) {
+            setNotesCache(prev => ({ ...prev, [articleId]: article.notes ?? '' }));
         }
-    }, [article?.id]);
+    }, [articleId]);
 
     // Reset error state when switching articles (cache is preserved)
     useEffect(() => {
@@ -126,9 +127,9 @@ export default function ArticleViewerModal({
 
     // Save notes with debouncing
     const handleNotesChange = useCallback((newNotes: string) => {
-        if (!article || !reportId) return;
+        if (!articleId || !reportId) return;
 
-        setNotesCache(prev => ({ ...prev, [article.id]: newNotes }));
+        setNotesCache(prev => ({ ...prev, [articleId]: newNotes }));
 
         // Clear existing timeout
         if (notesDebounceRef.current) {
@@ -139,17 +140,16 @@ export default function ArticleViewerModal({
         notesDebounceRef.current = setTimeout(async () => {
             setIsSavingNotes(true);
             try {
-                const articleIdNum = parseInt(article.id, 10);
-                await reportApi.updateArticleNotes(reportId, articleIdNum, newNotes || null);
+                await reportApi.updateArticleNotes(reportId, articleId, newNotes || null);
                 // Notify parent of the update
-                onArticleUpdate?.(article.id, { notes: newNotes });
+                onArticleUpdate?.(articleId, { notes: newNotes });
             } catch (err) {
                 console.error('Failed to save notes:', err);
             } finally {
                 setIsSavingNotes(false);
             }
         }, 1000); // 1 second debounce
-    }, [article?.id, reportId, onArticleUpdate]);
+    }, [articleId, reportId, onArticleUpdate]);
 
     // Cleanup debounce on unmount
     useEffect(() => {
@@ -222,13 +222,19 @@ export default function ArticleViewerModal({
         setAnalysisError(null);
 
         try {
+            const pubYear = article.year
+                ? parseInt(article.year, 10)
+                : article.publication_date
+                    ? parseInt(article.publication_date.split('-')[0], 10)
+                    : undefined;
+
             const result = await documentAnalysisApi.analyzeStance({
                 article: {
                     title: article.title,
                     abstract: article.abstract,
                     authors: article.authors,
                     journal: article.journal,
-                    publication_year: article.publication_year,
+                    publication_year: pubYear,
                     pmid: article.pmid,
                     doi: article.doi
                 },
@@ -236,17 +242,16 @@ export default function ArticleViewerModal({
             });
 
             // Update local cache
-            setStanceCache(prev => ({ ...prev, [article.id]: result }));
+            setStanceCache(prev => ({ ...prev, [articleId!]: result }));
             setActiveTab('analysis');
 
             // Persist to backend if we have a report context
-            if (reportId) {
+            if (reportId && articleId) {
                 try {
-                    const articleIdNum = parseInt(article.id, 10);
                     const enrichments = { stance_analysis: result };
-                    await reportApi.updateArticleEnrichments(reportId, articleIdNum, enrichments);
+                    await reportApi.updateArticleEnrichments(reportId, articleId, enrichments);
                     // Notify parent of the update
-                    onArticleUpdate?.(article.id, { ai_enrichments: enrichments });
+                    onArticleUpdate?.(articleId, { ai_enrichments: enrichments });
                 } catch (saveErr) {
                     console.error('Failed to save stance analysis:', saveErr);
                     // Don't fail the operation - the analysis is still visible locally
@@ -369,7 +374,7 @@ export default function ArticleViewerModal({
                                     <div className="space-y-1">
                                         {articles.map((art, idx) => (
                                             <button
-                                                key={art.id}
+                                                key={art.article_id}
                                                 onClick={() => setCurrentIndex(idx)}
                                                 className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${idx === currentIndex
                                                     ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100'
@@ -380,7 +385,7 @@ export default function ArticleViewerModal({
                                                     {truncateTitle(art.title, 50)}
                                                 </div>
                                                 <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                    {art.publication_year} {art.journal && `• ${art.journal.substring(0, 15)}`}
+                                                    {art.year || (art.publication_date ? art.publication_date.split('-')[0] : '')} {art.journal && `• ${art.journal.substring(0, 15)}`}
                                                 </div>
                                             </button>
                                         ))}
@@ -409,11 +414,11 @@ export default function ArticleViewerModal({
                                 {article.journal && (
                                     <span className="text-gray-700 dark:text-gray-300 font-medium">{article.journal}</span>
                                 )}
-                                {(article.publication_date || article.publication_year) && (
+                                {(article.publication_date || article.year) && (
                                     <span className="text-gray-500 dark:text-gray-400">
                                         {article.publication_date
                                             ? new Date(article.publication_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-                                            : article.publication_year}
+                                            : article.year}
                                     </span>
                                 )}
                                 {article.pmid && (
@@ -439,33 +444,6 @@ export default function ArticleViewerModal({
                                     </a>
                                 )}
                             </div>
-
-                            {/* Keywords */}
-                            {article.keywords && article.keywords.length > 0 && (
-                                <div className="mt-3">
-                                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Keywords: </span>
-                                    <span className="text-sm text-gray-700 dark:text-gray-300">
-                                        {article.keywords.join(', ')}
-                                    </span>
-                                </div>
-                            )}
-
-                            {/* MeSH Terms */}
-                            {article.mesh_terms && article.mesh_terms.length > 0 && (
-                                <div className="mt-2">
-                                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">MeSH Terms: </span>
-                                    <div className="mt-1 flex flex-wrap gap-1">
-                                        {article.mesh_terms.map((term, idx) => (
-                                            <span
-                                                key={idx}
-                                                className="inline-block px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded"
-                                            >
-                                                {term}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
 
                             {/* Abstract */}
                             <div className="mt-4">
@@ -698,27 +676,6 @@ export default function ArticleViewerModal({
                                         Full Text Access
                                     </h2>
                                     <div className="space-y-3 max-w-xl">
-                                        {/* PMC link if available */}
-                                        {article.source_metadata?.pmc_id && (
-                                            <a
-                                                href={`https://www.ncbi.nlm.nih.gov/pmc/articles/${article.source_metadata.pmc_id}/`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="block px-4 py-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30"
-                                            >
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-2">
-                                                        <CheckBadgeIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
-                                                        <span className="font-medium text-green-700 dark:text-green-300">PubMed Central</span>
-                                                    </div>
-                                                    <ArrowTopRightOnSquareIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
-                                                </div>
-                                                <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-                                                    Free full text available
-                                                </p>
-                                            </a>
-                                        )}
-
                                         {/* Links from PubMed LinkOut */}
                                         {currentLinks && currentLinks.length > 0 && currentLinks.map((link, idx) => (
                                             <a
@@ -776,10 +733,10 @@ export default function ArticleViewerModal({
                                         )}
 
                                         {/* No links found message */}
-                                        {currentLinks !== undefined && currentLinks.length === 0 && !article.source_metadata?.pmc_id && (
+                                        {currentLinks !== undefined && currentLinks.length === 0 && (
                                             <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg">
                                                 <p className="text-gray-500 dark:text-gray-400">
-                                                    No additional full text sources found in PubMed LinkOut
+                                                    No full text sources found in PubMed LinkOut
                                                 </p>
                                             </div>
                                         )}
