@@ -14,6 +14,10 @@ from services.login_email_service import LoginEmailService
 
 logger = logging.getLogger(__name__)
 
+# Re-export validate_token as get_current_user for convenient importing by other routers
+# Usage: from routers.auth import get_current_user
+get_current_user = auth_service.validate_token
+
 
 # ============== Request Schemas ==============
 
