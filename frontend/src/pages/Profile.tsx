@@ -14,8 +14,12 @@ import { OrganizationProvider } from '../context/OrganizationContext';
 type ProfileTab = 'user' | 'organization';
 
 export default function Profile() {
-    const { user: authUser, isOrgAdmin } = useAuth();
+    const { user: authUser, isOrgAdmin, isPlatformAdmin } = useAuth();
     const [activeTab, setActiveTab] = useState<ProfileTab>('user');
+
+    // Only show Organization tab for org admins who actually belong to an org
+    // Platform admins don't have an org_id, so they shouldn't see this tab
+    const showOrgTab = isOrgAdmin && !isPlatformAdmin && authUser?.org_id;
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -79,7 +83,7 @@ export default function Profile() {
 
     const tabs = [
         { id: 'user' as const, name: 'Profile', icon: UserIcon },
-        ...(isOrgAdmin ? [{ id: 'organization' as const, name: 'Organization', icon: BuildingOfficeIcon }] : [])
+        ...(showOrgTab ? [{ id: 'organization' as const, name: 'Organization', icon: BuildingOfficeIcon }] : [])
     ];
 
     if (isLoading) {
@@ -97,7 +101,7 @@ export default function Profile() {
                     Settings
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400 mt-2">
-                    Manage your profile{isOrgAdmin ? ' and organization' : ''}
+                    Manage your profile{showOrgTab ? ' and organization' : ''}
                 </p>
             </div>
 
@@ -230,8 +234,8 @@ export default function Profile() {
                 </div>
             )}
 
-            {/* Organization Tab (for org admins) */}
-            {activeTab === 'organization' && isOrgAdmin && (
+            {/* Organization Tab (for org admins who belong to an org) */}
+            {activeTab === 'organization' && showOrgTab && (
                 <OrganizationProvider>
                     <div className="space-y-6">
                         <OrgDetailsForm />

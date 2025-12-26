@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useResearchStream } from '../context/ResearchStreamContext';
+import { useAuth } from '../context/AuthContext';
 import {
     ReportFrequency,
     Category,
@@ -18,6 +19,9 @@ import StreamTemplateCard from '../components/chat/StreamTemplateCard';
 import TopicSuggestionsCard from '../components/chat/TopicSuggestionsCard';
 import ValidationFeedbackCard from '../components/chat/ValidationFeedbackCard';
 
+// Stream scope type
+type StreamScope = 'personal' | 'organization' | 'global';
+
 interface CreateStreamPageProps {
     onCancel?: () => void;
 }
@@ -26,11 +30,25 @@ type TabType = 'semantic' | 'retrieval' | 'presentation';
 
 export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
     const { createResearchStream, isLoading, error, clearError, loadAvailableSources } = useResearchStream();
+    const { user, isPlatformAdmin, isOrgAdmin } = useAuth();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<TabType>('semantic');
 
+    // Determine available scopes based on user role
+    const availableScopes: { value: StreamScope; label: string; description: string }[] = [
+        { value: 'personal', label: 'Personal', description: 'Only you can see this stream' },
+        ...(isOrgAdmin && !isPlatformAdmin && user?.org_id ? [
+            { value: 'organization' as StreamScope, label: 'Organization', description: 'All org members can subscribe' }
+        ] : []),
+        ...(isPlatformAdmin ? [
+            { value: 'organization' as StreamScope, label: 'Organization', description: 'All org members can subscribe' },
+            { value: 'global' as StreamScope, label: 'Global', description: 'Platform-wide, orgs can subscribe' }
+        ] : [])
+    ];
+
     const [form, setForm] = useState({
         stream_name: '',
+        scope: 'personal' as StreamScope,
         report_frequency: ReportFrequency.WEEKLY,
         chat_instructions: '',
 
@@ -133,6 +151,7 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
             purpose: purpose,
             report_frequency: form.report_frequency,
             chat_instructions: form.chat_instructions || null,
+            scope: form.scope,  // Stream visibility scope
             // Three-layer architecture
             semantic_space: form.semantic_space,
             retrieval_config: form.retrieval_config,
@@ -284,6 +303,40 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                         required
                     />
                 </div>
+
+                {/* Scope selector - only show if user has options */}
+                {availableScopes.length > 1 && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Stream Visibility *
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {availableScopes.map((scope) => (
+                                <button
+                                    key={scope.value}
+                                    type="button"
+                                    onClick={() => setForm({ ...form, scope: scope.value })}
+                                    className={`p-3 rounded-lg border-2 text-left transition-all ${
+                                        form.scope === scope.value
+                                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                            : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                                    }`}
+                                >
+                                    <div className={`font-medium ${
+                                        form.scope === scope.value
+                                            ? 'text-blue-700 dark:text-blue-300'
+                                            : 'text-gray-900 dark:text-white'
+                                    }`}>
+                                        {scope.label}
+                                    </div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        {scope.description}
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

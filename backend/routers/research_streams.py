@@ -13,7 +13,7 @@ import json
 logger = logging.getLogger(__name__)
 
 from database import get_db
-from models import User, RunType
+from models import User, RunType, StreamScope, UserRole
 
 from schemas.research_stream import (
     ResearchStream,
@@ -57,6 +57,11 @@ class ResearchStreamCreateRequest(BaseModel):
     purpose: str = Field(..., min_length=1, description="Why this stream exists")
     report_frequency: ReportFrequency
     chat_instructions: Optional[str] = Field(None, description="Stream-specific instructions for the chat assistant")
+    # Scope determines visibility (personal, organization, or global)
+    # - personal: Only creator can see (default)
+    # - organization: All org members can subscribe (org_admin only)
+    # - global: Platform-wide, orgs subscribe to access (platform_admin only)
+    scope: Optional[str] = Field("personal", description="Stream scope: personal, organization, or global")
     # Three-layer architecture
     semantic_space: SemanticSpace = Field(..., description="Layer 1: What information matters")
     retrieval_config: RetrievalConfig = Field(..., description="Layer 2: How to find & filter")
@@ -106,8 +111,44 @@ async def create_research_stream(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Create a new research stream with three-layer architecture"""
+    """
+    Create a new research stream with three-layer architecture.
+
+    Scope determines visibility:
+    - personal: Only creator can see (any user)
+    - organization: Org members can subscribe (org_admin only)
+    - global: Platform-wide (platform_admin only)
+    """
     service = ResearchStreamService(db)
+
+    # Parse and validate scope
+    scope_str = (request.scope or "personal").lower()
+    try:
+        scope = StreamScope(scope_str)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid scope: {scope_str}. Must be one of: personal, organization, global"
+        )
+
+    # Validate scope based on user role
+    if scope == StreamScope.GLOBAL and current_user.role != UserRole.PLATFORM_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only platform admins can create global streams"
+        )
+
+    if scope == StreamScope.ORGANIZATION:
+        if current_user.role not in (UserRole.PLATFORM_ADMIN, UserRole.ORG_ADMIN):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only org admins can create organization streams"
+            )
+        if not current_user.org_id and current_user.role != UserRole.PLATFORM_ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You must belong to an organization to create org streams"
+            )
 
     # Convert Pydantic models to dicts
     semantic_space_dict = request.semantic_space.dict() if hasattr(request.semantic_space, 'dict') else request.semantic_space
@@ -122,7 +163,9 @@ async def create_research_stream(
         chat_instructions=request.chat_instructions,
         semantic_space=semantic_space_dict,
         retrieval_config=retrieval_config_dict,
-        presentation_config=presentation_config_dict
+        presentation_config=presentation_config_dict,
+        scope=scope,
+        org_id=current_user.org_id
     )
 
 

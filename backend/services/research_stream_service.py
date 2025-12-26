@@ -42,10 +42,15 @@ class ResearchStreamService:
         """
         Get all stream IDs that a user can access.
         This is the core access control function.
+
+        Access rules by role:
+        - PLATFORM_ADMIN: All global streams + own personal streams
+        - ORG_ADMIN: All org streams for their org + subscribed global streams + own personal
+        - MEMBER: Subscribed org streams + subscribed global streams (via org) + own personal
         """
         accessible_ids = set()
 
-        # 1. Personal streams (user owns)
+        # 1. Personal streams (user owns) - same for all roles
         personal_streams = self.db.query(ResearchStream.stream_id).filter(
             and_(
                 ResearchStream.scope == StreamScope.PERSONAL,
@@ -54,38 +59,62 @@ class ResearchStreamService:
         ).all()
         accessible_ids.update(s[0] for s in personal_streams)
 
-        # 2. Org streams (user is subscribed to)
-        subscribed_org_streams = self.db.query(UserStreamSubscription.stream_id).join(
-            ResearchStream,
-            ResearchStream.stream_id == UserStreamSubscription.stream_id
-        ).filter(
-            and_(
-                UserStreamSubscription.user_id == user.user_id,
-                UserStreamSubscription.is_subscribed == True,
-                ResearchStream.scope == StreamScope.ORGANIZATION
-            )
-        ).all()
-        accessible_ids.update(s[0] for s in subscribed_org_streams)
-
-        # 3. Global streams (org subscribed AND user not opted out)
-        if user.org_id:
-            # Get global streams org is subscribed to
-            org_subscribed = self.db.query(OrgStreamSubscription.stream_id).filter(
-                OrgStreamSubscription.org_id == user.org_id
+        # 2. Handle based on role
+        if user.role == UserRole.PLATFORM_ADMIN:
+            # Platform admins see ALL global streams (they manage them)
+            global_streams = self.db.query(ResearchStream.stream_id).filter(
+                ResearchStream.scope == StreamScope.GLOBAL
             ).all()
-            org_subscribed_ids = {s[0] for s in org_subscribed}
+            accessible_ids.update(s[0] for s in global_streams)
 
-            # Get streams user has opted out of
-            user_opted_out = self.db.query(UserStreamSubscription.stream_id).filter(
+        elif user.role == UserRole.ORG_ADMIN and user.org_id:
+            # Org admins see ALL org streams for their org (they manage them)
+            org_streams = self.db.query(ResearchStream.stream_id).filter(
                 and_(
-                    UserStreamSubscription.user_id == user.user_id,
-                    UserStreamSubscription.is_subscribed == False
+                    ResearchStream.scope == StreamScope.ORGANIZATION,
+                    ResearchStream.org_id == user.org_id
                 )
             ).all()
-            opted_out_ids = {s[0] for s in user_opted_out}
+            accessible_ids.update(s[0] for s in org_streams)
 
-            # Global streams = org subscribed - user opted out
-            accessible_ids.update(org_subscribed_ids - opted_out_ids)
+            # Plus global streams their org is subscribed to
+            org_subscribed_global = self.db.query(OrgStreamSubscription.stream_id).filter(
+                OrgStreamSubscription.org_id == user.org_id
+            ).all()
+            accessible_ids.update(s[0] for s in org_subscribed_global)
+
+        else:
+            # Regular members: subscribed org streams only
+            subscribed_org_streams = self.db.query(UserStreamSubscription.stream_id).join(
+                ResearchStream,
+                ResearchStream.stream_id == UserStreamSubscription.stream_id
+            ).filter(
+                and_(
+                    UserStreamSubscription.user_id == user.user_id,
+                    UserStreamSubscription.is_subscribed == True,
+                    ResearchStream.scope == StreamScope.ORGANIZATION
+                )
+            ).all()
+            accessible_ids.update(s[0] for s in subscribed_org_streams)
+
+            # Plus global streams (org subscribed AND user not opted out)
+            if user.org_id:
+                org_subscribed = self.db.query(OrgStreamSubscription.stream_id).filter(
+                    OrgStreamSubscription.org_id == user.org_id
+                ).all()
+                org_subscribed_ids = {s[0] for s in org_subscribed}
+
+                # Get streams user has opted out of
+                user_opted_out = self.db.query(UserStreamSubscription.stream_id).filter(
+                    and_(
+                        UserStreamSubscription.user_id == user.user_id,
+                        UserStreamSubscription.is_subscribed == False
+                    )
+                ).all()
+                opted_out_ids = {s[0] for s in user_opted_out}
+
+                # Global streams = org subscribed - user opted out
+                accessible_ids.update(org_subscribed_ids - opted_out_ids)
 
         return accessible_ids
 
