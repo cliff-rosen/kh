@@ -4,16 +4,19 @@ Research Stream service for managing research streams
 
 import logging
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func
-from typing import List, Optional, Dict, Any
+from sqlalchemy import and_, or_, func
+from typing import List, Optional, Dict, Any, Set
 from datetime import datetime, date
 from fastapi import HTTPException, status
 
-from models import ResearchStream, Report
+from models import (
+    ResearchStream, Report, User, UserRole, StreamScope,
+    OrgStreamSubscription, UserStreamSubscription
+)
 
 logger = logging.getLogger(__name__)
 from schemas.research_stream import ResearchStream as ResearchStreamSchema
-from schemas.research_stream import StreamType, ReportFrequency
+from schemas.research_stream import StreamType, ReportFrequency, StreamScope as StreamScopeSchema
 
 
 def serialize_json_data(data: Any) -> Any:
@@ -35,8 +38,73 @@ class ResearchStreamService:
     def __init__(self, db: Session):
         self.db = db
 
+    def _get_accessible_stream_ids(self, user: User) -> Set[int]:
+        """
+        Get all stream IDs that a user can access.
+        This is the core access control function.
+        """
+        accessible_ids = set()
+
+        # 1. Personal streams (user owns)
+        personal_streams = self.db.query(ResearchStream.stream_id).filter(
+            and_(
+                ResearchStream.scope == StreamScope.PERSONAL,
+                ResearchStream.user_id == user.user_id
+            )
+        ).all()
+        accessible_ids.update(s[0] for s in personal_streams)
+
+        # 2. Org streams (user is subscribed to)
+        subscribed_org_streams = self.db.query(UserStreamSubscription.stream_id).join(
+            ResearchStream,
+            ResearchStream.stream_id == UserStreamSubscription.stream_id
+        ).filter(
+            and_(
+                UserStreamSubscription.user_id == user.user_id,
+                UserStreamSubscription.is_subscribed == True,
+                ResearchStream.scope == StreamScope.ORGANIZATION
+            )
+        ).all()
+        accessible_ids.update(s[0] for s in subscribed_org_streams)
+
+        # 3. Global streams (org subscribed AND user not opted out)
+        if user.org_id:
+            # Get global streams org is subscribed to
+            org_subscribed = self.db.query(OrgStreamSubscription.stream_id).filter(
+                OrgStreamSubscription.org_id == user.org_id
+            ).all()
+            org_subscribed_ids = {s[0] for s in org_subscribed}
+
+            # Get streams user has opted out of
+            user_opted_out = self.db.query(UserStreamSubscription.stream_id).filter(
+                and_(
+                    UserStreamSubscription.user_id == user.user_id,
+                    UserStreamSubscription.is_subscribed == False
+                )
+            ).all()
+            opted_out_ids = {s[0] for s in user_opted_out}
+
+            # Global streams = org subscribed - user opted out
+            accessible_ids.update(org_subscribed_ids - opted_out_ids)
+
+        return accessible_ids
+
     def get_user_research_streams(self, user_id: int) -> List[Dict[str, Any]]:
-        """Get all research streams for a user with report counts and latest report date"""
+        """
+        Get all research streams accessible to a user with report counts and latest report date.
+        This includes personal streams, subscribed org streams, and global streams (via org subscription).
+        """
+        # Get the user for access control
+        user = self.db.query(User).filter(User.user_id == user_id).first()
+        if not user:
+            return []
+
+        # Get accessible stream IDs
+        accessible_ids = self._get_accessible_stream_ids(user)
+
+        if not accessible_ids:
+            return []
+
         # Query streams with report counts and latest report date
         streams_with_stats = self.db.query(
             ResearchStream,
@@ -44,22 +112,20 @@ class ResearchStreamService:
             func.max(Report.created_at).label('latest_report_date')
         ).outerjoin(
             Report,
-            and_(
-                Report.research_stream_id == ResearchStream.stream_id,
-                Report.user_id == user_id
-            )
+            Report.research_stream_id == ResearchStream.stream_id
         ).filter(
-            ResearchStream.user_id == user_id
+            ResearchStream.stream_id.in_(accessible_ids)
         ).group_by(
             ResearchStream.stream_id
         ).order_by(
-            ResearchStream.created_at.desc()
+            ResearchStream.scope,  # Group by scope (personal, org, global)
+            ResearchStream.stream_name
         ).all()
 
         # Convert to list of dicts with report_count and latest_report_date included
         result = []
         for stream, report_count, latest_report_date in streams_with_stats:
-            stream_dict = ResearchStreamSchema.from_orm(stream).dict()
+            stream_dict = ResearchStreamSchema.model_validate(stream).model_dump()
             stream_dict['report_count'] = report_count
             stream_dict['latest_report_date'] = latest_report_date.isoformat() if latest_report_date else None
             result.append(stream_dict)
@@ -74,11 +140,25 @@ class ResearchStreamService:
         Raises:
             HTTPException: 404 if stream not found or user doesn't have access
         """
-        stream = self.db.query(ResearchStream).filter(
-            and_(
-                ResearchStream.stream_id == stream_id,
-                ResearchStream.user_id == user_id
+        # Get the user for access control
+        user = self.db.query(User).filter(User.user_id == user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
             )
+
+        # Check if user has access to this stream
+        accessible_ids = self._get_accessible_stream_ids(user)
+
+        if stream_id not in accessible_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found"
+            )
+
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == stream_id
         ).first()
 
         if not stream:
@@ -88,7 +168,7 @@ class ResearchStreamService:
             )
 
         # Convert to Pydantic schema - this parses nested objects like SemanticSpace
-        return ResearchStreamSchema.from_orm(stream)
+        return ResearchStreamSchema.model_validate(stream)
 
     def create_research_stream(
         self,
@@ -99,9 +179,50 @@ class ResearchStreamService:
         semantic_space: Dict[str, Any],
         retrieval_config: Dict[str, Any],
         presentation_config: Dict[str, Any],
-        chat_instructions: Optional[str] = None
+        chat_instructions: Optional[str] = None,
+        scope: StreamScope = StreamScope.PERSONAL,
+        org_id: Optional[int] = None
     ) -> ResearchStream:
-        """Create a new research stream with three-layer architecture"""
+        """
+        Create a new research stream with three-layer architecture.
+
+        Args:
+            user_id: The user creating the stream
+            scope: StreamScope.PERSONAL (default), ORGANIZATION, or GLOBAL
+            org_id: Required for personal/org streams, NULL for global streams
+
+        For personal streams: user_id is set as owner, org_id is set from user's org
+        For org streams: user_id is NULL (no owner), org_id is the org
+        For global streams: user_id and org_id are both NULL (platform admin only)
+        """
+        # Get the user for org_id (if creating personal stream)
+        user = self.db.query(User).filter(User.user_id == user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        # Determine the correct user_id, org_id based on scope
+        stream_user_id = None
+        stream_org_id = org_id
+
+        if scope == StreamScope.PERSONAL:
+            stream_user_id = user_id
+            stream_org_id = user.org_id  # Personal streams use user's org
+        elif scope == StreamScope.ORGANIZATION:
+            stream_user_id = None  # Org streams have no owner
+            if not org_id:
+                stream_org_id = user.org_id  # Default to user's org
+        elif scope == StreamScope.GLOBAL:
+            # Only platform admins can create global streams
+            if user.role != UserRole.PLATFORM_ADMIN:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only platform admins can create global streams"
+                )
+            stream_user_id = None
+            stream_org_id = None
 
         # Serialize datetime objects in JSON fields
         semantic_space = serialize_json_data(semantic_space)
@@ -109,7 +230,10 @@ class ResearchStreamService:
         presentation_config = serialize_json_data(presentation_config)
 
         research_stream = ResearchStream(
-            user_id=user_id,
+            scope=scope,
+            org_id=stream_org_id,
+            user_id=stream_user_id,
+            created_by=user_id,  # Always track who created it
             stream_name=stream_name,
             purpose=purpose,
             report_frequency=report_frequency,

@@ -3,7 +3,11 @@ import { authApi, type LoginCredentials, type RegisterCredentials } from '../lib
 
 interface AuthContextType {
     isAuthenticated: boolean
-    user: { id: string; username: string; email: string; role: string } | null
+    user: { id: string; username: string; email: string; role: string; org_id?: number } | null
+
+    // Role helpers
+    isPlatformAdmin: boolean
+    isOrgAdmin: boolean
 
     // Auth methods
     login: (credentials: LoginCredentials) => Promise<void>
@@ -42,8 +46,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false)
-    const [user, setUser] = useState<{ id: string; username: string; email: string; role: string } | null>(null)
+    const [user, setUser] = useState<{ id: string; username: string; email: string; role: string; org_id?: number } | null>(null)
     const [error, setError] = useState<string | null>(null)
+
+    // Role helper computed values
+    const isPlatformAdmin = user?.role === 'platform_admin'
+    const isOrgAdmin = user?.role === 'org_admin' || user?.role === 'platform_admin'
 
     // Loading states
     const [isLoginLoading, setIsLoginLoading] = useState(false)
@@ -117,13 +125,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             id: data.user_id,
             username: data.username,
             email: data.email,
-            role: data.role
+            role: data.role,
+            org_id: data.org_id
         }))
         setUser({
             id: data.user_id,
             username: data.username,
             email: data.email,
-            role: data.role
+            role: data.role,
+            org_id: data.org_id
         })
 
         // Set session information directly from login response
@@ -328,6 +338,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         <AuthContext.Provider value={{
             isAuthenticated,
             user,
+
+            // Role helpers
+            isPlatformAdmin,
+            isOrgAdmin,
 
             // Auth methods
             login,

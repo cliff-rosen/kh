@@ -160,6 +160,7 @@ async def login_user(db: Session, email: str, password: str) -> Token:
         token_data = {
             "sub": user.email,
             "user_id": user.user_id,
+            "org_id": user.org_id,
             "username": username,
             "role": user.role.value
         }
@@ -175,6 +176,7 @@ async def login_user(db: Session, email: str, password: str) -> Token:
             username=username,
             role=user.role,
             user_id=user.user_id,
+            org_id=user.org_id,
             email=user.email
         )
 

@@ -11,9 +11,20 @@ Base = declarative_base()
 # Enums for Knowledge Horizon
 class UserRole(str, PyEnum):
     """User privilege levels"""
+    PLATFORM_ADMIN = "platform_admin"  # Can manage global streams and orgs
+    ORG_ADMIN = "org_admin"  # Can manage org streams and members
+    MEMBER = "member"  # Regular user
+    # Legacy roles (for backward compatibility during migration)
     ADMIN = "admin"
     USER = "user"
     TESTER = "tester"
+
+
+class StreamScope(str, PyEnum):
+    """Scope of a research stream"""
+    GLOBAL = "global"  # Platform-level, created by platform admins
+    ORGANIZATION = "organization"  # Org-level, visible to all org members who subscribe
+    PERSONAL = "personal"  # User-level, only visible to creator
 
 class FeedbackType(str, PyEnum):
     """Type of user feedback"""
@@ -45,26 +56,46 @@ class RunType(str, PyEnum):
     MANUAL = "manual"     # Manual run triggered by user
 
 
+# Organization table (multi-tenancy)
+class Organization(Base):
+    """Organization/tenant that users belong to"""
+    __tablename__ = "organizations"
+
+    org_id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    users = relationship("User", back_populates="organization")
+    research_streams = relationship("ResearchStream", back_populates="organization", foreign_keys="ResearchStream.org_id")
+    stream_subscriptions = relationship("OrgStreamSubscription", back_populates="organization")
+
+
 # Core User table
 class User(Base):
     """User authentication and basic information"""
     __tablename__ = "users"
 
     user_id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, ForeignKey("organizations.org_id"), nullable=True, index=True)  # Organization (nullable during migration)
     email = Column(String(255), unique=True, index=True)
     password = Column(String(255))
     full_name = Column(String(255), nullable=True)  # User's full name from onboarding
     job_title = Column(String(255), nullable=True)  # User's job title
     is_active = Column(Boolean, default=True)
-    role = Column(Enum(UserRole, name='userrole'), default=UserRole.USER, nullable=False)
+    role = Column(Enum(UserRole, values_callable=lambda x: [e.value for e in x], name='userrole'), default=UserRole.MEMBER, nullable=False)
     login_token = Column(String(255), nullable=True, index=True)  # One-time login token
     login_token_expires = Column(DateTime, nullable=True)  # Token expiration time
     registration_date = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Knowledge Horizon relationships only
-    # (relationships added at end of file)
+    # Relationships
+    organization = relationship("Organization", back_populates="users")
+    stream_subscriptions = relationship("UserStreamSubscription", back_populates="user")
+    # Additional relationships added at end of file
 
 
 # Knowledge Horizon Tables
@@ -94,7 +125,19 @@ class ResearchStream(Base):
 
     # === CORE IDENTITY ===
     stream_id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+
+    # Scope determines visibility: global (platform-wide), organization, or personal
+    scope = Column(Enum(StreamScope, values_callable=lambda x: [e.value for e in x], name='streamscope'), default=StreamScope.PERSONAL, nullable=False, index=True)
+
+    # Organization this stream belongs to (NULL for global streams)
+    org_id = Column(Integer, ForeignKey("organizations.org_id"), nullable=True, index=True)
+
+    # Owner user for personal streams (NULL for org/global streams)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True, index=True)
+
+    # Who created this stream (always set, for audit purposes)
+    created_by = Column(Integer, ForeignKey("users.user_id"), nullable=True, index=True)
+
     profile_id = Column(Integer, ForeignKey("company_profiles.profile_id"))
 
     stream_name = Column(String(255), nullable=False)
@@ -134,9 +177,13 @@ class ResearchStream(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    user = relationship("User", back_populates="research_streams")
+    organization = relationship("Organization", back_populates="research_streams", foreign_keys=[org_id])
+    user = relationship("User", back_populates="research_streams", foreign_keys=[user_id])
+    creator = relationship("User", foreign_keys=[created_by], overlaps="created_streams")
     profile = relationship("CompanyProfile", back_populates="research_streams")
     reports = relationship("Report", back_populates="research_stream")
+    org_subscriptions = relationship("OrgStreamSubscription", back_populates="stream")
+    user_subscriptions = relationship("UserStreamSubscription", back_populates="stream")
 
 
 class InformationSource(Base):
@@ -351,9 +398,40 @@ class WipArticle(Base):
     source = relationship("InformationSource")
 
 
+# Subscription tables for stream access control
+class OrgStreamSubscription(Base):
+    """Organization subscription to global streams"""
+    __tablename__ = "org_stream_subscriptions"
+
+    org_id = Column(Integer, ForeignKey("organizations.org_id"), primary_key=True)
+    stream_id = Column(Integer, ForeignKey("research_streams.stream_id"), primary_key=True)
+    subscribed_at = Column(DateTime, default=datetime.utcnow)
+    subscribed_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)  # Org admin who subscribed
+
+    # Relationships
+    organization = relationship("Organization", back_populates="stream_subscriptions")
+    stream = relationship("ResearchStream", back_populates="org_subscriptions")
+    subscriber = relationship("User")
+
+
+class UserStreamSubscription(Base):
+    """User subscription to org streams / opt-out from global streams"""
+    __tablename__ = "user_stream_subscriptions"
+
+    user_id = Column(Integer, ForeignKey("users.user_id"), primary_key=True)
+    stream_id = Column(Integer, ForeignKey("research_streams.stream_id"), primary_key=True)
+    is_subscribed = Column(Boolean, default=True, nullable=False)  # TRUE = subscribed, FALSE = opted out
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="stream_subscriptions")
+    stream = relationship("ResearchStream", back_populates="user_subscriptions")
+
+
 # Add relationships to User model
 User.company_profile = relationship("CompanyProfile", back_populates="user", uselist=False)
-User.research_streams = relationship("ResearchStream", back_populates="user")
+User.research_streams = relationship("ResearchStream", back_populates="user", foreign_keys="ResearchStream.user_id")
+User.created_streams = relationship("ResearchStream", foreign_keys="ResearchStream.created_by")
 User.reports = relationship("Report", back_populates="user")
 User.report_schedule = relationship("ReportSchedule", back_populates="user", uselist=False)
 User.feedback = relationship("UserFeedback", back_populates="user")

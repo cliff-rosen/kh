@@ -10,6 +10,13 @@ from enum import Enum
 from schemas.semantic_space import SemanticSpace
 
 
+class StreamScope(str, Enum):
+    """Scope of a research stream"""
+    GLOBAL = "global"  # Platform-level, created by platform admins
+    ORGANIZATION = "organization"  # Org-level, visible to subscribed org members
+    PERSONAL = "personal"  # User-level, only visible to creator
+
+
 class StreamType(str, Enum):
     COMPETITIVE = "competitive"
     REGULATORY = "regulatory"
@@ -304,7 +311,10 @@ class ResearchStream(BaseModel):
     """Research stream with clean three-layer architecture"""
     # === CORE IDENTITY ===
     stream_id: int
-    user_id: int
+    scope: StreamScope = Field(default=StreamScope.PERSONAL, description="Stream visibility scope")
+    org_id: Optional[int] = Field(None, description="Organization ID (NULL for global streams)")
+    user_id: Optional[int] = Field(None, description="Owner user ID (only for personal streams)")
+    created_by: Optional[int] = Field(None, description="User who created this stream")
     stream_name: str
     purpose: str = Field(description="High-level why this stream exists")
 

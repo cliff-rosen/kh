@@ -92,13 +92,15 @@ async def get_current_user(
     db: Session = Depends(get_db)
 ):
     """
-    Get current user information including role
+    Get current user information including role and organization
     """
     return UserResponse(
         email=current_user.email,
         user_id=current_user.user_id,
+        org_id=current_user.org_id,
         registration_date=current_user.registration_date,
-        role=current_user.role
+        role=current_user.role,
+        full_name=current_user.full_name
     )
 
 
