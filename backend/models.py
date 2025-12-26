@@ -13,23 +13,17 @@ class UserRole(str, PyEnum):
     """
     User privilege levels.
 
-    Current roles:
-    - PLATFORM_ADMIN: Full platform access, can manage orgs and global streams
-    - ORG_ADMIN: Can manage their organization's members and stream subscriptions
-    - MEMBER: Regular user, can use streams they have access to
-
-    DEPRECATED roles (kept for database compatibility, will be removed):
-    - ADMIN, USER, TESTER: Legacy roles, migrate to PLATFORM_ADMIN/ORG_ADMIN/MEMBER
+    Role hierarchy and org_id relationship:
+    - PLATFORM_ADMIN: org_id = NULL. Platform-level access, above all orgs.
+                      Can manage any org, create global streams, assign users.
+    - ORG_ADMIN: org_id = required. Manages their organization's members
+                 and stream subscriptions.
+    - MEMBER: org_id = required. Regular user in an organization.
+              Can use streams they have access to, create personal streams.
     """
-    # Current roles
     PLATFORM_ADMIN = "platform_admin"
     ORG_ADMIN = "org_admin"
     MEMBER = "member"
-    # DEPRECATED: Legacy roles - DO NOT USE in new code
-    # These exist only for database compatibility during migration
-    ADMIN = "admin"      # Migrate to PLATFORM_ADMIN
-    USER = "user"        # Migrate to MEMBER
-    TESTER = "tester"    # Migrate to MEMBER
 
 
 class StreamScope(str, PyEnum):

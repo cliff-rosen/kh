@@ -4,8 +4,15 @@
  * Core user types. Request schemas are in the API files.
  */
 
-// User roles (matches backend UserRole enum)
-export type UserRole = 'platform_admin' | 'org_admin' | 'member' | 'admin' | 'user' | 'tester';
+/**
+ * User roles (matches backend UserRole enum)
+ *
+ * Role hierarchy and org_id relationship:
+ * - platform_admin: org_id = null. Platform-level access, above all orgs.
+ * - org_admin: org_id required. Manages their organization.
+ * - member: org_id required. Regular user in an organization.
+ */
+export type UserRole = 'platform_admin' | 'org_admin' | 'member';
 
 /**
  * Full user type returned from API
