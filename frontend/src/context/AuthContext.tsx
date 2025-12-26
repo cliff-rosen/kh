@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { authApi, type LoginCredentials, type RegisterCredentials } from '../lib/api/authApi'
+import type { AuthUser, UserRole } from '../types/user'
 
 interface AuthContextType {
     isAuthenticated: boolean
-    user: { id: string; username: string; email: string; role: string; org_id?: number } | null
+    user: AuthUser | null
 
     // Role helpers
     isPlatformAdmin: boolean
@@ -46,7 +47,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false)
-    const [user, setUser] = useState<{ id: string; username: string; email: string; role: string; org_id?: number } | null>(null)
+    const [user, setUser] = useState<AuthUser | null>(null)
     const [error, setError] = useState<string | null>(null)
 
     // Role helper computed values
@@ -120,21 +121,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const handleAuthSuccess = (data: any) => {
         setError(null)
+
+        const authUser: AuthUser = {
+            id: data.user_id,
+            username: data.username,
+            email: data.email,
+            role: data.role as UserRole,
+            org_id: data.org_id
+        }
+
         localStorage.setItem('authToken', data.access_token)
-        localStorage.setItem('user', JSON.stringify({
-            id: data.user_id,
-            username: data.username,
-            email: data.email,
-            role: data.role,
-            org_id: data.org_id
-        }))
-        setUser({
-            id: data.user_id,
-            username: data.username,
-            email: data.email,
-            role: data.role,
-            org_id: data.org_id
-        })
+        localStorage.setItem('user', JSON.stringify(authUser))
+        setUser(authUser)
 
         // Set session information directly from login response
         setSessionId(data.session_id)

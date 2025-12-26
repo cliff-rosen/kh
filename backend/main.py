@@ -4,9 +4,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 # from routers import search, auth, workflow, tools, files, bot, asset
 # Import only Knowledge Horizon compatible routers (legacy routers removed)
-from routers import auth, llm, search, web_retrieval, pubmed, extraction, unified_search, lab, research_streams, research_stream_chat, profiles, reports, general_chat, tools, refinement_workbench, prompt_workbench, document_analysis, articles
-# Multi-tenancy routers
-from routers import organization, subscriptions, admin, notes
+from routers import auth, llm, search, web_retrieval, pubmed, extraction, unified_search, lab, research_streams, research_stream_chat, reports, general_chat, tools, refinement_workbench, prompt_workbench, document_analysis, articles
+# User and multi-tenancy routers
+from routers import user, organization, subscriptions, admin, notes
 from database import init_db
 from config import settings, setup_logging
 from middleware import LoggingMiddleware
@@ -64,7 +64,6 @@ app.include_router(unified_search.router, prefix="/api")
 app.include_router(lab.router, prefix="/api")
 app.include_router(research_streams.router)
 app.include_router(research_stream_chat.router)
-app.include_router(profiles.router)
 app.include_router(reports.router)
 app.include_router(general_chat.router)
 app.include_router(tools.router)
@@ -74,7 +73,8 @@ app.include_router(document_analysis.router)
 app.include_router(articles.router)
 # Smart Search 2 removed - legacy feature with EventType dependency
 
-# Multi-tenancy routers
+# User and multi-tenancy routers
+app.include_router(user.router)
 app.include_router(organization.router)
 app.include_router(subscriptions.router)
 app.include_router(admin.router)

@@ -20,7 +20,9 @@
       "Bash(dir:*)",
       "Bash(find:*)",
       "Bash(xargs ls:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(powershell -Command \"cd C:\\\\code\\\\kh\\\\backend; python test_imports.py\")",
+      "Bash(powershell -Command:*)"
     ],
     "deny": [],
     "ask": [],

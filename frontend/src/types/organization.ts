@@ -2,8 +2,9 @@
  * Organization and multi-tenancy types for Knowledge Horizon
  */
 
-// User roles (matches backend UserRole enum)
-export type UserRole = 'platform_admin' | 'org_admin' | 'member' | 'admin' | 'user' | 'tester';
+// Re-export user types that are also used in organization context
+export type { UserRole, OrgMember } from './user';
+import type { UserRole } from './user';
 
 // Stream scope
 export type StreamScope = 'global' | 'organization' | 'personal';
@@ -27,15 +28,7 @@ export interface OrganizationUpdate {
   is_active?: boolean;
 }
 
-// Members
-export interface OrgMember {
-  user_id: number;
-  email: string;
-  full_name?: string;
-  role: UserRole;
-  joined_at?: string;
-}
-
+// Member update
 export interface OrgMemberUpdate {
   role: UserRole;
 }
@@ -90,12 +83,5 @@ export interface ArticleNotesResponse {
   total_count: number;
 }
 
-// Admin types
-export interface AdminUser {
-  user_id: number;
-  email: string;
-  full_name?: string;
-  role: UserRole;
-  org_id?: number;
-  registration_date: string;
-}
+// Admin types - use User from user.ts for full user data
+export type { User as AdminUser, UserList } from './user';

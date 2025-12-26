@@ -1,6 +1,6 @@
 import { useTheme } from '../context/ThemeContext';
 import { NavLink, useLocation } from 'react-router-dom';
-import { MoonIcon, SunIcon, UserCircleIcon, HomeIcon, DocumentTextIcon, BeakerIcon, WrenchScrewdriverIcon, ShieldCheckIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline';
+import { MoonIcon, SunIcon, UserCircleIcon, HomeIcon, DocumentTextIcon, BeakerIcon, WrenchScrewdriverIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 import settings from '../config/settings';
 import { HelpGuide } from '@/components/features/help';
 import { useAuth } from '../context/AuthContext';
@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 export default function TopBar() {
     const { isDarkMode, toggleTheme } = useTheme();
     const location = useLocation();
-    const { logout, isPlatformAdmin, isOrgAdmin } = useAuth();
+    const { logout, isPlatformAdmin } = useAuth();
 
     const getLinkClass = (path: string) => {
         const isActive = location.pathname === path;
@@ -48,12 +48,6 @@ export default function TopBar() {
                         <WrenchScrewdriverIcon className="h-5 w-5 mr-2" />
                         Tools
                     </NavLink>
-                    {isOrgAdmin && (
-                        <NavLink to="/org-settings" className={getLinkClass('/org-settings')}>
-                            <BuildingOfficeIcon className="h-5 w-5 mr-2" />
-                            Organization
-                        </NavLink>
-                    )}
                     {isPlatformAdmin && (
                         <NavLink to="/admin" className={getLinkClass('/admin')}>
                             <ShieldCheckIcon className="h-5 w-5 mr-2" />

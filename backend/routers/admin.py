@@ -12,12 +12,14 @@ from database import get_db
 from models import User, UserRole, Organization, ResearchStream, StreamScope
 from services import auth_service
 from services.organization_service import OrganizationService
+from services.user_service import UserService
 from schemas.organization import (
     Organization as OrgSchema,
     OrganizationUpdate,
     OrganizationWithStats
 )
 from schemas.research_stream import ResearchStream as StreamSchema
+from schemas.user import UserRole as UserRoleSchema, User as UserSchema, UserList
 
 logger = logging.getLogger(__name__)
 
@@ -155,27 +157,9 @@ async def assign_user_to_org(
     db: Session = Depends(get_db)
 ):
     """Assign a user to an organization. Platform admin only."""
-    # Verify org exists
-    org = db.query(Organization).filter(Organization.org_id == org_id).first()
-    if not org:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Organization not found"
-        )
-
-    # Verify user exists
-    user = db.query(User).filter(User.user_id == user_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-
-    # Update user's org
-    user.org_id = org_id
-    db.commit()
-
-    return {"status": "success", "user_id": user_id, "org_id": org_id}
+    user_service = UserService(db)
+    user = user_service.assign_to_org(user_id, org_id, current_user)
+    return {"status": "success", "user_id": user.user_id, "org_id": user.org_id}
 
 
 # ==================== Global Stream Management ====================
@@ -261,67 +245,46 @@ async def delete_global_stream(
 
 @router.get(
     "/users",
+    response_model=UserList,
     summary="List all users"
 )
 async def list_all_users(
     org_id: Optional[int] = None,
+    role: Optional[UserRoleSchema] = None,
+    is_active: Optional[bool] = None,
+    limit: int = 100,
+    offset: int = 0,
     current_user: User = Depends(require_platform_admin),
     db: Session = Depends(get_db)
 ):
-    """Get all users, optionally filtered by organization. Platform admin only."""
-    query = db.query(User)
+    """Get all users with optional filters. Platform admin only."""
+    user_service = UserService(db)
+    users, total = user_service.list_users(
+        org_id=org_id,
+        role=role,
+        is_active=is_active,
+        limit=limit,
+        offset=offset
+    )
 
-    if org_id is not None:
-        query = query.filter(User.org_id == org_id)
-
-    users = query.all()
-
-    return [
-        {
-            "user_id": u.user_id,
-            "email": u.email,
-            "full_name": u.full_name,
-            "role": u.role.value,
-            "org_id": u.org_id,
-            "registration_date": u.registration_date
-        }
-        for u in users
-    ]
+    return UserList(
+        users=[UserSchema.model_validate(u) for u in users],
+        total=total
+    )
 
 
 @router.put(
     "/users/{user_id}/role",
+    response_model=UserSchema,
     summary="Update user role"
 )
 async def update_user_role(
     user_id: int,
-    new_role: UserRole,
+    new_role: UserRoleSchema,
     current_user: User = Depends(require_platform_admin),
     db: Session = Depends(get_db)
 ):
     """Update any user's role. Platform admin only."""
-    user = db.query(User).filter(User.user_id == user_id).first()
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-
-    # Prevent removing the last platform admin
-    if user.role == UserRole.PLATFORM_ADMIN and new_role != UserRole.PLATFORM_ADMIN:
-        admin_count = db.query(User).filter(User.role == UserRole.PLATFORM_ADMIN).count()
-        if admin_count <= 1:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot remove the last platform admin"
-            )
-
-    user.role = new_role
-    db.commit()
-
-    return {
-        "user_id": user.user_id,
-        "email": user.email,
-        "role": user.role.value
-    }
+    user_service = UserService(db)
+    user = user_service.update_role(user_id, new_role, current_user)
+    return UserSchema.model_validate(user)

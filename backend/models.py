@@ -10,14 +10,26 @@ Base = declarative_base()
 
 # Enums for Knowledge Horizon
 class UserRole(str, PyEnum):
-    """User privilege levels"""
-    PLATFORM_ADMIN = "platform_admin"  # Can manage global streams and orgs
-    ORG_ADMIN = "org_admin"  # Can manage org streams and members
-    MEMBER = "member"  # Regular user
-    # Legacy roles (for backward compatibility during migration)
-    ADMIN = "admin"
-    USER = "user"
-    TESTER = "tester"
+    """
+    User privilege levels.
+
+    Current roles:
+    - PLATFORM_ADMIN: Full platform access, can manage orgs and global streams
+    - ORG_ADMIN: Can manage their organization's members and stream subscriptions
+    - MEMBER: Regular user, can use streams they have access to
+
+    DEPRECATED roles (kept for database compatibility, will be removed):
+    - ADMIN, USER, TESTER: Legacy roles, migrate to PLATFORM_ADMIN/ORG_ADMIN/MEMBER
+    """
+    # Current roles
+    PLATFORM_ADMIN = "platform_admin"
+    ORG_ADMIN = "org_admin"
+    MEMBER = "member"
+    # DEPRECATED: Legacy roles - DO NOT USE in new code
+    # These exist only for database compatibility during migration
+    ADMIN = "admin"      # Migrate to PLATFORM_ADMIN
+    USER = "user"        # Migrate to MEMBER
+    TESTER = "tester"    # Migrate to MEMBER
 
 
 class StreamScope(str, PyEnum):
@@ -98,27 +110,6 @@ class User(Base):
     # Additional relationships added at end of file
 
 
-# Knowledge Horizon Tables
-class CompanyProfile(Base):
-    """Company and user profile information"""
-    __tablename__ = "company_profiles"
-
-    profile_id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, unique=True)
-    company_name = Column(String(255), nullable=False)
-    job_title = Column(String(255), nullable=False)
-    therapeutic_areas = Column(JSON, default=list)  # List of therapeutic areas
-    pipeline_products = Column(JSON, default=list)  # List of products in pipeline
-    competitors = Column(JSON, default=list)  # List of competitor companies
-    company_metadata = Column(JSON, default=dict)  # Additional company data
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Relationships
-    user = relationship("User", back_populates="company_profile")
-    research_streams = relationship("ResearchStream", back_populates="profile")
-
-
 class ResearchStream(Base):
     """Research stream with clean three-layer architecture"""
     __tablename__ = "research_streams"
@@ -137,8 +128,6 @@ class ResearchStream(Base):
 
     # Who created this stream (always set, for audit purposes)
     created_by = Column(Integer, ForeignKey("users.user_id"), nullable=True, index=True)
-
-    profile_id = Column(Integer, ForeignKey("company_profiles.profile_id"))
 
     stream_name = Column(String(255), nullable=False)
     purpose = Column(Text, nullable=False)  # High-level why this stream exists
@@ -180,7 +169,6 @@ class ResearchStream(Base):
     organization = relationship("Organization", back_populates="research_streams", foreign_keys=[org_id])
     user = relationship("User", back_populates="research_streams", foreign_keys=[user_id])
     creator = relationship("User", foreign_keys=[created_by], overlaps="created_streams")
-    profile = relationship("CompanyProfile", back_populates="research_streams")
     reports = relationship("Report", back_populates="research_stream")
     org_subscriptions = relationship("OrgStreamSubscription", back_populates="stream")
     user_subscriptions = relationship("UserStreamSubscription", back_populates="stream")
@@ -429,7 +417,6 @@ class UserStreamSubscription(Base):
 
 
 # Add relationships to User model
-User.company_profile = relationship("CompanyProfile", back_populates="user", uselist=False)
 User.research_streams = relationship("ResearchStream", back_populates="user", foreign_keys="ResearchStream.user_id")
 User.created_streams = relationship("ResearchStream", foreign_keys="ResearchStream.created_by")
 User.reports = relationship("Report", back_populates="user")

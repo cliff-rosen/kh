@@ -1,18 +1,29 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Form
 from sqlalchemy.orm import Session
-from typing import Annotated, List
+from pydantic import BaseModel, EmailStr, Field
+from typing import Annotated
 from datetime import datetime
 import logging
 
 from database import get_db
-
-from schemas import UserCreate, Token, UserResponse
-from models import User, UserRole
+from schemas.user import Token
+from models import User
 
 from services import auth_service
 from services.login_email_service import LoginEmailService
 
 logger = logging.getLogger(__name__)
+
+
+# ============== Request Schemas ==============
+
+class UserCreate(BaseModel):
+    """Request schema for user registration."""
+    email: EmailStr = Field(description="User's email address")
+    password: str = Field(
+        min_length=5,
+        description="User's password"
+    )
 
 router = APIRouter()
 
@@ -27,10 +38,10 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
     Register a new user and automatically log them in with:
     - **email**: valid email address
     - **password**: string
-    
+
     Returns JWT token and session information, same as login endpoint.
     """
-    return await auth_service.register_and_login_user(db, user)
+    return await auth_service.register_and_login_user(db, user.email, user.password)
 
 
 @router.post(
@@ -82,104 +93,8 @@ async def login(
         )
 
 
-@router.get(
-    "/me",
-    response_model=UserResponse,
-    summary="Get current user information"
-)
-async def get_current_user(
-    current_user: User = Depends(auth_service.validate_token),
-    db: Session = Depends(get_db)
-):
-    """
-    Get current user information including role and organization
-    """
-    return UserResponse(
-        email=current_user.email,
-        user_id=current_user.user_id,
-        org_id=current_user.org_id,
-        registration_date=current_user.registration_date,
-        role=current_user.role,
-        full_name=current_user.full_name
-    )
-
-
-@router.put(
-    "/users/{user_id}/role",
-    response_model=UserResponse,
-    summary="Update user role (admin only)"
-)
-async def update_user_role(
-    user_id: int,
-    new_role: UserRole,
-    current_user: User = Depends(auth_service.validate_token),
-    db: Session = Depends(get_db)
-):
-    """
-    Update a user's role. Only admins can perform this action.
-    
-    - **user_id**: ID of the user to update
-    - **new_role**: New role to assign ("admin", "user", "tester")
-    """
-    # Check if current user is admin
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can update user roles"
-        )
-    
-    # Find the target user
-    target_user = db.query(User).filter(User.user_id == user_id).first()
-    if not target_user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    
-    # Update the role
-    target_user.role = new_role
-    db.commit()
-    db.refresh(target_user)
-    
-    return UserResponse(
-        email=target_user.email,
-        user_id=target_user.user_id,
-        registration_date=target_user.registration_date,
-        role=target_user.role
-    )
-
-
-@router.get(
-    "/users",
-    response_model=List[UserResponse],
-    summary="List all users (admin only)"
-)
-async def list_users(
-    current_user: User = Depends(auth_service.validate_token),
-    db: Session = Depends(get_db)
-):
-    """
-    List all users in the system. Only admins can perform this action.
-    """
-    # Check if current user is admin
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can list users"
-        )
-    
-    # Get all users
-    users = db.query(User).all()
-    
-    return [
-        UserResponse(
-            email=user.email,
-            user_id=user.user_id,
-            registration_date=user.registration_date,
-            role=user.role
-        )
-        for user in users
-    ]
+# Note: User profile endpoints are in user.py (/api/user/me)
+# Note: User management endpoints (list users, update roles) are in admin.py
 
 
 @router.post(
@@ -275,15 +190,16 @@ async def login_with_token(
         
         # Extract username from email
         username = user.email.split('@')[0]
-        
+
         # Create JWT token data
         token_data = {
             "sub": user.email,
             "user_id": user.user_id,
+            "org_id": user.org_id,
             "username": username,
             "role": user.role.value
         }
-        
+
         # Create access token
         access_token = auth_service.create_access_token(data=token_data)
 
@@ -295,6 +211,7 @@ async def login_with_token(
             username=username,
             role=user.role,
             user_id=user.user_id,
+            org_id=user.org_id,
             email=user.email
         )
         

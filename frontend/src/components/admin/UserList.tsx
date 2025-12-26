@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { UserIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
-import type { AdminUser, UserRole, OrganizationWithStats } from '../../types/organization';
+import type { UserRole, OrganizationWithStats } from '../../types/organization';
+import type { User } from '../../types/user';
 
 const ROLE_OPTIONS: { value: UserRole; label: string; description: string }[] = [
     { value: 'platform_admin', label: 'Platform Admin', description: 'Full platform access' },
@@ -11,19 +12,20 @@ const ROLE_OPTIONS: { value: UserRole; label: string; description: string }[] = 
 ];
 
 export function UserList() {
-    const [users, setUsers] = useState<AdminUser[]>([]);
+    const [users, setUsers] = useState<User[]>([]);
+    const [totalUsers, setTotalUsers] = useState(0);
     const [organizations, setOrganizations] = useState<OrganizationWithStats[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [filterOrgId, setFilterOrgId] = useState<number | undefined>(undefined);
 
     // Edit role dialog state
-    const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+    const [editingUser, setEditingUser] = useState<User | null>(null);
     const [selectedRole, setSelectedRole] = useState<UserRole>('member');
     const [isUpdating, setIsUpdating] = useState(false);
 
     // Assign org dialog state
-    const [assigningUser, setAssigningUser] = useState<AdminUser | null>(null);
+    const [assigningUser, setAssigningUser] = useState<User | null>(null);
     const [selectedOrgId, setSelectedOrgId] = useState<number | ''>('');
     const [isAssigning, setIsAssigning] = useState(false);
 
@@ -35,11 +37,12 @@ export function UserList() {
         setIsLoading(true);
         setError(null);
         try {
-            const [userList, orgList] = await Promise.all([
-                adminApi.getAllUsers(filterOrgId),
+            const [userListResponse, orgList] = await Promise.all([
+                adminApi.getAllUsers({ org_id: filterOrgId }),
                 adminApi.getAllOrganizations()
             ]);
-            setUsers(userList);
+            setUsers(userListResponse.users);
+            setTotalUsers(userListResponse.total);
             setOrganizations(orgList);
         } catch (err) {
             setError(handleApiError(err));
@@ -79,12 +82,12 @@ export function UserList() {
         }
     };
 
-    const startEditRole = (user: AdminUser) => {
+    const startEditRole = (user: User) => {
         setEditingUser(user);
         setSelectedRole(user.role);
     };
 
-    const startAssignOrg = (user: AdminUser) => {
+    const startAssignOrg = (user: User) => {
         setAssigningUser(user);
         setSelectedOrgId(user.org_id || '');
     };
@@ -119,7 +122,7 @@ export function UserList() {
             {/* Header with Filter */}
             <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Users ({users.length})
+                    Users ({totalUsers})
                 </h2>
                 <div className="flex items-center gap-2">
                     <label className="text-sm text-gray-600 dark:text-gray-400">Filter by org:</label>

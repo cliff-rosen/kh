@@ -5,7 +5,6 @@ import { Toaster } from './components/ui/toaster';
 // contexts
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { ProfileProvider } from './context/ProfileContext';
 import { ResearchStreamProvider } from './context/ResearchStreamContext';
 import { StreamChatProvider } from './context/StreamChatContext';
 
@@ -30,7 +29,6 @@ import ReportsPage from './pages/ReportsPage';
 import ToolsPage from './pages/ToolsPage';
 import ArticleViewerPage from './pages/ArticleViewerPage';
 import AdminPage from './pages/AdminPage';
-import OrgSettingsPage from './pages/OrgSettingsPage';
 
 // Inner component that uses auth context
 function AppContent() {
@@ -65,7 +63,6 @@ function AppContent() {
             <Route path="/profile" element={<Profile />} />
             <Route path="/settings" element={<Navigate to="/profile" replace />} />
             <Route path="/admin" element={<AdminPage />} />
-            <Route path="/org-settings" element={<OrgSettingsPage />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -91,13 +88,11 @@ function AppContent() {
 
   return (
     <ThemeProvider>
-      <ProfileProvider>
-        <ResearchStreamProvider>
-          <StreamChatProvider>
-            <AuthenticatedApp />
-          </StreamChatProvider>
-        </ResearchStreamProvider>
-      </ProfileProvider>
+      <ResearchStreamProvider>
+        <StreamChatProvider>
+          <AuthenticatedApp />
+        </StreamChatProvider>
+      </ResearchStreamProvider>
       <Toaster />
     </ThemeProvider>
   );

@@ -1,35 +1,45 @@
 """
-Schemas package for Fractal Bot API
+Schemas package for Knowledge Horizon API.
+
+Core types are in schemas/user.py.
+Request schemas are defined in the routers where they're used.
 """
 
-from .auth import (
-    UserBase,
-    UserCreate,
-    UserResponse,
+# User schemas - core types
+from .user import (
+    UserRole,
+    User,
+    UserSummary,
     Token,
-    TokenData
+    TokenData,
+    UserList,
+    OrgMember,
 )
 
+# Chat schemas (for LLM interactions)
 from .chat import (
     MessageRole,
     AssetReference,
-    ChatMessage
+    ChatMessage,
 )
 
-# User session schemas removed - Knowledge Horizon uses simplified auth
-# Chat persistence model removed - not used (only ChatMessage for LLM interactions)
+# Legacy alias - UserResponse maps to User
+UserResponse = User
 
 
 __all__ = [
-    # Auth schemas
-    'UserBase',
-    'UserCreate',
-    'UserResponse',
+    # User schemas
+    'UserRole',
+    'User',
+    'UserSummary',
+    'UserResponse',  # Legacy alias
     'Token',
     'TokenData',
+    'UserList',
+    'OrgMember',
 
-    # Core chat schemas (for LLM interactions)
+    # Chat schemas
     'MessageRole',
     'AssetReference',
     'ChatMessage',
-]  
+]

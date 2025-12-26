@@ -7,9 +7,9 @@ import type {
   Organization,
   OrganizationWithStats,
   OrganizationUpdate,
-  AdminUser,
   UserRole
 } from '../../types/organization';
+import type { User, UserList } from '../../types/user';
 
 // Import ResearchStream type from existing types
 interface ResearchStream {
@@ -103,10 +103,15 @@ export const adminApi = {
   // ==================== User Management ====================
 
   /**
-   * Get all users, optionally filtered by org (platform admin only)
+   * Get all users, optionally filtered by org, role, or active status (platform admin only)
    */
-  async getAllUsers(orgId?: number): Promise<AdminUser[]> {
-    const params = orgId !== undefined ? { org_id: orgId } : {};
+  async getAllUsers(params?: {
+    org_id?: number;
+    role?: UserRole;
+    is_active?: boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<UserList> {
     const response = await api.get('/api/admin/users', { params });
     return response.data;
   },
@@ -114,7 +119,7 @@ export const adminApi = {
   /**
    * Update user role (platform admin only)
    */
-  async updateUserRole(userId: number, role: UserRole): Promise<{ user_id: number; email: string; role: string }> {
+  async updateUserRole(userId: number, role: UserRole): Promise<User> {
     const response = await api.put(`/api/admin/users/${userId}/role`, null, { params: { new_role: role } });
     return response.data;
   }
