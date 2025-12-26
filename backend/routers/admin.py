@@ -56,7 +56,7 @@ async def list_all_organizations(
 ):
     """Get all organizations with member counts. Platform admin only."""
     service = OrganizationService(db)
-    return service.get_all_organizations()
+    return service.list_organizations(include_inactive=True)
 
 
 @router.post(
@@ -71,8 +71,9 @@ async def create_organization(
     db: Session = Depends(get_db)
 ):
     """Create a new organization. Platform admin only."""
+    from schemas.organization import OrganizationCreate
     service = OrganizationService(db)
-    return service.create_organization(name, current_user.user_id)
+    return service.create_organization(OrganizationCreate(name=name))
 
 
 @router.get(
@@ -87,7 +88,7 @@ async def get_organization(
 ):
     """Get organization details by ID. Platform admin only."""
     service = OrganizationService(db)
-    org = service.get_organization_by_id(org_id)
+    org = service.get_organization_with_stats(org_id)
 
     if not org:
         raise HTTPException(

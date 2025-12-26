@@ -118,6 +118,31 @@ class OrganizationService:
 
         return result
 
+    def delete_organization(self, org_id: int) -> bool:
+        """
+        Delete an organization.
+        Will fail if the organization has members.
+        """
+        org = self.get_organization(org_id)
+        if not org:
+            return False
+
+        # Check if org has members
+        member_count = self.db.query(func.count(User.user_id)).filter(
+            User.org_id == org_id
+        ).scalar()
+
+        if member_count and member_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot delete organization with {member_count} members. Remove members first."
+            )
+
+        self.db.delete(org)
+        self.db.commit()
+        logger.info(f"Deleted organization: {org_id}")
+        return True
+
     # ==================== Member Management ====================
 
     def get_org_members(self, org_id: int) -> List[OrgMember]:
