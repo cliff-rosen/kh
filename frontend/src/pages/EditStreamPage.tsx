@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeftIcon, CogIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, CogIcon, ArrowRightIcon, UserIcon, BuildingOfficeIcon, GlobeAltIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
 
 import {
     ReportFrequency,
@@ -13,6 +13,38 @@ import {
 } from '../types';
 
 import { useResearchStream } from '../context/ResearchStreamContext';
+import { useAuth } from '../context/AuthContext';
+import { adminApi } from '../lib/api/adminApi';
+
+// Scope badge component (same as in StreamsPage)
+const ScopeBadge = ({ scope }: { scope: string }) => {
+    const config = {
+        personal: {
+            icon: UserIcon,
+            label: 'Personal',
+            className: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+        },
+        organization: {
+            icon: BuildingOfficeIcon,
+            label: 'Organization',
+            className: 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300'
+        },
+        global: {
+            icon: GlobeAltIcon,
+            label: 'Global',
+            className: 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+        }
+    };
+
+    const { icon: Icon, label, className } = config[scope as keyof typeof config] || config.personal;
+
+    return (
+        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-sm font-medium ${className}`}>
+            <Icon className="h-4 w-4" />
+            {label}
+        </span>
+    );
+};
 import SemanticSpaceForm from '../components/SemanticSpaceForm';
 import PresentationForm from '../components/PresentationForm';
 import RetrievalConfigForm from '../components/RetrievalConfigForm';
@@ -44,8 +76,10 @@ export default function EditStreamPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const { researchStreams, loadResearchStreams, loadResearchStream, updateResearchStream, deleteResearchStream, isLoading, error, clearError } = useResearchStream();
+    const { isPlatformAdmin } = useAuth();
 
     const [stream, setStream] = useState<any>(null);
+    const [isPromoting, setIsPromoting] = useState(false);
 
     // Enrichment config state for chat context
     const [enrichmentConfig, setEnrichmentConfig] = useState<{
@@ -251,6 +285,32 @@ export default function EditStreamPage() {
                 navigate('/streams');
             } catch (err) {
                 console.error('Failed to delete stream:', err);
+            }
+        }
+    };
+
+    const handlePromoteToGlobal = async () => {
+        if (!id || !stream) return;
+
+        const confirmPromote = window.confirm(
+            `Are you sure you want to promote "${form.stream_name}" to a global stream? ` +
+            `This will make it available for all organizations to subscribe to.`
+        );
+
+        if (confirmPromote) {
+            setIsPromoting(true);
+            try {
+                await adminApi.setStreamScopeGlobal(Number(id));
+                // Reload stream to get updated scope
+                await loadResearchStream(Number(id));
+                // Update local stream state
+                setStream((prev: any) => ({ ...prev, scope: 'global' }));
+                alert('Stream has been promoted to global scope.');
+            } catch (err) {
+                console.error('Failed to promote stream:', err);
+                alert('Failed to promote stream. Please try again.');
+            } finally {
+                setIsPromoting(false);
             }
         }
     };
@@ -482,9 +542,25 @@ export default function EditStreamPage() {
                     <ArrowLeftIcon className="h-4 w-4 mr-1" />
                     Back to Streams
                 </button>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                    Edit Research Stream
-                </h1>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                            Edit Research Stream
+                        </h1>
+                        {stream && <ScopeBadge scope={stream.scope || 'personal'} />}
+                    </div>
+                    {/* Promote to Global button - only for platform admins on non-global streams */}
+                    {isPlatformAdmin && stream && stream.scope !== 'global' && (
+                        <button
+                            onClick={handlePromoteToGlobal}
+                            disabled={isPromoting}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                        >
+                            <ArrowUpIcon className="h-4 w-4" />
+                            {isPromoting ? 'Promoting...' : 'Promote to Global'}
+                        </button>
+                    )}
+                </div>
             </div>
 
             {error && (

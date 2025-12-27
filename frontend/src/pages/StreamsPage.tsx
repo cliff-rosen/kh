@@ -1,8 +1,38 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlusIcon, BeakerIcon, PencilIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, BeakerIcon, PencilIcon, UserIcon, BuildingOfficeIcon, GlobeAltIcon } from '@heroicons/react/24/outline';
 
 import { useResearchStream } from '../context/ResearchStreamContext';
+
+// Scope badge component
+const ScopeBadge = ({ scope }: { scope: string }) => {
+    const config = {
+        personal: {
+            icon: UserIcon,
+            label: 'Personal',
+            className: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+        },
+        organization: {
+            icon: BuildingOfficeIcon,
+            label: 'Organization',
+            className: 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300'
+        },
+        global: {
+            icon: GlobeAltIcon,
+            label: 'Global',
+            className: 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+        }
+    };
+
+    const { icon: Icon, label, className } = config[scope as keyof typeof config] || config.personal;
+
+    return (
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${className}`}>
+            <Icon className="h-3 w-3" />
+            {label}
+        </span>
+    );
+};
 import ChatTray from '../components/chat/ChatTray';
 import StreamSuggestionsCard from '../components/chat/StreamSuggestionsCard';
 import PortfolioInsightsCard from '../components/chat/PortfolioInsightsCard';
@@ -102,9 +132,12 @@ export default function StreamsPage() {
                             <div className="p-6">
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex-1">
-                                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                                            {stream.stream_name}
-                                        </h3>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                                {stream.stream_name}
+                                            </h3>
+                                            <ScopeBadge scope={stream.scope || 'personal'} />
+                                        </div>
                                         {stream.purpose && (
                                             <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                                                 {stream.purpose}
