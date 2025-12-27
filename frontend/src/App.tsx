@@ -76,6 +76,11 @@ function AppContent() {
       <ThemeProvider>
         <Routes>
           <Route path="/auth/token-login" element={<TokenLogin />} />
+          <Route path="/register" element={
+            <div className="min-h-screen flex items-center justify-center dark:bg-gray-900 bg-gray-50">
+              <LoginForm />
+            </div>
+          } />
           <Route path="*" element={
             <div className="min-h-screen flex items-center justify-center dark:bg-gray-900 bg-gray-50">
               <LoginForm />

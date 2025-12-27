@@ -5,11 +5,14 @@ Requires platform_admin role for all operations.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
+from datetime import datetime, timedelta
+import secrets
 import logging
 
 from database import get_db
-from models import User, UserRole, Organization, ResearchStream, StreamScope
+from models import User, UserRole, Organization, ResearchStream, StreamScope, Invitation
 from services import auth_service
 from services.organization_service import OrganizationService
 from services.user_service import UserService
@@ -288,4 +291,255 @@ async def update_user_role(
     """Update any user's role. Platform admin only."""
     user_service = UserService(db)
     user = user_service.update_role(user_id, new_role, current_user)
+    return UserSchema.model_validate(user)
+
+
+# ==================== Invitation Management ====================
+
+class InvitationCreate(BaseModel):
+    """Request schema for creating an invitation."""
+    email: EmailStr = Field(description="Email address to invite")
+    org_id: int = Field(description="Organization to assign user to")
+    role: UserRoleSchema = Field(
+        default=UserRoleSchema.MEMBER,
+        description="Role to assign (member or org_admin)"
+    )
+    expires_in_days: int = Field(default=7, ge=1, le=30, description="Days until expiration")
+
+
+class InvitationResponse(BaseModel):
+    """Response schema for invitation."""
+    invitation_id: int
+    email: str
+    org_id: int
+    org_name: str
+    role: str
+    token: str
+    invite_url: str
+    created_at: datetime
+    expires_at: datetime
+    accepted_at: Optional[datetime] = None
+    is_revoked: bool = False
+    inviter_email: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class CreateUserRequest(BaseModel):
+    """Request schema for directly creating a user."""
+    email: EmailStr = Field(description="User's email address")
+    password: str = Field(min_length=5, description="User's password")
+    full_name: Optional[str] = Field(default=None, description="User's full name")
+    org_id: int = Field(description="Organization to assign user to")
+    role: UserRoleSchema = Field(
+        default=UserRoleSchema.MEMBER,
+        description="Role to assign"
+    )
+
+
+@router.get(
+    "/invitations",
+    response_model=List[InvitationResponse],
+    summary="List all invitations"
+)
+async def list_invitations(
+    org_id: Optional[int] = None,
+    include_accepted: bool = False,
+    include_expired: bool = False,
+    current_user: User = Depends(require_platform_admin),
+    db: Session = Depends(get_db)
+):
+    """Get all invitations with optional filters. Platform admin only."""
+    query = db.query(Invitation)
+
+    if org_id:
+        query = query.filter(Invitation.org_id == org_id)
+
+    if not include_accepted:
+        query = query.filter(Invitation.accepted_at == None)
+
+    if not include_expired:
+        query = query.filter(Invitation.expires_at > datetime.utcnow())
+
+    query = query.filter(Invitation.is_revoked == False)
+    invitations = query.order_by(Invitation.created_at.desc()).all()
+
+    result = []
+    for inv in invitations:
+        org = db.query(Organization).filter(Organization.org_id == inv.org_id).first()
+        inviter = db.query(User).filter(User.user_id == inv.invited_by).first() if inv.invited_by else None
+
+        result.append(InvitationResponse(
+            invitation_id=inv.invitation_id,
+            email=inv.email,
+            org_id=inv.org_id,
+            org_name=org.name if org else "Unknown",
+            role=inv.role,
+            token=inv.token,
+            invite_url=f"/register?token={inv.token}",
+            created_at=inv.created_at,
+            expires_at=inv.expires_at,
+            accepted_at=inv.accepted_at,
+            is_revoked=inv.is_revoked,
+            inviter_email=inviter.email if inviter else None
+        ))
+
+    return result
+
+
+@router.post(
+    "/invitations",
+    response_model=InvitationResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new invitation"
+)
+async def create_invitation(
+    invitation: InvitationCreate,
+    current_user: User = Depends(require_platform_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Create an invitation for a new user.
+    Returns an invitation token that can be used during registration.
+    Platform admin only.
+    """
+    # Check if email already registered
+    existing_user = db.query(User).filter(User.email == invitation.email).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User with this email already exists"
+        )
+
+    # Check if pending invitation exists
+    existing_invite = db.query(Invitation).filter(
+        Invitation.email == invitation.email,
+        Invitation.accepted_at == None,
+        Invitation.is_revoked == False,
+        Invitation.expires_at > datetime.utcnow()
+    ).first()
+
+    if existing_invite:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A pending invitation for this email already exists"
+        )
+
+    # Verify organization exists
+    org = db.query(Organization).filter(Organization.org_id == invitation.org_id).first()
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found"
+        )
+
+    # Validate role
+    if invitation.role == UserRoleSchema.PLATFORM_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot invite platform admins via invitation"
+        )
+
+    # Generate secure token
+    token = secrets.token_urlsafe(32)
+
+    # Create invitation
+    new_invitation = Invitation(
+        email=invitation.email,
+        token=token,
+        org_id=invitation.org_id,
+        role=invitation.role.value,
+        invited_by=current_user.user_id,
+        expires_at=datetime.utcnow() + timedelta(days=invitation.expires_in_days)
+    )
+
+    db.add(new_invitation)
+    db.commit()
+    db.refresh(new_invitation)
+
+    logger.info(f"Created invitation for {invitation.email} to org {org.name}")
+
+    return InvitationResponse(
+        invitation_id=new_invitation.invitation_id,
+        email=new_invitation.email,
+        org_id=new_invitation.org_id,
+        org_name=org.name,
+        role=new_invitation.role,
+        token=new_invitation.token,
+        invite_url=f"/register?token={new_invitation.token}",
+        created_at=new_invitation.created_at,
+        expires_at=new_invitation.expires_at,
+        accepted_at=new_invitation.accepted_at,
+        is_revoked=new_invitation.is_revoked,
+        inviter_email=current_user.email
+    )
+
+
+@router.delete(
+    "/invitations/{invitation_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Revoke an invitation"
+)
+async def revoke_invitation(
+    invitation_id: int,
+    current_user: User = Depends(require_platform_admin),
+    db: Session = Depends(get_db)
+):
+    """Revoke an invitation. Platform admin only."""
+    invitation = db.query(Invitation).filter(
+        Invitation.invitation_id == invitation_id
+    ).first()
+
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found"
+        )
+
+    if invitation.accepted_at:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot revoke an already accepted invitation"
+        )
+
+    invitation.is_revoked = True
+    db.commit()
+
+    logger.info(f"Revoked invitation {invitation_id} for {invitation.email}")
+
+
+@router.post(
+    "/users/create",
+    response_model=UserSchema,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a user directly"
+)
+async def create_user_directly(
+    user_data: CreateUserRequest,
+    current_user: User = Depends(require_platform_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Create a user directly without invitation.
+    Platform admin only.
+    """
+    # Verify organization exists
+    org = db.query(Organization).filter(Organization.org_id == user_data.org_id).first()
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found"
+        )
+
+    user_service = UserService(db)
+    user = user_service.create_user(
+        email=user_data.email,
+        password=user_data.password,
+        full_name=user_data.full_name,
+        role=user_data.role,
+        org_id=user_data.org_id
+    )
+
+    logger.info(f"Platform admin {current_user.email} created user {user.email}")
     return UserSchema.model_validate(user)

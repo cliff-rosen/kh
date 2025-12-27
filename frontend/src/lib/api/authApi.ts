@@ -8,6 +8,16 @@ export interface LoginCredentials {
 export interface RegisterCredentials {
     email: string;
     password: string;
+    invitation_token?: string;
+}
+
+export interface InvitationValidation {
+    valid: boolean;
+    email?: string;
+    org_name?: string;
+    role?: string;
+    expires_at?: string;
+    error?: string;
 }
 
 export interface AuthResponse {
@@ -79,6 +89,14 @@ export const authApi = {
      */
     async register(credentials: RegisterCredentials): Promise<AuthResponse> {
         const response = await api.post('/api/auth/register', credentials);
+        return response.data;
+    },
+
+    /**
+     * Validate an invitation token (public endpoint)
+     */
+    async validateInvitation(token: string): Promise<InvitationValidation> {
+        const response = await api.get(`/api/auth/validate-invitation/${token}`);
         return response.data;
     },
 

@@ -85,3 +85,19 @@ export interface ArticleNotesResponse {
 
 // Admin types - use User from user.ts for full user data
 export type { User as AdminUser, UserList } from './user';
+
+// Invitation
+export interface Invitation {
+  invitation_id: number;
+  email: string;
+  org_id: number;
+  org_name: string;
+  role: string;
+  token: string;
+  invite_url: string;
+  created_at: string;
+  expires_at: string;
+  accepted_at?: string;
+  is_revoked: boolean;
+  inviter_email?: string;
+}

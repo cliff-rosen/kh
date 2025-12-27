@@ -7,7 +7,8 @@ import type {
   Organization,
   OrganizationWithStats,
   OrganizationUpdate,
-  UserRole
+  UserRole,
+  Invitation
 } from '../../types/organization';
 import type { User, UserList } from '../../types/user';
 
@@ -121,6 +122,54 @@ export const adminApi = {
    */
   async updateUserRole(userId: number, role: UserRole): Promise<User> {
     const response = await api.put(`/api/admin/users/${userId}/role`, null, { params: { new_role: role } });
+    return response.data;
+  },
+
+  // ==================== Invitation Management ====================
+
+  /**
+   * Get all invitations (platform admin only)
+   */
+  async getInvitations(params?: {
+    org_id?: number;
+    include_accepted?: boolean;
+    include_expired?: boolean;
+  }): Promise<Invitation[]> {
+    const response = await api.get('/api/admin/invitations', { params });
+    return response.data;
+  },
+
+  /**
+   * Create a new invitation (platform admin only)
+   */
+  async createInvitation(data: {
+    email: string;
+    org_id: number;
+    role?: UserRole;
+    expires_in_days?: number;
+  }): Promise<Invitation> {
+    const response = await api.post('/api/admin/invitations', data);
+    return response.data;
+  },
+
+  /**
+   * Revoke an invitation (platform admin only)
+   */
+  async revokeInvitation(invitationId: number): Promise<void> {
+    await api.delete(`/api/admin/invitations/${invitationId}`);
+  },
+
+  /**
+   * Create a user directly (platform admin only)
+   */
+  async createUser(data: {
+    email: string;
+    password: string;
+    full_name?: string;
+    org_id: number;
+    role?: UserRole;
+  }): Promise<User> {
+    const response = await api.post('/api/admin/users/create', data);
     return response.data;
   }
 };

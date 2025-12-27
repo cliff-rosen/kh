@@ -77,6 +77,27 @@ class Organization(Base):
     users = relationship("User", back_populates="organization")
     research_streams = relationship("ResearchStream", back_populates="organization", foreign_keys="ResearchStream.org_id")
     stream_subscriptions = relationship("OrgStreamSubscription", back_populates="organization")
+    invitations = relationship("Invitation", back_populates="organization")
+
+
+class Invitation(Base):
+    """User invitation for registration"""
+    __tablename__ = "invitations"
+
+    invitation_id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), nullable=False, index=True)
+    token = Column(String(255), nullable=False, unique=True, index=True)
+    org_id = Column(Integer, ForeignKey("organizations.org_id", ondelete="CASCADE"), nullable=True)
+    role = Column(String(50), default="member", nullable=False)
+    invited_by = Column(Integer, ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+    accepted_at = Column(DateTime, nullable=True)
+    is_revoked = Column(Boolean, default=False)
+
+    # Relationships
+    organization = relationship("Organization", back_populates="invitations")
+    inviter = relationship("User", foreign_keys=[invited_by])
 
 
 # Core User table

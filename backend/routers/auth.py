@@ -7,7 +7,7 @@ import logging
 
 from database import get_db
 from schemas.user import Token
-from models import User
+from models import User, Invitation, Organization
 
 from services import auth_service
 from services.login_email_service import LoginEmailService
@@ -28,6 +28,21 @@ class UserCreate(BaseModel):
         min_length=5,
         description="User's password"
     )
+    invitation_token: str | None = Field(
+        default=None,
+        description="Optional invitation token for org assignment"
+    )
+
+
+class InvitationValidation(BaseModel):
+    """Response schema for invitation validation."""
+    valid: bool
+    email: str | None = None
+    org_name: str | None = None
+    role: str | None = None
+    expires_at: datetime | None = None
+    error: str | None = None
+
 
 router = APIRouter()
 
@@ -42,10 +57,64 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
     Register a new user and automatically log them in with:
     - **email**: valid email address
     - **password**: string
+    - **invitation_token**: optional invitation token for org assignment
 
     Returns JWT token and session information, same as login endpoint.
+
+    If no invitation token is provided, user is assigned to the default organization.
+    If an invitation token is provided, user is assigned to the organization and role
+    specified in the invitation.
     """
-    return await auth_service.register_and_login_user(db, user.email, user.password)
+    return await auth_service.register_and_login_user(
+        db, user.email, user.password, user.invitation_token
+    )
+
+
+@router.get(
+    "/validate-invitation/{token}",
+    response_model=InvitationValidation,
+    summary="Validate an invitation token"
+)
+async def validate_invitation(token: str, db: Session = Depends(get_db)):
+    """
+    Validate an invitation token and return invitation details.
+    This is a public endpoint (no authentication required).
+
+    Returns:
+    - **valid**: Whether the invitation is valid
+    - **email**: Email the invitation was sent to
+    - **org_name**: Organization name the user will join
+    - **role**: Role the user will be assigned
+    - **expires_at**: When the invitation expires
+    - **error**: Error message if invalid
+    """
+    invitation = db.query(Invitation).filter(
+        Invitation.token == token
+    ).first()
+
+    if not invitation:
+        return InvitationValidation(valid=False, error="Invitation not found")
+
+    if invitation.is_revoked:
+        return InvitationValidation(valid=False, error="Invitation has been revoked")
+
+    if invitation.accepted_at:
+        return InvitationValidation(valid=False, error="Invitation has already been used")
+
+    if invitation.expires_at < datetime.utcnow():
+        return InvitationValidation(valid=False, error="Invitation has expired")
+
+    # Get organization name
+    org = db.query(Organization).filter(Organization.org_id == invitation.org_id).first()
+    org_name = org.name if org else "Unknown Organization"
+
+    return InvitationValidation(
+        valid=True,
+        email=invitation.email,
+        org_name=org_name,
+        role=invitation.role,
+        expires_at=invitation.expires_at
+    )
 
 
 @router.post(
