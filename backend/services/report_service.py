@@ -8,12 +8,16 @@ service for report-related operations.
 
 import logging
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
-from typing import List, Optional, Dict, Any
+from sqlalchemy import and_, or_
+from typing import List, Optional, Dict, Any, Set
 from datetime import date, datetime
 from fastapi import HTTPException, status
 
-from models import Report, ReportArticleAssociation, Article, WipArticle
+from models import (
+    Report, ReportArticleAssociation, Article, WipArticle,
+    ResearchStream, User, UserRole, StreamScope,
+    OrgStreamSubscription, UserStreamSubscription
+)
 from schemas.report import Report as ReportSchema
 
 logger = logging.getLogger(__name__)
@@ -30,13 +34,89 @@ class ReportService:
     def __init__(self, db: Session):
         self.db = db
 
+    def _user_has_stream_access(self, user: User, stream: ResearchStream) -> bool:
+        """
+        Check if a user has access to view reports for a stream.
+
+        Access rules:
+        - Personal streams: only the creator
+        - Organization streams: all members of that org (who are subscribed or org admins)
+        - Global streams: platform admins + members of subscribed orgs
+        """
+        if not stream:
+            return False
+
+        # Personal stream - only creator
+        if stream.scope == StreamScope.PERSONAL:
+            return stream.user_id == user.user_id
+
+        # Organization stream - must be in the same org
+        if stream.scope == StreamScope.ORGANIZATION:
+            if user.role == UserRole.PLATFORM_ADMIN:
+                return True
+            return user.org_id == stream.org_id
+
+        # Global stream
+        if stream.scope == StreamScope.GLOBAL:
+            # Platform admins can see all global streams
+            if user.role == UserRole.PLATFORM_ADMIN:
+                return True
+            # Check if user's org is subscribed
+            if user.org_id:
+                subscription = self.db.query(OrgStreamSubscription).filter(
+                    and_(
+                        OrgStreamSubscription.org_id == user.org_id,
+                        OrgStreamSubscription.stream_id == stream.stream_id
+                    )
+                ).first()
+                return subscription is not None
+
+        return False
+
+    def _get_accessible_stream_ids(self, user: User) -> Set[int]:
+        """Get all stream IDs the user can access reports for."""
+        accessible_ids = set()
+
+        # Personal streams created by user
+        personal_streams = self.db.query(ResearchStream.stream_id).filter(
+            and_(
+                ResearchStream.scope == StreamScope.PERSONAL,
+                ResearchStream.user_id == user.user_id
+            )
+        ).all()
+        accessible_ids.update(s[0] for s in personal_streams)
+
+        # Platform admins see all global streams
+        if user.role == UserRole.PLATFORM_ADMIN:
+            global_streams = self.db.query(ResearchStream.stream_id).filter(
+                ResearchStream.scope == StreamScope.GLOBAL
+            ).all()
+            accessible_ids.update(s[0] for s in global_streams)
+        elif user.org_id:
+            # Org streams for user's org
+            org_streams = self.db.query(ResearchStream.stream_id).filter(
+                and_(
+                    ResearchStream.scope == StreamScope.ORGANIZATION,
+                    ResearchStream.org_id == user.org_id
+                )
+            ).all()
+            accessible_ids.update(s[0] for s in org_streams)
+
+            # Global streams the user's org is subscribed to
+            subscribed_global = self.db.query(OrgStreamSubscription.stream_id).filter(
+                OrgStreamSubscription.org_id == user.org_id
+            ).all()
+            accessible_ids.update(s[0] for s in subscribed_global)
+
+        return accessible_ids
+
     def get_report(self, report_id: int, user_id: int) -> Report:
         """
         Get a report by ID for a user.
 
         Args:
             report_id: The report ID
-            user_id: The user ID (for ownership verification)
+            user_id: The user ID (for access verification)
 
         Returns:
             Report ORM model
@@ -45,10 +125,7 @@ class ReportService:
             HTTPException: 404 if report not found or user doesn't have access
         """
         report = self.db.query(Report).filter(
-            and_(
-                Report.report_id == report_id,
-                Report.user_id == user_id
-            )
+            Report.report_id == report_id
         ).first()
 
         if not report:
@@ -57,15 +134,34 @@ class ReportService:
                 detail="Report not found"
             )
 
+        # Check stream access
+        user = self.db.query(User).filter(User.user_id == user_id).first()
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == report.research_stream_id
+        ).first()
+
+        if not user or not self._user_has_stream_access(user, stream):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+
         return report
 
     def get_reports_for_stream(self, research_stream_id: int, user_id: int) -> List[ReportSchema]:
-        """Get all reports for a research stream"""
+        """Get all reports for a research stream that the user has access to."""
+        # Check stream access
+        user = self.db.query(User).filter(User.user_id == user_id).first()
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == research_stream_id
+        ).first()
+
+        if not user or not stream or not self._user_has_stream_access(user, stream):
+            return []
+
+        # Get all reports for this stream (not filtered by user_id)
         reports = self.db.query(Report).filter(
-            and_(
-                Report.research_stream_id == research_stream_id,
-                Report.user_id == user_id
-            )
+            Report.research_stream_id == research_stream_id
         ).order_by(Report.report_date.desc()).all()
 
         # Add article count to each report
@@ -81,12 +177,19 @@ class ReportService:
         return result
 
     def get_latest_report_for_stream(self, research_stream_id: int, user_id: int) -> Optional[ReportSchema]:
-        """Get the most recent report for a research stream"""
+        """Get the most recent report for a research stream that the user has access to."""
+        # Check stream access
+        user = self.db.query(User).filter(User.user_id == user_id).first()
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == research_stream_id
+        ).first()
+
+        if not user or not stream or not self._user_has_stream_access(user, stream):
+            return None
+
+        # Get latest report for this stream (not filtered by user_id)
         report = self.db.query(Report).filter(
-            and_(
-                Report.research_stream_id == research_stream_id,
-                Report.user_id == user_id
-            )
+            Report.research_stream_id == research_stream_id
         ).order_by(Report.report_date.desc()).first()
 
         if not report:
@@ -102,9 +205,20 @@ class ReportService:
         return ReportSchema(**report_dict)
 
     def get_recent_reports(self, user_id: int, limit: int = 5) -> List[ReportSchema]:
-        """Get the most recent reports across all streams for a user"""
+        """Get the most recent reports across all accessible streams for a user."""
+        user = self.db.query(User).filter(User.user_id == user_id).first()
+        if not user:
+            return []
+
+        # Get all accessible stream IDs
+        accessible_stream_ids = self._get_accessible_stream_ids(user)
+
+        if not accessible_stream_ids:
+            return []
+
+        # Get recent reports from accessible streams
         reports = self.db.query(Report).filter(
-            Report.user_id == user_id
+            Report.research_stream_id.in_(accessible_stream_ids)
         ).order_by(Report.created_at.desc()).limit(limit).all()
 
         result = []
@@ -119,15 +233,21 @@ class ReportService:
         return result
 
     def get_report_with_articles(self, report_id: int, user_id: int) -> Optional[Dict[str, Any]]:
-        """Get a report with its associated articles"""
+        """Get a report with its associated articles for a user with stream access."""
         report = self.db.query(Report).filter(
-            and_(
-                Report.report_id == report_id,
-                Report.user_id == user_id
-            )
+            Report.report_id == report_id
         ).first()
 
         if not report:
+            return None
+
+        # Check stream access
+        user = self.db.query(User).filter(User.user_id == user_id).first()
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == report.research_stream_id
+        ).first()
+
+        if not user or not self._user_has_stream_access(user, stream):
             return None
 
         # Get articles with association data
@@ -180,21 +300,27 @@ class ReportService:
 
         Args:
             report_id: The report ID
-            user_id: The user ID (for ownership verification)
+            user_id: The user ID (for access verification)
             included_only: If True, only return articles with included_in_report=True
 
         Returns:
             List of WipArticle objects
         """
-        # Get the report to verify ownership and get pipeline_execution_id
+        # Get the report
         report = self.db.query(Report).filter(
-            and_(
-                Report.report_id == report_id,
-                Report.user_id == user_id
-            )
+            Report.report_id == report_id
         ).first()
 
         if not report or not report.pipeline_execution_id:
+            return []
+
+        # Check stream access
+        user = self.db.query(User).filter(User.user_id == user_id).first()
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == report.research_stream_id
+        ).first()
+
+        if not user or not self._user_has_stream_access(user, stream):
             return []
 
         # Build query
@@ -357,19 +483,25 @@ class ReportService:
 
         Args:
             report_id: Report ID
-            user_id: User ID for ownership verification
+            user_id: User ID for access verification
 
         Returns:
             Dict with report data and wip_articles, or None if not found
         """
         report = self.db.query(Report).filter(
-            and_(
-                Report.report_id == report_id,
-                Report.user_id == user_id
-            )
+            Report.report_id == report_id
         ).first()
 
         if not report:
+            return None
+
+        # Check stream access
+        user = self.db.query(User).filter(User.user_id == user_id).first()
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == report.research_stream_id
+        ).first()
+
+        if not user or not self._user_has_stream_access(user, stream):
             return None
 
         # Get WIP articles if pipeline execution exists
@@ -432,25 +564,31 @@ class ReportService:
         user_id: int
     ) -> Optional[ReportArticleAssociation]:
         """
-        Get a specific article association, verifying report ownership.
+        Get a specific article association, verifying stream access.
 
         Args:
             report_id: The report ID
             article_id: The article ID
-            user_id: The user ID (for ownership verification)
+            user_id: The user ID (for access verification)
 
         Returns:
             ReportArticleAssociation or None if not found
         """
-        # Verify report exists and belongs to user
+        # Verify report exists
         report = self.db.query(Report).filter(
-            and_(
-                Report.report_id == report_id,
-                Report.user_id == user_id
-            )
+            Report.report_id == report_id
         ).first()
 
         if not report:
+            return None
+
+        # Check stream access
+        user = self.db.query(User).filter(User.user_id == user_id).first()
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == report.research_stream_id
+        ).first()
+
+        if not user or not self._user_has_stream_access(user, stream):
             return None
 
         # Find the association
@@ -557,21 +695,27 @@ class ReportService:
 
         Args:
             report_id: The report ID
-            user_id: The user ID (for ownership verification)
+            user_id: The user ID (for access verification)
 
         Returns:
             Dict with analytics data, or None if report not found.
             Raises ValueError if report has no pipeline execution data.
         """
-        # Verify report exists and belongs to user
+        # Verify report exists
         report = self.db.query(Report).filter(
-            and_(
-                Report.report_id == report_id,
-                Report.user_id == user_id
-            )
+            Report.report_id == report_id
         ).first()
 
         if not report:
+            return None
+
+        # Check stream access
+        user = self.db.query(User).filter(User.user_id == user_id).first()
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == report.research_stream_id
+        ).first()
+
+        if not user or not self._user_has_stream_access(user, stream):
             return None
 
         # Check for pipeline execution ID
