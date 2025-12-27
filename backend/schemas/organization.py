@@ -43,6 +43,7 @@ class OrganizationWithStats(Organization):
     """Organization with member/stream counts."""
     member_count: int = 0
     stream_count: int = 0
+    pending_invitation_count: int = 0
 
 
 # ============== Member Schemas ==============

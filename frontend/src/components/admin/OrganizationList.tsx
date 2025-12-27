@@ -124,7 +124,7 @@ export function OrganizationList() {
                                 Organization
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                Members
+                                Members / Pending
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 Streams
@@ -153,8 +153,13 @@ export function OrganizationList() {
                                         </div>
                                     </div>
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                    {org.member_count}
+                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                    <span className="text-gray-900 dark:text-white">{org.member_count}</span>
+                                    {org.pending_invitation_count > 0 && (
+                                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                                            +{org.pending_invitation_count} pending
+                                        </span>
+                                    )}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                                     {org.stream_count}

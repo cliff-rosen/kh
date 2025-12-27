@@ -12,7 +12,8 @@ from fastapi import HTTPException, status
 
 from models import (
     Organization, User, ResearchStream, UserRole,
-    OrgStreamSubscription, UserStreamSubscription, StreamScope
+    OrgStreamSubscription, UserStreamSubscription, StreamScope,
+    Invitation
 )
 from schemas.organization import (
     OrganizationCreate, OrganizationUpdate, Organization as OrgSchema,
@@ -48,7 +49,7 @@ class OrganizationService:
         return OrgSchema.model_validate(org)
 
     def get_organization_with_stats(self, org_id: int) -> Optional[OrganizationWithStats]:
-        """Get organization with member and stream counts."""
+        """Get organization with member, stream, and pending invitation counts."""
         org = self.get_organization(org_id)
         if not org:
             return None
@@ -64,6 +65,16 @@ class OrganizationService:
             )
         ).scalar()
 
+        # Count pending invitations (not accepted, not revoked, not expired)
+        pending_invitation_count = self.db.query(func.count(Invitation.invitation_id)).filter(
+            and_(
+                Invitation.org_id == org_id,
+                Invitation.accepted_at == None,
+                Invitation.is_revoked == False,
+                Invitation.expires_at > datetime.utcnow()
+            )
+        ).scalar()
+
         return OrganizationWithStats(
             org_id=org.org_id,
             name=org.name,
@@ -71,7 +82,8 @@ class OrganizationService:
             created_at=org.created_at,
             updated_at=org.updated_at,
             member_count=member_count or 0,
-            stream_count=stream_count or 0
+            stream_count=stream_count or 0,
+            pending_invitation_count=pending_invitation_count or 0
         )
 
     def create_organization(self, data: OrganizationCreate) -> Organization:

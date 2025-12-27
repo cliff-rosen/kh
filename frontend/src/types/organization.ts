@@ -21,6 +21,7 @@ export interface Organization {
 export interface OrganizationWithStats extends Organization {
   member_count: number;
   stream_count: number;
+  pending_invitation_count: number;
 }
 
 export interface OrganizationUpdate {
