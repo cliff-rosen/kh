@@ -42,6 +42,42 @@ from routers.auth import get_current_user
 router = APIRouter(prefix="/api/research-streams", tags=["research-streams"])
 
 
+def _check_can_modify_stream(stream, current_user: User):
+    """
+    Check if user can modify (edit/delete/run) a stream.
+
+    Rules:
+    - Global streams: Only platform admins can modify
+    - Organization streams: Only org admins of that org (or platform admins)
+    - Personal streams: Only the creator (or platform admins)
+
+    Raises HTTPException if not authorized.
+    """
+    # Normalize scope to string for comparison (handles both enum and string)
+    scope = getattr(stream.scope, 'value', stream.scope) if stream.scope else 'personal'
+
+    if scope == StreamScope.GLOBAL.value:
+        if current_user.role != UserRole.PLATFORM_ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only platform admins can modify global streams"
+            )
+    elif scope == StreamScope.ORGANIZATION.value:
+        if current_user.role == UserRole.PLATFORM_ADMIN:
+            return  # Platform admins can modify any stream
+        if current_user.role != UserRole.ORG_ADMIN or current_user.org_id != stream.org_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only org admins can modify organization streams"
+            )
+    else:  # Personal stream
+        if stream.user_id != current_user.user_id and current_user.role != UserRole.PLATFORM_ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only modify your own personal streams"
+            )
+
+
 @router.get("/metadata/sources", response_model=List[InformationSource])
 async def get_information_sources():
     """Get the authoritative list of information sources"""
@@ -187,6 +223,9 @@ async def update_research_stream(
             detail="Research stream not found"
         )
 
+    # Check if user can modify this stream (based on scope and role)
+    _check_can_modify_stream(existing_stream, current_user)
+
     # Prepare update data (only non-None values)
     update_data = {k: v for k, v in request.dict().items() if v is not None}
 
@@ -215,6 +254,9 @@ async def delete_research_stream(
             detail="Research stream not found"
         )
 
+    # Check if user can modify this stream (based on scope and role)
+    _check_can_modify_stream(existing_stream, current_user)
+
     service.delete_research_stream(stream_id)
 
 
@@ -235,6 +277,9 @@ async def toggle_research_stream_status(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Research stream not found"
         )
+
+    # Check if user can modify this stream (based on scope and role)
+    _check_can_modify_stream(existing_stream, current_user)
 
     return service.update_research_stream(stream_id, {"is_active": request.is_active})
 
@@ -280,7 +325,10 @@ async def update_broad_query(
 
     try:
         # Verify ownership (will raise if not found/unauthorized)
-        service.get_research_stream(stream_id, current_user.user_id)
+        stream = service.get_research_stream(stream_id, current_user.user_id)
+
+        # Check if user can modify this stream (based on scope and role)
+        _check_can_modify_stream(stream, current_user)
 
         # Update via service
         updated_stream = service.update_broad_query(
@@ -320,7 +368,10 @@ async def update_semantic_filter(
 
     try:
         # Verify ownership (will raise if not found/unauthorized)
-        service.get_research_stream(stream_id, current_user.user_id)
+        stream = service.get_research_stream(stream_id, current_user.user_id)
+
+        # Check if user can modify this stream (based on scope and role)
+        _check_can_modify_stream(stream, current_user)
 
         # Update via service
         updated_stream = service.update_semantic_filter(
@@ -839,6 +890,9 @@ async def execute_pipeline(
     try:
         # Verify stream exists and user has access
         stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+
+        # Check if user can run this stream (based on scope and role)
+        _check_can_modify_stream(stream, current_user)
 
         # Parse run type
         run_type_value = RunType.MANUAL

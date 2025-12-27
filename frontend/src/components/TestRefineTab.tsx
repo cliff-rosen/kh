@@ -8,11 +8,12 @@ interface TestRefineTabProps {
     streamId: number;
     stream: ResearchStream;
     onStreamUpdate: () => void;
+    canModify?: boolean;
 }
 
 type SubTab = 'workbench' | 'pipeline';
 
-export default function TestRefineTab({ streamId, stream, onStreamUpdate }: TestRefineTabProps) {
+export default function TestRefineTab({ streamId, stream, onStreamUpdate, canModify = true }: TestRefineTabProps) {
     const [searchParams] = useSearchParams();
 
     // Check URL params for initial subtab
@@ -56,8 +57,8 @@ export default function TestRefineTab({ streamId, stream, onStreamUpdate }: Test
 
             {/* Sub-Tab Content */}
             <div>
-                {activeSubTab === 'workbench' && <QueryRefinementWorkbench streamId={streamId} stream={stream} onStreamUpdate={onStreamUpdate} />}
-                {activeSubTab === 'pipeline' && <ExecutePipelineTab streamId={streamId} />}
+                {activeSubTab === 'workbench' && <QueryRefinementWorkbench streamId={streamId} stream={stream} onStreamUpdate={onStreamUpdate} canModify={canModify} />}
+                {activeSubTab === 'pipeline' && <ExecutePipelineTab streamId={streamId} canModify={canModify} />}
             </div>
         </div>
     );

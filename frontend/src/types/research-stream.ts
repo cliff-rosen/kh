@@ -162,6 +162,10 @@ export interface ResearchStream {
     created_at: string;  // ISO 8601 datetime string
     updated_at: string;  // ISO 8601 datetime string
 
+    // === SCOPE & ORGANIZATION ===
+    scope?: 'personal' | 'organization' | 'global';  // Stream visibility scope
+    org_id?: number | null;  // Organization ID for organization-scoped streams
+
     // === AGGREGATED DATA ===
     report_count?: number;
     latest_report_date?: string | null;  // ISO 8601 date string

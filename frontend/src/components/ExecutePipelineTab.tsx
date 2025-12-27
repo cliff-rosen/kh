@@ -4,9 +4,10 @@ import { researchStreamApi, PipelineStatus } from '../lib/api/researchStreamApi'
 
 interface ExecutePipelineTabProps {
     streamId: number;
+    canModify?: boolean;
 }
 
-export default function ExecutePipelineTab({ streamId }: ExecutePipelineTabProps) {
+export default function ExecutePipelineTab({ streamId, canModify = true }: ExecutePipelineTabProps) {
     const [isExecuting, setIsExecuting] = useState(false);
     const [statusLog, setStatusLog] = useState<PipelineStatus[]>([]);
     const [error, setError] = useState<string | null>(null);
@@ -205,9 +206,10 @@ export default function ExecutePipelineTab({ streamId }: ExecutePipelineTabProps
                 <button
                     type="button"
                     onClick={executePipeline}
-                    disabled={isExecuting}
+                    disabled={isExecuting || !canModify}
+                    title={!canModify ? 'You do not have permission to run this stream' : undefined}
                     className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
-                        isExecuting
+                        isExecuting || !canModify
                             ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                             : 'bg-orange-600 hover:bg-orange-700 text-white'
                     }`}

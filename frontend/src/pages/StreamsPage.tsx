@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { PlusIcon, BeakerIcon, PencilIcon, UserIcon, BuildingOfficeIcon, GlobeAltIcon } from '@heroicons/react/24/outline';
 
 import { useResearchStream } from '../context/ResearchStreamContext';
+import { useAuth } from '../context/AuthContext';
+import type { ResearchStream } from '../types';
 
 // Scope badge component
 const ScopeBadge = ({ scope }: { scope: string }) => {
@@ -41,6 +43,25 @@ import QuickSetupCard from '../components/chat/QuickSetupCard';
 export default function StreamsPage() {
     const navigate = useNavigate();
     const { researchStreams, loadResearchStreams, isLoading, error, clearError } = useResearchStream();
+    const { user, isPlatformAdmin, isOrgAdmin } = useAuth();
+
+    // Check if user can modify a stream (edit/delete/run)
+    const canModifyStream = (stream: ResearchStream): boolean => {
+        const scope = stream.scope || 'personal';
+
+        if (scope === 'global') {
+            // Only platform admins can modify global streams
+            return isPlatformAdmin;
+        } else if (scope === 'organization') {
+            // Platform admins and org admins of the same org can modify
+            if (isPlatformAdmin) return true;
+            return isOrgAdmin && user?.org_id === stream.org_id;
+        } else {
+            // Personal streams: only creator or platform admins
+            if (isPlatformAdmin) return true;
+            return stream.user_id === user?.id;
+        }
+    };
 
     useEffect(() => {
         loadResearchStreams();
@@ -145,16 +166,18 @@ export default function StreamsPage() {
                                         )}
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                navigate(`/streams/${stream.stream_id}/edit`);
-                                            }}
-                                            className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-                                            title="Edit stream"
-                                        >
-                                            <PencilIcon className="h-4 w-4" />
-                                        </button>
+                                        {canModifyStream(stream) && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    navigate(`/streams/${stream.stream_id}/edit`);
+                                                }}
+                                                className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                                                title="Edit stream"
+                                            >
+                                                <PencilIcon className="h-4 w-4" />
+                                            </button>
+                                        )}
                                         <div className={`w-3 h-3 rounded-full ${stream.is_active ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                                     </div>
                                 </div>

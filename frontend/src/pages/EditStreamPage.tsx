@@ -9,7 +9,8 @@ import {
     Topic,
     Entity,
     RetrievalConfig,
-    Concept
+    Concept,
+    ResearchStream
 } from '../types';
 
 import { useResearchStream } from '../context/ResearchStreamContext';
@@ -76,9 +77,30 @@ export default function EditStreamPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const { researchStreams, loadResearchStreams, loadResearchStream, updateResearchStream, deleteResearchStream, isLoading, error, clearError } = useResearchStream();
-    const { isPlatformAdmin } = useAuth();
+    const { user, isPlatformAdmin, isOrgAdmin } = useAuth();
 
     const [stream, setStream] = useState<any>(null);
+
+    // Check if user can modify this stream (edit/delete/run)
+    const canModifyStream = (streamToCheck: ResearchStream | null): boolean => {
+        if (!streamToCheck) return false;
+        const scope = streamToCheck.scope || 'personal';
+
+        if (scope === 'global') {
+            // Only platform admins can modify global streams
+            return isPlatformAdmin;
+        } else if (scope === 'organization') {
+            // Platform admins and org admins of the same org can modify
+            if (isPlatformAdmin) return true;
+            return isOrgAdmin && user?.org_id === streamToCheck.org_id;
+        } else {
+            // Personal streams: only creator or platform admins
+            if (isPlatformAdmin) return true;
+            return streamToCheck.user_id === user?.id;
+        }
+    };
+
+    const canModify = canModifyStream(stream);
     const [isPromoting, setIsPromoting] = useState(false);
 
     // Enrichment config state for chat context
@@ -563,6 +585,15 @@ export default function EditStreamPage() {
                 </div>
             </div>
 
+            {/* Read-only warning for streams user can't modify */}
+            {stream && !canModify && (
+                <div className="mx-6 mt-4 bg-blue-50 dark:bg-blue-900/50 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+                    <p className="text-blue-800 dark:text-blue-200">
+                        <strong>View Only:</strong> This {stream.scope === 'global' ? 'global' : stream.scope === 'organization' ? 'organization' : 'personal'} stream can only be {stream.scope === 'global' ? 'modified by platform administrators' : stream.scope === 'organization' ? 'modified by organization administrators' : 'modified by its creator'}.
+                    </p>
+                </div>
+            )}
+
             {error && (
                 <div className="mx-6 mt-4 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-700 rounded-lg p-4">
                     <p className="text-red-800 dark:text-red-200">{error}</p>
@@ -798,6 +829,7 @@ export default function EditStreamPage() {
                                 streamId={parseInt(id!)}
                                 stream={stream}
                                 onStreamUpdate={() => loadResearchStream(parseInt(id!))}
+                                canModify={canModify}
                             />
                         )}
 
@@ -808,23 +840,29 @@ export default function EditStreamPage() {
             {/* Pinned Footer Actions */}
             <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-4">
                 <div className="max-w-7xl mx-auto flex justify-between">
-                    <button
-                        type="button"
-                        onClick={handleDelete}
-                        className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                    >
-                        Delete Stream
-                    </button>
+                    {/* Only show delete button if user can modify this stream */}
+                    {canModify ? (
+                        <button
+                            type="button"
+                            onClick={handleDelete}
+                            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                        >
+                            Delete Stream
+                        </button>
+                    ) : (
+                        <div /> // Empty div to maintain flex layout
+                    )}
                     <div className="flex gap-3">
                         <button
                             type="button"
                             onClick={() => navigate('/streams')}
                             className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                         >
-                            Cancel
+                            {canModify ? 'Cancel' : 'Back to Streams'}
                         </button>
                         {/* Hide main save button on enrichment and execute tabs - they have their own controls */}
-                        {activeTab !== 'enrichment' && activeTab !== 'execute' && (
+                        {/* Also hide save button if user can't modify this stream */}
+                        {canModify && activeTab !== 'enrichment' && activeTab !== 'execute' && (
                             <button
                                 type="submit"
                                 form="edit-stream-form"

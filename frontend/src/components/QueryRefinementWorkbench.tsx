@@ -23,6 +23,7 @@ interface QueryRefinementWorkbenchProps {
     streamId: number;
     stream: ResearchStream;
     onStreamUpdate: () => void;
+    canModify?: boolean;
 }
 
 type StepType = 'source' | 'filter' | 'categorize';
@@ -38,7 +39,9 @@ interface WorkflowStep {
 
 type ResultView = 'raw' | 'compare' | 'analyze';
 
-export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpdate }: QueryRefinementWorkbenchProps) {
+export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpdate, canModify: _canModify = true }: QueryRefinementWorkbenchProps) {
+    // Note: _canModify is currently unused as the backend enforces permissions,
+    // but the prop is accepted for future UI enhancements
     const [steps, setSteps] = useState<WorkflowStep[]>([
         {
             id: 'step_1',
