@@ -16,10 +16,12 @@ from models import User, UserRole, Organization, ResearchStream, StreamScope, In
 from services import auth_service
 from services.organization_service import OrganizationService
 from services.user_service import UserService
+from services.subscription_service import SubscriptionService
 from schemas.organization import (
     Organization as OrgSchema,
     OrganizationUpdate,
-    OrganizationWithStats
+    OrganizationWithStats,
+    StreamSubscriptionStatus
 )
 from schemas.research_stream import ResearchStream as StreamSchema
 from schemas.user import UserRole as UserRoleSchema, User as UserSchema, UserList
@@ -543,3 +545,100 @@ async def create_user_directly(
 
     logger.info(f"Platform admin {current_user.email} created user {user.email}")
     return UserSchema.model_validate(user)
+
+
+# ==================== Organization Stream Subscriptions ====================
+
+@router.get(
+    "/orgs/{org_id}/global-streams",
+    response_model=List[StreamSubscriptionStatus],
+    summary="List global streams with subscription status for an org"
+)
+async def list_org_global_stream_subscriptions(
+    org_id: int,
+    current_user: User = Depends(require_platform_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all global streams with subscription status for the specified org.
+    Platform admin only.
+    """
+    # Verify org exists
+    org = db.query(Organization).filter(Organization.org_id == org_id).first()
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found"
+        )
+
+    sub_service = SubscriptionService(db)
+    result = sub_service.get_global_streams_for_org(org_id)
+    return result.streams
+
+
+@router.post(
+    "/orgs/{org_id}/global-streams/{stream_id}",
+    status_code=status.HTTP_201_CREATED,
+    summary="Subscribe an org to a global stream"
+)
+async def subscribe_org_to_global_stream(
+    org_id: int,
+    stream_id: int,
+    current_user: User = Depends(require_platform_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Subscribe an organization to a global stream.
+    Platform admin only.
+    """
+    # Verify org exists
+    org = db.query(Organization).filter(Organization.org_id == org_id).first()
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found"
+        )
+
+    # Verify stream is global
+    stream = db.query(ResearchStream).filter(
+        ResearchStream.stream_id == stream_id,
+        ResearchStream.scope == StreamScope.GLOBAL
+    ).first()
+    if not stream:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Global stream not found"
+        )
+
+    sub_service = SubscriptionService(db)
+    sub_service.subscribe_org_to_global_stream(org_id, stream_id, current_user.user_id)
+
+    logger.info(f"Platform admin subscribed org {org_id} to global stream {stream_id}")
+    return {"status": "subscribed", "org_id": org_id, "stream_id": stream_id}
+
+
+@router.delete(
+    "/orgs/{org_id}/global-streams/{stream_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Unsubscribe an org from a global stream"
+)
+async def unsubscribe_org_from_global_stream(
+    org_id: int,
+    stream_id: int,
+    current_user: User = Depends(require_platform_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Unsubscribe an organization from a global stream.
+    Platform admin only.
+    """
+    sub_service = SubscriptionService(db)
+    success = sub_service.unsubscribe_org_from_global_stream(org_id, stream_id)
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Subscription not found"
+        )
+
+    logger.info(f"Platform admin unsubscribed org {org_id} from global stream {stream_id}")

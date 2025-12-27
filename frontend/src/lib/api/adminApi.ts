@@ -8,7 +8,8 @@ import type {
   OrganizationWithStats,
   OrganizationUpdate,
   UserRole,
-  Invitation
+  Invitation,
+  StreamSubscriptionStatus
 } from '../../types/organization';
 import type { User, UserList } from '../../types/user';
 
@@ -171,5 +172,29 @@ export const adminApi = {
   }): Promise<User> {
     const response = await api.post('/api/admin/users/create', data);
     return response.data;
+  },
+
+  // ==================== Organization Stream Subscriptions ====================
+
+  /**
+   * Get global streams with subscription status for an org (platform admin only)
+   */
+  async getOrgGlobalStreams(orgId: number): Promise<StreamSubscriptionStatus[]> {
+    const response = await api.get(`/api/admin/orgs/${orgId}/global-streams`);
+    return response.data;
+  },
+
+  /**
+   * Subscribe an org to a global stream (platform admin only)
+   */
+  async subscribeOrgToGlobalStream(orgId: number, streamId: number): Promise<void> {
+    await api.post(`/api/admin/orgs/${orgId}/global-streams/${streamId}`);
+  },
+
+  /**
+   * Unsubscribe an org from a global stream (platform admin only)
+   */
+  async unsubscribeOrgFromGlobalStream(orgId: number, streamId: number): Promise<void> {
+    await api.delete(`/api/admin/orgs/${orgId}/global-streams/${streamId}`);
   }
 };

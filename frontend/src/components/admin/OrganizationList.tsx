@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { PlusIcon, PencilIcon, TrashIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, PencilIcon, TrashIcon, BuildingOfficeIcon, SignalIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
-import type { OrganizationWithStats } from '../../types/organization';
+import type { OrganizationWithStats, StreamSubscriptionStatus } from '../../types/organization';
 
 export function OrganizationList() {
     const [organizations, setOrganizations] = useState<OrganizationWithStats[]>([]);
@@ -18,6 +18,12 @@ export function OrganizationList() {
     const [editingOrg, setEditingOrg] = useState<OrganizationWithStats | null>(null);
     const [editName, setEditName] = useState('');
     const [isUpdating, setIsUpdating] = useState(false);
+
+    // Stream subscription dialog state
+    const [streamSubOrg, setStreamSubOrg] = useState<OrganizationWithStats | null>(null);
+    const [globalStreams, setGlobalStreams] = useState<StreamSubscriptionStatus[]>([]);
+    const [isLoadingStreams, setIsLoadingStreams] = useState(false);
+    const [isTogglingStream, setIsTogglingStream] = useState<number | null>(null);
 
     useEffect(() => {
         loadOrganizations();
@@ -83,6 +89,39 @@ export function OrganizationList() {
     const startEdit = (org: OrganizationWithStats) => {
         setEditingOrg(org);
         setEditName(org.name);
+    };
+
+    const openStreamSubscriptions = async (org: OrganizationWithStats) => {
+        setStreamSubOrg(org);
+        setIsLoadingStreams(true);
+        try {
+            const streams = await adminApi.getOrgGlobalStreams(org.org_id);
+            setGlobalStreams(streams);
+        } catch (err) {
+            setError(handleApiError(err));
+        } finally {
+            setIsLoadingStreams(false);
+        }
+    };
+
+    const toggleStreamSubscription = async (stream: StreamSubscriptionStatus) => {
+        if (!streamSubOrg) return;
+
+        setIsTogglingStream(stream.stream_id);
+        try {
+            if (stream.is_org_subscribed) {
+                await adminApi.unsubscribeOrgFromGlobalStream(streamSubOrg.org_id, stream.stream_id);
+            } else {
+                await adminApi.subscribeOrgToGlobalStream(streamSubOrg.org_id, stream.stream_id);
+            }
+            // Refresh streams list
+            const streams = await adminApi.getOrgGlobalStreams(streamSubOrg.org_id);
+            setGlobalStreams(streams);
+        } catch (err) {
+            setError(handleApiError(err));
+        } finally {
+            setIsTogglingStream(null);
+        }
     };
 
     if (isLoading) {
@@ -175,6 +214,13 @@ export function OrganizationList() {
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                                     <button
+                                        onClick={() => openStreamSubscriptions(org)}
+                                        className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 mr-3"
+                                        title="Manage Stream Subscriptions"
+                                    >
+                                        <SignalIcon className="h-5 w-5" />
+                                    </button>
+                                    <button
                                         onClick={() => startEdit(org)}
                                         className="text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 mr-3"
                                         title="Edit"
@@ -265,6 +311,79 @@ export function OrganizationList() {
                                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
                             >
                                 {isUpdating ? 'Saving...' : 'Save'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Stream Subscriptions Dialog */}
+            {streamSubOrg && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-lg max-h-[80vh] flex flex-col">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                            Global Stream Subscriptions
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                            Manage which global streams <strong>{streamSubOrg.name}</strong> is subscribed to.
+                        </p>
+
+                        {isLoadingStreams ? (
+                            <div className="flex items-center justify-center py-8">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                            </div>
+                        ) : globalStreams.length === 0 ? (
+                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                No global streams available. Create a global stream first.
+                            </div>
+                        ) : (
+                            <div className="flex-1 overflow-y-auto space-y-2 mb-4">
+                                {globalStreams.map((stream) => (
+                                    <div
+                                        key={stream.stream_id}
+                                        className={`flex items-center justify-between p-3 rounded-lg border ${
+                                            stream.is_org_subscribed
+                                                ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20'
+                                                : 'border-gray-200 dark:border-gray-700'
+                                        }`}
+                                    >
+                                        <div className="flex-1">
+                                            <div className="font-medium text-gray-900 dark:text-white">
+                                                {stream.stream_name}
+                                            </div>
+                                            {stream.purpose && (
+                                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                    {stream.purpose}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={() => toggleStreamSubscription(stream)}
+                                            disabled={isTogglingStream === stream.stream_id}
+                                            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                                                stream.is_org_subscribed
+                                                    ? 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400'
+                                                    : 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400'
+                                            } disabled:opacity-50`}
+                                        >
+                                            {isTogglingStream === stream.stream_id
+                                                ? '...'
+                                                : stream.is_org_subscribed
+                                                    ? 'Unsubscribe'
+                                                    : 'Subscribe'
+                                            }
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="flex justify-end">
+                            <button
+                                onClick={() => setStreamSubOrg(null)}
+                                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+                            >
+                                Close
                             </button>
                         </div>
                     </div>
