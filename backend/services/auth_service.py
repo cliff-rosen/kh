@@ -18,6 +18,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from models import User
 from schemas.user import Token
+from services.user_service import UserService
 from config.settings import settings
 from database import get_db
 import logging
@@ -265,7 +266,8 @@ async def validate_token(
             logger.debug(f"Token expires in {time_until_expiry} seconds")
 
         # Get user from database
-        user = db.query(User).filter(User.email == email).first()
+        user_service = UserService(db)
+        user = user_service.get_user_by_email(email)
         if user is None:
             logger.error(f"Token user not found: {email}")
             raise HTTPException(

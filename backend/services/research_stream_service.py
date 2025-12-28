@@ -13,6 +13,7 @@ from models import (
     ResearchStream, Report, User, UserRole, StreamScope,
     OrgStreamSubscription, UserStreamSubscription
 )
+from services.user_service import UserService
 
 logger = logging.getLogger(__name__)
 from schemas.research_stream import ResearchStream as ResearchStreamSchema
@@ -37,6 +38,14 @@ def serialize_json_data(data: Any) -> Any:
 class ResearchStreamService:
     def __init__(self, db: Session):
         self.db = db
+        self._user_service: Optional[UserService] = None
+
+    @property
+    def user_service(self) -> UserService:
+        """Lazy-load UserService."""
+        if self._user_service is None:
+            self._user_service = UserService(self.db)
+        return self._user_service
 
     def _get_accessible_stream_ids(self, user: User) -> Set[int]:
         """
@@ -124,7 +133,7 @@ class ResearchStreamService:
         This includes personal streams, subscribed org streams, and global streams (via org subscription).
         """
         # Get the user for access control
-        user = self.db.query(User).filter(User.user_id == user_id).first()
+        user = self.user_service.get_user_by_id(user_id)
         if not user:
             return []
 
@@ -170,7 +179,7 @@ class ResearchStreamService:
             HTTPException: 404 if stream not found or user doesn't have access
         """
         # Get the user for access control
-        user = self.db.query(User).filter(User.user_id == user_id).first()
+        user = self.user_service.get_user_by_id(user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -225,7 +234,7 @@ class ResearchStreamService:
         For global streams: user_id and org_id are both NULL (platform admin only)
         """
         # Get the user for org_id (if creating personal stream)
-        user = self.db.query(User).filter(User.user_id == user_id).first()
+        user = self.user_service.get_user_by_id(user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

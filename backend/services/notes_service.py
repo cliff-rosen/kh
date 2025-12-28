@@ -10,6 +10,7 @@ import uuid
 import logging
 
 from models import User, ReportArticleAssociation, Report
+from services.user_service import UserService
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,14 @@ class NotesService:
 
     def __init__(self, db: Session):
         self.db = db
+        self._user_service: Optional[UserService] = None
+
+    @property
+    def user_service(self) -> UserService:
+        """Lazy-load UserService."""
+        if self._user_service is None:
+            self._user_service = UserService(self.db)
+        return self._user_service
 
     def _get_article_association(
         self,
@@ -94,7 +103,7 @@ class NotesService:
             # User can see shared notes from their org
             elif visibility == "shared" and user.org_id:
                 # Check if note author is in same org
-                author = self.db.query(User).filter(User.user_id == note_user_id).first()
+                author = self.user_service.get_user_by_id(note_user_id)
                 if author and author.org_id == user.org_id:
                     visible_notes.append(note)
 

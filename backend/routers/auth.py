@@ -7,9 +7,10 @@ import logging
 
 from database import get_db
 from schemas.user import Token
-from models import User, Invitation, Organization
+from models import Invitation, Organization
 
 from services import auth_service
+from services.user_service import UserService
 from services.login_email_service import LoginEmailService
 
 logger = logging.getLogger(__name__)
@@ -186,34 +187,32 @@ async def request_login_token(
     The token will be sent to the email address and expires in 30 minutes.
     """
     try:
+        user_service = UserService(db)
+
         # Find user by email
-        user = db.query(User).filter(User.email == email).first()
+        user = user_service.get_user_by_email(email)
         if not user:
             # For security, don't reveal if email exists or not
             return {"message": "If an account with this email exists, a login link has been sent."}
-        
+
         # Generate login token
         email_service = LoginEmailService()
         token, expires_at = email_service.generate_login_token()
-        
+
         # Store token in database
-        user.login_token = token
-        user.login_token_expires = expires_at
-        db.commit()
-        
+        user_service.update_login_token(user.user_id, token, expires_at)
+
         # Send email
         success = await email_service.send_login_token(email, token)
-        
+
         if not success:
             # Clear token if email failed
-            user.login_token = None
-            user.login_token_expires = None
-            db.commit()
+            user_service.clear_login_token(user.user_id)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to send login email. Please try again."
             )
-        
+
         return {"message": "If an account with this email exists, a login link has been sent."}
         
     except HTTPException:
@@ -244,23 +243,20 @@ async def login_with_token(
     The login token can only be used once and expires after 30 minutes.
     """
     try:
+        user_service = UserService(db)
+
         # Find user by login token
-        user = db.query(User).filter(
-            User.login_token == token,
-            User.login_token_expires > datetime.utcnow()
-        ).first()
-        
+        user = user_service.get_user_by_login_token(token)
+
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired login token"
             )
-        
+
         # Clear the login token (one-time use)
-        user.login_token = None
-        user.login_token_expires = None
-        db.commit()
-        
+        user_service.clear_login_token(user.user_id)
+
         # Extract username from email
         username = user.email.split('@')[0]
 

@@ -19,6 +19,7 @@ from models import (
     OrgStreamSubscription, UserStreamSubscription
 )
 from schemas.report import Report as ReportSchema
+from services.user_service import UserService
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,14 @@ class ReportService:
 
     def __init__(self, db: Session):
         self.db = db
+        self._user_service: Optional[UserService] = None
+
+    @property
+    def user_service(self) -> UserService:
+        """Lazy-load UserService."""
+        if self._user_service is None:
+            self._user_service = UserService(self.db)
+        return self._user_service
 
     def _user_has_stream_access(self, user: User, stream: ResearchStream) -> bool:
         """
@@ -135,7 +144,7 @@ class ReportService:
             )
 
         # Check stream access
-        user = self.db.query(User).filter(User.user_id == user_id).first()
+        user = self.user_service.get_user_by_id(user_id)
         stream = self.db.query(ResearchStream).filter(
             ResearchStream.stream_id == report.research_stream_id
         ).first()
@@ -151,7 +160,7 @@ class ReportService:
     def get_reports_for_stream(self, research_stream_id: int, user_id: int) -> List[ReportSchema]:
         """Get all reports for a research stream that the user has access to."""
         # Check stream access
-        user = self.db.query(User).filter(User.user_id == user_id).first()
+        user = self.user_service.get_user_by_id(user_id)
         stream = self.db.query(ResearchStream).filter(
             ResearchStream.stream_id == research_stream_id
         ).first()
@@ -179,7 +188,7 @@ class ReportService:
     def get_latest_report_for_stream(self, research_stream_id: int, user_id: int) -> Optional[ReportSchema]:
         """Get the most recent report for a research stream that the user has access to."""
         # Check stream access
-        user = self.db.query(User).filter(User.user_id == user_id).first()
+        user = self.user_service.get_user_by_id(user_id)
         stream = self.db.query(ResearchStream).filter(
             ResearchStream.stream_id == research_stream_id
         ).first()
@@ -206,7 +215,7 @@ class ReportService:
 
     def get_recent_reports(self, user_id: int, limit: int = 5) -> List[ReportSchema]:
         """Get the most recent reports across all accessible streams for a user."""
-        user = self.db.query(User).filter(User.user_id == user_id).first()
+        user = self.user_service.get_user_by_id(user_id)
         if not user:
             return []
 
@@ -242,7 +251,7 @@ class ReportService:
             return None
 
         # Check stream access
-        user = self.db.query(User).filter(User.user_id == user_id).first()
+        user = self.user_service.get_user_by_id(user_id)
         stream = self.db.query(ResearchStream).filter(
             ResearchStream.stream_id == report.research_stream_id
         ).first()
@@ -315,7 +324,7 @@ class ReportService:
             return []
 
         # Check stream access
-        user = self.db.query(User).filter(User.user_id == user_id).first()
+        user = self.user_service.get_user_by_id(user_id)
         stream = self.db.query(ResearchStream).filter(
             ResearchStream.stream_id == report.research_stream_id
         ).first()
@@ -496,7 +505,7 @@ class ReportService:
             return None
 
         # Check stream access
-        user = self.db.query(User).filter(User.user_id == user_id).first()
+        user = self.user_service.get_user_by_id(user_id)
         stream = self.db.query(ResearchStream).filter(
             ResearchStream.stream_id == report.research_stream_id
         ).first()
@@ -583,7 +592,7 @@ class ReportService:
             return None
 
         # Check stream access
-        user = self.db.query(User).filter(User.user_id == user_id).first()
+        user = self.user_service.get_user_by_id(user_id)
         stream = self.db.query(ResearchStream).filter(
             ResearchStream.stream_id == report.research_stream_id
         ).first()
@@ -710,7 +719,7 @@ class ReportService:
             return None
 
         # Check stream access
-        user = self.db.query(User).filter(User.user_id == user_id).first()
+        user = self.user_service.get_user_by_id(user_id)
         stream = self.db.query(ResearchStream).filter(
             ResearchStream.stream_id == report.research_stream_id
         ).first()

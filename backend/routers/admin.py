@@ -367,10 +367,11 @@ async def list_invitations(
     query = query.filter(Invitation.is_revoked == False)
     invitations = query.order_by(Invitation.created_at.desc()).all()
 
+    user_service = UserService(db)
     result = []
     for inv in invitations:
         org = db.query(Organization).filter(Organization.org_id == inv.org_id).first()
-        inviter = db.query(User).filter(User.user_id == inv.invited_by).first() if inv.invited_by else None
+        inviter = user_service.get_user_by_id(inv.invited_by) if inv.invited_by else None
 
         result.append(InvitationResponse(
             invitation_id=inv.invitation_id,
@@ -406,8 +407,10 @@ async def create_invitation(
     Returns an invitation token that can be used during registration.
     Platform admin only.
     """
+    user_service = UserService(db)
+
     # Check if email already registered
-    existing_user = db.query(User).filter(User.email == invitation.email).first()
+    existing_user = user_service.get_user_by_email(invitation.email)
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

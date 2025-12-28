@@ -101,6 +101,21 @@ class UserService:
         """Get user by email."""
         return self.db.query(UserModel).filter(UserModel.email == email).first()
 
+    def get_user_by_login_token(self, token: str) -> Optional[UserModel]:
+        """
+        Get user by valid (non-expired) login token.
+
+        Args:
+            token: Login token to look up
+
+        Returns:
+            User if token is valid and not expired, None otherwise
+        """
+        return self.db.query(UserModel).filter(
+            UserModel.login_token == token,
+            UserModel.login_token_expires > datetime.utcnow()
+        ).first()
+
     def get_user_or_404(self, user_id: int) -> UserModel:
         """Get user by ID or raise 404."""
         user = self.get_user_by_id(user_id)
@@ -144,8 +159,10 @@ class UserService:
         return users, total
 
     def get_org_members(self, org_id: int) -> List[OrgMember]:
-        """Get all members of an organization."""
-        users = self.db.query(UserModel).filter(UserModel.org_id == org_id).all()
+        """Get all members of an organization, ordered by name."""
+        users = self.db.query(UserModel).filter(
+            UserModel.org_id == org_id
+        ).order_by(UserModel.full_name, UserModel.email).all()
 
         return [
             OrgMember(
@@ -157,6 +174,13 @@ class UserService:
             )
             for u in users
         ]
+
+    def get_user_in_org(self, user_id: int, org_id: int) -> Optional[UserModel]:
+        """Get user by ID only if they belong to the specified organization."""
+        return self.db.query(UserModel).filter(
+            UserModel.user_id == user_id,
+            UserModel.org_id == org_id
+        ).first()
 
     # ==================== Update Operations ====================
 
@@ -389,6 +413,34 @@ class UserService:
         return user
 
     # ==================== Authentication Helpers ====================
+
+    def update_login_token(
+        self,
+        user_id: int,
+        token: Optional[str],
+        expires_at: Optional[datetime]
+    ) -> UserModel:
+        """
+        Update user's login token (used for passwordless login).
+
+        Args:
+            user_id: User to update
+            token: Login token (or None to clear)
+            expires_at: Token expiration time (or None to clear)
+
+        Returns:
+            Updated user
+        """
+        user = self.get_user_or_404(user_id)
+        user.login_token = token
+        user.login_token_expires = expires_at
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
+    def clear_login_token(self, user_id: int) -> UserModel:
+        """Clear user's login token after use."""
+        return self.update_login_token(user_id, None, None)
 
     def verify_credentials(self, email: str, password: str) -> Optional[UserModel]:
         """

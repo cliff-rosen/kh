@@ -19,6 +19,7 @@ from schemas.organization import (
     OrganizationCreate, OrganizationUpdate, Organization as OrgSchema,
     OrganizationWithStats, OrgMember, OrgMemberUpdate
 )
+from services.user_service import UserService
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,14 @@ class OrganizationService:
 
     def __init__(self, db: Session):
         self.db = db
+        self._user_service: Optional[UserService] = None
+
+    @property
+    def user_service(self) -> UserService:
+        """Lazy-load UserService to avoid circular imports."""
+        if self._user_service is None:
+            self._user_service = UserService(self.db)
+        return self._user_service
 
     # ==================== Organization CRUD ====================
 
@@ -159,20 +168,7 @@ class OrganizationService:
 
     def get_org_members(self, org_id: int) -> List[OrgMember]:
         """Get all members of an organization."""
-        members = self.db.query(User).filter(
-            User.org_id == org_id
-        ).order_by(User.full_name, User.email).all()
-
-        return [
-            OrgMember(
-                user_id=m.user_id,
-                email=m.email,
-                full_name=m.full_name,
-                role=m.role,
-                joined_at=m.created_at
-            )
-            for m in members
-        ]
+        return self.user_service.get_org_members(org_id)
 
     def update_member_role(
         self,
@@ -183,12 +179,7 @@ class OrganizationService:
     ) -> Optional[OrgMember]:
         """Update a member's role (org admin only)."""
         # Verify the target user is in the same org
-        target_user = self.db.query(User).filter(
-            and_(
-                User.user_id == user_id,
-                User.org_id == org_id
-            )
-        ).first()
+        target_user = self.user_service.get_user_in_org(user_id, org_id)
 
         if not target_user:
             return None
@@ -238,12 +229,7 @@ class OrganizationService:
                 detail="Cannot remove yourself from the organization"
             )
 
-        target_user = self.db.query(User).filter(
-            and_(
-                User.user_id == user_id,
-                User.org_id == org_id
-            )
-        ).first()
+        target_user = self.user_service.get_user_in_org(user_id, org_id)
 
         if not target_user:
             return False
