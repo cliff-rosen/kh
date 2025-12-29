@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
     BeakerIcon,
     ChevronDownIcon,
@@ -13,11 +13,41 @@ import {
     FunnelIcon,
     TagIcon,
     DocumentTextIcon,
-    ArrowDownIcon
+    ArrowDownIcon,
+    ClockIcon,
+    ArrowsRightLeftIcon,
+    ChevronDoubleRightIcon,
+    ChevronDoubleLeftIcon
 } from '@heroicons/react/24/outline';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { ResearchStream } from '../types';
 import { CanonicalResearchArticle } from '../types/canonical_types';
+
+// ============================================================================
+// Query Snapshot Types for Version History
+// ============================================================================
+
+export interface QuerySnapshot {
+    id: string;
+    timestamp: Date;
+    stepType: 'source' | 'filter' | 'categorize';
+    // Source step info
+    queryExpression?: string;
+    queryIndex?: number;
+    startDate?: string;
+    endDate?: string;
+    // Filter step info
+    filterCriteria?: string;
+    filterThreshold?: number;
+    // Results
+    articles: CanonicalResearchArticle[];
+    articleCount: number;
+    // For filter results
+    passedCount?: number;
+    failedCount?: number;
+    // Optional user label
+    label?: string;
+}
 
 // Exported state interface for parent components to consume
 export interface WorkbenchState {
@@ -79,6 +109,43 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
     const [focusedStepId, setFocusedStepId] = useState<string>('step_1');
     const [resultView, setResultView] = useState<ResultView>('raw');
     const [resultsPaneCollapsed, setResultsPaneCollapsed] = useState(false);
+
+    // Version History State
+    const [snapshots, setSnapshots] = useState<QuerySnapshot[]>([]);
+    const [historyPanelOpen, setHistoryPanelOpen] = useState(true);
+    const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
+    const [compareMode, setCompareMode] = useState(false);
+    const [compareSnapshots, setCompareSnapshots] = useState<[string, string] | null>(null);
+
+    // Add a snapshot to history
+    const addSnapshot = useCallback((snapshot: Omit<QuerySnapshot, 'id' | 'timestamp'>) => {
+        const newSnapshot: QuerySnapshot = {
+            ...snapshot,
+            id: `snapshot_${Date.now()}`,
+            timestamp: new Date()
+        };
+        setSnapshots(prev => [newSnapshot, ...prev]);
+        setSelectedSnapshotId(newSnapshot.id);
+        return newSnapshot;
+    }, []);
+
+    // Get a snapshot by ID
+    const getSnapshot = useCallback((id: string) => {
+        return snapshots.find(s => s.id === id);
+    }, [snapshots]);
+
+    // Update snapshot label
+    const updateSnapshotLabel = useCallback((id: string, label: string) => {
+        setSnapshots(prev => prev.map(s => s.id === id ? { ...s, label } : s));
+    }, []);
+
+    // Clear all snapshots
+    const clearSnapshots = useCallback(() => {
+        setSnapshots([]);
+        setSelectedSnapshotId(null);
+        setCompareMode(false);
+        setCompareSnapshots(null);
+    }, []);
 
     // Report state changes to parent for chat context
     useEffect(() => {
@@ -198,6 +265,7 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
                                 expanded: true
                             }]);
                             setFocusedStepId('step_1');
+                            clearSnapshots();
                         }}
                         className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
                     >
@@ -206,10 +274,10 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
                 </div>
             </div>
 
-            {/* Two-Column Layout */}
-            <div className={`flex gap-6 ${resultsPaneCollapsed ? '' : 'grid grid-cols-[40%_60%]'}`}>
+            {/* Three-Column Layout: Steps | Results | History */}
+            <div className="flex gap-4">
                 {/* Left: Workflow Steps */}
-                <div className={`space-y-4 ${resultsPaneCollapsed ? 'flex-1' : ''}`}>
+                <div className={`space-y-4 ${resultsPaneCollapsed ? 'flex-1' : 'w-[35%] flex-shrink-0'}`}>
                     {steps.map((step, index) => (
                         <div key={step.id}>
                             {index > 0 && (
@@ -230,6 +298,7 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
                                 streamId={streamId}
                                 onExpandResults={() => setResultsPaneCollapsed(false)}
                                 onStreamUpdate={onStreamUpdate}
+                                onSnapshot={addSnapshot}
                             />
                         </div>
                     ))}
@@ -259,7 +328,7 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
                     </div>
                 </div>
 
-                {/* Right: Results Pane */}
+                {/* Middle: Results Pane */}
                 {resultsPaneCollapsed ? (
                     <div className="flex items-start">
                         <button
@@ -272,14 +341,67 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
                         </button>
                     </div>
                 ) : (
-                    <ResultsPane
-                        step={focusedStep}
-                        stepNumber={steps.findIndex(s => s.id === focusedStepId) + 1}
-                        view={resultView}
-                        onViewChange={setResultView}
-                        onCollapse={() => setResultsPaneCollapsed(true)}
-                    />
+                    <div className="flex-1 min-w-0">
+                        {compareMode && compareSnapshots ? (
+                            <SnapshotCompareView
+                                snapshotA={getSnapshot(compareSnapshots[0])}
+                                snapshotB={getSnapshot(compareSnapshots[1])}
+                                onClose={() => {
+                                    setCompareMode(false);
+                                    setCompareSnapshots(null);
+                                }}
+                            />
+                        ) : selectedSnapshotId && !compareMode ? (
+                            <SnapshotResultsPane
+                                snapshot={getSnapshot(selectedSnapshotId)}
+                                onClose={() => setSelectedSnapshotId(null)}
+                                onCollapse={() => setResultsPaneCollapsed(true)}
+                            />
+                        ) : (
+                            <ResultsPane
+                                step={focusedStep}
+                                stepNumber={steps.findIndex(s => s.id === focusedStepId) + 1}
+                                view={resultView}
+                                onViewChange={setResultView}
+                                onCollapse={() => setResultsPaneCollapsed(true)}
+                            />
+                        )}
+                    </div>
                 )}
+
+                {/* Right: Version History Sidebar */}
+                <VersionHistorySidebar
+                    snapshots={snapshots}
+                    selectedSnapshotId={selectedSnapshotId}
+                    onSelectSnapshot={(id) => {
+                        setSelectedSnapshotId(id);
+                        setCompareMode(false);
+                        setCompareSnapshots(null);
+                    }}
+                    compareMode={compareMode}
+                    compareSnapshots={compareSnapshots}
+                    onToggleCompareMode={() => {
+                        setCompareMode(!compareMode);
+                        if (!compareMode) {
+                            setCompareSnapshots(null);
+                        }
+                    }}
+                    onSelectForCompare={(id) => {
+                        if (!compareSnapshots) {
+                            setCompareSnapshots([id, id]);
+                        } else if (compareSnapshots[0] === id) {
+                            // Already selected as first, do nothing
+                        } else {
+                            setCompareSnapshots([compareSnapshots[0], id]);
+                        }
+                    }}
+                    onSetCompareFirst={(id) => {
+                        setCompareSnapshots([id, compareSnapshots?.[1] || id]);
+                    }}
+                    onUpdateLabel={updateSnapshotLabel}
+                    isOpen={historyPanelOpen}
+                    onToggleOpen={() => setHistoryPanelOpen(!historyPanelOpen)}
+                />
             </div>
         </div>
     );
@@ -302,9 +424,10 @@ interface WorkflowStepCardProps {
     streamId: number;
     onExpandResults: () => void;
     onStreamUpdate: () => void;
+    onSnapshot: (snapshot: Omit<QuerySnapshot, 'id' | 'timestamp'>) => QuerySnapshot;
 }
 
-function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFocus, isFocused, previousSteps, stream, streamId, onExpandResults, onStreamUpdate }: WorkflowStepCardProps) {
+function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFocus, isFocused, previousSteps, stream, streamId, onExpandResults, onStreamUpdate, onSnapshot }: WorkflowStepCardProps) {
     const stepConfig = {
         source: { title: 'Source', icon: BeakerIcon, color: 'blue' },
         filter: { title: 'Filter', icon: FunnelIcon, color: 'purple' },
@@ -371,13 +494,13 @@ function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFo
             {step.expanded && (
                 <div className="p-4 bg-white dark:bg-gray-900">
                     {step.type === 'source' && (
-                        <SourceStepContent step={step} onUpdate={onUpdate} stream={stream} streamId={streamId} onExpandResults={onExpandResults} onStreamUpdate={onStreamUpdate} />
+                        <SourceStepContent step={step} onUpdate={onUpdate} stream={stream} streamId={streamId} onExpandResults={onExpandResults} onStreamUpdate={onStreamUpdate} onSnapshot={onSnapshot} />
                     )}
                     {step.type === 'filter' && (
-                        <FilterStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} streamId={streamId} stream={stream} onExpandResults={onExpandResults} onStreamUpdate={onStreamUpdate} />
+                        <FilterStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} streamId={streamId} stream={stream} onExpandResults={onExpandResults} onStreamUpdate={onStreamUpdate} onSnapshot={onSnapshot} />
                     )}
                     {step.type === 'categorize' && (
-                        <CategorizeStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} streamId={streamId} onExpandResults={onExpandResults} />
+                        <CategorizeStepContent step={step} onUpdate={onUpdate} previousSteps={previousSteps} streamId={streamId} onExpandResults={onExpandResults} onSnapshot={onSnapshot} />
                     )}
                 </div>
             )}
@@ -389,7 +512,7 @@ function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFo
 // Source Step
 // ============================================================================
 
-function SourceStepContent({ step, onUpdate, stream, streamId, onExpandResults, onStreamUpdate }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; stream: ResearchStream; streamId: number; onExpandResults: () => void; onStreamUpdate: () => void }) {
+function SourceStepContent({ step, onUpdate, stream, streamId, onExpandResults, onStreamUpdate, onSnapshot }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; stream: ResearchStream; streamId: number; onExpandResults: () => void; onStreamUpdate: () => void; onSnapshot: (snapshot: Omit<QuerySnapshot, 'id' | 'timestamp'>) => QuerySnapshot }) {
     const [isRunning, setIsRunning] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const config = step.config;
@@ -435,6 +558,18 @@ function SourceStepContent({ step, onUpdate, stream, streamId, onExpandResults, 
                 onUpdate({
                     results: response
                 });
+
+                // Capture snapshot for version history
+                onSnapshot({
+                    stepType: 'source',
+                    queryExpression: testExpression,
+                    queryIndex: queryIndex,
+                    startDate: config.startDate,
+                    endDate: config.endDate,
+                    articles: response.articles || [],
+                    articleCount: response.count || 0
+                });
+
                 // Auto-expand results pane
                 onExpandResults();
             } else if (config.sourceType === 'manual') {
@@ -453,6 +588,15 @@ function SourceStepContent({ step, onUpdate, stream, streamId, onExpandResults, 
                 onUpdate({
                     results: response
                 });
+
+                // Capture snapshot for manual PMIDs
+                onSnapshot({
+                    stepType: 'source',
+                    queryExpression: `Manual PMIDs: ${pmids.length} articles`,
+                    articles: response.articles || [],
+                    articleCount: response.count || 0
+                });
+
                 // Auto-expand results pane
                 onExpandResults();
             }
@@ -682,7 +826,7 @@ function SourceStepContent({ step, onUpdate, stream, streamId, onExpandResults, 
 // Filter Step
 // ============================================================================
 
-function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream, onExpandResults, onStreamUpdate }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; previousSteps: WorkflowStep[]; streamId: number; stream: ResearchStream; onExpandResults: () => void; onStreamUpdate: () => void }) {
+function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream, onExpandResults, onStreamUpdate, onSnapshot }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; previousSteps: WorkflowStep[]; streamId: number; stream: ResearchStream; onExpandResults: () => void; onStreamUpdate: () => void; onSnapshot: (snapshot: Omit<QuerySnapshot, 'id' | 'timestamp'>) => QuerySnapshot }) {
     const [isRunning, setIsRunning] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const config = step.config;
@@ -728,6 +872,19 @@ function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream, on
             onUpdate({
                 results: response
             });
+
+            // Capture snapshot for filter results
+            const passedArticles = response.results?.filter((r: any) => r.passed).map((r: any) => r.article) || [];
+            onSnapshot({
+                stepType: 'filter',
+                filterCriteria: testCriteria,
+                filterThreshold: testThreshold,
+                articles: passedArticles,
+                articleCount: response.count || 0,
+                passedCount: response.passed || 0,
+                failedCount: response.failed || 0
+            });
+
             // Auto-expand results pane
             onExpandResults();
         } catch (err) {
@@ -941,7 +1098,7 @@ function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream, on
 // Categorize Step
 // ============================================================================
 
-function CategorizeStepContent({ step, onUpdate, previousSteps, streamId, onExpandResults }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; previousSteps: WorkflowStep[]; streamId: number; onExpandResults: () => void }) {
+function CategorizeStepContent({ step, onUpdate, previousSteps, streamId, onExpandResults, onSnapshot }: { step: WorkflowStep; onUpdate: (updates: Partial<WorkflowStep>) => void; previousSteps: WorkflowStep[]; streamId: number; onExpandResults: () => void; onSnapshot: (snapshot: Omit<QuerySnapshot, 'id' | 'timestamp'>) => QuerySnapshot }) {
     const [isRunning, setIsRunning] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const config = step.config;
@@ -969,6 +1126,15 @@ function CategorizeStepContent({ step, onUpdate, previousSteps, streamId, onExpa
             onUpdate({
                 results: response
             });
+
+            // Capture snapshot for categorization results
+            const categorizedArticles = response.results?.map((r: any) => r.article) || [];
+            onSnapshot({
+                stepType: 'categorize',
+                articles: categorizedArticles,
+                articleCount: response.count || 0
+            });
+
             // Auto-expand results pane
             onExpandResults();
         } catch (err) {
@@ -1420,6 +1586,512 @@ function AnalyzeResultsView({ step }: { step: WorkflowStep }) {
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                     Statistical analysis and visualizations will appear here
                 </p>
+            </div>
+        </div>
+    );
+}
+
+// ============================================================================
+// Version History Sidebar
+// ============================================================================
+
+interface VersionHistorySidebarProps {
+    snapshots: QuerySnapshot[];
+    selectedSnapshotId: string | null;
+    onSelectSnapshot: (id: string) => void;
+    compareMode: boolean;
+    compareSnapshots: [string, string] | null;
+    onToggleCompareMode: () => void;
+    onSelectForCompare: (id: string) => void;
+    onSetCompareFirst: (id: string) => void;
+    onUpdateLabel: (id: string, label: string) => void;
+    isOpen: boolean;
+    onToggleOpen: () => void;
+}
+
+function VersionHistorySidebar({
+    snapshots,
+    selectedSnapshotId,
+    onSelectSnapshot,
+    compareMode,
+    compareSnapshots,
+    onToggleCompareMode,
+    onSelectForCompare,
+    onSetCompareFirst,
+    onUpdateLabel,
+    isOpen,
+    onToggleOpen
+}: VersionHistorySidebarProps) {
+    const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+    const [editingLabelValue, setEditingLabelValue] = useState('');
+
+    const formatTime = (date: Date) => {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const getStepIcon = (stepType: 'source' | 'filter' | 'categorize') => {
+        switch (stepType) {
+            case 'source': return <BeakerIcon className="h-4 w-4 text-blue-500" />;
+            case 'filter': return <FunnelIcon className="h-4 w-4 text-purple-500" />;
+            case 'categorize': return <TagIcon className="h-4 w-4 text-green-500" />;
+        }
+    };
+
+    const getSnapshotSummary = (snapshot: QuerySnapshot) => {
+        if (snapshot.stepType === 'source') {
+            return snapshot.queryExpression?.substring(0, 40) + (snapshot.queryExpression && snapshot.queryExpression.length > 40 ? '...' : '');
+        } else if (snapshot.stepType === 'filter') {
+            return `Filter: ${snapshot.filterCriteria?.substring(0, 30)}...`;
+        }
+        return 'Categorization';
+    };
+
+    if (!isOpen) {
+        return (
+            <div className="flex-shrink-0">
+                <button
+                    type="button"
+                    onClick={onToggleOpen}
+                    className="flex items-center justify-center w-8 h-24 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-l-lg border border-r-0 border-gray-300 dark:border-gray-600 transition-colors"
+                    title="Open version history"
+                >
+                    <div className="flex flex-col items-center gap-1">
+                        <ClockIcon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                        <ChevronDoubleLeftIcon className="h-3 w-3 text-gray-500 dark:text-gray-500" />
+                        {snapshots.length > 0 && (
+                            <span className="text-xs font-medium text-gray-600 dark:text-gray-400">{snapshots.length}</span>
+                        )}
+                    </div>
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="w-64 flex-shrink-0 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 flex flex-col" style={{ height: 'calc(100vh - 320px)', minHeight: '500px' }}>
+            {/* Header */}
+            <div className="border-b border-gray-300 dark:border-gray-600 p-3">
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                        <ClockIcon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                        <h3 className="font-medium text-sm text-gray-900 dark:text-white">Version History</h3>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onToggleOpen}
+                        className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                        title="Close history panel"
+                    >
+                        <ChevronDoubleRightIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                    </button>
+                </div>
+                {snapshots.length > 1 && (
+                    <button
+                        type="button"
+                        onClick={onToggleCompareMode}
+                        className={`w-full flex items-center justify-center gap-1 px-2 py-1.5 text-xs rounded transition-colors ${
+                            compareMode
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                    >
+                        <ArrowsRightLeftIcon className="h-3 w-3" />
+                        {compareMode ? 'Exit Compare' : 'Compare Versions'}
+                    </button>
+                )}
+            </div>
+
+            {/* Snapshot List */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                {snapshots.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <ClockIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-xs">Run queries to build version history</p>
+                    </div>
+                ) : (
+                    snapshots.map((snapshot, index) => {
+                        const isSelected = selectedSnapshotId === snapshot.id;
+                        const isCompareA = compareSnapshots?.[0] === snapshot.id;
+                        const isCompareB = compareSnapshots?.[1] === snapshot.id && compareSnapshots[0] !== compareSnapshots[1];
+                        const versionNumber = snapshots.length - index;
+
+                        return (
+                            <div
+                                key={snapshot.id}
+                                className={`border rounded-lg p-2 cursor-pointer transition-colors ${
+                                    isSelected && !compareMode
+                                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                        : isCompareA
+                                        ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
+                                        : isCompareB
+                                        ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                                        : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                                }`}
+                                onClick={() => {
+                                    if (compareMode) {
+                                        onSelectForCompare(snapshot.id);
+                                    } else {
+                                        onSelectSnapshot(snapshot.id);
+                                    }
+                                }}
+                            >
+                                <div className="flex items-center justify-between mb-1">
+                                    <div className="flex items-center gap-1.5">
+                                        {getStepIcon(snapshot.stepType)}
+                                        <span className="text-xs font-medium text-gray-900 dark:text-white">
+                                            v{versionNumber}
+                                        </span>
+                                        {compareMode && isCompareA && (
+                                            <span className="px-1 py-0.5 text-[10px] bg-orange-500 text-white rounded">A</span>
+                                        )}
+                                        {compareMode && isCompareB && (
+                                            <span className="px-1 py-0.5 text-[10px] bg-green-500 text-white rounded">B</span>
+                                        )}
+                                    </div>
+                                    <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                                        {formatTime(snapshot.timestamp)}
+                                    </span>
+                                </div>
+
+                                {/* Label (editable) */}
+                                {editingLabelId === snapshot.id ? (
+                                    <input
+                                        type="text"
+                                        value={editingLabelValue}
+                                        onChange={(e) => setEditingLabelValue(e.target.value)}
+                                        onBlur={() => {
+                                            onUpdateLabel(snapshot.id, editingLabelValue);
+                                            setEditingLabelId(null);
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                onUpdateLabel(snapshot.id, editingLabelValue);
+                                                setEditingLabelId(null);
+                                            }
+                                            if (e.key === 'Escape') {
+                                                setEditingLabelId(null);
+                                            }
+                                        }}
+                                        autoFocus
+                                        className="w-full px-1 py-0.5 text-xs border border-blue-500 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                                        placeholder="Add label..."
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
+                                ) : snapshot.label ? (
+                                    <p
+                                        className="text-xs text-blue-600 dark:text-blue-400 font-medium truncate cursor-text"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setEditingLabelId(snapshot.id);
+                                            setEditingLabelValue(snapshot.label || '');
+                                        }}
+                                    >
+                                        {snapshot.label}
+                                    </p>
+                                ) : (
+                                    <p
+                                        className="text-[10px] text-gray-400 dark:text-gray-500 italic cursor-text hover:text-gray-600 dark:hover:text-gray-400"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setEditingLabelId(snapshot.id);
+                                            setEditingLabelValue('');
+                                        }}
+                                    >
+                                        + Add label
+                                    </p>
+                                )}
+
+                                {/* Summary */}
+                                <p className="text-[10px] text-gray-600 dark:text-gray-400 truncate mt-1">
+                                    {getSnapshotSummary(snapshot)}
+                                </p>
+
+                                {/* Article count */}
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                                        {snapshot.articleCount} articles
+                                    </span>
+                                    {snapshot.passedCount !== undefined && (
+                                        <span className="text-[10px] text-green-600 dark:text-green-400">
+                                            {snapshot.passedCount} passed
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Compare mode: Set as A button */}
+                                {compareMode && !isCompareA && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onSetCompareFirst(snapshot.id);
+                                        }}
+                                        className="mt-1 text-[10px] text-orange-600 dark:text-orange-400 hover:underline"
+                                    >
+                                        Set as A
+                                    </button>
+                                )}
+                            </div>
+                        );
+                    })
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ============================================================================
+// Snapshot Results Pane (displays a single snapshot)
+// ============================================================================
+
+interface SnapshotResultsPaneProps {
+    snapshot: QuerySnapshot | undefined;
+    onClose: () => void;
+    onCollapse: () => void;
+}
+
+function SnapshotResultsPane({ snapshot, onClose, onCollapse }: SnapshotResultsPaneProps) {
+    if (!snapshot) {
+        return null;
+    }
+
+    const formatTime = (date: Date) => {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    };
+
+    return (
+        <div className="border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 flex flex-col" style={{ height: 'calc(100vh - 320px)', minHeight: '500px' }}>
+            {/* Header */}
+            <div className="border-b border-gray-300 dark:border-gray-600 p-4">
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                        <ClockIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <h3 className="font-medium text-gray-900 dark:text-white">
+                            Snapshot: {snapshot.label || formatTime(snapshot.timestamp)}
+                        </h3>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                        >
+                            Back to Live
+                        </button>
+                        <button
+                            type="button"
+                            onClick={onCollapse}
+                            className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                            title="Collapse"
+                        >
+                            <ChevronRightIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Snapshot metadata */}
+                <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                    <p><strong>Type:</strong> {snapshot.stepType}</p>
+                    {snapshot.queryExpression && (
+                        <p><strong>Query:</strong> {snapshot.queryExpression}</p>
+                    )}
+                    {snapshot.filterCriteria && (
+                        <p><strong>Filter:</strong> {snapshot.filterCriteria} (threshold: {snapshot.filterThreshold})</p>
+                    )}
+                    <p><strong>Results:</strong> {snapshot.articleCount} articles</p>
+                </div>
+            </div>
+
+            {/* Articles List */}
+            <div className="flex-1 overflow-y-auto p-4">
+                <div className="space-y-2">
+                    {snapshot.articles.slice(0, 50).map((article, idx) => (
+                        <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded p-3 text-sm">
+                            <p className="font-mono text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                PMID: {article.pmid || article.id}
+                            </p>
+                            <p className="text-gray-900 dark:text-white">{article.title}</p>
+                        </div>
+                    ))}
+                    {snapshot.articles.length > 50 && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
+                            Showing 50 of {snapshot.articles.length} articles
+                        </p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ============================================================================
+// Snapshot Compare View
+// ============================================================================
+
+interface SnapshotCompareViewProps {
+    snapshotA: QuerySnapshot | undefined;
+    snapshotB: QuerySnapshot | undefined;
+    onClose: () => void;
+}
+
+function SnapshotCompareView({ snapshotA, snapshotB, onClose }: SnapshotCompareViewProps) {
+    const [activeTab, setActiveTab] = useState<'only_a' | 'both' | 'only_b'>('only_a');
+
+    if (!snapshotA || !snapshotB) {
+        return (
+            <div className="border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 p-8">
+                <div className="text-center text-gray-500 dark:text-gray-400">
+                    <ArrowsRightLeftIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>Select two versions to compare</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Compare articles by PMID
+    const getArticleId = (article: CanonicalResearchArticle) => article.pmid || article.id || '';
+
+    const aIds = new Set(snapshotA.articles.map(getArticleId));
+    const bIds = new Set(snapshotB.articles.map(getArticleId));
+
+    const onlyInA = snapshotA.articles.filter(a => !bIds.has(getArticleId(a)));
+    const onlyInB = snapshotB.articles.filter(a => !aIds.has(getArticleId(a)));
+    const inBoth = snapshotA.articles.filter(a => bIds.has(getArticleId(a)));
+
+    const formatTime = (date: Date) => {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const getDisplayArticles = () => {
+        switch (activeTab) {
+            case 'only_a': return onlyInA;
+            case 'only_b': return onlyInB;
+            case 'both': return inBoth;
+        }
+    };
+
+    return (
+        <div className="border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 flex flex-col" style={{ height: 'calc(100vh - 320px)', minHeight: '500px' }}>
+            {/* Header */}
+            <div className="border-b border-gray-300 dark:border-gray-600 p-4">
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                        <ArrowsRightLeftIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        <h3 className="font-medium text-gray-900 dark:text-white">
+                            Comparing Versions
+                        </h3>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                    >
+                        Exit Compare
+                    </button>
+                </div>
+
+                {/* Version badges */}
+                <div className="flex items-center gap-4 mb-3 text-sm">
+                    <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 bg-orange-500 text-white rounded text-xs font-medium">A</span>
+                        <span className="text-gray-700 dark:text-gray-300">
+                            {snapshotA.label || formatTime(snapshotA.timestamp)} ({snapshotA.articleCount})
+                        </span>
+                    </div>
+                    <ArrowsRightLeftIcon className="h-4 w-4 text-gray-400" />
+                    <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 bg-green-500 text-white rounded text-xs font-medium">B</span>
+                        <span className="text-gray-700 dark:text-gray-300">
+                            {snapshotB.label || formatTime(snapshotB.timestamp)} ({snapshotB.articleCount})
+                        </span>
+                    </div>
+                </div>
+
+                {/* Summary stats */}
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                    <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded p-2 text-center">
+                        <p className="text-lg font-bold text-orange-600 dark:text-orange-400">{onlyInA.length}</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Only in A</p>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded p-2 text-center">
+                        <p className="text-lg font-bold text-gray-600 dark:text-gray-400">{inBoth.length}</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">In Both</p>
+                    </div>
+                    <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-2 text-center">
+                        <p className="text-lg font-bold text-green-600 dark:text-green-400">{onlyInB.length}</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Only in B</p>
+                    </div>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('only_a')}
+                        className={`px-3 py-1 text-sm rounded ${
+                            activeTab === 'only_a'
+                                ? 'bg-orange-600 text-white'
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                    >
+                        Only in A ({onlyInA.length})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('both')}
+                        className={`px-3 py-1 text-sm rounded ${
+                            activeTab === 'both'
+                                ? 'bg-gray-600 text-white'
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                    >
+                        In Both ({inBoth.length})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('only_b')}
+                        className={`px-3 py-1 text-sm rounded ${
+                            activeTab === 'only_b'
+                                ? 'bg-green-600 text-white'
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                    >
+                        Only in B ({onlyInB.length})
+                    </button>
+                </div>
+            </div>
+
+            {/* Article List */}
+            <div className="flex-1 overflow-y-auto p-4">
+                <div className="space-y-2">
+                    {getDisplayArticles().slice(0, 50).map((article, idx) => (
+                        <div
+                            key={idx}
+                            className={`border rounded p-3 text-sm ${
+                                activeTab === 'only_a'
+                                    ? 'border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-900/10'
+                                    : activeTab === 'only_b'
+                                    ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10'
+                                    : 'border-gray-200 dark:border-gray-700'
+                            }`}
+                        >
+                            <p className="font-mono text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                PMID: {article.pmid || article.id}
+                            </p>
+                            <p className="text-gray-900 dark:text-white">{article.title}</p>
+                        </div>
+                    ))}
+                    {getDisplayArticles().length > 50 && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
+                            Showing 50 of {getDisplayArticles().length} articles
+                        </p>
+                    )}
+                    {getDisplayArticles().length === 0 && (
+                        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <p className="text-sm">No articles in this category</p>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );
