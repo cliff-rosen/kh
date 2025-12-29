@@ -196,10 +196,24 @@ class GeneralChatService:
             logger.error(f"Error in chat service: {str(e)}", exc_info=True)
             yield ErrorEvent(message=f"Service error: {str(e)}").model_dump_json()
 
-    def _load_report_context(self, report_id: int) -> Optional[str]:
+    def _load_report_context(self, report_id: int, context: Dict[str, Any]) -> Optional[str]:
         """
         Load report data from database and format it for the LLM context.
         Returns None if report not found or access denied.
+
+        ARCHITECTURE NOTE:
+            This method is responsible for loading and formatting ALL DATA for reports:
+            - Report metadata and summaries from database
+            - Article list from database
+            - Current article focus from frontend context (includes UI-cached stance analysis)
+
+            The chat_payloads/reports.py provides INSTRUCTIONS only.
+            This method provides the DATA that those instructions reference.
+
+        Args:
+            report_id: The report to load
+            context: Full request context, may contain 'current_article' from frontend
+                    with stance_analysis from UI cache
 
         Note: Stream-specific chat instructions are loaded separately by
         _load_stream_instructions() based on stream_id in context.
@@ -215,7 +229,7 @@ class GeneralChatService:
         if not report:
             return None
 
-        # Load articles
+        # Load articles from database
         article_associations = self.db.query(ReportArticleAssociation, Article).join(
             Article, ReportArticleAssociation.article_id == Article.article_id
         ).filter(
@@ -226,6 +240,7 @@ class GeneralChatService:
         articles_context = []
         for assoc, article in article_associations:
             articles_context.append({
+                "article_id": article.article_id,
                 "title": article.title,
                 "authors": article.authors or [],
                 "abstract": article.abstract,
@@ -254,6 +269,13 @@ class GeneralChatService:
         if report.key_highlights:
             highlights_text = "\n".join(f"- {h}" for h in report.key_highlights)
 
+        # Check if user is viewing a specific article (from frontend context)
+        # This includes stance_analysis from the UI cache which may be more current than DB
+        current_article = context.get("current_article")
+        current_article_section = ""
+        if current_article:
+            current_article_section = self._format_current_article(current_article)
+
         # Build full report context
         return f"""
         === REPORT DATA (loaded from database) ===
@@ -261,6 +283,7 @@ class GeneralChatService:
         Report Name: {report.report_name}
         Report Date: {report.report_date}
         Total Articles: {len(articles_context)}
+        {current_article_section}
 
         === EXECUTIVE SUMMARY ===
         {executive_summary if executive_summary else "No executive summary available."}
@@ -277,6 +300,90 @@ class GeneralChatService:
         === ARTICLES IN THIS REPORT ===
         {self._format_report_articles(articles_context)}
         """
+
+    def _format_current_article(self, article: Dict[str, Any]) -> str:
+        """
+        Format the currently-viewed article for prominent display in LLM context.
+
+        This data comes from the frontend context and may include:
+        - Basic article metadata
+        - Abstract
+        - Stance analysis from UI cache (may be more current than database)
+
+        Args:
+            article: Article data from frontend context['current_article']
+        """
+        if not article:
+            return ""
+
+        # Basic info
+        title = article.get("title", "Unknown Title")
+        authors = article.get("authors", [])
+        authors_str = ", ".join(authors[:3]) if authors else "Unknown"
+        if len(authors) > 3:
+            authors_str += " et al."
+
+        journal = article.get("journal", "Unknown Journal")
+        year = article.get("year", "Unknown Year")
+        pmid = article.get("pmid")
+        doi = article.get("doi")
+
+        # Abstract
+        abstract = article.get("abstract", "No abstract available.")
+
+        # Relevance info
+        relevance_score = article.get("relevance_score")
+        relevance_rationale = article.get("relevance_rationale")
+
+        # Stance analysis (from frontend UI cache)
+        stance = article.get("stance_analysis")
+
+        sections = [
+            f"""
+        === CURRENTLY VIEWING ARTICLE ===
+        The user has this specific article open and is asking about it.
+
+        Title: {title}
+        Authors: {authors_str}
+        Journal: {journal} ({year})"""
+        ]
+
+        if pmid:
+            sections.append(f"        PMID: {pmid}")
+        if doi:
+            sections.append(f"        DOI: {doi}")
+
+        sections.append(f"""
+        Abstract:
+        {abstract}""")
+
+        if relevance_score is not None:
+            sections.append(f"""
+        Relevance Score: {int(relevance_score * 100)}%""")
+
+        if relevance_rationale:
+            sections.append(f"""        Why Relevant: {relevance_rationale}""")
+
+        if stance:
+            stance_type = stance.get("stance", "unknown")
+            confidence = stance.get("confidence", 0)
+            analysis = stance.get("analysis", "")
+            key_factors = stance.get("key_factors", [])
+
+            sections.append(f"""
+        === STANCE ANALYSIS (from UI) ===
+        Stance: {stance_type} (Confidence: {int(confidence * 100)}%)
+        Analysis: {analysis}""")
+
+            if key_factors:
+                factors_str = "\n        - ".join(key_factors)
+                sections.append(f"""        Key Factors:
+        - {factors_str}""")
+
+        sections.append("""
+        === END CURRENT ARTICLE ===""")
+
+        return "\n".join(sections)
 
     def _get_response_format_instructions(self) -> str:
         """
@@ -387,8 +494,19 @@ class GeneralChatService:
         """
 
     def _build_page_context(self, current_page: str, context: Dict[str, Any]) -> str:
-        """Build page-specific context section of the prompt."""
-        # Get the context builder from the registry
+        """
+        Build page-specific context section of the prompt.
+
+        ARCHITECTURE NOTE:
+            This method orchestrates context building by:
+            1. Getting page INSTRUCTIONS from chat_payloads registry (behavioral guidance)
+            2. Loading page DATA from database/context (actual content)
+
+            The separation ensures:
+            - chat_payloads/*.py files define HOW the LLM should behave
+            - This service loads WHAT data the LLM has access to
+        """
+        # Get the context builder from the registry (provides INSTRUCTIONS)
         context_builder = get_page_context_builder(current_page)
 
         base_context = ""
@@ -398,11 +516,12 @@ class GeneralChatService:
             # Default context for unregistered pages
             base_context = f"The user is currently on: {current_page}"
 
-        # For reports page, enrich with actual report data from database
+        # For reports page, enrich with actual report DATA from database
+        # This includes current_article from frontend context with UI-cached stance analysis
         if current_page == "reports" and context.get("report_id"):
             report_id = context.get("report_id")
             try:
-                report_data = self._load_report_context(report_id)
+                report_data = self._load_report_context(report_id, context)
                 if report_data:
                     base_context += "\n" + report_data
                 else:

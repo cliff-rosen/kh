@@ -51,20 +51,50 @@ export default function ArticleViewerModal({
     // Chat state
     const [isChatOpen, setIsChatOpen] = useState(false);
 
-    // Memoize chat context to include current article info
+    // Workspace state
+    const [activeTab, setActiveTab] = useState<WorkspaceTab>('analysis');
+
+    // Full text links state - keyed by pmid to cache results
+    const [fullTextLinksCache, setFullTextLinksCache] = useState<Record<string, FullTextLink[]>>({});
+    const [loadingLinks, setLoadingLinks] = useState(false);
+
+    // Stance analysis state - keyed by article id to preserve results when navigating
+    const [stanceCache, setStanceCache] = useState<Record<string, StanceAnalysisResult>>({});
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+    // Memoize chat context to include full current article info
+    // Must be after stanceCache declaration since it depends on it
     const articleChatContext = useMemo(() => {
         if (!chatContext) return undefined;
+
+        // Use cached stance result if available, otherwise fall back to article's ai_enrichments
+        const currentStance = articleId ? stanceCache[articleId] : null;
+        const stanceAnalysis = currentStance || article?.ai_enrichments?.stance_analysis;
+
         return {
             ...chatContext,
             current_article: article ? {
+                article_id: article.article_id,
                 pmid: article.pmid,
+                doi: article.doi,
                 title: article.title,
                 authors: article.authors,
                 journal: article.journal,
-                year: article.year || (article.publication_date ? article.publication_date.split('-')[0] : undefined)
+                year: article.year || (article.publication_date ? article.publication_date.split('-')[0] : undefined),
+                publication_date: article.publication_date,
+                abstract: article.abstract,
+                relevance_score: article.relevance_score,
+                relevance_rationale: article.relevance_rationale,
+                stance_analysis: stanceAnalysis ? {
+                    stance: stanceAnalysis.stance,
+                    confidence: stanceAnalysis.confidence,
+                    analysis: stanceAnalysis.analysis,
+                    key_factors: stanceAnalysis.key_factors,
+                } : undefined,
             } : undefined
         };
-    }, [chatContext, article]);
+    }, [chatContext, article, articleId, stanceCache]);
 
     const hasPrevious = currentIndex > 0;
     const hasNext = currentIndex < articles.length - 1;
@@ -83,18 +113,6 @@ export default function ArticleViewerModal({
             setCurrentIndex(currentIndex + 1);
         }
     }, [currentIndex, articles.length]);
-
-    // Workspace state
-    const [activeTab, setActiveTab] = useState<WorkspaceTab>('analysis');
-
-    // Full text links state - keyed by pmid to cache results
-    const [fullTextLinksCache, setFullTextLinksCache] = useState<Record<string, FullTextLink[]>>({});
-    const [loadingLinks, setLoadingLinks] = useState(false);
-
-    // Stance analysis state - keyed by article id to preserve results when navigating
-    const [stanceCache, setStanceCache] = useState<Record<string, StanceAnalysisResult>>({});
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [analysisError, setAnalysisError] = useState<string | null>(null);
 
     const stanceResult = articleId ? stanceCache[articleId] : null;
     const streamId = chatContext?.stream_id as number | undefined;
