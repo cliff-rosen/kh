@@ -217,7 +217,12 @@ export default function ChatTray({
     const [input, setInput] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    // Payload that's available but not yet opened by user
+    const [pendingPayload, setPendingPayload] = useState<{ type: string; data: any; messageIndex: number } | null>(null);
+    // Payload currently being displayed in the panel (user has clicked to view)
     const [activePayload, setActivePayload] = useState<{ type: string; data: any } | null>(null);
+    // Track which message indices have had their payloads dismissed
+    const [dismissedPayloads, setDismissedPayloads] = useState<Set<number>>(new Set());
     const [toolsToShow, setToolsToShow] = useState<ToolHistoryEntry[] | null>(null);
 
     // Update context when initialContext changes
@@ -235,10 +240,11 @@ export default function ChatTray({
         scrollToBottom();
     }, [messages, streamingText]);
 
-    // Detect new payloads and show in floating panel
+    // Detect new payloads and set as pending (don't auto-open the panel)
     // Payloads come through custom_payload regardless of source (tool or LLM)
     useEffect(() => {
-        const latestMessage = messages[messages.length - 1];
+        const messageIndex = messages.length - 1;
+        const latestMessage = messages[messageIndex];
         if (!latestMessage) return;
 
         // Check custom_payload - this is where all payloads arrive (from tools or LLM)
@@ -249,14 +255,44 @@ export default function ChatTray({
             const hasLocalHandler = payloadHandlers && payloadHandlers[payloadType];
             const hasGlobalHandler = getPayloadHandler(payloadType);
 
-            if (hasLocalHandler || hasGlobalHandler) {
-                setActivePayload({
+            // Only set as pending if we have a handler and haven't dismissed this payload
+            if ((hasLocalHandler || hasGlobalHandler) && !dismissedPayloads.has(messageIndex)) {
+                setPendingPayload({
                     type: payloadType,
-                    data: latestMessage.custom_payload.data
+                    data: latestMessage.custom_payload.data,
+                    messageIndex
                 });
             }
         }
-    }, [messages, payloadHandlers]);
+    }, [messages, payloadHandlers, dismissedPayloads]);
+
+    // Handle opening the payload panel
+    const handleOpenPayload = useCallback(() => {
+        if (pendingPayload) {
+            setActivePayload({
+                type: pendingPayload.type,
+                data: pendingPayload.data
+            });
+        }
+    }, [pendingPayload]);
+
+    // Handle closing/dismissing the payload panel
+    const handleClosePayload = useCallback(() => {
+        if (pendingPayload) {
+            // Mark this payload as dismissed so it won't re-appear
+            setDismissedPayloads(prev => new Set(prev).add(pendingPayload.messageIndex));
+        }
+        setActivePayload(null);
+        setPendingPayload(null);
+    }, [pendingPayload]);
+
+    // Handle full chat reset - clears messages and all payload state
+    const handleReset = useCallback(() => {
+        reset();
+        setPendingPayload(null);
+        setActivePayload(null);
+        setDismissedPayloads(new Set());
+    }, [reset]);
 
     // Auto-focus input when tray opens
     useEffect(() => {
@@ -356,7 +392,7 @@ export default function ChatTray({
                         <div className="flex items-center gap-1">
                             {messages.length > 0 && (
                                 <button
-                                    onClick={reset}
+                                    onClick={handleReset}
                                     className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
                                     aria-label="Clear chat"
                                     title="Clear chat"
@@ -455,22 +491,6 @@ export default function ChatTray({
                                     </div>
                                 )}
 
-                                {/* Custom Payload Indicator - only show in non-embedded mode with known payload types */}
-                                {!embedded && message.custom_payload?.type && message.custom_payload?.data &&
-                                 ['schema_proposal', 'presentation_categories', 'stream_suggestions', 'portfolio_insights', 'quick_setup'].includes(message.custom_payload.type) && (
-                                    <div className="mt-3 ml-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                                        <p className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
-                                            <span className="font-medium">
-                                                {message.custom_payload.type === 'schema_proposal' && '📋 Schema proposal ready'}
-                                                {message.custom_payload.type === 'presentation_categories' && '📊 Presentation categories ready'}
-                                                {message.custom_payload.type === 'stream_suggestions' && '💡 Stream suggestions ready'}
-                                                {message.custom_payload.type === 'portfolio_insights' && '📊 Portfolio insights ready'}
-                                                {message.custom_payload.type === 'quick_setup' && '🚀 Quick setup ready'}
-                                            </span>
-                                            <span className="text-xs opacity-75">(see panel to the right)</span>
-                                        </p>
-                                    </div>
-                                )}
                             </div>
                         ))}
 
@@ -543,6 +563,44 @@ export default function ChatTray({
                             </div>
                         )}
 
+                        {/* Pending Payload Notification - shows when there's a payload ready to view */}
+                        {pendingPayload && !activePayload && (() => {
+                            const handler = payloadHandlers?.[pendingPayload.type] || getPayloadHandler(pendingPayload.type);
+                            const renderOptions = handler?.renderOptions || {};
+                            const headerTitle = renderOptions.headerTitle || getDefaultHeaderTitle(pendingPayload.type);
+                            const headerIcon = renderOptions.headerIcon || getDefaultHeaderIcon(pendingPayload.type);
+
+                            return (
+                                <div className="mx-2 mb-2">
+                                    <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <span className="text-lg flex-shrink-0">{headerIcon}</span>
+                                                <span className="text-sm font-medium text-blue-900 dark:text-blue-100 truncate">
+                                                    {headerTitle} ready
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2 flex-shrink-0">
+                                                <button
+                                                    onClick={handleOpenPayload}
+                                                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
+                                                >
+                                                    View
+                                                </button>
+                                                <button
+                                                    onClick={handleClosePayload}
+                                                    className="p-1 hover:bg-blue-200 dark:hover:bg-blue-800 rounded transition-colors"
+                                                    title="Dismiss"
+                                                >
+                                                    <XMarkIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
                         <div ref={messagesEndRef} />
                     </div>
 
@@ -606,7 +664,7 @@ export default function ChatTray({
                                     {headerTitle}
                                 </h3>
                                 <button
-                                    onClick={() => setActivePayload(null)}
+                                    onClick={handleClosePayload}
                                     className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
                                     aria-label="Close panel"
                                 >
@@ -622,13 +680,13 @@ export default function ChatTray({
                                             if (handler.onAccept) {
                                                 handler.onAccept(data);
                                             }
-                                            setActivePayload(null);
+                                            handleClosePayload();
                                         },
                                         onReject: () => {
                                             if (handler.onReject) {
                                                 handler.onReject(activePayload.data);
                                             }
-                                            setActivePayload(null);
+                                            handleClosePayload();
                                         }
                                     })
                                 ) : (

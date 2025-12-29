@@ -2,7 +2,79 @@
 
 This guide walks through all steps required to add the modular chat tray to a new page in the application.
 
-## Overview
+## Conceptual Overview
+
+The chat system has just a few key touchpoints. Understanding these makes the whole system clear.
+
+### How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              BACKEND                                     │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │  chat_payloads/{page_name}.py                                    │    │
+│  │                                                                   │    │
+│  │  1. LLM Instructions  ─────────►  Tells Claude WHEN and HOW      │    │
+│  │     (in PayloadConfig)            to generate each payload type   │    │
+│  │                                                                   │    │
+│  │  2. Parser Function   ─────────►  Extracts payload JSON from     │    │
+│  │                                   Claude's response text          │    │
+│  │                                                                   │    │
+│  │  3. Context Builder   ─────────►  Tells Claude what the user     │    │
+│  │                                   is currently looking at         │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                                      │                                   │
+│                                      ▼                                   │
+│                        general_chat_service.py                           │
+│                     (automatically uses registry)                        │
+│                                      │                                   │
+└──────────────────────────────────────│───────────────────────────────────┘
+                                       │
+                          API returns: { custom_payload: { type, data } }
+                                       │
+                                       ▼
+┌──────────────────────────────────────│───────────────────────────────────┐
+│                              FRONTEND                                    │
+│                                       │                                   │
+│  ┌────────────────────────────────────▼────────────────────────────┐    │
+│  │  ChatTray component                                              │    │
+│  │                                                                   │    │
+│  │  payloadHandlers={{                                              │    │
+│  │    "payload_type": {                                             │    │
+│  │       render: (data) => <Card />  ◄── How to display it          │    │
+│  │       onAccept: (data) => {...}   ◄── What to do when accepted   │    │
+│  │    }                                                             │    │
+│  │  }}                                                              │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+### The Three Backend Pieces
+
+| Piece | Purpose | Example |
+|-------|---------|---------|
+| **LLM Instructions** | Tell Claude when to use this payload and what format to output | `"When user asks for schema suggestions, output SCHEMA_PROPOSAL: {...}"` |
+| **Parser** | Extract the JSON from Claude's text response | Finds `SCHEMA_PROPOSAL:` marker, parses the JSON that follows |
+| **Context Builder** | Tell Claude what the user is currently viewing | `"User is editing stream 'Cancer Research' with 5 topics..."` |
+
+### The One Frontend Piece
+
+| Piece | Purpose | Example |
+|-------|---------|---------|
+| **Payload Handler** | Define how to render and act on each payload type | `render: (data) => <SchemaProposalCard />`, `onAccept: (data) => applyChanges(data)` |
+
+### Key Files
+
+- **Backend**: `backend/services/chat_payloads/{page_name}.py` - One file per page, contains all three pieces
+- **Frontend**: `payloadHandlers` prop on `<ChatTray>` - Maps payload types to render functions
+
+That's it. The registry handles wiring everything together automatically.
+
+---
+
+## Step-by-Step Guide
 
 Adding chat to a new page involves:
 1. **Backend**: Define payload types and context for the page
