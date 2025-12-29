@@ -7,12 +7,35 @@ from sqlalchemy import and_
 from typing import List, Optional
 from datetime import datetime
 import uuid
+import json
 import logging
 
 from models import User, ReportArticleAssociation, Report
 from services.user_service import UserService
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_notes(notes_str: Optional[str]) -> List[dict]:
+    """Parse notes from JSON string stored in Text column."""
+    if not notes_str:
+        return []
+
+    # Try to parse as JSON array
+    try:
+        parsed = json.loads(notes_str)
+        if isinstance(parsed, list):
+            return parsed
+        # If it's not a list, treat as legacy single note
+        return []
+    except (json.JSONDecodeError, TypeError):
+        # Not valid JSON - treat as legacy plain text note
+        return []
+
+
+def _serialize_notes(notes: List[dict]) -> str:
+    """Serialize notes list to JSON string for storage."""
+    return json.dumps(notes)
 
 
 class NotesService:
@@ -68,25 +91,25 @@ class NotesService:
         if not association:
             return []
 
-        # Parse existing notes (handle both string and list formats)
-        existing_notes = association.notes
-        if not existing_notes:
+        # Parse existing notes from JSON string
+        raw_notes = association.notes
+        if not raw_notes:
             return []
 
-        if isinstance(existing_notes, str):
-            # Legacy format - single text note, convert to list
+        # Try to parse as JSON array first
+        existing_notes = _parse_notes(raw_notes)
+
+        # If parsing failed and we have a non-empty string, it's legacy plain text
+        if not existing_notes and raw_notes and isinstance(raw_notes, str):
             return [{
                 "id": str(uuid.uuid4()),
                 "user_id": 0,  # Unknown user for legacy notes
                 "author_name": "Legacy",
-                "content": existing_notes,
+                "content": raw_notes,
                 "visibility": "shared",
                 "created_at": association.added_at.isoformat() if association.added_at else datetime.utcnow().isoformat(),
                 "updated_at": association.added_at.isoformat() if association.added_at else datetime.utcnow().isoformat()
             }]
-
-        if not isinstance(existing_notes, list):
-            return []
 
         # Filter notes by visibility
         visible_notes = []
@@ -122,17 +145,17 @@ class NotesService:
         if not association:
             return None
 
-        # Parse existing notes
-        existing_notes = association.notes
-        if not existing_notes:
-            existing_notes = []
-        elif isinstance(existing_notes, str):
-            # Convert legacy string to list format
+        # Parse existing notes from JSON string
+        raw_notes = association.notes
+        existing_notes = _parse_notes(raw_notes) if raw_notes else []
+
+        # If we have legacy plain text, convert it
+        if not existing_notes and raw_notes and isinstance(raw_notes, str):
             legacy_note = {
                 "id": str(uuid.uuid4()),
                 "user_id": 0,
                 "author_name": "Legacy",
-                "content": existing_notes,
+                "content": raw_notes,
                 "visibility": "shared",
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat()
@@ -152,7 +175,7 @@ class NotesService:
         }
 
         existing_notes.append(new_note)
-        association.notes = existing_notes
+        association.notes = _serialize_notes(existing_notes)
         self.db.commit()
 
         return new_note
@@ -171,8 +194,10 @@ class NotesService:
         if not association:
             return None
 
-        existing_notes = association.notes
-        if not existing_notes or not isinstance(existing_notes, list):
+        # Parse existing notes from JSON string
+        raw_notes = association.notes
+        existing_notes = _parse_notes(raw_notes)
+        if not existing_notes:
             return None
 
         # Find and update the note
@@ -193,7 +218,7 @@ class NotesService:
                 note["updated_at"] = datetime.utcnow().isoformat()
 
                 existing_notes[i] = note
-                association.notes = existing_notes
+                association.notes = _serialize_notes(existing_notes)
                 self.db.commit()
 
                 return note
@@ -212,8 +237,10 @@ class NotesService:
         if not association:
             return False
 
-        existing_notes = association.notes
-        if not existing_notes or not isinstance(existing_notes, list):
+        # Parse existing notes from JSON string
+        raw_notes = association.notes
+        existing_notes = _parse_notes(raw_notes)
+        if not existing_notes:
             return False
 
         # Find and remove the note
@@ -227,7 +254,7 @@ class NotesService:
                     return False
 
                 existing_notes.pop(i)
-                association.notes = existing_notes
+                association.notes = _serialize_notes(existing_notes)
                 self.db.commit()
 
                 return True

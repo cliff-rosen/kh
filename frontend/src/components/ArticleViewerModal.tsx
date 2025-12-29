@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     XMarkIcon,
     ArrowTopRightOnSquareIcon,
@@ -20,6 +20,7 @@ import { StanceAnalysisResult, StanceType } from '../types/document_analysis';
 import ChatTray from './chat/ChatTray';
 import { PayloadHandler } from '../types/chat';
 import { MarkdownRenderer } from './common/MarkdownRenderer';
+import ArticleNotes from './ArticleNotes';
 
 type WorkspaceTab = 'analysis' | 'notes' | 'links';
 
@@ -95,13 +96,7 @@ export default function ArticleViewerModal({
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisError, setAnalysisError] = useState<string | null>(null);
 
-    // Notes state - keyed by article id
-    const [notesCache, setNotesCache] = useState<Record<string, string>>({});
-    const [isSavingNotes, setIsSavingNotes] = useState(false);
-    const notesDebounceRef = useRef<NodeJS.Timeout | null>(null);
-
     const stanceResult = articleId ? stanceCache[articleId] : null;
-    const currentNotes = articleId ? (notesCache[articleId] ?? '') : '';
     const streamId = chatContext?.stream_id as number | undefined;
     const reportId = chatContext?.report_id as number | undefined;
 
@@ -113,52 +108,12 @@ export default function ArticleViewerModal({
         if (stanceCache[articleId] === undefined && article.ai_enrichments?.stance_analysis) {
             setStanceCache(prev => ({ ...prev, [articleId]: article.ai_enrichments!.stance_analysis! }));
         }
-
-        // Initialize notes from article data if not already cached
-        if (notesCache[articleId] === undefined) {
-            setNotesCache(prev => ({ ...prev, [articleId]: article.notes ?? '' }));
-        }
     }, [articleId]);
 
     // Reset error state when switching articles (cache is preserved)
     useEffect(() => {
         setAnalysisError(null);
     }, [currentIndex]);
-
-    // Save notes with debouncing
-    const handleNotesChange = useCallback((newNotes: string) => {
-        if (!articleId || !reportId) return;
-
-        setNotesCache(prev => ({ ...prev, [articleId]: newNotes }));
-
-        // Clear existing timeout
-        if (notesDebounceRef.current) {
-            clearTimeout(notesDebounceRef.current);
-        }
-
-        // Set new timeout to save
-        notesDebounceRef.current = setTimeout(async () => {
-            setIsSavingNotes(true);
-            try {
-                await reportApi.updateArticleNotes(reportId, articleId, newNotes || null);
-                // Notify parent of the update
-                onArticleUpdate?.(articleId, { notes: newNotes });
-            } catch (err) {
-                console.error('Failed to save notes:', err);
-            } finally {
-                setIsSavingNotes(false);
-            }
-        }, 1000); // 1 second debounce
-    }, [articleId, reportId, onArticleUpdate]);
-
-    // Cleanup debounce on unmount
-    useEffect(() => {
-        return () => {
-            if (notesDebounceRef.current) {
-                clearTimeout(notesDebounceRef.current);
-            }
-        };
-    }, []);
 
     // Fetch full text links when article changes (on demand, cached)
     const currentLinks = article?.pmid ? fullTextLinksCache[article.pmid] : undefined;
@@ -644,28 +599,14 @@ export default function ArticleViewerModal({
 
                             {/* Notes Tab */}
                             {activeTab === 'notes' && (
-                                <div className="h-full flex flex-col p-4">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                            Notes
-                                        </h2>
-                                        {isSavingNotes && (
-                                            <span className="text-xs text-gray-500 flex items-center gap-1">
-                                                <div className="animate-spin rounded-full h-3 w-3 border-b border-gray-500"></div>
-                                                Saving...
-                                            </span>
-                                        )}
-                                    </div>
-                                    <textarea
-                                        value={currentNotes}
-                                        onChange={(e) => handleNotesChange(e.target.value)}
-                                        placeholder="Add your notes about this article..."
-                                        className="flex-1 w-full p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        disabled={!reportId}
-                                    />
-                                    <p className="mt-2 text-xs text-gray-500">
-                                        {reportId ? 'Notes are saved automatically' : 'Notes require a report context to save'}
-                                    </p>
+                                <div className="h-full p-4">
+                                    {reportId && articleId ? (
+                                        <ArticleNotes reportId={reportId} articleId={articleId} />
+                                    ) : (
+                                        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                            Notes require a report context
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
