@@ -85,8 +85,8 @@ export function InvitationList() {
     };
 
     const copyToClipboard = async (invitation: Invitation) => {
-        const url = `${window.location.origin}/register?token=${invitation.token}`;
-        await navigator.clipboard.writeText(url);
+        const inviteUrl = `${window.location.origin}/register?token=${invitation.token}`;
+        await navigator.clipboard.writeText(inviteUrl);
         setCopiedToken(invitation.token);
         setTimeout(() => setCopiedToken(null), 2000);
     };

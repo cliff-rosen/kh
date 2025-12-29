@@ -12,6 +12,7 @@ import secrets
 import logging
 
 from database import get_db
+from config.settings import settings
 from models import User, UserRole, Organization, ResearchStream, StreamScope, Invitation
 from services import auth_service
 from services.organization_service import OrganizationService
@@ -380,7 +381,7 @@ async def list_invitations(
             org_name=org.name if org else "Unknown",
             role=inv.role,
             token=inv.token,
-            invite_url=f"/register?token={inv.token}",
+            invite_url=f"{settings.FRONTEND_URL}/register?token={inv.token}",
             created_at=inv.created_at,
             expires_at=inv.expires_at,
             accepted_at=inv.accepted_at,
@@ -472,7 +473,7 @@ async def create_invitation(
         org_name=org.name,
         role=new_invitation.role,
         token=new_invitation.token,
-        invite_url=f"/register?token={new_invitation.token}",
+        invite_url=f"{settings.FRONTEND_URL}/register?token={new_invitation.token}",
         created_at=new_invitation.created_at,
         expires_at=new_invitation.expires_at,
         accepted_at=new_invitation.accepted_at,
