@@ -1,10 +1,12 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { useGeneralChat } from '../../hooks/useGeneralChat';
 import { InteractionType, PayloadHandler, ToolHistoryEntry } from '../../types/chat';
 import { MarkdownRenderer } from '../common/MarkdownRenderer';
 import ToolResultCard, { ToolHistoryPanel } from './ToolResultCard';
 import { getPayloadHandler } from '../../lib/chat'; // Import from index to trigger payload registration
+
+const STORAGE_KEY = 'chatTrayWidth';
 
 interface ChatTrayProps {
     initialContext?: Record<string, any>;
@@ -17,6 +19,20 @@ interface ChatTrayProps {
     isOpen?: boolean;
     /** Callback when open state changes (for embedded mode) */
     onOpenChange?: (open: boolean) => void;
+    /** Default width in pixels (default: 420) */
+    defaultWidth?: number;
+    /** Minimum width in pixels (default: 320) */
+    minWidth?: number;
+    /** Maximum width in pixels (default: 600) */
+    maxWidth?: number;
+    /** Whether to allow resizing (default: true) */
+    resizable?: boolean;
+    /**
+     * Use push layout mode where content is pushed to the right.
+     * Requires parent to be a flex container.
+     * When false (default), uses fixed positioning with overlay.
+     */
+    pushLayout?: boolean;
 }
 
 function getDefaultHeaderTitle(payloadType: string): string {
@@ -127,7 +143,12 @@ export default function ChatTray({
     hidden = false,
     embedded = false,
     isOpen: controlledIsOpen,
-    onOpenChange
+    onOpenChange,
+    defaultWidth = 420,
+    minWidth = 320,
+    maxWidth = 600,
+    resizable = true,
+    pushLayout = false
 }: ChatTrayProps) {
     const [internalIsOpen, setInternalIsOpen] = useState(false);
 
@@ -140,6 +161,58 @@ export default function ChatTray({
             setInternalIsOpen(open);
         }
     };
+
+    // Width state with localStorage persistence
+    const [width, setWidth] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                const parsed = parseInt(stored, 10);
+                if (!isNaN(parsed) && parsed >= minWidth && parsed <= maxWidth) {
+                    return parsed;
+                }
+            }
+        }
+        return defaultWidth;
+    });
+
+    // Resize handling
+    const isResizing = useRef(false);
+    const resizeHandleRef = useRef<HTMLDivElement>(null);
+
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        isResizing.current = true;
+        document.body.style.cursor = 'ew-resize';
+        document.body.style.userSelect = 'none';
+    }, []);
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isResizing.current) return;
+            const newWidth = Math.min(maxWidth, Math.max(minWidth, e.clientX));
+            setWidth(newWidth);
+        };
+
+        const handleMouseUp = () => {
+            if (isResizing.current) {
+                isResizing.current = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                // Save to localStorage
+                localStorage.setItem(STORAGE_KEY, width.toString());
+            }
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [width, minWidth, maxWidth]);
+
     const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, updateContext, reset } = useGeneralChat({ initialContext });
     const [input, setInput] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -236,16 +309,21 @@ export default function ChatTray({
         return null;
     }
 
-    // Positioning classes differ between fixed (global) and embedded modes
-    // Embedded mode uses flex-based layout that pushes content instead of overlaying
-    const trayClasses = embedded
-        ? `h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out flex-shrink-0 overflow-hidden ${isOpen ? 'w-80' : 'w-0'}`
-        : `fixed top-0 left-0 h-full w-96 bg-white dark:bg-gray-900 shadow-2xl transform transition-transform duration-300 ease-in-out z-50 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`;
+    // Different layout modes:
+    // - pushLayout: Uses flex-shrink-0 in a flex container, pushes content right
+    // - fixed (default): Uses fixed positioning with overlay
+    const trayClasses = pushLayout
+        ? `h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out relative ${isOpen ? 'shadow-lg' : ''}`
+        : `fixed top-0 left-0 h-full bg-white dark:bg-gray-900 shadow-2xl transform transition-transform duration-300 ease-in-out z-50 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`;
+
+    const trayStyle = pushLayout
+        ? { width: isOpen ? `${width}px` : '0px', minWidth: isOpen ? `${minWidth}px` : '0px' }
+        : { width: `${width}px` };
 
     return (
         <>
-            {/* Toggle Button - Fixed position in bottom-left (only for non-embedded mode) */}
-            {!embedded && !isOpen && (
+            {/* Toggle Button - Fixed position in bottom-left when closed */}
+            {!isOpen && (
                 <button
                     onClick={() => setIsOpen(true)}
                     className="fixed bottom-6 left-6 z-50 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
@@ -255,10 +333,18 @@ export default function ChatTray({
                 </button>
             )}
 
-            {/* Chat Tray - Slides in from left (or pushes content in embedded mode) */}
-            <div className={trayClasses}>
+            {/* Overlay when open (only for fixed mode) */}
+            {!pushLayout && isOpen && (
+                <div
+                    className="fixed inset-0 bg-black bg-opacity-25 z-40"
+                    onClick={() => setIsOpen(false)}
+                />
+            )}
+
+            {/* Chat Tray */}
+            <div className={trayClasses} style={trayStyle}>
                 {/* Inner container with fixed width to prevent content collapse during transition */}
-                <div className={`flex flex-col h-full ${embedded ? 'w-80' : 'w-96'}`}>
+                <div className="flex flex-col h-full" style={{ width: `${width}px` }}>
                     {/* Header */}
                     <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
                         <div className="flex items-center gap-2">
@@ -482,18 +568,24 @@ export default function ChatTray({
                         </form>
                     </div>
                 </div>
+
+                {/* Resize Handle */}
+                {resizable && isOpen && (
+                    <div
+                        ref={resizeHandleRef}
+                        onMouseDown={handleMouseDown}
+                        className="absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-blue-500 transition-colors group"
+                        title="Drag to resize"
+                    >
+                        <div className="absolute top-1/2 right-0 transform -translate-y-1/2 w-4 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="w-1 h-6 bg-blue-500 rounded-full" />
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {/* Overlay when open (only for non-embedded mode) */}
-            {!embedded && isOpen && (
-                <div
-                    className="fixed inset-0 bg-black bg-opacity-25 z-40"
-                    onClick={() => setIsOpen(false)}
-                />
-            )}
-
-            {/* Floating Payload Panel (only for non-embedded mode) */}
-            {!embedded && activePayload && (() => {
+            {/* Floating Payload Panel - positioned next to chat tray */}
+            {activePayload && (() => {
                 // Check local handlers first, then fall back to global registry
                 const handler = payloadHandlers?.[activePayload.type] || getPayloadHandler(activePayload.type);
                 const renderOptions = handler?.renderOptions || {};
@@ -502,7 +594,10 @@ export default function ChatTray({
                 const headerIcon = renderOptions.headerIcon || getDefaultHeaderIcon(activePayload.type);
 
                 return (
-                    <div className="fixed top-0 left-96 h-full bg-white dark:bg-gray-800 shadow-2xl z-50 border-l border-gray-200 dark:border-gray-700" style={{ width: panelWidth }}>
+                    <div
+                        className="h-full bg-white dark:bg-gray-800 shadow-xl border-r border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-hidden"
+                        style={{ width: panelWidth }}
+                    >
                         <div className="flex flex-col h-full">
                             {/* Header */}
                             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20">

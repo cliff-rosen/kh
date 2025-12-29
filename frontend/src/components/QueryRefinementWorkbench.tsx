@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     BeakerIcon,
     ChevronDownIcon,
@@ -19,11 +19,36 @@ import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { ResearchStream } from '../types';
 import { CanonicalResearchArticle } from '../types/canonical_types';
 
+// Exported state interface for parent components to consume
+export interface WorkbenchState {
+    focused_step_type: 'source' | 'filter' | 'categorize';
+    current_query?: {
+        query_index: number;
+        expression: string;
+        is_modified: boolean;
+        covered_topics?: string[];
+    };
+    current_filter?: {
+        criteria: string;
+        threshold: number;
+        is_modified: boolean;
+    };
+    test_results?: {
+        step_type: 'source' | 'filter' | 'categorize';
+        article_count: number;
+        total_available?: number;
+        passed_count?: number;
+        failed_count?: number;
+    };
+    result_view: 'raw' | 'compare' | 'analyze';
+}
+
 interface QueryRefinementWorkbenchProps {
     streamId: number;
     stream: ResearchStream;
     onStreamUpdate: () => void;
     canModify?: boolean;
+    onStateChange?: (state: WorkbenchState) => void;
 }
 
 type StepType = 'source' | 'filter' | 'categorize';
@@ -39,7 +64,7 @@ interface WorkflowStep {
 
 type ResultView = 'raw' | 'compare' | 'analyze';
 
-export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpdate, canModify: _canModify = true }: QueryRefinementWorkbenchProps) {
+export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpdate, canModify: _canModify = true, onStateChange }: QueryRefinementWorkbenchProps) {
     // Note: _canModify is currently unused as the backend enforces permissions,
     // but the prop is accepted for future UI enhancements
     const [steps, setSteps] = useState<WorkflowStep[]>([
@@ -54,6 +79,68 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
     const [focusedStepId, setFocusedStepId] = useState<string>('step_1');
     const [resultView, setResultView] = useState<ResultView>('raw');
     const [resultsPaneCollapsed, setResultsPaneCollapsed] = useState(false);
+
+    // Report state changes to parent for chat context
+    useEffect(() => {
+        if (!onStateChange) return;
+
+        const focusedStep = steps.find(s => s.id === focusedStepId);
+        if (!focusedStep) return;
+
+        const broadQueries = stream.retrieval_config?.broad_search?.queries || [];
+
+        // Build workbench state
+        const state: WorkbenchState = {
+            focused_step_type: focusedStep.type,
+            result_view: resultView,
+        };
+
+        // Extract current query info if on source step
+        const sourceStep = steps.find(s => s.type === 'source' && s.config.sourceType === 'query');
+        if (sourceStep && sourceStep.config.selectedQuery !== '') {
+            const queryIndex = parseInt(sourceStep.config.selectedQuery);
+            const savedQuery = broadQueries[queryIndex];
+            const savedExpression = savedQuery?.query_expression || '';
+            const testExpression = sourceStep.config.testQueryExpression || savedExpression;
+
+            state.current_query = {
+                query_index: queryIndex,
+                expression: testExpression,
+                is_modified: testExpression !== savedExpression,
+                covered_topics: savedQuery?.covered_topics,
+            };
+        }
+
+        // Extract current filter info if filter step exists
+        const filterStep = steps.find(s => s.type === 'filter');
+        if (filterStep && sourceStep && sourceStep.config.selectedQuery !== '') {
+            const queryIndex = parseInt(sourceStep.config.selectedQuery);
+            const savedFilter = broadQueries[queryIndex]?.semantic_filter;
+            const savedCriteria = savedFilter?.criteria || '';
+            const savedThreshold = savedFilter?.threshold || 0.7;
+            const testCriteria = filterStep.config.criteria !== undefined ? filterStep.config.criteria : savedCriteria;
+            const testThreshold = filterStep.config.threshold !== undefined ? filterStep.config.threshold : savedThreshold;
+
+            state.current_filter = {
+                criteria: testCriteria,
+                threshold: testThreshold,
+                is_modified: testCriteria !== savedCriteria || testThreshold !== savedThreshold,
+            };
+        }
+
+        // Extract test results from focused step
+        if (focusedStep.results) {
+            state.test_results = {
+                step_type: focusedStep.type,
+                article_count: focusedStep.results.count || 0,
+                total_available: focusedStep.results.total_count,
+                passed_count: focusedStep.results.passed_count,
+                failed_count: focusedStep.results.failed_count,
+            };
+        }
+
+        onStateChange(state);
+    }, [steps, focusedStepId, resultView, stream, onStateChange]);
 
     const addStep = (type: StepType) => {
         const newStep: WorkflowStep = {

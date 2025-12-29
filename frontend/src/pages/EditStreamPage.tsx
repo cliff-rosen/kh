@@ -49,7 +49,8 @@ const ScopeBadge = ({ scope }: { scope: string }) => {
 import SemanticSpaceForm from '../components/SemanticSpaceForm';
 import PresentationForm from '../components/PresentationForm';
 import RetrievalConfigForm from '../components/RetrievalConfigForm';
-import TestRefineTab from '../components/TestRefineTab';
+import TestRefineTab, { ExecuteSubTab } from '../components/TestRefineTab';
+import { WorkbenchState } from '../components/QueryRefinementWorkbench';
 import ContentEnrichmentForm from '../components/ContentEnrichmentForm';
 import ChatTray from '../components/chat/ChatTray';
 import { promptWorkbenchApi, PromptTemplate, SlugInfo } from '../lib/api/promptWorkbenchApi';
@@ -57,6 +58,8 @@ import SchemaProposalCard from '../components/chat/SchemaProposalCard';
 import PresentationCategoriesCard from '../components/chat/PresentationCategoriesCard';
 import PromptSuggestionsCard from '../components/chat/PromptSuggestionsCard';
 import RetrievalProposalCard from '../components/chat/RetrievalProposalCard';
+import QuerySuggestionCard from '../components/chat/QuerySuggestionCard';
+import FilterSuggestionCard from '../components/chat/FilterSuggestionCard';
 
 type TabType = 'semantic' | 'retrieval' | 'presentation' | 'enrichment' | 'execute';
 
@@ -113,6 +116,12 @@ export default function EditStreamPage() {
 
     // State for prompt suggestions from chat
     const [appliedPromptSuggestions, setAppliedPromptSuggestions] = useState<AppliedPromptSuggestions | null>(null);
+
+    // State for workbench context (used when on execute tab)
+    const [workbenchState, setWorkbenchState] = useState<WorkbenchState | null>(null);
+
+    // State for execute tab's sub-tab (workbench vs pipeline)
+    const [executeSubTab, setExecuteSubTab] = useState<ExecuteSubTab>('workbench');
 
     // Check URL params for initial tab
     const initialTab = (searchParams.get('tab') as TabType) || 'semantic';
@@ -554,16 +563,187 @@ export default function EditStreamPage() {
     }
 
     return (
-        <div className="h-[calc(100vh-4rem)] flex flex-col max-w-7xl mx-auto">
-            {/* Header - Fixed */}
-            <div className="p-6 pb-0">
-                <button
-                    onClick={() => navigate('/streams')}
-                    className="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline mb-4"
-                >
-                    <ArrowLeftIcon className="h-4 w-4 mr-1" />
-                    Back to Streams
-                </button>
+        <div className="h-[calc(100vh-4rem)] flex">
+            {/* Chat Tray - Push Layout (left side) */}
+            <ChatTray
+                key={activeTab}  // Force re-mount when tab changes to ensure context updates
+                pushLayout={true}
+                initialContext={{
+                    current_page: "edit_research_stream",
+                    entity_type: "research_stream",
+                    entity_id: stream?.stream_id,
+                    stream_name: stream?.stream_name,
+                    active_tab: activeTab,
+                    // Tab-specific context
+                    current_schema: activeTab === 'semantic' ? {
+                        stream_name: form.stream_name,
+                        purpose: stream?.purpose || "",
+                        semantic_space: form.semantic_space
+                    } : activeTab === 'retrieval' ? {
+                        stream_name: form.stream_name,
+                        retrieval_config: form.retrieval_config,
+                        semantic_space: {
+                            topics: form.semantic_space.topics  // Include topics for reference
+                        }
+                    } : activeTab === 'presentation' ? {
+                        stream_name: form.stream_name,
+                        semantic_space: {
+                            topics: form.semantic_space.topics  // Include topics for reference
+                        },
+                        categories: form.categories
+                    } : activeTab === 'enrichment' ? {
+                        // Enrichment tab - include prompts and context
+                        stream_name: form.stream_name,
+                        purpose: stream?.purpose || "",
+                        enrichment: enrichmentConfig ? {
+                            is_using_defaults: enrichmentConfig.isUsingDefaults,
+                            executive_summary: {
+                                system_prompt: enrichmentConfig.prompts.executive_summary?.system_prompt,
+                                user_prompt_template: enrichmentConfig.prompts.executive_summary?.user_prompt_template,
+                                available_slugs: enrichmentConfig.availableSlugs.executive_summary
+                            },
+                            category_summary: {
+                                system_prompt: enrichmentConfig.prompts.category_summary?.system_prompt,
+                                user_prompt_template: enrichmentConfig.prompts.category_summary?.user_prompt_template,
+                                available_slugs: enrichmentConfig.availableSlugs.category_summary
+                            },
+                            defaults: enrichmentConfig.defaults
+                        } : null,
+                        // Include stream context for prompt suggestions
+                        semantic_space: {
+                            topics: form.semantic_space.topics,
+                            domain: form.semantic_space.domain
+                        },
+                        categories: form.categories
+                    } : {
+                        // execute tab - include stream config + workbench state
+                        stream_name: form.stream_name,
+                        semantic_space: form.semantic_space,
+                        retrieval_config: form.retrieval_config,
+                        categories: form.categories,
+                        // Execute tab sub-tab (workbench vs pipeline)
+                        execute_sub_tab: executeSubTab,
+                        // Workbench-specific context for query refinement help (only relevant when on workbench sub-tab)
+                        workbench: executeSubTab === 'workbench' ? workbenchState : null
+                    }
+                }}
+                payloadHandlers={{
+                    schema_proposal: {
+                        render: (payload, callbacks) => (
+                            <SchemaProposalCard
+                                proposal={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: handleSchemaProposalAccept,
+                        onReject: handleSchemaProposalReject,
+                        renderOptions: {
+                            panelWidth: '500px',
+                            headerTitle: 'Schema Proposal',
+                            headerIcon: '📋'
+                        }
+                    },
+                    presentation_categories: {
+                        render: (payload, callbacks) => (
+                            <PresentationCategoriesCard
+                                proposal={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: handlePresentationCategoriesAccept,
+                        onReject: handlePresentationCategoriesReject,
+                        renderOptions: {
+                            panelWidth: '600px',
+                            headerTitle: 'Presentation Categories',
+                            headerIcon: '📊'
+                        }
+                    },
+                    prompt_suggestions: {
+                        render: (payload, callbacks) => (
+                            <PromptSuggestionsCard
+                                proposal={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: handlePromptSuggestionsAccept,
+                        onReject: handlePromptSuggestionsReject,
+                        renderOptions: {
+                            panelWidth: '550px',
+                            headerTitle: 'Prompt Suggestions',
+                            headerIcon: '✨'
+                        }
+                    },
+                    retrieval_proposal: {
+                        render: (payload, callbacks) => (
+                            <RetrievalProposalCard
+                                proposal={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: handleRetrievalProposalAccept,
+                        onReject: handleRetrievalProposalReject,
+                        renderOptions: {
+                            panelWidth: '600px',
+                            headerTitle: 'Retrieval Proposal',
+                            headerIcon: '🔍'
+                        }
+                    },
+                    query_suggestion: {
+                        render: (payload, callbacks) => (
+                            <QuerySuggestionCard
+                                proposal={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: async (data: any) => {
+                            // Copy query to clipboard for user to paste into workbench
+                            await navigator.clipboard.writeText(data.query_expression);
+                        },
+                        onReject: () => {},
+                        renderOptions: {
+                            panelWidth: '500px',
+                            headerTitle: 'Query Suggestion',
+                            headerIcon: '🔎'
+                        }
+                    },
+                    filter_suggestion: {
+                        render: (payload, callbacks) => (
+                            <FilterSuggestionCard
+                                proposal={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: async (data: any) => {
+                            // Copy filter criteria to clipboard for user to paste into workbench
+                            await navigator.clipboard.writeText(data.criteria);
+                        },
+                        onReject: () => {},
+                        renderOptions: {
+                            panelWidth: '500px',
+                            headerTitle: 'Filter Suggestion',
+                            headerIcon: '🎯'
+                        }
+                    }
+                }}
+            />
+
+            {/* Main Content - takes remaining space */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Header - Fixed */}
+                <div className="p-6 pb-0 max-w-7xl">
+                    <button
+                        onClick={() => navigate('/streams')}
+                        className="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:underline mb-4"
+                    >
+                        <ArrowLeftIcon className="h-4 w-4 mr-1" />
+                        Back to Streams
+                    </button>
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
@@ -830,6 +1010,8 @@ export default function EditStreamPage() {
                                 stream={stream}
                                 onStreamUpdate={() => loadResearchStream(parseInt(id!))}
                                 canModify={canModify}
+                                onWorkbenchStateChange={setWorkbenchState}
+                                onSubTabChange={setExecuteSubTab}
                             />
                         )}
 
@@ -875,132 +1057,7 @@ export default function EditStreamPage() {
                     </div>
                 </div>
             </div>
-
-            {/* Chat Tray */}
-            <ChatTray
-                key={activeTab}  // Force re-mount when tab changes to ensure context updates
-                initialContext={{
-                    current_page: "edit_research_stream",
-                    entity_type: "research_stream",
-                    entity_id: stream?.stream_id,
-                    stream_name: stream?.stream_name,
-                    active_tab: activeTab,
-                    // Tab-specific context
-                    current_schema: activeTab === 'semantic' ? {
-                        stream_name: form.stream_name,
-                        purpose: stream?.purpose || "",
-                        semantic_space: form.semantic_space
-                    } : activeTab === 'retrieval' ? {
-                        stream_name: form.stream_name,
-                        retrieval_config: form.retrieval_config,
-                        semantic_space: {
-                            topics: form.semantic_space.topics  // Include topics for reference
-                        }
-                    } : activeTab === 'presentation' ? {
-                        stream_name: form.stream_name,
-                        semantic_space: {
-                            topics: form.semantic_space.topics  // Include topics for reference
-                        },
-                        categories: form.categories
-                    } : activeTab === 'enrichment' ? {
-                        // Enrichment tab - include prompts and context
-                        stream_name: form.stream_name,
-                        purpose: stream?.purpose || "",
-                        enrichment: enrichmentConfig ? {
-                            is_using_defaults: enrichmentConfig.isUsingDefaults,
-                            executive_summary: {
-                                system_prompt: enrichmentConfig.prompts.executive_summary?.system_prompt,
-                                user_prompt_template: enrichmentConfig.prompts.executive_summary?.user_prompt_template,
-                                available_slugs: enrichmentConfig.availableSlugs.executive_summary
-                            },
-                            category_summary: {
-                                system_prompt: enrichmentConfig.prompts.category_summary?.system_prompt,
-                                user_prompt_template: enrichmentConfig.prompts.category_summary?.user_prompt_template,
-                                available_slugs: enrichmentConfig.availableSlugs.category_summary
-                            },
-                            defaults: enrichmentConfig.defaults
-                        } : null,
-                        // Include stream context for prompt suggestions
-                        semantic_space: {
-                            topics: form.semantic_space.topics,
-                            domain: form.semantic_space.domain
-                        },
-                        categories: form.categories
-                    } : {
-                        // execute tab - include everything
-                        stream_name: form.stream_name,
-                        semantic_space: form.semantic_space,
-                        retrieval_config: form.retrieval_config,
-                        categories: form.categories
-                    }
-                }}
-                payloadHandlers={{
-                    schema_proposal: {
-                        render: (payload, callbacks) => (
-                            <SchemaProposalCard
-                                proposal={payload}
-                                onAccept={callbacks.onAccept}
-                                onReject={callbacks.onReject}
-                            />
-                        ),
-                        onAccept: handleSchemaProposalAccept,
-                        onReject: handleSchemaProposalReject,
-                        renderOptions: {
-                            panelWidth: '500px',
-                            headerTitle: 'Schema Proposal',
-                            headerIcon: '📋'
-                        }
-                    },
-                    presentation_categories: {
-                        render: (payload, callbacks) => (
-                            <PresentationCategoriesCard
-                                proposal={payload}
-                                onAccept={callbacks.onAccept}
-                                onReject={callbacks.onReject}
-                            />
-                        ),
-                        onAccept: handlePresentationCategoriesAccept,
-                        onReject: handlePresentationCategoriesReject,
-                        renderOptions: {
-                            panelWidth: '600px',
-                            headerTitle: 'Presentation Categories',
-                            headerIcon: '📊'
-                        }
-                    },
-                    prompt_suggestions: {
-                        render: (payload, callbacks) => (
-                            <PromptSuggestionsCard
-                                proposal={payload}
-                                onAccept={callbacks.onAccept}
-                                onReject={callbacks.onReject}
-                            />
-                        ),
-                        onAccept: handlePromptSuggestionsAccept,
-                        onReject: handlePromptSuggestionsReject,
-                        renderOptions: {
-                            panelWidth: '550px',
-                            headerTitle: 'Prompt Suggestions',
-                            headerIcon: '✨'
-                        }
-                    },
-                    retrieval_proposal: {
-                        render: (payload, callbacks) => (
-                            <RetrievalProposalCard
-                                proposal={payload}
-                                onAccept={callbacks.onAccept}
-                                onReject={callbacks.onReject}
-                            />
-                        ),
-                        onAccept: handleRetrievalProposalAccept,
-                        onReject: handleRetrievalProposalReject,
-                        renderOptions: {
-                            panelWidth: '600px',
-                            headerTitle: 'Retrieval Proposal',
-                            headerIcon: '🔍'
-                        }
-                    }
-                }}
-            />
+            </div>
         </div>
     );
 }

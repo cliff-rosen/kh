@@ -1,25 +1,46 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import QueryRefinementWorkbench from './QueryRefinementWorkbench';
+import QueryRefinementWorkbench, { WorkbenchState } from './QueryRefinementWorkbench';
 import ExecutePipelineTab from './ExecutePipelineTab';
 import { ResearchStream } from '../types';
+
+export type ExecuteSubTab = 'workbench' | 'pipeline';
 
 interface TestRefineTabProps {
     streamId: number;
     stream: ResearchStream;
     onStreamUpdate: () => void;
     canModify?: boolean;
+    onWorkbenchStateChange?: (state: WorkbenchState | null) => void;
+    onSubTabChange?: (subTab: ExecuteSubTab) => void;
 }
 
-type SubTab = 'workbench' | 'pipeline';
-
-export default function TestRefineTab({ streamId, stream, onStreamUpdate, canModify = true }: TestRefineTabProps) {
+export default function TestRefineTab({ streamId, stream, onStreamUpdate, canModify = true, onWorkbenchStateChange, onSubTabChange }: TestRefineTabProps) {
     const [searchParams] = useSearchParams();
 
     // Check URL params for initial subtab
-    const urlSubTab = searchParams.get('subtab') as SubTab;
+    const urlSubTab = searchParams.get('subtab') as ExecuteSubTab;
     const initialSubTab = urlSubTab || 'workbench';
-    const [activeSubTab, setActiveSubTab] = useState<SubTab>(initialSubTab);
+    const [activeSubTab, setActiveSubTab] = useState<ExecuteSubTab>(initialSubTab);
+
+    // Report initial sub-tab on mount
+    useEffect(() => {
+        if (onSubTabChange) {
+            onSubTabChange(initialSubTab);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Clear workbench state when switching away from workbench subtab
+    const handleSubTabChange = (subtab: ExecuteSubTab) => {
+        setActiveSubTab(subtab);
+        if (onSubTabChange) {
+            onSubTabChange(subtab);
+        }
+        if (subtab !== 'workbench' && onWorkbenchStateChange) {
+            onWorkbenchStateChange(null);
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -28,7 +49,7 @@ export default function TestRefineTab({ streamId, stream, onStreamUpdate, canMod
                 <nav className="-mb-px flex space-x-8">
                     <button
                         type="button"
-                        onClick={() => setActiveSubTab('workbench')}
+                        onClick={() => handleSubTabChange('workbench')}
                         className={`
                             py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap
                             ${activeSubTab === 'workbench'
@@ -41,7 +62,7 @@ export default function TestRefineTab({ streamId, stream, onStreamUpdate, canMod
                     </button>
                     <button
                         type="button"
-                        onClick={() => setActiveSubTab('pipeline')}
+                        onClick={() => handleSubTabChange('pipeline')}
                         className={`
                             py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap
                             ${activeSubTab === 'pipeline'
@@ -57,7 +78,15 @@ export default function TestRefineTab({ streamId, stream, onStreamUpdate, canMod
 
             {/* Sub-Tab Content */}
             <div>
-                {activeSubTab === 'workbench' && <QueryRefinementWorkbench streamId={streamId} stream={stream} onStreamUpdate={onStreamUpdate} canModify={canModify} />}
+                {activeSubTab === 'workbench' && (
+                    <QueryRefinementWorkbench
+                        streamId={streamId}
+                        stream={stream}
+                        onStreamUpdate={onStreamUpdate}
+                        canModify={canModify}
+                        onStateChange={onWorkbenchStateChange}
+                    />
+                )}
                 {activeSubTab === 'pipeline' && <ExecutePipelineTab streamId={streamId} canModify={canModify} />}
             </div>
         </div>
