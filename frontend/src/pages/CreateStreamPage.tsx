@@ -11,6 +11,7 @@ import {
     Entity
 } from '../types';
 import { useNavigate } from 'react-router-dom';
+import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import SemanticSpaceForm from '../components/SemanticSpaceForm';
 import PresentationForm from '../components/PresentationForm';
 import RetrievalConfigForm from '../components/RetrievalConfigForm';
@@ -33,6 +34,7 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
     const { user, isPlatformAdmin, isOrgAdmin } = useAuth();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<TabType>('semantic');
+    const [isChatOpen, setIsChatOpen] = useState(false);
 
     // Determine available scopes based on user role
     const availableScopes: { value: StreamScope; label: string; description: string }[] = [
@@ -261,16 +263,100 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
 
 
     return (
-        <div className="h-[calc(100vh-4rem)] flex flex-col max-w-7xl mx-auto">
-            {/* Header - Fixed */}
-            <div className="p-6 pb-0">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                    Create Research Stream
-                </h2>
-                <p className="text-gray-600 dark:text-gray-400">
-                    Define a comprehensive research scope with categories and inclusion criteria.
-                </p>
-            </div>
+        <div className="h-[calc(100vh-4rem)] flex">
+            {/* Chat Tray - inline on left side */}
+            <ChatTray
+                initialContext={{
+                    current_page: "new_stream",
+                    entity_type: "research_stream",
+                    active_tab: activeTab,
+                    current_form: {
+                        stream_name: form.stream_name,
+                        semantic_space: {
+                            domain: form.semantic_space.domain,
+                            topics: form.semantic_space.topics,
+                            entities: form.semantic_space.entities,
+                            context: {
+                                business_context: form.semantic_space.context.business_context
+                            }
+                        }
+                    }
+                }}
+                payloadHandlers={{
+                    stream_template: {
+                        render: (payload, callbacks) => (
+                            <StreamTemplateCard
+                                payload={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: handleStreamTemplateAccept,
+                        onReject: handleStreamTemplateReject,
+                        renderOptions: {
+                            panelWidth: '600px',
+                            headerTitle: 'Stream Template',
+                            headerIcon: '🎯'
+                        }
+                    },
+                    topic_suggestions: {
+                        render: (payload, callbacks) => (
+                            <TopicSuggestionsCard
+                                payload={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: handleTopicSuggestionsAccept,
+                        onReject: handleTopicSuggestionsReject,
+                        renderOptions: {
+                            panelWidth: '550px',
+                            headerTitle: 'Topic Suggestions',
+                            headerIcon: '💡'
+                        }
+                    },
+                    validation_feedback: {
+                        render: (payload, callbacks) => (
+                            <ValidationFeedbackCard
+                                payload={payload}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onReject: handleValidationFeedbackReject,
+                        renderOptions: {
+                            panelWidth: '500px',
+                            headerTitle: 'Validation Feedback',
+                            headerIcon: '✅'
+                        }
+                    }
+                }}
+                isOpen={isChatOpen}
+                onOpenChange={setIsChatOpen}
+            />
+
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col overflow-hidden relative">
+                {/* Chat toggle button - fixed to lower left */}
+                {!isChatOpen && (
+                    <button
+                        onClick={() => setIsChatOpen(true)}
+                        className="fixed bottom-6 left-6 z-40 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
+                        title="Open chat"
+                    >
+                        <ChatBubbleLeftRightIcon className="h-6 w-6" />
+                    </button>
+                )}
+
+                <div className="max-w-7xl mx-auto w-full">
+                {/* Header - Fixed */}
+                <div className="p-6 pb-0">
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                        Create Research Stream
+                    </h2>
+                    <p className="text-gray-600 dark:text-gray-400">
+                        Define a comprehensive research scope with categories and inclusion criteria.
+                    </p>
+                </div>
 
             {error && (
                 <div className="mx-6 mt-4 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-700 rounded-lg p-4">
@@ -481,73 +567,8 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                 </div>
             </div>
 
-            {/* Chat Tray */}
-            <ChatTray
-                initialContext={{
-                    current_page: "new_stream",
-                    entity_type: "research_stream",
-                    active_tab: activeTab,
-                    current_form: {
-                        stream_name: form.stream_name,
-                        semantic_space: {
-                            domain: form.semantic_space.domain,
-                            topics: form.semantic_space.topics,
-                            entities: form.semantic_space.entities,
-                            context: {
-                                business_context: form.semantic_space.context.business_context
-                            }
-                        }
-                    }
-                }}
-                payloadHandlers={{
-                    stream_template: {
-                        render: (payload, callbacks) => (
-                            <StreamTemplateCard
-                                payload={payload}
-                                onAccept={callbacks.onAccept}
-                                onReject={callbacks.onReject}
-                            />
-                        ),
-                        onAccept: handleStreamTemplateAccept,
-                        onReject: handleStreamTemplateReject,
-                        renderOptions: {
-                            panelWidth: '600px',
-                            headerTitle: 'Stream Template',
-                            headerIcon: '🎯'
-                        }
-                    },
-                    topic_suggestions: {
-                        render: (payload, callbacks) => (
-                            <TopicSuggestionsCard
-                                payload={payload}
-                                onAccept={callbacks.onAccept}
-                                onReject={callbacks.onReject}
-                            />
-                        ),
-                        onAccept: handleTopicSuggestionsAccept,
-                        onReject: handleTopicSuggestionsReject,
-                        renderOptions: {
-                            panelWidth: '550px',
-                            headerTitle: 'Topic Suggestions',
-                            headerIcon: '💡'
-                        }
-                    },
-                    validation_feedback: {
-                        render: (payload, callbacks) => (
-                            <ValidationFeedbackCard
-                                payload={payload}
-                                onReject={callbacks.onReject}
-                            />
-                        ),
-                        onReject: handleValidationFeedbackReject,
-                        renderOptions: {
-                            panelWidth: '550px',
-                            headerTitle: 'Validation Feedback',
-                            headerIcon: '✅'
-                        }
-                    }
-                }}
-            />
+            </div>
+            </div>
         </div>
     );
 }
