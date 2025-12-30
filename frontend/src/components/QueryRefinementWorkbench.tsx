@@ -19,7 +19,8 @@ import {
     ChevronDoubleRightIcon,
     ChevronDoubleLeftIcon,
     ClipboardDocumentIcon,
-    DocumentArrowDownIcon
+    DocumentArrowDownIcon,
+    TrashIcon
 } from '@heroicons/react/24/outline';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { ResearchStream } from '../types';
@@ -121,7 +122,7 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
     const [compareMode, setCompareMode] = useState(false);
     const [compareSnapshots, setCompareSnapshots] = useState<[string, string] | null>(null);
 
-    // Add a snapshot to history
+    // Add a snapshot to history (does NOT auto-select - user stays in live view)
     const addSnapshot = useCallback((snapshot: Omit<QuerySnapshot, 'id' | 'timestamp'>) => {
         const newSnapshot: QuerySnapshot = {
             ...snapshot,
@@ -129,7 +130,8 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
             timestamp: new Date()
         };
         setSnapshots(prev => [newSnapshot, ...prev]);
-        setSelectedSnapshotId(newSnapshot.id);
+        // Don't auto-select - user should stay in live view after running a query
+        // They can click on the snapshot in history if they want to view it
         return newSnapshot;
     }, []);
 
@@ -150,6 +152,20 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
         setCompareMode(false);
         setCompareSnapshots(null);
     }, []);
+
+    // Delete a single snapshot
+    const deleteSnapshot = useCallback((id: string) => {
+        setSnapshots(prev => prev.filter(s => s.id !== id));
+        // Clear selection if deleted snapshot was selected
+        if (selectedSnapshotId === id) {
+            setSelectedSnapshotId(null);
+        }
+        // Clear compare if deleted snapshot was in compare
+        if (compareSnapshots?.includes(id)) {
+            setCompareMode(false);
+            setCompareSnapshots(null);
+        }
+    }, [selectedSnapshotId, compareSnapshots]);
 
     // Report state changes to parent for chat context
     useEffect(() => {
@@ -453,6 +469,7 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
                         setCompareSnapshots([id, compareSnapshots?.[1] || id]);
                     }}
                     onUpdateLabel={updateSnapshotLabel}
+                    onDeleteSnapshot={deleteSnapshot}
                     isOpen={historyPanelOpen}
                     onToggleOpen={() => setHistoryPanelOpen(!historyPanelOpen)}
                 />
@@ -902,15 +919,22 @@ function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream, on
                 throw new Error('No input articles selected');
             }
 
-            // Get filter criteria - use current test value
+            // Get filter criteria - determine which query's filter to use
+            const broadQueries = stream.retrieval_config?.broad_search?.queries || [];
             const sourceStep = previousSteps.find(s => s.type === 'source' && s.config.sourceType === 'query');
-            let savedFilter: any = null;
-            if (sourceStep && sourceStep.config.selectedQuery) {
-                const queryIndex = parseInt(sourceStep.config.selectedQuery);
-                const broadQueries = stream.retrieval_config?.broad_search?.queries || [];
-                const query = broadQueries[queryIndex];
-                savedFilter = query?.semantic_filter;
+
+            // Priority: explicit filterSourceQuery > source step query > first query
+            let queryIndex = config.filterSourceQuery !== undefined
+                ? parseInt(config.filterSourceQuery)
+                : (sourceStep?.config.selectedQuery !== undefined
+                    ? parseInt(sourceStep.config.selectedQuery)
+                    : 0);
+
+            if (isNaN(queryIndex) || queryIndex < 0 || queryIndex >= broadQueries.length) {
+                queryIndex = broadQueries.length > 0 ? 0 : -1;
             }
+
+            const savedFilter = queryIndex >= 0 ? broadQueries[queryIndex]?.semantic_filter : null;
 
             const testCriteria = config.criteria !== undefined ? config.criteria : (savedFilter?.criteria || '');
             const testThreshold = config.threshold !== undefined ? config.threshold : (savedFilter?.threshold || 0.7);
@@ -979,18 +1003,25 @@ function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream, on
 
                 {/* Filter Configuration with Diff Tracking */}
                 {(() => {
-                    // Try to determine which query this filter is associated with
-                    // Look for a source step in previous steps
-                    const sourceStep = previousSteps.find(s => s.type === 'source' && s.config.sourceType === 'query');
-                    let savedFilter: any = null;
-                    let queryIndex = -1;
+                    const broadQueries = stream.retrieval_config?.broad_search?.queries || [];
 
-                    if (sourceStep && sourceStep.config.selectedQuery) {
-                        queryIndex = parseInt(sourceStep.config.selectedQuery);
-                        const broadQueries = stream.retrieval_config?.broad_search?.queries || [];
-                        const query = broadQueries[queryIndex];
-                        savedFilter = query?.semantic_filter;
+                    // Determine which query's filter to use:
+                    // 1. If user explicitly selected one via filterSourceQuery, use that
+                    // 2. If source step is query-based, use that query's filter
+                    // 3. Otherwise default to first query (index 0)
+                    const sourceStep = previousSteps.find(s => s.type === 'source' && s.config.sourceType === 'query');
+                    let queryIndex = config.filterSourceQuery !== undefined
+                        ? parseInt(config.filterSourceQuery)
+                        : (sourceStep?.config.selectedQuery !== undefined
+                            ? parseInt(sourceStep.config.selectedQuery)
+                            : 0);
+
+                    // Ensure queryIndex is valid
+                    if (isNaN(queryIndex) || queryIndex < 0 || queryIndex >= broadQueries.length) {
+                        queryIndex = broadQueries.length > 0 ? 0 : -1;
                     }
+
+                    const savedFilter = queryIndex >= 0 ? broadQueries[queryIndex]?.semantic_filter : null;
 
                     const testCriteria = config.criteria !== undefined ? config.criteria : (savedFilter?.criteria || '');
                     const testThreshold = config.threshold !== undefined ? config.threshold : (savedFilter?.threshold || 0.7);
@@ -1017,6 +1048,39 @@ function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream, on
                                     </span>
                                 )}
                             </div>
+
+                            {/* Filter Source Selector - show when source is not query-based or multiple queries exist */}
+                            {broadQueries.length > 0 && (
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                        Load filter from query
+                                    </label>
+                                    <select
+                                        value={queryIndex}
+                                        onChange={(e) => {
+                                            const newIndex = parseInt(e.target.value);
+                                            const newFilter = broadQueries[newIndex]?.semantic_filter;
+                                            // Update both the source query and reset criteria to match
+                                            onUpdate({
+                                                config: {
+                                                    ...config,
+                                                    filterSourceQuery: e.target.value,
+                                                    criteria: newFilter?.criteria || '',
+                                                    threshold: newFilter?.threshold || 0.7,
+                                                    enabled: newFilter?.enabled ?? true
+                                                }
+                                            });
+                                        }}
+                                        className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    >
+                                        {broadQueries.map((q: any, idx: number) => (
+                                            <option key={idx} value={idx}>
+                                                Query {idx + 1}: {q.query_expression?.substring(0, 40)}...
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
 
                             <div>
                                 <label className="flex items-center mb-2">
@@ -1669,6 +1733,7 @@ interface VersionHistorySidebarProps {
     onSelectForCompare: (id: string) => void;
     onSetCompareFirst: (id: string) => void;
     onUpdateLabel: (id: string, label: string) => void;
+    onDeleteSnapshot: (id: string) => void;
     isOpen: boolean;
     onToggleOpen: () => void;
 }
@@ -1683,6 +1748,7 @@ function VersionHistorySidebar({
     onSelectForCompare,
     onSetCompareFirst,
     onUpdateLabel,
+    onDeleteSnapshot,
     isOpen,
     onToggleOpen
 }: VersionHistorySidebarProps) {
@@ -1812,9 +1878,22 @@ function VersionHistorySidebar({
                                             <span className="px-1 py-0.5 text-[10px] bg-green-500 text-white rounded">B</span>
                                         )}
                                     </div>
-                                    <span className="text-[10px] text-gray-500 dark:text-gray-400">
-                                        {formatTime(snapshot.timestamp)}
-                                    </span>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                                            {formatTime(snapshot.timestamp)}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onDeleteSnapshot(snapshot.id);
+                                            }}
+                                            className="p-0.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded transition-colors"
+                                            title="Delete snapshot"
+                                        >
+                                            <TrashIcon className="h-3 w-3" />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* Label (editable) */}
