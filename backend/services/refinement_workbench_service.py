@@ -129,12 +129,13 @@ class RefinementWorkbenchService:
         end_date_formatted = end_date.replace("-", "/")
 
         # First, get ALL matched PMIDs (just IDs, not full articles) for comparison
+        # Use publication date to match run_query behavior for consistent comparisons
         all_pmids, total_count = self.pubmed_service.get_article_ids(
             query=query_expression,
             max_results=10000,  # Get up to 10k PMIDs for comparison
             start_date=start_date_formatted,
             end_date=end_date_formatted,
-            date_type="entry",
+            date_type="publication",
             sort_by="relevance"
         )
 
@@ -144,7 +145,7 @@ class RefinementWorkbenchService:
             max_results=self.MAX_ARTICLES_PER_SOURCE,
             start_date=start_date_formatted,
             end_date=end_date_formatted,
-            date_type="entry",
+            date_type="publication",
             sort_by="relevance"
         )
 
