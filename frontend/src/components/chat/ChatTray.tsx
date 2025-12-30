@@ -13,10 +13,10 @@ interface ChatTrayProps {
     payloadHandlers?: Record<string, PayloadHandler>;
     /** Hide the chat tray completely (used when modal takes over) */
     hidden?: boolean;
-    /** Controlled open state - when provided, parent controls visibility */
-    isOpen?: boolean;
-    /** Callback when open state changes */
-    onOpenChange?: (open: boolean) => void;
+    /** Whether the chat tray is open */
+    isOpen: boolean;
+    /** Callback when user closes the chat (via X button) */
+    onOpenChange: (open: boolean) => void;
     /** Default width in pixels (default: 420) */
     defaultWidth?: number;
     /** Minimum width in pixels (default: 320) */
@@ -133,24 +133,13 @@ export default function ChatTray({
     initialContext,
     payloadHandlers,
     hidden = false,
-    isOpen: controlledIsOpen,
+    isOpen,
     onOpenChange,
     defaultWidth = 420,
     minWidth = 320,
     maxWidth = 600,
     resizable = true
 }: ChatTrayProps) {
-    const [internalIsOpen, setInternalIsOpen] = useState(false);
-
-    // Use controlled state if provided, otherwise use internal state
-    const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
-    const setIsOpen = (open: boolean) => {
-        if (onOpenChange) {
-            onOpenChange(open);
-        } else {
-            setInternalIsOpen(open);
-        }
-    };
 
     // Width state with localStorage persistence
     const [width, setWidth] = useState(() => {
@@ -311,7 +300,7 @@ export default function ChatTray({
             // Execute the client action
             switch (action.action) {
                 case 'close_chat':
-                    setIsOpen(false);
+                    onOpenChange(false);
                     break;
                 // Add more client action handlers as needed
                 default:
