@@ -9,6 +9,7 @@ import { PayloadHandler } from '../types/chat';
 import { reportApi } from '../lib/api/reportApi';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { useResearchStream } from '../context/ResearchStreamContext';
+import { useAuth } from '../context/AuthContext';
 import PipelineAnalyticsModal from '../components/PipelineAnalyticsModal';
 import ExecutionConfigModal from '../components/ExecutionConfigModal';
 import ArticleViewerModal from '../components/ArticleViewerModal';
@@ -22,6 +23,7 @@ export default function ReportsPage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const { researchStreams, loadResearchStreams } = useResearchStream();
+    const { isPlatformAdmin, isOrgAdmin } = useAuth();
     const [selectedStream, setSelectedStream] = useState('');
     const [reports, setReports] = useState<Report[]>([]);
     const [selectedReport, setSelectedReport] = useState<ReportWithArticles | null>(null);
@@ -361,7 +363,7 @@ export default function ReportsPage() {
                                 ))}
                             </select>
                         </div>
-                        {selectedStream && (
+                        {selectedStream && (isPlatformAdmin || isOrgAdmin) && (
                             <button
                                 onClick={() => navigate(`/streams/${selectedStream}/edit?tab=execute&subtab=pipeline`)}
                                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"

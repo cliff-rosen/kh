@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 export default function TopBar() {
     const { isDarkMode, toggleTheme } = useTheme();
     const location = useLocation();
-    const { logout, isPlatformAdmin } = useAuth();
+    const { logout, isPlatformAdmin, isOrgAdmin } = useAuth();
 
     const getLinkClass = (path: string) => {
         const isActive = location.pathname === path;
@@ -44,10 +44,12 @@ export default function TopBar() {
                         <DocumentTextIcon className="h-5 w-5 mr-2" />
                         Reports
                     </NavLink>
-                    <NavLink to="/tools" className={getLinkClass('/tools')}>
-                        <WrenchScrewdriverIcon className="h-5 w-5 mr-2" />
-                        Tools
-                    </NavLink>
+                    {(isPlatformAdmin || isOrgAdmin) && (
+                        <NavLink to="/tools" className={getLinkClass('/tools')}>
+                            <WrenchScrewdriverIcon className="h-5 w-5 mr-2" />
+                            Tools
+                        </NavLink>
+                    )}
                     {isPlatformAdmin && (
                         <NavLink to="/admin" className={getLinkClass('/admin')}>
                             <ShieldCheckIcon className="h-5 w-5 mr-2" />

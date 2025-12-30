@@ -1,18 +1,16 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PencilIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import { PencilIcon } from '@heroicons/react/24/outline';
 
 import { useAuth } from '../context/AuthContext';
 import { useResearchStream } from '../context/ResearchStreamContext';
 import { reportApi } from '../lib/api/reportApi';
 import { Report } from '../types';
-import ChatTray from '../components/chat/ChatTray';
 
 export default function DashboardPage() {
     const { user } = useAuth();
     const { researchStreams, loadResearchStreams, isLoading } = useResearchStream();
     const [recentReports, setRecentReports] = useState<Report[]>([]);
-    const [isChatOpen, setIsChatOpen] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -20,35 +18,9 @@ export default function DashboardPage() {
         reportApi.getRecentReports(3).then(setRecentReports).catch(console.error);
     }, [loadResearchStreams]);
 
-    const chatContext = useMemo(() => ({
-        current_page: 'dashboard',
-        stream_count: researchStreams.length,
-        active_stream_count: researchStreams.filter(s => s.is_active).length
-    }), [researchStreams]);
-
     return (
-        <div className="h-[calc(100vh-4rem)] flex">
-            {/* Chat Tray - inline on left side */}
-            <ChatTray
-                initialContext={chatContext}
-                isOpen={isChatOpen}
-                onOpenChange={setIsChatOpen}
-            />
-
-            {/* Main Content */}
-            <div className="flex-1 overflow-y-auto p-6 relative">
-                {/* Chat toggle button - fixed to lower left of content area */}
-                {!isChatOpen && (
-                    <button
-                        onClick={() => setIsChatOpen(true)}
-                        className="fixed bottom-6 left-6 z-40 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
-                        title="Open chat"
-                    >
-                        <ChatBubbleLeftRightIcon className="h-6 w-6" />
-                    </button>
-                )}
-
-                <div className="max-w-7xl mx-auto">
+        <div className="h-[calc(100vh-4rem)] overflow-y-auto p-6">
+            <div className="max-w-7xl mx-auto">
                     <div className="mb-8">
                         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
                             Dashboard
@@ -289,7 +261,6 @@ export default function DashboardPage() {
                             </div>
                         </div>
                     )}
-                </div>
             </div>
         </div>
     );

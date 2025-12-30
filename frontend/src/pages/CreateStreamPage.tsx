@@ -11,14 +11,9 @@ import {
     Entity
 } from '../types';
 import { useNavigate } from 'react-router-dom';
-import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import SemanticSpaceForm from '../components/SemanticSpaceForm';
 import PresentationForm from '../components/PresentationForm';
 import RetrievalConfigForm from '../components/RetrievalConfigForm';
-import ChatTray from '../components/chat/ChatTray';
-import StreamTemplateCard from '../components/chat/StreamTemplateCard';
-import TopicSuggestionsCard from '../components/chat/TopicSuggestionsCard';
-import ValidationFeedbackCard from '../components/chat/ValidationFeedbackCard';
 
 // Stream scope type
 type StreamScope = 'personal' | 'organization' | 'global';
@@ -34,7 +29,6 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
     const { user, isPlatformAdmin, isOrgAdmin } = useAuth();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<TabType>('semantic');
-    const [isChatOpen, setIsChatOpen] = useState(false);
 
     // Determine available scopes based on user role
     const availableScopes: { value: StreamScope; label: string; description: string }[] = [
@@ -173,182 +167,9 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
         }
     };
 
-    // Chat payload handlers
-    const handleStreamTemplateAccept = (template: any) => {
-        console.log('Applying stream template:', template);
-
-        const updatedForm = { ...form };
-
-        // Apply stream name
-        if (template.stream_name) {
-            updatedForm.stream_name = template.stream_name;
-        }
-
-        // Apply domain
-        if (template.domain) {
-            updatedForm.semantic_space.domain = {
-                name: template.domain.name || '',
-                description: template.domain.description || ''
-            };
-        }
-
-        // Apply topics
-        if (template.topics && template.topics.length > 0) {
-            updatedForm.semantic_space.topics = template.topics.map((t: any, idx: number) => ({
-                topic_id: `topic_${Date.now()}_${idx}`,
-                name: t.name,
-                description: t.description,
-                importance: t.importance || 'medium',
-                rationale: t.rationale || `${t.importance} priority topic for the research stream`
-            }));
-        }
-
-        // Apply entities
-        if (template.entities && template.entities.length > 0) {
-            updatedForm.semantic_space.entities = template.entities.map((e: any, idx: number) => ({
-                entity_id: `entity_${Date.now()}_${idx}`,
-                entity_type: e.type || 'organization',
-                name: e.name,
-                canonical_forms: [e.name], // Initialize with entity name
-                context: e.description || ''
-            }));
-        }
-
-        // Apply business context
-        if (template.business_context) {
-            updatedForm.semantic_space.context.business_context = template.business_context;
-        }
-
-        setForm(updatedForm);
-        alert('Stream template has been applied to the form.');
-    };
-
-    const handleStreamTemplateReject = () => {
-        console.log('Stream template rejected');
-    };
-
-    const handleTopicSuggestionsAccept = (suggestions: any) => {
-        console.log('Adding topic suggestions:', suggestions);
-
-        const updatedForm = { ...form };
-
-        if (suggestions.suggestions && suggestions.suggestions.length > 0) {
-            // Add new topics to existing ones
-            const baseTimestamp = Date.now();
-            const newTopics = suggestions.suggestions.map((s: any, idx: number) => ({
-                topic_id: `topic_${baseTimestamp}_${idx}`,
-                name: s.name,
-                description: s.description,
-                importance: s.importance || 'medium',
-                rationale: s.rationale || `Suggested topic based on ${suggestions.based_on || 'analysis'}`
-            }));
-
-            updatedForm.semantic_space.topics = [
-                ...updatedForm.semantic_space.topics,
-                ...newTopics
-            ];
-        }
-
-        setForm(updatedForm);
-        alert(`${suggestions.suggestions.length} topic(s) have been added to the form.`);
-    };
-
-    const handleTopicSuggestionsReject = () => {
-        console.log('Topic suggestions rejected');
-    };
-
-    const handleValidationFeedbackReject = () => {
-        console.log('Validation feedback dismissed');
-    };
-
-
     return (
-        <div className="h-[calc(100vh-4rem)] flex">
-            {/* Chat Tray - inline on left side */}
-            <ChatTray
-                initialContext={{
-                    current_page: "new_stream",
-                    entity_type: "research_stream",
-                    active_tab: activeTab,
-                    current_form: {
-                        stream_name: form.stream_name,
-                        semantic_space: {
-                            domain: form.semantic_space.domain,
-                            topics: form.semantic_space.topics,
-                            entities: form.semantic_space.entities,
-                            context: {
-                                business_context: form.semantic_space.context.business_context
-                            }
-                        }
-                    }
-                }}
-                payloadHandlers={{
-                    stream_template: {
-                        render: (payload, callbacks) => (
-                            <StreamTemplateCard
-                                payload={payload}
-                                onAccept={callbacks.onAccept}
-                                onReject={callbacks.onReject}
-                            />
-                        ),
-                        onAccept: handleStreamTemplateAccept,
-                        onReject: handleStreamTemplateReject,
-                        renderOptions: {
-                            panelWidth: '600px',
-                            headerTitle: 'Stream Template',
-                            headerIcon: '🎯'
-                        }
-                    },
-                    topic_suggestions: {
-                        render: (payload, callbacks) => (
-                            <TopicSuggestionsCard
-                                payload={payload}
-                                onAccept={callbacks.onAccept}
-                                onReject={callbacks.onReject}
-                            />
-                        ),
-                        onAccept: handleTopicSuggestionsAccept,
-                        onReject: handleTopicSuggestionsReject,
-                        renderOptions: {
-                            panelWidth: '550px',
-                            headerTitle: 'Topic Suggestions',
-                            headerIcon: '💡'
-                        }
-                    },
-                    validation_feedback: {
-                        render: (payload, callbacks) => (
-                            <ValidationFeedbackCard
-                                payload={payload}
-                                onReject={callbacks.onReject}
-                            />
-                        ),
-                        onReject: handleValidationFeedbackReject,
-                        renderOptions: {
-                            panelWidth: '500px',
-                            headerTitle: 'Validation Feedback',
-                            headerIcon: '✅'
-                        }
-                    }
-                }}
-                isOpen={isChatOpen}
-                onOpenChange={setIsChatOpen}
-            />
-
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col overflow-hidden relative">
-                {/* Chat toggle button - fixed to lower left */}
-                {!isChatOpen && (
-                    <button
-                        type="button"
-                        onClick={() => setIsChatOpen(true)}
-                        className="fixed bottom-6 left-6 z-40 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
-                        title="Open chat"
-                    >
-                        <ChatBubbleLeftRightIcon className="h-6 w-6" />
-                    </button>
-                )}
-
-                <div className="max-w-7xl mx-auto w-full">
+        <div className="h-[calc(100vh-4rem)] flex flex-col overflow-hidden">
+            <div className="max-w-7xl mx-auto w-full flex-1 flex flex-col overflow-hidden">
                 {/* Header - Fixed */}
                 <div className="p-6 pb-0">
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
@@ -567,8 +388,6 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                         {isLoading ? 'Creating...' : 'Create Stream'}
                     </button>
                 </div>
-            </div>
-
             </div>
             </div>
         </div>
