@@ -17,7 +17,9 @@ import {
     ClockIcon,
     ArrowsRightLeftIcon,
     ChevronDoubleRightIcon,
-    ChevronDoubleLeftIcon
+    ChevronDoubleLeftIcon,
+    ClipboardDocumentIcon,
+    DocumentArrowDownIcon
 } from '@heroicons/react/24/outline';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { ResearchStream } from '../types';
@@ -351,6 +353,29 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
                                 onClose={() => {
                                     setCompareMode(false);
                                     setCompareSnapshots(null);
+                                }}
+                                onUseAsSource={(pmids, _label) => {
+                                    // Update the first source step to use these PMIDs
+                                    setSteps(prev => prev.map((step, idx) => {
+                                        if (idx === 0 && step.type === 'source') {
+                                            return {
+                                                ...step,
+                                                config: {
+                                                    ...step.config,
+                                                    sourceType: 'manual',
+                                                    manualIds: pmids.join('\n')
+                                                },
+                                                results: null,  // Clear previous results
+                                                expanded: true
+                                            };
+                                        }
+                                        return step;
+                                    }));
+                                    // Exit compare mode and focus on the source step
+                                    setCompareMode(false);
+                                    setCompareSnapshots(null);
+                                    setFocusedStepId('step_1');
+                                    setResultsPaneCollapsed(true);  // Collapse to show the source config
                                 }}
                             />
                         ) : selectedSnapshotId && !compareMode ? (
@@ -1956,10 +1981,12 @@ interface SnapshotCompareViewProps {
     snapshotA: QuerySnapshot | undefined;
     snapshotB: QuerySnapshot | undefined;
     onClose: () => void;
+    onUseAsSource: (pmids: string[], label: string) => void;
 }
 
-function SnapshotCompareView({ snapshotA, snapshotB, onClose }: SnapshotCompareViewProps) {
+function SnapshotCompareView({ snapshotA, snapshotB, onClose, onUseAsSource }: SnapshotCompareViewProps) {
     const [activeTab, setActiveTab] = useState<'only_a' | 'both' | 'only_b'>('only_a');
+    const [copiedGroup, setCopiedGroup] = useState<string | null>(null);
 
     if (!snapshotA || !snapshotB) {
         return (
@@ -2056,17 +2083,104 @@ function SnapshotCompareView({ snapshotA, snapshotB, onClose }: SnapshotCompareV
 
                 {/* Summary stats - use PMID counts (the full comparison) */}
                 <div className="grid grid-cols-3 gap-3 mb-3">
-                    <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded p-2 text-center">
-                        <p className="text-lg font-bold text-orange-600 dark:text-orange-400">{onlyInAPmids.length.toLocaleString()}</p>
-                        <p className="text-xs text-gray-600 dark:text-gray-400">Only in A</p>
+                    {/* Only in A */}
+                    <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded p-2">
+                        <div className="text-center mb-2">
+                            <p className="text-lg font-bold text-orange-600 dark:text-orange-400">{onlyInAPmids.length.toLocaleString()}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Only in A</p>
+                        </div>
+                        {onlyInAPmids.length > 0 && (
+                            <div className="flex gap-1 justify-center">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(onlyInAPmids.join('\n'));
+                                        setCopiedGroup('only_a');
+                                        setTimeout(() => setCopiedGroup(null), 2000);
+                                    }}
+                                    className="px-2 py-1 text-xs bg-white dark:bg-gray-800 border border-orange-300 dark:border-orange-700 rounded hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors flex items-center gap-1"
+                                    title="Copy PMIDs to clipboard"
+                                >
+                                    <ClipboardDocumentIcon className="h-3 w-3" />
+                                    {copiedGroup === 'only_a' ? 'Copied!' : 'Copy'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => onUseAsSource(onlyInAPmids, 'Only in A')}
+                                    className="px-2 py-1 text-xs bg-white dark:bg-gray-800 border border-orange-300 dark:border-orange-700 rounded hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors flex items-center gap-1"
+                                    title="Use these PMIDs as source for testing"
+                                >
+                                    <DocumentArrowDownIcon className="h-3 w-3" />
+                                    Use
+                                </button>
+                            </div>
+                        )}
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded p-2 text-center">
-                        <p className="text-lg font-bold text-gray-600 dark:text-gray-400">{inBothPmids.length.toLocaleString()}</p>
-                        <p className="text-xs text-gray-600 dark:text-gray-400">In Both</p>
+                    {/* In Both */}
+                    <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded p-2">
+                        <div className="text-center mb-2">
+                            <p className="text-lg font-bold text-gray-600 dark:text-gray-400">{inBothPmids.length.toLocaleString()}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">In Both</p>
+                        </div>
+                        {inBothPmids.length > 0 && (
+                            <div className="flex gap-1 justify-center">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(inBothPmids.join('\n'));
+                                        setCopiedGroup('both');
+                                        setTimeout(() => setCopiedGroup(null), 2000);
+                                    }}
+                                    className="px-2 py-1 text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors flex items-center gap-1"
+                                    title="Copy PMIDs to clipboard"
+                                >
+                                    <ClipboardDocumentIcon className="h-3 w-3" />
+                                    {copiedGroup === 'both' ? 'Copied!' : 'Copy'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => onUseAsSource(inBothPmids, 'In Both')}
+                                    className="px-2 py-1 text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors flex items-center gap-1"
+                                    title="Use these PMIDs as source for testing"
+                                >
+                                    <DocumentArrowDownIcon className="h-3 w-3" />
+                                    Use
+                                </button>
+                            </div>
+                        )}
                     </div>
-                    <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-2 text-center">
-                        <p className="text-lg font-bold text-green-600 dark:text-green-400">{onlyInBPmids.length.toLocaleString()}</p>
-                        <p className="text-xs text-gray-600 dark:text-gray-400">Only in B</p>
+                    {/* Only in B */}
+                    <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-2">
+                        <div className="text-center mb-2">
+                            <p className="text-lg font-bold text-green-600 dark:text-green-400">{onlyInBPmids.length.toLocaleString()}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Only in B</p>
+                        </div>
+                        {onlyInBPmids.length > 0 && (
+                            <div className="flex gap-1 justify-center">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(onlyInBPmids.join('\n'));
+                                        setCopiedGroup('only_b');
+                                        setTimeout(() => setCopiedGroup(null), 2000);
+                                    }}
+                                    className="px-2 py-1 text-xs bg-white dark:bg-gray-800 border border-green-300 dark:border-green-700 rounded hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors flex items-center gap-1"
+                                    title="Copy PMIDs to clipboard"
+                                >
+                                    <ClipboardDocumentIcon className="h-3 w-3" />
+                                    {copiedGroup === 'only_b' ? 'Copied!' : 'Copy'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => onUseAsSource(onlyInBPmids, 'Only in B')}
+                                    className="px-2 py-1 text-xs bg-white dark:bg-gray-800 border border-green-300 dark:border-green-700 rounded hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors flex items-center gap-1"
+                                    title="Use these PMIDs as source for testing"
+                                >
+                                    <DocumentArrowDownIcon className="h-3 w-3" />
+                                    Use
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
 
