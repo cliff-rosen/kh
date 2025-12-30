@@ -107,7 +107,7 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
             concepts: null,
             broad_search: null,
             article_limit_per_week: 10
-        },
+        } as RetrievalConfig,
 
         // === LAYER 3: PRESENTATION CONFIG ===
         presentation_config: {
@@ -339,6 +339,7 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                 {/* Chat toggle button - fixed to lower left */}
                 {!isChatOpen && (
                     <button
+                        type="button"
                         onClick={() => setIsChatOpen(true)}
                         className="fixed bottom-6 left-6 z-40 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
                         title="Open chat"
@@ -362,6 +363,7 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                 <div className="mx-6 mt-4 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-700 rounded-lg p-4">
                     <p className="text-red-800 dark:text-red-200">{error}</p>
                     <button
+                        type="button"
                         onClick={clearError}
                         className="mt-2 text-sm text-red-600 dark:text-red-400 hover:underline"
                     >
