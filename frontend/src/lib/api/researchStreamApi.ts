@@ -35,6 +35,7 @@ export interface SourceResponse {
     articles: CanonicalResearchArticle[];
     count: number;  // Number of articles actually returned
     total_count: number;  // Total number of articles matching the query
+    all_matched_pmids: string[];  // ALL PMIDs matching the query (for comparison)
     metadata?: Record<string, any>;
 }
 
