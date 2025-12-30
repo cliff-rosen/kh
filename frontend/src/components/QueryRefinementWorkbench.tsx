@@ -1180,14 +1180,21 @@ function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream, on
             )}
 
             {(() => {
+                // Use same logic as filter config section - check filterSourceQuery first
+                const broadQueries = stream.retrieval_config?.broad_search?.queries || [];
                 const sourceStep = previousSteps.find(s => s.type === 'source' && s.config.sourceType === 'query');
-                let savedFilter: any = null;
-                if (sourceStep && sourceStep.config.selectedQuery) {
-                    const queryIndex = parseInt(sourceStep.config.selectedQuery);
-                    const broadQueries = stream.retrieval_config?.broad_search?.queries || [];
-                    const query = broadQueries[queryIndex];
-                    savedFilter = query?.semantic_filter;
+
+                let queryIndex = config.filterSourceQuery !== undefined
+                    ? parseInt(config.filterSourceQuery)
+                    : (sourceStep?.config.selectedQuery !== undefined
+                        ? parseInt(sourceStep.config.selectedQuery)
+                        : 0);
+
+                if (isNaN(queryIndex) || queryIndex < 0 || queryIndex >= broadQueries.length) {
+                    queryIndex = broadQueries.length > 0 ? 0 : -1;
                 }
+
+                const savedFilter = queryIndex >= 0 ? broadQueries[queryIndex]?.semantic_filter : null;
                 const testCriteria = config.criteria !== undefined ? config.criteria : (savedFilter?.criteria || '');
                 const hasValidCriteria = testCriteria && testCriteria.trim() !== '';
 
