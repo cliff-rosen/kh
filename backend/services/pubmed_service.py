@@ -418,6 +418,7 @@ class PubMedService:
         
         # Convert to canonical format
         canonical_articles = []
+        conversion_failures: List[tuple[str, str]] = []  # (pmid, error)
         for i, article in enumerate(articles):
             try:
                 # Create CanonicalPubMedArticle
@@ -442,16 +443,23 @@ class PubMedService:
                         "pub_date": article.pub_date
                     }
                 )
-                
+
                 # Convert to CanonicalResearchArticle
                 research_article = pubmed_to_research_article(canonical_pubmed)
                 research_article.search_position = offset + i + 1
                 canonical_articles.append(research_article)
-                
+
             except Exception as e:
-                logger.error(f"Error converting article {getattr(article, 'PMID', 'unknown')}: {e}")
+                pmid = getattr(article, 'PMID', 'unknown')
+                logger.error(f"Error converting article {pmid}: {e}")
                 logger.error(f"Article data - Title: {getattr(article, 'title', 'None')}, Abstract: {getattr(article, 'abstract', 'None')[:100] if getattr(article, 'abstract', None) else 'None'}, Journal: {getattr(article, 'journal', 'None')}")
+                conversion_failures.append((pmid, str(e)))
                 continue
+
+        # Summary logging for conversion failures
+        if conversion_failures:
+            logger.warning(f"CONVERSION DROP SUMMARY: {len(conversion_failures)} articles failed conversion")
+            logger.warning(f"Failed PMIDs and errors: {conversion_failures}")
         
         # Trim to requested max_results if we got extra
         if len(canonical_articles) > max_results:
@@ -599,6 +607,8 @@ class PubMedService:
         batch_size = BATCH_SIZE
         low = 0
         high = low + batch_size
+        dropped_pmids: List[str] = []
+        failed_batches: List[tuple[int, int, str]] = []
 
         while low < len(ids):
             logger.info(f"Processing articles {low} to {high}")
@@ -615,15 +625,65 @@ class PubMedService:
                 xml = response.text
             except Exception as e:
                 logger.error(f"Error fetching articles batch {low}-{high}: {e}", exc_info=True)
+                failed_batches.append((low, high, str(e)))
+                dropped_pmids.extend(id_batch)
+                low += batch_size
+                high += batch_size
                 continue
 
-            root = ET.fromstring(xml)
-            
+            try:
+                root = ET.fromstring(xml)
+            except ET.ParseError as e:
+                logger.error(f"Error parsing XML for batch {low}-{high}: {e}")
+                failed_batches.append((low, high, f"XML parse error: {e}"))
+                dropped_pmids.extend(id_batch)
+                low += batch_size
+                high += batch_size
+                continue
+
+            # Track which PMIDs we successfully parsed from this batch
+            batch_parsed_pmids = set()
+
+            # Parse regular PubmedArticle elements
             for article_node in root.findall(".//PubmedArticle"):
-                articles.append(PubMedArticle.from_xml(ET.tostring(article_node)))
+                try:
+                    article = PubMedArticle.from_xml(ET.tostring(article_node))
+                    articles.append(article)
+                    batch_parsed_pmids.add(article.PMID)
+                except Exception as e:
+                    # Try to extract PMID from the XML node for error reporting
+                    pmid_node = article_node.find('.//PMID')
+                    pmid = pmid_node.text if pmid_node is not None else 'unknown'
+                    logger.error(f"Error parsing article PMID {pmid}: {e}", exc_info=True)
+                    dropped_pmids.append(pmid)
+
+            # Track book articles (PubmedBookArticle) - these have different structure and are not supported
+            for book_node in root.findall(".//PubmedBookArticle"):
+                pmid_node = book_node.find('.//PMID')
+                pmid = pmid_node.text if pmid_node is not None else 'unknown'
+                title_node = book_node.find('.//ArticleTitle')
+                title = title_node.text if title_node is not None else 'Unknown'
+                logger.warning(f"PMID {pmid} is a PubmedBookArticle (not supported): '{title}' - skipping")
+                batch_parsed_pmids.add(pmid)  # Don't report as missing, we know why it's skipped
+                dropped_pmids.append(f"{pmid} (book article)")
+
+            # Check for PMIDs that were requested but not returned in XML at all
+            for pmid in id_batch:
+                if pmid not in batch_parsed_pmids:
+                    logger.warning(f"PMID {pmid} was requested but not found in PubMed response at all")
+                    dropped_pmids.append(pmid)
 
             low += batch_size
             high += batch_size
+
+        # Summary logging for dropped articles
+        if dropped_pmids:
+            logger.warning(f"ARTICLE DROP SUMMARY: {len(dropped_pmids)} articles were dropped during fetch")
+            logger.warning(f"Dropped PMIDs: {dropped_pmids}")
+        if failed_batches:
+            logger.warning(f"Failed batches: {failed_batches}")
+
+        logger.info(f"Fetch complete: requested {len(ids)}, returned {len(articles)}, dropped {len(dropped_pmids)}")
 
         return articles
 
