@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { authApi, type LoginCredentials, type RegisterCredentials } from '../lib/api/authApi'
+import { trackEvent } from '../lib/api/trackingApi'
 import type { AuthUser, UserRole } from '../types/user'
 
 interface AuthContextType {
@@ -190,6 +191,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             const authResponse = await authApi.login(credentials)
             handleAuthSuccess(authResponse)
+            // Track login after auth is successful
+            trackEvent('login', { method: 'password' })
         } catch (error: any) {
             const errorMessage = extractErrorMessage(error, 'Login failed. Please try again.')
             setError(errorMessage)
@@ -206,6 +209,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             const authResponse = await authApi.loginWithToken(token)
             handleAuthSuccess(authResponse)
+            // Track passwordless login after auth is successful
+            trackEvent('login', { method: 'token' })
         } catch (error: any) {
             const errorMessage = extractErrorMessage(error, 'Token login failed. The token may be invalid or expired.')
             setError(errorMessage)
@@ -240,6 +245,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const authResponse = await authApi.register(credentials)
             // Registration now returns Token response and automatically logs user in
             handleAuthSuccess(authResponse)
+            // Track registration after auth is successful
+            trackEvent('registration', { invited: !!credentials.invitation_token })
             setError(null)
         } catch (error: any) {
             const errorMessage = extractErrorMessage(error, 'Registration failed. Please try again.')
@@ -313,6 +320,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const logout = () => {
+        // Track logout before clearing credentials
+        trackEvent('logout')
+
         localStorage.removeItem('authToken')
         localStorage.removeItem('user')
         localStorage.removeItem('sessionData')

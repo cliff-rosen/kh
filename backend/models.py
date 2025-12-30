@@ -433,9 +433,64 @@ class UserStreamSubscription(Base):
     stream = relationship("ResearchStream", back_populates="user_subscriptions")
 
 
+# === USER TRACKING & CHAT PERSISTENCE ===
+
+class EventSource(str, PyEnum):
+    """Source of tracking event"""
+    BACKEND = "backend"    # Auto-tracked from API endpoints
+    FRONTEND = "frontend"  # Explicitly sent from UI
+
+
+class Conversation(Base):
+    """Chat conversation session"""
+    __tablename__ = "conversations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
+    title = Column(String(255), nullable=True)  # Optional, can auto-generate from first message
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="conversations")
+    messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan", order_by="Message.created_at")
+
+
+class Message(Base):
+    """Individual message in a conversation"""
+    __tablename__ = "messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(20), nullable=False)  # 'user', 'assistant', 'system'
+    content = Column(Text, nullable=False)
+    context = Column(JSON, nullable=True)  # {page: 'reports', report_id: 123, article_pmid: '456'}
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    conversation = relationship("Conversation", back_populates="messages")
+
+
+class UserEvent(Base):
+    """User activity tracking event"""
+    __tablename__ = "user_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
+    event_source = Column(Enum(EventSource, values_callable=lambda x: [e.value for e in x], name='eventsource'), nullable=False)
+    event_type = Column(String(50), nullable=False, index=True)  # 'api_call', 'view_change', 'tab_click', etc.
+    event_data = Column(JSON, nullable=True)  # {endpoint: '/api/reports/123', method: 'GET'} or {tab: 'notes'}
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    # Relationships
+    user = relationship("User", back_populates="events")
+
+
 # Add relationships to User model
 User.research_streams = relationship("ResearchStream", back_populates="user", foreign_keys="ResearchStream.user_id")
 User.created_streams = relationship("ResearchStream", foreign_keys="ResearchStream.created_by")
 User.reports = relationship("Report", back_populates="user")
 User.report_schedule = relationship("ReportSchedule", back_populates="user", uselist=False)
 User.feedback = relationship("UserFeedback", back_populates="user")
+User.conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
+User.events = relationship("UserEvent", back_populates="user", cascade="all, delete-orphan")

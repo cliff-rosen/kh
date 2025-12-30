@@ -5,6 +5,7 @@ import { InteractionType, PayloadHandler, ToolHistoryEntry } from '../../types/c
 import { MarkdownRenderer } from '../common/MarkdownRenderer';
 import ToolResultCard, { ToolHistoryPanel } from './ToolResultCard';
 import { getPayloadHandler } from '../../lib/chat'; // Import from index to trigger payload registration
+import { trackEvent } from '../../lib/api/trackingApi';
 
 const STORAGE_KEY = 'chatTrayWidth';
 
@@ -284,6 +285,7 @@ export default function ChatTray({
         e.preventDefault();
         e.stopPropagation();
         if (input.trim() && !isLoading) {
+            trackEvent('chat_message_send', { context: initialContext });
             sendMessage(input.trim(), InteractionType.TEXT_INPUT);
             setInput('');
         }

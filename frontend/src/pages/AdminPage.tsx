@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { ShieldCheckIcon, BuildingOfficeIcon, GlobeAltIcon, UsersIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
+import { ShieldCheckIcon, BuildingOfficeIcon, GlobeAltIcon, UsersIcon, EnvelopeIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
-import { OrganizationList, GlobalStreamList, UserList, InvitationList } from '../components/admin';
+import { OrganizationList, GlobalStreamList, UserList, InvitationList, ActivityList } from '../components/admin';
 
-type AdminTab = 'organizations' | 'streams' | 'users' | 'invitations';
+type AdminTab = 'organizations' | 'streams' | 'users' | 'invitations' | 'activity';
 
 const tabs: { id: AdminTab; label: string; description: string; icon: React.ComponentType<{ className?: string }> }[] = [
     {
@@ -30,6 +30,12 @@ const tabs: { id: AdminTab; label: string; description: string; icon: React.Comp
         label: 'Invitations',
         description: 'Manage user invitations',
         icon: EnvelopeIcon,
+    },
+    {
+        id: 'activity',
+        label: 'Activity',
+        description: 'View user activity and events',
+        icon: ClockIcon,
     },
 ];
 
@@ -91,6 +97,7 @@ export default function AdminPage() {
                 {activeTab === 'streams' && <GlobalStreamList />}
                 {activeTab === 'users' && <UserList />}
                 {activeTab === 'invitations' && <InvitationList />}
+                {activeTab === 'activity' && <ActivityList />}
             </div>
         </div>
     );

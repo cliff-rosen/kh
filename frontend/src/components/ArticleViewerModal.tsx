@@ -15,6 +15,7 @@ import { CheckBadgeIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/sol
 import { documentAnalysisApi } from '../lib/api/documentAnalysisApi';
 import { articleApi, FullTextLink } from '../lib/api/articleApi';
 import { reportApi } from '../lib/api/reportApi';
+import { trackEvent } from '../lib/api/trackingApi';
 import { ReportArticle } from '../types/report';
 import { CanonicalResearchArticle } from '../types/canonical_types';
 import { StanceAnalysisResult, StanceType } from '../types/document_analysis';
@@ -155,15 +156,19 @@ export default function ArticleViewerModal({
 
     const handlePrevious = useCallback(() => {
         if (currentIndex > 0) {
+            const prevArticle = normalizeArticle(articles[currentIndex - 1]);
+            trackEvent('article_navigate', { direction: 'prev', pmid: prevArticle.pmid, article_id: prevArticle.id });
             setCurrentIndex(currentIndex - 1);
         }
-    }, [currentIndex]);
+    }, [currentIndex, articles]);
 
     const handleNext = useCallback(() => {
         if (currentIndex < articles.length - 1) {
+            const nextArticle = normalizeArticle(articles[currentIndex + 1]);
+            trackEvent('article_navigate', { direction: 'next', pmid: nextArticle.pmid, article_id: nextArticle.id });
             setCurrentIndex(currentIndex + 1);
         }
-    }, [currentIndex, articles.length]);
+    }, [currentIndex, articles]);
 
     const stanceResult = cacheKey ? stanceCache[cacheKey] : null;
     const streamId = chatContext?.stream_id as number | undefined;
@@ -212,11 +217,14 @@ export default function ArticleViewerModal({
     // Handle escape key
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose();
+            if (e.key === 'Escape') {
+                trackEvent('article_close', { pmid: article?.pmid, article_id: article?.id });
+                onClose();
+            }
         };
         window.addEventListener('keydown', handleEscape);
         return () => window.removeEventListener('keydown', handleEscape);
-    }, [onClose]);
+    }, [onClose, article]);
 
     // Handle arrow keys for navigation
     useEffect(() => {
@@ -242,6 +250,7 @@ export default function ArticleViewerModal({
             return;
         }
 
+        trackEvent('article_ai_analysis', { pmid: article.pmid, article_id: article.id });
         setIsAnalyzing(true);
         setAnalysisError(null);
 
@@ -320,6 +329,11 @@ export default function ArticleViewerModal({
         { id: 'links' as WorkspaceTab, label: 'Full Text', icon: LinkIcon }
     ];
 
+    const handleClose = useCallback(() => {
+        trackEvent('article_close', { pmid: article?.pmid, article_id: article?.id });
+        onClose();
+    }, [article, onClose]);
+
     if (!article) {
         return null;
     }
@@ -329,7 +343,7 @@ export default function ArticleViewerModal({
             {/* Backdrop */}
             <div
                 className="absolute inset-0 bg-black/50"
-                onClick={onClose}
+                onClick={handleClose}
             />
 
             {/* Modal */}
@@ -373,7 +387,7 @@ export default function ArticleViewerModal({
                     <div className="flex items-center gap-2">
                         <button
                             type="button"
-                            onClick={onClose}
+                            onClick={handleClose}
                             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                             title="Close (Escape)"
                         >
@@ -476,6 +490,7 @@ export default function ArticleViewerModal({
                                         href={`https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`}
                                         target="_blank"
                                         rel="noopener noreferrer"
+                                        onClick={() => trackEvent('article_link_click', { type: 'pubmed', pmid: article.pmid })}
                                         className="text-blue-600 dark:text-blue-400 font-mono hover:underline flex items-center gap-1"
                                     >
                                         PMID: {article.pmid}
@@ -487,6 +502,7 @@ export default function ArticleViewerModal({
                                         href={`https://doi.org/${article.doi}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
+                                        onClick={() => trackEvent('article_link_click', { type: 'doi', pmid: article.pmid, doi: article.doi })}
                                         className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                                     >
                                         DOI: {article.doi}
@@ -536,7 +552,12 @@ export default function ArticleViewerModal({
                                 <button
                                     type="button"
                                     key={id}
-                                    onClick={() => setActiveTab(id)}
+                                    onClick={() => {
+                                        if (activeTab !== id) {
+                                            trackEvent('article_tab_click', { tab: id, pmid: article.pmid, article_id: article.id });
+                                        }
+                                        setActiveTab(id);
+                                    }}
                                     className={`flex items-center gap-2 px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${activeTab === id
                                         ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white'
                                         : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
@@ -726,6 +747,7 @@ export default function ArticleViewerModal({
                                                 href={link.url}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
+                                                onClick={() => trackEvent('article_link_click', { type: 'fulltext', provider: link.provider, pmid: article.pmid, is_free: link.is_free })}
                                                 className={`block px-4 py-3 rounded-lg ${link.is_free
                                                     ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900/30'
                                                     : 'bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
@@ -791,6 +813,7 @@ export default function ArticleViewerModal({
                                                 href={`https://doi.org/${article.doi}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
+                                                onClick={() => trackEvent('article_link_click', { type: 'doi', pmid: article.pmid, doi: article.doi })}
                                                 className="block px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30"
                                             >
                                                 <div className="flex items-center justify-between">

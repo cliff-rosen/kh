@@ -4,6 +4,7 @@ import { MoonIcon, SunIcon, UserCircleIcon, HomeIcon, DocumentTextIcon, BeakerIc
 import settings from '../config/settings';
 import { HelpGuide } from '@/components/features/help';
 import { useAuth } from '../context/AuthContext';
+import { trackEvent } from '../lib/api/trackingApi';
 
 
 export default function TopBar() {
@@ -32,26 +33,26 @@ export default function TopBar() {
                 {/* Navigation */}
                 <nav className="flex items-center gap-2">
                     {/* Knowledge Horizon Navigation */}
-                    <NavLink to="/dashboard" className={getLinkClass('/dashboard')}>
+                    <NavLink to="/dashboard" className={getLinkClass('/dashboard')} onClick={() => trackEvent('nav_click', { destination: 'dashboard' })}>
                         <HomeIcon className="h-5 w-5 mr-2" />
                         Dashboard
                     </NavLink>
-                    <NavLink to="/streams" className={getLinkClass('/streams')}>
+                    <NavLink to="/streams" className={getLinkClass('/streams')} onClick={() => trackEvent('nav_click', { destination: 'streams' })}>
                         <BeakerIcon className="h-5 w-5 mr-2" />
                         Streams
                     </NavLink>
-                    <NavLink to="/reports" className={getLinkClass('/reports')}>
+                    <NavLink to="/reports" className={getLinkClass('/reports')} onClick={() => trackEvent('nav_click', { destination: 'reports' })}>
                         <DocumentTextIcon className="h-5 w-5 mr-2" />
                         Reports
                     </NavLink>
                     {(isPlatformAdmin || isOrgAdmin) && (
-                        <NavLink to="/tools" className={getLinkClass('/tools')}>
+                        <NavLink to="/tools" className={getLinkClass('/tools')} onClick={() => trackEvent('nav_click', { destination: 'tools' })}>
                             <WrenchScrewdriverIcon className="h-5 w-5 mr-2" />
                             Tools
                         </NavLink>
                     )}
                     {isPlatformAdmin && (
-                        <NavLink to="/admin" className={getLinkClass('/admin')}>
+                        <NavLink to="/admin" className={getLinkClass('/admin')} onClick={() => trackEvent('nav_click', { destination: 'admin' })}>
                             <ShieldCheckIcon className="h-5 w-5 mr-2" />
                             Admin
                         </NavLink>
@@ -64,7 +65,7 @@ export default function TopBar() {
                     {isDarkMode ? <SunIcon className="h-6 w-6" /> : <MoonIcon className="h-6 w-6" />}
                 </button>
                 <HelpGuide />
-                <NavLink to="/profile" className={getLinkClass('/profile')}>
+                <NavLink to="/profile" className={getLinkClass('/profile')} onClick={() => trackEvent('nav_click', { destination: 'profile' })}>
                     <UserCircleIcon className="h-6 w-6" />
                 </NavLink>
                 <button

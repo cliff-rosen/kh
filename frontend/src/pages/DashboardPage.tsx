@@ -5,6 +5,7 @@ import { PencilIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
 import { useResearchStream } from '../context/ResearchStreamContext';
 import { reportApi } from '../lib/api/reportApi';
+import { trackEvent } from '../lib/api/trackingApi';
 import { Report } from '../types';
 
 export default function DashboardPage() {
@@ -74,7 +75,10 @@ export default function DashboardPage() {
                                         return (
                                             <button
                                                 key={report.report_id}
-                                                onClick={() => navigate(`/reports?stream=${report.research_stream_id}&report=${report.report_id}`)}
+                                                onClick={() => {
+                                                    trackEvent('dashboard_report_click', { report_id: report.report_id, stream_id: report.research_stream_id });
+                                                    navigate(`/reports?stream=${report.research_stream_id}&report=${report.report_id}`);
+                                                }}
                                                 className="w-full text-left p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                                             >
                                                 <div className="flex justify-between items-start">
@@ -111,13 +115,19 @@ export default function DashboardPage() {
                                 </p>
                                 <div className="flex justify-center gap-4">
                                     <button
-                                        onClick={() => navigate('/new-stream')}
+                                        onClick={() => {
+                                            trackEvent('dashboard_quick_action', { action: 'create_stream' });
+                                            navigate('/new-stream');
+                                        }}
                                         className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                                     >
                                         Create Research Stream
                                     </button>
                                     <button
-                                        onClick={() => navigate('/reports')}
+                                        onClick={() => {
+                                            trackEvent('dashboard_quick_action', { action: 'view_reports' });
+                                            navigate('/reports');
+                                        }}
                                         className="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                                     >
                                         View Reports
@@ -138,7 +148,10 @@ export default function DashboardPage() {
                                     🔬 Research Streams
                                 </h2>
                                 <button
-                                    onClick={() => navigate('/streams')}
+                                    onClick={() => {
+                                        trackEvent('dashboard_quick_action', { action: 'view_all_streams' });
+                                        navigate('/streams');
+                                    }}
                                     className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
                                 >
                                     View All
@@ -217,7 +230,10 @@ export default function DashboardPage() {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <button
-                                                        onClick={() => navigate(`/reports?stream=${stream.stream_id}`)}
+                                                        onClick={() => {
+                                                            trackEvent('dashboard_stream_click', { action: 'view_reports', stream_id: stream.stream_id });
+                                                            navigate(`/reports?stream=${stream.stream_id}`);
+                                                        }}
                                                         className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
                                                     >
                                                         {stream.report_count || 0} reports
@@ -226,7 +242,10 @@ export default function DashboardPage() {
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     {stream.latest_report_date ? (
                                                         <button
-                                                            onClick={() => navigate(`/reports?stream=${stream.stream_id}`)}
+                                                            onClick={() => {
+                                                                trackEvent('dashboard_stream_click', { action: 'view_latest_report', stream_id: stream.stream_id });
+                                                                navigate(`/reports?stream=${stream.stream_id}`);
+                                                            }}
                                                             className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
                                                             title="View latest report"
                                                         >

@@ -10,6 +10,7 @@ import { reportApi } from '../lib/api/reportApi';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { useResearchStream } from '../context/ResearchStreamContext';
 import { useAuth } from '../context/AuthContext';
+import { useTracking } from '../hooks/useTracking';
 import PipelineAnalyticsModal from '../components/PipelineAnalyticsModal';
 import ExecutionConfigModal from '../components/ExecutionConfigModal';
 import ArticleViewerModal from '../components/ArticleViewerModal';
@@ -24,6 +25,7 @@ export default function ReportsPage() {
     const navigate = useNavigate();
     const { researchStreams, loadResearchStreams } = useResearchStream();
     const { isPlatformAdmin, isOrgAdmin } = useAuth();
+    const { track, trackViewChange, trackChatOpen, trackChatClose } = useTracking({ defaultContext: { page: 'reports' } });
     const [selectedStream, setSelectedStream] = useState('');
     const [reports, setReports] = useState<Report[]>([]);
     const [selectedReport, setSelectedReport] = useState<ReportWithArticles | null>(null);
@@ -101,11 +103,13 @@ export default function ReportsPage() {
     const toggleCategory = (categoryId: string) => {
         setCollapsedCategories(prev => {
             const newSet = new Set(prev);
+            const willCollapse = !newSet.has(categoryId);
             if (newSet.has(categoryId)) {
                 newSet.delete(categoryId);
             } else {
                 newSet.add(categoryId);
             }
+            track('category_toggle', { category: categoryId, collapsed: willCollapse });
             return newSet;
         });
     };
@@ -185,6 +189,7 @@ export default function ReportsPage() {
     };
 
     const handleReportClick = (report: Report) => {
+        track('report_select', { report_id: report.report_id, report_name: report.report_name });
         loadReportDetails(report.report_id);
     };
 
@@ -192,6 +197,8 @@ export default function ReportsPage() {
         if (!confirm(`Are you sure you want to delete "${reportName}"? This action cannot be undone.`)) {
             return;
         }
+
+        track('report_delete', { report_id: reportId, report_name: reportName });
 
         try {
             await reportApi.deleteReport(reportId);
@@ -216,6 +223,12 @@ export default function ReportsPage() {
 
     // Open article viewer with a group of articles
     const openArticleViewer = (articles: ReportArticle[], clickedIndex: number) => {
+        const article = articles[clickedIndex];
+        track('article_open', {
+            pmid: article.pmid || undefined,
+            article_id: article.article_id,
+            report_id: selectedReport?.report_id
+        });
         setArticleViewerArticles(articles);
         setArticleViewerInitialIndex(clickedIndex);
         setArticleViewerOpen(true);
@@ -315,7 +328,10 @@ export default function ReportsPage() {
                     payloadHandlers={payloadHandlers}
                     hidden={articleViewerOpen}
                     isOpen={isChatOpen}
-                    onOpenChange={setIsChatOpen}
+                    onOpenChange={(open) => {
+                        if (!open) trackChatClose('reports');
+                        setIsChatOpen(open);
+                    }}
                 />
             )}
 
@@ -324,7 +340,10 @@ export default function ReportsPage() {
                 {/* Chat toggle button - fixed to lower left */}
                 {!isChatOpen && !articleViewerOpen && (
                     <button
-                        onClick={() => setIsChatOpen(true)}
+                        onClick={() => {
+                            trackChatOpen('reports');
+                            setIsChatOpen(true);
+                        }}
                         className="fixed bottom-6 left-6 z-40 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
                         title="Open chat"
                     >
@@ -352,7 +371,14 @@ export default function ReportsPage() {
                             </label>
                             <select
                                 value={selectedStream}
-                                onChange={(e) => setSelectedStream(e.target.value)}
+                                onChange={(e) => {
+                                    const streamId = e.target.value;
+                                    setSelectedStream(streamId);
+                                    if (streamId) {
+                                        const stream = researchStreams.find(s => s.stream_id.toString() === streamId);
+                                        track('stream_select', { stream_id: parseInt(streamId, 10), stream_name: stream?.stream_name });
+                                    }
+                                }}
                                 className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white min-w-64"
                             >
                                 <option value="">Select a research stream...</option>
@@ -365,7 +391,10 @@ export default function ReportsPage() {
                         </div>
                         {selectedStream && (isPlatformAdmin || isOrgAdmin) && (
                             <button
-                                onClick={() => navigate(`/streams/${selectedStream}/edit?tab=execute&subtab=pipeline`)}
+                                onClick={() => {
+                                    track('pipeline_run_click', { stream_id: parseInt(selectedStream, 10) });
+                                    navigate(`/streams/${selectedStream}/edit?tab=execute&subtab=pipeline`);
+                                }}
                                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
                             >
                                 <DocumentTextIcon className="h-5 w-5" />
@@ -418,7 +447,10 @@ export default function ReportsPage() {
                         <div className="sticky top-6">
                             {/* Collapse/Expand Button */}
                             <button
-                                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                                onClick={() => {
+                                    track('sidebar_toggle', { collapsed: !sidebarCollapsed });
+                                    setSidebarCollapsed(!sidebarCollapsed);
+                                }}
                                 className="w-full mb-4 flex items-center justify-center p-2 bg-white dark:bg-gray-800 rounded-lg shadow hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                                 title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                             >
@@ -477,7 +509,10 @@ export default function ReportsPage() {
                                         </h2>
                                         <div className="flex items-center gap-2">
                                             <button
-                                                onClick={() => setShowExecutionConfig(true)}
+                                                onClick={() => {
+                                                    track('execution_config_open', { report_id: selectedReport.report_id });
+                                                    setShowExecutionConfig(true);
+                                                }}
                                                 className="p-2 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                                                 title="View execution configuration snapshot"
                                             >
@@ -485,7 +520,10 @@ export default function ReportsPage() {
                                             </button>
                                             {hasPipelineData && (
                                                 <button
-                                                    onClick={() => setShowAnalytics(true)}
+                                                    onClick={() => {
+                                                        track('analytics_open', { report_id: selectedReport.report_id });
+                                                        setShowAnalytics(true);
+                                                    }}
                                                     className="p-2 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                                                     title="View pipeline analytics and detailed metrics"
                                                 >
@@ -518,7 +556,12 @@ export default function ReportsPage() {
                                             {/* View mode toggle */}
                                             <div className="flex gap-2">
                                                 <button
-                                                    onClick={() => setReportView('all')}
+                                                    onClick={() => {
+                                                        if (reportView !== 'all') {
+                                                            trackViewChange(reportView, 'all', 'reports');
+                                                            setReportView('all');
+                                                        }
+                                                    }}
                                                     className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                                                         reportView === 'all'
                                                             ? 'bg-blue-600 text-white'
@@ -529,7 +572,12 @@ export default function ReportsPage() {
                                                     All Articles
                                                 </button>
                                                 <button
-                                                    onClick={() => setReportView('by-category')}
+                                                    onClick={() => {
+                                                        if (reportView !== 'by-category') {
+                                                            trackViewChange(reportView, 'by-category', 'reports');
+                                                            setReportView('by-category');
+                                                        }
+                                                    }}
                                                     className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                                                         reportView === 'by-category'
                                                             ? 'bg-blue-600 text-white'
@@ -543,7 +591,12 @@ export default function ReportsPage() {
                                             {/* Card format toggle */}
                                             <div className="flex gap-1 border-l border-gray-300 dark:border-gray-600 pl-4">
                                                 <button
-                                                    onClick={() => setCardFormat('compact')}
+                                                    onClick={() => {
+                                                        if (cardFormat !== 'compact') {
+                                                            track('card_format_change', { from: cardFormat, to: 'compact' });
+                                                            setCardFormat('compact');
+                                                        }
+                                                    }}
                                                     className={`p-1.5 rounded-md transition-colors ${
                                                         cardFormat === 'compact'
                                                             ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white'
@@ -554,7 +607,12 @@ export default function ReportsPage() {
                                                     <Bars2Icon className="h-4 w-4" />
                                                 </button>
                                                 <button
-                                                    onClick={() => setCardFormat('expanded')}
+                                                    onClick={() => {
+                                                        if (cardFormat !== 'expanded') {
+                                                            track('card_format_change', { from: cardFormat, to: 'expanded' });
+                                                            setCardFormat('expanded');
+                                                        }
+                                                    }}
                                                     className={`p-1.5 rounded-md transition-colors ${
                                                         cardFormat === 'expanded'
                                                             ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white'
@@ -575,7 +633,10 @@ export default function ReportsPage() {
                                     {selectedReport.enrichments?.executive_summary && (
                                         <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                                             <button
-                                                onClick={() => setExecutiveSummaryCollapsed(!executiveSummaryCollapsed)}
+                                                onClick={() => {
+                                                    track('executive_summary_toggle', { collapsed: !executiveSummaryCollapsed });
+                                                    setExecutiveSummaryCollapsed(!executiveSummaryCollapsed);
+                                                }}
                                                 className="w-full bg-gray-50 dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors text-left"
                                             >
                                                 <div className="flex items-center gap-2">

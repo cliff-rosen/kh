@@ -12,6 +12,7 @@ from models import Invitation, Organization
 from services import auth_service
 from services.user_service import UserService
 from services.login_email_service import LoginEmailService
+from services.user_tracking_service import UserTrackingService
 
 logger = logging.getLogger(__name__)
 
@@ -378,6 +379,10 @@ async def request_password_reset(
                 detail="Failed to send password reset email. Please try again."
             )
 
+        # Track password reset request
+        tracking_service = UserTrackingService(db)
+        tracking_service.track_backend_event(user.user_id, "password_reset_request")
+
         return {"message": "If an account with this email exists, a password reset link has been sent."}
 
     except HTTPException:
@@ -424,6 +429,10 @@ async def reset_password(
 
         # Clear the password reset token (one-time use)
         user_service.clear_password_reset_token(user.user_id)
+
+        # Track password reset completion
+        tracking_service = UserTrackingService(db)
+        tracking_service.track_backend_event(user.user_id, "password_reset_complete")
 
         logger.info(f"Password reset successfully for user {user.email}")
 

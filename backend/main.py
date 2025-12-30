@@ -7,6 +7,8 @@ from sqlalchemy import text
 from routers import auth, llm, search, web_retrieval, pubmed, extraction, unified_search, lab, research_streams, research_stream_chat, reports, general_chat, tools, refinement_workbench, prompt_workbench, document_analysis, articles
 # User and multi-tenancy routers
 from routers import user, organization, subscriptions, admin, notes
+# Tracking and chat persistence routers
+from routers import tracking, conversations
 from database import init_db
 from config import settings, setup_logging
 from middleware import LoggingMiddleware
@@ -79,6 +81,10 @@ app.include_router(organization.router)
 app.include_router(subscriptions.router)
 app.include_router(admin.router)
 app.include_router(notes.router)
+
+# Tracking and chat persistence routers
+app.include_router(tracking.router)
+app.include_router(conversations.router)
 
 # Legacy routers removed for Knowledge Horizon transition:
 # - workbench: Uses legacy Asset/Mission models
