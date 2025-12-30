@@ -16,6 +16,7 @@ import { documentAnalysisApi } from '../lib/api/documentAnalysisApi';
 import { articleApi, FullTextLink } from '../lib/api/articleApi';
 import { reportApi } from '../lib/api/reportApi';
 import { ReportArticle } from '../types/report';
+import { CanonicalResearchArticle } from '../types/canonical_types';
 import { StanceAnalysisResult, StanceType } from '../types/document_analysis';
 import ChatTray from './chat/ChatTray';
 import { PayloadHandler } from '../types/chat';
@@ -24,8 +25,53 @@ import ArticleNotes from './ArticleNotes';
 
 type WorkspaceTab = 'analysis' | 'notes' | 'links';
 
+// Union type for articles from different sources
+type ViewerArticle = ReportArticle | CanonicalResearchArticle;
+
+// Helper to check if article is database-backed
+function isDbBackedArticle(article: ViewerArticle): article is ReportArticle {
+    return 'article_id' in article && typeof article.article_id === 'number';
+}
+
+// Helper to normalize article data for display
+function normalizeArticle(article: ViewerArticle) {
+    if (isDbBackedArticle(article)) {
+        return {
+            id: article.article_id,
+            title: article.title,
+            authors: article.authors,
+            journal: article.journal,
+            pmid: article.pmid,
+            doi: article.doi,
+            abstract: article.abstract,
+            url: article.url,
+            year: article.year,
+            publication_date: article.publication_date,
+            ai_enrichments: article.ai_enrichments,
+            relevance_score: article.relevance_score,
+            relevance_rationale: article.relevance_rationale,
+        };
+    }
+    // CanonicalResearchArticle
+    return {
+        id: article.id,
+        title: article.title,
+        authors: article.authors,
+        journal: article.journal,
+        pmid: article.pmid,
+        doi: article.doi,
+        abstract: article.abstract,
+        url: article.url,
+        year: article.publication_year?.toString(),
+        publication_date: article.publication_date,
+        ai_enrichments: article.ai_enrichments,
+        relevance_score: article.relevance_score,
+        relevance_rationale: undefined,
+    };
+}
+
 interface ArticleViewerModalProps {
-    articles: ReportArticle[];
+    articles: ViewerArticle[];
     initialIndex?: number;
     onClose: () => void;
     /** Chat context to pass to the embedded chat tray */
@@ -45,8 +91,10 @@ export default function ArticleViewerModal({
     onArticleUpdate
 }: ArticleViewerModalProps) {
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
-    const article = articles[currentIndex];
-    const articleId = article?.article_id;
+    const rawArticle = articles[currentIndex];
+    const article = rawArticle ? normalizeArticle(rawArticle) : null;
+    const isDbBacked = rawArticle ? isDbBackedArticle(rawArticle) : false;
+    const articleId = isDbBacked && rawArticle ? (rawArticle as ReportArticle).article_id : undefined;
 
     // Chat state
     const [isChatOpen, setIsChatOpen] = useState(false);
@@ -63,19 +111,22 @@ export default function ArticleViewerModal({
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisError, setAnalysisError] = useState<string | null>(null);
 
+    // Cache key for stance results (works for both DB and non-DB articles)
+    const cacheKey = article?.id?.toString();
+
     // Memoize chat context to include full current article info
     // Must be after stanceCache declaration since it depends on it
     const articleChatContext = useMemo(() => {
         if (!chatContext) return undefined;
 
         // Use cached stance result if available, otherwise fall back to article's ai_enrichments
-        const currentStance = articleId ? stanceCache[articleId] : null;
+        const currentStance = cacheKey ? stanceCache[cacheKey] : null;
         const stanceAnalysis = currentStance || article?.ai_enrichments?.stance_analysis;
 
         return {
             ...chatContext,
             current_article: article ? {
-                article_id: article.article_id,
+                article_id: article.id,
                 pmid: article.pmid,
                 doi: article.doi,
                 title: article.title,
@@ -94,13 +145,13 @@ export default function ArticleViewerModal({
                 } : undefined,
             } : undefined
         };
-    }, [chatContext, article, articleId, stanceCache]);
+    }, [chatContext, article, cacheKey, stanceCache]);
 
     const hasPrevious = currentIndex > 0;
     const hasNext = currentIndex < articles.length - 1;
 
-    const prevArticle = hasPrevious ? articles[currentIndex - 1] : null;
-    const nextArticle = hasNext ? articles[currentIndex + 1] : null;
+    const prevArticle = hasPrevious ? normalizeArticle(articles[currentIndex - 1]) : null;
+    const nextArticle = hasNext ? normalizeArticle(articles[currentIndex + 1]) : null;
 
     const handlePrevious = useCallback(() => {
         if (currentIndex > 0) {
@@ -114,19 +165,19 @@ export default function ArticleViewerModal({
         }
     }, [currentIndex, articles.length]);
 
-    const stanceResult = articleId ? stanceCache[articleId] : null;
+    const stanceResult = cacheKey ? stanceCache[cacheKey] : null;
     const streamId = chatContext?.stream_id as number | undefined;
     const reportId = chatContext?.report_id as number | undefined;
 
     // Initialize caches from article data when article changes
     useEffect(() => {
-        if (!article || !articleId) return;
+        if (!article || !cacheKey) return;
 
         // Initialize stance from article data if not already cached
-        if (stanceCache[articleId] === undefined && article.ai_enrichments?.stance_analysis) {
-            setStanceCache(prev => ({ ...prev, [articleId]: article.ai_enrichments!.stance_analysis! }));
+        if (stanceCache[cacheKey] === undefined && article.ai_enrichments?.stance_analysis) {
+            setStanceCache(prev => ({ ...prev, [cacheKey]: article.ai_enrichments!.stance_analysis! }));
         }
-    }, [articleId]);
+    }, [cacheKey]);
 
     // Reset error state when switching articles (cache is preserved)
     useEffect(() => {
@@ -215,11 +266,11 @@ export default function ArticleViewerModal({
             });
 
             // Update local cache
-            setStanceCache(prev => ({ ...prev, [articleId!]: result }));
+            setStanceCache(prev => ({ ...prev, [cacheKey!]: result }));
             setActiveTab('analysis');
 
-            // Persist to backend if we have a report context
-            if (reportId && articleId) {
+            // Persist to backend if we have a report context AND article is DB-backed
+            if (reportId && articleId && isDbBacked) {
                 try {
                     const enrichments = { stance_analysis: result };
                     await reportApi.updateArticleEnrichments(reportId, articleId, enrichments);
@@ -345,23 +396,26 @@ export default function ArticleViewerModal({
                                         Articles ({articles.length})
                                     </h3>
                                     <div className="space-y-1">
-                                        {articles.map((art, idx) => (
-                                            <button
-                                                key={art.article_id}
-                                                onClick={() => setCurrentIndex(idx)}
-                                                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${idx === currentIndex
-                                                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100'
-                                                    : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
-                                                    }`}
-                                            >
-                                                <div className="font-medium leading-tight line-clamp-2">
-                                                    {truncateTitle(art.title, 50)}
-                                                </div>
-                                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                    {art.year || (art.publication_date ? art.publication_date.split('-')[0] : '')} {art.journal && `• ${art.journal.substring(0, 15)}`}
-                                                </div>
-                                            </button>
-                                        ))}
+                                        {articles.map((art, idx) => {
+                                            const normalized = normalizeArticle(art);
+                                            return (
+                                                <button
+                                                    key={normalized.id}
+                                                    onClick={() => setCurrentIndex(idx)}
+                                                    className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${idx === currentIndex
+                                                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100'
+                                                        : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
+                                                        }`}
+                                                >
+                                                    <div className="font-medium leading-tight line-clamp-2">
+                                                        {truncateTitle(normalized.title, 50)}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                        {normalized.year || (normalized.publication_date ? normalized.publication_date.split('-')[0] : '')} {normalized.journal && `• ${normalized.journal.substring(0, 15)}`}
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>
@@ -618,11 +672,13 @@ export default function ArticleViewerModal({
                             {/* Notes Tab */}
                             {activeTab === 'notes' && (
                                 <div className="h-full p-4">
-                                    {reportId && articleId ? (
+                                    {reportId && articleId && isDbBacked ? (
                                         <ArticleNotes reportId={reportId} articleId={articleId} />
                                     ) : (
                                         <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                                            Notes require a report context
+                                            {!isDbBacked
+                                                ? 'Notes are not available for workbench articles (not saved to database)'
+                                                : 'Notes require a report context'}
                                         </div>
                                     )}
                                 </div>

@@ -25,6 +25,7 @@ import {
 import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { ResearchStream } from '../types';
 import { CanonicalResearchArticle } from '../types/canonical_types';
+import ArticleViewerModal from './ArticleViewerModal';
 
 // ============================================================================
 // Query Snapshot Types for Version History
@@ -121,6 +122,10 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
     const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
     const [compareMode, setCompareMode] = useState(false);
     const [compareSnapshots, setCompareSnapshots] = useState<[string, string] | null>(null);
+
+    // Article Viewer State
+    const [viewerArticles, setViewerArticles] = useState<CanonicalResearchArticle[] | null>(null);
+    const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
 
     // Add a snapshot to history (does NOT auto-select - user stays in live view)
     const addSnapshot = useCallback((snapshot: Omit<QuerySnapshot, 'id' | 'timestamp'>) => {
@@ -434,6 +439,10 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
                                 view={resultView}
                                 onViewChange={setResultView}
                                 onCollapse={() => setResultsPaneCollapsed(true)}
+                                onArticleClick={(articles, index) => {
+                                    setViewerArticles(articles);
+                                    setViewerInitialIndex(index);
+                                }}
                             />
                         )}
                     </div>
@@ -474,6 +483,16 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
                     onToggleOpen={() => setHistoryPanelOpen(!historyPanelOpen)}
                 />
             </div>
+
+            {/* Article Viewer Modal */}
+            {viewerArticles && (
+                <ArticleViewerModal
+                    articles={viewerArticles}
+                    initialIndex={viewerInitialIndex}
+                    onClose={() => setViewerArticles(null)}
+                    chatContext={{ stream_id: streamId }}
+                />
+            )}
         </div>
     );
 }
@@ -1388,9 +1407,10 @@ interface ResultsPaneProps {
     view: ResultView;
     onViewChange: (view: ResultView) => void;
     onCollapse: () => void;
+    onArticleClick?: (articles: CanonicalResearchArticle[], index: number) => void;
 }
 
-function ResultsPane({ step, stepNumber, view, onViewChange, onCollapse }: ResultsPaneProps) {
+function ResultsPane({ step, stepNumber, view, onViewChange, onCollapse, onArticleClick }: ResultsPaneProps) {
     const [compareIds, setCompareIds] = useState('');
 
     if (!step) {
@@ -1476,7 +1496,7 @@ function ResultsPane({ step, stepNumber, view, onViewChange, onCollapse }: Resul
                         <p>Run this step to see results</p>
                     </div>
                 ) : view === 'raw' ? (
-                    <RawResultsView step={step} />
+                    <RawResultsView step={step} onArticleClick={onArticleClick} />
                 ) : view === 'compare' ? (
                     <CompareResultsView step={step} compareIds={compareIds} onCompareIdsChange={setCompareIds} />
                 ) : (
@@ -1488,7 +1508,12 @@ function ResultsPane({ step, stepNumber, view, onViewChange, onCollapse }: Resul
 }
 
 // Raw Results View
-function RawResultsView({ step }: { step: WorkflowStep }) {
+interface RawResultsViewProps {
+    step: WorkflowStep;
+    onArticleClick?: (articles: CanonicalResearchArticle[], index: number) => void;
+}
+
+function RawResultsView({ step, onArticleClick }: RawResultsViewProps) {
     // Filter toggle state for filter step results
     const [filterView, setFilterView] = useState<'all' | 'passed' | 'failed'>('all');
 
@@ -1615,25 +1640,35 @@ function RawResultsView({ step }: { step: WorkflowStep }) {
 
                 {/* Filtered Results */}
                 <div className="space-y-2">
-                    {filteredResults.slice(0, 20).map((result: any, idx: number) => (
-                        <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded p-3 text-sm">
-                            <div className="flex items-center gap-2 mb-1">
-                                {result.passed ? (
-                                    <CheckCircleIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
-                                ) : (
-                                    <XCircleIcon className="h-4 w-4 text-red-600 dark:text-red-400" />
-                                )}
-                                <p className="font-mono text-xs text-gray-500 dark:text-gray-400">
-                                    PMID: {result.article.pmid || result.article.id}
-                                </p>
-                                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                                    Score: {result.score.toFixed(2)}
-                                </span>
+                    {filteredResults.slice(0, 20).map((result: any, idx: number) => {
+                        // Get all articles for navigation (from the filtered view)
+                        const articlesForViewer = filteredResults.map((r: any) => r.article);
+                        return (
+                            <div
+                                key={idx}
+                                onClick={() => onArticleClick?.(articlesForViewer, idx)}
+                                className={`border border-gray-200 dark:border-gray-700 rounded p-3 text-sm ${
+                                    onArticleClick ? 'cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors' : ''
+                                }`}
+                            >
+                                <div className="flex items-center gap-2 mb-1">
+                                    {result.passed ? (
+                                        <CheckCircleIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                    ) : (
+                                        <XCircleIcon className="h-4 w-4 text-red-600 dark:text-red-400" />
+                                    )}
+                                    <p className="font-mono text-xs text-gray-500 dark:text-gray-400">
+                                        PMID: {result.article.pmid || result.article.id}
+                                    </p>
+                                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                                        Score: {result.score.toFixed(2)}
+                                    </span>
+                                </div>
+                                <p className="text-gray-900 dark:text-white mb-1">{result.article.title}</p>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 italic">{result.reasoning}</p>
                             </div>
-                            <p className="text-gray-900 dark:text-white mb-1">{result.article.title}</p>
-                            <p className="text-xs text-gray-600 dark:text-gray-400 italic">{result.reasoning}</p>
-                        </div>
-                    ))}
+                        );
+                    })}
                     {filteredResults.length > 20 && (
                         <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
                             Showing 20 of {filteredResults.length} articles
@@ -1650,10 +1685,17 @@ function RawResultsView({ step }: { step: WorkflowStep }) {
     }
 
     // Source step - SourceResponse: { articles: CanonicalResearchArticle[], count, metadata }
+    const articles = step.results.articles || [];
     return (
         <div className="space-y-2">
-            {step.results.articles?.slice(0, 20).map((article: any, idx: number) => (
-                <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded p-3 text-sm">
+            {articles.slice(0, 20).map((article: any, idx: number) => (
+                <div
+                    key={idx}
+                    onClick={() => onArticleClick?.(articles, idx)}
+                    className={`border border-gray-200 dark:border-gray-700 rounded p-3 text-sm ${
+                        onArticleClick ? 'cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors' : ''
+                    }`}
+                >
                     <p className="font-mono text-xs text-gray-500 dark:text-gray-400 mb-1">
                         PMID: {article.pmid || article.id}
                     </p>
@@ -1665,9 +1707,9 @@ function RawResultsView({ step }: { step: WorkflowStep }) {
                     )}
                 </div>
             ))}
-            {step.results.articles && step.results.articles.length > 20 && (
+            {articles.length > 20 && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
-                    Showing 20 of {step.results.articles.length} articles
+                    Showing 20 of {articles.length} articles
                 </p>
             )}
         </div>
