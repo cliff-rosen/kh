@@ -9,7 +9,7 @@ import logging
 from typing import Any, Dict, List, Union
 
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func
+from sqlalchemy import and_, or_, func, case
 
 from tools.registry import ToolConfig, ToolResult, register_tool
 from models import Report, Article, ReportArticleAssociation, ResearchStream, User
@@ -212,7 +212,8 @@ def execute_search_articles_in_reports(
                 Article.authors.ilike(search_term)
             )
         ).order_by(
-            ReportArticleAssociation.relevance_score.desc().nullslast()
+            # Use COALESCE for MySQL/MariaDB compatibility (no NULLS LAST support)
+            func.coalesce(ReportArticleAssociation.relevance_score, -1).desc()
         ).limit(max_results).all()
 
         if not results:
