@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlusIcon, BeakerIcon, PencilIcon, UserIcon, BuildingOfficeIcon, GlobeAltIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, BeakerIcon, PencilIcon, UserIcon, BuildingOfficeIcon, GlobeAltIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 
 import { useResearchStream } from '../context/ResearchStreamContext';
 import { useAuth } from '../context/AuthContext';
@@ -44,6 +44,7 @@ export default function StreamsPage() {
     const navigate = useNavigate();
     const { researchStreams, loadResearchStreams, isLoading, error, clearError } = useResearchStream();
     const { user, isPlatformAdmin, isOrgAdmin } = useAuth();
+    const [isChatOpen, setIsChatOpen] = useState(false);
 
     // Check if user can modify a stream (edit/delete/run)
     const canModifyStream = (stream: ResearchStream): boolean => {
@@ -91,25 +92,104 @@ export default function StreamsPage() {
     };
 
     return (
-        <div className="max-w-7xl mx-auto p-6">
-            <div className="flex justify-between items-center mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                        Research Streams
-                    </h1>
-                    <p className="text-gray-600 dark:text-gray-400 mt-2">
-                        Monitor specific topics, competitors, or therapeutic areas
-                    </p>
-                </div>
+        <div className="h-[calc(100vh-4rem)] flex">
+            {/* Chat Tray - inline on left side */}
+            <ChatTray
+                initialContext={{
+                    current_page: "streams_list",
+                    entity_type: "research_streams",
+                    streams: researchStreams.map(stream => ({
+                        stream_id: stream.stream_id,
+                        stream_name: stream.stream_name,
+                        purpose: stream.purpose,
+                        is_active: stream.is_active,
+                        domain: stream.semantic_space?.domain?.name || "Not set"
+                    }))
+                }}
+                payloadHandlers={{
+                    stream_suggestions: {
+                        render: (payload, callbacks) => (
+                            <StreamSuggestionsCard
+                                payload={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: handleStreamSuggestionAccept,
+                        onReject: handleStreamSuggestionReject,
+                        renderOptions: {
+                            panelWidth: '550px',
+                            headerTitle: 'Suggested Research Streams',
+                            headerIcon: '💡'
+                        }
+                    },
+                    portfolio_insights: {
+                        render: (payload, callbacks) => (
+                            <PortfolioInsightsCard
+                                payload={payload}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onReject: handlePortfolioInsightsReject,
+                        renderOptions: {
+                            panelWidth: '500px',
+                            headerTitle: 'Portfolio Analysis',
+                            headerIcon: '📊'
+                        }
+                    },
+                    quick_setup: {
+                        render: (payload, callbacks) => (
+                            <QuickSetupCard
+                                payload={payload}
+                                onAccept={callbacks.onAccept}
+                                onReject={callbacks.onReject}
+                            />
+                        ),
+                        onAccept: handleQuickSetupAccept,
+                        onReject: handleQuickSetupReject,
+                        renderOptions: {
+                            panelWidth: '550px',
+                            headerTitle: 'Quick Stream Setup',
+                            headerIcon: '🚀'
+                        }
+                    }
+                }}
+                isOpen={isChatOpen}
+                onOpenChange={setIsChatOpen}
+            />
 
-                <button
-                    onClick={() => navigate('/new-stream')}
-                    className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                    <PlusIcon className="h-5 w-5 mr-2" />
-                    New Stream
-                </button>
-            </div>
+            {/* Main Content */}
+            <div className="flex-1 overflow-y-auto p-6 relative">
+                {/* Chat toggle button - fixed to lower left */}
+                {!isChatOpen && (
+                    <button
+                        onClick={() => setIsChatOpen(true)}
+                        className="fixed bottom-6 left-6 z-40 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
+                        title="Open chat"
+                    >
+                        <ChatBubbleLeftRightIcon className="h-6 w-6" />
+                    </button>
+                )}
+
+                <div className="max-w-7xl mx-auto">
+                    <div className="flex justify-between items-center mb-8">
+                        <div>
+                            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                                Research Streams
+                            </h1>
+                            <p className="text-gray-600 dark:text-gray-400 mt-2">
+                                Monitor specific topics, competitors, or therapeutic areas
+                            </p>
+                        </div>
+
+                        <button
+                            onClick={() => navigate('/new-stream')}
+                            className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                            <PlusIcon className="h-5 w-5 mr-2" />
+                            New Stream
+                        </button>
+                    </div>
 
             {error && (
                 <div className="mb-6 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-700 rounded-lg p-4">
@@ -222,69 +302,8 @@ export default function StreamsPage() {
                     ))}
                 </div>
             )}
-
-            {/* Chat Tray */}
-            <ChatTray
-                initialContext={{
-                    current_page: "streams_list",
-                    entity_type: "research_streams",
-                    streams: researchStreams.map(stream => ({
-                        stream_id: stream.stream_id,
-                        stream_name: stream.stream_name,
-                        purpose: stream.purpose,
-                        is_active: stream.is_active,
-                        domain: stream.semantic_space?.domain?.name || "Not set"
-                    }))
-                }}
-                payloadHandlers={{
-                    stream_suggestions: {
-                        render: (payload, callbacks) => (
-                            <StreamSuggestionsCard
-                                payload={payload}
-                                onAccept={callbacks.onAccept}
-                                onReject={callbacks.onReject}
-                            />
-                        ),
-                        onAccept: handleStreamSuggestionAccept,
-                        onReject: handleStreamSuggestionReject,
-                        renderOptions: {
-                            panelWidth: '550px',
-                            headerTitle: 'Suggested Research Streams',
-                            headerIcon: '💡'
-                        }
-                    },
-                    portfolio_insights: {
-                        render: (payload, callbacks) => (
-                            <PortfolioInsightsCard
-                                payload={payload}
-                                onReject={callbacks.onReject}
-                            />
-                        ),
-                        onReject: handlePortfolioInsightsReject,
-                        renderOptions: {
-                            panelWidth: '500px',
-                            headerTitle: 'Portfolio Analysis',
-                            headerIcon: '📊'
-                        }
-                    },
-                    quick_setup: {
-                        render: (payload, callbacks) => (
-                            <QuickSetupCard
-                                payload={payload}
-                                onAccept={callbacks.onAccept}
-                                onReject={callbacks.onReject}
-                            />
-                        ),
-                        onAccept: handleQuickSetupAccept,
-                        onReject: handleQuickSetupReject,
-                        renderOptions: {
-                            panelWidth: '550px',
-                            headerTitle: 'Quick Stream Setup',
-                            headerIcon: '🚀'
-                        }
-                    }
-                }}
-            />
+                </div>
+            </div>
         </div>
     );
 }
