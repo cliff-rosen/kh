@@ -333,7 +333,10 @@ export default function ArticleViewerModal({
             />
 
             {/* Modal */}
-            <div className="relative w-[95vw] h-[90vh] bg-white dark:bg-gray-800 rounded-lg shadow-2xl flex flex-col overflow-hidden">
+            <div
+                className="relative w-[95vw] h-[90vh] bg-white dark:bg-gray-800 rounded-lg shadow-2xl flex flex-col overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+            >
                 {/* Header */}
                 <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center gap-4">
@@ -341,6 +344,7 @@ export default function ArticleViewerModal({
                         {articles.length > 1 && (
                             <div className="flex items-center gap-1">
                                 <button
+                                    type="button"
                                     onClick={handlePrevious}
                                     disabled={!hasPrevious}
                                     className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
@@ -352,6 +356,7 @@ export default function ArticleViewerModal({
                                     {currentIndex + 1} / {articles.length}
                                 </span>
                                 <button
+                                    type="button"
                                     onClick={handleNext}
                                     disabled={!hasNext}
                                     className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
@@ -366,6 +371,7 @@ export default function ArticleViewerModal({
                         </h2>
                     </div>
                     <button
+                        type="button"
                         onClick={onClose}
                         className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                         title="Close (Escape)"
@@ -400,8 +406,13 @@ export default function ArticleViewerModal({
                                             const normalized = normalizeArticle(art);
                                             return (
                                                 <button
+                                                    type="button"
                                                     key={normalized.id}
-                                                    onClick={() => setCurrentIndex(idx)}
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        setCurrentIndex(idx);
+                                                    }}
                                                     className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${idx === currentIndex
                                                         ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100'
                                                         : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
@@ -491,6 +502,7 @@ export default function ArticleViewerModal({
                             {article.abstract && !stanceResult && !isAnalyzing && streamId && (
                                 <div className={`mt-4 ${activeTab === 'analysis' ? 'invisible' : ''}`}>
                                     <button
+                                        type="button"
                                         onClick={runAnalysis}
                                         className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
                                     >
@@ -510,6 +522,7 @@ export default function ArticleViewerModal({
                         <div className="flex-shrink-0 flex items-center gap-1 px-4 pt-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                             {tabs.map(({ id, label, icon: Icon }) => (
                                 <button
+                                    type="button"
                                     key={id}
                                     onClick={() => setActiveTab(id)}
                                     className={`flex items-center gap-2 px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${activeTab === id
@@ -547,6 +560,7 @@ export default function ArticleViewerModal({
                                                 </p>
                                                 {article.abstract && streamId && (
                                                     <button
+                                                        type="button"
                                                         onClick={runAnalysis}
                                                         className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                                                     >
@@ -577,6 +591,7 @@ export default function ArticleViewerModal({
                                                 <p className="text-red-800 dark:text-red-200">{analysisError}</p>
                                                 {streamId && article.abstract && (
                                                     <button
+                                                        type="button"
                                                         onClick={runAnalysis}
                                                         className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-red-600 text-white rounded-md hover:bg-red-700"
                                                     >
@@ -657,6 +672,7 @@ export default function ArticleViewerModal({
                                             {/* Re-analyze button */}
                                             <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                                                 <button
+                                                    type="button"
                                                     onClick={runAnalysis}
                                                     className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                                                 >
@@ -723,6 +739,7 @@ export default function ArticleViewerModal({
                                         {/* Button to fetch links */}
                                         {currentLinks === undefined && (
                                             <button
+                                                type="button"
                                                 onClick={fetchFullTextLinks}
                                                 disabled={loadingLinks}
                                                 className="w-full px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 text-left"
@@ -784,6 +801,7 @@ export default function ArticleViewerModal({
                 {articleChatContext && (
                     <div className="flex-shrink-0 px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                         <button
+                            type="button"
                             onClick={() => setIsChatOpen(!isChatOpen)}
                             className={`p-2 rounded-lg transition-colors ${
                                 isChatOpen
