@@ -1019,7 +1019,8 @@ export default function EditStreamPage() {
                 </div>
             </div>
 
-            {/* Pinned Footer Actions */}
+            {/* Pinned Footer Actions - hide completely when on Test & Refine tab */}
+            {activeTab !== 'execute' && (
             <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-4">
                 <div className="max-w-7xl mx-auto flex justify-between">
                     {/* Only show delete button if user can modify this stream */}
@@ -1042,9 +1043,9 @@ export default function EditStreamPage() {
                         >
                             {canModify ? 'Cancel' : 'Back to Streams'}
                         </button>
-                        {/* Hide main save button on enrichment and execute tabs - they have their own controls */}
+                        {/* Hide main save button on enrichment tab - it has its own controls */}
                         {/* Also hide save button if user can't modify this stream */}
-                        {canModify && activeTab !== 'enrichment' && activeTab !== 'execute' && (
+                        {canModify && activeTab !== 'enrichment' && (
                             <button
                                 type="submit"
                                 form="edit-stream-form"
@@ -1057,6 +1058,7 @@ export default function EditStreamPage() {
                     </div>
                 </div>
             </div>
+            )}
             </div>
         </div>
     );

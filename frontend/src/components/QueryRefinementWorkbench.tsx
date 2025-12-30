@@ -955,20 +955,8 @@ function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream, on
                 results: response
             });
 
-            // Capture snapshot for filter results
-            const passedArticles = response.results?.filter((r: any) => r.passed).map((r: any) => r.article) || [];
-            const passedPmids = passedArticles.map((a: CanonicalResearchArticle) => a.pmid || a.id || '').filter(Boolean);
-            onSnapshot({
-                stepType: 'filter',
-                filterCriteria: testCriteria,
-                filterThreshold: testThreshold,
-                articles: passedArticles,
-                articleCount: passedArticles.length,
-                totalCount: response.count || 0,  // Total articles that were filtered
-                allMatchedPmids: passedPmids,     // PMIDs that passed the filter
-                passedCount: response.passed || 0,
-                failedCount: response.failed || 0
-            });
+            // Note: Filter results are not captured to version history
+            // Version history is for comparing query results across runs
 
             // Auto-expand results pane
             onExpandResults();
@@ -1259,16 +1247,8 @@ function CategorizeStepContent({ step, onUpdate, previousSteps, streamId, onExpa
                 results: response
             });
 
-            // Capture snapshot for categorization results
-            const categorizedArticles = response.results?.map((r: any) => r.article) || [];
-            const categorizedPmids = categorizedArticles.map((a: any) => a.pmid || a.id || '').filter(Boolean);
-            onSnapshot({
-                stepType: 'categorize',
-                articles: categorizedArticles,
-                articleCount: categorizedArticles.length,
-                totalCount: categorizedArticles.length,  // All articles are categorized
-                allMatchedPmids: categorizedPmids
-            });
+            // Note: Categorization results are not captured to version history
+            // Version history is for comparing query results across runs
 
             // Auto-expand results pane
             onExpandResults();
@@ -1447,6 +1427,9 @@ function ResultsPane({ step, stepNumber, view, onViewChange, onCollapse }: Resul
 
 // Raw Results View
 function RawResultsView({ step }: { step: WorkflowStep }) {
+    // Filter toggle state for filter step results
+    const [filterView, setFilterView] = useState<'all' | 'passed' | 'failed'>('all');
+
     if (step.type === 'categorize') {
         // CategorizeResponse: { results: CategoryAssignment[], count, category_distribution }
         const categoryDist = step.results.category_distribution || {};
@@ -1505,8 +1488,17 @@ function RawResultsView({ step }: { step: WorkflowStep }) {
 
     if (step.type === 'filter') {
         // FilterResponse: { results: FilterResult[], count, passed, failed }
+        // Filter results based on toggle selection
+        const allResults = step.results.results || [];
+        const filteredResults = filterView === 'all'
+            ? allResults
+            : filterView === 'passed'
+                ? allResults.filter((r: any) => r.passed)
+                : allResults.filter((r: any) => !r.passed);
+
         return (
             <div className="space-y-4">
+                {/* Summary Stats */}
                 <div className="grid grid-cols-3 gap-3">
                     <div className="bg-gray-50 dark:bg-gray-800 rounded p-3 text-center">
                         <p className="text-2xl font-bold text-gray-900 dark:text-white">{step.results.count}</p>
@@ -1522,8 +1514,46 @@ function RawResultsView({ step }: { step: WorkflowStep }) {
                     </div>
                 </div>
 
+                {/* Filter Toggle */}
+                <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 pb-3">
+                    <button
+                        type="button"
+                        onClick={() => setFilterView('all')}
+                        className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
+                            filterView === 'all'
+                                ? 'bg-gray-700 text-white dark:bg-gray-200 dark:text-gray-900'
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                    >
+                        All ({step.results.count})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setFilterView('passed')}
+                        className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
+                            filterView === 'passed'
+                                ? 'bg-green-600 text-white'
+                                : 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40'
+                        }`}
+                    >
+                        Passed ({step.results.passed})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setFilterView('failed')}
+                        className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
+                            filterView === 'failed'
+                                ? 'bg-red-600 text-white'
+                                : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40'
+                        }`}
+                    >
+                        Failed ({step.results.failed})
+                    </button>
+                </div>
+
+                {/* Filtered Results */}
                 <div className="space-y-2">
-                    {step.results.results?.slice(0, 20).map((result: any, idx: number) => (
+                    {filteredResults.slice(0, 20).map((result: any, idx: number) => (
                         <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded p-3 text-sm">
                             <div className="flex items-center gap-2 mb-1">
                                 {result.passed ? (
@@ -1542,9 +1572,14 @@ function RawResultsView({ step }: { step: WorkflowStep }) {
                             <p className="text-xs text-gray-600 dark:text-gray-400 italic">{result.reasoning}</p>
                         </div>
                     ))}
-                    {step.results.results && step.results.results.length > 20 && (
+                    {filteredResults.length > 20 && (
                         <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
-                            Showing 20 of {step.results.results.length} articles
+                            Showing 20 of {filteredResults.length} articles
+                        </p>
+                    )}
+                    {filteredResults.length === 0 && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                            No {filterView === 'passed' ? 'passed' : filterView === 'failed' ? 'failed' : ''} articles
                         </p>
                     )}
                 </div>
