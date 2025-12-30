@@ -220,6 +220,115 @@ class PubMedArticle():
                     doi=doi
                     )
 
+    @classmethod
+    def from_book_xml(cls, book_xml: bytes) -> 'PubMedArticle':
+        """
+        Parse a PubmedBookArticle XML element (e.g., StatPearls chapters).
+
+        Maps book-specific fields to the standard PubMedArticle structure:
+        - journal -> BookTitle (e.g., "StatPearls")
+        - medium -> "Book"
+        - volume/issue/pages -> empty (not applicable for books)
+        """
+        book_article_node = ET.fromstring(book_xml)
+        book_document = book_article_node.find('.//BookDocument')
+
+        # Extract PMID
+        pmid_node = book_document.find('.//PMID')
+        PMID = pmid_node.text if pmid_node is not None else ""
+        logger.debug(f"Processing book article PMID: {PMID}")
+
+        # Extract title
+        title_node = book_document.find('.//ArticleTitle')
+        title = ''.join(title_node.itertext()) if title_node is not None else ""
+
+        # Extract book info (use as "journal")
+        book_node = book_document.find('.//Book')
+        book_title_node = book_node.find('.//BookTitle') if book_node is not None else None
+        publisher_node = book_node.find('.//Publisher/PublisherName') if book_node is not None else None
+
+        # Use BookTitle as journal, with publisher in parentheses
+        journal = ""
+        if book_title_node is not None and book_title_node.text:
+            journal = book_title_node.text
+            if publisher_node is not None and publisher_node.text:
+                journal += f" ({publisher_node.text})"
+
+        # Extract publication date from Book/PubDate
+        year = ""
+        pub_date = ""
+        if book_node is not None:
+            pubdate_node = book_node.find('.//PubDate')
+            if pubdate_node is not None:
+                year_node = pubdate_node.find('.//Year')
+                month_node = pubdate_node.find('.//Month')
+                if year_node is not None and year_node.text:
+                    year = year_node.text
+                    pub_date = year
+                    if month_node is not None and month_node.text:
+                        month = month_node.text.zfill(2)
+                        pub_date += f"-{month}-01"
+                    else:
+                        pub_date += "-01-01"
+
+        # Extract authors (same structure as regular articles)
+        author_list_node = book_document.find('.//AuthorList')
+        author_list = []
+        if author_list_node is not None:
+            for author_node in author_list_node.findall('.//Author'):
+                last_name_node = author_node.find('.//LastName')
+                if last_name_node is not None:
+                    last_name = last_name_node.text
+                    initials_node = author_node.find('.//Initials')
+                    initials = initials_node.text if initials_node is not None else ""
+                    author_list.append(f"{last_name} {initials}".strip())
+        authors = ', '.join(author_list)
+
+        # Extract abstract
+        abstract = ""
+        abstract_node = book_document.find('.//Abstract')
+        if abstract_node is not None:
+            abstract_texts = abstract_node.findall('.//AbstractText')
+            if abstract_texts:
+                abstract_parts = []
+                for abstract_text in abstract_texts:
+                    text_content = ''.join(abstract_text.itertext()).strip()
+                    label = abstract_text.get('Label')
+                    if label:
+                        abstract_parts.append(f"**{label}**\n{text_content}")
+                    else:
+                        abstract_parts.append(text_content)
+                abstract = "\n\n".join(abstract_parts)
+
+        # Extract book accession ID (like NBK585038) - could be useful
+        pmc_id = ""
+        article_id_list = book_document.find('.//ArticleIdList')
+        if article_id_list is not None:
+            for article_id in article_id_list.findall('.//ArticleId'):
+                id_type = article_id.get('IdType', '')
+                if id_type == 'bookaccession' and article_id.text:
+                    pmc_id = article_id.text  # Store book accession in pmc_id field
+
+        return PubMedArticle(
+            PMID=PMID,
+            comp_date="",
+            date_revised="",
+            article_date="",
+            entry_date="",
+            pub_date=pub_date,
+            title=title,
+            abstract=abstract,
+            authors=authors,
+            journal=journal,
+            medium="Book",
+            year=year,
+            volume="",
+            issue="",
+            pages="",
+            pmc_id=pmc_id,
+            doi=""
+        )
+
     def __init__(self, **kwargs: Any) -> None:
         #print(kwargs)
         self.PMID = kwargs['PMID']
@@ -657,15 +766,18 @@ class PubMedService:
                     logger.error(f"Error parsing article PMID {pmid}: {e}", exc_info=True)
                     dropped_pmids.append(pmid)
 
-            # Track book articles (PubmedBookArticle) - these have different structure and are not supported
+            # Parse book articles (PubmedBookArticle) - e.g., StatPearls chapters
             for book_node in root.findall(".//PubmedBookArticle"):
-                pmid_node = book_node.find('.//PMID')
-                pmid = pmid_node.text if pmid_node is not None else 'unknown'
-                title_node = book_node.find('.//ArticleTitle')
-                title = title_node.text if title_node is not None else 'Unknown'
-                logger.warning(f"PMID {pmid} is a PubmedBookArticle (not supported): '{title}' - skipping")
-                batch_parsed_pmids.add(pmid)  # Don't report as missing, we know why it's skipped
-                dropped_pmids.append(f"{pmid} (book article)")
+                try:
+                    article = PubMedArticle.from_book_xml(ET.tostring(book_node))
+                    articles.append(article)
+                    batch_parsed_pmids.add(article.PMID)
+                    logger.debug(f"Parsed book article PMID {article.PMID}: '{article.title}'")
+                except Exception as e:
+                    pmid_node = book_node.find('.//PMID')
+                    pmid = pmid_node.text if pmid_node is not None else 'unknown'
+                    logger.error(f"Error parsing book article PMID {pmid}: {e}", exc_info=True)
+                    dropped_pmids.append(f"{pmid} (book parse error)")
 
             # Check for PMIDs that were requested but not returned in XML at all
             for pmid in id_batch:
