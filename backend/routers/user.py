@@ -28,6 +28,12 @@ class UserUpdate(BaseModel):
     job_title: Optional[str] = Field(None, max_length=255)
 
 
+class PasswordChange(BaseModel):
+    """Request schema for changing password."""
+    current_password: str = Field(..., min_length=1, description="Current password")
+    new_password: str = Field(..., min_length=8, description="New password (min 8 characters)")
+
+
 # ============== Endpoints ==============
 
 @router.get(
@@ -77,3 +83,36 @@ async def update_current_user(
     )
 
     return UserSchema.model_validate(updated_user)
+
+
+@router.post(
+    "/me/password",
+    summary="Change current user's password"
+)
+async def change_password(
+    password_data: PasswordChange,
+    current_user: User = Depends(auth_service.validate_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Change the current user's password.
+
+    Requires:
+    - current_password: The user's current password for verification
+    - new_password: The new password (minimum 8 characters)
+    """
+    # Verify current password
+    if not auth_service.verify_password(password_data.current_password, current_user.password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect"
+        )
+
+    # Hash and save new password
+    new_hashed_password = auth_service.get_password_hash(password_data.new_password)
+    current_user.password = new_hashed_password
+    db.commit()
+
+    logger.info(f"Password changed for user {current_user.user_id}")
+
+    return {"message": "Password changed successfully"}

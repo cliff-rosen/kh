@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { UserIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline';
+import { UserIcon, BuildingOfficeIcon, KeyIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
-import { userApi, type UserUpdateRequest } from '../lib/api/userApi';
+import { userApi, type UserUpdateRequest, type PasswordChangeRequest } from '../lib/api/userApi';
 import { handleApiError } from '../lib/api';
 import type { User } from '../types/user';
 
@@ -31,6 +31,18 @@ export default function Profile() {
         full_name: '',
         job_title: ''
     });
+
+    // Password change state
+    const [passwordForm, setPasswordForm] = useState({
+        current_password: '',
+        new_password: '',
+        confirm_password: ''
+    });
+    const [isChangingPassword, setIsChangingPassword] = useState(false);
+    const [passwordError, setPasswordError] = useState<string | null>(null);
+    const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+    const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
 
     // Load user profile
     useEffect(() => {
@@ -78,6 +90,43 @@ export default function Profile() {
             setError(handleApiError(err));
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handlePasswordChange = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setPasswordError(null);
+        setPasswordSuccess(null);
+
+        // Validate passwords match
+        if (passwordForm.new_password !== passwordForm.confirm_password) {
+            setPasswordError('New passwords do not match');
+            return;
+        }
+
+        // Validate password length
+        if (passwordForm.new_password.length < 8) {
+            setPasswordError('New password must be at least 8 characters');
+            return;
+        }
+
+        setIsChangingPassword(true);
+
+        try {
+            await userApi.changePassword({
+                current_password: passwordForm.current_password,
+                new_password: passwordForm.new_password
+            });
+            setPasswordSuccess('Password changed successfully');
+            setPasswordForm({
+                current_password: '',
+                new_password: '',
+                confirm_password: ''
+            });
+        } catch (err) {
+            setPasswordError(handleApiError(err));
+        } finally {
+            setIsChangingPassword(false);
         }
     };
 
@@ -230,6 +279,99 @@ export default function Profile() {
                                 </dd>
                             </div>
                         </dl>
+                    </div>
+
+                    {/* Change Password */}
+                    <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
+                            <KeyIcon className="h-4 w-4" />
+                            Change Password
+                        </h3>
+
+                        {passwordError && (
+                            <div className="mb-4 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-700 rounded-lg p-3">
+                                <p className="text-sm text-red-800 dark:text-red-200">{passwordError}</p>
+                            </div>
+                        )}
+
+                        {passwordSuccess && (
+                            <div className="mb-4 bg-green-50 dark:bg-green-900/50 border border-green-200 dark:border-green-700 rounded-lg p-3">
+                                <p className="text-sm text-green-800 dark:text-green-200">{passwordSuccess}</p>
+                            </div>
+                        )}
+
+                        <form onSubmit={handlePasswordChange} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Current Password
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type={showCurrentPassword ? 'text' : 'password'}
+                                        value={passwordForm.current_password}
+                                        onChange={(e) => setPasswordForm({ ...passwordForm, current_password: e.target.value })}
+                                        className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        required
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                    >
+                                        {showCurrentPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    New Password
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type={showNewPassword ? 'text' : 'password'}
+                                        value={passwordForm.new_password}
+                                        onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
+                                        className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        required
+                                        minLength={8}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowNewPassword(!showNewPassword)}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                    >
+                                        {showNewPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+                                    </button>
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    Minimum 8 characters
+                                </p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Confirm New Password
+                                </label>
+                                <input
+                                    type={showNewPassword ? 'text' : 'password'}
+                                    value={passwordForm.confirm_password}
+                                    onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    required
+                                />
+                            </div>
+
+                            <div className="flex justify-end">
+                                <button
+                                    type="submit"
+                                    disabled={isChangingPassword}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm"
+                                >
+                                    {isChangingPassword ? 'Changing...' : 'Change Password'}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

@@ -13,6 +13,11 @@ export interface UserUpdateRequest {
   job_title?: string;
 }
 
+export interface PasswordChangeRequest {
+  current_password: string;
+  new_password: string;
+}
+
 // ============== API ==============
 
 export const userApi = {
@@ -29,6 +34,14 @@ export const userApi = {
    */
   async updateMe(updates: UserUpdateRequest): Promise<User> {
     const response = await api.put('/api/user/me', updates);
+    return response.data;
+  },
+
+  /**
+   * Change current user's password
+   */
+  async changePassword(data: PasswordChangeRequest): Promise<{ message: string }> {
+    const response = await api.post('/api/user/me/password', data);
     return response.data;
   },
 };
