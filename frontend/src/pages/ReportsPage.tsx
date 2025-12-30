@@ -318,7 +318,18 @@ export default function ReportsPage() {
             )}
 
             {/* Main Content */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6 relative">
+                {/* Chat toggle button - fixed to lower left */}
+                {!isChatOpen && !articleViewerOpen && (
+                    <button
+                        onClick={() => setIsChatOpen(true)}
+                        className="fixed bottom-6 left-6 z-40 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
+                        title="Open chat"
+                    >
+                        <ChatBubbleLeftRightIcon className="h-6 w-6" />
+                    </button>
+                )}
+
             <div className="flex justify-between items-center mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
@@ -328,18 +339,6 @@ export default function ReportsPage() {
                         Generated reports from your research streams
                     </p>
                 </div>
-                {/* Chat toggle button */}
-                <button
-                    onClick={() => setIsChatOpen(!isChatOpen)}
-                    className={`p-2 rounded-lg transition-colors ${
-                        isChatOpen
-                            ? 'bg-blue-600 text-white hover:bg-blue-700'
-                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                    title={isChatOpen ? 'Close chat' : 'Open chat'}
-                >
-                    <ChatBubbleLeftRightIcon className="h-5 w-5" />
-                </button>
             </div>
 
             {hasStreams && (
