@@ -31,7 +31,7 @@ class RefinementWorkbenchService:
         query_index: int,
         start_date: str,
         end_date: str
-    ) -> Tuple[List[CanonicalResearchArticle], Dict]:
+    ) -> Tuple[List[CanonicalResearchArticle], Dict, List[str]]:
         """
         Execute a broad query from the stream's retrieval config.
 
@@ -42,7 +42,7 @@ class RefinementWorkbenchService:
             end_date: End date (YYYY-MM-DD)
 
         Returns:
-            Tuple of (articles, metadata dict)
+            Tuple of (articles, metadata dict, all_matched_pmids)
         """
         # Get stream from database
         stream = self.db.query(ResearchStream).filter(
@@ -72,10 +72,20 @@ class RefinementWorkbenchService:
         start_date_formatted = start_date.replace("-", "/")
         end_date_formatted = end_date.replace("-", "/")
 
-        # Execute query on PubMed
+        # First, get ALL matched PMIDs (just IDs, not full articles) for comparison
+        all_pmids, total_count = self.pubmed_service.get_article_ids(
+            query=query_expression,
+            max_results=10000,  # Get up to 10k PMIDs for comparison
+            start_date=start_date_formatted,
+            end_date=end_date_formatted,
+            date_type="publication",
+            sort_by="relevance"
+        )
+
+        # Then fetch a sample of full articles for display
         articles, metadata = self.pubmed_service.search_articles(
             query=query_expression,
-            max_results=100,  # Reasonable limit for testing
+            max_results=100,  # Reasonable limit for testing display
             start_date=start_date_formatted,
             end_date=end_date_formatted,
             date_type="publication",
@@ -88,17 +98,18 @@ class RefinementWorkbenchService:
             "query_index": query_index,
             "start_date": start_date,
             "end_date": end_date,
+            "total_results": total_count,  # True total from PubMed
             **metadata
         }
 
-        return articles, enriched_metadata
+        return articles, enriched_metadata, all_pmids
 
     async def test_custom_query(
         self,
         query_expression: str,
         start_date: str,
         end_date: str
-    ) -> Tuple[List[CanonicalResearchArticle], Dict]:
+    ) -> Tuple[List[CanonicalResearchArticle], Dict, List[str]]:
         """
         Test a custom query expression (not necessarily saved to stream).
 
@@ -108,7 +119,7 @@ class RefinementWorkbenchService:
             end_date: End date (YYYY-MM-DD)
 
         Returns:
-            Tuple of (articles, metadata dict)
+            Tuple of (articles, metadata dict, all_matched_pmids)
         """
         if not query_expression or not query_expression.strip():
             raise ValueError("Query expression cannot be empty")
@@ -117,7 +128,17 @@ class RefinementWorkbenchService:
         start_date_formatted = start_date.replace("-", "/")
         end_date_formatted = end_date.replace("-", "/")
 
-        # Execute query on PubMed
+        # First, get ALL matched PMIDs (just IDs, not full articles) for comparison
+        all_pmids, total_count = self.pubmed_service.get_article_ids(
+            query=query_expression,
+            max_results=10000,  # Get up to 10k PMIDs for comparison
+            start_date=start_date_formatted,
+            end_date=end_date_formatted,
+            date_type="entry",
+            sort_by="relevance"
+        )
+
+        # Then fetch a sample of full articles for display
         articles, metadata = self.pubmed_service.search_articles(
             query=query_expression,
             max_results=self.MAX_ARTICLES_PER_SOURCE,
@@ -132,15 +153,16 @@ class RefinementWorkbenchService:
             "query_expression": query_expression,
             "start_date": start_date,
             "end_date": end_date,
+            "total_results": total_count,  # True total from PubMed
             **metadata
         }
 
-        return articles, enriched_metadata
+        return articles, enriched_metadata, all_pmids
 
     async def fetch_manual_pmids(
         self,
         pmids: List[str]
-    ) -> Tuple[List[CanonicalResearchArticle], Dict]:
+    ) -> Tuple[List[CanonicalResearchArticle], Dict, List[str]]:
         """
         Fetch articles by PMID list.
 
@@ -148,7 +170,7 @@ class RefinementWorkbenchService:
             pmids: List of PubMed IDs
 
         Returns:
-            Tuple of (articles, metadata dict)
+            Tuple of (articles, metadata dict, all_matched_pmids)
         """
         # Fetch articles from PubMed - returns List[PubMedArticle]
         pubmed_articles = fetch_articles_by_ids(pmids)
@@ -175,12 +197,16 @@ class RefinementWorkbenchService:
                 url=f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else None
             ))
 
+        # For manual PMIDs, all matched = all requested (that were found)
+        found_pmids = [a.pmid for a in articles if a.pmid]
+
         metadata = {
             "requested_pmids": len(pmids),
-            "found_pmids": len(articles)
+            "found_pmids": len(articles),
+            "total_results": len(pmids)  # For manual, total = requested
         }
 
-        return articles, metadata
+        return articles, metadata, found_pmids
 
     async def filter_articles(
         self,

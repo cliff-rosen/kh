@@ -39,9 +39,11 @@ export interface QuerySnapshot {
     // Filter step info
     filterCriteria?: string;
     filterThreshold?: number;
-    // Results
+    // Results - sample for display
     articles: CanonicalResearchArticle[];
-    articleCount: number;
+    articleCount: number;           // Number of articles in sample (returned)
+    totalCount: number;             // Total matching articles (from query)
+    allMatchedPmids: string[];      // ALL PMIDs matching the query (for comparison)
     // For filter results
     passedCount?: number;
     failedCount?: number;
@@ -567,7 +569,9 @@ function SourceStepContent({ step, onUpdate, stream, streamId, onExpandResults, 
                     startDate: config.startDate,
                     endDate: config.endDate,
                     articles: response.articles || [],
-                    articleCount: response.count || 0
+                    articleCount: response.count || 0,
+                    totalCount: response.total_count || response.count || 0,
+                    allMatchedPmids: response.all_matched_pmids || []
                 });
 
                 // Auto-expand results pane
@@ -594,7 +598,9 @@ function SourceStepContent({ step, onUpdate, stream, streamId, onExpandResults, 
                     stepType: 'source',
                     queryExpression: `Manual PMIDs: ${pmids.length} articles`,
                     articles: response.articles || [],
-                    articleCount: response.count || 0
+                    articleCount: response.count || 0,
+                    totalCount: response.total_count || response.count || 0,
+                    allMatchedPmids: response.all_matched_pmids || pmids
                 });
 
                 // Auto-expand results pane
@@ -875,12 +881,15 @@ function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream, on
 
             // Capture snapshot for filter results
             const passedArticles = response.results?.filter((r: any) => r.passed).map((r: any) => r.article) || [];
+            const passedPmids = passedArticles.map((a: CanonicalResearchArticle) => a.pmid || a.id || '').filter(Boolean);
             onSnapshot({
                 stepType: 'filter',
                 filterCriteria: testCriteria,
                 filterThreshold: testThreshold,
                 articles: passedArticles,
-                articleCount: response.count || 0,
+                articleCount: passedArticles.length,
+                totalCount: response.count || 0,  // Total articles that were filtered
+                allMatchedPmids: passedPmids,     // PMIDs that passed the filter
                 passedCount: response.passed || 0,
                 failedCount: response.failed || 0
             });
@@ -1129,10 +1138,13 @@ function CategorizeStepContent({ step, onUpdate, previousSteps, streamId, onExpa
 
             // Capture snapshot for categorization results
             const categorizedArticles = response.results?.map((r: any) => r.article) || [];
+            const categorizedPmids = categorizedArticles.map((a: any) => a.pmid || a.id || '').filter(Boolean);
             onSnapshot({
                 stepType: 'categorize',
                 articles: categorizedArticles,
-                articleCount: response.count || 0
+                articleCount: categorizedArticles.length,
+                totalCount: categorizedArticles.length,  // All articles are categorized
+                allMatchedPmids: categorizedPmids
             });
 
             // Auto-expand results pane
@@ -1806,10 +1818,14 @@ function VersionHistorySidebar({
                                     {getSnapshotSummary(snapshot)}
                                 </p>
 
-                                {/* Article count */}
+                                {/* Article count - show total matched */}
                                 <div className="flex items-center gap-2 mt-1">
                                     <span className="text-[10px] text-gray-500 dark:text-gray-400">
-                                        {snapshot.articleCount} articles
+                                        {snapshot.totalCount !== snapshot.articleCount ? (
+                                            <>{snapshot.totalCount.toLocaleString()} matched</>
+                                        ) : (
+                                            <>{snapshot.articleCount} articles</>
+                                        )}
                                     </span>
                                     {snapshot.passedCount !== undefined && (
                                         <span className="text-[10px] text-green-600 dark:text-green-400">
@@ -1898,7 +1914,15 @@ function SnapshotResultsPane({ snapshot, onClose, onCollapse }: SnapshotResultsP
                     {snapshot.filterCriteria && (
                         <p><strong>Filter:</strong> {snapshot.filterCriteria} (threshold: {snapshot.filterThreshold})</p>
                     )}
-                    <p><strong>Results:</strong> {snapshot.articleCount} articles</p>
+                    <p>
+                        <strong>Total Matched:</strong> {snapshot.totalCount.toLocaleString()} articles
+                        {snapshot.totalCount !== snapshot.articleCount && (
+                            <span className="text-gray-400"> (showing {snapshot.articleCount})</span>
+                        )}
+                    </p>
+                    {snapshot.passedCount !== undefined && (
+                        <p><strong>Filter Results:</strong> {snapshot.passedCount} passed, {snapshot.failedCount} failed</p>
+                    )}
                 </div>
             </div>
 
@@ -1948,15 +1972,30 @@ function SnapshotCompareView({ snapshotA, snapshotB, onClose }: SnapshotCompareV
         );
     }
 
-    // Compare articles by PMID
+    // Compare using ALL matched PMIDs (not just the sample articles)
+    // This ensures we're comparing the full query results, not just what was returned
+    const aIds = new Set(snapshotA.allMatchedPmids);
+    const bIds = new Set(snapshotB.allMatchedPmids);
+
+    const onlyInAPmids = snapshotA.allMatchedPmids.filter(id => !bIds.has(id));
+    const onlyInBPmids = snapshotB.allMatchedPmids.filter(id => !aIds.has(id));
+    const inBothPmids = snapshotA.allMatchedPmids.filter(id => bIds.has(id));
+
+    // Get article data for display (only for PMIDs we have full data for)
     const getArticleId = (article: CanonicalResearchArticle) => article.pmid || article.id || '';
+    const aArticleMap = new Map(snapshotA.articles.map(a => [getArticleId(a), a]));
+    const bArticleMap = new Map(snapshotB.articles.map(a => [getArticleId(a), a]));
 
-    const aIds = new Set(snapshotA.articles.map(getArticleId));
-    const bIds = new Set(snapshotB.articles.map(getArticleId));
-
-    const onlyInA = snapshotA.articles.filter(a => !bIds.has(getArticleId(a)));
-    const onlyInB = snapshotB.articles.filter(a => !aIds.has(getArticleId(a)));
-    const inBoth = snapshotA.articles.filter(a => bIds.has(getArticleId(a)));
+    // Get displayable articles (ones we have full data for)
+    const onlyInA = onlyInAPmids
+        .map(id => aArticleMap.get(id))
+        .filter((a): a is CanonicalResearchArticle => a !== undefined);
+    const onlyInB = onlyInBPmids
+        .map(id => bArticleMap.get(id))
+        .filter((a): a is CanonicalResearchArticle => a !== undefined);
+    const inBoth = inBothPmids
+        .map(id => aArticleMap.get(id) || bArticleMap.get(id))
+        .filter((a): a is CanonicalResearchArticle => a !== undefined);
 
     const formatTime = (date: Date) => {
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1967,6 +2006,14 @@ function SnapshotCompareView({ snapshotA, snapshotB, onClose }: SnapshotCompareV
             case 'only_a': return onlyInA;
             case 'only_b': return onlyInB;
             case 'both': return inBoth;
+        }
+    };
+
+    const getPmidCount = () => {
+        switch (activeTab) {
+            case 'only_a': return onlyInAPmids.length;
+            case 'only_b': return onlyInBPmids.length;
+            case 'both': return inBothPmids.length;
         }
     };
 
@@ -1990,40 +2037,40 @@ function SnapshotCompareView({ snapshotA, snapshotB, onClose }: SnapshotCompareV
                     </button>
                 </div>
 
-                {/* Version badges */}
+                {/* Version badges - show TOTAL matched counts */}
                 <div className="flex items-center gap-4 mb-3 text-sm">
                     <div className="flex items-center gap-2">
                         <span className="px-2 py-0.5 bg-orange-500 text-white rounded text-xs font-medium">A</span>
                         <span className="text-gray-700 dark:text-gray-300">
-                            {snapshotA.label || formatTime(snapshotA.timestamp)} ({snapshotA.articleCount})
+                            {snapshotA.label || formatTime(snapshotA.timestamp)} ({snapshotA.totalCount.toLocaleString()} total)
                         </span>
                     </div>
                     <ArrowsRightLeftIcon className="h-4 w-4 text-gray-400" />
                     <div className="flex items-center gap-2">
                         <span className="px-2 py-0.5 bg-green-500 text-white rounded text-xs font-medium">B</span>
                         <span className="text-gray-700 dark:text-gray-300">
-                            {snapshotB.label || formatTime(snapshotB.timestamp)} ({snapshotB.articleCount})
+                            {snapshotB.label || formatTime(snapshotB.timestamp)} ({snapshotB.totalCount.toLocaleString()} total)
                         </span>
                     </div>
                 </div>
 
-                {/* Summary stats */}
+                {/* Summary stats - use PMID counts (the full comparison) */}
                 <div className="grid grid-cols-3 gap-3 mb-3">
                     <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded p-2 text-center">
-                        <p className="text-lg font-bold text-orange-600 dark:text-orange-400">{onlyInA.length}</p>
+                        <p className="text-lg font-bold text-orange-600 dark:text-orange-400">{onlyInAPmids.length.toLocaleString()}</p>
                         <p className="text-xs text-gray-600 dark:text-gray-400">Only in A</p>
                     </div>
                     <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded p-2 text-center">
-                        <p className="text-lg font-bold text-gray-600 dark:text-gray-400">{inBoth.length}</p>
+                        <p className="text-lg font-bold text-gray-600 dark:text-gray-400">{inBothPmids.length.toLocaleString()}</p>
                         <p className="text-xs text-gray-600 dark:text-gray-400">In Both</p>
                     </div>
                     <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-2 text-center">
-                        <p className="text-lg font-bold text-green-600 dark:text-green-400">{onlyInB.length}</p>
+                        <p className="text-lg font-bold text-green-600 dark:text-green-400">{onlyInBPmids.length.toLocaleString()}</p>
                         <p className="text-xs text-gray-600 dark:text-gray-400">Only in B</p>
                     </div>
                 </div>
 
-                {/* Tabs */}
+                {/* Tabs - show PMID count vs displayable count */}
                 <div className="flex gap-2">
                     <button
                         type="button"
@@ -2034,7 +2081,7 @@ function SnapshotCompareView({ snapshotA, snapshotB, onClose }: SnapshotCompareV
                                 : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                         }`}
                     >
-                        Only in A ({onlyInA.length})
+                        Only in A ({onlyInAPmids.length.toLocaleString()})
                     </button>
                     <button
                         type="button"
@@ -2045,7 +2092,7 @@ function SnapshotCompareView({ snapshotA, snapshotB, onClose }: SnapshotCompareV
                                 : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                         }`}
                     >
-                        In Both ({inBoth.length})
+                        In Both ({inBothPmids.length.toLocaleString()})
                     </button>
                     <button
                         type="button"
@@ -2056,7 +2103,7 @@ function SnapshotCompareView({ snapshotA, snapshotB, onClose }: SnapshotCompareV
                                 : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                         }`}
                     >
-                        Only in B ({onlyInB.length})
+                        Only in B ({onlyInBPmids.length.toLocaleString()})
                     </button>
                 </div>
             </div>
@@ -2081,12 +2128,25 @@ function SnapshotCompareView({ snapshotA, snapshotB, onClose }: SnapshotCompareV
                             <p className="text-gray-900 dark:text-white">{article.title}</p>
                         </div>
                     ))}
+                    {/* Show info about what we're displaying vs total count */}
+                    {getPmidCount() > getDisplayArticles().length && (
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded p-3 text-center">
+                            <p className="text-xs text-blue-800 dark:text-blue-200">
+                                <strong>{getPmidCount().toLocaleString()} PMIDs</strong> in this category.
+                                {getDisplayArticles().length > 0 ? (
+                                    <> Showing {Math.min(50, getDisplayArticles().length)} articles with full metadata.</>
+                                ) : (
+                                    <> Full article data not available for display (PMIDs not in sample).</>
+                                )}
+                            </p>
+                        </div>
+                    )}
                     {getDisplayArticles().length > 50 && (
                         <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
-                            Showing 50 of {getDisplayArticles().length} articles
+                            Showing 50 of {getDisplayArticles().length} articles with full data
                         </p>
                     )}
-                    {getDisplayArticles().length === 0 && (
+                    {getDisplayArticles().length === 0 && getPmidCount() === 0 && (
                         <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                             <p className="text-sm">No articles in this category</p>
                         </div>

@@ -47,9 +47,10 @@ class ManualPMIDsRequest(BaseModel):
 
 class SourceResponse(BaseModel):
     """Response from source operations"""
-    articles: List[CanonicalResearchArticle] = Field(..., description="Retrieved articles")
-    count: int = Field(..., description="Number of articles actually returned")
+    articles: List[CanonicalResearchArticle] = Field(..., description="Retrieved articles (sample)")
+    count: int = Field(..., description="Number of articles actually returned in this response")
     total_count: int = Field(..., description="Total number of articles matching the query")
+    all_matched_pmids: List[str] = Field(default_factory=list, description="All PMIDs matching the query (for comparison)")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
 
@@ -135,7 +136,7 @@ async def run_query(
     """
     try:
         service = RefinementWorkbenchService(db)
-        articles, metadata = await service.run_query(
+        articles, metadata, all_matched_pmids = await service.run_query(
             stream_id=request.stream_id,
             query_index=request.query_index,
             start_date=request.start_date,
@@ -145,6 +146,7 @@ async def run_query(
             articles=articles,
             count=len(articles),
             total_count=metadata.get("total_results", len(articles)),
+            all_matched_pmids=all_matched_pmids,
             metadata=metadata
         )
     except ValueError as e:
@@ -173,7 +175,7 @@ async def test_custom_query(
     """
     try:
         service = RefinementWorkbenchService(db)
-        articles, metadata = await service.test_custom_query(
+        articles, metadata, all_matched_pmids = await service.test_custom_query(
             query_expression=request.query_expression,
             start_date=request.start_date,
             end_date=request.end_date
@@ -182,6 +184,7 @@ async def test_custom_query(
             articles=articles,
             count=len(articles),
             total_count=metadata.get("total_results", len(articles)),
+            all_matched_pmids=all_matched_pmids,
             metadata=metadata
         )
     except ValueError as e:
@@ -208,11 +211,12 @@ async def fetch_manual_pmids(
     """
     try:
         service = RefinementWorkbenchService(db)
-        articles, metadata = await service.fetch_manual_pmids(pmids=request.pmids)
+        articles, metadata, all_matched_pmids = await service.fetch_manual_pmids(pmids=request.pmids)
         return SourceResponse(
             articles=articles,
             count=len(articles),
-            total_count=len(articles),  # For manual PMIDs, total equals returned
+            total_count=metadata.get("total_results", len(articles)),
+            all_matched_pmids=all_matched_pmids,
             metadata=metadata
         )
     except Exception as e:
