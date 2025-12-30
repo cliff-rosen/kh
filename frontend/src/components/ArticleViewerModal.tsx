@@ -371,21 +371,6 @@ export default function ArticleViewerModal({
                         </h2>
                     </div>
                     <div className="flex items-center gap-2">
-                        {/* Chat toggle - only when chat context available */}
-                        {articleChatContext && (
-                            <button
-                                type="button"
-                                onClick={() => setIsChatOpen(!isChatOpen)}
-                                className={`p-2 rounded-lg transition-colors ${
-                                    isChatOpen
-                                        ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                        : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400'
-                                }`}
-                                title={isChatOpen ? 'Close chat' : 'Open chat'}
-                            >
-                                <ChatBubbleLeftRightIcon className="h-5 w-5" />
-                            </button>
-                        )}
                         <button
                             type="button"
                             onClick={onClose}
@@ -398,7 +383,18 @@ export default function ArticleViewerModal({
                 </div>
 
                 {/* Main content */}
-                <div className="flex-1 flex overflow-hidden">
+                <div className="flex-1 flex overflow-hidden relative">
+                    {/* Chat toggle button - fixed to lower left of modal */}
+                    {articleChatContext && !isChatOpen && (
+                        <button
+                            type="button"
+                            onClick={() => setIsChatOpen(true)}
+                            className="absolute bottom-6 left-6 z-40 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
+                            title="Open chat"
+                        >
+                            <ChatBubbleLeftRightIcon className="h-6 w-6" />
+                        </button>
+                    )}
                     {/* Inline Chat Tray */}
                     {articleChatContext && (
                         <ChatTray
