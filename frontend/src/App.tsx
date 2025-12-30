@@ -29,6 +29,7 @@ import ReportsPage from './pages/ReportsPage';
 import ToolsPage from './pages/ToolsPage';
 import ArticleViewerPage from './pages/ArticleViewerPage';
 import AdminPage from './pages/AdminPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 // Inner component that uses auth context
 function AppContent() {
@@ -76,6 +77,7 @@ function AppContent() {
       <ThemeProvider>
         <Routes>
           <Route path="/auth/token-login" element={<TokenLogin />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/register" element={
             <div className="min-h-screen flex items-center justify-center dark:bg-gray-900 bg-gray-50">
               <LoginForm />

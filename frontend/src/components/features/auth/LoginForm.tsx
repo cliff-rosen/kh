@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import settings from '@/config/settings';
 import { useAuth } from '@/context/AuthContext';
 import { authApi, type InvitationValidation } from '@/lib/api/authApi';
@@ -236,6 +236,16 @@ export default function LoginForm() {
                                 value={formData.password}
                                 onChange={handleInputChange}
                             />
+                            {!isRegistering && (
+                                <div className="text-right mt-1">
+                                    <Link
+                                        to="/reset-password"
+                                        className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-500"
+                                    >
+                                        Forgot password?
+                                    </Link>
+                                </div>
+                            )}
                         </div>
                     )}
                     {isRegistering && (

@@ -32,16 +32,31 @@ class LoginEmailService:
     def generate_login_token(self) -> tuple[str, datetime]:
         """
         Generate a secure login token and expiration time.
-        
+
         Returns:
             tuple: (token, expiration_datetime)
         """
         # Generate a secure random token
         token = secrets.token_urlsafe(32)
-        
+
         # Set expiration to 30 minutes from now
         expires_at = datetime.utcnow() + timedelta(minutes=30)
-        
+
+        return token, expires_at
+
+    def generate_password_reset_token(self) -> tuple[str, datetime]:
+        """
+        Generate a secure password reset token and expiration time.
+
+        Returns:
+            tuple: (token, expiration_datetime)
+        """
+        # Generate a secure random token
+        token = secrets.token_urlsafe(32)
+
+        # Set expiration to 1 hour from now
+        expires_at = datetime.utcnow() + timedelta(hours=1)
+
         return token, expires_at
     
     def _create_login_email(self, email: str, token: str) -> str:
@@ -107,9 +122,82 @@ The {self.app_name} Team
                 
             logger.info(f"Login token email sent successfully to {email}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to send login token email to {email}: {str(e)}")
+            if "Application-specific password required" in str(e):
+                logger.error("Gmail requires an App Password, not your regular password!")
+                logger.error("To fix: Go to Google Account → Security → 2-Step Verification → App passwords")
+                logger.error("Generate a 16-character app password and use that in SMTP_PASSWORD")
+            return False
+
+    def _create_password_reset_email(self, email: str, token: str) -> str:
+        """
+        Create the password reset email with token link.
+
+        Args:
+            email: User's email address
+            token: Password reset token
+
+        Returns:
+            str: Email message text
+        """
+        # Create reset URL
+        reset_url = f"{self.frontend_url}/reset-password?token={token}"
+
+        # Create simple text email content
+        email_content = f"""Subject: {self.app_name} - Password Reset
+From: {self.from_email}
+To: {email}
+
+Hello!
+
+You requested a password reset for your {self.app_name} account.
+
+Click the link below to reset your password (expires in 1 hour):
+{reset_url}
+
+If you didn't request this password reset, you can safely ignore this email.
+Your password will remain unchanged.
+
+Best regards,
+The {self.app_name} Team
+"""
+
+        return email_content
+
+    async def send_password_reset_token(self, email: str, token: str) -> bool:
+        """
+        Send password reset email to user.
+
+        Args:
+            email: User's email address
+            token: Password reset token
+
+        Returns:
+            bool: True if email sent successfully, False otherwise
+        """
+        try:
+            # For development, just log the token instead of sending email
+            if not self.smtp_username or not self.smtp_password:
+                logger.info(f"DEV MODE: Password reset token for {email}: {token}")
+                logger.info(f"DEV MODE: Reset URL: {self.frontend_url}/reset-password?token={token}")
+                return True
+
+            # Create email message
+            email_content = self._create_password_reset_email(email, token)
+
+            # Send email via SMTP
+            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                server.starttls()
+                server.login(self.smtp_username, self.smtp_password)
+                server.sendmail(self.from_email, email, email_content)
+
+            logger.info(f"Password reset email sent successfully to {email}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send password reset email to {email}: {str(e)}")
             if "Application-specific password required" in str(e):
                 logger.error("Gmail requires an App Password, not your regular password!")
                 logger.error("To fix: Go to Google Account → Security → 2-Step Verification → App passwords")

@@ -115,6 +115,8 @@ class User(Base):
     role = Column(Enum(UserRole, values_callable=lambda x: [e.value for e in x], name='userrole'), default=UserRole.MEMBER, nullable=False)
     login_token = Column(String(255), nullable=True, index=True)  # One-time login token
     login_token_expires = Column(DateTime, nullable=True)  # Token expiration time
+    password_reset_token = Column(String(255), nullable=True, index=True)  # Password reset token
+    password_reset_token_expires = Column(DateTime, nullable=True)  # Reset token expiration
     registration_date = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

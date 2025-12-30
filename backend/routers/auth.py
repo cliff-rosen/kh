@@ -305,7 +305,7 @@ async def test_email():
     try:
         email_service = LoginEmailService()
         success = await email_service.send_test_email()
-        
+
         if success:
             return {"message": "Test email sent successfully"}
         else:
@@ -313,10 +313,127 @@ async def test_email():
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to send test email"
             )
-            
+
     except Exception as e:
         logger.error(f"Error sending test email: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while sending test email."
+        )
+
+
+# ============== Password Reset Endpoints ==============
+
+class PasswordResetRequest(BaseModel):
+    """Request schema for password reset."""
+    email: EmailStr = Field(description="User's email address")
+
+
+class PasswordReset(BaseModel):
+    """Request schema for setting new password."""
+    token: str = Field(description="Password reset token from email")
+    new_password: str = Field(min_length=8, description="New password (min 8 characters)")
+
+
+@router.post(
+    "/request-password-reset",
+    summary="Request password reset via email"
+)
+async def request_password_reset(
+    request: PasswordResetRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Request a password reset email.
+
+    - **email**: User's email address
+
+    A reset link will be sent to the email if an account exists.
+    The link expires in 1 hour.
+    """
+    try:
+        user_service = UserService(db)
+
+        # Find user by email
+        user = user_service.get_user_by_email(request.email)
+        if not user:
+            # For security, don't reveal if email exists or not
+            return {"message": "If an account with this email exists, a password reset link has been sent."}
+
+        # Generate password reset token
+        email_service = LoginEmailService()
+        token, expires_at = email_service.generate_password_reset_token()
+
+        # Store token in database
+        user_service.update_password_reset_token(user.user_id, token, expires_at)
+
+        # Send email
+        success = await email_service.send_password_reset_token(request.email, token)
+
+        if not success:
+            # Clear token if email failed
+            user_service.clear_password_reset_token(user.user_id)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to send password reset email. Please try again."
+            )
+
+        return {"message": "If an account with this email exists, a password reset link has been sent."}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error requesting password reset: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while processing your request."
+        )
+
+
+@router.post(
+    "/reset-password",
+    summary="Reset password using token"
+)
+async def reset_password(
+    request: PasswordReset,
+    db: Session = Depends(get_db)
+):
+    """
+    Reset password using a token from the password reset email.
+
+    - **token**: Password reset token received via email
+    - **new_password**: New password (minimum 8 characters)
+
+    The token can only be used once and expires after 1 hour.
+    """
+    try:
+        user_service = UserService(db)
+
+        # Find user by password reset token
+        user = user_service.get_user_by_password_reset_token(request.token)
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired password reset token"
+            )
+
+        # Hash and save new password
+        new_hashed_password = auth_service.get_password_hash(request.new_password)
+        user.password = new_hashed_password
+
+        # Clear the password reset token (one-time use)
+        user_service.clear_password_reset_token(user.user_id)
+
+        logger.info(f"Password reset successfully for user {user.email}")
+
+        return {"message": "Password has been reset successfully. You can now log in with your new password."}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resetting password: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while resetting your password."
         )

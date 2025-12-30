@@ -134,5 +134,24 @@ export const authApi = {
             session_metadata: metadata
         });
         return response.data;
+    },
+
+    /**
+     * Request a password reset email
+     */
+    async requestPasswordReset(email: string): Promise<{ message: string }> {
+        const response = await api.post('/api/auth/request-password-reset', { email });
+        return response.data;
+    },
+
+    /**
+     * Reset password using token from email
+     */
+    async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+        const response = await api.post('/api/auth/reset-password', {
+            token,
+            new_password: newPassword
+        });
+        return response.data;
     }
 };

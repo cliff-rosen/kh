@@ -442,6 +442,49 @@ class UserService:
         """Clear user's login token after use."""
         return self.update_login_token(user_id, None, None)
 
+    def update_password_reset_token(
+        self,
+        user_id: int,
+        token: Optional[str],
+        expires_at: Optional[datetime]
+    ) -> UserModel:
+        """
+        Update user's password reset token.
+
+        Args:
+            user_id: User to update
+            token: Password reset token (or None to clear)
+            expires_at: Token expiration time (or None to clear)
+
+        Returns:
+            Updated user
+        """
+        user = self.get_user_or_404(user_id)
+        user.password_reset_token = token
+        user.password_reset_token_expires = expires_at
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
+    def clear_password_reset_token(self, user_id: int) -> UserModel:
+        """Clear user's password reset token after use."""
+        return self.update_password_reset_token(user_id, None, None)
+
+    def get_user_by_password_reset_token(self, token: str) -> Optional[UserModel]:
+        """
+        Get user by valid (non-expired) password reset token.
+
+        Args:
+            token: Password reset token to look up
+
+        Returns:
+            User if token is valid and not expired, None otherwise
+        """
+        return self.db.query(UserModel).filter(
+            UserModel.password_reset_token == token,
+            UserModel.password_reset_token_expires > datetime.utcnow()
+        ).first()
+
     def verify_credentials(self, email: str, password: str) -> Optional[UserModel]:
         """
         Verify user credentials.
