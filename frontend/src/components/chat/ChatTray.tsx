@@ -282,6 +282,7 @@ export default function ChatTray({
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        e.stopPropagation();
         if (input.trim() && !isLoading) {
             sendMessage(input.trim(), InteractionType.TEXT_INPUT);
             setInput('');
@@ -346,6 +347,7 @@ export default function ChatTray({
                         <div className="flex items-center gap-1">
                             {messages.length > 0 && (
                                 <button
+                                    type="button"
                                     onClick={handleReset}
                                     className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
                                     aria-label="Clear chat"
@@ -355,7 +357,8 @@ export default function ChatTray({
                                 </button>
                             )}
                             <button
-                                onClick={() => setIsOpen(false)}
+                                type="button"
+                                onClick={() => onOpenChange(false)}
                                 className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
                                 aria-label="Close chat"
                             >
@@ -399,6 +402,7 @@ export default function ChatTray({
                                         {/* Tool history summary button */}
                                         {message.tool_history && message.tool_history.length > 0 && (
                                             <button
+                                                type="button"
                                                 onClick={() => setToolsToShow(message.tool_history!)}
                                                 className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                                             >
@@ -413,6 +417,7 @@ export default function ChatTray({
                                     <div className="flex flex-wrap gap-2 mt-3 ml-2">
                                         {message.suggested_values.map((suggestion, sIdx) => (
                                             <button
+                                                type="button"
                                                 key={sIdx}
                                                 onClick={() => handleValueSelect(suggestion.value)}
                                                 disabled={isLoading}
@@ -429,6 +434,7 @@ export default function ChatTray({
                                     <div className="flex flex-wrap gap-2 mt-3 ml-2">
                                         {message.suggested_actions.map((action, aIdx) => (
                                             <button
+                                                type="button"
                                                 key={aIdx}
                                                 onClick={() => handleActionClick(action)}
                                                 disabled={isLoading}
@@ -476,6 +482,7 @@ export default function ChatTray({
                                             {activeToolProgress.toolName.replace(/_/g, ' ')}
                                         </span>
                                         <button
+                                            type="button"
                                             onClick={cancelRequest}
                                             className="ml-2 text-xs text-gray-400 hover:text-red-500 transition-colors"
                                             title="Cancel"
@@ -506,6 +513,7 @@ export default function ChatTray({
                                             {statusText || 'Thinking...'}
                                         </span>
                                         <button
+                                            type="button"
                                             onClick={cancelRequest}
                                             className="ml-2 text-xs text-gray-400 hover:text-red-500 transition-colors"
                                             title="Cancel"
@@ -536,12 +544,14 @@ export default function ChatTray({
                                             </div>
                                             <div className="flex items-center gap-2 flex-shrink-0">
                                                 <button
+                                                    type="button"
                                                     onClick={handleOpenPayload}
                                                     className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
                                                 >
                                                     View
                                                 </button>
                                                 <button
+                                                    type="button"
                                                     onClick={handleClosePayload}
                                                     className="p-1 hover:bg-blue-200 dark:hover:bg-blue-800 rounded transition-colors"
                                                     title="Dismiss"
@@ -618,6 +628,7 @@ export default function ChatTray({
                                     {headerTitle}
                                 </h3>
                                 <button
+                                    type="button"
                                     onClick={handleClosePayload}
                                     className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
                                     aria-label="Close panel"
