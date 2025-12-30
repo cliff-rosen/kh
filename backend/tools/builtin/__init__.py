@@ -6,6 +6,7 @@ Auto-imports all tool modules to register them with the global registry.
 
 # Import all tool modules to trigger their register_tool() calls
 from tools.builtin import pubmed
+from tools.builtin import reports
 
 # Add more tool modules here as they are created:
 # from tools.builtin import research

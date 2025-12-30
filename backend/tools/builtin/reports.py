@@ -1,0 +1,760 @@
+"""
+Report Tools
+
+Tools for exploring reports, articles, and notes within research streams.
+These tools are available on the reports page and article modal views.
+"""
+
+import logging
+from typing import Any, Dict, List, Union
+
+from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_, func
+
+from tools.registry import ToolConfig, ToolResult, register_tool
+from models import Report, Article, ReportArticleAssociation, ResearchStream, User
+from services.notes_service import NotesService
+
+logger = logging.getLogger(__name__)
+
+
+def execute_list_stream_reports(
+    params: Dict[str, Any],
+    db: Session,
+    user_id: int,
+    context: Dict[str, Any]
+) -> Union[str, ToolResult]:
+    """
+    List all reports for the current research stream.
+    """
+    stream_id = context.get("stream_id") or params.get("stream_id")
+
+    if not stream_id:
+        return "Error: No stream context available. This tool requires being on a report page."
+
+    try:
+        reports = db.query(Report).filter(
+            Report.research_stream_id == stream_id
+        ).order_by(Report.report_date.desc()).all()
+
+        if not reports:
+            return "No reports found for this research stream."
+
+        # Format results for LLM
+        text_lines = [f"Found {len(reports)} reports for this research stream:\n"]
+
+        reports_data = []
+        for i, report in enumerate(reports, 1):
+            # Count articles in this report
+            article_count = db.query(ReportArticleAssociation).filter(
+                ReportArticleAssociation.report_id == report.report_id
+            ).count()
+
+            # Get key highlights preview
+            highlights_preview = ""
+            if report.key_highlights:
+                highlights_preview = report.key_highlights[:200] + "..." if len(report.key_highlights) > 200 else report.key_highlights
+
+            text_lines.append(f"""
+            {i}. Report ID: {report.report_id}
+            Name: {report.report_name}
+            Date: {report.report_date.strftime('%Y-%m-%d') if report.report_date else 'Unknown'}
+            Articles: {article_count}
+            Highlights: {highlights_preview or 'None'}
+            """)
+
+            reports_data.append({
+                "report_id": report.report_id,
+                "report_name": report.report_name,
+                "report_date": report.report_date.isoformat() if report.report_date else None,
+                "article_count": article_count,
+                "has_highlights": bool(report.key_highlights),
+                "has_thematic_analysis": bool(report.thematic_analysis)
+            })
+
+        payload = {
+            "type": "report_list",
+            "data": {
+                "stream_id": stream_id,
+                "total_reports": len(reports),
+                "reports": reports_data
+            }
+        }
+
+        return ToolResult(text="\n".join(text_lines), payload=payload)
+
+    except Exception as e:
+        logger.error(f"Error listing reports: {e}", exc_info=True)
+        return f"Error listing reports: {str(e)}"
+
+
+def execute_get_report_summary(
+    params: Dict[str, Any],
+    db: Session,
+    user_id: int,
+    context: Dict[str, Any]
+) -> Union[str, ToolResult]:
+    """
+    Get the summary, highlights, and thematic analysis for a specific report.
+    """
+    report_id = params.get("report_id") or context.get("report_id")
+
+    if not report_id:
+        return "Error: No report_id provided or available in context."
+
+    try:
+        report = db.query(Report).filter(Report.report_id == report_id).first()
+
+        if not report:
+            return f"No report found with ID: {report_id}"
+
+        # Get article count
+        article_count = db.query(ReportArticleAssociation).filter(
+            ReportArticleAssociation.report_id == report_id
+        ).count()
+
+        # Extract enrichments if available
+        enrichments = report.enrichments or {}
+        executive_summary = enrichments.get("executive_summary", "")
+        category_summaries = enrichments.get("category_summaries", [])
+
+        text_result = f"""
+        === Report Summary ===
+        Report: {report.report_name}
+        Report ID: {report.report_id}
+        Date: {report.report_date.strftime('%Y-%m-%d') if report.report_date else 'Unknown'}
+        Total Articles: {article_count}
+
+        === Key Highlights ===
+        {report.key_highlights or 'No key highlights available.'}
+
+        === Thematic Analysis ===
+        {report.thematic_analysis or 'No thematic analysis available.'}
+
+        === Executive Summary ===
+        {executive_summary or 'No executive summary available.'}
+        """
+
+        if category_summaries:
+            text_result += "\n=== Category Summaries ===\n"
+            for cat in category_summaries:
+                if isinstance(cat, dict):
+                    text_result += f"\n**{cat.get('category_name', 'Unknown')}**\n"
+                    text_result += f"{cat.get('summary', 'No summary')}\n"
+
+        payload = {
+            "type": "report_summary",
+            "data": {
+                "report_id": report.report_id,
+                "report_name": report.report_name,
+                "report_date": report.report_date.isoformat() if report.report_date else None,
+                "article_count": article_count,
+                "key_highlights": report.key_highlights,
+                "thematic_analysis": report.thematic_analysis,
+                "executive_summary": executive_summary,
+                "category_summaries": category_summaries
+            }
+        }
+
+        return ToolResult(text=text_result, payload=payload)
+
+    except Exception as e:
+        logger.error(f"Error getting report summary: {e}", exc_info=True)
+        return f"Error getting report summary: {str(e)}"
+
+
+def execute_search_articles_in_reports(
+    params: Dict[str, Any],
+    db: Session,
+    user_id: int,
+    context: Dict[str, Any]
+) -> Union[str, ToolResult]:
+    """
+    Search for articles across all reports in the current stream.
+    Searches in title, abstract, and journal.
+    """
+    query = params.get("query", "").strip()
+    stream_id = context.get("stream_id") or params.get("stream_id")
+    max_results = min(params.get("max_results", 20), 50)
+
+    if not query:
+        return "Error: No search query provided."
+
+    if not stream_id:
+        return "Error: No stream context available."
+
+    try:
+        # Get all reports for this stream
+        report_ids = db.query(Report.report_id).filter(
+            Report.research_stream_id == stream_id
+        ).all()
+        report_ids = [r[0] for r in report_ids]
+
+        if not report_ids:
+            return "No reports found for this stream."
+
+        # Search articles in these reports
+        search_term = f"%{query}%"
+        results = db.query(
+            Article, ReportArticleAssociation, Report
+        ).join(
+            ReportArticleAssociation,
+            Article.article_id == ReportArticleAssociation.article_id
+        ).join(
+            Report,
+            ReportArticleAssociation.report_id == Report.report_id
+        ).filter(
+            ReportArticleAssociation.report_id.in_(report_ids),
+            or_(
+                Article.title.ilike(search_term),
+                Article.abstract.ilike(search_term),
+                Article.journal.ilike(search_term),
+                Article.authors.ilike(search_term)
+            )
+        ).order_by(
+            ReportArticleAssociation.relevance_score.desc().nullslast()
+        ).limit(max_results).all()
+
+        if not results:
+            return f"No articles found matching '{query}' in this stream's reports."
+
+        text_lines = [f"Found {len(results)} articles matching '{query}':\n"]
+        articles_data = []
+
+        for i, (article, assoc, report) in enumerate(results, 1):
+            # Create snippet from abstract
+            abstract_snippet = ""
+            if article.abstract:
+                # Find query in abstract for context
+                lower_abstract = article.abstract.lower()
+                lower_query = query.lower()
+                pos = lower_abstract.find(lower_query)
+                if pos >= 0:
+                    start = max(0, pos - 50)
+                    end = min(len(article.abstract), pos + len(query) + 100)
+                    abstract_snippet = "..." + article.abstract[start:end] + "..."
+                else:
+                    abstract_snippet = article.abstract[:150] + "..."
+
+            text_lines.append(f"""
+            {i}. "{article.title}"
+            PMID: {article.pmid}
+            Journal: {article.journal} ({article.year or 'Unknown'})
+            Report: {report.report_name} ({report.report_date.strftime('%Y-%m-%d') if report.report_date else 'Unknown'})
+            Relevance Score: {assoc.relevance_score or 'N/A'}
+            Context: {abstract_snippet}
+            """)
+
+            articles_data.append({
+                "article_id": article.article_id,
+                "pmid": article.pmid,
+                "title": article.title,
+                "journal": article.journal,
+                "year": article.year,
+                "report_id": report.report_id,
+                "report_name": report.report_name,
+                "relevance_score": assoc.relevance_score
+            })
+
+        payload = {
+            "type": "article_search_results",
+            "data": {
+                "query": query,
+                "total_results": len(results),
+                "articles": articles_data
+            }
+        }
+
+        return ToolResult(text="\n".join(text_lines), payload=payload)
+
+    except Exception as e:
+        logger.error(f"Error searching articles: {e}", exc_info=True)
+        return f"Error searching articles: {str(e)}"
+
+
+def execute_get_article_details(
+    params: Dict[str, Any],
+    db: Session,
+    user_id: int,
+    context: Dict[str, Any]
+) -> Union[str, ToolResult]:
+    """
+    Get full details of a specific article including notes and relevance info.
+    """
+    article_id = params.get("article_id")
+    pmid = params.get("pmid")
+    report_id = params.get("report_id") or context.get("report_id")
+
+    if not article_id and not pmid:
+        return "Error: Either article_id or pmid must be provided."
+
+    try:
+        # Build query
+        query = db.query(Article)
+        if article_id:
+            query = query.filter(Article.article_id == article_id)
+        else:
+            query = query.filter(Article.pmid == pmid)
+
+        article = query.first()
+
+        if not article:
+            return f"No article found with {'ID ' + str(article_id) if article_id else 'PMID ' + str(pmid)}"
+
+        # Get association info if report context available
+        assoc = None
+        notes = []
+        if report_id:
+            assoc = db.query(ReportArticleAssociation).filter(
+                and_(
+                    ReportArticleAssociation.report_id == report_id,
+                    ReportArticleAssociation.article_id == article.article_id
+                )
+            ).first()
+
+            # Get notes
+            if assoc:
+                user = db.query(User).filter(User.user_id == user_id).first()
+                if user:
+                    notes_service = NotesService(db)
+                    notes = notes_service.get_notes(report_id, article.article_id, user)
+
+        text_result = f"""
+        === Article Details ===
+        Title: {article.title}
+        PMID: {article.pmid}
+        DOI: {article.doi or 'N/A'}
+        Authors: {article.authors}
+        Journal: {article.journal}
+        Year: {article.year}
+        Volume: {article.volume}, Issue: {article.issue}, Pages: {article.pages}
+
+        === Abstract ===
+        {article.abstract or 'No abstract available.'}
+        """
+
+        if assoc:
+            text_result += f"""
+            === Report Context ===
+            Relevance Score: {assoc.relevance_score or 'N/A'}
+            Relevance Rationale: {assoc.relevance_rationale or 'N/A'}
+            Ranking: {assoc.ranking or 'N/A'}
+            User Starred: {'Yes' if assoc.is_starred else 'No'}
+            User Read: {'Yes' if assoc.is_read else 'No'}
+            """
+
+            if assoc.ai_enrichments:
+                enrichments = assoc.ai_enrichments
+                if isinstance(enrichments, dict):
+                    if enrichments.get("stance_analysis"):
+                        text_result += f"\n=== Stance Analysis ===\n{enrichments['stance_analysis']}\n"
+
+        if notes:
+            text_result += "\n=== Notes ===\n"
+            for note in notes:
+                author = note.get("author_name", "Unknown")
+                visibility = note.get("visibility", "personal")
+                content = note.get("content", "")
+                text_result += f"\n[{visibility.upper()}] {author}:\n{content}\n"
+
+        payload = {
+            "type": "article_details",
+            "data": {
+                "article_id": article.article_id,
+                "pmid": article.pmid,
+                "title": article.title,
+                "authors": article.authors,
+                "abstract": article.abstract,
+                "journal": article.journal,
+                "year": article.year,
+                "relevance_score": assoc.relevance_score if assoc else None,
+                "is_starred": assoc.is_starred if assoc else None,
+                "notes_count": len(notes)
+            }
+        }
+
+        return ToolResult(text=text_result, payload=payload)
+
+    except Exception as e:
+        logger.error(f"Error getting article details: {e}", exc_info=True)
+        return f"Error getting article details: {str(e)}"
+
+
+def execute_get_notes_for_article(
+    params: Dict[str, Any],
+    db: Session,
+    user_id: int,
+    context: Dict[str, Any]
+) -> Union[str, ToolResult]:
+    """
+    Get all notes for a specific article in a report.
+    """
+    article_id = params.get("article_id")
+    report_id = params.get("report_id") or context.get("report_id")
+
+    if not article_id:
+        return "Error: article_id is required."
+
+    if not report_id:
+        return "Error: report_id is required (either as parameter or from context)."
+
+    try:
+        user = db.query(User).filter(User.user_id == user_id).first()
+        if not user:
+            return "Error: User not found."
+
+        notes_service = NotesService(db)
+        notes = notes_service.get_notes(report_id, article_id, user)
+
+        if not notes:
+            return f"No notes found for article {article_id} in report {report_id}."
+
+        text_lines = [f"Found {len(notes)} notes for this article:\n"]
+        notes_data = []
+
+        for i, note in enumerate(notes, 1):
+            author = note.get("author_name", "Unknown")
+            visibility = note.get("visibility", "personal")
+            content = note.get("content", "")
+            created_at = note.get("created_at", "")
+
+            text_lines.append(f"""
+            {i}. [{visibility.upper()}] By: {author}
+            Created: {created_at}
+            ---
+            {content}
+            """)
+
+            notes_data.append({
+                "id": note.get("id"),
+                "author_name": author,
+                "visibility": visibility,
+                "content": content,
+                "created_at": created_at
+            })
+
+        payload = {
+            "type": "article_notes",
+            "data": {
+                "article_id": article_id,
+                "report_id": report_id,
+                "total_notes": len(notes),
+                "notes": notes_data
+            }
+        }
+
+        return ToolResult(text="\n".join(text_lines), payload=payload)
+
+    except Exception as e:
+        logger.error(f"Error getting notes: {e}", exc_info=True)
+        return f"Error getting notes: {str(e)}"
+
+
+def execute_compare_reports(
+    params: Dict[str, Any],
+    db: Session,
+    user_id: int,
+    context: Dict[str, Any]
+) -> Union[str, ToolResult]:
+    """
+    Compare two reports to identify new articles, removed articles, and changes.
+    """
+    report_id_1 = params.get("report_id_1")
+    report_id_2 = params.get("report_id_2")
+
+    if not report_id_1 or not report_id_2:
+        return "Error: Both report_id_1 and report_id_2 are required."
+
+    try:
+        # Get both reports
+        report1 = db.query(Report).filter(Report.report_id == report_id_1).first()
+        report2 = db.query(Report).filter(Report.report_id == report_id_2).first()
+
+        if not report1:
+            return f"Report {report_id_1} not found."
+        if not report2:
+            return f"Report {report_id_2} not found."
+
+        # Get articles in each report
+        articles_1 = set(
+            r[0] for r in db.query(ReportArticleAssociation.article_id).filter(
+                ReportArticleAssociation.report_id == report_id_1
+            ).all()
+        )
+
+        articles_2 = set(
+            r[0] for r in db.query(ReportArticleAssociation.article_id).filter(
+                ReportArticleAssociation.report_id == report_id_2
+            ).all()
+        )
+
+        # Calculate differences
+        only_in_1 = articles_1 - articles_2
+        only_in_2 = articles_2 - articles_1
+        in_both = articles_1 & articles_2
+
+        text_result = f"""
+        === Report Comparison ===
+
+        Report 1: {report1.report_name} ({report1.report_date.strftime('%Y-%m-%d') if report1.report_date else 'Unknown'})
+        Total articles: {len(articles_1)}
+
+        Report 2: {report2.report_name} ({report2.report_date.strftime('%Y-%m-%d') if report2.report_date else 'Unknown'})
+        Total articles: {len(articles_2)}
+
+        === Differences ===
+        Articles only in Report 1: {len(only_in_1)}
+        Articles only in Report 2: {len(only_in_2)}
+        Articles in both reports: {len(in_both)}
+        """
+
+        # Get details for unique articles
+        if only_in_2:
+            new_articles = db.query(Article).filter(Article.article_id.in_(only_in_2)).limit(10).all()
+            text_result += f"\n=== New in Report 2 (showing up to 10) ===\n"
+            for art in new_articles:
+                text_result += f"- {art.title} (PMID: {art.pmid})\n"
+
+        if only_in_1:
+            removed_articles = db.query(Article).filter(Article.article_id.in_(only_in_1)).limit(10).all()
+            text_result += f"\n=== Not in Report 2 (showing up to 10) ===\n"
+            for art in removed_articles:
+                text_result += f"- {art.title} (PMID: {art.pmid})\n"
+
+        payload = {
+            "type": "report_comparison",
+            "data": {
+                "report_1": {
+                    "id": report_id_1,
+                    "name": report1.report_name,
+                    "date": report1.report_date.isoformat() if report1.report_date else None,
+                    "article_count": len(articles_1)
+                },
+                "report_2": {
+                    "id": report_id_2,
+                    "name": report2.report_name,
+                    "date": report2.report_date.isoformat() if report2.report_date else None,
+                    "article_count": len(articles_2)
+                },
+                "only_in_report_1": len(only_in_1),
+                "only_in_report_2": len(only_in_2),
+                "in_both": len(in_both)
+            }
+        }
+
+        return ToolResult(text=text_result, payload=payload)
+
+    except Exception as e:
+        logger.error(f"Error comparing reports: {e}", exc_info=True)
+        return f"Error comparing reports: {str(e)}"
+
+
+def execute_get_starred_articles(
+    params: Dict[str, Any],
+    db: Session,
+    user_id: int,
+    context: Dict[str, Any]
+) -> Union[str, ToolResult]:
+    """
+    Get all starred articles across reports in the current stream.
+    """
+    stream_id = context.get("stream_id") or params.get("stream_id")
+
+    if not stream_id:
+        return "Error: No stream context available."
+
+    try:
+        # Get all starred articles in this stream's reports
+        results = db.query(
+            Article, ReportArticleAssociation, Report
+        ).join(
+            ReportArticleAssociation,
+            Article.article_id == ReportArticleAssociation.article_id
+        ).join(
+            Report,
+            ReportArticleAssociation.report_id == Report.report_id
+        ).filter(
+            Report.research_stream_id == stream_id,
+            ReportArticleAssociation.is_starred == True
+        ).order_by(Report.report_date.desc()).all()
+
+        if not results:
+            return "No starred articles found in this stream's reports."
+
+        text_lines = [f"Found {len(results)} starred articles:\n"]
+        articles_data = []
+
+        for i, (article, assoc, report) in enumerate(results, 1):
+            text_lines.append(f"""
+            {i}. "{article.title}"
+            PMID: {article.pmid}
+            Journal: {article.journal} ({article.year or 'Unknown'})
+            Report: {report.report_name}
+            Relevance Score: {assoc.relevance_score or 'N/A'}
+            """)
+
+            articles_data.append({
+                "article_id": article.article_id,
+                "pmid": article.pmid,
+                "title": article.title,
+                "journal": article.journal,
+                "report_id": report.report_id,
+                "report_name": report.report_name,
+                "relevance_score": assoc.relevance_score
+            })
+
+        payload = {
+            "type": "starred_articles",
+            "data": {
+                "stream_id": stream_id,
+                "total_starred": len(results),
+                "articles": articles_data
+            }
+        }
+
+        return ToolResult(text="\n".join(text_lines), payload=payload)
+
+    except Exception as e:
+        logger.error(f"Error getting starred articles: {e}", exc_info=True)
+        return f"Error getting starred articles: {str(e)}"
+
+
+# =============================================================================
+# Register Tools
+# =============================================================================
+
+register_tool(ToolConfig(
+    name="list_stream_reports",
+    description="List all reports for the current research stream. Shows report names, dates, article counts, and highlights. Use this to see the history of reports and help users navigate between them.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "stream_id": {
+                "type": "integer",
+                "description": "The stream ID (optional if available in context)"
+            }
+        }
+    },
+    executor=execute_list_stream_reports,
+    category="reports"
+))
+
+register_tool(ToolConfig(
+    name="get_report_summary",
+    description="Get the full summary, key highlights, thematic analysis, and executive summary for a specific report. Use this to give users a comprehensive overview of a report's findings.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "report_id": {
+                "type": "integer",
+                "description": "The report ID to get summary for (optional if viewing a report)"
+            }
+        }
+    },
+    executor=execute_get_report_summary,
+    category="reports"
+))
+
+register_tool(ToolConfig(
+    name="search_articles_in_reports",
+    description="Search for articles across all reports in the stream. Searches in title, abstract, journal, and authors. Use this to find specific articles or topics across the report history.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Search query to find in article titles, abstracts, journals, or authors"
+            },
+            "max_results": {
+                "type": "integer",
+                "description": "Maximum results to return (default 20, max 50)",
+                "default": 20
+            }
+        },
+        "required": ["query"]
+    },
+    executor=execute_search_articles_in_reports,
+    category="reports"
+))
+
+register_tool(ToolConfig(
+    name="get_article_details",
+    description="Get full details for a specific article including abstract, relevance info, and notes. Use article_id or pmid to identify the article.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "article_id": {
+                "type": "integer",
+                "description": "The article's internal ID"
+            },
+            "pmid": {
+                "type": "string",
+                "description": "The PubMed ID of the article"
+            },
+            "report_id": {
+                "type": "integer",
+                "description": "Report ID for context-specific info (optional)"
+            }
+        }
+    },
+    executor=execute_get_article_details,
+    category="reports"
+))
+
+register_tool(ToolConfig(
+    name="get_notes_for_article",
+    description="Get all notes (personal and shared) for a specific article in a report. Includes author, visibility, and content of each note.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "article_id": {
+                "type": "integer",
+                "description": "The article ID to get notes for"
+            },
+            "report_id": {
+                "type": "integer",
+                "description": "The report ID (optional if in report context)"
+            }
+        },
+        "required": ["article_id"]
+    },
+    executor=execute_get_notes_for_article,
+    category="reports"
+))
+
+register_tool(ToolConfig(
+    name="compare_reports",
+    description="Compare two reports to see what articles are new, removed, or shared between them. Useful for understanding changes between report runs.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "report_id_1": {
+                "type": "integer",
+                "description": "First report ID (usually the older one)"
+            },
+            "report_id_2": {
+                "type": "integer",
+                "description": "Second report ID (usually the newer one)"
+            }
+        },
+        "required": ["report_id_1", "report_id_2"]
+    },
+    executor=execute_compare_reports,
+    category="reports"
+))
+
+register_tool(ToolConfig(
+    name="get_starred_articles",
+    description="Get all articles that users have starred across all reports in the stream. These are articles marked as important or of interest.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "stream_id": {
+                "type": "integer",
+                "description": "The stream ID (optional if in context)"
+            }
+        }
+    },
+    executor=execute_get_starred_articles,
+    category="reports"
+))
