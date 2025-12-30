@@ -354,28 +354,55 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
                                     setCompareMode(false);
                                     setCompareSnapshots(null);
                                 }}
-                                onUseAsSource={(pmids, _label) => {
-                                    // Update the first source step to use these PMIDs
-                                    setSteps(prev => prev.map((step, idx) => {
-                                        if (idx === 0 && step.type === 'source') {
-                                            return {
-                                                ...step,
-                                                config: {
-                                                    ...step.config,
-                                                    sourceType: 'manual',
-                                                    manualIds: pmids.join('\n')
-                                                },
-                                                results: null,  // Clear previous results
-                                                expanded: true
-                                            };
-                                        }
-                                        return step;
-                                    }));
-                                    // Exit compare mode and focus on the source step
-                                    setCompareMode(false);
-                                    setCompareSnapshots(null);
-                                    setFocusedStepId('step_1');
-                                    setResultsPaneCollapsed(true);  // Collapse to show the source config
+                                onUseAsSource={async (pmids, _label) => {
+                                    // Fetch the articles for these PMIDs
+                                    try {
+                                        const response = await researchStreamApi.fetchManualPMIDs({ pmids });
+
+                                        // Update the first source step with config AND results
+                                        setSteps(prev => prev.map((step, idx) => {
+                                            if (idx === 0 && step.type === 'source') {
+                                                return {
+                                                    ...step,
+                                                    config: {
+                                                        ...step.config,
+                                                        sourceType: 'manual',
+                                                        manualIds: pmids.join('\n')
+                                                    },
+                                                    results: response,
+                                                    expanded: true
+                                                };
+                                            }
+                                            return step;
+                                        }));
+
+                                        // Exit compare mode and show results
+                                        setCompareMode(false);
+                                        setCompareSnapshots(null);
+                                        setFocusedStepId('step_1');
+                                        setResultsPaneCollapsed(false);  // Show results pane
+                                    } catch (err) {
+                                        console.error('Error fetching PMIDs:', err);
+                                        // Still set up the source step, user can run manually
+                                        setSteps(prev => prev.map((step, idx) => {
+                                            if (idx === 0 && step.type === 'source') {
+                                                return {
+                                                    ...step,
+                                                    config: {
+                                                        ...step.config,
+                                                        sourceType: 'manual',
+                                                        manualIds: pmids.join('\n')
+                                                    },
+                                                    results: null,
+                                                    expanded: true
+                                                };
+                                            }
+                                            return step;
+                                        }));
+                                        setCompareMode(false);
+                                        setCompareSnapshots(null);
+                                        setFocusedStepId('step_1');
+                                    }
                                 }}
                             />
                         ) : selectedSnapshotId && !compareMode ? (
