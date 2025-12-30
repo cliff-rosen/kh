@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     BeakerIcon,
     ChevronDownIcon,
@@ -77,6 +77,7 @@ export interface WorkbenchState {
         failed_count?: number;
     };
     result_view: 'raw' | 'compare' | 'analyze';
+    articleViewerOpen?: boolean;
 }
 
 interface QueryRefinementWorkbenchProps {
@@ -126,6 +127,17 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
     // Article Viewer State
     const [viewerArticles, setViewerArticles] = useState<CanonicalResearchArticle[] | null>(null);
     const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
+
+    // Chat context for article viewer modal - provides stream context for AI analysis
+    const viewerChatContext = useMemo(() => {
+        if (!viewerArticles) return undefined;
+        return {
+            current_page: 'workbench_article_viewer',
+            stream_id: streamId,
+            stream_name: stream.stream_name,
+            article_count: viewerArticles.length
+        };
+    }, [viewerArticles, streamId, stream.stream_name]);
 
     // Add a snapshot to history (does NOT auto-select - user stays in live view)
     const addSnapshot = useCallback((snapshot: Omit<QuerySnapshot, 'id' | 'timestamp'>) => {
@@ -185,6 +197,7 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
         const state: WorkbenchState = {
             focused_step_type: focusedStep.type,
             result_view: resultView,
+            articleViewerOpen: viewerArticles !== null,
         };
 
         // Extract current query info if on source step
@@ -232,7 +245,7 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
         }
 
         onStateChange(state);
-    }, [steps, focusedStepId, resultView, stream, onStateChange]);
+    }, [steps, focusedStepId, resultView, stream, onStateChange, viewerArticles]);
 
     const addStep = (type: StepType) => {
         const newStep: WorkflowStep = {
@@ -484,13 +497,13 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
                 />
             </div>
 
-            {/* Article Viewer Modal */}
+            {/* Article Viewer Modal - with chat context for stream-aware AI analysis */}
             {viewerArticles && (
                 <ArticleViewerModal
                     articles={viewerArticles}
                     initialIndex={viewerInitialIndex}
                     onClose={() => setViewerArticles(null)}
-                    chatContext={{ stream_id: streamId }}
+                    chatContext={viewerChatContext}
                 />
             )}
         </div>

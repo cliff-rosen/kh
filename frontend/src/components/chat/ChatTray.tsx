@@ -13,11 +13,9 @@ interface ChatTrayProps {
     payloadHandlers?: Record<string, PayloadHandler>;
     /** Hide the chat tray completely (used when modal takes over) */
     hidden?: boolean;
-    /** Render in embedded mode (relative positioning, no toggle button) */
-    embedded?: boolean;
-    /** Controlled open state (for embedded mode) */
+    /** Controlled open state - when provided, parent controls visibility */
     isOpen?: boolean;
-    /** Callback when open state changes (for embedded mode) */
+    /** Callback when open state changes */
     onOpenChange?: (open: boolean) => void;
     /** Default width in pixels (default: 420) */
     defaultWidth?: number;
@@ -27,12 +25,6 @@ interface ChatTrayProps {
     maxWidth?: number;
     /** Whether to allow resizing (default: true) */
     resizable?: boolean;
-    /**
-     * Use push layout mode where content is pushed to the right.
-     * Requires parent to be a flex container.
-     * When false (default), uses fixed positioning with overlay.
-     */
-    pushLayout?: boolean;
 }
 
 function getDefaultHeaderTitle(payloadType: string): string {
@@ -141,14 +133,12 @@ export default function ChatTray({
     initialContext,
     payloadHandlers,
     hidden = false,
-    embedded = false,
     isOpen: controlledIsOpen,
     onOpenChange,
     defaultWidth = 420,
     minWidth = 320,
     maxWidth = 600,
-    resizable = true,
-    pushLayout = false
+    resizable = true
 }: ChatTrayProps) {
     const [internalIsOpen, setInternalIsOpen] = useState(false);
 
@@ -345,39 +335,14 @@ export default function ChatTray({
         return null;
     }
 
-    // Different layout modes:
-    // - pushLayout: Uses flex-shrink-0 in a flex container, pushes content right
-    // - fixed (default): Uses fixed positioning with overlay
-    const trayClasses = pushLayout
-        ? `h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out relative ${isOpen ? 'shadow-lg' : ''}`
-        : `fixed top-0 left-0 h-full bg-white dark:bg-gray-900 shadow-2xl transform transition-transform duration-300 ease-in-out z-50 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`;
-
-    const trayStyle = pushLayout
-        ? { width: isOpen ? `${width}px` : '0px', minWidth: isOpen ? `${minWidth}px` : '0px' }
-        : { width: `${width}px` };
+    // Inline-only mode: always renders as a flex child in a flex container
+    // Width collapses to 0 when closed, expands when open
+    const trayClasses = `h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out relative ${isOpen ? 'shadow-lg' : ''}`;
+    const trayStyle = { width: isOpen ? `${width}px` : '0px', minWidth: isOpen ? `${minWidth}px` : '0px' };
 
     return (
         <>
-            {/* Toggle Button - Fixed position in bottom-left when closed */}
-            {!isOpen && (
-                <button
-                    onClick={() => setIsOpen(true)}
-                    className="fixed bottom-6 left-6 z-50 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
-                    aria-label="Open chat"
-                >
-                    <ChatBubbleLeftRightIcon className="h-6 w-6" />
-                </button>
-            )}
-
-            {/* Overlay when open (only for fixed mode) */}
-            {!pushLayout && isOpen && (
-                <div
-                    className="fixed inset-0 bg-black bg-opacity-25 z-40"
-                    onClick={() => setIsOpen(false)}
-                />
-            )}
-
-            {/* Chat Tray */}
+            {/* Chat Tray - inline mode only */}
             <div className={trayClasses} style={trayStyle}>
                 {/* Inner container with fixed width to prevent content collapse during transition */}
                 <div className="flex flex-col h-full" style={{ width: `${width}px` }}>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { DocumentTextIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon, TrashIcon, Bars2Icon, Bars3BottomLeftIcon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon, TrashIcon, Bars2Icon, Bars3BottomLeftIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 
 import { Report, ReportWithArticles, ReportArticle } from '../types';
 import { ResearchStream, Category } from '../types';
@@ -36,6 +36,9 @@ export default function ReportsPage() {
     const [showAnalytics, setShowAnalytics] = useState(false);
     const [showExecutionConfig, setShowExecutionConfig] = useState(false);
     const [executiveSummaryCollapsed, setExecutiveSummaryCollapsed] = useState(false);
+
+    // Chat state
+    const [isChatOpen, setIsChatOpen] = useState(false);
 
     // Article viewer modal state
     const [articleViewerOpen, setArticleViewerOpen] = useState(false);
@@ -302,7 +305,20 @@ export default function ReportsPage() {
     );
 
     return (
-        <div className="w-full p-6">
+        <div className="h-[calc(100vh-4rem)] flex">
+            {/* Chat Tray - inline on left side, hidden when article viewer is open */}
+            {chatContext && (
+                <ChatTray
+                    initialContext={chatContext}
+                    payloadHandlers={payloadHandlers}
+                    hidden={articleViewerOpen}
+                    isOpen={isChatOpen}
+                    onOpenChange={setIsChatOpen}
+                />
+            )}
+
+            {/* Main Content */}
+            <div className="flex-1 overflow-y-auto p-6">
             <div className="flex justify-between items-center mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
@@ -312,6 +328,18 @@ export default function ReportsPage() {
                         Generated reports from your research streams
                     </p>
                 </div>
+                {/* Chat toggle button */}
+                <button
+                    onClick={() => setIsChatOpen(!isChatOpen)}
+                    className={`p-2 rounded-lg transition-colors ${
+                        isChatOpen
+                            ? 'bg-blue-600 text-white hover:bg-blue-700'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                    title={isChatOpen ? 'Close chat' : 'Open chat'}
+                >
+                    <ChatBubbleLeftRightIcon className="h-5 w-5" />
+                </button>
             </div>
 
             {hasStreams && (
@@ -729,15 +757,7 @@ export default function ReportsPage() {
                     onArticleUpdate={handleArticleUpdate}
                 />
             )}
-
-            {/* Chat Tray - uses general chat with report context, hidden when modal is open */}
-            {chatContext && (
-                <ChatTray
-                    initialContext={chatContext}
-                    payloadHandlers={payloadHandlers}
-                    hidden={articleViewerOpen}
-                />
-            )}
+            </div>
         </div>
     );
 }

@@ -370,22 +370,38 @@ export default function ArticleViewerModal({
                             Article Viewer
                         </h2>
                     </div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-                        title="Close (Escape)"
-                    >
-                        <XMarkIcon className="h-5 w-5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {/* Chat toggle - only when chat context available */}
+                        {articleChatContext && (
+                            <button
+                                type="button"
+                                onClick={() => setIsChatOpen(!isChatOpen)}
+                                className={`p-2 rounded-lg transition-colors ${
+                                    isChatOpen
+                                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                        : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400'
+                                }`}
+                                title={isChatOpen ? 'Close chat' : 'Open chat'}
+                            >
+                                <ChatBubbleLeftRightIcon className="h-5 w-5" />
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                            title="Close (Escape)"
+                        >
+                            <XMarkIcon className="h-5 w-5" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Main content */}
                 <div className="flex-1 flex overflow-hidden">
-                    {/* Embedded Chat Tray */}
+                    {/* Inline Chat Tray */}
                     {articleChatContext && (
                         <ChatTray
-                            embedded
                             isOpen={isChatOpen}
                             onOpenChange={setIsChatOpen}
                             initialContext={articleChatContext}
@@ -797,23 +813,6 @@ export default function ArticleViewerModal({
                     </div>
                 </div>
 
-                {/* Footer with chat toggle */}
-                {articleChatContext && (
-                    <div className="flex-shrink-0 px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-                        <button
-                            type="button"
-                            onClick={() => setIsChatOpen(!isChatOpen)}
-                            className={`p-2 rounded-lg transition-colors ${
-                                isChatOpen
-                                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                            }`}
-                            title={isChatOpen ? 'Close chat' : 'Open chat'}
-                        >
-                            <ChatBubbleLeftRightIcon className="h-5 w-5" />
-                        </button>
-                    </div>
-                )}
             </div>
         </div>
     );

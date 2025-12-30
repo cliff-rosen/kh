@@ -564,10 +564,10 @@ export default function EditStreamPage() {
 
     return (
         <div className="h-[calc(100vh-4rem)] flex">
-            {/* Chat Tray - Push Layout (left side) */}
+            {/* Chat Tray - inline on left side, hidden when workbench article viewer is open */}
             <ChatTray
                 key={activeTab}  // Force re-mount when tab changes to ensure context updates
-                pushLayout={true}
+                hidden={workbenchState?.articleViewerOpen}
                 initialContext={{
                     current_page: "edit_research_stream",
                     entity_type: "research_stream",
