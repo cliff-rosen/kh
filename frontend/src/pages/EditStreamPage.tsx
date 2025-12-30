@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeftIcon, CogIcon, ArrowRightIcon, UserIcon, BuildingOfficeIcon, GlobeAltIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, CogIcon, ArrowRightIcon, UserIcon, BuildingOfficeIcon, GlobeAltIcon, ArrowUpIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 
 import {
     ReportFrequency,
@@ -105,6 +105,7 @@ export default function EditStreamPage() {
 
     const canModify = canModifyStream(stream);
     const [isPromoting, setIsPromoting] = useState(false);
+    const [isChatOpen, setIsChatOpen] = useState(false);
 
     // Enrichment config state for chat context
     const [enrichmentConfig, setEnrichmentConfig] = useState<{
@@ -731,10 +732,22 @@ export default function EditStreamPage() {
                         }
                     }
                 }}
+                isOpen={isChatOpen}
+                onOpenChange={setIsChatOpen}
             />
 
             {/* Main Content - takes remaining space */}
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden relative">
+                {/* Chat toggle button - fixed to lower left */}
+                {!isChatOpen && !workbenchState?.articleViewerOpen && (
+                    <button
+                        onClick={() => setIsChatOpen(true)}
+                        className="fixed bottom-6 left-6 z-40 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
+                        title="Open chat"
+                    >
+                        <ChatBubbleLeftRightIcon className="h-6 w-6" />
+                    </button>
+                )}
                 {/* Header - Fixed */}
                 <div className="p-6 pb-0 max-w-7xl">
                     <button
