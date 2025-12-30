@@ -820,28 +820,90 @@ function SourceStepContent({ step, onUpdate, stream, streamId, onExpandResults, 
                             );
                         })()}
 
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Start Date
-                                </label>
-                                <input
-                                    type="date"
-                                    value={config.startDate}
-                                    onChange={(e) => onUpdate({ config: { ...config, startDate: e.target.value } })}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                />
+                        {/* Date Range Selection */}
+                        <div className="space-y-3">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Date Range
+                            </label>
+
+                            {/* Quick Pick Buttons */}
+                            <div className="flex flex-wrap gap-2">
+                                {(() => {
+                                    const today = new Date();
+                                    const formatDate = (d: Date) => d.toISOString().split('T')[0];
+
+                                    // Last full week (Monday to Sunday)
+                                    const lastSunday = new Date(today);
+                                    lastSunday.setDate(today.getDate() - today.getDay());
+                                    const lastMonday = new Date(lastSunday);
+                                    lastMonday.setDate(lastSunday.getDate() - 6);
+
+                                    // Last full month
+                                    const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+                                    const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+
+                                    // This week so far (Monday to today)
+                                    const thisMonday = new Date(today);
+                                    const dayOfWeek = today.getDay();
+                                    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                                    thisMonday.setDate(today.getDate() - daysFromMonday);
+
+                                    // This month so far
+                                    const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+                                    const presets = [
+                                        { label: 'Last Week', start: formatDate(lastMonday), end: formatDate(lastSunday) },
+                                        { label: 'Last Month', start: formatDate(lastMonthStart), end: formatDate(lastMonthEnd) },
+                                        { label: 'This Week', start: formatDate(thisMonday), end: formatDate(today) },
+                                        { label: 'This Month', start: formatDate(thisMonthStart), end: formatDate(today) },
+                                        { label: 'Last 7 Days', start: formatDate(new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)), end: formatDate(today) },
+                                        { label: 'Last 30 Days', start: formatDate(new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)), end: formatDate(today) },
+                                    ];
+
+                                    return presets.map((preset) => {
+                                        const isActive = config.startDate === preset.start && config.endDate === preset.end;
+                                        return (
+                                            <button
+                                                key={preset.label}
+                                                type="button"
+                                                onClick={() => onUpdate({ config: { ...config, startDate: preset.start, endDate: preset.end } })}
+                                                className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
+                                                    isActive
+                                                        ? 'bg-blue-600 text-white'
+                                                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                }`}
+                                            >
+                                                {preset.label}
+                                            </button>
+                                        );
+                                    });
+                                })()}
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    End Date
-                                </label>
-                                <input
-                                    type="date"
-                                    value={config.endDate}
-                                    onChange={(e) => onUpdate({ config: { ...config, endDate: e.target.value } })}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                />
+
+                            {/* Custom Date Inputs */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                        Start Date
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={config.startDate}
+                                        onChange={(e) => onUpdate({ config: { ...config, startDate: e.target.value } })}
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                        End Date
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={config.endDate}
+                                        onChange={(e) => onUpdate({ config: { ...config, endDate: e.target.value } })}
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                    />
+                                </div>
                             </div>
                         </div>
                     </>
