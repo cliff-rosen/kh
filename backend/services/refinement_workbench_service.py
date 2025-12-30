@@ -230,11 +230,12 @@ class RefinementWorkbenchService:
             return []
 
         # Use centralized batch evaluation from SemanticFilterService
+        # Use max_concurrent=50 to match pipeline performance
         batch_results = await self.filter_service.evaluate_canonical_articles_batch(
             articles=articles,
             filter_criteria=filter_criteria,
             threshold=threshold,
-            max_concurrent=10
+            max_concurrent=50
         )
 
         # Convert batch results to expected format
