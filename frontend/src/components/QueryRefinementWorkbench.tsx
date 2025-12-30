@@ -540,7 +540,7 @@ function WorkflowStepCard({ step, stepNumber, onUpdate, onRemove, onToggle, onFo
                             {step.results && (
                                 <p className="text-xs text-gray-600 dark:text-gray-400">
                                     {step.type === 'source' && step.results.total_count !== undefined && step.results.total_count !== step.results.count
-                                        ? `${step.results.count} of ${step.results.total_count} articles`
+                                        ? <><span className="font-semibold text-blue-600 dark:text-blue-400">{step.results.total_count.toLocaleString()}</span> matched (showing {step.results.count})</>
                                         : `${step.results.count} articles`}
                                 </p>
                             )}
@@ -1416,7 +1416,7 @@ function ResultsPane({ step, stepNumber, view, onViewChange, onCollapse }: Resul
                         {step.results && (
                             <span className="text-sm text-gray-600 dark:text-gray-400">
                                 {step.type === 'source' && step.results.total_count !== undefined && step.results.total_count !== step.results.count
-                                    ? `${step.results.count} of ${step.results.total_count} articles`
+                                    ? <><span className="font-semibold text-blue-600 dark:text-blue-400">{step.results.total_count.toLocaleString()}</span> matched (showing {step.results.count})</>
                                     : `${step.results.count} articles`}
                             </span>
                         )}
@@ -2055,11 +2055,11 @@ function VersionHistorySidebar({
 
                                 {/* Article count - show total matched */}
                                 <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                                    <span className="text-[10px]">
                                         {snapshot.totalCount !== snapshot.articleCount ? (
-                                            <>{snapshot.totalCount.toLocaleString()} matched</>
+                                            <><span className="font-semibold text-blue-600 dark:text-blue-400">{snapshot.totalCount.toLocaleString()}</span> <span className="text-gray-500 dark:text-gray-400">matched</span></>
                                         ) : (
-                                            <>{snapshot.articleCount} articles</>
+                                            <span className="text-gray-500 dark:text-gray-400">{snapshot.articleCount} articles</span>
                                         )}
                                     </span>
                                     {snapshot.passedCount !== undefined && (
