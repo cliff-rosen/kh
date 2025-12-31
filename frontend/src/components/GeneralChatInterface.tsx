@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { PaperAirplaneIcon } from '@heroicons/react/24/solid';
-import { useGeneralChat } from '../hooks/useGeneralChat';
+import { useGeneralChatContext } from '../context/GeneralChatContext';
 import { InteractionType } from '../types/chat';
 
 interface GeneralChatInterfaceProps {
@@ -12,7 +12,14 @@ export default function GeneralChatInterface({
     initialContext,
     className = ''
 }: GeneralChatInterfaceProps) {
-    const { messages, sendMessage, isLoading } = useGeneralChat(initialContext);
+    const { messages, sendMessage, isLoading, updateContext } = useGeneralChatContext();
+
+    // Update context when initialContext changes
+    useEffect(() => {
+        if (initialContext) {
+            updateContext(initialContext);
+        }
+    }, [initialContext, updateContext]);
     const [input, setInput] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
 

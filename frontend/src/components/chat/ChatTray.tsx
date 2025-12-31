@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, PlusIcon } from '@heroicons/react/24/solid';
-import { useGeneralChat } from '../../hooks/useGeneralChat';
+import { useGeneralChatContext } from '../../context/GeneralChatContext';
 import { InteractionType, PayloadHandler, ToolHistoryEntry } from '../../types/chat';
 import { MarkdownRenderer } from '../common/MarkdownRenderer';
 import ToolResultCard, { ToolHistoryPanel } from './ToolResultCard';
@@ -193,7 +193,7 @@ export default function ChatTray({
         };
     }, [width, minWidth, maxWidth]);
 
-    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, updateContext, reset, loadMostRecent } = useGeneralChat({ initialContext });
+    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, updateContext, reset, loadMostRecent } = useGeneralChatContext();
     const [input, setInput] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -283,6 +283,8 @@ export default function ChatTray({
         setPendingPayload(null);
         setActivePayload(null);
         setDismissedPayloads(new Set());
+        // Focus the input after reset
+        setTimeout(() => inputRef.current?.focus(), 0);
     }, [reset]);
 
     // Auto-focus input when tray opens
@@ -296,7 +298,7 @@ export default function ChatTray({
         e.preventDefault();
         e.stopPropagation();
         if (input.trim() && !isLoading) {
-            trackEvent('chat_message_send', { context: initialContext });
+            trackEvent('chat_message_send', { page: initialContext?.current_page });
             sendMessage(input.trim(), InteractionType.TEXT_INPUT);
             setInput('');
         }

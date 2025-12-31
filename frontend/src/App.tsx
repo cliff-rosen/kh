@@ -7,6 +7,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ResearchStreamProvider } from './context/ResearchStreamContext';
 import { StreamChatProvider } from './context/StreamChatContext';
+import { GeneralChatProvider } from './context/GeneralChatContext';
 
 // utils
 import { setStreamSessionExpiredHandler } from './lib/api/streamUtils';
@@ -97,7 +98,9 @@ function AppContent() {
     <ThemeProvider>
       <ResearchStreamProvider>
         <StreamChatProvider>
-          <AuthenticatedApp />
+          <GeneralChatProvider>
+            <AuthenticatedApp />
+          </GeneralChatProvider>
         </StreamChatProvider>
       </ResearchStreamProvider>
       <Toaster />
