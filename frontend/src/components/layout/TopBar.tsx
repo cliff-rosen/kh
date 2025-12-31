@@ -2,7 +2,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { NavLink, useLocation } from 'react-router-dom';
 import { MoonIcon, SunIcon, UserCircleIcon, HomeIcon, DocumentTextIcon, BeakerIcon, WrenchScrewdriverIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 import settings from '../../config/settings';
-import { HelpGuide } from '@/components/features/help';
+import { HelpGuide } from '@/components/help';
 import { useAuth } from '../../context/AuthContext';
 import { trackEvent } from '../../lib/api/trackingApi';
 

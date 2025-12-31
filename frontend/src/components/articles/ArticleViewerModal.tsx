@@ -21,7 +21,7 @@ import { CanonicalResearchArticle } from '../../types/canonical_types';
 import { StanceAnalysisResult, StanceType } from '../../types/document_analysis';
 import ChatTray from '../chat/ChatTray';
 import { PayloadHandler } from '../../types/chat';
-import { MarkdownRenderer } from '../common/MarkdownRenderer';
+import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 import ArticleNotes from './ArticleNotes';
 
 type WorkspaceTab = 'analysis' | 'notes' | 'links';
