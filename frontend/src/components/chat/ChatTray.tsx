@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, PlusIcon } from '@heroicons/react/24/solid';
+
 import { useGeneralChatContext } from '../../context/GeneralChatContext';
+import { trackEvent } from '../../lib/api/trackingApi';
+import { getPayloadHandler } from '../../lib/chat'; // Import from index to trigger payload registration
+
 import { InteractionType, PayloadHandler, ToolHistoryEntry } from '../../types/chat';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 import ToolResultCard, { ToolHistoryPanel } from './ToolResultCard';
-import { getPayloadHandler } from '../../lib/chat'; // Import from index to trigger payload registration
-import { trackEvent } from '../../lib/api/trackingApi';
 
 const STORAGE_KEY = 'chatTrayWidth';
 

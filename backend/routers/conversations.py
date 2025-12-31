@@ -19,23 +19,6 @@ router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
 # === Schemas ===
 
-class CreateConversationRequest(BaseModel):
-    """Request to create a conversation"""
-    title: Optional[str] = None
-
-
-class AddMessageRequest(BaseModel):
-    """Request to add a message"""
-    role: str  # 'user', 'assistant'
-    content: str
-    context: Optional[dict] = None
-
-
-class UpdateTitleRequest(BaseModel):
-    """Request to update conversation title"""
-    title: str
-
-
 class MessageResponse(BaseModel):
     """Single message response"""
     id: int
@@ -68,26 +51,6 @@ class ConversationsListResponse(BaseModel):
 
 
 # === User Endpoints ===
-
-@router.post("", response_model=ConversationResponse)
-async def create_conversation(
-    request: CreateConversationRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(auth_service.validate_token)
-):
-    """Create a new conversation."""
-    service = ConversationService(db)
-    conv = service.create_conversation(
-        user_id=current_user.user_id,
-        title=request.title
-    )
-    return ConversationResponse(
-        id=conv.id,
-        title=conv.title,
-        created_at=conv.created_at.isoformat(),
-        updated_at=conv.updated_at.isoformat()
-    )
-
 
 @router.get("", response_model=ConversationsListResponse)
 async def list_conversations(
@@ -145,76 +108,6 @@ async def get_conversation(
             )
             for m in messages
         ]
-    )
-
-
-@router.patch("/{conversation_id}", response_model=ConversationResponse)
-async def update_conversation(
-    conversation_id: int,
-    request: UpdateTitleRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(auth_service.validate_token)
-):
-    """Update conversation title."""
-    service = ConversationService(db)
-    conv = service.update_conversation_title(
-        conversation_id=conversation_id,
-        user_id=current_user.user_id,
-        title=request.title
-    )
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    return ConversationResponse(
-        id=conv.id,
-        title=conv.title,
-        created_at=conv.created_at.isoformat(),
-        updated_at=conv.updated_at.isoformat()
-    )
-
-
-@router.delete("/{conversation_id}")
-async def delete_conversation(
-    conversation_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(auth_service.validate_token)
-):
-    """Delete a conversation and all its messages."""
-    service = ConversationService(db)
-    deleted = service.delete_conversation(conversation_id, current_user.user_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    return {"success": True}
-
-
-@router.post("/{conversation_id}/messages", response_model=MessageResponse)
-async def add_message(
-    conversation_id: int,
-    request: AddMessageRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(auth_service.validate_token)
-):
-    """Add a message to a conversation."""
-    if request.role not in ('user', 'assistant', 'system'):
-        raise HTTPException(status_code=400, detail="Role must be 'user', 'assistant', or 'system'")
-
-    service = ConversationService(db)
-    message = service.add_message(
-        conversation_id=conversation_id,
-        user_id=current_user.user_id,
-        role=request.role,
-        content=request.content,
-        context=request.context
-    )
-    if not message:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    return MessageResponse(
-        id=message.id,
-        role=message.role,
-        content=message.content,
-        context=message.context,
-        created_at=message.created_at.isoformat()
     )
 
 
