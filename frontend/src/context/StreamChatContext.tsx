@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { researchStreamApi, handleApiError, StreamBuildChatRequest } from '../lib/api';
 import { ChatMessage } from '../types/stream-builder-chat';
-import {
+import { ChannelInProgress,
     StreamInProgress,
     StreamBuildStep,
     UserAction
@@ -338,7 +338,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
                 };
             });
 
-            const newStream = await researchStreamApi.createResearchStream({
+            const newStream = await (researchStreamApi.createResearchStream as any)({
                 stream_name: config.stream_name!,
                 purpose: config.purpose!,
                 channels: completeChannels,

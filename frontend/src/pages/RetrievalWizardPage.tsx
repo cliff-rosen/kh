@@ -74,7 +74,7 @@ export default function RetrievalWizardPage() {
                 setCurrentPhase('broad-search');
             } else if (hasConcepts) {
                 setStrategy('concepts');
-                const existingConcepts = streamData.retrieval_config.concepts;
+                const existingConcepts = streamData.retrieval_config?.concepts ?? [];
                 setConcepts(existingConcepts);
 
                 // Detect what's already configured and mark phases complete
@@ -82,6 +82,7 @@ export default function RetrievalWizardPage() {
                     strategy: true,
                     concepts: false,
                     'broad-search': false,
+                    'broad-filter': false,
                     queries: false,
                     filters: false,
                     validation: false

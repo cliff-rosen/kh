@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StreamInProgress } from '../types/stream-building';
+import { StreamInProgress, ChannelInProgress } from '../types/stream-building';
 import { PencilIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 interface StreamConfigPreviewProps {
@@ -133,7 +133,7 @@ export default function StreamConfigPreview({ config, highlightedField, onUpdate
                     </label>
                     {config.channels && Array.isArray(config.channels) && config.channels.length > 0 ? (
                         <div className="space-y-3">
-                            {config.channels.map((channel, idx) => (
+                            {config.channels.map((channel: ChannelInProgress, idx: number) => (
                                 <div key={idx} className="border border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700">
                                     <div className="flex items-center justify-between mb-2">
                                         <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -157,7 +157,7 @@ export default function StreamConfigPreview({ config, highlightedField, onUpdate
                                         <div>
                                             <span className="text-xs text-gray-500 dark:text-gray-400">Keywords:</span>
                                             <div className="flex flex-wrap gap-1 mt-1">
-                                                {channel.keywords.map((keyword, kidx) => (
+                                                {channel.keywords.map((keyword: string, kidx: number) => (
                                                     <span key={kidx} className="px-2 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded text-xs">
                                                         {keyword}
                                                     </span>

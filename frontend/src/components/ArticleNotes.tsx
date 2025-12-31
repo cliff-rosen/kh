@@ -128,7 +128,7 @@ export default function ArticleNotes({ reportId, articleId }: ArticleNotesProps)
     };
 
     const isOwnNote = (note: ArticleNote) => {
-        return user && note.user_id === parseInt(user.id);
+        return user && note.user_id === user.id;
     };
 
     if (isLoading) {

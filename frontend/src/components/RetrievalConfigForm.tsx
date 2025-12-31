@@ -20,8 +20,8 @@ export default function RetrievalConfigForm({
     const broadSearchSelected = retrievalConfig.broad_search !== null && retrievalConfig.broad_search !== undefined;
 
     // Separately check if the selected strategy HAS CONTENT
-    const hasConceptsContent = conceptsSelected && retrievalConfig.concepts.length > 0;
-    const hasBroadSearchContent = broadSearchSelected && retrievalConfig.broad_search.queries?.length > 0;
+    const hasConceptsContent = conceptsSelected && (retrievalConfig.concepts?.length ?? 0) > 0;
+    const hasBroadSearchContent = broadSearchSelected && (retrievalConfig.broad_search?.queries?.length ?? 0) > 0;
 
     // Show UI based on SELECTION (not content)
     const showBroadSearch = broadSearchSelected;

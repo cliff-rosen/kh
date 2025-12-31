@@ -9,6 +9,13 @@ export interface CategoryInProgress {
     specific_inclusions?: string[];
 }
 
+export interface ChannelInProgress {
+    name?: string;
+    focus?: string;
+    type?: string;
+    keywords?: string[];
+}
+
 export interface StreamInProgress {
     stream_name?: string;
     purpose?: string;
@@ -17,6 +24,7 @@ export interface StreamInProgress {
     global_inclusion?: string[];
     global_exclusion?: string[];
     categories?: CategoryInProgress[];
+    channels?: ChannelInProgress[];
     report_frequency?: string;  // string during building, validated on submission
 }
 
