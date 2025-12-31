@@ -77,7 +77,7 @@ interface AppliedPromptSuggestions {
 }
 
 export default function EditStreamPage() {
-    const { id } = useParams<{ id: string }>();
+    const { streamId } = useParams<{ streamId: string }>();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const { researchStreams, loadResearchStreams, loadResearchStream, updateResearchStream, deleteResearchStream, isLoading, error, clearError } = useResearchStream();
@@ -205,8 +205,8 @@ export default function EditStreamPage() {
     }, [loadResearchStreams]);
 
     useEffect(() => {
-        if (id && researchStreams.length > 0) {
-            const foundStream = researchStreams.find(s => s.stream_id === Number(id));
+        if (streamId && researchStreams.length > 0) {
+            const foundStream = researchStreams.find(s => s.stream_id === Number(streamId));
             if (foundStream) {
                 setStream(foundStream);
 
@@ -232,17 +232,17 @@ export default function EditStreamPage() {
                 });
             }
         }
-    }, [id, researchStreams]);
+    }, [streamId, researchStreams]);
 
     // Load enrichment config for chat context when on enrichment tab
     useEffect(() => {
         const loadEnrichmentConfig = async () => {
-            if (!id || activeTab !== 'enrichment') return;
+            if (!streamId || activeTab !== 'enrichment') return;
 
             try {
                 const [defaultsResponse, configResponse] = await Promise.all([
                     promptWorkbenchApi.getDefaults(),
-                    promptWorkbenchApi.getStreamEnrichmentConfig(Number(id))
+                    promptWorkbenchApi.getStreamEnrichmentConfig(Number(streamId))
                 ]);
 
                 const currentPrompts = configResponse.enrichment_config?.prompts
@@ -261,11 +261,11 @@ export default function EditStreamPage() {
         };
 
         loadEnrichmentConfig();
-    }, [id, activeTab]);
+    }, [streamId, activeTab]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!id) return;
+        if (!streamId) return;
 
         // Filter out empty categories (ones that haven't been filled out)
         const filledCategories = form.categories.filter(cat =>
@@ -298,7 +298,7 @@ export default function EditStreamPage() {
         };
 
         try {
-            await updateResearchStream(Number(id), updates);
+            await updateResearchStream(Number(streamId), updates);
             navigate('/streams');
         } catch (err) {
             showErrorToast(err, 'Failed to save changes');
@@ -306,7 +306,7 @@ export default function EditStreamPage() {
     };
 
     const handleDelete = async () => {
-        if (!id) return;
+        if (!streamId) return;
 
         const confirmDelete = window.confirm(
             `Are you sure you want to delete "${form.stream_name}"? This action cannot be undone.`
@@ -314,7 +314,7 @@ export default function EditStreamPage() {
 
         if (confirmDelete) {
             try {
-                await deleteResearchStream(Number(id));
+                await deleteResearchStream(Number(streamId));
                 navigate('/streams');
             } catch (err) {
                 showErrorToast(err, 'Failed to delete stream');
@@ -323,7 +323,7 @@ export default function EditStreamPage() {
     };
 
     const handlePromoteToGlobal = async () => {
-        if (!id || !stream) return;
+        if (!streamId || !stream) return;
 
         const confirmPromote = window.confirm(
             `Are you sure you want to promote "${form.stream_name}" to a global stream? ` +
@@ -333,9 +333,9 @@ export default function EditStreamPage() {
         if (confirmPromote) {
             setIsPromoting(true);
             try {
-                await adminApi.setStreamScopeGlobal(Number(id));
+                await adminApi.setStreamScopeGlobal(Number(streamId));
                 // Reload stream to get updated scope
-                await loadResearchStream(Number(id));
+                await loadResearchStream(Number(streamId));
                 // Update local stream state
                 setStream((prev: any) => ({ ...prev, scope: 'global' }));
             } catch (err) {
@@ -967,7 +967,7 @@ export default function EditStreamPage() {
                                         </h3>
                                         <button
                                             type="button"
-                                            onClick={() => navigate(`/streams/${id}/configure-retrieval`)}
+                                            onClick={() => navigate(`/streams/${streamId}/configure-retrieval`)}
                                             className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium shadow-sm"
                                         >
                                             <CogIcon className="h-4 w-4" />
@@ -1009,8 +1009,8 @@ export default function EditStreamPage() {
                         {/* Layer 4: Content Enrichment Tab */}
                         {activeTab === 'enrichment' && stream && (
                             <ContentEnrichmentForm
-                                streamId={parseInt(id!)}
-                                onSave={() => loadResearchStream(parseInt(id!))}
+                                streamId={parseInt(streamId!)}
+                                onSave={() => loadResearchStream(parseInt(streamId!))}
                                 appliedSuggestions={appliedPromptSuggestions}
                                 onSuggestionsApplied={handlePromptSuggestionsApplied}
                             />
@@ -1019,9 +1019,9 @@ export default function EditStreamPage() {
                         {/* Layer 5: Test & Refine Tab */}
                         {activeTab === 'execute' && stream && (
                             <TestRefineTab
-                                streamId={parseInt(id!)}
+                                streamId={parseInt(streamId!)}
                                 stream={stream}
-                                onStreamUpdate={() => loadResearchStream(parseInt(id!))}
+                                onStreamUpdate={() => loadResearchStream(parseInt(streamId!))}
                                 canModify={canModify}
                                 onWorkbenchStateChange={setWorkbenchState}
                                 onSubTabChange={setExecuteSubTab}

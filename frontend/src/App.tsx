@@ -57,7 +57,7 @@ function AppContent() {
             <Route path="/" element={<Navigate to={defaultRoute} />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/streams" element={<StreamsPage />} />
-            <Route path="/streams/:id/edit" element={<EditStreamPage />} />
+            <Route path="/streams/:streamId/edit" element={<EditStreamPage />} />
             <Route path="/streams/:streamId/configure-retrieval" element={<RetrievalWizardPage />} />
             <Route path="/new-stream" element={<NewStreamPage />} />
             <Route path="/new-stream/chat" element={<NewStreamChatPage />} />
@@ -75,29 +75,25 @@ function AppContent() {
     );
   };
 
-  if (!isAuthenticated) {
-    return (
-      <ThemeProvider>
-        <Routes>
-          <Route path="/auth/token-login" element={<TokenLogin />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/register" element={<LoginPage />} />
-          <Route path="*" element={<LoginPage />} />
-        </Routes>
-      </ThemeProvider>
-    );
-  }
-
   return (
     <ThemeProvider>
       <ErrorBoundary>
-        <ResearchStreamProvider>
-          <StreamChatProvider>
-            <GeneralChatProvider>
-              <AuthenticatedApp />
-            </GeneralChatProvider>
-          </StreamChatProvider>
-        </ResearchStreamProvider>
+        {!isAuthenticated ? (
+          <Routes>
+            <Route path="/auth/token-login" element={<TokenLogin />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/register" element={<LoginPage />} />
+            <Route path="*" element={<LoginPage />} />
+          </Routes>
+        ) : (
+          <ResearchStreamProvider>
+            <StreamChatProvider>
+              <GeneralChatProvider>
+                <AuthenticatedApp />
+              </GeneralChatProvider>
+            </StreamChatProvider>
+          </ResearchStreamProvider>
+        )}
       </ErrorBoundary>
       <Toaster />
     </ThemeProvider>
