@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { ShieldCheckIcon, BuildingOfficeIcon, GlobeAltIcon, UsersIcon, EnvelopeIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { ShieldCheckIcon, BuildingOfficeIcon, GlobeAltIcon, UsersIcon, EnvelopeIcon, ClockIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
-import { OrganizationList, GlobalStreamList, UserList, InvitationList, ActivityList } from '../components/admin';
+import { OrganizationList, GlobalStreamList, UserList, InvitationList, ActivityList, ConversationList } from '../components/admin';
 
-type AdminTab = 'organizations' | 'streams' | 'users' | 'invitations' | 'activity';
+type AdminTab = 'organizations' | 'streams' | 'users' | 'invitations' | 'activity' | 'conversations';
 
 const tabs: { id: AdminTab; label: string; description: string; icon: React.ComponentType<{ className?: string }> }[] = [
     {
@@ -36,6 +36,12 @@ const tabs: { id: AdminTab; label: string; description: string; icon: React.Comp
         label: 'Activity',
         description: 'View user activity and events',
         icon: ClockIcon,
+    },
+    {
+        id: 'conversations',
+        label: 'Conversations',
+        description: 'View chat conversations',
+        icon: ChatBubbleLeftRightIcon,
     },
 ];
 
@@ -98,6 +104,7 @@ export default function AdminPage() {
                 {activeTab === 'users' && <UserList />}
                 {activeTab === 'invitations' && <InvitationList />}
                 {activeTab === 'activity' && <ActivityList />}
+                {activeTab === 'conversations' && <ConversationList />}
             </div>
         </div>
     );
