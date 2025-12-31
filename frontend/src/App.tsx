@@ -15,8 +15,9 @@ import { setStreamSessionExpiredHandler } from './lib/api/streamUtils';
 // components
 import TopBar from './components/TopBar';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { LoginForm } from './components/features/auth';
-// Existing pages (keep for admin access)
+
+// pages
+import LoginPage from './pages/LoginPage';
 import Profile from './pages/Profile';
 import TokenLogin from './pages/TokenLogin';
 
@@ -80,16 +81,8 @@ function AppContent() {
         <Routes>
           <Route path="/auth/token-login" element={<TokenLogin />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/register" element={
-            <div className="min-h-screen flex items-center justify-center dark:bg-gray-900 bg-gray-50">
-              <LoginForm />
-            </div>
-          } />
-          <Route path="*" element={
-            <div className="min-h-screen flex items-center justify-center dark:bg-gray-900 bg-gray-50">
-              <LoginForm />
-            </div>
-          } />
+          <Route path="/register" element={<LoginPage />} />
+          <Route path="*" element={<LoginPage />} />
         </Routes>
       </ThemeProvider>
     );
