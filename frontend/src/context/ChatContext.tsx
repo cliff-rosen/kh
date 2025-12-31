@@ -21,13 +21,13 @@ interface ChatContextType {
     streamingText: string;
     statusText: string | null;
     activeToolProgress: ActiveToolProgress | null;
-    conversationId: number | null;
+    chatId: number | null;
     // Chat actions
     sendMessage: (content: string, interactionType?: InteractionType, actionMetadata?: ActionMetadata) => Promise<void>;
     cancelRequest: () => void;
     updateContext: (updates: Record<string, unknown>) => void;
     reset: () => void;
-    loadConversation: (id: number) => Promise<boolean>;
+    loadChat: (id: number) => Promise<boolean>;
     loadMostRecent: () => Promise<boolean>;
 }
 
@@ -40,7 +40,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     const [error, setError] = useState<string | null>(null);
     const [streamingText, setStreamingText] = useState('');
     const [statusText, setStatusText] = useState<string | null>(null);
-    const [conversationId, setConversationId] = useState<number | null>(null);
+    const [chatId, setChatId] = useState<number | null>(null);
     const [activeToolProgress, setActiveToolProgress] = useState<ActiveToolProgress | null>(null);
 
     const abortControllerRef = useRef<AbortController | null>(null);
@@ -79,7 +79,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                     content: msg.content,
                     timestamp: msg.timestamp
                 })),
-                conversation_id: conversationId
+                conversation_id: chatId
             }, abortController.signal)) {
                 switch (event.type) {
                     case 'text_delta':
@@ -128,7 +128,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                         setStatusText(null);
 
                         if (responsePayload.conversation_id) {
-                            setConversationId(responsePayload.conversation_id);
+                            setChatId(responsePayload.conversation_id);
                         }
                         break;
                     }
@@ -182,7 +182,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             setIsLoading(false);
             abortControllerRef.current = null;
         }
-    }, [context, messages, conversationId]);
+    }, [context, messages, chatId]);
 
     const cancelRequest = useCallback(() => {
         if (abortControllerRef.current) {
@@ -198,13 +198,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     const reset = useCallback(() => {
         setMessages([]);
         setError(null);
-        setConversationId(null);
+        setChatId(null);
     }, []);
 
-    const loadConversation = useCallback(async (id: number) => {
+    const loadChat = useCallback(async (id: number) => {
         try {
-            const conversation = await chatApi.getConversation(id);
-            const loadedMessages: ChatMessage[] = conversation.messages
+            const chat = await chatApi.getChat(id);
+            const loadedMessages: ChatMessage[] = chat.messages
                 .filter(msg => msg.role === 'user' || msg.role === 'assistant')
                 .map(msg => ({
                     role: msg.role as 'user' | 'assistant',
@@ -212,27 +212,27 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                     timestamp: msg.created_at
                 }));
             setMessages(loadedMessages);
-            setConversationId(id);
+            setChatId(id);
             setError(null);
             return true;
         } catch (err) {
-            console.error('Failed to load conversation:', err);
+            console.error('Failed to load chat:', err);
             return false;
         }
     }, []);
 
     const loadMostRecent = useCallback(async () => {
         try {
-            const { conversations } = await chatApi.listConversations(1, 0);
-            if (conversations.length > 0) {
-                return await loadConversation(conversations[0].id);
+            const { chats } = await chatApi.listChats(1, 0);
+            if (chats.length > 0) {
+                return await loadChat(chats[0].id);
             }
             return false;
         } catch (err) {
-            console.error('Failed to load most recent conversation:', err);
+            console.error('Failed to load most recent chat:', err);
             return false;
         }
-    }, [loadConversation]);
+    }, [loadChat]);
 
     return (
         <ChatContext.Provider value={{
@@ -243,12 +243,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             streamingText,
             statusText,
             activeToolProgress,
-            conversationId,
+            chatId,
             sendMessage,
             cancelRequest,
             updateContext,
             reset,
-            loadConversation,
+            loadChat,
             loadMostRecent
         }}>
             {children}
@@ -263,14 +263,3 @@ export function useChatContext() {
     }
     return context;
 }
-
-
-// ============================================================================
-// Backwards Compatibility
-// ============================================================================
-
-/** @deprecated Use ChatProvider instead */
-export const GeneralChatProvider = ChatProvider;
-
-/** @deprecated Use useChatContext instead */
-export const useGeneralChatContext = useChatContext;

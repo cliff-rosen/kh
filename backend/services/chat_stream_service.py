@@ -1,9 +1,8 @@
 """
-General-purpose chat service
-Handles LLM interaction for the general chat system
+Chat Streaming Service
 
-Uses the generic agent_loop for agentic processing with tool support.
-Handles conversation persistence automatically.
+Handles LLM streaming interaction for the chat system with tool support.
+Uses the agent_loop for agentic processing. Handles chat persistence automatically.
 """
 
 from typing import Dict, Any, AsyncGenerator, List, Optional
@@ -43,7 +42,7 @@ from agents.agent_loop import (
     AgentCancelled,
     AgentError,
 )
-from services.chat_service import ConversationService
+from services.chat_service import ChatService
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +51,8 @@ CHAT_MAX_TOKENS = 2000
 MAX_TOOL_ITERATIONS = 5  # Prevent runaway loops
 
 
-class GeneralChatService:
-    """Service for general chat interactions with tool support."""
+class ChatStreamService:
+    """Service for streaming chat interactions with tool support."""
 
     def __init__(self, db: Session, user_id: int):
         self.db = db
@@ -78,26 +77,26 @@ class GeneralChatService:
         if cancellation_token is None:
             cancellation_token = CancellationToken()
 
-        # Handle conversation persistence
-        conversation_service = ConversationService(self.db)
-        conversation_id = request.conversation_id
+        # Handle chat persistence
+        chat_service = ChatService(self.db)
+        chat_id = request.conversation_id
 
         try:
-            # Get or create conversation
-            if conversation_id:
-                # Verify conversation belongs to user
-                conv = conversation_service.get_conversation(conversation_id, self.user_id)
-                if not conv:
-                    conversation_id = None  # Create new if not found/authorized
+            # Get or create chat
+            if chat_id:
+                # Verify chat belongs to user
+                chat = chat_service.get_chat(chat_id, self.user_id)
+                if not chat:
+                    chat_id = None  # Create new if not found/authorized
 
-            if not conversation_id:
-                # Create new conversation
-                conv = conversation_service.create_conversation(self.user_id)
-                conversation_id = conv.id
+            if not chat_id:
+                # Create new chat
+                chat = chat_service.create_chat(self.user_id)
+                chat_id = chat.id
 
             # Persist user message
-            conversation_service.add_message(
-                conversation_id=conversation_id,
+            chat_service.add_message(
+                chat_id=chat_id,
                 user_id=self.user_id,
                 role='user',
                 content=request.message,
@@ -212,10 +211,10 @@ class GeneralChatService:
                 custom_payload = parsed.get("custom_payload")
 
             # Persist assistant message
-            if conversation_id:
+            if chat_id:
                 try:
-                    conversation_service.add_message(
-                        conversation_id=conversation_id,
+                    chat_service.add_message(
+                        chat_id=chat_id,
                         user_id=self.user_id,
                         role='assistant',
                         content=parsed["message"],
@@ -224,14 +223,14 @@ class GeneralChatService:
                 except Exception as e:
                     logger.warning(f"Failed to persist assistant message: {e}")
 
-            # Build final payload with conversation_id
+            # Build final payload with chat_id (API field: conversation_id for backwards compat)
             final_payload = ChatResponsePayload(
                 message=parsed["message"],
                 suggested_values=parsed.get("suggested_values"),
                 suggested_actions=parsed.get("suggested_actions"),
                 custom_payload=custom_payload,
                 tool_history=tool_call_history if tool_call_history else None,
-                conversation_id=conversation_id
+                conversation_id=chat_id
             )
 
             # Emit complete event

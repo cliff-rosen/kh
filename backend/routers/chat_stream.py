@@ -1,5 +1,7 @@
 """
-General-purpose chat endpoint
+Chat Streaming Router
+
+Handles streaming chat endpoint with LLM interaction and tool support.
 """
 
 from fastapi import APIRouter, Depends
@@ -18,11 +20,11 @@ from schemas.chat import (
     StreamEvent,
     ErrorEvent,
 )
-from services.general_chat_service import GeneralChatService
+from services.chat_stream_service import ChatStreamService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/chat", tags=["chat"])
+router = APIRouter(prefix="/api/chat", tags=["chat-stream"])
 
 
 # ============================================================================
@@ -64,7 +66,7 @@ async def chat_stream(
     async def event_generator():
         """Generate SSE events"""
         try:
-            service = GeneralChatService(db, current_user.user_id)
+            service = ChatStreamService(db, current_user.user_id)
 
             # Stream typed events from the service
             async for event_json in service.stream_chat_message(request):

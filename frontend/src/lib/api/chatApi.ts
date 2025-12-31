@@ -1,7 +1,7 @@
 /**
  * Chat API - Unified chat endpoints
  *
- * Combines conversation persistence and streaming chat functionality.
+ * Handles chat persistence and streaming chat functionality.
  */
 
 import { api } from './index';
@@ -34,7 +34,7 @@ export interface ChatRequest {
         content: string;
         timestamp: string;
     }>;
-    /** Optional conversation ID for persistence. If not provided, creates new conversation. */
+    /** Optional chat ID for persistence. If not provided, creates new chat. */
     conversation_id?: number | null;
 }
 
@@ -43,8 +43,8 @@ export interface ChatRequest {
 // Response Types
 // ============================================================================
 
-export interface ConversationsListResponse {
-    conversations: Conversation[];
+export interface ChatsListResponse {
+    chats: Conversation[];
 }
 
 
@@ -53,23 +53,23 @@ export interface ConversationsListResponse {
 // ============================================================================
 
 export const chatApi = {
-    // === Conversation Persistence ===
+    // === Chat Persistence ===
 
     /**
-     * List user's conversations
+     * List user's chats
      */
-    async listConversations(limit = 50, offset = 0): Promise<ConversationsListResponse> {
-        const response = await api.get('/api/conversations', {
+    async listChats(limit = 50, offset = 0): Promise<ChatsListResponse> {
+        const response = await api.get('/api/chats', {
             params: { limit, offset }
         });
         return response.data;
     },
 
     /**
-     * Get a conversation with all its messages
+     * Get a chat with all its messages
      */
-    async getConversation(conversationId: number): Promise<ConversationWithMessages> {
-        const response = await api.get(`/api/conversations/${conversationId}`);
+    async getChat(chatId: number): Promise<ConversationWithMessages> {
+        const response = await api.get(`/api/chats/${chatId}`);
         return response.data;
     },
 
@@ -168,17 +168,3 @@ export type {
     CustomPayload,
     ToolHistoryEntry,
 };
-
-
-// ============================================================================
-// Backwards Compatibility
-// ============================================================================
-
-/** @deprecated Use chatApi instead */
-export const conversationApi = chatApi;
-
-/** @deprecated Use chatApi instead */
-export const generalChatApi = chatApi;
-
-/** @deprecated Use ChatRequest instead */
-export type GeneralChatRequest = ChatRequest;

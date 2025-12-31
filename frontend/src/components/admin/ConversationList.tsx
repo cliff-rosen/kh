@@ -28,8 +28,8 @@ interface AdminConversation {
     updated_at: string;
 }
 
-interface ConversationsResponse {
-    conversations: AdminConversation[];
+interface ChatsResponse {
+    chats: AdminConversation[];
     total: number;
     limit: number;
     offset: number;
@@ -77,8 +77,8 @@ export function ConversationList() {
             const params: Record<string, string | number> = { limit, offset };
             if (userId) params.user_id = userId;
 
-            const response = await api.get<ConversationsResponse>('/api/conversations/admin/all', { params });
-            setConversations(response.data.conversations);
+            const response = await api.get<ChatsResponse>('/api/chats/admin/all', { params });
+            setConversations(response.data.chats);
             setTotal(response.data.total);
         } catch (err) {
             setError('Failed to load conversations');
@@ -97,10 +97,10 @@ export function ConversationList() {
         }
     };
 
-    const fetchConversationDetail = async (conversationId: number) => {
+    const fetchConversationDetail = async (chatId: number) => {
         setLoadingDetail(true);
         try {
-            const response = await api.get<ConversationDetail>(`/api/conversations/admin/${conversationId}`);
+            const response = await api.get<ConversationDetail>(`/api/chats/admin/${chatId}`);
             setSelectedConversation(response.data);
         } catch (err) {
             showErrorToast(err, 'Failed to load conversation');

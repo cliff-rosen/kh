@@ -1,0 +1,199 @@
+"""
+Chat Router
+
+Endpoints for chat persistence (CRUD operations on chats).
+"""
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+from typing import Optional, List
+from pydantic import BaseModel
+
+from database import get_db
+from models import User, UserRole
+from services import auth_service
+from services.chat_service import ChatService
+
+router = APIRouter(prefix="/api/chats", tags=["chats"])
+
+
+# === Response Schemas ===
+
+class MessageResponse(BaseModel):
+    """Single message response"""
+    id: int
+    role: str
+    content: str
+    context: Optional[dict] = None
+    created_at: str
+
+
+class ChatResponse(BaseModel):
+    """Chat response"""
+    id: int
+    title: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+class ChatWithMessagesResponse(BaseModel):
+    """Chat with messages"""
+    id: int
+    title: Optional[str] = None
+    created_at: str
+    updated_at: str
+    messages: List[MessageResponse]
+
+
+class ChatsListResponse(BaseModel):
+    """List of chats"""
+    chats: List[ChatResponse]
+
+
+# === User Endpoints ===
+
+@router.get("", response_model=ChatsListResponse)
+async def list_chats(
+    limit: int = Query(50, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_service.validate_token)
+):
+    """List user's chats."""
+    service = ChatService(db)
+    chats = service.get_user_chats(
+        user_id=current_user.user_id,
+        limit=limit,
+        offset=offset
+    )
+    return ChatsListResponse(
+        chats=[
+            ChatResponse(
+                id=c.id,
+                title=c.title,
+                created_at=c.created_at.isoformat(),
+                updated_at=c.updated_at.isoformat()
+            )
+            for c in chats
+        ]
+    )
+
+
+@router.get("/{chat_id}", response_model=ChatWithMessagesResponse)
+async def get_chat(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_service.validate_token)
+):
+    """Get a chat with its messages."""
+    service = ChatService(db)
+    chat = service.get_chat(chat_id, current_user.user_id)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    messages = service.get_messages(chat_id, current_user.user_id)
+
+    return ChatWithMessagesResponse(
+        id=chat.id,
+        title=chat.title,
+        created_at=chat.created_at.isoformat(),
+        updated_at=chat.updated_at.isoformat(),
+        messages=[
+            MessageResponse(
+                id=m.id,
+                role=m.role,
+                content=m.content,
+                context=m.context,
+                created_at=m.created_at.isoformat()
+            )
+            for m in messages
+        ]
+    )
+
+
+# === Admin Endpoints ===
+
+class AdminChatResponse(BaseModel):
+    """Chat with user info for admin"""
+    id: int
+    user_id: int
+    user_email: str
+    user_name: Optional[str] = None
+    title: Optional[str] = None
+    message_count: int
+    created_at: str
+    updated_at: str
+
+
+class AdminChatsListResponse(BaseModel):
+    """Paginated list of chats for admin"""
+    chats: List[AdminChatResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class AdminChatDetailResponse(BaseModel):
+    """Full chat with messages for admin"""
+    id: int
+    user_id: int
+    user_email: str
+    user_name: Optional[str] = None
+    title: Optional[str] = None
+    created_at: str
+    updated_at: str
+    messages: List[MessageResponse]
+
+
+@router.get("/admin/all", response_model=AdminChatsListResponse)
+async def admin_list_chats(
+    user_id: Optional[int] = Query(None, description="Filter by user ID"),
+    limit: int = Query(50, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_service.validate_token)
+):
+    """List all chats (platform admin only)."""
+    if current_user.role != UserRole.PLATFORM_ADMIN:
+        raise HTTPException(status_code=403, detail="Platform admin access required")
+
+    service = ChatService(db)
+    chats, total = service.get_all_chats(
+        limit=limit,
+        offset=offset,
+        user_id=user_id
+    )
+
+    return AdminChatsListResponse(
+        chats=[AdminChatResponse(**c) for c in chats],
+        total=total,
+        limit=limit,
+        offset=offset
+    )
+
+
+@router.get("/admin/{chat_id}", response_model=AdminChatDetailResponse)
+async def admin_get_chat(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_service.validate_token)
+):
+    """Get full chat with messages (platform admin only)."""
+    if current_user.role != UserRole.PLATFORM_ADMIN:
+        raise HTTPException(status_code=403, detail="Platform admin access required")
+
+    service = ChatService(db)
+    chat = service.get_chat_with_messages(chat_id)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    return AdminChatDetailResponse(
+        id=chat["id"],
+        user_id=chat["user_id"],
+        user_email=chat["user_email"],
+        user_name=chat["user_name"],
+        title=chat["title"],
+        created_at=chat["created_at"],
+        updated_at=chat["updated_at"],
+        messages=[MessageResponse(**m) for m in chat["messages"]]
+    )
