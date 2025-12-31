@@ -10,14 +10,25 @@ import {
     CheckCircleIcon,
     XCircleIcon,
     BeakerIcon,
+    Squares2X2Icon,
 } from '@heroicons/react/24/outline';
-import { adminApi, type ChatConfigResponse, type PageConfigInfo } from '../../lib/api/adminApi';
+import { adminApi, type ChatConfigResponse, type PageConfigInfo, type SubTabConfigInfo } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
+
+type ConfigTab = 'pages' | 'payloads' | 'tools' | 'streams';
+
+const configTabs: { id: ConfigTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+    { id: 'pages', label: 'Page Configs', icon: DocumentTextIcon },
+    { id: 'payloads', label: 'Payload Types', icon: CubeIcon },
+    { id: 'tools', label: 'Tools', icon: WrenchScrewdriverIcon },
+    { id: 'streams', label: 'Stream Instructions', icon: BeakerIcon },
+];
 
 export function ChatConfigList() {
     const [config, setConfig] = useState<ChatConfigResponse | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<ConfigTab>('pages');
     const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set());
 
     useEffect(() => {
@@ -68,7 +79,7 @@ export function ChatConfigList() {
     if (!config) return null;
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-6">
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <SummaryCard
@@ -98,231 +109,263 @@ export function ChatConfigList() {
                 <SummaryCard
                     icon={GlobeAltIcon}
                     label="Resolution"
-                    value="global + page + tab"
+                    value="global + page + tab + subtab"
                     details="+ stream instructions"
                     isText
                 />
             </div>
 
-            {/* Page Configurations */}
-            <Section title="Page Configurations" icon={DocumentTextIcon}>
-                <div className="space-y-3">
-                    {config.pages.map((page) => (
-                        <PageConfigCard
-                            key={page.page}
-                            page={page}
-                            isExpanded={expandedPages.has(page.page)}
-                            onToggle={() => togglePage(page.page)}
-                        />
-                    ))}
-                </div>
-            </Section>
+            {/* Subtab Navigation */}
+            <div className="border-b border-gray-200 dark:border-gray-700">
+                <nav className="-mb-px flex space-x-8">
+                    {configTabs.map((tab) => {
+                        const Icon = tab.icon;
+                        const isActive = activeTab === tab.id;
+                        return (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`
+                                    group inline-flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm
+                                    ${isActive
+                                        ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                                    }
+                                `}
+                            >
+                                <Icon className={`h-5 w-5 ${isActive ? 'text-purple-500 dark:text-purple-400' : 'text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300'}`} />
+                                {tab.label}
+                            </button>
+                        );
+                    })}
+                </nav>
+            </div>
 
-            {/* Payload Types */}
-            <Section title="Payload Types" icon={CubeIcon}>
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead className="bg-gray-50 dark:bg-gray-900">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Name
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Source
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Scope
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Parse Marker
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Parser
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Instructions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {config.payload_types.map((pt) => (
-                                <tr key={pt.name} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="font-medium text-gray-900 dark:text-white">
-                                            {pt.name}
-                                        </div>
-                                        <div className="text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
-                                            {pt.description}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                            pt.source === 'llm'
-                                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                                                : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                                        }`}>
-                                            {pt.source}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        {pt.is_global ? (
-                                            <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400">
-                                                <GlobeAltIcon className="h-4 w-4" />
-                                                Global
-                                            </span>
-                                        ) : (
-                                            <span className="text-gray-500 dark:text-gray-400">Page-specific</span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                        {pt.parse_marker ? (
-                                            <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs">
-                                                {pt.parse_marker}
-                                            </code>
-                                        ) : (
-                                            <span className="text-gray-400">-</span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <StatusIcon active={pt.has_parser} />
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <StatusIcon active={pt.has_instructions} />
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </Section>
+            {/* Tab Content */}
+            <div>
+                {activeTab === 'pages' && (
+                    <div className="space-y-3">
+                        {config.pages.map((page) => (
+                            <PageConfigCard
+                                key={page.page}
+                                page={page}
+                                isExpanded={expandedPages.has(page.page)}
+                                onToggle={() => togglePage(page.page)}
+                            />
+                        ))}
+                        {config.pages.length === 0 && (
+                            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                                No page configurations registered.
+                            </div>
+                        )}
+                    </div>
+                )}
 
-            {/* Tools */}
-            <Section title="Tools" icon={WrenchScrewdriverIcon}>
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead className="bg-gray-50 dark:bg-gray-900">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Name
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Category
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Scope
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Payload Type
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Streaming
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {config.tools.map((tool) => (
-                                <tr key={tool.name} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="font-medium text-gray-900 dark:text-white">
-                                            {tool.name}
-                                        </div>
-                                        <div className="text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
-                                            {tool.description}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                                            {tool.category}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        {tool.is_global ? (
-                                            <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400">
-                                                <GlobeAltIcon className="h-4 w-4" />
-                                                Global
-                                            </span>
-                                        ) : (
-                                            <span className="text-gray-500 dark:text-gray-400">Page-specific</span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                        {tool.payload_type ? (
-                                            <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs">
-                                                {tool.payload_type}
-                                            </code>
-                                        ) : (
-                                            <span className="text-gray-400">-</span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <StatusIcon active={tool.streaming} />
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </Section>
-
-            {/* Stream Instructions */}
-            <Section title="Stream-Specific Instructions" icon={BeakerIcon}>
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead className="bg-gray-50 dark:bg-gray-900">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Stream
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Has Instructions
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Preview
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {config.stream_instructions.map((stream) => (
-                                <tr key={stream.stream_id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="font-medium text-gray-900 dark:text-white">
-                                            {stream.stream_name}
-                                        </div>
-                                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                                            ID: {stream.stream_id}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <StatusIcon active={stream.has_instructions} />
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        {stream.instructions_preview ? (
-                                            <div className="text-sm text-gray-600 dark:text-gray-400 max-w-md">
-                                                <pre className="whitespace-pre-wrap font-mono text-xs bg-gray-50 dark:bg-gray-900 p-2 rounded">
-                                                    {stream.instructions_preview}
-                                                </pre>
-                                            </div>
-                                        ) : (
-                                            <span className="text-gray-400 text-sm">No instructions configured</span>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                            {config.stream_instructions.length === 0 && (
+                {activeTab === 'payloads' && (
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead className="bg-gray-50 dark:bg-gray-900">
                                 <tr>
-                                    <td colSpan={3} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                                        No research streams found.
-                                    </td>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Name
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Source
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Scope
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Parse Marker
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Parser
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Instructions
+                                    </th>
                                 </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-                <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-                    Stream instructions are included in the system prompt when chatting about reports from that stream.
-                    They guide the assistant on domain-specific terminology, classification rules, and analysis criteria.
-                </div>
-            </Section>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                {config.payload_types.map((pt) => (
+                                    <tr key={pt.name} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="font-medium text-gray-900 dark:text-white">
+                                                {pt.name}
+                                            </div>
+                                            <div className="text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
+                                                {pt.description}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                                pt.source === 'llm'
+                                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                                                    : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                            }`}>
+                                                {pt.source}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            {pt.is_global ? (
+                                                <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400">
+                                                    <GlobeAltIcon className="h-4 w-4" />
+                                                    Global
+                                                </span>
+                                            ) : (
+                                                <span className="text-gray-500 dark:text-gray-400">Page-specific</span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                            {pt.parse_marker ? (
+                                                <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs">
+                                                    {pt.parse_marker}
+                                                </code>
+                                            ) : (
+                                                <span className="text-gray-400">-</span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <StatusIcon active={pt.has_parser} />
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <StatusIcon active={pt.has_instructions} />
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {activeTab === 'tools' && (
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead className="bg-gray-50 dark:bg-gray-900">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Name
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Category
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Scope
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Payload Type
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Streaming
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                {config.tools.map((tool) => (
+                                    <tr key={tool.name} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="font-medium text-gray-900 dark:text-white">
+                                                {tool.name}
+                                            </div>
+                                            <div className="text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
+                                                {tool.description}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                                {tool.category}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            {tool.is_global ? (
+                                                <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400">
+                                                    <GlobeAltIcon className="h-4 w-4" />
+                                                    Global
+                                                </span>
+                                            ) : (
+                                                <span className="text-gray-500 dark:text-gray-400">Page-specific</span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                            {tool.payload_type ? (
+                                                <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs">
+                                                    {tool.payload_type}
+                                                </code>
+                                            ) : (
+                                                <span className="text-gray-400">-</span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <StatusIcon active={tool.streaming} />
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {activeTab === 'streams' && (
+                    <div>
+                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                <thead className="bg-gray-50 dark:bg-gray-900">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                            Stream
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                            Has Instructions
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                            Preview
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                    {config.stream_instructions.map((stream) => (
+                                        <tr key={stream.stream_id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="font-medium text-gray-900 dark:text-white">
+                                                    {stream.stream_name}
+                                                </div>
+                                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                    ID: {stream.stream_id}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <StatusIcon active={stream.has_instructions} />
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {stream.instructions_preview ? (
+                                                    <div className="text-sm text-gray-600 dark:text-gray-400 max-w-md">
+                                                        <pre className="whitespace-pre-wrap font-mono text-xs bg-gray-50 dark:bg-gray-900 p-2 rounded">
+                                                            {stream.instructions_preview}
+                                                        </pre>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-gray-400 text-sm">No instructions configured</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {config.stream_instructions.length === 0 && (
+                                        <tr>
+                                            <td colSpan={3} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                                No research streams found.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                            Stream instructions are included in the system prompt when chatting about reports from that stream.
+                            They guide the assistant on domain-specific terminology, classification rules, and analysis criteria.
+                        </div>
+                    </div>
+                )}
+            </div>
 
             {/* Architecture Info */}
             <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
@@ -335,7 +378,7 @@ export function ChatConfigList() {
                         They don't know about pages - they just define what exists.
                     </p>
                     <p>
-                        <strong>PageConfig</strong> references payloads and tools by name.
+                        <strong>PageConfig</strong> references payloads and tools by name, with optional <strong>TabConfig</strong> and <strong>SubTabConfig</strong> for finer control.
                         The <code className="bg-purple-100 dark:bg-purple-800 px-1 rounded">is_global</code> flag determines default availability.
                     </p>
                     <p>
@@ -343,7 +386,7 @@ export function ChatConfigList() {
                         They're added to the system prompt when chatting about that stream's reports.
                     </p>
                     <p>
-                        <strong>Resolution:</strong> System prompt = base instructions + page context + payload instructions + stream instructions
+                        <strong>Resolution:</strong> Available = global + page + tab + subtab | System prompt = context + payload instructions + stream instructions
                     </p>
                 </div>
             </div>
@@ -378,27 +421,42 @@ function SummaryCard({ icon: Icon, label, value, details, isText = false }: {
     );
 }
 
-function Section({ title, icon: Icon, children }: {
-    title: string;
-    icon: React.ComponentType<{ className?: string }>;
-    children: React.ReactNode;
-}) {
-    return (
-        <div>
-            <div className="flex items-center gap-2 mb-4">
-                <Icon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
-            </div>
-            {children}
-        </div>
-    );
-}
-
 function StatusIcon({ active }: { active: boolean }) {
     return active ? (
         <CheckCircleIcon className="h-5 w-5 text-green-500" />
     ) : (
         <XCircleIcon className="h-5 w-5 text-gray-300 dark:text-gray-600" />
+    );
+}
+
+function SubTabConfigDisplay({ subtabName, config }: { subtabName: string; config: SubTabConfigInfo }) {
+    const hasContent = config.payloads.length > 0 || config.tools.length > 0;
+
+    return (
+        <div className="ml-4 pl-4 border-l-2 border-gray-200 dark:border-gray-600">
+            <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 flex items-center gap-1">
+                <Squares2X2Icon className="h-3 w-3" />
+                Subtab: {subtabName}
+            </h5>
+            {hasContent ? (
+                <div className="flex flex-wrap gap-2">
+                    {config.payloads.map(p => (
+                        <span key={p} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                            <CubeIcon className="h-3 w-3" />
+                            {p}
+                        </span>
+                    ))}
+                    {config.tools.map(t => (
+                        <span key={t} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                            <WrenchScrewdriverIcon className="h-3 w-3" />
+                            {t}
+                        </span>
+                    ))}
+                </div>
+            ) : (
+                <span className="text-xs text-gray-400">No subtab-specific payloads or tools</span>
+            )}
+        </div>
     );
 }
 
@@ -408,6 +466,10 @@ function PageConfigCard({ page, isExpanded, onToggle }: {
     onToggle: () => void;
 }) {
     const tabCount = Object.keys(page.tabs).length;
+    const subtabCount = Object.values(page.tabs).reduce(
+        (sum, tab) => sum + Object.keys(tab.subtabs || {}).length,
+        0
+    );
 
     return (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
@@ -426,7 +488,8 @@ function PageConfigCard({ page, isExpanded, onToggle }: {
                             {page.page}
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {tabCount > 0 ? `${tabCount} tabs` : 'No tabs'} |
+                            {tabCount > 0 ? `${tabCount} tabs` : 'No tabs'}
+                            {subtabCount > 0 ? `, ${subtabCount} subtabs` : ''} |
                             {page.payloads.length} page payloads |
                             {page.tools.length} page tools
                         </div>
@@ -468,28 +531,39 @@ function PageConfigCard({ page, isExpanded, onToggle }: {
 
                     {/* Tabs */}
                     {Object.entries(page.tabs).map(([tabName, tabConfig]) => (
-                        <div key={tabName}>
-                            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                        <div key={tabName} className="space-y-2">
+                            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
                                 <TagIcon className="h-4 w-4" />
                                 Tab: {tabName}
                             </h4>
-                            <div className="flex flex-wrap gap-2">
-                                {tabConfig.payloads.map(p => (
-                                    <span key={p} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                                        <CubeIcon className="h-3 w-3" />
-                                        {p}
-                                    </span>
-                                ))}
-                                {tabConfig.tools.map(t => (
-                                    <span key={t} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                        <WrenchScrewdriverIcon className="h-3 w-3" />
-                                        {t}
-                                    </span>
-                                ))}
-                                {tabConfig.payloads.length === 0 && tabConfig.tools.length === 0 && (
-                                    <span className="text-xs text-gray-400">No tab-specific payloads or tools</span>
-                                )}
-                            </div>
+                            {(tabConfig.payloads.length > 0 || tabConfig.tools.length > 0) && (
+                                <div className="flex flex-wrap gap-2">
+                                    {tabConfig.payloads.map(p => (
+                                        <span key={p} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                            <CubeIcon className="h-3 w-3" />
+                                            {p}
+                                        </span>
+                                    ))}
+                                    {tabConfig.tools.map(t => (
+                                        <span key={t} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                            <WrenchScrewdriverIcon className="h-3 w-3" />
+                                            {t}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                            {tabConfig.payloads.length === 0 && tabConfig.tools.length === 0 && Object.keys(tabConfig.subtabs || {}).length === 0 && (
+                                <span className="text-xs text-gray-400 ml-6">No tab-specific payloads or tools</span>
+                            )}
+
+                            {/* Subtabs */}
+                            {Object.entries(tabConfig.subtabs || {}).map(([subtabName, subtabConfig]) => (
+                                <SubTabConfigDisplay
+                                    key={subtabName}
+                                    subtabName={subtabName}
+                                    config={subtabConfig}
+                                />
+                            ))}
                         </div>
                     ))}
 

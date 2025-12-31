@@ -104,7 +104,7 @@ register_page(
 
 Most tools are `is_global=True` (useful everywhere). Most LLM payloads are `is_global=False` (page-specific).
 
-**4. Resolution is always: global + page + tab + stream instructions**
+**4. Resolution is always: global + page + tab + subtab + stream instructions**
 
 When the system needs to know what tools/payloads are available for a request:
 
@@ -112,6 +112,7 @@ When the system needs to know what tools/payloads are available for a request:
 Available = (all where is_global=True)
           + (page-wide from PageConfig)
           + (tab-specific from TabConfig)
+          + (subtab-specific from SubTabConfig)
 
 System Prompt = context_builder output
               + payload instructions (llm_instructions)
@@ -141,12 +142,13 @@ These instructions are loaded by `_get_stream_instructions()` when a `stream_id`
 ### Visual Summary
 
 ```
-                    ┌──────────────────┐
-                    │  User on page    │
-                    │  "edit_stream"   │
-                    │  tab: "semantic" │
-                    │  stream_id: 42   │
-                    └────────┬─────────┘
+                    ┌────────────────────────┐
+                    │  User on page          │
+                    │  "edit_stream"         │
+                    │  tab: "execute"        │
+                    │  subtab: "workbench"   │
+                    │  stream_id: 42         │
+                    └────────┬───────────────┘
                              │
                              ▼
         ┌────────────────────────────────────────┐
@@ -155,10 +157,12 @@ These instructions are loaded by `_get_stream_instructions()` when a `stream_id`
         │  Tools = global tools                   │
         │        + page tools                     │
         │        + tab tools                      │
+        │        + subtab tools                   │
         │                                         │
         │  Payloads = global payloads             │
         │           + page payloads               │
         │           + tab payloads                │
+        │           + subtab payloads             │
         └────────────────────────────────────────┘
                              │
                              ▼
@@ -181,6 +185,7 @@ These instructions are loaded by `_get_stream_instructions()` when a `stream_id`
 | **ToolConfig** | `tools/registry.py` | Single source of truth for all tool definitions |
 | **PageConfig** | `chat_page_config/<page>.py` | Per-page configuration that references payloads/tools |
 | **TabConfig** | (within PageConfig) | Tab-specific subset of payloads/tools |
+| **SubTabConfig** | (within TabConfig) | Subtab-specific subset for finer control |
 | **Stream Instructions** | `ResearchStream.chat_instructions` | Per-stream customization for LLM behavior |
 
 ---

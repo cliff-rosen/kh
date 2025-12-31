@@ -229,9 +229,15 @@ export interface ToolInfo {
   streaming: boolean;
 }
 
+export interface SubTabConfigInfo {
+  payloads: string[];
+  tools: string[];
+}
+
 export interface TabConfigInfo {
   payloads: string[];
   tools: string[];
+  subtabs: Record<string, SubTabConfigInfo>;
 }
 
 export interface PageConfigInfo {

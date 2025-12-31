@@ -566,7 +566,7 @@ export default function EditStreamPage() {
         <div className="h-[calc(100vh-4rem)] flex">
             {/* Chat Tray - inline on left side, hidden when workbench article viewer is open */}
             <ChatTray
-                key={activeTab}  // Force re-mount when tab changes to ensure context updates
+                key={`${activeTab}-${executeSubTab}`}  // Force re-mount when tab or subtab changes
                 hidden={workbenchState?.articleViewerOpen}
                 initialContext={{
                     current_page: "edit_research_stream",
@@ -574,6 +574,7 @@ export default function EditStreamPage() {
                     entity_id: stream?.stream_id,
                     stream_name: stream?.stream_name,
                     active_tab: activeTab,
+                    active_subtab: activeTab === 'execute' ? executeSubTab : undefined,
                     // Tab-specific context
                     current_schema: activeTab === 'semantic' ? {
                         stream_name: form.stream_name,

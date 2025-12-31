@@ -87,10 +87,11 @@ class ChatStreamService:
             system_prompt = self._build_system_prompt(request.context)
             messages = self._build_messages(request)
 
-            # Get tools for this page and tab (global + page + tab-specific)
+            # Get tools for this page, tab, and subtab (global + page + tab + subtab)
             current_page = request.context.get("current_page", "unknown")
             active_tab = request.context.get("active_tab")
-            tools_by_name = get_tools_for_page_dict(current_page, active_tab)
+            active_subtab = request.context.get("active_subtab")
+            tools_by_name = get_tools_for_page_dict(current_page, active_tab, active_subtab)
 
             # Send initial status
             yield StatusEvent(message="Thinking...").model_dump_json()
@@ -289,9 +290,10 @@ class ChatStreamService:
         stream_instructions: str = ""
     ) -> str:
         """Build system prompt for pages with registered payload types."""
-        # Get all payloads for this page and tab (global + page + tab)
+        # Get all payloads for this page, tab, and subtab (global + page + tab + subtab)
         active_tab = context.get("active_tab")
-        payload_configs = get_all_payloads_for_page(current_page, active_tab)
+        active_subtab = context.get("active_subtab")
+        payload_configs = get_all_payloads_for_page(current_page, active_tab, active_subtab)
 
         page_context = self._build_page_context(current_page, context)
         payload_instructions = "\n\n".join([
@@ -597,6 +599,8 @@ class ChatStreamService:
     def _parse_llm_response(self, response_text: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Parse LLM response to extract structured components."""
         current_page = context.get("current_page", "unknown")
+        active_tab = context.get("active_tab")
+        active_subtab = context.get("active_subtab")
 
         result = {
             "message": response_text.strip(),
@@ -605,8 +609,8 @@ class ChatStreamService:
             "custom_payload": None
         }
 
-        # Get all payloads for this page (global + page-specific)
-        payload_configs = get_all_payloads_for_page(current_page)
+        # Get all payloads for this page, tab, and subtab (global + page + tab + subtab)
+        payload_configs = get_all_payloads_for_page(current_page, active_tab, active_subtab)
         if not payload_configs:
             return result
 

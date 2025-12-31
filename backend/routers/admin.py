@@ -677,10 +677,17 @@ class ToolInfo(BaseModel):
         from_attributes = True
 
 
+class SubTabConfigInfo(BaseModel):
+    """Info about a subtab configuration."""
+    payloads: List[str]
+    tools: List[str]
+
+
 class TabConfigInfo(BaseModel):
     """Info about a tab configuration."""
     payloads: List[str]
     tools: List[str]
+    subtabs: dict[str, SubTabConfigInfo] = {}
 
 
 class PageConfigInfo(BaseModel):
@@ -759,9 +766,18 @@ async def get_chat_config(
     for page_name, config in _page_registry.items():
         tabs_info = {}
         for tab_name, tab_config in config.tabs.items():
+            # Build subtabs info
+            subtabs_info = {}
+            for subtab_name, subtab_config in tab_config.subtabs.items():
+                subtabs_info[subtab_name] = SubTabConfigInfo(
+                    payloads=subtab_config.payloads,
+                    tools=subtab_config.tools
+                )
+
             tabs_info[tab_name] = TabConfigInfo(
                 payloads=tab_config.payloads,
-                tools=tab_config.tools
+                tools=tab_config.tools,
+                subtabs=subtabs_info
             )
 
         pages.append(PageConfigInfo(

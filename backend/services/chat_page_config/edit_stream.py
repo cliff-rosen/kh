@@ -6,7 +6,7 @@ Payload definitions (including parsers and LLM instructions) are in schemas/payl
 """
 
 from typing import Dict, Any
-from .registry import TabConfig, ClientAction, register_page
+from .registry import TabConfig, SubTabConfig, ClientAction, register_page
 
 
 # =============================================================================
@@ -137,7 +137,15 @@ register_page(
             payloads=["retrieval_proposal"],
         ),
         "execute": TabConfig(
-            payloads=["query_suggestion", "filter_suggestion"],
+            # No tab-wide payloads - they're subtab-specific
+            subtabs={
+                "workbench": SubTabConfig(
+                    payloads=["query_suggestion", "filter_suggestion"],
+                ),
+                "pipeline": SubTabConfig(
+                    # No special payloads for pipeline subtab
+                ),
+            }
         ),
     },
     client_actions=CLIENT_ACTIONS

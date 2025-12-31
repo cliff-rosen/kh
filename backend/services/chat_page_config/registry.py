@@ -21,10 +21,18 @@ from dataclasses import dataclass, field
 
 
 @dataclass
+class SubTabConfig:
+    """Configuration for a specific subtab within a tab."""
+    payloads: List[str] = field(default_factory=list)  # Payload names for this subtab
+    tools: List[str] = field(default_factory=list)      # Tool names for this subtab
+
+
+@dataclass
 class TabConfig:
     """Configuration for a specific tab within a page."""
-    payloads: List[str] = field(default_factory=list)  # Payload names for this tab
-    tools: List[str] = field(default_factory=list)      # Tool names for this tab
+    payloads: List[str] = field(default_factory=list)  # Payload names for this tab (all subtabs)
+    tools: List[str] = field(default_factory=list)      # Tool names for this tab (all subtabs)
+    subtabs: Dict[str, SubTabConfig] = field(default_factory=dict)  # Subtab-specific config
 
 
 @dataclass
@@ -84,10 +92,14 @@ def has_page(page: str) -> bool:
 # Resolution Functions
 # =============================================================================
 
-def get_tool_names_for_page_tab(page: str, tab: Optional[str] = None) -> List[str]:
+def get_tool_names_for_page_tab(
+    page: str,
+    tab: Optional[str] = None,
+    subtab: Optional[str] = None
+) -> List[str]:
     """
-    Get tool names for a page and optional tab.
-    Returns: page-wide tools + tab-specific tools (if tab provided)
+    Get tool names for a page, optional tab, and optional subtab.
+    Returns: page-wide tools + tab-specific tools + subtab-specific tools
     Note: Caller should combine with global tools.
     """
     config = _page_registry.get(page)
@@ -97,15 +109,23 @@ def get_tool_names_for_page_tab(page: str, tab: Optional[str] = None) -> List[st
     tools = list(config.tools)  # Page-wide tools
 
     if tab and tab in config.tabs:
-        tools.extend(config.tabs[tab].tools)
+        tab_config = config.tabs[tab]
+        tools.extend(tab_config.tools)  # Tab-wide tools
+
+        if subtab and subtab in tab_config.subtabs:
+            tools.extend(tab_config.subtabs[subtab].tools)  # Subtab-specific tools
 
     return tools
 
 
-def get_payload_names_for_page_tab(page: str, tab: Optional[str] = None) -> List[str]:
+def get_payload_names_for_page_tab(
+    page: str,
+    tab: Optional[str] = None,
+    subtab: Optional[str] = None
+) -> List[str]:
     """
-    Get payload names for a page and optional tab.
-    Returns: page-wide payloads + tab-specific payloads (if tab provided)
+    Get payload names for a page, optional tab, and optional subtab.
+    Returns: page-wide payloads + tab-specific payloads + subtab-specific payloads
     Note: Caller should combine with global payloads.
     """
     config = _page_registry.get(page)
@@ -115,7 +135,11 @@ def get_payload_names_for_page_tab(page: str, tab: Optional[str] = None) -> List
     payloads = list(config.payloads)  # Page-wide payloads
 
     if tab and tab in config.tabs:
-        payloads.extend(config.tabs[tab].payloads)
+        tab_config = config.tabs[tab]
+        payloads.extend(tab_config.payloads)  # Tab-wide payloads
+
+        if subtab and subtab in tab_config.subtabs:
+            payloads.extend(tab_config.subtabs[subtab].payloads)  # Subtab-specific payloads
 
     return payloads
 

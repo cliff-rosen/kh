@@ -119,19 +119,23 @@ def tools_to_dict(tools: List[ToolConfig]) -> Dict[str, ToolConfig]:
 # Page-Aware Resolution Functions
 # =============================================================================
 
-def get_tools_for_page(page: str, tab: Optional[str] = None) -> List[ToolConfig]:
+def get_tools_for_page(
+    page: str,
+    tab: Optional[str] = None,
+    subtab: Optional[str] = None
+) -> List[ToolConfig]:
     """
-    Get all tools for a page and optional tab.
+    Get all tools for a page, optional tab, and optional subtab.
 
-    Returns: global tools + page tools + tab tools (via page config registry)
+    Returns: global tools + page tools + tab tools + subtab tools (via page config registry)
     """
     from services.chat_page_config import get_tool_names_for_page_tab
 
     # Start with global tools
     tools = get_global_tools()
 
-    # Get page/tab-specific tool names from page config
-    page_tool_names = get_tool_names_for_page_tab(page, tab)
+    # Get page/tab/subtab-specific tool names from page config
+    page_tool_names = get_tool_names_for_page_tab(page, tab, subtab)
 
     # Add those tools (avoid duplicates)
     global_names = {t.name for t in tools}
@@ -142,19 +146,27 @@ def get_tools_for_page(page: str, tab: Optional[str] = None) -> List[ToolConfig]
     return tools
 
 
-def get_tools_for_page_dict(page: str, tab: Optional[str] = None) -> Dict[str, ToolConfig]:
+def get_tools_for_page_dict(
+    page: str,
+    tab: Optional[str] = None,
+    subtab: Optional[str] = None
+) -> Dict[str, ToolConfig]:
     """
     Get all tools for a page as a dict mapping name to config.
 
-    Returns: global tools + page tools + tab tools
+    Returns: global tools + page tools + tab tools + subtab tools
     """
-    return tools_to_dict(get_tools_for_page(page, tab))
+    return tools_to_dict(get_tools_for_page(page, tab, subtab))
 
 
-def get_tools_for_anthropic(page: str, tab: Optional[str] = None) -> List[Dict[str, Any]]:
+def get_tools_for_anthropic(
+    page: str,
+    tab: Optional[str] = None,
+    subtab: Optional[str] = None
+) -> List[Dict[str, Any]]:
     """
     Get tools in Anthropic API format for a page.
 
-    Returns: global tools + page tools + tab tools in Anthropic format
+    Returns: global tools + page tools + tab tools + subtab tools in Anthropic format
     """
-    return tools_to_anthropic_format(get_tools_for_page(page, tab))
+    return tools_to_anthropic_format(get_tools_for_page(page, tab, subtab))
