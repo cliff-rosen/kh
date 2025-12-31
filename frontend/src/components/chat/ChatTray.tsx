@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, PlusIcon } from '@heroicons/react/24/solid';
 
-import { useGeneralChatContext } from '../../context/GeneralChatContext';
+import { useChatContext } from '../../context/ChatContext';
 import { trackEvent } from '../../lib/api/trackingApi';
 import { getPayloadHandler } from '../../lib/chat'; // Import from index to trigger payload registration
 
@@ -195,7 +195,7 @@ export default function ChatTray({
         };
     }, [width, minWidth, maxWidth]);
 
-    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, updateContext, reset, loadMostRecent } = useGeneralChatContext();
+    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, updateContext, reset, loadMostRecent } = useChatContext();
     const [input, setInput] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);

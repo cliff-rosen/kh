@@ -13,7 +13,7 @@ from datetime import datetime
 
 from agents.prompts.base_prompt_caller import BasePromptCaller
 from config.llm_models import get_task_config, supports_reasoning_effort
-from schemas.chat import ChatMessage, MessageRole
+from schemas.llm import ChatMessage, MessageRole
 from schemas.document_analysis import (
     DocumentAnalysisResult,
     HierarchicalSummary,

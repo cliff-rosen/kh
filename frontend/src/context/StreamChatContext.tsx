@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { researchStreamApi, handleApiError, StreamBuildChatRequest } from '../lib/api';
-import { ChatMessage } from '../types/stream-builder-chat';
+import { WizardMessage } from '../types/stream-wizard';
 import { ChannelInProgress,
     StreamInProgress,
     StreamBuildStep,
@@ -10,7 +10,7 @@ import { ResearchStream } from '../types';
 
 interface StreamChatContextType {
     // State
-    messages: ChatMessage[];
+    messages: WizardMessage[];
     streamConfig: StreamInProgress;
     currentStep: StreamBuildStep;
     isLoading: boolean;
@@ -40,7 +40,7 @@ interface StreamChatProviderProps {
 }
 
 export function StreamChatProvider({ children }: StreamChatProviderProps) {
-    const [messages, setMessages] = useState<ChatMessage[]>([
+    const [messages, setMessages] = useState<WizardMessage[]>([
         {
             role: 'assistant',
             content: "Hi! I'm here to help you create a research stream. Let's start with the basics.\n\nWhat area of business or research are you focused on? For example, you might say 'cardiovascular therapeutics' or 'oncology drug development'.",
@@ -75,7 +75,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
 
     const streamChatMessage = useCallback(async (content: string, userAction?: UserAction) => {
         // Add user message
-        const userMessage: ChatMessage = {
+        const userMessage: WizardMessage = {
             role: 'user',
             content,
             timestamp: new Date().toISOString()
@@ -106,7 +106,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
             let messageStarted = false;
 
             // Add placeholder message
-            const placeholderMessage: ChatMessage = {
+            const placeholderMessage: WizardMessage = {
                 role: 'assistant',
                 content: '',
                 timestamp: new Date().toISOString()
@@ -364,7 +364,7 @@ export function StreamChatProvider({ children }: StreamChatProviderProps) {
 
             if (createdStream) {
                 // Add success message to chat
-                const successMessage: ChatMessage = {
+                const successMessage: WizardMessage = {
                     role: 'assistant',
                     content: `✅ Stream created successfully!\n\nYour research stream "${createdStream.stream_name}" is now active and ready to monitor.\n\n[Click here to view your streams →](/streams)`,
                     timestamp: new Date().toISOString()

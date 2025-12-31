@@ -5,7 +5,7 @@ Prompt caller for refining questions and suggesting evaluation criteria.
 Part of the iterative answer generation system.
 """
 
-from schemas.chat import ChatMessage
+from schemas.llm import ChatMessage
 from agents.prompts.base_prompt_caller import BasePromptCaller
 from schemas.lab import QuestionRefinementResponse
 

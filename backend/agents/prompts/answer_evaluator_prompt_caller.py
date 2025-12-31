@@ -6,7 +6,7 @@ Part of the iterative answer generation system.
 """
 
 from typing import List
-from schemas.chat import ChatMessage
+from schemas.llm import ChatMessage
 from agents.prompts.base_prompt_caller import BasePromptCaller
 from schemas.lab import EvaluationResponse
 

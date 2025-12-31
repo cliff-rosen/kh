@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from database import get_db
 from models import User, UserRole
 from services import auth_service
-from services.conversation_service import ConversationService
+from services.chat_service import ConversationService
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 

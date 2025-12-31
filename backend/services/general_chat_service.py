@@ -12,7 +12,7 @@ import anthropic
 import os
 import logging
 
-from schemas.general_chat import (
+from schemas.chat import (
     ChatResponsePayload,
     TextDeltaEvent,
     StatusEvent,
@@ -43,7 +43,7 @@ from services.agent_loop import (
     AgentCancelled,
     AgentError,
 )
-from services.conversation_service import ConversationService
+from services.chat_service import ConversationService
 
 logger = logging.getLogger(__name__)
 

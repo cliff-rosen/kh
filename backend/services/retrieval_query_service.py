@@ -47,7 +47,7 @@ class RetrievalQueryService:
         Returns:
             Tuple of (query_expression, reasoning)
         """
-        from schemas.chat import ChatMessage, MessageRole
+        from schemas.llm import ChatMessage, MessageRole
         from agents.prompts.base_prompt_caller import BasePromptCaller
         from config.llm_models import get_task_config, supports_reasoning_effort
         from datetime import datetime
@@ -259,7 +259,7 @@ class RetrievalQueryService:
         Returns:
             Tuple of (criteria, threshold, reasoning)
         """
-        from schemas.chat import ChatMessage, MessageRole
+        from schemas.llm import ChatMessage, MessageRole
         from agents.prompts.base_prompt_caller import BasePromptCaller
         from config.llm_models import get_task_config, supports_reasoning_effort
         from datetime import datetime
@@ -516,7 +516,7 @@ class RetrievalQueryService:
         Returns:
             Tuple of (criteria, threshold, reasoning)
         """
-        from schemas.chat import ChatMessage, MessageRole
+        from schemas.llm import ChatMessage, MessageRole
         from agents.prompts.base_prompt_caller import BasePromptCaller
         from config.llm_models import get_task_config, supports_reasoning_effort
         from datetime import datetime

@@ -1,20 +1,32 @@
+/**
+ * Chat API - Unified chat endpoints
+ *
+ * Combines conversation persistence and streaming chat functionality.
+ */
+
+import { api } from './index';
 import { makeStreamRequest } from './streamUtils';
 import {
+    Conversation,
+    ConversationWithMessages,
     InteractionType,
     ActionMetadata,
+    StreamEvent,
+    ChatResponsePayload,
     SuggestedValue,
     SuggestedAction,
     CustomPayload,
-    ToolHistoryEntry
+    ToolHistoryEntry,
 } from '../../types/chat';
 
+
 // ============================================================================
-// General Chat API Request Types
+// Request Types
 // ============================================================================
 
-export interface GeneralChatRequest {
+export interface ChatRequest {
     message: string;
-    context: Record<string, any>;
+    context: Record<string, unknown>;
     interaction_type: InteractionType;
     action_metadata?: ActionMetadata;
     conversation_history: Array<{
@@ -22,101 +34,47 @@ export interface GeneralChatRequest {
         content: string;
         timestamp: string;
     }>;
-    /** Optional conversation ID for persistence. If not provided, a new conversation will be created. */
+    /** Optional conversation ID for persistence. If not provided, creates new conversation. */
     conversation_id?: number | null;
 }
 
 
 // ============================================================================
-// Chat Response Payload (final structured response)
+// Response Types
 // ============================================================================
 
-export interface ChatResponsePayload {
-    message: string;
-    suggested_values?: SuggestedValue[];
-    suggested_actions?: SuggestedAction[];
-    custom_payload?: CustomPayload;
-    tool_history?: ToolHistoryEntry[];
-    /** Conversation ID for persistence */
-    conversation_id?: number;
+export interface ConversationsListResponse {
+    conversations: Conversation[];
 }
-
-
-// ============================================================================
-// Stream Event Types (discriminated union with explicit 'type' field)
-// ============================================================================
-
-/** Streaming text token */
-export interface TextDeltaEvent {
-    type: 'text_delta';
-    text: string;
-}
-
-/** Status message (thinking, processing, etc.) */
-export interface StatusEvent {
-    type: 'status';
-    message: string;
-}
-
-/** Tool execution begins */
-export interface ToolStartEvent {
-    type: 'tool_start';
-    tool: string;
-    input: any;
-    tool_use_id: string;
-}
-
-/** Tool execution progress update */
-export interface ToolProgressEvent {
-    type: 'tool_progress';
-    tool: string;
-    stage: string;
-    message: string;
-    progress: number;  // 0.0 to 1.0
-    data?: any;
-}
-
-/** Tool execution finished */
-export interface ToolCompleteEvent {
-    type: 'tool_complete';
-    tool: string;
-    index: number;  // Index for [[tool:N]] markers
-}
-
-/** Final response with payload */
-export interface CompleteEvent {
-    type: 'complete';
-    payload: ChatResponsePayload;
-}
-
-/** Error occurred */
-export interface ErrorEvent {
-    type: 'error';
-    message: string;
-}
-
-/** Request was cancelled */
-export interface CancelledEvent {
-    type: 'cancelled';
-}
-
-/** Discriminated union of all stream event types */
-export type StreamEvent =
-    | TextDeltaEvent
-    | StatusEvent
-    | ToolStartEvent
-    | ToolProgressEvent
-    | ToolCompleteEvent
-    | CompleteEvent
-    | ErrorEvent
-    | CancelledEvent;
 
 
 // ============================================================================
 // API Client
 // ============================================================================
 
-export const generalChatApi = {
+export const chatApi = {
+    // === Conversation Persistence ===
+
+    /**
+     * List user's conversations
+     */
+    async listConversations(limit = 50, offset = 0): Promise<ConversationsListResponse> {
+        const response = await api.get('/api/conversations', {
+            params: { limit, offset }
+        });
+        return response.data;
+    },
+
+    /**
+     * Get a conversation with all its messages
+     */
+    async getConversation(conversationId: number): Promise<ConversationWithMessages> {
+        const response = await api.get(`/api/conversations/${conversationId}`);
+        return response.data;
+    },
+
+    // === Streaming Chat ===
+
     /**
      * Stream chat messages from the backend
      * @param request - Chat request with message, context, and interaction type
@@ -124,7 +82,7 @@ export const generalChatApi = {
      * @returns AsyncGenerator that yields typed stream events
      */
     async* streamMessage(
-        request: GeneralChatRequest,
+        request: ChatRequest,
         signal?: AbortSignal
     ): AsyncGenerator<StreamEvent> {
         try {
@@ -138,14 +96,12 @@ export const generalChatApi = {
                 buffer += update.data;
 
                 // Process complete lines from the buffer
-                // SSE messages end with \n\n, but we process line by line
-                // looking for complete "data: {...}" lines
                 let newlineIndex: number;
                 while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
                     const line = buffer.slice(0, newlineIndex);
                     buffer = buffer.slice(newlineIndex + 1);
 
-                    // Skip empty lines and non-data lines (event:, id:, retry:, comments)
+                    // Skip empty lines and non-data lines
                     if (!line.trim() || !line.startsWith('data: ')) {
                         continue;
                     }
@@ -159,14 +115,12 @@ export const generalChatApi = {
 
                     try {
                         const data = JSON.parse(jsonStr) as StreamEvent;
-                        // Log non-text events for debugging
                         if (data.type !== 'text_delta') {
                             console.log('[SSE] Event:', data.type);
                         }
                         yield data;
-                    } catch (e) {
-                        // JSON parse failed - this line might be incomplete
-                        // Put it back in the buffer and wait for more data
+                    } catch {
+                        // JSON parse failed - put it back and wait for more data
                         buffer = line + '\n' + buffer;
                         break;
                     }
@@ -198,3 +152,33 @@ export const generalChatApi = {
         }
     }
 };
+
+
+// ============================================================================
+// Re-exports for convenience
+// ============================================================================
+
+export type {
+    Conversation,
+    ConversationWithMessages,
+    StreamEvent,
+    ChatResponsePayload,
+    SuggestedValue,
+    SuggestedAction,
+    CustomPayload,
+    ToolHistoryEntry,
+};
+
+
+// ============================================================================
+// Backwards Compatibility
+// ============================================================================
+
+/** @deprecated Use chatApi instead */
+export const conversationApi = chatApi;
+
+/** @deprecated Use chatApi instead */
+export const generalChatApi = chatApi;
+
+/** @deprecated Use ChatRequest instead */
+export type GeneralChatRequest = ChatRequest;

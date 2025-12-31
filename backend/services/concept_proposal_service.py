@@ -128,7 +128,7 @@ class ConceptProposalService:
                 - analysis: Dict with entity/relationship extraction
                 - reasoning: Overall rationale
         """
-        from schemas.chat import ChatMessage, MessageRole
+        from schemas.llm import ChatMessage, MessageRole
         from agents.prompts.base_prompt_caller import BasePromptCaller
         from config.llm_models import get_task_config, supports_reasoning_effort
 

@@ -22,7 +22,7 @@ from utils.state_serializer import (
     serialize_state_with_datetime
 )
 
-from schemas.chat import ChatMessage, MessageRole, AssetReference
+from schemas.llm import ChatMessage, MessageRole, AssetReference
 from schemas.agent_responses import AgentResponse, StatusResponse
 
 from services.user_session_service import UserSessionService

@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, Union
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
-from schemas.chat import ChatMessage, MessageRole
+from schemas.llm import ChatMessage, MessageRole
 
 def format_messages_for_openai(messages: List[Any]) -> List[Dict[str, str]]:
     """

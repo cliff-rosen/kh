@@ -14,7 +14,7 @@ from typing import Dict, Any, Optional, List, Union
 
 from schemas.workflow import Mission, Hop, SanitizedMission, SanitizedAsset, SanitizedHop, ChatContextPayload
 from schemas.asset import Asset
-from schemas.chat import AssetReference
+from schemas.llm import AssetReference
 
 from services.asset_service import AssetService
 from services.mission_transformer import MissionTransformer

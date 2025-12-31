@@ -1,5 +1,5 @@
 """
-Conversation Service
+Chat Service
 
 Manages chat conversations and message persistence.
 """

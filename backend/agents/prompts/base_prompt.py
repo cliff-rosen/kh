@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import PydanticOutputParser
 from openai import AsyncOpenAI
-from schemas.chat import ChatMessage
+from schemas.llm import ChatMessage
 from utils.message_formatter import format_langchain_messages, format_messages_for_openai
 from utils.prompt_logger import log_prompt_messages
 

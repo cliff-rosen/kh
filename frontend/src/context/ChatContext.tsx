@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
-import { generalChatApi, ToolProgressEvent } from '../lib/api/generalChatApi';
-import { conversationApi } from '../lib/api/conversationApi';
+import { chatApi } from '../lib/api/chatApi';
 import {
-    GeneralChatMessage,
+    ChatMessage,
     InteractionType,
-    ActionMetadata
+    ActionMetadata,
+    ToolProgressEvent,
 } from '../types/chat';
 
 export interface ActiveToolProgress {
@@ -12,10 +12,10 @@ export interface ActiveToolProgress {
     updates: ToolProgressEvent[];
 }
 
-interface GeneralChatContextType {
+interface ChatContextType {
     // Chat state
-    messages: GeneralChatMessage[];
-    context: Record<string, any>;
+    messages: ChatMessage[];
+    context: Record<string, unknown>;
     isLoading: boolean;
     error: string | null;
     streamingText: string;
@@ -25,17 +25,17 @@ interface GeneralChatContextType {
     // Chat actions
     sendMessage: (content: string, interactionType?: InteractionType, actionMetadata?: ActionMetadata) => Promise<void>;
     cancelRequest: () => void;
-    updateContext: (updates: Record<string, any>) => void;
+    updateContext: (updates: Record<string, unknown>) => void;
     reset: () => void;
     loadConversation: (id: number) => Promise<boolean>;
     loadMostRecent: () => Promise<boolean>;
 }
 
-const GeneralChatContext = createContext<GeneralChatContextType | null>(null);
+const ChatContext = createContext<ChatContextType | null>(null);
 
-export function GeneralChatProvider({ children }: { children: React.ReactNode }) {
-    const [messages, setMessages] = useState<GeneralChatMessage[]>([]);
-    const [context, setContext] = useState<Record<string, any>>({});
+export function ChatProvider({ children }: { children: React.ReactNode }) {
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [context, setContext] = useState<Record<string, unknown>>({});
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [streamingText, setStreamingText] = useState('');
@@ -50,7 +50,7 @@ export function GeneralChatProvider({ children }: { children: React.ReactNode })
         interactionType: InteractionType = InteractionType.TEXT_INPUT,
         actionMetadata?: ActionMetadata
     ) => {
-        const userMessage: GeneralChatMessage = {
+        const userMessage: ChatMessage = {
             role: 'user',
             content,
             timestamp: new Date().toISOString()
@@ -69,7 +69,7 @@ export function GeneralChatProvider({ children }: { children: React.ReactNode })
         let collectedText = '';
 
         try {
-            for await (const event of generalChatApi.streamMessage({
+            for await (const event of chatApi.streamMessage({
                 message: content,
                 context,
                 interaction_type: interactionType,
@@ -114,7 +114,7 @@ export function GeneralChatProvider({ children }: { children: React.ReactNode })
                     case 'complete': {
                         const responsePayload = event.payload;
 
-                        const assistantMessage: GeneralChatMessage = {
+                        const assistantMessage: ChatMessage = {
                             role: 'assistant',
                             content: responsePayload.message,
                             timestamp: new Date().toISOString(),
@@ -135,7 +135,7 @@ export function GeneralChatProvider({ children }: { children: React.ReactNode })
 
                     case 'error':
                         setError(event.message);
-                        const errorMessage: GeneralChatMessage = {
+                        const errorMessage: ChatMessage = {
                             role: 'assistant',
                             content: `**Error:** ${event.message}\n\nPlease try again or check your API configuration.`,
                             timestamp: new Date().toISOString()
@@ -155,7 +155,7 @@ export function GeneralChatProvider({ children }: { children: React.ReactNode })
         } catch (err) {
             if (err instanceof Error && err.name === 'AbortError') {
                 if (collectedText) {
-                    const cancelledMessage: GeneralChatMessage = {
+                    const cancelledMessage: ChatMessage = {
                         role: 'assistant',
                         content: collectedText + '\n\n*[Response cancelled]*',
                         timestamp: new Date().toISOString()
@@ -171,7 +171,7 @@ export function GeneralChatProvider({ children }: { children: React.ReactNode })
             const errorMessage = err instanceof Error ? err.message : 'An error occurred';
             setError(errorMessage);
 
-            const errorMsg: GeneralChatMessage = {
+            const errorMsg: ChatMessage = {
                 role: 'assistant',
                 content: 'Sorry, something went wrong. Please try again.',
                 timestamp: new Date().toISOString()
@@ -191,7 +191,7 @@ export function GeneralChatProvider({ children }: { children: React.ReactNode })
         }
     }, []);
 
-    const updateContext = useCallback((updates: Record<string, any>) => {
+    const updateContext = useCallback((updates: Record<string, unknown>) => {
         setContext(prev => ({ ...prev, ...updates }));
     }, []);
 
@@ -203,8 +203,8 @@ export function GeneralChatProvider({ children }: { children: React.ReactNode })
 
     const loadConversation = useCallback(async (id: number) => {
         try {
-            const conversation = await conversationApi.getConversation(id);
-            const loadedMessages: GeneralChatMessage[] = conversation.messages
+            const conversation = await chatApi.getConversation(id);
+            const loadedMessages: ChatMessage[] = conversation.messages
                 .filter(msg => msg.role === 'user' || msg.role === 'assistant')
                 .map(msg => ({
                     role: msg.role as 'user' | 'assistant',
@@ -223,7 +223,7 @@ export function GeneralChatProvider({ children }: { children: React.ReactNode })
 
     const loadMostRecent = useCallback(async () => {
         try {
-            const { conversations } = await conversationApi.listConversations(1, 0);
+            const { conversations } = await chatApi.listConversations(1, 0);
             if (conversations.length > 0) {
                 return await loadConversation(conversations[0].id);
             }
@@ -235,7 +235,7 @@ export function GeneralChatProvider({ children }: { children: React.ReactNode })
     }, [loadConversation]);
 
     return (
-        <GeneralChatContext.Provider value={{
+        <ChatContext.Provider value={{
             messages,
             context,
             isLoading,
@@ -252,14 +252,25 @@ export function GeneralChatProvider({ children }: { children: React.ReactNode })
             loadMostRecent
         }}>
             {children}
-        </GeneralChatContext.Provider>
+        </ChatContext.Provider>
     );
 }
 
-export function useGeneralChatContext() {
-    const context = useContext(GeneralChatContext);
+export function useChatContext() {
+    const context = useContext(ChatContext);
     if (!context) {
-        throw new Error('useGeneralChatContext must be used within a GeneralChatProvider');
+        throw new Error('useChatContext must be used within a ChatProvider');
     }
     return context;
 }
+
+
+// ============================================================================
+// Backwards Compatibility
+// ============================================================================
+
+/** @deprecated Use ChatProvider instead */
+export const GeneralChatProvider = ChatProvider;
+
+/** @deprecated Use useChatContext instead */
+export const useGeneralChatContext = useChatContext;

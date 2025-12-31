@@ -12,7 +12,7 @@ import json
 import uuid
 from datetime import datetime
 
-from schemas.chat import ChatMessage, MessageRole
+from schemas.llm import ChatMessage, MessageRole
 from schemas.lab import (
     GenerateAnswerRequest, IterationData, EvaluationResponse, 
     StreamMessage, QuestionRefinementRequest, QuestionRefinementResponse

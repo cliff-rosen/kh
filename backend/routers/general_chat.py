@@ -12,7 +12,7 @@ import logging
 from database import get_db
 from models import User
 from routers.auth import get_current_user
-from schemas.general_chat import (
+from schemas.chat import (
     GeneralChatMessage,
     ActionMetadata,
     StreamEvent,

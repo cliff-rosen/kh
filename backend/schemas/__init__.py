@@ -16,11 +16,20 @@ from .user import (
     OrgMember,
 )
 
-# Chat schemas (for LLM interactions)
-from .chat import (
-    MessageRole,
+# LLM schemas (for LLM interactions)
+from .llm import (
+    MessageRole as LLMMessageRole,
     AssetReference,
     ChatMessage,
+)
+
+# Chat schemas (for user-facing chat)
+from .chat import (
+    MessageRole,
+    Message,
+    Conversation,
+    ConversationWithMessages,
+    StreamEvent,
 )
 
 # Legacy alias - UserResponse maps to User
@@ -38,8 +47,15 @@ __all__ = [
     'UserList',
     'OrgMember',
 
-    # Chat schemas
-    'MessageRole',
+    # LLM schemas (for LLM interactions)
+    'LLMMessageRole',
     'AssetReference',
     'ChatMessage',
+
+    # Chat schemas (for user-facing chat)
+    'MessageRole',
+    'Message',
+    'Conversation',
+    'ConversationWithMessages',
+    'StreamEvent',
 ]
