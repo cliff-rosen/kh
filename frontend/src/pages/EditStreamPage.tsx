@@ -47,12 +47,12 @@ const ScopeBadge = ({ scope }: { scope: string }) => {
         </span>
     );
 };
-import SemanticSpaceForm from '../components/SemanticSpaceForm';
-import PresentationForm from '../components/PresentationForm';
-import RetrievalConfigForm from '../components/RetrievalConfigForm';
-import TestRefineTab, { ExecuteSubTab } from '../components/TestRefineTab';
-import { WorkbenchState } from '../components/QueryRefinementWorkbench';
-import ContentEnrichmentForm from '../components/ContentEnrichmentForm';
+import SemanticSpaceForm from '../components/stream/SemanticSpaceForm';
+import PresentationForm from '../components/stream/PresentationForm';
+import RetrievalConfigForm from '../components/stream/RetrievalConfigForm';
+import TestRefineTab, { ExecuteSubTab } from '../components/stream/TestRefineTab';
+import { WorkbenchState } from '../components/stream/QueryRefinementWorkbench';
+import ContentEnrichmentForm from '../components/stream/ContentEnrichmentForm';
 import ChatTray from '../components/chat/ChatTray';
 import { promptWorkbenchApi, PromptTemplate, SlugInfo } from '../lib/api/promptWorkbenchApi';
 import SchemaProposalCard from '../components/chat/SchemaProposalCard';

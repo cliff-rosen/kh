@@ -1,4 +1,4 @@
-import { Category } from '../types';
+import { Category } from '../../types';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 interface PresentationFormProps {

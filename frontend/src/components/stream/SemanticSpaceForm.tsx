@@ -15,7 +15,7 @@ import {
     RelationshipType,
     RelationshipStrength,
     EdgeCaseResolution
-} from '../types';
+} from '../../types';
 
 interface SemanticSpaceFormProps {
     semanticSpace: SemanticSpace | undefined;

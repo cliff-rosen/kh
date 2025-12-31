@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { PaperAirplaneIcon } from '@heroicons/react/24/solid';
-import { useStreamChat } from '../context/StreamChatContext';
+import { useStreamChat } from '../../context/StreamChatContext';
 import { Link } from 'react-router-dom';
 
 export default function StreamChatInterface() {

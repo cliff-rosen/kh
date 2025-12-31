@@ -8,10 +8,10 @@ import {
     XMarkIcon,
     CheckIcon
 } from '@heroicons/react/24/outline';
-import { notesApi } from '../lib/api/notesApi';
-import { handleApiError } from '../lib/api';
-import type { ArticleNote } from '../types/organization';
-import { useAuth } from '../context/AuthContext';
+import { notesApi } from '../../lib/api/notesApi';
+import { handleApiError } from '../../lib/api';
+import type { ArticleNote } from '../../types/organization';
+import { useAuth } from '../../context/AuthContext';
 
 interface ArticleNotesProps {
     reportId: number;

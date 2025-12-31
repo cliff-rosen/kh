@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { XMarkIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
-import { reportApi } from '../lib/api/reportApi';
+import { reportApi } from '../../lib/api/reportApi';
 
 interface PipelineAnalytics {
     report_id: number;

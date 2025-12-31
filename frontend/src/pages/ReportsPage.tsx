@@ -12,9 +12,9 @@ import { showErrorToast } from '../lib/errorToast';
 import { useResearchStream } from '../context/ResearchStreamContext';
 import { useAuth } from '../context/AuthContext';
 import { useTracking } from '../hooks/useTracking';
-import PipelineAnalyticsModal from '../components/PipelineAnalyticsModal';
-import ExecutionConfigModal from '../components/ExecutionConfigModal';
-import ArticleViewerModal from '../components/ArticleViewerModal';
+import PipelineAnalyticsModal from '../components/stream/PipelineAnalyticsModal';
+import ExecutionConfigModal from '../components/stream/ExecutionConfigModal';
+import ArticleViewerModal from '../components/articles/ArticleViewerModal';
 import ChatTray from '../components/chat/ChatTray';
 import PubMedArticleCard, { PubMedArticleData } from '../components/chat/PubMedArticleCard';
 

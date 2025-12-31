@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { RetrievalConfig, Concept, BroadQuery, VolumeStatus } from '../types';
+import { RetrievalConfig, Concept, BroadQuery, VolumeStatus } from '../../types';
 import { SparklesIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 interface RetrievalConfigFormProps {

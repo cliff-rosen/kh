@@ -11,9 +11,9 @@ import {
     Entity
 } from '../types';
 import { useNavigate } from 'react-router-dom';
-import SemanticSpaceForm from '../components/SemanticSpaceForm';
-import PresentationForm from '../components/PresentationForm';
-import RetrievalConfigForm from '../components/RetrievalConfigForm';
+import SemanticSpaceForm from '../components/stream/SemanticSpaceForm';
+import PresentationForm from '../components/stream/PresentationForm';
+import RetrievalConfigForm from '../components/stream/RetrievalConfigForm';
 import { showErrorToast } from '../lib/errorToast';
 
 // Stream scope type

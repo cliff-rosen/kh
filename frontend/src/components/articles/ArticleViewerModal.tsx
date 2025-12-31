@@ -12,16 +12,16 @@ import {
     ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { CheckBadgeIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid';
-import { documentAnalysisApi } from '../lib/api/documentAnalysisApi';
-import { articleApi, FullTextLink } from '../lib/api/articleApi';
-import { reportApi } from '../lib/api/reportApi';
-import { trackEvent } from '../lib/api/trackingApi';
-import { ReportArticle } from '../types/report';
-import { CanonicalResearchArticle } from '../types/canonical_types';
-import { StanceAnalysisResult, StanceType } from '../types/document_analysis';
-import ChatTray from './chat/ChatTray';
-import { PayloadHandler } from '../types/chat';
-import { MarkdownRenderer } from './common/MarkdownRenderer';
+import { documentAnalysisApi } from '../../lib/api/documentAnalysisApi';
+import { articleApi, FullTextLink } from '../../lib/api/articleApi';
+import { reportApi } from '../../lib/api/reportApi';
+import { trackEvent } from '../../lib/api/trackingApi';
+import { ReportArticle } from '../../types/report';
+import { CanonicalResearchArticle } from '../../types/canonical_types';
+import { StanceAnalysisResult, StanceType } from '../../types/document_analysis';
+import ChatTray from '../chat/ChatTray';
+import { PayloadHandler } from '../../types/chat';
+import { MarkdownRenderer } from '../common/MarkdownRenderer';
 import ArticleNotes from './ArticleNotes';
 
 type WorkspaceTab = 'analysis' | 'notes' | 'links';

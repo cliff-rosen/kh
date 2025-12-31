@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StreamInProgress, ChannelInProgress } from '../types/stream-building';
+import { StreamInProgress, ChannelInProgress } from '../../types/stream-building';
 import { PencilIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 interface StreamConfigPreviewProps {

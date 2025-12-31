@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import QueryRefinementWorkbench, { WorkbenchState } from './QueryRefinementWorkbench';
 import ExecutePipelineTab from './ExecutePipelineTab';
-import { ResearchStream } from '../types';
+import { ResearchStream } from '../../types';
 
 export type ExecuteSubTab = 'workbench' | 'pipeline';
 

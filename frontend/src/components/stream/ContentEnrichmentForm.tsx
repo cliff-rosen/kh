@@ -34,9 +34,9 @@ import {
     SlugInfo,
     EnrichmentConfig,
     TestPromptResponse
-} from '../lib/api/promptWorkbenchApi';
-import { reportApi } from '../lib/api/reportApi';
-import { Report } from '../types';
+} from '../../lib/api/promptWorkbenchApi';
+import { reportApi } from '../../lib/api/reportApi';
+import { Report } from '../../types';
 
 interface PromptSuggestion {
     target: 'system_prompt' | 'user_prompt_template';

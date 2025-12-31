@@ -22,10 +22,10 @@ import {
     DocumentArrowDownIcon,
     TrashIcon
 } from '@heroicons/react/24/outline';
-import { researchStreamApi } from '../lib/api/researchStreamApi';
-import { ResearchStream } from '../types';
-import { CanonicalResearchArticle } from '../types/canonical_types';
-import ArticleViewerModal from './ArticleViewerModal';
+import { researchStreamApi } from '../../lib/api/researchStreamApi';
+import { ResearchStream } from '../../types';
+import { CanonicalResearchArticle } from '../../types/canonical_types';
+import ArticleViewerModal from '../articles/ArticleViewerModal';
 
 // ============================================================================
 // Query Snapshot Types for Version History

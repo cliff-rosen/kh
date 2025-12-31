@@ -13,7 +13,7 @@ import { GeneralChatProvider } from './context/GeneralChatContext';
 import { setStreamSessionExpiredHandler } from './lib/api/streamUtils';
 
 // components
-import TopBar from './components/TopBar';
+import TopBar from './components/layout/TopBar';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // pages

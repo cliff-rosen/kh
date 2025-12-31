@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { PlayIcon, CheckCircleIcon, ExclamationCircleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
-import { researchStreamApi, PipelineStatus } from '../lib/api/researchStreamApi';
+import { researchStreamApi, PipelineStatus } from '../../lib/api/researchStreamApi';
 
 interface ExecutePipelineTabProps {
     streamId: number;
