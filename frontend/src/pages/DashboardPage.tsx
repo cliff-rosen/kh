@@ -6,17 +6,24 @@ import { useAuth } from '../context/AuthContext';
 import { useResearchStream } from '../context/ResearchStreamContext';
 import { reportApi } from '../lib/api/reportApi';
 import { trackEvent } from '../lib/api/trackingApi';
+import { showErrorToast } from '../lib/errorToast';
 import { Report } from '../types';
 
 export default function DashboardPage() {
     const { user } = useAuth();
-    const { researchStreams, loadResearchStreams, isLoading } = useResearchStream();
+    const { researchStreams, loadResearchStreams, isLoading, error } = useResearchStream();
     const [recentReports, setRecentReports] = useState<Report[]>([]);
+    const [reportsError, setReportsError] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
         loadResearchStreams();
-        reportApi.getRecentReports(3).then(setRecentReports).catch(console.error);
+        reportApi.getRecentReports(3)
+            .then(setRecentReports)
+            .catch((err) => {
+                showErrorToast(err, 'Failed to load recent reports');
+                setReportsError(true);
+            });
     }, [loadResearchStreams]);
 
     return (
@@ -30,6 +37,29 @@ export default function DashboardPage() {
                             Welcome back, {user?.email}
                         </p>
                     </div>
+
+                    {/* Error state when API is unavailable */}
+                    {error && (
+                        <div className="mb-6 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-700 rounded-lg p-4">
+                            <div className="flex items-start gap-3">
+                                <div className="text-red-500 text-xl">⚠️</div>
+                                <div>
+                                    <h3 className="font-medium text-red-800 dark:text-red-200">
+                                        Unable to connect to server
+                                    </h3>
+                                    <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                                        {error}
+                                    </p>
+                                    <button
+                                        onClick={() => window.location.reload()}
+                                        className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+                                    >
+                                        Retry
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                         {/* Quick Stats */}
@@ -64,7 +94,14 @@ export default function DashboardPage() {
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                                 📈 Recent Reports
                             </h3>
-                            {recentReports.length === 0 ? (
+                            {reportsError ? (
+                                <div className="text-center py-8">
+                                    <div className="text-red-500 text-2xl mb-2">⚠️</div>
+                                    <p className="text-gray-600 dark:text-gray-400">
+                                        Unable to load reports
+                                    </p>
+                                </div>
+                            ) : recentReports.length === 0 ? (
                                 <div className="text-gray-600 dark:text-gray-400 text-center py-8">
                                     No reports yet
                                 </div>

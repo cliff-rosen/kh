@@ -188,7 +188,6 @@ export default function ReportsPage() {
             const reportDetails = await reportApi.getReportWithArticles(reportId);
             setSelectedReport(reportDetails);
         } catch (err) {
-            console.error('Error loading report details:', err);
             showErrorToast(err, 'Failed to load report');
         } finally {
             setLoadingReportDetails(false);
@@ -223,7 +222,6 @@ export default function ReportsPage() {
                 }
             }
         } catch (err) {
-            console.error('Error deleting report:', err);
             showErrorToast(err, 'Failed to delete report');
         }
     };

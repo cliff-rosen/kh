@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import SemanticSpaceForm from '../components/SemanticSpaceForm';
 import PresentationForm from '../components/PresentationForm';
 import RetrievalConfigForm from '../components/RetrievalConfigForm';
+import { showErrorToast } from '../lib/errorToast';
 
 // Stream scope type
 type StreamScope = 'personal' | 'organization' | 'global';
@@ -163,7 +164,7 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
             // Navigate directly to implementation configuration (Workflow 2)
             navigate(`/streams/${newStream.stream_id}/configure`);
         } catch (err) {
-            console.error('Failed to create research stream:', err);
+            showErrorToast(err, 'Failed to create stream');
         }
     };
 

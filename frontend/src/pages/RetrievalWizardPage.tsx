@@ -10,6 +10,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
 import { ResearchStream, Concept, SemanticSpace, InformationSource, BroadQuery } from '../types';
+import { showErrorToast } from '../lib/errorToast';
 
 // Import phase components
 import ConceptProposalPhase from '../components/RetrievalWizard/ConceptProposalPhase';
@@ -129,7 +130,7 @@ export default function RetrievalWizardPage() {
             const sourcesData = await researchStreamApi.getInformationSources();
             setSources(sourcesData);
         } catch (err) {
-            console.error('Failed to load sources:', err);
+            showErrorToast(err, 'Failed to load sources');
         }
     };
 

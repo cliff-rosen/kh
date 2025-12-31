@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { ChatBubbleLeftRightIcon, XMarkIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import { api } from '@/lib/api';
+import { showErrorToast } from '@/lib/errorToast';
 
 interface Message {
     id: number;
@@ -81,7 +82,7 @@ export function ConversationList() {
             setTotal(response.data.total);
         } catch (err) {
             setError('Failed to load conversations');
-            console.error('Error loading conversations:', err);
+            showErrorToast(err, 'Failed to load conversations');
         } finally {
             setLoading(false);
         }
@@ -102,7 +103,7 @@ export function ConversationList() {
             const response = await api.get<ConversationDetail>(`/api/conversations/admin/${conversationId}`);
             setSelectedConversation(response.data);
         } catch (err) {
-            console.error('Error loading conversation detail:', err);
+            showErrorToast(err, 'Failed to load conversation');
         } finally {
             setLoadingDetail(false);
         }

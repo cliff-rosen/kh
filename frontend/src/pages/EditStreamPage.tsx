@@ -16,6 +16,7 @@ import {
 import { useResearchStream } from '../context/ResearchStreamContext';
 import { useAuth } from '../context/AuthContext';
 import { adminApi } from '../lib/api/adminApi';
+import { showErrorToast } from '../lib/errorToast';
 
 // Scope badge component (same as in StreamsPage)
 const ScopeBadge = ({ scope }: { scope: string }) => {
@@ -255,7 +256,7 @@ export default function EditStreamPage() {
                     isUsingDefaults: configResponse.is_using_defaults
                 });
             } catch (err) {
-                console.error('Failed to load enrichment config for chat:', err);
+                showErrorToast(err, 'Failed to load enrichment config');
             }
         };
 
@@ -300,7 +301,7 @@ export default function EditStreamPage() {
             await updateResearchStream(Number(id), updates);
             navigate('/streams');
         } catch (err) {
-            console.error('Failed to update stream:', err);
+            showErrorToast(err, 'Failed to save changes');
         }
     };
 
@@ -316,7 +317,7 @@ export default function EditStreamPage() {
                 await deleteResearchStream(Number(id));
                 navigate('/streams');
             } catch (err) {
-                console.error('Failed to delete stream:', err);
+                showErrorToast(err, 'Failed to delete stream');
             }
         }
     };
@@ -337,10 +338,8 @@ export default function EditStreamPage() {
                 await loadResearchStream(Number(id));
                 // Update local stream state
                 setStream((prev: any) => ({ ...prev, scope: 'global' }));
-                alert('Stream has been promoted to global scope.');
             } catch (err) {
-                console.error('Failed to promote stream:', err);
-                alert('Failed to promote stream. Please try again.');
+                showErrorToast(err, 'Failed to promote stream');
             } finally {
                 setIsPromoting(false);
             }

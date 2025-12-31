@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { ClockIcon, FunnelIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import { api } from '@/lib/api';
+import { showErrorToast } from '@/lib/errorToast';
 
 interface UserEvent {
     id: number;
@@ -68,7 +69,7 @@ export function ActivityList() {
             setTotal(response.data.total);
         } catch (err) {
             setError('Failed to load events');
-            console.error('Error loading events:', err);
+            showErrorToast(err, 'Failed to load activity');
         } finally {
             setLoading(false);
         }
