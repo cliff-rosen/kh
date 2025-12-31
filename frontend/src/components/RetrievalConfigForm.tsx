@@ -1,7 +1,6 @@
-import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { RetrievalConfig, Concept, BroadQuery, VolumeStatus, SemanticFilter } from '../types';
-import { SparklesIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { RetrievalConfig, Concept, BroadQuery, VolumeStatus } from '../types';
+import { SparklesIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 interface RetrievalConfigFormProps {
     retrievalConfig: RetrievalConfig;
@@ -19,9 +18,6 @@ export default function RetrievalConfigForm({
     const conceptsSelected = Array.isArray(retrievalConfig.concepts);
     const broadSearchSelected = retrievalConfig.broad_search !== null && retrievalConfig.broad_search !== undefined;
 
-    // Separately check if the selected strategy HAS CONTENT
-    const hasConceptsContent = conceptsSelected && (retrievalConfig.concepts?.length ?? 0) > 0;
-    const hasBroadSearchContent = broadSearchSelected && (retrievalConfig.broad_search?.queries?.length ?? 0) > 0;
 
     // Show UI based on SELECTION (not content)
     const showBroadSearch = broadSearchSelected;
