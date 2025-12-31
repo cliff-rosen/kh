@@ -2,205 +2,171 @@
 
 ## Overview
 
-The chat system provides streaming LLM interactions with tool support. The key architectural principle is that **payload types are defined centrally** and all touchpoints reference them:
+The chat system provides an intelligent, context-aware assistant that understands where the user is in the application and what they're working on. It combines streaming LLM interactions with tool execution to help users explore research, manage streams, and work with their data.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        schemas/payloads.py                                   │
-│                     (Central Payload Registry)                               │
-│                                                                              │
-│  PayloadType:                                                                │
-│    - name: "pubmed_search_results"                                          │
-│    - schema: { JSON schema for validation }                                 │
-│    - llm_instructions: "When this payload is returned..."                   │
-│    - frontend_config: { panel_width, title, icon }                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-                    │                    │                    │
-         ┌──────────┴──────────┐        │         ┌──────────┴──────────┐
-         ▼                     ▼        ▼         ▼                     ▼
-┌─────────────────┐  ┌─────────────────────┐  ┌─────────────────────────────┐
-│ ToolConfig      │  │ System Prompt       │  │ Frontend PayloadRegistry    │
-│                 │  │                     │  │                             │
-│ payload_type=   │  │ Auto-includes       │  │ Handler registered for      │
-│ "pubmed_search_ │  │ llm_instructions    │  │ "pubmed_search_results"     │
-│  results"       │  │ for all relevant    │  │                             │
-│                 │  │ payload types       │  │ Uses frontend_config for    │
-│ Must match      │  │                     │  │ panel dimensions            │
-│ registered type │  │                     │  │                             │
-└─────────────────┘  └─────────────────────┘  └─────────────────────────────┘
-```
+### Core Capabilities
+
+| Capability | Description |
+|------------|-------------|
+| **Page Context** | The assistant knows what page you're on, what report/stream/article you're viewing, and adapts its behavior accordingly |
+| **Tool Execution** | The LLM can call tools (search PubMed, fetch articles, etc.) and the system streams progress updates in real-time |
+| **Rich Payloads** | Tools and the LLM can return structured data that renders as interactive cards, tables, or custom UI |
+| **Interactive Suggestions** | The assistant can offer clickable suggestions and action buttons to guide the conversation |
+| **Conversation Persistence** | Conversations are saved and can be continued across sessions |
 
 ---
 
-## 1. Central Payload Registry
+## 1. Page Context System
 
-All payload types are defined in `schemas/payloads.py`. This is the **single source of truth**.
+The chat adapts to the user's current location in the app. This is the foundation that makes the assistant useful.
 
-```python
-# schemas/payloads.py
+### What Context Includes
 
-@dataclass
-class PayloadType:
-    """Complete definition of a payload type."""
-    name: str                              # "pubmed_search_results"
-    description: str                       # Human-readable description
-    source: str                            # "tool" or "llm"
-    schema: Dict[str, Any]                 # JSON schema for data validation
-    llm_instructions: str                  # Instructions for LLM (included in prompt)
-    frontend_config: Optional[Dict] = None # { panel_width, title, icon }
-
-
-# Example: Tool payload
-register_payload_type(PayloadType(
-    name="pubmed_search_results",
-    description="Results from a PubMed search query",
-    source="tool",
-    schema={
-        "type": "object",
-        "properties": {
-            "query": {"type": "string"},
-            "total_results": {"type": "integer"},
-            "articles": {"type": "array", "items": {...}}
-        },
-        "required": ["query", "articles"]
-    },
-    llm_instructions="""
-    When the search_pubmed tool returns this payload, a table of articles
-    will be displayed to the user. Briefly summarize what was found and
-    highlight any particularly relevant articles based on the user's question.
-    """,
-    frontend_config={
-        "panel_width": "800px",
-        "title": "PubMed Search Results",
-        "icon": "🔍"
-    }
-))
-
-
-# Example: LLM payload
-register_payload_type(PayloadType(
-    name="schema_proposal",
-    description="Proposed changes to a research stream schema",
-    source="llm",
-    schema={
-        "type": "object",
-        "properties": {
-            "stream_name": {"type": "string"},
-            "purpose": {"type": "string"},
-            "topics": {"type": "array"},
-            "rationale": {"type": "string"}
-        }
-    },
-    llm_instructions="""
-    SCHEMA_PROPOSAL - Use when the user asks for help improving their stream configuration.
-    Output the marker followed by JSON:
-
-    SCHEMA_PROPOSAL: {
-        "stream_name": "...",
-        "purpose": "...",
-        "topics": [...],
-        "rationale": "Why these changes improve the stream"
-    }
-    """,
-    frontend_config={
-        "panel_width": "500px",
-        "title": "Schema Proposal",
-        "icon": "📝"
-    }
-))
+```typescript
+interface ChatContext {
+    current_page: string;       // "reports", "streams", "dashboard", etc.
+    report_id?: number;         // If viewing a specific report
+    stream_id?: number;         // If viewing a specific stream
+    current_article?: {...};    // If viewing an article detail
+    active_tab?: string;        // Which tab is active on the page
+}
 ```
 
-**What the registry provides:**
-- `get_payload_type(name)` - Get a payload type by name
-- `get_payload_types_for_tools(tool_names)` - Get payload types for a list of tools
-- `get_payload_types_for_page(page)` - Get LLM payload types for a page
-- `get_llm_instructions(payload_types)` - Get combined instructions for prompt
+### How Context is Used
+
+Each page can register:
+1. **Context Builder** - A function that generates page-specific LLM instructions
+2. **Page Payloads** - Structured outputs the LLM can produce on this page
+3. **Client Actions** - What actions the UI can handle from this page
+
+```python
+# backend/services/chat_payloads/streams.py
+
+def build_streams_context(context: Dict[str, Any]) -> str:
+    stream_id = context.get("stream_id")
+    if stream_id:
+        stream = get_stream(stream_id)
+        return f"""
+        The user is viewing stream "{stream.name}".
+        Purpose: {stream.purpose}
+        Topics: {stream.topics}
+
+        Help them refine their stream configuration or understand their articles.
+        """
+    return "The user is on the streams list page."
+
+register_page(
+    page="streams",
+    context_builder=build_streams_context,
+    payloads=[...],
+    client_actions=[...]
+)
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `backend/services/chat_payloads/registry.py` | Page registration framework |
+| `backend/services/chat_payloads/<page>.py` | Per-page context and payload configs |
+| `backend/services/chat_stream_service.py` | Assembles full system prompt with context |
 
 ---
 
-## 2. How Tools Reference Payload Types
+## 2. Tool System
 
-Tools declare which payload type they return. The type must exist in the registry.
+The LLM can call tools to perform actions and retrieve information. Tools are globally available regardless of which page the chat is on.
+
+### Tool Registration
 
 ```python
-# tools/builtin/pubmed.py
-
-def execute_search_pubmed(params, db, user_id, context) -> ToolResult:
-    results = pubmed_service.search(params["query"])
-
-    return ToolResult(
-        text=f"Found {len(results)} articles...",
-        payload={
-            "type": "pubmed_search_results",  # Must match registered type
-            "data": {"query": ..., "articles": results}
-        }
-    )
+# backend/tools/builtin/pubmed.py
 
 register_tool(ToolConfig(
     name="search_pubmed",
-    description="Search PubMed for articles",
-    input_schema={...},
+    description="Search PubMed for research articles",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "The search query"},
+            "max_results": {"type": "integer", "default": 10}
+        },
+        "required": ["query"]
+    },
     executor=execute_search_pubmed,
-    payload_type="pubmed_search_results"  # References registry
+    category="research",
+    payload_type="pubmed_search_results"  # What structured data this tool returns
 ))
 ```
 
-**Validation (in agent_loop.py):**
-- When tool returns, verify `payload.type` matches `ToolConfig.payload_type`
-- Optionally validate `payload.data` against the registered schema
+### Tool Execution Flow
 
----
-
-## 3. How the System Prompt Includes Instructions
-
-The `ChatStreamService` builds the system prompt and automatically includes LLM instructions for all relevant payload types.
-
-```python
-# services/chat_stream_service.py
-
-def _build_system_prompt(self, context: Dict[str, Any]) -> str:
-    # Get tools being used
-    tools = get_tools_dict()
-    tool_payload_types = [t.payload_type for t in tools.values() if t.payload_type]
-
-    # Get page-specific LLM payload types
-    page = context.get("current_page")
-    page_payload_types = get_payload_types_for_page(page)
-
-    # Combine all payload types
-    all_payload_types = set(tool_payload_types + page_payload_types)
-
-    # Get instructions for all payload types
-    payload_instructions = get_llm_instructions(all_payload_types)
-
-    return f"""You are a helpful AI assistant...
-
-    {payload_instructions}
-
-    {page_context}
-    """
+```
+User message → LLM decides to use tool → Agent loop executes tool
+    ↓
+Tool returns ToolResult(text=..., payload=...)
+    ↓
+LLM sees text result, formulates response
+    ↓
+Frontend receives payload, renders rich UI
 ```
 
-**The prompt now includes:**
-- Instructions for tool payloads (what to say when `pubmed_search_results` is returned)
-- Instructions for LLM payloads (how to output `SCHEMA_PROPOSAL:` JSON)
+### Streaming Tools
+
+Tools can stream progress updates for long-running operations:
+
+```python
+def execute_long_search(params, db, user_id, context):
+    yield ToolProgress(stage="searching", message="Searching...", progress=0.2)
+    results = search(...)
+    yield ToolProgress(stage="processing", message="Processing...", progress=0.8)
+    return ToolResult(text="Found results", payload={...})
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `backend/tools/registry.py` | ToolConfig, ToolResult, ToolProgress definitions |
+| `backend/tools/builtin/*.py` | Tool implementations |
+| `backend/agents/agent_loop.py` | Executes tools, handles streaming, collects results |
 
 ---
 
-## 4. How Frontend Handlers Connect
+## 3. Rich Payloads
 
-Frontend handlers are registered by payload type name. The registry can provide config.
+Beyond plain text, the chat can display structured data as interactive UI components. Payloads can come from either tools or the LLM itself.
+
+### Payload Sources
+
+**Tool Payloads**: Tools return structured data alongside text
+```python
+return ToolResult(
+    text="Found 15 articles matching your query...",
+    payload={
+        "type": "pubmed_search_results",
+        "data": {"query": "...", "articles": [...]}
+    }
+)
+```
+
+**LLM Payloads**: The LLM outputs a marker that gets parsed
+```
+LLM output: "Here's my proposed schema:
+SCHEMA_PROPOSAL: {"stream_name": "...", "topics": [...]}"
+
+→ Parsed into: custom_payload = {type: "schema_proposal", data: {...}}
+```
+
+### Frontend Rendering
+
+The frontend has a payload handler registry that maps type names to React components:
 
 ```typescript
-// lib/chat/payloads.ts
+// frontend/src/lib/chat/payloads.ts
 
-import { getPayloadConfig } from './payloadRegistry';
-
-// Handler registration references the same type name
 registerPayloadHandler('pubmed_search_results', {
-    render: (data) => <PubMedSearchResultsCard data={data} />,
-    // renderOptions can come from backend config or be overridden
-    renderOptions: getPayloadConfig('pubmed_search_results')?.frontend_config
+    render: (data) => <PubMedSearchResultsCard data={data} />
 });
 
 registerPayloadHandler('schema_proposal', {
@@ -210,40 +176,89 @@ registerPayloadHandler('schema_proposal', {
             onAccept={callbacks.onAccept}
             onReject={callbacks.onReject}
         />
-    ),
-    renderOptions: getPayloadConfig('schema_proposal')?.frontend_config
+    )
 });
 ```
 
-**Optional: API endpoint for payload configs**
-```typescript
-// On app init, fetch payload configs from backend
-const configs = await fetch('/api/chat/payload-types');
-// Use for validation, panel sizing, etc.
+### Central Payload Registry
+
+Payload types are defined centrally in `schemas/payloads.py`. This is the single source of truth for:
+- Type name and description
+- JSON schema for validation
+- Whether the source is "tool" or "llm"
+
+```python
+# backend/schemas/payloads.py
+
+register_payload_type(PayloadType(
+    name="pubmed_search_results",
+    description="Results from a PubMed search query",
+    source="tool",
+    schema={
+        "type": "object",
+        "properties": {
+            "query": {"type": "string"},
+            "articles": {"type": "array", "items": {...}}
+        },
+        "required": ["query", "articles"]
+    }
+))
 ```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `backend/schemas/payloads.py` | Central payload type registry |
+| `backend/services/chat_payloads/<page>.py` | LLM payload configs per page |
+| `frontend/src/lib/chat/payloadRegistry.ts` | Frontend handler registry |
+| `frontend/src/lib/chat/payloads.ts` | Handler registrations |
 
 ---
 
-## 5. Request/Response Flow
+## 4. Suggested Values and Actions
 
-### What the Frontend Sends
+The LLM can provide interactive elements that guide the user through a conversation.
+
+### Suggested Values
+
+Clickable chips that send a pre-filled message when clicked:
 
 ```typescript
-interface ChatRequest {
-    message: string;
-    context: {
-        current_page: string;       // "reports", "streams", etc.
-        report_id?: number;
-        stream_id?: number;
-        current_article?: {...};
-        active_tab?: string;
-    };
-    conversation_history: Array<{role, content, timestamp}>;
-    conversation_id?: number;
-}
+suggested_values: [
+    { label: "Yes", value: "Yes, please proceed with that" },
+    { label: "No", value: "No, let me reconsider" },
+    { label: "Show more", value: "Show me more results" }
+]
 ```
 
-### What the Backend Returns (SSE)
+The frontend renders these as chips below the assistant's message. Clicking one sends the `value` as the user's next message.
+
+### Suggested Actions
+
+Buttons that trigger specific handlers:
+
+```typescript
+suggested_actions: [
+    { label: "View Report", action: "navigate_to_report", handler: "client" },
+    { label: "Run Analysis", action: "run_analysis", handler: "server" }
+]
+```
+
+- **Client handlers**: Execute in the frontend (navigation, UI changes)
+- **Server handlers**: Send an action request back to the server
+
+### How the LLM Provides Suggestions
+
+The LLM is instructed to output suggestions in a parseable format. The backend extracts these and includes them in the response payload.
+
+---
+
+## 5. Streaming Protocol
+
+The backend uses Server-Sent Events (SSE) to stream responses in real-time.
+
+### Event Types
 
 ```
 status          → { type: "status", message: "Thinking..." }
@@ -255,163 +270,70 @@ complete        → { type: "complete", payload: ChatResponsePayload }
 error           → { type: "error", message: "..." }
 ```
 
-### ChatResponsePayload
+### Complete Response Payload
 
 ```typescript
 interface ChatResponsePayload {
-    message: string;
-    custom_payload?: {
-        type: string;    // Matches registered PayloadType.name
-        data: any;       // Matches registered PayloadType.schema
+    message: string;                    // The assistant's text response
+    custom_payload?: {                  // Rich structured data
+        type: string;
+        data: any;
     };
-    suggested_values?: Array<{ label: string; value: string }>;
-    suggested_actions?: Array<{ label: string; action: string; handler: 'client' | 'server' }>;
-    tool_history?: Array<{ tool_name: string; input: any; output: string }>;
-    conversation_id?: number;
+    suggested_values?: Array<{          // Clickable chips
+        label: string;
+        value: string;
+    }>;
+    suggested_actions?: Array<{         // Action buttons
+        label: string;
+        action: string;
+        handler: 'client' | 'server';
+    }>;
+    tool_history?: Array<{              // What tools were called
+        tool_name: string;
+        input: any;
+        output: string;
+    }>;
+    conversation_id?: number;           // For persistence
 }
 ```
 
 ---
 
-## 6. Payload Sources: Tools vs LLM
+## 6. Conversation Persistence
 
-Both sources produce the same `custom_payload` structure:
+Conversations are saved to the database for continuity across sessions.
 
-**Tool payloads:**
-1. Tool executes and returns `ToolResult(text=..., payload={type, data})`
-2. Agent loop collects payloads
-3. Last payload becomes `custom_payload` in response
+### What Gets Saved
 
-**LLM payloads:**
-1. LLM outputs text with marker: `"SCHEMA_PROPOSAL: {...json...}"`
-2. `_parse_llm_response()` finds marker, extracts JSON
-3. Becomes `custom_payload` in response
+- User messages and assistant responses
+- Tool calls and their results
+- Payloads (for potential replay)
+- Timestamps
 
-**Priority:** Tool payloads take precedence over LLM-parsed payloads.
+### Key Service
 
----
-
-## 7. Suggestions and Actions
-
-The LLM can include interactive elements:
-
-```typescript
-// Suggested values - clickable chips that send the value as a message
-suggested_values: [
-    { label: "Yes", value: "Yes, please proceed" },
-    { label: "No", value: "No, let me reconsider" }
-]
-
-// Suggested actions - buttons that trigger handlers
-suggested_actions: [
-    { label: "View Report", action: "navigate_to_report", handler: "client" },
-    { label: "Run Analysis", action: "run_analysis", handler: "server" }
-]
-```
+`ChatService` (in `services/chat.py`) handles conversation CRUD operations.
 
 ---
 
-## Key Files
+## Key Files Summary
 
-| Location | Purpose |
-|----------|---------|
-| `backend/schemas/payloads.py` | **Central payload type registry** (schema, LLM instructions, frontend config) |
-| `backend/tools/registry.py` | ToolConfig with `payload_type` field |
-| `backend/tools/builtin/*.py` | Tool implementations |
-| `backend/services/chat_stream_service.py` | Builds prompt with payload instructions |
-| `backend/agents/agent_loop.py` | Executes tools, validates payloads |
-| `frontend/src/lib/chat/payloadRegistry.ts` | Handler registry (keyed by payload type name) |
-| `frontend/src/lib/chat/payloads.ts` | Handler registrations |
-| `frontend/src/components/chat/ChatTray.tsx` | Renders payloads using handlers |
-
----
-
-## Adding a New Payload Type
-
-### 1. Register the Payload Type
-
-```python
-# backend/schemas/payloads.py
-
-register_payload_type(PayloadType(
-    name="my_payload",
-    description="What this payload contains",
-    source="tool",  # or "llm"
-    schema={
-        "type": "object",
-        "properties": {...},
-        "required": [...]
-    },
-    llm_instructions="""
-    [For tools]: When this payload is returned, explain to the user...
-    [For LLM]: MY_PAYLOAD - Use when user asks for X. Output:
-    MY_PAYLOAD: { "field": "value" }
-    """,
-    frontend_config={
-        "panel_width": "500px",
-        "title": "My Payload",
-        "icon": "📦"
-    }
-))
-```
-
-### 2a. For Tool Payloads
-
-```python
-# backend/tools/builtin/my_tool.py
-
-register_tool(ToolConfig(
-    name="my_tool",
-    description="...",
-    input_schema={...},
-    executor=execute_my_tool,
-    payload_type="my_payload"  # Must match registered type
-))
-
-def execute_my_tool(params, db, user_id, context) -> ToolResult:
-    return ToolResult(
-        text="...",
-        payload={"type": "my_payload", "data": {...}}
-    )
-```
-
-### 2b. For LLM Payloads
-
-```python
-# backend/services/chat_payloads/<page>.py
-
-# The PayloadConfig references the registered type
-PAGE_PAYLOADS = [
-    PayloadConfig(
-        type="my_payload",           # Must match registered type
-        parse_marker="MY_PAYLOAD:",  # What to look for in LLM output
-        parser=parse_my_payload      # Extracts JSON from text
-        # llm_instructions come from the central registry
-    )
-]
-```
-
-### 3. Create Frontend Handler
-
-```typescript
-// frontend/src/lib/chat/payloads.ts
-
-registerPayloadHandler('my_payload', {
-    render: (data) => <MyPayloadCard data={data} />,
-    renderOptions: getPayloadConfig('my_payload')?.frontend_config
-});
-```
+| Category | File | Purpose |
+|----------|------|---------|
+| **Core Service** | `services/chat_stream_service.py` | Main streaming chat endpoint |
+| **Persistence** | `services/chat.py` | Conversation storage |
+| **Agent** | `agents/agent_loop.py` | Tool execution loop |
+| **Tools** | `tools/registry.py` | Tool registration |
+| **Tools** | `tools/builtin/*.py` | Tool implementations |
+| **Payloads** | `schemas/payloads.py` | Central payload type registry |
+| **Page Config** | `services/chat_payloads/registry.py` | Page registration framework |
+| **Page Config** | `services/chat_payloads/<page>.py` | Per-page configs |
+| **Frontend** | `lib/chat/payloadRegistry.ts` | Payload handler registry |
+| **Frontend** | `lib/chat/payloads.ts` | Payload handler registrations |
+| **Frontend** | `components/chat/ChatTray.tsx` | Main chat UI |
 
 ---
 
-## Validation Points
+## Adding Chat Support to a New Page
 
-The system validates at multiple points:
-
-1. **Tool registration** - Warns if `payload_type` doesn't exist in registry
-2. **Tool execution** - Validates returned `payload.type` matches `ToolConfig.payload_type`
-3. **Schema validation** - Optionally validates `payload.data` against registered schema
-4. **Frontend** - Handler lookup fails gracefully if type not registered
-
-This ensures the payload type name is the **single contract** that connects:
-- Tool output → LLM instructions → Frontend rendering
+See [adding-chat-to-page.md](adding-chat-to-page.md) for a step-by-step guide.
