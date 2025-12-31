@@ -8,6 +8,7 @@ import { PayloadHandler } from '../types/chat';
 
 import { reportApi } from '../lib/api/reportApi';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
+import { showErrorToast } from '../lib/errorToast';
 import { useResearchStream } from '../context/ResearchStreamContext';
 import { useAuth } from '../context/AuthContext';
 import { useTracking } from '../hooks/useTracking';
@@ -187,6 +188,7 @@ export default function ReportsPage() {
             setSelectedReport(reportDetails);
         } catch (err) {
             console.error('Error loading report details:', err);
+            showErrorToast(err, 'Failed to load report');
         } finally {
             setLoadingReportDetails(false);
         }
@@ -221,7 +223,7 @@ export default function ReportsPage() {
             }
         } catch (err) {
             console.error('Error deleting report:', err);
-            alert('Failed to delete report. Please try again.');
+            showErrorToast(err, 'Failed to delete report');
         }
     };
 

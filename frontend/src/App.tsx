@@ -14,6 +14,7 @@ import { setStreamSessionExpiredHandler } from './lib/api/streamUtils';
 
 // components
 import TopBar from './components/TopBar';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginForm } from './components/features/auth';
 // Existing pages (keep for admin access)
 import Profile from './pages/Profile';
@@ -96,13 +97,15 @@ function AppContent() {
 
   return (
     <ThemeProvider>
-      <ResearchStreamProvider>
-        <StreamChatProvider>
-          <GeneralChatProvider>
-            <AuthenticatedApp />
-          </GeneralChatProvider>
-        </StreamChatProvider>
-      </ResearchStreamProvider>
+      <ErrorBoundary>
+        <ResearchStreamProvider>
+          <StreamChatProvider>
+            <GeneralChatProvider>
+              <AuthenticatedApp />
+            </GeneralChatProvider>
+          </StreamChatProvider>
+        </ResearchStreamProvider>
+      </ErrorBoundary>
       <Toaster />
     </ThemeProvider>
   );
