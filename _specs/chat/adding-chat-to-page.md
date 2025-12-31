@@ -4,7 +4,7 @@ This guide walks through all steps required to add the modular chat tray to a ne
 
 ## Conceptual Overview
 
-The chat system has just a few key touchpoints. Understanding these makes the whole system clear.
+The chat system has a clean separation of concerns. Understanding these makes the whole system clear.
 
 ### How It Works
 
@@ -13,21 +13,27 @@ The chat system has just a few key touchpoints. Understanding these makes the wh
 │                              BACKEND                                     │
 │                                                                          │
 │  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │  schemas/payloads.py (SINGLE SOURCE OF TRUTH)                    │    │
+│  │                                                                   │    │
+│  │  PayloadType definition including:                               │    │
+│  │  - name, description, schema                                     │    │
+│  │  - is_global: True/False                                        │    │
+│  │  - parse_marker, parser, llm_instructions (for LLM payloads)    │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                                      │                                   │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
 │  │  chat_page_config/{page_name}.py                                  │    │
 │  │                                                                   │    │
-│  │  1. LLM Instructions  ─────────►  Tells Claude WHEN and HOW      │    │
-│  │     (in PayloadConfig)            to generate each payload type   │    │
-│  │                                                                   │    │
-│  │  2. Parser Function   ─────────►  Extracts payload JSON from     │    │
-│  │                                   Claude's response text          │    │
-│  │                                                                   │    │
-│  │  3. Context Builder   ─────────►  Tells Claude what the user     │    │
+│  │  1. Context Builder  ──────────►  Tells Claude what the user     │    │
 │  │                                   is currently looking at         │    │
+│  │                                                                   │    │
+│  │  2. TabConfig        ──────────►  References payloads by name    │    │
+│  │     payloads=["schema_proposal"]   for each tab                   │    │
 │  └─────────────────────────────────────────────────────────────────┘    │
 │                                      │                                   │
 │                                      ▼                                   │
 │                        chat_stream_service.py                            │
-│                     (automatically uses registry)                        │
+│                     (automatically uses registries)                      │
 │                                      │                                   │
 └──────────────────────────────────────│───────────────────────────────────┘
                                        │
@@ -51,13 +57,13 @@ The chat system has just a few key touchpoints. Understanding these makes the wh
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### The Three Backend Pieces
+### The Key Backend Pieces
 
-| Piece | Purpose | Example |
-|-------|---------|---------|
-| **LLM Instructions** | Tell Claude when to use this payload and what format to output | `"When user asks for schema suggestions, output SCHEMA_PROPOSAL: {...}"` |
-| **Parser** | Extract the JSON from Claude's text response | Finds `SCHEMA_PROPOSAL:` marker, parses the JSON that follows |
-| **Context Builder** | Tell Claude what the user is currently viewing | `"User is editing stream 'Cancer Research' with 5 topics..."` |
+| Piece | Where | Purpose |
+|-------|-------|---------|
+| **PayloadType** | `schemas/payloads.py` | Complete payload definition including parse_marker, parser, llm_instructions |
+| **Context Builder** | `chat_page_config/{page}.py` | Tell Claude what the user is currently viewing |
+| **TabConfig** | `chat_page_config/{page}.py` | Reference which payloads are available on each tab |
 
 ### The One Frontend Piece
 
@@ -67,7 +73,8 @@ The chat system has just a few key touchpoints. Understanding these makes the wh
 
 ### Key Files
 
-- **Backend**: `backend/services/chat_page_config/{page_name}.py` - One file per page, contains all three pieces
+- **Payloads**: `backend/schemas/payloads.py` - Single source of truth for all payload definitions
+- **Page Config**: `backend/services/chat_page_config/{page_name}.py` - Context builder and tab configurations
 - **Frontend**: `payloadHandlers` prop on `<ChatTray>` - Maps payload types to render functions
 
 That's it. The registry handles wiring everything together automatically.
@@ -77,7 +84,7 @@ That's it. The registry handles wiring everything together automatically.
 ## Step-by-Step Guide
 
 Adding chat to a new page involves:
-1. **Backend**: Define payload types and context for the page
+1. **Backend**: Define any new payload types (if needed) and page configuration
 2. **Frontend**: Create payload handler components and wire up ChatTray
 3. **Integration**: Connect context and handlers
 
@@ -85,88 +92,136 @@ Adding chat to a new page involves:
 
 ## Backend Setup
 
-### 1. Create Page Payload Configuration
+### 1. Define Payload Types (if creating new ones)
+
+**File**: `backend/schemas/payloads.py`
+
+If your page needs new payload types, add them to the central registry:
+
+```python
+# For an LLM payload (Claude generates structured output)
+register_payload_type(PayloadType(
+    name="my_page_suggestion",
+    description="Suggestions for the user's configuration",
+    source="llm",
+    is_global=False,  # Page-specific, must be added to page config
+    parse_marker="MY_PAGE_SUGGESTION:",
+    parser=make_json_parser("my_page_suggestion"),
+    llm_instructions="""
+MY_PAGE_SUGGESTION - Use when user asks for suggestions:
+
+MY_PAGE_SUGGESTION: {
+  "suggestions": [
+    {"name": "...", "description": "...", "rationale": "..."}
+  ],
+  "confidence": "high",
+  "reasoning": "Based on..."
+}
+
+Use this when:
+- User asks "what should I add?"
+- User wants recommendations
+""",
+    schema={
+        "type": "object",
+        "properties": {
+            "suggestions": {"type": "array"},
+            "confidence": {"type": "string"},
+            "reasoning": {"type": "string"}
+        }
+    }
+))
+```
+
+**Key Points**:
+- Use `make_json_parser("payload_name")` for standard JSON parsing
+- `is_global=False` means it must be explicitly added to page/tab config
+- `llm_instructions` tells Claude exactly when and how to use this payload
+
+### 2. Create Page Configuration
 
 **File**: `backend/services/chat_page_config/{page_name}.py`
 
 ```python
 """
-Payload configurations for the {page_name} page.
-Defines all payload types and context builder this page supports.
+Chat page config for the {page_name} page.
+
+Defines context builder and tab-specific configuration.
+Payload definitions are in schemas/payloads.py.
 """
 
-import json
-import logging
 from typing import Dict, Any
-from .registry import PayloadConfig, register_page
-
-logger = logging.getLogger(__name__)
+from .registry import TabConfig, ClientAction, register_page
 
 
-def parse_example_payload(text: str) -> Dict[str, Any]:
-    """Parse EXAMPLE_PAYLOAD JSON from LLM response."""
-    try:
-        data = json.loads(text.strip())
-        return {
-            "type": "example_payload",
-            "data": data
-        }
-    except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse EXAMPLE_PAYLOAD JSON: {e}")
-        return None
-
-
-# Define payload configurations
-PAGE_PAYLOADS = [
-    PayloadConfig(
-        type="example_payload",
-        parse_marker="EXAMPLE_PAYLOAD:",
-        parser=parse_example_payload,
-        llm_instructions="""
-        EXAMPLE_PAYLOAD - Description of when to use this:
-
-        EXAMPLE_PAYLOAD: {
-          "field1": "value",
-          "field2": ["array", "values"]
-        }
-
-        Use this when:
-        - User asks for X
-        - User wants Y
-        """
-    ),
-    # Add more payload types as needed
-]
-
+# =============================================================================
+# Context Builder
+# =============================================================================
 
 def build_context(context: Dict[str, Any]) -> str:
     """Build context section for {page_name} page."""
-    # Extract relevant data from context
     entity_data = context.get("entity_data", {})
+    active_tab = context.get("active_tab", "default")
 
     return f"""The user is viewing the {page_name} page.
 
-    Current state:
-    - Entity: {entity_data.get('name', 'Unknown')}
-    - Status: {entity_data.get('status', 'Unknown')}
+Current state:
+- Entity: {entity_data.get('name', 'Unknown')}
+- Status: {entity_data.get('status', 'Unknown')}
+- Active tab: {active_tab}
 
-    CONTEXT:
-    Describe what the user can do on this page and how the chat can help.
-    """
+CONTEXT:
+Describe what the user can do on this page and how the chat can help.
+"""
 
 
-# Register page configuration on module import
-register_page("{page_name}", PAGE_PAYLOADS, build_context)
+# =============================================================================
+# Client Actions
+# =============================================================================
+
+CLIENT_ACTIONS = [
+    ClientAction(
+        action="close_chat",
+        description="Close the chat tray"
+    ),
+]
+
+
+# =============================================================================
+# Register Page
+# =============================================================================
+
+# Option A: Page with tabs (payloads vary by tab)
+register_page(
+    page="{page_name}",
+    context_builder=build_context,
+    tabs={
+        "tab1": TabConfig(
+            payloads=["my_page_suggestion", "validation_feedback"],
+        ),
+        "tab2": TabConfig(
+            payloads=["other_payload"],
+        ),
+    },
+    client_actions=CLIENT_ACTIONS
+)
+
+# Option B: Simple page without tabs (payloads available everywhere)
+register_page(
+    page="{page_name}",
+    context_builder=build_context,
+    payloads=["my_page_suggestion", "validation_feedback"],  # Page-wide payloads
+    client_actions=CLIENT_ACTIONS
+)
 ```
 
 **Key Points**:
-- Each payload needs: type, parse_marker, parser function, LLM instructions
-- Parser returns `{"type": "...", "data": {...}}` or None on error
-- LLM instructions tell Claude when and how to use this payload type
-- Context builder is a function that takes context dict and returns a formatted string
-- `register_page` registers both payloads AND context builder together
+- Reference payloads by name (they're defined in `schemas/payloads.py`)
+- Use `tabs={}` for tab-specific configurations
+- Use `payloads=[]` for page-wide payloads (available on all tabs)
+- Can combine both: page-wide + tab-specific payloads
 
-### 2. Import in Chat Page Config Package
+### 3. Import in Chat Page Config Package
 
 **File**: `backend/services/chat_page_config/__init__.py`
 
@@ -176,6 +231,25 @@ from . import {page_name}
 ```
 
 That's it! No changes needed to `chat_stream_service.py` - the registry handles everything automatically.
+
+### 4. Verify Backend Setup
+
+```bash
+python -c "
+from services.chat_page_config import has_page, get_all_payloads_for_page, get_context_builder
+
+# Verify page is registered
+assert has_page('{page_name}'), 'Page not registered'
+
+# Check payloads
+payloads = get_all_payloads_for_page('{page_name}', 'tab1')
+print('Payloads:', [p.name for p in payloads])
+
+# Check context builder
+builder = get_context_builder('{page_name}')
+print('Context builder:', builder is not None)
+"
+```
 
 ---
 
@@ -190,8 +264,13 @@ For each payload type, create a card component.
 ```typescript
 interface {PayloadType}Payload {
     // Define payload structure
-    field1: string;
-    field2: string[];
+    suggestions: Array<{
+        name: string;
+        description: string;
+        rationale: string;
+    }>;
+    confidence: string;
+    reasoning: string;
 }
 
 interface {PayloadType}CardProps {
@@ -215,14 +294,17 @@ export default function {PayloadType}Card({ payload, onAccept, onReject }: {Payl
                     {Payload Type Title}
                 </h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {Description}
+                    {payload.reasoning}
                 </p>
             </div>
 
             {/* Content */}
             <div className="bg-white dark:bg-gray-800 border rounded-lg p-4">
-                {/* Display payload data */}
-                <p>{payload.field1}</p>
+                {payload.suggestions.map((s, i) => (
+                    <div key={i} className="mb-2">
+                        <strong>{s.name}</strong>: {s.description}
+                    </div>
+                ))}
             </div>
 
             {/* Actions */}
@@ -257,24 +339,24 @@ export default function {PayloadType}Card({ payload, onAccept, onReject }: {Payl
 import { useState, useEffect } from 'react';
 import ChatTray from '../components/ChatTray';
 import {PayloadType}Card from '../components/{PayloadType}Card';
-// Import other payload cards...
 
 export default function {PageName}() {
     const [pageData, setPageData] = useState<any>(null);
+    const [activeTab, setActiveTab] = useState('tab1');
 
     // Load page data
     useEffect(() => {
         // Fetch data...
     }, []);
 
-    // Define payload handlers as named functions
-    const handleExamplePayloadAccept = (data: any) => {
-        console.log('Payload accepted:', data);
-        // Handle acceptance (e.g., update state, navigate)
+    // Define payload handlers
+    const handleSuggestionAccept = (data: any) => {
+        console.log('Suggestion accepted:', data);
+        // Handle acceptance (e.g., update state, apply changes)
     };
 
-    const handleExamplePayloadReject = () => {
-        console.log('Payload rejected');
+    const handleSuggestionReject = () => {
+        console.log('Suggestion rejected');
     };
 
     return (
@@ -286,17 +368,15 @@ export default function {PageName}() {
             <ChatTray
                 initialContext={{
                     current_page: "{page_name}",
-                    entity_type: "{entity_type}",
+                    active_tab: activeTab,  // Important for tab-based payloads
                     entity_id: pageData?.id,
-                    // Add relevant context data that updates when pageData changes
                     entity_data: {
                         name: pageData?.name,
                         status: pageData?.status,
-                        // ... other fields the backend needs
                     }
                 }}
                 payloadHandlers={{
-                    example_payload: {
+                    my_page_suggestion: {
                         render: (payload, callbacks) => (
                             <{PayloadType}Card
                                 payload={payload}
@@ -304,12 +384,12 @@ export default function {PageName}() {
                                 onReject={callbacks.onReject}
                             />
                         ),
-                        onAccept: handleExamplePayloadAccept,
-                        onReject: handleExamplePayloadReject,
+                        onAccept: handleSuggestionAccept,
+                        onReject: handleSuggestionReject,
                         renderOptions: {
                             panelWidth: '500px',
-                            headerTitle: 'Custom Title',
-                            headerIcon: '🎯'
+                            headerTitle: 'Suggestions',
+                            headerIcon: '💡'
                         }
                     },
                     // Add more payload handlers...
@@ -320,11 +400,7 @@ export default function {PageName}() {
 }
 ```
 
-**Best Practice**: Define handler functions as named functions at the component level rather than inline. This improves:
-- **Readability**: Config stays clean and scannable
-- **Debuggability**: Named functions appear in stack traces
-- **Testability**: Can unit test handlers independently
-- **Maintainability**: Logic changes don't clutter config structure
+**Important**: Pass `active_tab` in the context so the backend knows which tab-specific payloads to enable.
 
 ---
 
@@ -334,42 +410,13 @@ export default function {PageName}() {
 
 **Always include**:
 - `current_page`: Unique identifier for the page (e.g., "streams_list")
-- `entity_type`: Type of entity being viewed (e.g., "research_stream", "report")
+- `active_tab`: Which tab is currently active (if using tabs)
 
 **Include when relevant**:
 - `entity_id`: ID of specific entity being edited/viewed
 - Current form/schema values for edit pages
 - List of entities for list pages
-- Active tab/section for multi-tab pages
 - User selections or filters
-
-**Example - Edit Page**:
-```typescript
-initialContext={{
-    current_page: "edit_stream",
-    entity_type: "research_stream",
-    entity_id: stream.id,
-    current_schema: {
-        stream_name: form.stream_name,
-        purpose: form.purpose,
-        // ... other form fields
-    }
-}}
-```
-
-**Example - List Page**:
-```typescript
-initialContext={{
-    current_page: "reports_list",
-    entity_type: "reports",
-    reports: reports.map(r => ({
-        id: r.id,
-        title: r.title,
-        status: r.status,
-        created_at: r.created_at
-    }))
-}}
-```
 
 ### Context Updates
 
@@ -380,27 +427,26 @@ The ChatTray automatically updates context when `initialContext` prop changes. E
 ## Checklist
 
 ### Backend
+- [ ] Define any new payload types in `backend/schemas/payloads.py`
 - [ ] Create `backend/services/chat_page_config/{page_name}.py`
-- [ ] Define all payload types with parsers and LLM instructions
 - [ ] Define `build_context()` function for the page
-- [ ] Register page with `register_page("{page_name}", PAYLOADS, build_context)`
+- [ ] Register page with `register_page()` including tabs/payloads
 - [ ] Import module in `backend/services/chat_page_config/__init__.py`
-- [ ] Test: `python -c "from services.chat_page_config import get_page_payloads, get_page_context_builder; print(get_page_payloads('{page_name}')); print(get_page_context_builder('{page_name}'))"`
+- [ ] Verify with Python test script
 
 ### Frontend
 - [ ] Create payload card components for each payload type
 - [ ] Import ChatTray and card components in page
 - [ ] Add ChatTray to page JSX
-- [ ] Configure `initialContext` with relevant page data
+- [ ] Configure `initialContext` with relevant page data (including `active_tab`)
 - [ ] Register all `payloadHandlers` with render functions
 - [ ] Implement `onAccept` callbacks for interactive payloads
-- [ ] Set appropriate `renderOptions` (panel width, title, icon)
 - [ ] Test TypeScript compilation
 - [ ] Test with dev server
 
 ### Testing
 - [ ] Verify context is sent correctly (check network tab)
-- [ ] Verify LLM receives all payload type instructions in prompt
+- [ ] Verify correct payloads appear for each tab
 - [ ] Test each payload type generates and displays correctly
 - [ ] Test accept/reject callbacks work as expected
 - [ ] Test chat with empty state (before data loads)
@@ -410,42 +456,37 @@ The ChatTray automatically updates context when `initialContext` prop changes. E
 
 ## Example: Working Implementations
 
-**Streams List Page**:
-- Backend: `backend/services/chat_page_config/streams_list.py`
-- Frontend: `frontend/src/pages/StreamsPage.tsx`
-- Complete example with 3 payload types (suggestions, insights, quick_setup)
+**Edit Stream Page** (with tabs):
+- Payloads: `schemas/payloads.py` - schema_proposal, validation_results, retrieval_proposal, etc.
+- Config: `services/chat_page_config/edit_stream.py` - tabs for semantic, retrieval, execute
+- Frontend: `pages/EditStreamPage.tsx`
 
-**Edit Stream Page**:
-- Backend: `backend/services/chat_page_config/edit_stream.py`
-- Frontend: `frontend/src/pages/EditStreamPage.tsx`
-- Complete example with 3 payload types (schema_proposal, validation_results, import_suggestions)
-
-Key payload types to consider for common page patterns:
-
-**List Pages**: suggestions, insights, bulk_actions, filters_help
-**Edit Pages**: validation_results, field_suggestions, templates, import_options
-**Detail Pages**: analysis, recommendations, export_options, related_items
-**Dashboard Pages**: insights, trends, alerts, quick_actions
+**Streams List Page** (without tabs):
+- Payloads: `schemas/payloads.py` - stream_suggestions, portfolio_insights, quick_setup
+- Config: `services/chat_page_config/streams_list.py` - page-wide payloads
+- Frontend: `pages/StreamsPage.tsx`
 
 ---
 
-## Architecture Notes
+## Architecture Summary
 
-### Backend - Fully Modular
-- **Self-contained pages**: Each page configuration lives in `services/chat_page_config/{page_name}.py`
-- **Registry-based**: All page configurations are automatically discovered and registered
-- **Zero core changes**: Adding a new page NEVER requires modifying `chat_stream_service.py`
-- **Context builders included**: Each page defines its own context builder function
-- **Automatic routing**: The service automatically finds and uses the right context builder
+### Single Source of Truth
 
-### Frontend - Reusable Components
-- **Payload cards**: Reusable UI components for each payload type
-- **Generic ChatTray**: No page-specific logic, completely configurable
-- **Type-safe**: TypeScript interfaces ensure payload structure matches
-- **Flexible handlers**: Pages can override accept/reject behavior per payload type
+**Payloads** (`schemas/payloads.py`):
+- Complete definition including parse_marker, parser, llm_instructions
+- `is_global=True` for payloads available everywhere
+- `is_global=False` for page-specific payloads
 
-### Benefits
-- **Scalable**: Add 100 pages without bloating core services
-- **Maintainable**: Page logic stays with page configurations
-- **Testable**: Each page configuration can be tested independently
-- **Clear ownership**: One file per page contains all chat-related logic for that page
+**Tools** (`tools/registry.py`):
+- `is_global=True` (default) for tools available everywhere
+- `is_global=False` for page-specific tools
+
+### Resolution Logic
+
+Tools and payloads are resolved as: **global + page + tab**
+
+1. Start with all global tools/payloads
+2. Add page-wide tools/payloads
+3. Add tab-specific tools/payloads
+
+This means a payload defined with `is_global=False` won't appear unless explicitly added to a page or tab configuration.

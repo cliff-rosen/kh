@@ -16,6 +16,146 @@ The chat system provides an intelligent, context-aware assistant that understand
 
 ---
 
+## Core Concepts: Entity Relationships
+
+Understanding the relationship between the four core entities is key to understanding the entire system.
+
+### The Four Entities
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           DEFINITIONS                                        │
+│         (What exists - don't know about pages)                               │
+│                                                                              │
+│   ┌─────────────────────────┐      ┌─────────────────────────┐              │
+│   │      PayloadType        │      │       ToolConfig        │              │
+│   │  (schemas/payloads.py)  │      │   (tools/registry.py)   │              │
+│   ├─────────────────────────┤      ├─────────────────────────┤              │
+│   │ • name                  │      │ • name                  │              │
+│   │ • schema                │      │ • input_schema          │              │
+│   │ • is_global             │      │ • executor              │              │
+│   │ • parse_marker          │      │ • is_global             │              │
+│   │ • parser                │      │ • payload_type (ref)    │              │
+│   │ • llm_instructions      │      └─────────────────────────┘              │
+│   └─────────────────────────┘                                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │ referenced by name
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          CONFIGURATIONS                                      │
+│         (How pages use them - reference definitions by name)                 │
+│                                                                              │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                          PageConfig                                  │   │
+│   │                (chat_page_config/<page>.py)                          │   │
+│   ├─────────────────────────────────────────────────────────────────────┤   │
+│   │ • context_builder: (context) → str                                  │   │
+│   │ • payloads: ["payload_a", "payload_b"]     ← page-wide              │   │
+│   │ • tools: ["tool_x"]                        ← page-wide              │   │
+│   │ • tabs: {                                                           │   │
+│   │     "tab1": TabConfig(payloads=[...], tools=[...])                 │   │
+│   │     "tab2": TabConfig(payloads=[...], tools=[...])                 │   │
+│   │   }                                                                 │   │
+│   │ • client_actions: [...]                                             │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Principles
+
+**1. Definitions don't know about pages**
+
+PayloadType and ToolConfig are pure definitions. They describe *what* a payload or tool is, not *where* it's used. This keeps them reusable and maintainable.
+
+```python
+# PayloadType just defines the payload - no page references
+register_payload_type(PayloadType(
+    name="schema_proposal",
+    is_global=False,  # Just says "not everywhere by default"
+    parse_marker="SCHEMA_PROPOSAL:",
+    parser=make_json_parser("schema_proposal"),
+    llm_instructions="...",
+    schema={...}
+))
+```
+
+**2. Pages declare what they use**
+
+PageConfig references payloads and tools by name. This is where the connection happens.
+
+```python
+# PageConfig references payloads by name
+register_page(
+    page="edit_stream",
+    payloads=["schema_proposal"],  # ← references the PayloadType by name
+    tabs={
+        "semantic": TabConfig(payloads=["validation_results"]),
+    }
+)
+```
+
+**3. The `is_global` flag controls defaults**
+
+| `is_global` | Meaning |
+|-------------|---------|
+| `True` | Automatically available on ALL pages (no config needed) |
+| `False` | Only available when explicitly added to a page/tab config |
+
+Most tools are `is_global=True` (useful everywhere). Most LLM payloads are `is_global=False` (page-specific).
+
+**4. Resolution is always: global + page + tab**
+
+When the system needs to know what tools/payloads are available for a request:
+
+```
+Available = (all where is_global=True)
+          + (page-wide from PageConfig)
+          + (tab-specific from TabConfig)
+```
+
+### Visual Summary
+
+```
+                    ┌──────────────────┐
+                    │  User on page    │
+                    │  "edit_stream"   │
+                    │  tab: "semantic" │
+                    └────────┬─────────┘
+                             │
+                             ▼
+        ┌────────────────────────────────────────┐
+        │           RESOLUTION                    │
+        │                                         │
+        │  Tools = global tools                   │
+        │        + page tools                     │
+        │        + tab tools                      │
+        │                                         │
+        │  Payloads = global payloads             │
+        │           + page payloads               │
+        │           + tab payloads                │
+        └────────────────────────────────────────┘
+                             │
+                             ▼
+        ┌────────────────────────────────────────┐
+        │  System prompt includes:                │
+        │  • Context from context_builder         │
+        │  • Instructions for each payload        │
+        │  • Tool definitions for Anthropic API   │
+        └────────────────────────────────────────┘
+```
+
+### Where Things Live
+
+| Entity | File | Purpose |
+|--------|------|---------|
+| **PayloadType** | `schemas/payloads.py` | Single source of truth for all payload definitions |
+| **ToolConfig** | `tools/registry.py` | Single source of truth for all tool definitions |
+| **PageConfig** | `chat_page_config/<page>.py` | Per-page configuration that references payloads/tools |
+| **TabConfig** | (within PageConfig) | Tab-specific subset of payloads/tools |
+
+---
+
 ## 1. Page Context System
 
 The chat adapts to the user's current location in the app. This is the foundation that makes the assistant useful.
@@ -36,30 +176,33 @@ interface ChatContext {
 
 Each page can register:
 1. **Context Builder** - A function that generates page-specific LLM instructions
-2. **Page Payloads** - Structured outputs the LLM can produce on this page
-3. **Client Actions** - What actions the UI can handle from this page
+2. **Tabs** - Tab-specific tools and payloads
+3. **Page-wide Payloads/Tools** - Available on all tabs
+4. **Client Actions** - What actions the UI can handle from this page
 
 ```python
-# backend/services/chat_page_config/streams.py
+# backend/services/chat_page_config/edit_stream.py
 
-def build_streams_context(context: Dict[str, Any]) -> str:
-    stream_id = context.get("stream_id")
-    if stream_id:
-        stream = get_stream(stream_id)
-        return f"""
-        The user is viewing stream "{stream.name}".
-        Purpose: {stream.purpose}
-        Topics: {stream.topics}
-
-        Help them refine their stream configuration or understand their articles.
-        """
-    return "The user is on the streams list page."
+def build_context(context: Dict[str, Any]) -> str:
+    active_tab = context.get("active_tab", "semantic")
+    current_schema = context.get("current_schema", {})
+    # ... build page-specific context for the LLM
 
 register_page(
-    page="streams",
-    context_builder=build_streams_context,
-    payloads=[...],
-    client_actions=[...]
+    page="edit_research_stream",
+    context_builder=build_context,
+    tabs={
+        "semantic": TabConfig(
+            payloads=["schema_proposal", "validation_results"],
+        ),
+        "retrieval": TabConfig(
+            payloads=["retrieval_proposal"],
+        ),
+        "execute": TabConfig(
+            payloads=["query_suggestion", "filter_suggestion"],
+        ),
+    },
+    client_actions=CLIENT_ACTIONS
 )
 ```
 
@@ -68,14 +211,21 @@ register_page(
 | File | Purpose |
 |------|---------|
 | `backend/services/chat_page_config/registry.py` | Page registration framework |
-| `backend/services/chat_page_config/<page>.py` | Per-page context and payload configs |
+| `backend/services/chat_page_config/<page>.py` | Per-page context and config |
 | `backend/services/chat_stream_service.py` | Assembles full system prompt with context |
 
 ---
 
 ## 2. Tool System
 
-The LLM can call tools to perform actions and retrieve information. Tools are globally available regardless of which page the chat is on.
+The LLM can call tools to perform actions and retrieve information. Tools can be **global** (available on all pages) or **page/tab-specific**.
+
+### Tool Scope
+
+| Scope | `is_global` | Example |
+|-------|-------------|---------|
+| Global | `True` (default) | `search_pubmed` - useful anywhere |
+| Page-specific | `False` | `compare_reports` - only when added to page config |
 
 ### Tool Registration
 
@@ -95,8 +245,36 @@ register_tool(ToolConfig(
     },
     executor=execute_search_pubmed,
     category="research",
-    payload_type="pubmed_search_results"  # What structured data this tool returns
+    payload_type="pubmed_search_results",  # What structured data this tool returns
+    is_global=True  # Available on all pages (default)
 ))
+
+# Non-global tool (must be explicitly added to page config)
+register_tool(ToolConfig(
+    name="compare_reports",
+    description="Compare two reports to see changes",
+    input_schema={...},
+    executor=execute_compare_reports,
+    is_global=False  # Must be added to page/tab config
+))
+```
+
+### Tool Resolution
+
+Tools are resolved as: **global tools + page tools + tab tools**
+
+```python
+# In page config, add non-global tools to specific pages/tabs
+register_page(
+    page="reports",
+    context_builder=build_context,
+    tools=["compare_reports"],  # Page-wide tools
+    tabs={
+        "analysis": TabConfig(
+            tools=["run_analysis"],  # Tab-specific tools
+        ),
+    }
+)
 ```
 
 ### Tool Execution Flow
@@ -135,9 +313,76 @@ def execute_long_search(params, db, user_id, context):
 
 ## 3. Rich Payloads
 
-Beyond plain text, the chat can display structured data as interactive UI components. Payloads can come from either tools or the LLM itself.
+Beyond plain text, the chat can display structured data as interactive UI components. Payloads can come from either tools or the LLM itself, and can be **global** or **page/tab-specific**.
 
-### Payload Sources
+### Payload Sources and Scope
+
+| Source | `is_global` | Example |
+|--------|-------------|---------|
+| Tool | `True` | `pubmed_search_results` (global tool payload) |
+| LLM | `True` | A help card that could appear on any page |
+| LLM | `False` | `schema_proposal` (only on stream editing pages) |
+
+### Central Payload Registry (Single Source of Truth)
+
+All payloads are defined in `schemas/payloads.py`. This is the **single source of truth** for:
+- Type name and description
+- JSON schema for validation
+- Source: "tool" or "llm"
+- Scope: `is_global=True` for global, `is_global=False` for page-specific
+- For LLM payloads: parse_marker, parser, and llm_instructions
+
+```python
+# backend/schemas/payloads.py
+
+# Global tool payload
+register_payload_type(PayloadType(
+    name="pubmed_search_results",
+    description="Results from a PubMed search query",
+    source="tool",
+    is_global=True,  # Available on all pages
+    schema={...}
+))
+
+# Page-specific LLM payload (complete definition in one place)
+register_payload_type(PayloadType(
+    name="schema_proposal",
+    description="Proposed changes to a research stream schema",
+    source="llm",
+    is_global=False,  # Must be added to page/tab config
+    parse_marker="SCHEMA_PROPOSAL:",
+    parser=make_json_parser("schema_proposal"),
+    llm_instructions="""
+SCHEMA_PROPOSAL - Use when user asks for recommendations:
+
+SCHEMA_PROPOSAL: {
+  "proposed_changes": {...},
+  "confidence": "high",
+  "reasoning": "..."
+}
+""",
+    schema={...}
+))
+```
+
+### Payload Resolution
+
+Payloads are resolved as: **global payloads + page payloads + tab payloads**
+
+```python
+# In page config, reference payloads by name
+register_page(
+    page="edit_research_stream",
+    context_builder=build_context,
+    tabs={
+        "semantic": TabConfig(
+            payloads=["schema_proposal", "validation_results"],
+        ),
+    }
+)
+```
+
+### Tool Payloads vs LLM Payloads
 
 **Tool Payloads**: Tools return structured data alongside text
 ```python
@@ -180,37 +425,12 @@ registerPayloadHandler('schema_proposal', {
 });
 ```
 
-### Central Payload Registry
-
-Payload types are defined centrally in `schemas/payloads.py`. This is the single source of truth for:
-- Type name and description
-- JSON schema for validation
-- Whether the source is "tool" or "llm"
-
-```python
-# backend/schemas/payloads.py
-
-register_payload_type(PayloadType(
-    name="pubmed_search_results",
-    description="Results from a PubMed search query",
-    source="tool",
-    schema={
-        "type": "object",
-        "properties": {
-            "query": {"type": "string"},
-            "articles": {"type": "array", "items": {...}}
-        },
-        "required": ["query", "articles"]
-    }
-))
-```
-
 ### Key Files
 
 | File | Purpose |
 |------|---------|
-| `backend/schemas/payloads.py` | Central payload type registry |
-| `backend/services/chat_page_config/<page>.py` | LLM payload configs per page |
+| `backend/schemas/payloads.py` | Central payload type registry (SINGLE SOURCE OF TRUTH) |
+| `backend/services/chat_page_config/<page>.py` | Page configs that reference payloads by name |
 | `frontend/src/lib/chat/payloadRegistry.ts` | Frontend handler registry |
 | `frontend/src/lib/chat/payloads.ts` | Handler registrations |
 
@@ -325,7 +545,7 @@ Conversations are saved to the database for continuity across sessions.
 | **Agent** | `agents/agent_loop.py` | Tool execution loop |
 | **Tools** | `tools/registry.py` | Tool registration |
 | **Tools** | `tools/builtin/*.py` | Tool implementations |
-| **Payloads** | `schemas/payloads.py` | Central payload type registry |
+| **Payloads** | `schemas/payloads.py` | Central payload type registry (single source of truth) |
 | **Page Config** | `services/chat_page_config/registry.py` | Page registration framework |
 | **Page Config** | `services/chat_page_config/<page>.py` | Per-page configs |
 | **Frontend** | `lib/chat/payloadRegistry.ts` | Payload handler registry |

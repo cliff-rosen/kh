@@ -1,156 +1,17 @@
 """
-Payload configurations for the new_stream page.
-Defines all payload types and context builder for creating new research streams.
+Chat page config for the new_stream page.
+
+Defines context builder and tab-specific configuration for creating new research streams.
+Payload definitions (including parsers and LLM instructions) are in schemas/payloads.py.
 """
 
-import json
-import logging
 from typing import Dict, Any
-from .registry import PayloadConfig, register_page
-
-logger = logging.getLogger(__name__)
+from .registry import TabConfig, ClientAction, register_page
 
 
-def parse_stream_template(text: str) -> Dict[str, Any]:
-    """Parse STREAM_TEMPLATE JSON from LLM response."""
-    try:
-        data = json.loads(text.strip())
-        return {
-            "type": "stream_template",
-            "data": data
-        }
-    except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse STREAM_TEMPLATE JSON: {e}")
-        return None
-
-
-def parse_topic_suggestions(text: str) -> Dict[str, Any]:
-    """Parse TOPIC_SUGGESTIONS JSON from LLM response."""
-    try:
-        data = json.loads(text.strip())
-        return {
-            "type": "topic_suggestions",
-            "data": data
-        }
-    except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse TOPIC_SUGGESTIONS JSON: {e}")
-        return None
-
-
-def parse_validation_feedback(text: str) -> Dict[str, Any]:
-    """Parse VALIDATION_FEEDBACK JSON from LLM response."""
-    try:
-        data = json.loads(text.strip())
-        return {
-            "type": "validation_feedback",
-            "data": data
-        }
-    except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse VALIDATION_FEEDBACK JSON: {e}")
-        return None
-
-
-# Define payload configurations
-NEW_STREAM_PAYLOADS = [
-    PayloadConfig(
-        type="stream_template",
-        parse_marker="STREAM_TEMPLATE:",
-        parser=parse_stream_template,
-        llm_instructions="""
-        STREAM_TEMPLATE - Suggest a complete research stream configuration:
-
-        STREAM_TEMPLATE: {
-          "stream_name": "string",
-          "domain": {
-            "name": "string",
-            "description": "string"
-          },
-          "topics": [
-            {
-              "name": "string",
-              "description": "string",
-              "importance": "high" | "medium" | "low",
-              "rationale": "string (why this topic is important)"
-            }
-          ],
-          "entities": [
-            {
-              "name": "string",
-              "type": "disease" | "substance" | "chemical" | "organization" | "regulation" | "standard" | "methodology" | "biomarker" | "geographic" | "population" | "drug" | "gene" | "protein" | "pathway" | "therapy" | "device",
-              "description": "string",
-              "importance": "high" | "medium" | "low"
-            }
-          ],
-          "business_context": "string",
-          "confidence": "high" | "medium" | "low",
-          "reasoning": "string"
-        }
-
-        Use this when:
-        - User asks "help me create a stream for X"
-        - User describes what they want to monitor
-        - User asks "what would a good stream look like for X"
-        - User wants a complete setup suggestion
-        """
-    ),
-    PayloadConfig(
-        type="topic_suggestions",
-        parse_marker="TOPIC_SUGGESTIONS:",
-        parser=parse_topic_suggestions,
-        llm_instructions="""
-        TOPIC_SUGGESTIONS - Suggest topics for the research stream:
-
-        TOPIC_SUGGESTIONS: {
-          "suggestions": [
-            {
-              "name": "string",
-              "description": "string",
-              "importance": "high" | "medium" | "low",
-              "rationale": "string"
-            }
-          ],
-          "based_on": "string describing what the suggestions are based on"
-        }
-
-        Use this when:
-        - User asks "what topics should I include"
-        - User mentions a domain and needs topic ideas
-        - User asks "what else should I cover"
-        - User describes business context and needs relevant topics
-        """
-    ),
-    PayloadConfig(
-        type="validation_feedback",
-        parse_marker="VALIDATION_FEEDBACK:",
-        parser=parse_validation_feedback,
-        llm_instructions="""
-        VALIDATION_FEEDBACK - Provide validation and improvement suggestions:
-
-        VALIDATION_FEEDBACK: {
-          "issues": [
-            {
-              "field": "string (field path like 'stream_name' or 'domain.description')",
-              "severity": "error" | "warning" | "suggestion",
-              "message": "string describing the issue",
-              "suggestion": "string with improvement recommendation"
-            }
-          ],
-          "strengths": [
-            "string describing what's good about the current setup"
-          ],
-          "overall_assessment": "string with overall quality assessment"
-        }
-
-        Use this when:
-        - User asks "does this look good"
-        - User asks "what am I missing"
-        - User wants feedback on their configuration
-        - User asks "how can I improve this"
-        - User wants validation before submitting
-        """
-    )
-]
-
+# =============================================================================
+# Context Builder
+# =============================================================================
 
 def build_context(context: Dict[str, Any]) -> str:
     """Build context section for new_stream page."""
@@ -233,5 +94,25 @@ questions when needed to provide better recommendations.
     return "\n".join(context_parts)
 
 
-# Register page configuration on module import
-register_page("new_stream", NEW_STREAM_PAYLOADS, build_context)
+# =============================================================================
+# Client Actions
+# =============================================================================
+
+CLIENT_ACTIONS = [
+    ClientAction(
+        action="close_chat",
+        description="Close the chat tray"
+    ),
+]
+
+
+# =============================================================================
+# Register Page
+# =============================================================================
+
+register_page(
+    page="new_stream",
+    context_builder=build_context,
+    payloads=["stream_template", "topic_suggestions", "validation_feedback"],
+    client_actions=CLIENT_ACTIONS
+)

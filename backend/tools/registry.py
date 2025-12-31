@@ -1,8 +1,14 @@
 """
-Global Tool Registry
+Tool Registry
 
 Provides tool configuration and registration for the chat system.
-Tools are globally available regardless of which page the chat is on.
+
+Tools can be:
+- Global (is_global=True): Automatically available on all pages (default)
+- Non-global (is_global=False): Must be explicitly added to a page config
+
+Pages declare which additional tools they use via their TabConfig.
+The resolution is: global tools + page-declared tools + tab-declared tools.
 
 Supports streaming tools that yield ToolProgress updates before returning ToolResult.
 
@@ -43,6 +49,7 @@ class ToolConfig:
     streaming: bool = False             # If True, executor yields ToolProgress before returning ToolResult
     category: str = "general"           # Tool category for organization
     payload_type: Optional[str] = None  # Payload type from schemas/payloads.py (e.g., "pubmed_search_results")
+    is_global: bool = True              # If True, available on all pages by default
 
 
 # =============================================================================
@@ -67,23 +74,87 @@ def get_all_tools() -> List[ToolConfig]:
     return list(_tool_registry.values())
 
 
+def get_global_tools() -> List[ToolConfig]:
+    """Get all global tools (is_global=True)."""
+    return [t for t in _tool_registry.values() if t.is_global]
+
+
+def get_tools_by_names(names: List[str]) -> List[ToolConfig]:
+    """Get tools by a list of names."""
+    return [_tool_registry[name] for name in names if name in _tool_registry]
+
+
 def get_tools_by_category(category: str) -> List[ToolConfig]:
     """Get all tools in a specific category."""
     return [t for t in _tool_registry.values() if t.category == category]
 
 
-def get_tools_for_anthropic() -> List[Dict[str, Any]]:
-    """Get all tools in Anthropic API format."""
+def get_tools_dict() -> Dict[str, ToolConfig]:
+    """Get all tools as a dict mapping name to config."""
+    return dict(_tool_registry)
+
+
+# =============================================================================
+# Anthropic API Format Helpers
+# =============================================================================
+
+def tools_to_anthropic_format(tools: List[ToolConfig]) -> List[Dict[str, Any]]:
+    """Convert a list of tools to Anthropic API format."""
     return [
         {
             "name": tool.name,
             "description": tool.description,
             "input_schema": tool.input_schema
         }
-        for tool in _tool_registry.values()
+        for tool in tools
     ]
 
 
-def get_tools_dict() -> Dict[str, ToolConfig]:
-    """Get all tools as a dict mapping name to config."""
-    return dict(_tool_registry)
+def tools_to_dict(tools: List[ToolConfig]) -> Dict[str, ToolConfig]:
+    """Convert a list of tools to a dict mapping name to config."""
+    return {t.name: t for t in tools}
+
+
+# =============================================================================
+# Page-Aware Resolution Functions
+# =============================================================================
+
+def get_tools_for_page(page: str, tab: Optional[str] = None) -> List[ToolConfig]:
+    """
+    Get all tools for a page and optional tab.
+
+    Returns: global tools + page tools + tab tools (via page config registry)
+    """
+    from services.chat_page_config import get_tool_names_for_page_tab
+
+    # Start with global tools
+    tools = get_global_tools()
+
+    # Get page/tab-specific tool names from page config
+    page_tool_names = get_tool_names_for_page_tab(page, tab)
+
+    # Add those tools (avoid duplicates)
+    global_names = {t.name for t in tools}
+    for name in page_tool_names:
+        if name not in global_names and name in _tool_registry:
+            tools.append(_tool_registry[name])
+
+    return tools
+
+
+def get_tools_for_page_dict(page: str, tab: Optional[str] = None) -> Dict[str, ToolConfig]:
+    """
+    Get all tools for a page as a dict mapping name to config.
+
+    Returns: global tools + page tools + tab tools
+    """
+    return tools_to_dict(get_tools_for_page(page, tab))
+
+
+def get_tools_for_anthropic(page: str, tab: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Get tools in Anthropic API format for a page.
+
+    Returns: global tools + page tools + tab tools in Anthropic format
+    """
+    return tools_to_anthropic_format(get_tools_for_page(page, tab))

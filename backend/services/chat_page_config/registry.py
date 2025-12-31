@@ -1,124 +1,132 @@
 """
 Chat Page Config Registry
 
-Defines page-specific configurations for the chat system. Each page can register:
+Defines page-specific configurations for the chat system. Each page registers:
 - Context builder: Function that builds page-specific instructions for the LLM
-- PayloadConfig: Defines structured outputs the LLM can produce on this page
-- ClientAction: Defines available client-side actions for this page
+- Tabs: Tab-specific tools and payloads
+- Page-wide tools/payloads: Available on all tabs of the page
+- Client actions: Available client-side actions
 
-Note: Tools are registered separately via backend/tools/registry.py
-Payloads can come from either LLM output (parsed here) or tools (via ToolResult).
+Tools and payloads are defined in their respective registries:
+- tools/registry.py - Tool definitions
+- schemas/payloads.py - Payload definitions
 
-Payload types and schemas are defined centrally in schemas/payloads.py.
-Both tools and LLM configs reference payload types by name.
+Pages reference tools and payloads BY NAME. Resolution logic:
+- Tools for page+tab = global tools + page tools + tab tools
+- Payloads for page+tab = global payloads + page payloads + tab payloads
 """
 
 from typing import Dict, List, Any, Callable, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
-class PayloadConfig:
-    """
-    Configuration for a payload type that the LLM can output.
-
-    The LLM is instructed (via llm_instructions) to output a marker followed by JSON.
-    The backend looks for parse_marker in the response and uses parser to extract it.
-
-    The `type` field should match a payload type registered in schemas/payloads.py.
-    """
-    type: str  # Must match a type in schemas/payloads.py (e.g., "schema_proposal")
-    parse_marker: str  # What to look for in LLM response, e.g., "SCHEMA_PROPOSAL:"
-    llm_instructions: str  # Instructions for LLM on when/how to use this payload
-    parser: Callable[[str], Dict[str, Any]]  # Function to parse JSON into {type, data}
-    relevant_tabs: Optional[List[str]] = None  # Which tabs this payload is relevant for (None = all)
+class TabConfig:
+    """Configuration for a specific tab within a page."""
+    payloads: List[str] = field(default_factory=list)  # Payload names for this tab
+    tools: List[str] = field(default_factory=list)      # Tool names for this tab
 
 
 @dataclass
 class ClientAction:
     """Definition of a client-side action that the LLM can suggest."""
-    action: str  # Action identifier (e.g., "close_chat", "navigate_to_tab")
-    description: str  # What this action does
-    parameters: Optional[List[str]] = None  # Expected parameters (e.g., ["tab_name"])
+    action: str                             # Action identifier (e.g., "close_chat")
+    description: str                        # What this action does
+    parameters: Optional[List[str]] = None  # Expected parameters
 
 
 @dataclass
 class PageConfig:
-    """Configuration for a page including payloads, context builder, and client actions."""
-    payloads: List[PayloadConfig]
+    """Configuration for a page including tabs, payloads, tools, and context."""
     context_builder: Callable[[Dict[str, Any]], str]
-    client_actions: Optional[List[ClientAction]] = None
+    tabs: Dict[str, TabConfig] = field(default_factory=dict)  # Tab-specific config
+    payloads: List[str] = field(default_factory=list)         # Page-wide payloads
+    tools: List[str] = field(default_factory=list)            # Page-wide tools
+    client_actions: List[ClientAction] = field(default_factory=list)
 
 
-class PayloadRegistry:
-    """Central registry mapping pages to their payload and context configurations."""
+# =============================================================================
+# Registry
+# =============================================================================
 
-    def __init__(self):
-        self._registry: Dict[str, PageConfig] = {}
-
-    def register_page(
-        self,
-        page: str,
-        payloads: List[PayloadConfig],
-        context_builder: Callable[[Dict[str, Any]], str],
-        client_actions: Optional[List[ClientAction]] = None
-    ):
-        """Register page configuration."""
-        self._registry[page] = PageConfig(
-            payloads=payloads,
-            context_builder=context_builder,
-            client_actions=client_actions or []
-        )
-
-    def get_payloads(self, page: str) -> List[PayloadConfig]:
-        """Get all payload configurations for a page."""
-        page_config = self._registry.get(page)
-        return page_config.payloads if page_config else []
-
-    def get_context_builder(self, page: str) -> Optional[Callable[[Dict[str, Any]], str]]:
-        """Get the context builder function for a page."""
-        page_config = self._registry.get(page)
-        return page_config.context_builder if page_config else None
-
-    def get_client_actions(self, page: str) -> List[ClientAction]:
-        """Get all client actions for a page."""
-        page_config = self._registry.get(page)
-        return page_config.client_actions if page_config else []
-
-    def has_page(self, page: str) -> bool:
-        """Check if a page is registered."""
-        return page in self._registry
-
-
-# Global registry instance
-_payload_registry = PayloadRegistry()
+_page_registry: Dict[str, PageConfig] = {}
 
 
 def register_page(
     page: str,
-    payloads: List[PayloadConfig],
     context_builder: Callable[[Dict[str, Any]], str],
+    tabs: Optional[Dict[str, TabConfig]] = None,
+    payloads: Optional[List[str]] = None,
+    tools: Optional[List[str]] = None,
     client_actions: Optional[List[ClientAction]] = None
-):
-    """Register page configuration including payloads, context builder, and client actions."""
-    _payload_registry.register_page(page, payloads, context_builder, client_actions)
+) -> None:
+    """Register a page configuration."""
+    _page_registry[page] = PageConfig(
+        context_builder=context_builder,
+        tabs=tabs or {},
+        payloads=payloads or [],
+        tools=tools or [],
+        client_actions=client_actions or []
+    )
 
 
-def get_page_payloads(page: str) -> List[PayloadConfig]:
-    """Get all payload configurations for a page."""
-    return _payload_registry.get_payloads(page)
+def get_page_config(page: str) -> Optional[PageConfig]:
+    """Get the full configuration for a page."""
+    return _page_registry.get(page)
 
 
-def get_page_context_builder(page: str) -> Optional[Callable[[Dict[str, Any]], str]]:
-    """Get the context builder function for a page."""
-    return _payload_registry.get_context_builder(page)
-
-
-def get_page_client_actions(page: str) -> List[ClientAction]:
-    """Get all client actions for a page."""
-    return _payload_registry.get_client_actions(page)
-
-
-def has_page_payloads(page: str) -> bool:
+def has_page(page: str) -> bool:
     """Check if a page is registered."""
-    return _payload_registry.has_page(page)
+    return page in _page_registry
+
+
+# =============================================================================
+# Resolution Functions
+# =============================================================================
+
+def get_tool_names_for_page_tab(page: str, tab: Optional[str] = None) -> List[str]:
+    """
+    Get tool names for a page and optional tab.
+    Returns: page-wide tools + tab-specific tools (if tab provided)
+    Note: Caller should combine with global tools.
+    """
+    config = _page_registry.get(page)
+    if not config:
+        return []
+
+    tools = list(config.tools)  # Page-wide tools
+
+    if tab and tab in config.tabs:
+        tools.extend(config.tabs[tab].tools)
+
+    return tools
+
+
+def get_payload_names_for_page_tab(page: str, tab: Optional[str] = None) -> List[str]:
+    """
+    Get payload names for a page and optional tab.
+    Returns: page-wide payloads + tab-specific payloads (if tab provided)
+    Note: Caller should combine with global payloads.
+    """
+    config = _page_registry.get(page)
+    if not config:
+        return []
+
+    payloads = list(config.payloads)  # Page-wide payloads
+
+    if tab and tab in config.tabs:
+        payloads.extend(config.tabs[tab].payloads)
+
+    return payloads
+
+
+def get_context_builder(page: str) -> Optional[Callable[[Dict[str, Any]], str]]:
+    """Get the context builder function for a page."""
+    config = _page_registry.get(page)
+    return config.context_builder if config else None
+
+
+def get_client_actions(page: str) -> List[ClientAction]:
+    """Get all client actions for a page."""
+    config = _page_registry.get(page)
+    return config.client_actions if config else []

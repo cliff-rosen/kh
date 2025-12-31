@@ -22,12 +22,12 @@ from schemas.chat import (
     ErrorEvent,
 )
 from services.chat_page_config import (
-    get_page_payloads,
-    get_page_context_builder,
-    get_page_client_actions,
+    get_context_builder,
+    get_client_actions,
     has_page_payloads,
+    get_all_payloads_for_page,
 )
-from tools import get_tools_dict
+from tools.registry import get_tools_for_page_dict
 from agents.agent_loop import (
     run_agent_loop,
     CancellationToken,
@@ -87,8 +87,10 @@ class ChatStreamService:
             system_prompt = self._build_system_prompt(request.context)
             messages = self._build_messages(request)
 
-            # Get tools
-            tools_by_name = get_tools_dict()
+            # Get tools for this page and tab (global + page + tab-specific)
+            current_page = request.context.get("current_page", "unknown")
+            active_tab = request.context.get("active_tab")
+            tools_by_name = get_tools_for_page_dict(current_page, active_tab)
 
             # Send initial status
             yield StatusEvent(message="Thinking...").model_dump_json()
@@ -287,23 +289,17 @@ class ChatStreamService:
         stream_instructions: str = ""
     ) -> str:
         """Build system prompt for pages with registered payload types."""
-        all_payload_configs = get_page_payloads(current_page)
-
-        # Filter by active tab if present
+        # Get all payloads for this page and tab (global + page + tab)
         active_tab = context.get("active_tab")
-        if active_tab:
-            payload_configs = [
-                c for c in all_payload_configs
-                if c.relevant_tabs is None or active_tab in c.relevant_tabs
-            ]
-        else:
-            payload_configs = all_payload_configs
+        payload_configs = get_all_payloads_for_page(current_page, active_tab)
 
         page_context = self._build_page_context(current_page, context)
-        payload_instructions = "\n\n".join([c.llm_instructions for c in payload_configs])
+        payload_instructions = "\n\n".join([
+            c.llm_instructions for c in payload_configs if c.llm_instructions
+        ])
 
         # Build client actions section
-        client_actions = get_page_client_actions(current_page)
+        client_actions = get_client_actions(current_page)
         client_actions_text = ""
         if client_actions:
             actions_list = "\n".join([
@@ -361,7 +357,7 @@ class ChatStreamService:
 
     def _build_page_context(self, current_page: str, context: Dict[str, Any]) -> str:
         """Build page-specific context section of the prompt."""
-        context_builder = get_page_context_builder(current_page)
+        context_builder = get_context_builder(current_page)
 
         if context_builder:
             base_context = context_builder(context)
@@ -609,7 +605,8 @@ class ChatStreamService:
             "custom_payload": None
         }
 
-        payload_configs = get_page_payloads(current_page)
+        # Get all payloads for this page (global + page-specific)
+        payload_configs = get_all_payloads_for_page(current_page)
         if not payload_configs:
             return result
 
