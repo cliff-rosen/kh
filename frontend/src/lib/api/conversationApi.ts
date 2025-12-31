@@ -4,11 +4,13 @@
 
 import { api } from './index';
 
+// === Types ===
+
 export interface Message {
     id: number;
     role: 'user' | 'assistant' | 'system';
     content: string;
-    context?: Record<string, any>;
+    context?: Record<string, unknown>;
     created_at: string;
 }
 
@@ -23,25 +25,9 @@ export interface ConversationWithMessages extends Conversation {
     messages: Message[];
 }
 
-export interface CreateConversationRequest {
-    title?: string;
-}
-
-export interface AddMessageRequest {
-    role: 'user' | 'assistant' | 'system';
-    content: string;
-    context?: Record<string, any>;
-}
+// === API ===
 
 export const conversationApi = {
-    /**
-     * Create a new conversation
-     */
-    async createConversation(title?: string): Promise<Conversation> {
-        const response = await api.post('/api/conversations', { title });
-        return response.data;
-    },
-
     /**
      * List user's conversations
      */
@@ -59,27 +45,4 @@ export const conversationApi = {
         const response = await api.get(`/api/conversations/${conversationId}`);
         return response.data;
     },
-
-    /**
-     * Update conversation title
-     */
-    async updateTitle(conversationId: number, title: string): Promise<Conversation> {
-        const response = await api.patch(`/api/conversations/${conversationId}`, { title });
-        return response.data;
-    },
-
-    /**
-     * Delete a conversation
-     */
-    async deleteConversation(conversationId: number): Promise<void> {
-        await api.delete(`/api/conversations/${conversationId}`);
-    },
-
-    /**
-     * Add a message to a conversation
-     */
-    async addMessage(conversationId: number, message: AddMessageRequest): Promise<Message> {
-        const response = await api.post(`/api/conversations/${conversationId}/messages`, message);
-        return response.data;
-    }
 };
