@@ -19,7 +19,6 @@ from .user import (
 # LLM schemas (for LLM interactions)
 from .llm import (
     MessageRole as LLMMessageRole,
-    AssetReference,
     ChatMessage,
 )
 
@@ -49,7 +48,6 @@ __all__ = [
 
     # LLM schemas (for LLM interactions)
     'LLMMessageRole',
-    'AssetReference',
     'ChatMessage',
 
     # Chat schemas (for user-facing chat)

@@ -1,7 +1,8 @@
 """
-RAVE (Recursive Agent for Verified Explanations) Agents Package
+Agents Package
 
-This package contains the implementation of the RAVE agent system, which uses
-a recursive approach to generate, verify, and improve responses to user queries.
+Contains the agentic loop and prompt callers for LLM interactions.
+
+- agent_loop: Core agentic loop with tool support (used by GeneralChatService)
+- prompts/: LLM prompt callers (BasePromptCaller, answer generators, etc.)
 """
-

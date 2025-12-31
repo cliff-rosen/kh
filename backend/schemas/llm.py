@@ -35,15 +35,3 @@ class LLMMessage(BaseModel):
 
 # Backwards compatibility alias
 ChatMessage = LLMMessage
-
-
-class AssetReference(BaseModel):
-    """Lightweight asset reference for LLM requests"""
-    id: str = Field(description="Unique identifier for the asset")
-    name: str = Field(description="Name of the asset")
-    description: str = Field(description="Description of the asset")
-    type: str = Field(description="Type of the asset")
-    metadata: Optional[Dict[str, Any]] = Field(
-        default_factory=dict,
-        description="Optional metadata for the asset"
-    )

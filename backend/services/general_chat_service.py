@@ -31,7 +31,7 @@ from services.chat_payloads import (
 )
 # Import global tool registry
 from tools import get_all_tools, get_tools_dict
-from services.agent_loop import (
+from agents.agent_loop import (
     run_agent_loop,
     CancellationToken,
     AgentThinking,
