@@ -170,6 +170,7 @@ export default function ReportsPage() {
                         setError('no_reports');
                     } else {
                         setError('error');
+                        showErrorToast(err, 'Failed to load reports');
                     }
                 } finally {
                     setLoadingReports(false);
@@ -433,6 +434,22 @@ export default function ReportsPage() {
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
                     <p className="text-gray-600 dark:text-gray-400">Loading reports...</p>
+                </div>
+            ) : error === 'error' ? (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
+                    <div className="text-red-500 text-5xl mb-4">⚠️</div>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                        Unable to Load Reports
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-400 mb-6">
+                        We couldn't connect to the server. Please check your connection and try again.
+                    </p>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                        Retry
+                    </button>
                 </div>
             ) : error === 'no_reports' || reports.length === 0 ? (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">

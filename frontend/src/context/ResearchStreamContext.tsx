@@ -5,6 +5,7 @@ import {
     ResearchStreamUpdateRequest,
     handleApiError
 } from '../lib/api';
+import { showErrorToast } from '../lib/errorToast';
 import { ResearchStream, InformationSource } from '../types';
 
 interface ResearchStreamContextType {
@@ -55,7 +56,9 @@ export function ResearchStreamProvider({ children }: ResearchStreamProviderProps
             const streams = await researchStreamApi.getResearchStreams();
             setResearchStreams(streams);
         } catch (err) {
-            setError(handleApiError(err));
+            const errorMsg = handleApiError(err);
+            setError(errorMsg);
+            showErrorToast(errorMsg, 'Failed to load streams');
         } finally {
             setIsLoading(false);
         }
