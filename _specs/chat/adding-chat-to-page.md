@@ -13,7 +13,7 @@ The chat system has just a few key touchpoints. Understanding these makes the wh
 │                              BACKEND                                     │
 │                                                                          │
 │  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │  chat_payloads/{page_name}.py                                    │    │
+│  │  chat_page_config/{page_name}.py                                  │    │
 │  │                                                                   │    │
 │  │  1. LLM Instructions  ─────────►  Tells Claude WHEN and HOW      │    │
 │  │     (in PayloadConfig)            to generate each payload type   │    │
@@ -26,7 +26,7 @@ The chat system has just a few key touchpoints. Understanding these makes the wh
 │  └─────────────────────────────────────────────────────────────────┘    │
 │                                      │                                   │
 │                                      ▼                                   │
-│                        general_chat_service.py                           │
+│                        chat_stream_service.py                            │
 │                     (automatically uses registry)                        │
 │                                      │                                   │
 └──────────────────────────────────────│───────────────────────────────────┘
@@ -67,7 +67,7 @@ The chat system has just a few key touchpoints. Understanding these makes the wh
 
 ### Key Files
 
-- **Backend**: `backend/services/chat_payloads/{page_name}.py` - One file per page, contains all three pieces
+- **Backend**: `backend/services/chat_page_config/{page_name}.py` - One file per page, contains all three pieces
 - **Frontend**: `payloadHandlers` prop on `<ChatTray>` - Maps payload types to render functions
 
 That's it. The registry handles wiring everything together automatically.
@@ -87,7 +87,7 @@ Adding chat to a new page involves:
 
 ### 1. Create Page Payload Configuration
 
-**File**: `backend/services/chat_payloads/{page_name}.py`
+**File**: `backend/services/chat_page_config/{page_name}.py`
 
 ```python
 """
@@ -166,16 +166,16 @@ register_page("{page_name}", PAGE_PAYLOADS, build_context)
 - Context builder is a function that takes context dict and returns a formatted string
 - `register_page` registers both payloads AND context builder together
 
-### 2. Import in Chat Payloads Package
+### 2. Import in Chat Page Config Package
 
-**File**: `backend/services/chat_payloads/__init__.py`
+**File**: `backend/services/chat_page_config/__init__.py`
 
 Add import to auto-register your page:
 ```python
 from . import {page_name}
 ```
 
-That's it! No changes needed to `general_chat_service.py` - the registry handles everything automatically.
+That's it! No changes needed to `chat_stream_service.py` - the registry handles everything automatically.
 
 ---
 
@@ -380,12 +380,12 @@ The ChatTray automatically updates context when `initialContext` prop changes. E
 ## Checklist
 
 ### Backend
-- [ ] Create `backend/services/chat_payloads/{page_name}.py`
+- [ ] Create `backend/services/chat_page_config/{page_name}.py`
 - [ ] Define all payload types with parsers and LLM instructions
 - [ ] Define `build_context()` function for the page
 - [ ] Register page with `register_page("{page_name}", PAYLOADS, build_context)`
-- [ ] Import module in `backend/services/chat_payloads/__init__.py`
-- [ ] Test: `python -c "from services.chat_payloads import get_page_payloads, get_page_context_builder; print(get_page_payloads('{page_name}')); print(get_page_context_builder('{page_name}'))"`
+- [ ] Import module in `backend/services/chat_page_config/__init__.py`
+- [ ] Test: `python -c "from services.chat_page_config import get_page_payloads, get_page_context_builder; print(get_page_payloads('{page_name}')); print(get_page_context_builder('{page_name}'))"`
 
 ### Frontend
 - [ ] Create payload card components for each payload type
@@ -411,12 +411,12 @@ The ChatTray automatically updates context when `initialContext` prop changes. E
 ## Example: Working Implementations
 
 **Streams List Page**:
-- Backend: `backend/services/chat_payloads/streams_list.py`
+- Backend: `backend/services/chat_page_config/streams_list.py`
 - Frontend: `frontend/src/pages/StreamsPage.tsx`
 - Complete example with 3 payload types (suggestions, insights, quick_setup)
 
 **Edit Stream Page**:
-- Backend: `backend/services/chat_payloads/edit_stream.py`
+- Backend: `backend/services/chat_page_config/edit_stream.py`
 - Frontend: `frontend/src/pages/EditStreamPage.tsx`
 - Complete example with 3 payload types (schema_proposal, validation_results, import_suggestions)
 
@@ -432,9 +432,9 @@ Key payload types to consider for common page patterns:
 ## Architecture Notes
 
 ### Backend - Fully Modular
-- **Self-contained pages**: Each page configuration lives in `services/chat_payloads/{page_name}.py`
+- **Self-contained pages**: Each page configuration lives in `services/chat_page_config/{page_name}.py`
 - **Registry-based**: All page configurations are automatically discovered and registered
-- **Zero core changes**: Adding a new page NEVER requires modifying `general_chat_service.py`
+- **Zero core changes**: Adding a new page NEVER requires modifying `chat_stream_service.py`
 - **Context builders included**: Each page defines its own context builder function
 - **Automatic routing**: The service automatically finds and uses the right context builder
 

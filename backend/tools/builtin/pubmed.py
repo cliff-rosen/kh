@@ -261,7 +261,8 @@ register_tool(ToolConfig(
         "required": ["query"]
     },
     executor=execute_search_pubmed,
-    category="research"
+    category="research",
+    payload_type="pubmed_search_results"
 ))
 
 register_tool(ToolConfig(
@@ -278,7 +279,8 @@ register_tool(ToolConfig(
         "required": ["pmid"]
     },
     executor=execute_get_pubmed_article,
-    category="research"
+    category="research",
+    payload_type="pubmed_article"
 ))
 
 register_tool(ToolConfig(

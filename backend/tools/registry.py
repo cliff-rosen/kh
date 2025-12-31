@@ -5,6 +5,8 @@ Provides tool configuration and registration for the chat system.
 Tools are globally available regardless of which page the chat is on.
 
 Supports streaming tools that yield ToolProgress updates before returning ToolResult.
+
+Payload types are defined in schemas/payloads.py - tools reference them by name.
 """
 
 from dataclasses import dataclass, field
@@ -40,6 +42,7 @@ class ToolConfig:
     ]  # (params, db, user_id, context) -> str | ToolResult | Generator[ToolProgress, None, ToolResult]
     streaming: bool = False             # If True, executor yields ToolProgress before returning ToolResult
     category: str = "general"           # Tool category for organization
+    payload_type: Optional[str] = None  # Payload type from schemas/payloads.py (e.g., "pubmed_search_results")
 
 
 # =============================================================================

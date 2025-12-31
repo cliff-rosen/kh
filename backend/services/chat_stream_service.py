@@ -21,7 +21,7 @@ from schemas.chat import (
     CompleteEvent,
     ErrorEvent,
 )
-from services.chat_payloads import (
+from services.chat_page_config import (
     get_page_payloads,
     get_page_context_builder,
     get_page_client_actions,

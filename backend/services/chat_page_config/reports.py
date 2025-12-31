@@ -1,5 +1,5 @@
 """
-Payload configurations for the reports page.
+Chat page config for the reports page.
 Defines context builder and client actions for report chat functionality.
 
 ARCHITECTURE NOTE:
@@ -9,11 +9,11 @@ ARCHITECTURE NOTE:
     - Client actions that can be triggered
 
     Actual DATA (report contents, articles, summaries) is loaded from the database
-    by GeneralChatService._load_report_context(). Do NOT add data formatting here.
+    by ChatStreamService._load_report_context(). Do NOT add data formatting here.
 
     The separation is:
-    - chat_payloads/*.py → Instructions, behavior, payload types
-    - GeneralChatService → Data loading, context enrichment from DB/frontend
+    - chat_page_config/*.py → Instructions, behavior, payload types
+    - ChatStreamService → Data loading, context enrichment from DB/frontend
 
 Note: PubMed tools are registered globally via backend/tools/builtin/pubmed.py
 """

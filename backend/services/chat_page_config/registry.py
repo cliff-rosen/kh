@@ -1,16 +1,16 @@
 """
-Page Payload Registry
+Chat Page Config Registry
 
-Defines LLM payload configurations for each page. This enables the LLM to output
-structured payloads that get parsed and sent to the frontend for rich rendering.
-
-Components:
-- PayloadConfig: Defines a payload type with parse marker, instructions, and parser
-- ClientAction: Defines available client-side actions for a page
-- Context builder: Function that builds page-specific context for the LLM prompt
+Defines page-specific configurations for the chat system. Each page can register:
+- Context builder: Function that builds page-specific instructions for the LLM
+- PayloadConfig: Defines structured outputs the LLM can produce on this page
+- ClientAction: Defines available client-side actions for this page
 
 Note: Tools are registered separately via backend/tools/registry.py
 Payloads can come from either LLM output (parsed here) or tools (via ToolResult).
+
+Payload types and schemas are defined centrally in schemas/payloads.py.
+Both tools and LLM configs reference payload types by name.
 """
 
 from typing import Dict, List, Any, Callable, Optional
@@ -24,8 +24,10 @@ class PayloadConfig:
 
     The LLM is instructed (via llm_instructions) to output a marker followed by JSON.
     The backend looks for parse_marker in the response and uses parser to extract it.
+
+    The `type` field should match a payload type registered in schemas/payloads.py.
     """
-    type: str  # Identifier like "schema_proposal", "validation_results"
+    type: str  # Must match a type in schemas/payloads.py (e.g., "schema_proposal")
     parse_marker: str  # What to look for in LLM response, e.g., "SCHEMA_PROPOSAL:"
     llm_instructions: str  # Instructions for LLM on when/how to use this payload
     parser: Callable[[str], Dict[str, Any]]  # Function to parse JSON into {type, data}

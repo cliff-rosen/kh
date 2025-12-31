@@ -40,7 +40,7 @@ Each page can register:
 3. **Client Actions** - What actions the UI can handle from this page
 
 ```python
-# backend/services/chat_payloads/streams.py
+# backend/services/chat_page_config/streams.py
 
 def build_streams_context(context: Dict[str, Any]) -> str:
     stream_id = context.get("stream_id")
@@ -67,8 +67,8 @@ register_page(
 
 | File | Purpose |
 |------|---------|
-| `backend/services/chat_payloads/registry.py` | Page registration framework |
-| `backend/services/chat_payloads/<page>.py` | Per-page context and payload configs |
+| `backend/services/chat_page_config/registry.py` | Page registration framework |
+| `backend/services/chat_page_config/<page>.py` | Per-page context and payload configs |
 | `backend/services/chat_stream_service.py` | Assembles full system prompt with context |
 
 ---
@@ -210,7 +210,7 @@ register_payload_type(PayloadType(
 | File | Purpose |
 |------|---------|
 | `backend/schemas/payloads.py` | Central payload type registry |
-| `backend/services/chat_payloads/<page>.py` | LLM payload configs per page |
+| `backend/services/chat_page_config/<page>.py` | LLM payload configs per page |
 | `frontend/src/lib/chat/payloadRegistry.ts` | Frontend handler registry |
 | `frontend/src/lib/chat/payloads.ts` | Handler registrations |
 
@@ -326,8 +326,8 @@ Conversations are saved to the database for continuity across sessions.
 | **Tools** | `tools/registry.py` | Tool registration |
 | **Tools** | `tools/builtin/*.py` | Tool implementations |
 | **Payloads** | `schemas/payloads.py` | Central payload type registry |
-| **Page Config** | `services/chat_payloads/registry.py` | Page registration framework |
-| **Page Config** | `services/chat_payloads/<page>.py` | Per-page configs |
+| **Page Config** | `services/chat_page_config/registry.py` | Page registration framework |
+| **Page Config** | `services/chat_page_config/<page>.py` | Per-page configs |
 | **Frontend** | `lib/chat/payloadRegistry.ts` | Payload handler registry |
 | **Frontend** | `lib/chat/payloads.ts` | Payload handler registrations |
 | **Frontend** | `components/chat/ChatTray.tsx` | Main chat UI |

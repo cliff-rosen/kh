@@ -1,8 +1,12 @@
 """
-Chat Payloads Package
+Chat Page Config Package
 
-This package contains page-specific LLM payload configurations.
-Each module defines payloads and context for a specific page in the application.
+Page-specific configurations for the chat system. Each module defines
+how the chat assistant behaves on a specific page:
+
+- Context builders: Generate page-specific LLM instructions
+- Payload configs: Define structured outputs the LLM can produce
+- Client actions: What UI actions are available from this page
 
 Payloads can come from two sources:
 1. LLM output - Parsed from structured text using PayloadConfig
