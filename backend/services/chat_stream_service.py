@@ -331,8 +331,6 @@ class ChatStreamService:
         - Use conversation history to understand context and provide relevant help
         - Be conversational and helpful
 
-        {self._get_response_format_instructions()}
-
         AVAILABLE PAYLOAD TYPES:
         You can respond with structured payloads to provide rich interactions.
         Choose the appropriate payload type based on what the user needs:
@@ -340,10 +338,10 @@ class ChatStreamService:
         {payload_instructions}
         {client_actions_text}
 
-        IMPORTANT:
-        - Only use payloads when they add value
-        - If just having a conversation, respond naturally without payloads
-        - You can use multiple payloads in one response if relevant
+        RESPONSE GUIDELINES:
+        - Only use payloads when they add value to your response
+        - For simple conversations, respond naturally without payloads
+        - You can include multiple payloads in one response if relevant
         - Use conversation history to inform your responses
         """
 
