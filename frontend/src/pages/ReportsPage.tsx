@@ -73,14 +73,18 @@ export default function ReportsPage() {
 
     // Chat context for the general chat system
     const chatContext = useMemo(() => {
-        if (!selectedReport) return undefined;
-        return {
-            current_page: 'reports',
-            stream_id: selectedStream ? parseInt(selectedStream, 10) : undefined,
-            report_id: selectedReport.report_id,
-            report_name: selectedReport.report_name,
-            article_count: selectedReport.articles?.length || 0
+        const context: Record<string, any> = {
+            current_page: 'reports'
         };
+        if (selectedStream) {
+            context.stream_id = parseInt(selectedStream, 10);
+        }
+        if (selectedReport) {
+            context.report_id = selectedReport.report_id;
+            context.report_name = selectedReport.report_name;
+            context.article_count = selectedReport.articles?.length || 0;
+        }
+        return context;
     }, [selectedReport, selectedStream]);
 
     // Payload handlers for ChatTray - handles custom payloads from the chat
@@ -322,18 +326,16 @@ export default function ReportsPage() {
     return (
         <div className="h-[calc(100vh-4rem)] flex">
             {/* Chat Tray - inline on left side, hidden when article viewer is open */}
-            {chatContext && (
-                <ChatTray
-                    initialContext={chatContext}
-                    payloadHandlers={payloadHandlers}
-                    hidden={articleViewerOpen}
-                    isOpen={isChatOpen}
-                    onOpenChange={(open) => {
-                        if (!open) trackChatClose('reports');
-                        setIsChatOpen(open);
-                    }}
-                />
-            )}
+            <ChatTray
+                initialContext={chatContext}
+                payloadHandlers={payloadHandlers}
+                hidden={articleViewerOpen}
+                isOpen={isChatOpen}
+                onOpenChange={(open) => {
+                    if (!open) trackChatClose('reports');
+                    setIsChatOpen(open);
+                }}
+            />
 
             {/* Main Content */}
             <div className="flex-1 overflow-y-auto p-6 relative">

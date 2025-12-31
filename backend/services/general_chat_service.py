@@ -3,6 +3,7 @@ General-purpose chat service
 Handles LLM interaction for the general chat system
 
 Uses the generic agent_loop for agentic processing with tool support.
+Handles conversation persistence automatically.
 """
 
 from typing import Dict, Any, AsyncGenerator, List, Optional
@@ -42,6 +43,7 @@ from services.agent_loop import (
     AgentCancelled,
     AgentError,
 )
+from services.conversation_service import ConversationService
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +77,35 @@ class GeneralChatService:
         # Create a no-op token if none provided
         if cancellation_token is None:
             cancellation_token = CancellationToken()
+
+        # Handle conversation persistence
+        conversation_service = ConversationService(self.db)
+        conversation_id = request.conversation_id
+
+        try:
+            # Get or create conversation
+            if conversation_id:
+                # Verify conversation belongs to user
+                conv = conversation_service.get_conversation(conversation_id, self.user_id)
+                if not conv:
+                    conversation_id = None  # Create new if not found/authorized
+
+            if not conversation_id:
+                # Create new conversation
+                conv = conversation_service.create_conversation(self.user_id)
+                conversation_id = conv.id
+
+            # Persist user message
+            conversation_service.add_message(
+                conversation_id=conversation_id,
+                user_id=self.user_id,
+                role='user',
+                content=request.message,
+                context=request.context
+            )
+        except Exception as e:
+            logger.warning(f"Failed to persist user message: {e}")
+            # Continue without persistence - don't fail the chat
 
         try:
             # Build system prompt
@@ -180,13 +211,27 @@ class GeneralChatService:
             if not custom_payload:
                 custom_payload = parsed.get("custom_payload")
 
-            # Build final payload
+            # Persist assistant message
+            if conversation_id:
+                try:
+                    conversation_service.add_message(
+                        conversation_id=conversation_id,
+                        user_id=self.user_id,
+                        role='assistant',
+                        content=parsed["message"],
+                        context=request.context
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to persist assistant message: {e}")
+
+            # Build final payload with conversation_id
             final_payload = ChatResponsePayload(
                 message=parsed["message"],
                 suggested_values=parsed.get("suggested_values"),
                 suggested_actions=parsed.get("suggested_actions"),
                 custom_payload=custom_payload,
-                tool_history=tool_call_history if tool_call_history else None
+                tool_history=tool_call_history if tool_call_history else None,
+                conversation_id=conversation_id
             )
 
             # Emit complete event

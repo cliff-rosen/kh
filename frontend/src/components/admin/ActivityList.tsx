@@ -26,6 +26,12 @@ interface EventsResponse {
     offset: number;
 }
 
+interface UserOption {
+    user_id: number;
+    email: string;
+    full_name?: string;
+}
+
 export function ActivityList() {
     const [events, setEvents] = useState<UserEvent[]>([]);
     const [total, setTotal] = useState(0);
@@ -37,6 +43,8 @@ export function ActivityList() {
     const [eventSource, setEventSource] = useState<string>('');
     const [eventType, setEventType] = useState<string>('');
     const [eventTypes, setEventTypes] = useState<string[]>([]);
+    const [userId, setUserId] = useState<number | ''>('');
+    const [users, setUsers] = useState<UserOption[]>([]);
 
     // Pagination
     const [offset, setOffset] = useState(0);
@@ -53,6 +61,7 @@ export function ActivityList() {
             };
             if (eventSource) params.event_source = eventSource;
             if (eventType) params.event_type = eventType;
+            if (userId) params.user_id = userId;
 
             const response = await api.get<EventsResponse>('/api/tracking/admin/events', { params });
             setEvents(response.data.events);
@@ -74,12 +83,22 @@ export function ActivityList() {
         }
     };
 
+    const fetchUsers = async () => {
+        try {
+            const response = await api.get<{ users: UserOption[] }>('/api/admin/users');
+            setUsers(response.data.users);
+        } catch (err) {
+            console.error('Error loading users:', err);
+        }
+    };
+
     useEffect(() => {
         fetchEvents();
-    }, [hours, eventSource, eventType, offset]);
+    }, [hours, eventSource, eventType, userId, offset]);
 
     useEffect(() => {
         fetchEventTypes();
+        fetchUsers();
     }, []);
 
     const formatTime = (dateStr: string) => {
@@ -115,6 +134,20 @@ export function ActivityList() {
                         <option value={24}>Last 24 hours</option>
                         <option value={72}>Last 3 days</option>
                         <option value={168}>Last week</option>
+                    </select>
+
+                    {/* User filter */}
+                    <select
+                        value={userId}
+                        onChange={(e) => { setOffset(0); setUserId(e.target.value ? Number(e.target.value) : ''); }}
+                        className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    >
+                        <option value="">All users</option>
+                        {users.map(user => (
+                            <option key={user.user_id} value={user.user_id}>
+                                {user.full_name || user.email}
+                            </option>
+                        ))}
                     </select>
 
                     {/* Source filter */}

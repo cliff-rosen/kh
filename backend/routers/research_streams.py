@@ -36,6 +36,7 @@ from services.retrieval_query_service import RetrievalQueryService
 from services.concept_proposal_service import ConceptProposalService
 from services.broad_search_service import BroadSearchService
 from services.pipeline_service import PipelineService
+from services.user_tracking_service import track_endpoint
 
 from routers.auth import get_current_user
 
@@ -130,6 +131,7 @@ async def get_research_streams(
 
 
 @router.get("/{stream_id}", response_model=ResearchStream)
+@track_endpoint("view_stream")
 async def get_research_stream(
     stream_id: int,
     db: Session = Depends(get_db),
@@ -863,6 +865,7 @@ class ExecutePipelineRequest(BaseModel):
 
 
 @router.post("/{stream_id}/execute-pipeline")
+@track_endpoint("execute_pipeline")
 async def execute_pipeline(
     stream_id: int,
     request: ExecutePipelineRequest,

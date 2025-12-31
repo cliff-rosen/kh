@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, TrashIcon } from '@heroicons/react/24/solid';
+import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, PlusIcon } from '@heroicons/react/24/solid';
 import { useGeneralChat } from '../../hooks/useGeneralChat';
 import { InteractionType, PayloadHandler, ToolHistoryEntry } from '../../types/chat';
 import { MarkdownRenderer } from '../common/MarkdownRenderer';
@@ -193,7 +193,7 @@ export default function ChatTray({
         };
     }, [width, minWidth, maxWidth]);
 
-    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, updateContext, reset } = useGeneralChat({ initialContext });
+    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, updateContext, reset, loadMostRecent } = useGeneralChat({ initialContext });
     const [input, setInput] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -211,6 +211,17 @@ export default function ChatTray({
             updateContext(initialContext);
         }
     }, [initialContext, updateContext]);
+
+    // Track if we've loaded the initial conversation
+    const hasLoadedInitial = useRef(false);
+
+    // Load most recent conversation when tray opens for the first time
+    useEffect(() => {
+        if (isOpen && !hasLoadedInitial.current) {
+            hasLoadedInitial.current = true;
+            loadMostRecent();
+        }
+    }, [isOpen, loadMostRecent]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -347,17 +358,15 @@ export default function ChatTray({
                             </h3>
                         </div>
                         <div className="flex items-center gap-1">
-                            {messages.length > 0 && (
-                                <button
-                                    type="button"
-                                    onClick={handleReset}
-                                    className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
-                                    aria-label="Clear chat"
-                                    title="Clear chat"
-                                >
-                                    <TrashIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                                </button>
-                            )}
+                            <button
+                                type="button"
+                                onClick={handleReset}
+                                className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                aria-label="New conversation"
+                                title="New conversation"
+                            >
+                                <PlusIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                            </button>
                             <button
                                 type="button"
                                 onClick={() => onOpenChange(false)}
@@ -374,7 +383,8 @@ export default function ChatTray({
                         {messages.length === 0 && (
                             <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
                                 <ChatBubbleLeftRightIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                                <p className="text-sm">Ask me anything about the application</p>
+                                <p className="text-sm">Start a new conversation</p>
+                                <p className="text-xs mt-1 opacity-75">Ask me anything about the application</p>
                             </div>
                         )}
 

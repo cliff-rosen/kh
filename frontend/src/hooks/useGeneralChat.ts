@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { generalChatApi, ToolProgressEvent } from '../lib/api/generalChatApi';
+import { conversationApi } from '../lib/api/conversationApi';
 import {
     GeneralChatMessage,
     InteractionType,
@@ -13,16 +14,19 @@ export interface ActiveToolProgress {
 
 interface UseGeneralChatOptions {
     initialContext?: Record<string, any>;
+    /** Existing conversation ID to continue */
+    conversationId?: number;
 }
 
 export function useGeneralChat(options: UseGeneralChatOptions = {}) {
-    const { initialContext } = options;
+    const { initialContext, conversationId: initialConversationId } = options;
     const [messages, setMessages] = useState<GeneralChatMessage[]>([]);
     const [context, setContext] = useState(initialContext || {});
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [streamingText, setStreamingText] = useState('');
     const [statusText, setStatusText] = useState<string | null>(null);
+    const [conversationId, setConversationId] = useState<number | null>(initialConversationId || null);
 
     // Tool progress tracking
     const [activeToolProgress, setActiveToolProgress] = useState<ActiveToolProgress | null>(null);
@@ -66,7 +70,8 @@ export function useGeneralChat(options: UseGeneralChatOptions = {}) {
                     role: msg.role,
                     content: msg.content,
                     timestamp: msg.timestamp
-                }))
+                })),
+                conversation_id: conversationId
             }, abortController.signal)) {
                 switch (event.type) {
                     case 'text_delta':
@@ -115,6 +120,11 @@ export function useGeneralChat(options: UseGeneralChatOptions = {}) {
                         setMessages(prev => [...prev, assistantMessage]);
                         setStreamingText('');
                         setStatusText(null);
+
+                        // Update conversation ID from response if provided
+                        if (responsePayload.conversation_id) {
+                            setConversationId(responsePayload.conversation_id);
+                        }
                         break;
                     }
 
@@ -171,7 +181,7 @@ export function useGeneralChat(options: UseGeneralChatOptions = {}) {
             setIsLoading(false);
             abortControllerRef.current = null;
         }
-    }, [context, messages]);
+    }, [context, messages, conversationId]);
 
     const cancelRequest = useCallback(() => {
         if (abortControllerRef.current) {
@@ -188,7 +198,49 @@ export function useGeneralChat(options: UseGeneralChatOptions = {}) {
         setMessages([]);
         setContext(initialContext || {});
         setError(null);
+        setConversationId(null);
     }, [initialContext]);
+
+    /**
+     * Load an existing conversation by ID
+     */
+    const loadConversation = useCallback(async (id: number) => {
+        try {
+            const conversation = await conversationApi.getConversation(id);
+            // Convert backend messages to GeneralChatMessage format
+            const loadedMessages: GeneralChatMessage[] = conversation.messages
+                .filter(msg => msg.role === 'user' || msg.role === 'assistant')
+                .map(msg => ({
+                    role: msg.role as 'user' | 'assistant',
+                    content: msg.content,
+                    timestamp: msg.created_at
+                }));
+            setMessages(loadedMessages);
+            setConversationId(id);
+            setError(null);
+            return true;
+        } catch (err) {
+            console.error('Failed to load conversation:', err);
+            return false;
+        }
+    }, []);
+
+    /**
+     * Load the most recent conversation, if any exists
+     * Returns true if a conversation was loaded, false otherwise
+     */
+    const loadMostRecent = useCallback(async () => {
+        try {
+            const { conversations } = await conversationApi.listConversations(1, 0);
+            if (conversations.length > 0) {
+                return await loadConversation(conversations[0].id);
+            }
+            return false;
+        } catch (err) {
+            console.error('Failed to load most recent conversation:', err);
+            return false;
+        }
+    }, [loadConversation]);
 
     return {
         // Chat state
@@ -199,10 +251,13 @@ export function useGeneralChat(options: UseGeneralChatOptions = {}) {
         streamingText,
         statusText,
         activeToolProgress,
+        conversationId,
         // Chat actions
         sendMessage,
         cancelRequest,
         updateContext,
-        reset
+        reset,
+        loadConversation,
+        loadMostRecent
     };
 }

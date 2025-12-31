@@ -22,6 +22,8 @@ export interface GeneralChatRequest {
         content: string;
         timestamp: string;
     }>;
+    /** Optional conversation ID for persistence. If not provided, a new conversation will be created. */
+    conversation_id?: number | null;
 }
 
 
@@ -35,6 +37,8 @@ export interface ChatResponsePayload {
     suggested_actions?: SuggestedAction[];
     custom_payload?: CustomPayload;
     tool_history?: ToolHistoryEntry[];
+    /** Conversation ID for persistence */
+    conversation_id?: number;
 }
 
 

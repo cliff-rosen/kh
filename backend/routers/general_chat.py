@@ -36,6 +36,7 @@ class ChatRequest(BaseModel):
     interaction_type: Literal["text_input", "value_selected", "action_executed"]
     action_metadata: Optional[ActionMetadata] = None
     conversation_history: List[GeneralChatMessage]
+    conversation_id: Optional[int] = None  # For persistence - if None, creates new conversation
 
 
 @router.post("/stream",

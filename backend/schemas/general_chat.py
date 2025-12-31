@@ -66,6 +66,7 @@ class ChatResponsePayload(BaseModel):
     suggested_actions: Optional[List[SuggestedAction]] = None
     custom_payload: Optional[CustomPayload] = None
     tool_history: Optional[List[ToolHistoryEntry]] = None
+    conversation_id: Optional[int] = None  # ID for persisted conversation
 
 
 # ============================================================================

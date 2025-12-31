@@ -11,6 +11,7 @@ from database import get_db
 from models import User
 from schemas.report import Report, ReportWithArticles
 from services.report_service import ReportService
+from services.user_tracking_service import track_endpoint
 from routers.auth import get_current_user
 
 
@@ -67,6 +68,7 @@ async def get_latest_report_for_stream(
 
 
 @router.get("/{report_id}", response_model=ReportWithArticles)
+@track_endpoint("view_report")
 async def get_report_with_articles(
     report_id: int,
     db: Session = Depends(get_db),

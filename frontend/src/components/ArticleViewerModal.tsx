@@ -402,7 +402,10 @@ export default function ArticleViewerModal({
                     {articleChatContext && !isChatOpen && (
                         <button
                             type="button"
-                            onClick={() => setIsChatOpen(true)}
+                            onClick={() => {
+                                trackEvent('chat_open', { page: 'article_modal', pmid: article.pmid, article_id: article.id });
+                                setIsChatOpen(true);
+                            }}
                             className="absolute bottom-6 left-6 z-40 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
                             title="Open chat"
                         >
@@ -413,7 +416,12 @@ export default function ArticleViewerModal({
                     {articleChatContext && (
                         <ChatTray
                             isOpen={isChatOpen}
-                            onOpenChange={setIsChatOpen}
+                            onOpenChange={(open) => {
+                                if (!open) {
+                                    trackEvent('chat_close', { page: 'article_modal', pmid: article.pmid, article_id: article.id });
+                                }
+                                setIsChatOpen(open);
+                            }}
                             initialContext={articleChatContext}
                             payloadHandlers={chatPayloadHandlers}
                         />
