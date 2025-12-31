@@ -30,7 +30,6 @@ import EditStreamPage from './pages/EditStreamPage';
 import RetrievalWizardPage from './pages/RetrievalWizardPage';
 import ReportsPage from './pages/ReportsPage';
 import ToolsPage from './pages/ToolsPage';
-import ArticleViewerPage from './pages/ArticleViewerPage';
 import AdminPage from './pages/AdminPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 
@@ -63,7 +62,6 @@ function AppContent() {
             <Route path="/new-stream/chat" element={<NewStreamChatPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/tools" element={<ToolsPage />} />
-            <Route path="/articles/:pmid" element={<ArticleViewerPage />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/settings" element={<Navigate to="/profile" replace />} />
             <Route path="/admin" element={<AdminPage />} />
