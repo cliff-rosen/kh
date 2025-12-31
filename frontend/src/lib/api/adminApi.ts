@@ -196,5 +196,74 @@ export const adminApi = {
    */
   async unsubscribeOrgFromGlobalStream(orgId: number, streamId: number): Promise<void> {
     await api.delete(`/api/admin/orgs/${orgId}/global-streams/${streamId}`);
+  },
+
+  // ==================== Chat System Configuration ====================
+
+  /**
+   * Get chat system configuration (platform admin only)
+   */
+  async getChatConfig(): Promise<ChatConfigResponse> {
+    const response = await api.get('/api/admin/chat-config');
+    return response.data;
   }
 };
+
+// Chat config types
+export interface PayloadTypeInfo {
+  name: string;
+  description: string;
+  source: 'tool' | 'llm';
+  is_global: boolean;
+  parse_marker?: string;
+  has_parser: boolean;
+  has_instructions: boolean;
+}
+
+export interface ToolInfo {
+  name: string;
+  description: string;
+  category: string;
+  is_global: boolean;
+  payload_type?: string;
+  streaming: boolean;
+}
+
+export interface TabConfigInfo {
+  payloads: string[];
+  tools: string[];
+}
+
+export interface PageConfigInfo {
+  page: string;
+  has_context_builder: boolean;
+  payloads: string[];
+  tools: string[];
+  tabs: Record<string, TabConfigInfo>;
+  client_actions: string[];
+}
+
+export interface StreamInstructionsInfo {
+  stream_id: number;
+  stream_name: string;
+  has_instructions: boolean;
+  instructions_preview?: string;
+}
+
+export interface ChatConfigResponse {
+  payload_types: PayloadTypeInfo[];
+  tools: ToolInfo[];
+  pages: PageConfigInfo[];
+  stream_instructions: StreamInstructionsInfo[];
+  summary: {
+    total_payload_types: number;
+    global_payloads: number;
+    llm_payloads: number;
+    tool_payloads: number;
+    total_tools: number;
+    global_tools: number;
+    total_pages: number;
+    total_streams: number;
+    streams_with_instructions: number;
+  };
+}

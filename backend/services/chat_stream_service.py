@@ -612,6 +612,9 @@ class ChatStreamService:
 
         for config in payload_configs:
             marker = config.parse_marker
+            # Skip payloads without a parse_marker (tool payloads don't need parsing)
+            if not marker:
+                continue
             if marker in response_text:
                 marker_pos = response_text.find(marker)
                 after_marker = response_text[marker_pos + len(marker):].strip()

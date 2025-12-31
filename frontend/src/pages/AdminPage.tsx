@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { ShieldCheckIcon, BuildingOfficeIcon, GlobeAltIcon, UsersIcon, EnvelopeIcon, ClockIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import { ShieldCheckIcon, BuildingOfficeIcon, GlobeAltIcon, UsersIcon, EnvelopeIcon, ClockIcon, ChatBubbleLeftRightIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
-import { OrganizationList, GlobalStreamList, UserList, InvitationList, ActivityList, ConversationList } from '../components/admin';
+import { OrganizationList, GlobalStreamList, UserList, InvitationList, ActivityList, ConversationList, ChatConfigList } from '../components/admin';
 
-type AdminTab = 'organizations' | 'streams' | 'users' | 'invitations' | 'activity' | 'conversations';
+type AdminTab = 'organizations' | 'streams' | 'users' | 'invitations' | 'activity' | 'conversations' | 'chat-config';
 
 const tabs: { id: AdminTab; label: string; description: string; icon: React.ComponentType<{ className?: string }> }[] = [
     {
@@ -42,6 +42,12 @@ const tabs: { id: AdminTab; label: string; description: string; icon: React.Comp
         label: 'Conversations',
         description: 'View chat conversations',
         icon: ChatBubbleLeftRightIcon,
+    },
+    {
+        id: 'chat-config',
+        label: 'Chat Config',
+        description: 'View chat system configuration',
+        icon: Cog6ToothIcon,
     },
 ];
 
@@ -105,6 +111,7 @@ export default function AdminPage() {
                 {activeTab === 'invitations' && <InvitationList />}
                 {activeTab === 'activity' && <ActivityList />}
                 {activeTab === 'conversations' && <ConversationList />}
+                {activeTab === 'chat-config' && <ChatConfigList />}
             </div>
         </div>
     );

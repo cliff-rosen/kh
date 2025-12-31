@@ -646,3 +646,167 @@ async def unsubscribe_org_from_global_stream(
         )
 
     logger.info(f"Platform admin unsubscribed org {org_id} from global stream {stream_id}")
+
+
+# ==================== Chat System Configuration ====================
+
+class PayloadTypeInfo(BaseModel):
+    """Info about a registered payload type."""
+    name: str
+    description: str
+    source: str
+    is_global: bool
+    parse_marker: Optional[str] = None
+    has_parser: bool = False
+    has_instructions: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class ToolInfo(BaseModel):
+    """Info about a registered tool."""
+    name: str
+    description: str
+    category: str
+    is_global: bool
+    payload_type: Optional[str] = None
+    streaming: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class TabConfigInfo(BaseModel):
+    """Info about a tab configuration."""
+    payloads: List[str]
+    tools: List[str]
+
+
+class PageConfigInfo(BaseModel):
+    """Info about a page configuration."""
+    page: str
+    has_context_builder: bool
+    payloads: List[str]
+    tools: List[str]
+    tabs: dict[str, TabConfigInfo]
+    client_actions: List[str]
+
+
+class StreamInstructionsInfo(BaseModel):
+    """Info about a stream's chat instructions."""
+    stream_id: int
+    stream_name: str
+    has_instructions: bool
+    instructions_preview: Optional[str] = None  # First 200 chars
+
+
+class ChatConfigResponse(BaseModel):
+    """Complete chat system configuration."""
+    payload_types: List[PayloadTypeInfo]
+    tools: List[ToolInfo]
+    pages: List[PageConfigInfo]
+    stream_instructions: List[StreamInstructionsInfo]
+    summary: dict
+
+
+@router.get(
+    "/chat-config",
+    response_model=ChatConfigResponse,
+    summary="Get chat system configuration"
+)
+async def get_chat_config(
+    current_user: User = Depends(require_platform_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Get complete chat system configuration including all registered
+    payload types, tools, page configurations, and stream-specific
+    chat instructions. Platform admin only.
+    """
+    from schemas.payloads import get_all_payload_types
+    from tools.registry import get_all_tools
+    from services.chat_page_config import get_page_config
+    from services.chat_page_config.registry import _page_registry
+
+    # Get all payload types
+    payload_types = []
+    for pt in get_all_payload_types():
+        payload_types.append(PayloadTypeInfo(
+            name=pt.name,
+            description=pt.description,
+            source=pt.source,
+            is_global=pt.is_global,
+            parse_marker=pt.parse_marker,
+            has_parser=pt.parser is not None,
+            has_instructions=pt.llm_instructions is not None and len(pt.llm_instructions) > 0
+        ))
+
+    # Get all tools
+    tools = []
+    for tool in get_all_tools():
+        tools.append(ToolInfo(
+            name=tool.name,
+            description=tool.description,
+            category=tool.category,
+            is_global=tool.is_global,
+            payload_type=tool.payload_type,
+            streaming=tool.streaming
+        ))
+
+    # Get all page configs
+    pages = []
+    for page_name, config in _page_registry.items():
+        tabs_info = {}
+        for tab_name, tab_config in config.tabs.items():
+            tabs_info[tab_name] = TabConfigInfo(
+                payloads=tab_config.payloads,
+                tools=tab_config.tools
+            )
+
+        pages.append(PageConfigInfo(
+            page=page_name,
+            has_context_builder=config.context_builder is not None,
+            payloads=config.payloads,
+            tools=config.tools,
+            tabs=tabs_info,
+            client_actions=[ca.action for ca in config.client_actions]
+        ))
+
+    # Get all streams with their chat instructions status
+    stream_instructions = []
+    streams = db.query(ResearchStream).order_by(ResearchStream.stream_name).all()
+    for stream in streams:
+        has_instr = stream.chat_instructions is not None and len(stream.chat_instructions.strip()) > 0
+        preview = None
+        if has_instr:
+            preview = stream.chat_instructions[:200] + "..." if len(stream.chat_instructions) > 200 else stream.chat_instructions
+
+        stream_instructions.append(StreamInstructionsInfo(
+            stream_id=stream.stream_id,
+            stream_name=stream.stream_name,
+            has_instructions=has_instr,
+            instructions_preview=preview
+        ))
+
+    # Build summary
+    streams_with_instructions = len([s for s in stream_instructions if s.has_instructions])
+    summary = {
+        "total_payload_types": len(payload_types),
+        "global_payloads": len([p for p in payload_types if p.is_global]),
+        "llm_payloads": len([p for p in payload_types if p.source == "llm"]),
+        "tool_payloads": len([p for p in payload_types if p.source == "tool"]),
+        "total_tools": len(tools),
+        "global_tools": len([t for t in tools if t.is_global]),
+        "total_pages": len(pages),
+        "total_streams": len(stream_instructions),
+        "streams_with_instructions": streams_with_instructions,
+    }
+
+    return ChatConfigResponse(
+        payload_types=payload_types,
+        tools=tools,
+        pages=pages,
+        stream_instructions=stream_instructions,
+        summary=summary
+    )

@@ -104,7 +104,7 @@ register_page(
 
 Most tools are `is_global=True` (useful everywhere). Most LLM payloads are `is_global=False` (page-specific).
 
-**4. Resolution is always: global + page + tab**
+**4. Resolution is always: global + page + tab + stream instructions**
 
 When the system needs to know what tools/payloads are available for a request:
 
@@ -112,7 +112,31 @@ When the system needs to know what tools/payloads are available for a request:
 Available = (all where is_global=True)
           + (page-wide from PageConfig)
           + (tab-specific from TabConfig)
+
+System Prompt = context_builder output
+              + payload instructions (llm_instructions)
+              + stream-specific instructions (if stream_id provided)
 ```
+
+**5. Stream Instructions add per-stream customization**
+
+Each research stream can have optional `chat_instructions` that customize how the LLM responds for that stream's context:
+
+| Field | Where | Purpose |
+|-------|-------|---------|
+| `chat_instructions` | `ResearchStream.chat_instructions` | Optional text that gets added to the system prompt when the user is working in that stream's context |
+
+```python
+# Example: A stream for oncology research might have:
+chat_instructions = """
+When discussing articles in this stream:
+- Focus on clinical trial methodology and patient outcomes
+- Highlight drug interactions and contraindications
+- Note any biomarker or genetic targets mentioned
+"""
+```
+
+These instructions are loaded by `_get_stream_instructions()` when a `stream_id` is present in the request context.
 
 ### Visual Summary
 
@@ -121,6 +145,7 @@ Available = (all where is_global=True)
                     │  User on page    │
                     │  "edit_stream"   │
                     │  tab: "semantic" │
+                    │  stream_id: 42   │
                     └────────┬─────────┘
                              │
                              ▼
@@ -142,6 +167,9 @@ Available = (all where is_global=True)
         │  • Context from context_builder         │
         │  • Instructions for each payload        │
         │  • Tool definitions for Anthropic API   │
+        │  • Stream-specific instructions         │
+        │    (from ResearchStream.chat_instruc-   │
+        │    tions if stream_id is present)       │
         └────────────────────────────────────────┘
 ```
 
@@ -153,6 +181,7 @@ Available = (all where is_global=True)
 | **ToolConfig** | `tools/registry.py` | Single source of truth for all tool definitions |
 | **PageConfig** | `chat_page_config/<page>.py` | Per-page configuration that references payloads/tools |
 | **TabConfig** | (within PageConfig) | Tab-specific subset of payloads/tools |
+| **Stream Instructions** | `ResearchStream.chat_instructions` | Per-stream customization for LLM behavior |
 
 ---
 
@@ -540,7 +569,7 @@ Conversations are saved to the database for continuity across sessions.
 
 | Category | File | Purpose |
 |----------|------|---------|
-| **Core Service** | `services/chat_stream_service.py` | Main streaming chat endpoint |
+| **Core Service** | `services/chat_stream_service.py` | Main streaming chat endpoint, loads stream instructions |
 | **Persistence** | `services/chat.py` | Conversation storage |
 | **Agent** | `agents/agent_loop.py` | Tool execution loop |
 | **Tools** | `tools/registry.py` | Tool registration |
@@ -548,6 +577,7 @@ Conversations are saved to the database for continuity across sessions.
 | **Payloads** | `schemas/payloads.py` | Central payload type registry (single source of truth) |
 | **Page Config** | `services/chat_page_config/registry.py` | Page registration framework |
 | **Page Config** | `services/chat_page_config/<page>.py` | Per-page configs |
+| **Stream Instructions** | `models.ResearchStream.chat_instructions` | Per-stream LLM customization |
 | **Frontend** | `lib/chat/payloadRegistry.ts` | Payload handler registry |
 | **Frontend** | `lib/chat/payloads.ts` | Payload handler registrations |
 | **Frontend** | `components/chat/ChatTray.tsx` | Main chat UI |
