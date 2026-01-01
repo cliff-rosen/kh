@@ -7,7 +7,7 @@ import logging
 
 from database import get_db
 from schemas.user import Token
-from models import Invitation, Organization
+from models import Invitation, Organization, EventSource
 
 from services import auth_service
 from services.user_service import UserService
@@ -381,7 +381,7 @@ async def request_password_reset(
 
         # Track password reset request
         tracking_service = UserTrackingService(db)
-        tracking_service.track_backend_event(user.user_id, "password_reset_request")
+        tracking_service.track_event(user.user_id, EventSource.BACKEND, "password_reset_request")
 
         return {"message": "If an account with this email exists, a password reset link has been sent."}
 
@@ -432,7 +432,7 @@ async def reset_password(
 
         # Track password reset completion
         tracking_service = UserTrackingService(db)
-        tracking_service.track_backend_event(user.user_id, "password_reset_complete")
+        tracking_service.track_event(user.user_id, EventSource.BACKEND, "password_reset_complete")
 
         logger.info(f"Password reset successfully for user {user.email}")
 
