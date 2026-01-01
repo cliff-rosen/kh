@@ -277,95 +277,86 @@ class ChatStreamService:
     # =========================================================================
 
     def _build_system_prompt(self, context: Dict[str, Any]) -> str:
-        """Build system prompt based on user's context."""
-        current_page = context.get("current_page", "unknown")
-        stream_instructions = self._load_stream_instructions(context) or ""
-
-        if has_page_payloads(current_page):
-            return self._build_payload_aware_prompt(current_page, context, stream_instructions)
-
-        return f"""You are a helpful AI assistant for Knowledge Horizon,
-        a biomedical research intelligence platform.
-
-        {stream_instructions}
-
-        The user is currently on: {current_page}
-
-        {self._get_response_format_instructions()}
-
-        Keep responses simple and conversational.
-        Help users understand what they can do in the application.
         """
-
-    def _build_payload_aware_prompt(
-        self,
-        current_page: str,
-        context: Dict[str, Any],
-        stream_instructions: str = ""
-    ) -> str:
-        """Build system prompt for pages with registered payload types."""
-        # Get all payloads for this page, tab, and subtab (global + page + tab + subtab)
+        Build system prompt with clean structure:
+        1. IDENTITY - Who the assistant is
+        2. CONTEXT - Current page and loaded data
+        3. CAPABILITIES - Available tools and payloads (only if any)
+        4. CUSTOM INSTRUCTIONS - Stream-specific instructions (only if defined)
+        5. GUIDELINES - Brief response guidance
+        """
+        current_page = context.get("current_page", "unknown")
         active_tab = context.get("active_tab")
         active_subtab = context.get("active_subtab")
-        payload_configs = get_all_payloads_for_page(current_page, active_tab, active_subtab)
 
+        sections = []
+
+        # 1. IDENTITY (always present, one line)
+        sections.append(
+            "You are a helpful AI assistant for Knowledge Horizon, a biomedical research intelligence platform."
+        )
+
+        # 2. CONTEXT (page context + loaded data)
         page_context = self._build_page_context(current_page, context)
-        payload_instructions = "\n\n".join([
-            c.llm_instructions for c in payload_configs if c.llm_instructions
-        ])
+        if page_context:
+            sections.append(f"== CURRENT CONTEXT ==\n{page_context}")
 
-        # Build client actions section
+        # 3. CAPABILITIES (tools + payloads + client actions, only if any exist)
+        capabilities = self._build_capabilities_section(current_page, active_tab, active_subtab)
+        if capabilities:
+            sections.append(f"== CAPABILITIES ==\n{capabilities}")
+
+        # 4. CUSTOM INSTRUCTIONS (stream-specific, only if defined)
+        stream_instructions = self._load_stream_instructions(context)
+        if stream_instructions:
+            sections.append(f"== CUSTOM INSTRUCTIONS ==\n{stream_instructions}")
+
+        # 5. GUIDELINES (always present, brief)
+        sections.append(self._get_guidelines())
+
+        return "\n\n".join(sections)
+
+    def _build_capabilities_section(
+        self,
+        current_page: str,
+        active_tab: Optional[str],
+        active_subtab: Optional[str]
+    ) -> str:
+        """Build capabilities section listing available tools, payloads, and client actions."""
+        from tools.registry import get_tools_for_page
+
+        parts = []
+
+        # Tools
+        tools = get_tools_for_page(current_page, active_tab, active_subtab)
+        if tools:
+            tool_lines = [f"- {t.name}: {t.description}" for t in tools]
+            parts.append("TOOLS:\n" + "\n".join(tool_lines))
+
+        # LLM Payloads (structured response formats the LLM can generate)
+        payload_configs = get_all_payloads_for_page(current_page, active_tab, active_subtab)
+        llm_payloads = [c for c in payload_configs if c.llm_instructions]
+        if llm_payloads:
+            payload_instructions = "\n\n".join([c.llm_instructions for c in llm_payloads])
+            parts.append(f"STRUCTURED RESPONSES:\n{payload_instructions}")
+
+        # Client Actions
         client_actions = get_client_actions(current_page)
-        client_actions_text = ""
         if client_actions:
             actions_list = "\n".join([
-                f"- {a.action}: {a.description}" +
-                (f" (parameters: {', '.join(a.parameters)})" if a.parameters else "")
-                for a in client_actions
+                f"- {a.action}: {a.description}" for a in client_actions
             ])
-            client_actions_text = f"""
+            parts.append(
+                f"CLIENT ACTIONS (use with handler='client' in SUGGESTED_ACTIONS):\n{actions_list}"
+            )
 
-            AVAILABLE CLIENT ACTIONS:
-            You can suggest these client-side actions using SUGGESTED_ACTIONS format with handler='client':
-            {actions_list}
+        return "\n\n".join(parts)
 
-            ONLY suggest client actions from the list above. Do not invent new client actions."""
-
-        return f"""You are a helpful AI assistant for Knowledge Horizon.
-
-        {stream_instructions}
-
-        {page_context}
-
-        YOUR ROLE:
-        - Answer questions and help the user understand the page
-        - When the user asks for recommendations, validation, or assistance, use the appropriate payload type
-        - Use conversation history to understand context and provide relevant help
-        - Be conversational and helpful
-
-        AVAILABLE PAYLOAD TYPES:
-        You can respond with structured payloads to provide rich interactions.
-        Choose the appropriate payload type based on what the user needs:
-
-        {payload_instructions}
-        {client_actions_text}
-
-        RESPONSE GUIDELINES:
-        - Only use payloads when they add value to your response
-        - For simple conversations, respond naturally without payloads
-        - You can include multiple payloads in one response if relevant
-        - Use conversation history to inform your responses
-        """
-
-    def _get_response_format_instructions(self) -> str:
-        """Get common response format instructions."""
-        return """
-        RESPONSE FORMAT:
-
-        Simply respond conversationally. Do NOT use any special formatting markers like MESSAGE:, SUGGESTED_VALUES:, or SUGGESTED_ACTIONS:.
-
-        Just write your response naturally as you would in a conversation.
-        """
+    def _get_guidelines(self) -> str:
+        """Get brief response guidelines."""
+        return """== GUIDELINES ==
+Be conversational and helpful. Use tools proactively when they help answer questions.
+For simple questions, respond naturally. Only use structured responses when they add value."""
 
     # =========================================================================
     # Context Loading
@@ -421,14 +412,7 @@ class ChatStreamService:
         if not stream or not stream.chat_instructions:
             return None
 
-        return f"""
-        === STREAM-SPECIFIC INSTRUCTIONS ===
-        The following instructions define how to analyze and respond about articles in this stream:
-
-        {stream.chat_instructions}
-
-        === END STREAM INSTRUCTIONS ===
-        """
+        return stream.chat_instructions.strip()
 
     def _load_report_context(self, report_id: int, context: Dict[str, Any]) -> Optional[str]:
         """Load report data from database and format it for LLM context."""
