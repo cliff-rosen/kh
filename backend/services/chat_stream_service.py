@@ -13,6 +13,7 @@ import logging
 
 from schemas.chat import (
     ChatResponsePayload,
+    ChatDiagnostics,
     TextDeltaEvent,
     StatusEvent,
     ToolStartEvent,
@@ -96,6 +97,18 @@ class ChatStreamService:
             # Send initial status
             yield StatusEvent(message="Thinking...").model_dump_json()
 
+            # Build diagnostics object (what we're passing to the agent)
+            diagnostics = ChatDiagnostics(
+                model=CHAT_MODEL,
+                max_tokens=CHAT_MAX_TOKENS,
+                max_iterations=MAX_TOOL_ITERATIONS,
+                temperature=0.0,
+                tools=list(tools_by_name.keys()),
+                system_prompt=system_prompt,
+                messages=messages,
+                context=request.context
+            )
+
             # Run the agent loop
             collected_text = ""
             tool_call_history = []
@@ -172,7 +185,8 @@ class ChatStreamService:
                 suggested_actions=parsed.get("suggested_actions"),
                 custom_payload=custom_payload,
                 tool_history=tool_call_history if tool_call_history else None,
-                conversation_id=chat_id
+                conversation_id=chat_id,
+                diagnostics=diagnostics
             )
             yield CompleteEvent(payload=final_payload).model_dump_json()
 

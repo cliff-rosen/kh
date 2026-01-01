@@ -70,6 +70,17 @@ export interface ToolHistoryEntry {
     output: string | Record<string, unknown>;
 }
 
+export interface ChatDiagnostics {
+    model: string;
+    max_tokens: number;
+    max_iterations: number;
+    temperature: number;
+    tools: string[];
+    system_prompt: string;
+    messages: Record<string, unknown>[];
+    context: Record<string, unknown>;
+}
+
 export interface ActionMetadata {
     action_identifier: string;
     action_data?: unknown;
@@ -148,6 +159,7 @@ export interface ChatResponsePayload {
     custom_payload?: CustomPayload;
     tool_history?: ToolHistoryEntry[];
     conversation_id?: number;
+    diagnostics?: ChatDiagnostics;
 }
 
 
@@ -166,6 +178,7 @@ export interface ChatMessage {
     suggested_actions?: SuggestedAction[];
     custom_payload?: CustomPayload;
     tool_history?: ToolHistoryEntry[];
+    diagnostics?: ChatDiagnostics;
 }
 
 /**

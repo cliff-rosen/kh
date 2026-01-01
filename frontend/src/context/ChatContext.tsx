@@ -122,7 +122,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                             suggested_values: responsePayload.suggested_values,
                             suggested_actions: responsePayload.suggested_actions,
                             custom_payload: responsePayload.custom_payload,
-                            tool_history: responsePayload.tool_history
+                            tool_history: responsePayload.tool_history,
+                            diagnostics: responsePayload.diagnostics
                         };
                         setMessages(prev => [...prev, assistantMessage]);
                         setStreamingText('');

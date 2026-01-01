@@ -5,9 +5,10 @@ import { useChatContext } from '../../context/ChatContext';
 import { trackEvent } from '../../lib/api/trackingApi';
 import { getPayloadHandler } from '../../lib/chat'; // Import from index to trigger payload registration
 
-import { InteractionType, PayloadHandler, ToolHistoryEntry } from '../../types/chat';
+import { InteractionType, PayloadHandler, ToolHistoryEntry, ChatDiagnostics } from '../../types/chat';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 import ToolResultCard, { ToolHistoryPanel } from './ToolResultCard';
+import { DiagnosticsPanel } from './DiagnosticsPanel';
 
 const STORAGE_KEY = 'chatTrayWidth';
 
@@ -207,6 +208,7 @@ export default function ChatTray({
     // Track which message indices have had their payloads dismissed
     const [dismissedPayloads, setDismissedPayloads] = useState<Set<number>>(new Set());
     const [toolsToShow, setToolsToShow] = useState<ToolHistoryEntry[] | null>(null);
+    const [diagnosticsToShow, setDiagnosticsToShow] = useState<ChatDiagnostics | null>(null);
 
     // Track previous hidden state to detect when tray becomes visible
     const prevHiddenRef = useRef(hidden);
@@ -453,16 +455,28 @@ export default function ChatTray({
                                         <p className="text-xs opacity-70 mt-1">
                                             {new Date(message.timestamp).toLocaleTimeString()}
                                         </p>
-                                        {/* Tool history summary button */}
-                                        {message.tool_history && message.tool_history.length > 0 && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setToolsToShow(message.tool_history!)}
-                                                className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                                            >
-                                                <span>View {message.tool_history.length} tool{message.tool_history.length > 1 ? 's' : ''} used</span>
-                                            </button>
-                                        )}
+                                        {/* Tool history and diagnostics buttons */}
+                                        <div className="flex items-center gap-3 mt-2">
+                                            {message.tool_history && message.tool_history.length > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setToolsToShow(message.tool_history!)}
+                                                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                                >
+                                                    View {message.tool_history.length} tool{message.tool_history.length > 1 ? 's' : ''}
+                                                </button>
+                                            )}
+                                            {message.diagnostics && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDiagnosticsToShow(message.diagnostics!)}
+                                                    className="text-xs text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1"
+                                                >
+                                                    <BugAntIcon className="h-3 w-3" />
+                                                    <span>Diagnostics</span>
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -724,6 +738,14 @@ export default function ChatTray({
                 <ToolHistoryPanel
                     tools={toolsToShow}
                     onClose={() => setToolsToShow(null)}
+                />
+            )}
+
+            {/* Diagnostics Panel */}
+            {diagnosticsToShow && (
+                <DiagnosticsPanel
+                    diagnostics={diagnosticsToShow}
+                    onClose={() => setDiagnosticsToShow(null)}
                 />
             )}
         </>

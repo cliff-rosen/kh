@@ -94,6 +94,18 @@ class ToolHistoryEntry(BaseModel):
     output: Any
 
 
+class ChatDiagnostics(BaseModel):
+    """Diagnostics info about what was passed to the agent loop"""
+    model: str
+    max_tokens: int
+    max_iterations: int
+    temperature: float
+    tools: List[str]  # List of tool names available
+    system_prompt: str
+    messages: List[dict]  # The messages passed to the LLM
+    context: dict  # The context object
+
+
 class ChatResponsePayload(BaseModel):
     """Structured payload for final chat responses"""
     message: str
@@ -102,6 +114,7 @@ class ChatResponsePayload(BaseModel):
     custom_payload: Optional[CustomPayload] = None
     tool_history: Optional[List[ToolHistoryEntry]] = None
     conversation_id: Optional[int] = None
+    diagnostics: Optional[ChatDiagnostics] = None
 
 
 # ============================================================================
