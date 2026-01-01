@@ -91,8 +91,8 @@ export type { User as AdminUser, UserList } from './user';
 export interface Invitation {
   invitation_id: number;
   email: string;
-  org_id: number;
-  org_name: string;
+  org_id?: number;
+  org_name?: string;
   role: string;
   token: string;
   invite_url: string;

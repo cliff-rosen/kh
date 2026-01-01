@@ -145,7 +145,7 @@ export const adminApi = {
    */
   async createInvitation(data: {
     email: string;
-    org_id: number;
+    org_id?: number;
     role?: UserRole;
     expires_in_days?: number;
   }): Promise<Invitation> {

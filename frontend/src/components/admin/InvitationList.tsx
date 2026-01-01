@@ -4,9 +4,10 @@ import { adminApi } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
 import type { Invitation, OrganizationWithStats, UserRole } from '../../types/organization';
 
-const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
-    { value: 'member', label: 'Member' },
-    { value: 'org_admin', label: 'Org Admin' },
+const ROLE_OPTIONS: { value: UserRole; label: string; requiresOrg: boolean }[] = [
+    { value: 'member', label: 'Member', requiresOrg: true },
+    { value: 'org_admin', label: 'Org Admin', requiresOrg: true },
+    { value: 'platform_admin', label: 'Platform Admin', requiresOrg: false },
 ];
 
 export function InvitationList() {
@@ -48,14 +49,18 @@ export function InvitationList() {
         }
     };
 
+    const selectedRoleOption = ROLE_OPTIONS.find(r => r.value === newRole);
+    const requiresOrg = selectedRoleOption?.requiresOrg ?? true;
+
     const handleCreateInvitation = async () => {
-        if (!newEmail || newOrgId === '') return;
+        if (!newEmail) return;
+        if (requiresOrg && newOrgId === '') return;
 
         setIsCreating(true);
         try {
             const invitation = await adminApi.createInvitation({
                 email: newEmail,
-                org_id: Number(newOrgId),
+                org_id: requiresOrg ? Number(newOrgId) : undefined,
                 role: newRole,
                 expires_in_days: expiresInDays
             });
@@ -226,11 +231,13 @@ export function InvitationList() {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                        {invitation.org_name}
+                                        {invitation.org_name || <span className="text-gray-400 italic">None</span>}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                            invitation.role === 'org_admin'
+                                            invitation.role === 'platform_admin'
+                                                ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
+                                                : invitation.role === 'org_admin'
                                                 ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
                                                 : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
                                         }`}>
@@ -300,34 +307,47 @@ export function InvitationList() {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Organization
-                                </label>
-                                <select
-                                    value={newOrgId}
-                                    onChange={(e) => setNewOrgId(e.target.value ? Number(e.target.value) : '')}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                >
-                                    <option value="">Select organization...</option>
-                                    {organizations.map(org => (
-                                        <option key={org.org_id} value={org.org_id}>{org.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                     Role
                                 </label>
                                 <select
                                     value={newRole}
-                                    onChange={(e) => setNewRole(e.target.value as UserRole)}
+                                    onChange={(e) => {
+                                        setNewRole(e.target.value as UserRole);
+                                        // Clear org selection if switching to platform_admin
+                                        if (e.target.value === 'platform_admin') {
+                                            setNewOrgId('');
+                                        }
+                                    }}
                                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                 >
                                     {ROLE_OPTIONS.map(option => (
                                         <option key={option.value} value={option.value}>{option.label}</option>
                                     ))}
                                 </select>
+                                {newRole === 'platform_admin' && (
+                                    <p className="mt-1 text-xs text-purple-600 dark:text-purple-400">
+                                        Platform admins have full system access
+                                    </p>
+                                )}
                             </div>
+
+                            {requiresOrg && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Organization
+                                    </label>
+                                    <select
+                                        value={newOrgId}
+                                        onChange={(e) => setNewOrgId(e.target.value ? Number(e.target.value) : '')}
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    >
+                                        <option value="">Select organization...</option>
+                                        {organizations.map(org => (
+                                            <option key={org.org_id} value={org.org_id}>{org.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -358,7 +378,7 @@ export function InvitationList() {
                             </button>
                             <button
                                 onClick={handleCreateInvitation}
-                                disabled={isCreating || !newEmail || newOrgId === ''}
+                                disabled={isCreating || !newEmail || (requiresOrg && newOrgId === '')}
                                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
                             >
                                 {isCreating ? 'Creating...' : 'Create Invitation'}

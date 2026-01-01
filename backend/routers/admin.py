@@ -302,10 +302,10 @@ async def update_user_role(
 class InvitationCreate(BaseModel):
     """Request schema for creating an invitation."""
     email: EmailStr = Field(description="Email address to invite")
-    org_id: int = Field(description="Organization to assign user to")
+    org_id: Optional[int] = Field(default=None, description="Organization to assign user to (optional for platform_admin)")
     role: UserRoleSchema = Field(
         default=UserRoleSchema.MEMBER,
-        description="Role to assign (member or org_admin)"
+        description="Role to assign (member, org_admin, or platform_admin)"
     )
     expires_in_days: int = Field(default=7, ge=1, le=30, description="Days until expiration")
 
@@ -314,8 +314,8 @@ class InvitationResponse(BaseModel):
     """Response schema for invitation."""
     invitation_id: int
     email: str
-    org_id: int
-    org_name: str
+    org_id: Optional[int] = None
+    org_name: Optional[str] = None
     role: str
     token: str
     invite_url: str
@@ -371,14 +371,14 @@ async def list_invitations(
     user_service = UserService(db)
     result = []
     for inv in invitations:
-        org = db.query(Organization).filter(Organization.org_id == inv.org_id).first()
+        org = db.query(Organization).filter(Organization.org_id == inv.org_id).first() if inv.org_id else None
         inviter = user_service.get_user_by_id(inv.invited_by) if inv.invited_by else None
 
         result.append(InvitationResponse(
             invitation_id=inv.invitation_id,
             email=inv.email,
             org_id=inv.org_id,
-            org_name=org.name if org else "Unknown",
+            org_name=org.name if org else None,
             role=inv.role,
             token=inv.token,
             invite_url=f"{settings.FRONTEND_URL}/register?token={inv.token}",
@@ -432,20 +432,30 @@ async def create_invitation(
             detail="A pending invitation for this email already exists"
         )
 
-    # Verify organization exists
-    org = db.query(Organization).filter(Organization.org_id == invitation.org_id).first()
-    if not org:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Organization not found"
-        )
-
-    # Validate role
+    # Validate org_id based on role
+    org = None
     if invitation.role == UserRoleSchema.PLATFORM_ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot invite platform admins via invitation"
-        )
+        # Platform admins don't require an organization
+        if invitation.org_id:
+            org = db.query(Organization).filter(Organization.org_id == invitation.org_id).first()
+            if not org:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Organization not found"
+                )
+    else:
+        # Non-platform-admin roles require an organization
+        if not invitation.org_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Organization is required for non-platform-admin roles"
+            )
+        org = db.query(Organization).filter(Organization.org_id == invitation.org_id).first()
+        if not org:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Organization not found"
+            )
 
     # Generate secure token
     token = secrets.token_urlsafe(32)
@@ -464,13 +474,14 @@ async def create_invitation(
     db.commit()
     db.refresh(new_invitation)
 
-    logger.info(f"Created invitation for {invitation.email} to org {org.name}")
+    org_info = f"org {org.name}" if org else "no org (platform admin)"
+    logger.info(f"Created invitation for {invitation.email} to {org_info}")
 
     return InvitationResponse(
         invitation_id=new_invitation.invitation_id,
         email=new_invitation.email,
         org_id=new_invitation.org_id,
-        org_name=org.name,
+        org_name=org.name if org else None,
         role=new_invitation.role,
         token=new_invitation.token,
         invite_url=f"{settings.FRONTEND_URL}/register?token={new_invitation.token}",
