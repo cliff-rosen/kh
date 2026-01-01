@@ -924,13 +924,16 @@ async def execute_pipeline(
         # Create pipeline service
         pipeline_service = PipelineService(db)
 
+        # Extract user_id before generator to avoid session detachment issues
+        user_id = current_user.user_id
+
         # Define SSE generator
         async def event_generator():
             """Generate SSE events from pipeline status updates"""
             try:
                 async for status in pipeline_service.run_pipeline(
                     research_stream_id=stream_id,
-                    user_id=current_user.user_id,
+                    user_id=user_id,
                     run_type=run_type_value,
                     start_date=start_date,
                     end_date=end_date,
