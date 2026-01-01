@@ -229,8 +229,12 @@ export function OrganizationList() {
                                     </button>
                                     <button
                                         onClick={() => handleDelete(org.org_id)}
-                                        className="text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                                        title="Delete"
+                                        className={`${
+                                            org.member_count > 0
+                                                ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                                                : 'text-gray-400 hover:text-red-600 dark:hover:text-red-400'
+                                        }`}
+                                        title={org.member_count > 0 ? `Cannot delete: ${org.member_count} members` : 'Delete'}
                                         disabled={org.member_count > 0}
                                     >
                                         <TrashIcon className="h-5 w-5" />
