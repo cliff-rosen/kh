@@ -219,12 +219,19 @@ def track_endpoint(event_type: str = "api_call", include_params: bool = True):
                     # Build event data from kwargs (path params, query params)
                     event_data = {}
                     if include_params:
-                        # Include relevant params (exclude db, current_user, request)
-                        excluded = {'db', 'current_user', 'request', 'background_tasks'}
+                        # Include relevant params (exclude db, current_user, background_tasks)
+                        excluded = {'db', 'current_user', 'background_tasks'}
                         for key, value in kwargs.items():
                             if key not in excluded:
-                                # Only include serializable values
-                                if isinstance(value, (str, int, float, bool, list, dict, type(None))):
+                                # Handle Pydantic models by converting to dict
+                                if hasattr(value, 'model_dump'):
+                                    # Pydantic v2
+                                    event_data[key] = value.model_dump()
+                                elif hasattr(value, 'dict'):
+                                    # Pydantic v1
+                                    event_data[key] = value.dict()
+                                elif isinstance(value, (str, int, float, bool, list, dict, type(None))):
+                                    # Primitive serializable values
                                     event_data[key] = value
 
                     service = UserTrackingService(db)
