@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { UserIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline';
+import { UserIcon, BuildingOfficeIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
 import type { UserRole, OrganizationWithStats } from '../../types/organization';
 import type { User } from '../../types/user';
+import { useAuth } from '../../context/AuthContext';
 
 const ROLE_OPTIONS: { value: UserRole; label: string; description: string }[] = [
     { value: 'platform_admin', label: 'Platform Admin', description: 'Full platform access' },
@@ -12,6 +13,7 @@ const ROLE_OPTIONS: { value: UserRole; label: string; description: string }[] = 
 ];
 
 export function UserList() {
+    const { user: currentUser } = useAuth();
     const [users, setUsers] = useState<User[]>([]);
     const [totalUsers, setTotalUsers] = useState(0);
     const [organizations, setOrganizations] = useState<OrganizationWithStats[]>([]);
@@ -80,6 +82,27 @@ export function UserList() {
         } finally {
             setIsAssigning(false);
         }
+    };
+
+    const handleDeleteUser = async (user: User) => {
+        if (!confirm(`Are you sure you want to delete ${user.email}? This action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            await adminApi.deleteUser(user.user_id);
+            await loadData();
+        } catch (err) {
+            setError(handleApiError(err));
+        }
+    };
+
+    const canDeleteUser = (user: User) => {
+        // Can't delete yourself
+        if (currentUser && user.user_id === Number(currentUser.id)) return false;
+        // Can't delete other platform admins
+        if (user.role === 'platform_admin') return false;
+        return true;
     };
 
     const startEditRole = (user: User) => {
@@ -203,12 +226,24 @@ export function UserList() {
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                     {new Date(user.registration_date).toLocaleDateString()}
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm space-x-3">
                                     <button
                                         onClick={() => startEditRole(user)}
                                         className="text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300"
                                     >
                                         Edit Role
+                                    </button>
+                                    <button
+                                        onClick={() => handleDeleteUser(user)}
+                                        disabled={!canDeleteUser(user)}
+                                        className={`${
+                                            canDeleteUser(user)
+                                                ? 'text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300'
+                                                : 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                                        }`}
+                                        title={!canDeleteUser(user) ? "Cannot delete this user" : "Delete user"}
+                                    >
+                                        <TrashIcon className="h-4 w-4 inline" />
                                     </button>
                                 </td>
                             </tr>

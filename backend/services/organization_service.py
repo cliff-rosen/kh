@@ -139,14 +139,24 @@ class OrganizationService:
 
         return result
 
+    # Name of the default organization that cannot be deleted
+    DEFAULT_ORG_NAME = "Default Organization"
+
     def delete_organization(self, org_id: int) -> bool:
         """
         Delete an organization.
-        Will fail if the organization has members.
+        Will fail if the organization has members or is the default organization.
         """
         org = self.get_organization(org_id)
         if not org:
             return False
+
+        # Prevent deleting the default organization
+        if org.name == self.DEFAULT_ORG_NAME:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete the default organization. It is required for new user registrations."
+            )
 
         # Check if org has members
         member_count = self.db.query(func.count(User.user_id)).filter(

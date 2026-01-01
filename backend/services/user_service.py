@@ -412,6 +412,47 @@ class UserService:
         logger.info(f"Reactivated user {user_id}")
         return user
 
+    def delete_user(self, user_id: int, deleted_by: UserModel) -> bool:
+        """
+        Hard delete a user from the database.
+
+        Args:
+            user_id: User to delete
+            deleted_by: User performing the deletion
+
+        Returns:
+            True if deleted successfully
+        """
+        # Only platform admins can delete users
+        if deleted_by.role != UserRoleModel.PLATFORM_ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only platform admins can delete users"
+            )
+
+        user = self.get_user_or_404(user_id)
+
+        # Prevent self-deletion
+        if user.user_id == deleted_by.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete yourself"
+            )
+
+        # Prevent deleting other platform admins
+        if user.role == UserRoleModel.PLATFORM_ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete another platform admin"
+            )
+
+        email = user.email
+        self.db.delete(user)
+        self.db.commit()
+
+        logger.info(f"Deleted user {user_id} ({email})")
+        return True
+
     # ==================== Authentication Helpers ====================
 
     def update_login_token(

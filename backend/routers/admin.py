@@ -297,6 +297,24 @@ async def update_user_role(
     return UserSchema.model_validate(user)
 
 
+@router.delete(
+    "/users/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a user"
+)
+async def delete_user(
+    user_id: int,
+    current_user: User = Depends(require_platform_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Permanently delete a user from the system.
+    Platform admin only. Cannot delete yourself or other platform admins.
+    """
+    user_service = UserService(db)
+    user_service.delete_user(user_id, current_user)
+
+
 # ==================== Invitation Management ====================
 
 class InvitationCreate(BaseModel):

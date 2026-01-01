@@ -126,6 +126,13 @@ export const adminApi = {
     return response.data;
   },
 
+  /**
+   * Delete a user (platform admin only)
+   */
+  async deleteUser(userId: number): Promise<void> {
+    await api.delete(`/api/admin/users/${userId}`);
+  },
+
   // ==================== Invitation Management ====================
 
   /**
