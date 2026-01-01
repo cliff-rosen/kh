@@ -195,7 +195,7 @@ export default function ChatTray({
         };
     }, [width, minWidth, maxWidth]);
 
-    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, updateContext, reset, loadMostRecent, context } = useChatContext();
+    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, setContext, reset, loadMostRecent, context } = useChatContext();
     const [input, setInput] = useState('');
     const [showDebug, setShowDebug] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -208,12 +208,28 @@ export default function ChatTray({
     const [dismissedPayloads, setDismissedPayloads] = useState<Set<number>>(new Set());
     const [toolsToShow, setToolsToShow] = useState<ToolHistoryEntry[] | null>(null);
 
-    // Update context when initialContext changes
+    // Track previous hidden state to detect when tray becomes visible
+    const prevHiddenRef = useRef(hidden);
+
+    // Replace context when initialContext changes OR when tray becomes visible again
+    useEffect(() => {
+        const wasHidden = prevHiddenRef.current;
+        prevHiddenRef.current = hidden;
+
+        // Reset context when becoming visible (e.g., modal closed) or when initialContext changes
+        if (initialContext && (!hidden && wasHidden)) {
+            setContext(initialContext);
+        }
+    }, [hidden, initialContext, setContext]);
+
+    // Also set context on initial mount
     useEffect(() => {
         if (initialContext) {
-            updateContext(initialContext);
+            setContext(initialContext);
         }
-    }, [initialContext, updateContext]);
+        // Only run on mount
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Track if we've loaded the initial conversation
     const hasLoadedInitial = useRef(false);

@@ -26,6 +26,7 @@ interface ChatContextType {
     sendMessage: (content: string, interactionType?: InteractionType, actionMetadata?: ActionMetadata) => Promise<void>;
     cancelRequest: () => void;
     updateContext: (updates: Record<string, unknown>) => void;
+    setContext: (newContext: Record<string, unknown>) => void;
     reset: () => void;
     loadChat: (id: number) => Promise<boolean>;
     loadMostRecent: () => Promise<boolean>;
@@ -195,6 +196,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         setContext(prev => ({ ...prev, ...updates }));
     }, []);
 
+    const replaceContext = useCallback((newContext: Record<string, unknown>) => {
+        setContext(newContext);
+    }, []);
+
     const reset = useCallback(() => {
         setMessages([]);
         setError(null);
@@ -247,6 +252,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             sendMessage,
             cancelRequest,
             updateContext,
+            setContext: replaceContext,
             reset,
             loadChat,
             loadMostRecent
