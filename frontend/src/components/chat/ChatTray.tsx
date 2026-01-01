@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, PlusIcon } from '@heroicons/react/24/solid';
+import { XMarkIcon, ChatBubbleLeftRightIcon, PaperAirplaneIcon, PlusIcon, BugAntIcon } from '@heroicons/react/24/solid';
 
 import { useChatContext } from '../../context/ChatContext';
 import { trackEvent } from '../../lib/api/trackingApi';
@@ -195,8 +195,9 @@ export default function ChatTray({
         };
     }, [width, minWidth, maxWidth]);
 
-    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, updateContext, reset, loadMostRecent } = useChatContext();
+    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, updateContext, reset, loadMostRecent, context } = useChatContext();
     const [input, setInput] = useState('');
+    const [showDebug, setShowDebug] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     // Payload that's available but not yet opened by user
@@ -364,6 +365,15 @@ export default function ChatTray({
                         <div className="flex items-center gap-1">
                             <button
                                 type="button"
+                                onClick={() => setShowDebug(!showDebug)}
+                                className={`p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors ${showDebug ? 'bg-gray-200 dark:bg-gray-700' : ''}`}
+                                aria-label="Toggle debug info"
+                                title="Toggle debug info"
+                            >
+                                <BugAntIcon className={`h-5 w-5 ${showDebug ? 'text-orange-500' : 'text-gray-500 dark:text-gray-400'}`} />
+                            </button>
+                            <button
+                                type="button"
                                 onClick={handleReset}
                                 className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
                                 aria-label="New conversation"
@@ -381,6 +391,18 @@ export default function ChatTray({
                             </button>
                         </div>
                     </div>
+
+                    {/* Debug Context Panel */}
+                    {showDebug && (
+                        <div className="border-b border-gray-200 dark:border-gray-700 bg-orange-50 dark:bg-orange-900/20 p-3 max-h-48 overflow-y-auto">
+                            <div className="text-xs font-mono">
+                                <div className="font-semibold text-orange-800 dark:text-orange-200 mb-1">Current Context:</div>
+                                <pre className="text-orange-700 dark:text-orange-300 whitespace-pre-wrap break-all">
+                                    {JSON.stringify(context, null, 2)}
+                                </pre>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Messages */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
