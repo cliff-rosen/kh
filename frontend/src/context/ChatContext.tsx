@@ -75,11 +75,6 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                 context,
                 interaction_type: interactionType,
                 action_metadata: actionMetadata,
-                conversation_history: messages.map(msg => ({
-                    role: msg.role,
-                    content: msg.content,
-                    timestamp: msg.timestamp
-                })),
                 conversation_id: chatId
             }, abortController.signal)) {
                 switch (event.type) {
@@ -184,7 +179,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             setIsLoading(false);
             abortControllerRef.current = null;
         }
-    }, [context, messages, chatId]);
+    }, [context, chatId]);
 
     const cancelRequest = useCallback(() => {
         if (abortControllerRef.current) {

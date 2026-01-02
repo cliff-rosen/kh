@@ -92,7 +92,7 @@ class ChatStreamService:
 
             # Build prompts
             system_prompt = self._build_system_prompt(context_with_chat, chat_id)
-            messages = self._build_messages(request)
+            messages = self._build_messages(request, chat_id)
 
             # Get tools for this page, tab, and subtab (global + page + tab + subtab)
             current_page = context_with_chat.get("current_page", "unknown")
@@ -362,12 +362,21 @@ class ChatStreamService:
     # Message Building
     # =========================================================================
 
-    def _build_messages(self, request) -> List[Dict[str, str]]:
-        """Build message history for LLM from request."""
-        messages = [
-            {"role": msg.role, "content": msg.content}
-            for msg in request.conversation_history
-        ]
+    def _build_messages(self, request, chat_id: Optional[int] = None) -> List[Dict[str, str]]:
+        """
+        Build message history for LLM.
+
+        Loads conversation history from database if chat_id is provided,
+        otherwise starts fresh.
+        """
+        messages = []
+
+        # Load history from database if we have a conversation
+        if chat_id:
+            db_messages = self.chat_service.get_messages(chat_id, self.user_id)
+            for msg in db_messages:
+                if msg.role in ('user', 'assistant'):
+                    messages.append({"role": msg.role, "content": msg.content})
 
         # Build user prompt with context
         context_summary = "\n".join([f"{k}: {v}" for k, v in request.context.items()])

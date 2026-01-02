@@ -29,11 +29,6 @@ export interface ChatRequest {
     context: Record<string, unknown>;
     interaction_type: InteractionType;
     action_metadata?: ActionMetadata;
-    conversation_history: Array<{
-        role: 'user' | 'assistant';
-        content: string;
-        timestamp: string;
-    }>;
     /** Optional chat ID for persistence. If not provided, creates new chat. */
     conversation_id?: number | null;
 }
