@@ -21,12 +21,14 @@ interface SuggestedAction {
     data?: Record<string, unknown>;
 }
 
+interface ToolRecord {
+    tool_name: string;
+    input: Record<string, unknown>;
+    output: string;
+}
+
 interface MessageExtras {
-    tool_history?: Array<{
-        tool_name: string;
-        tool_input: Record<string, unknown>;
-        result?: unknown;
-    }>;
+    tool_history?: ToolRecord[];
     custom_payload?: Record<string, unknown>;
     diagnostics?: {
         model: string;
@@ -501,14 +503,14 @@ function MessageDetailPanel({ message }: { message: Message }) {
                 <div className="p-4">
                     {activeTab === 'content' && (
                         <div className="prose dark:prose-invert max-w-none">
-                            <pre className="whitespace-pre-wrap text-sm bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto">
+                            <pre className="whitespace-pre-wrap text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto">
                                 {message.content}
                             </pre>
                         </div>
                     )}
 
                     {activeTab === 'context' && message.context && (
-                        <pre className="text-sm bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto">
+                        <pre className="text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto">
                             {JSON.stringify(message.context, null, 2)}
                         </pre>
                     )}
@@ -517,30 +519,30 @@ function MessageDetailPanel({ message }: { message: Message }) {
                         <div className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
-                                    <div className="text-xs text-gray-500 mb-1">Model</div>
-                                    <div className="font-mono text-sm">{extras.diagnostics.model}</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Model</div>
+                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{extras.diagnostics.model}</div>
                                 </div>
                                 <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
-                                    <div className="text-xs text-gray-500 mb-1">Max Tokens</div>
-                                    <div className="font-mono text-sm">{extras.diagnostics.max_tokens}</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Max Tokens</div>
+                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{extras.diagnostics.max_tokens}</div>
                                 </div>
                                 {extras.diagnostics.temperature !== undefined && (
                                     <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
-                                        <div className="text-xs text-gray-500 mb-1">Temperature</div>
-                                        <div className="font-mono text-sm">{extras.diagnostics.temperature}</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Temperature</div>
+                                        <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{extras.diagnostics.temperature}</div>
                                     </div>
                                 )}
                                 {extras.diagnostics.max_iterations !== undefined && (
                                     <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
-                                        <div className="text-xs text-gray-500 mb-1">Max Iterations</div>
-                                        <div className="font-mono text-sm">{extras.diagnostics.max_iterations}</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Max Iterations</div>
+                                        <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{extras.diagnostics.max_iterations}</div>
                                     </div>
                                 )}
                             </div>
 
                             {extras.diagnostics.tools && extras.diagnostics.tools.length > 0 && (
                                 <div>
-                                    <div className="text-xs text-gray-500 mb-2">Available Tools</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Available Tools</div>
                                     <div className="flex flex-wrap gap-1">
                                         {extras.diagnostics.tools.map((tool, idx) => (
                                             <span key={idx} className="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded text-xs font-mono">
@@ -553,23 +555,23 @@ function MessageDetailPanel({ message }: { message: Message }) {
 
                             {extras.diagnostics.context && (
                                 <div>
-                                    <div className="text-xs text-gray-500 mb-2">Request Context</div>
-                                    <pre className="text-xs bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-48 overflow-y-auto">
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Request Context</div>
+                                    <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-48 overflow-y-auto">
                                         {JSON.stringify(extras.diagnostics.context, null, 2)}
                                     </pre>
                                 </div>
                             )}
 
                             <div>
-                                <div className="text-xs text-gray-500 mb-2">System Prompt ({extras.diagnostics.system_prompt?.length || 0} chars)</div>
-                                <pre className="text-xs bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-96 overflow-y-auto whitespace-pre-wrap">
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">System Prompt ({extras.diagnostics.system_prompt?.length || 0} chars)</div>
+                                <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-96 overflow-y-auto whitespace-pre-wrap">
                                     {extras.diagnostics.system_prompt}
                                 </pre>
                             </div>
 
                             {extras.diagnostics.messages && extras.diagnostics.messages.length > 0 && (
                                 <div>
-                                    <div className="text-xs text-gray-500 mb-2">Message History ({extras.diagnostics.messages.length} messages)</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Message History ({extras.diagnostics.messages.length} messages)</div>
                                     <div className="space-y-2 max-h-64 overflow-y-auto">
                                         {extras.diagnostics.messages.map((msg, idx) => (
                                             <div key={idx} className="bg-gray-50 dark:bg-gray-900 p-2 rounded text-xs">
@@ -587,24 +589,22 @@ function MessageDetailPanel({ message }: { message: Message }) {
                         <div className="space-y-4">
                             {extras.tool_history.map((tool, idx) => (
                                 <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
-                                    <div className="font-semibold text-purple-600 dark:text-purple-400 mb-2">
+                                    <div className="font-semibold text-purple-600 dark:text-purple-400 mb-3">
                                         {idx + 1}. {tool.tool_name}
                                     </div>
-                                    <div className="space-y-2">
+                                    <div className="space-y-3">
                                         <div>
-                                            <div className="text-xs text-gray-500 mb-1">Input</div>
-                                            <pre className="text-xs bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto">
-                                                {JSON.stringify(tool.tool_input, null, 2)}
+                                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Input</div>
+                                            <pre className="text-xs text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto">
+                                                {JSON.stringify(tool.input, null, 2)}
                                             </pre>
                                         </div>
-                                        {tool.result !== undefined && (
-                                            <div>
-                                                <div className="text-xs text-gray-500 mb-1">Result</div>
-                                                <pre className="text-xs bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto max-h-48 overflow-y-auto">
-                                                    {typeof tool.result === 'string' ? tool.result : JSON.stringify(tool.result, null, 2)}
-                                                </pre>
-                                            </div>
-                                        )}
+                                        <div>
+                                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Output</div>
+                                            <pre className="text-xs text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap">
+                                                {tool.output}
+                                            </pre>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
@@ -612,7 +612,7 @@ function MessageDetailPanel({ message }: { message: Message }) {
                     )}
 
                     {activeTab === 'payload' && extras.custom_payload && (
-                        <pre className="text-sm bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto">
+                        <pre className="text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto">
                             {JSON.stringify(extras.custom_payload, null, 2)}
                         </pre>
                     )}
@@ -625,9 +625,9 @@ function MessageDetailPanel({ message }: { message: Message }) {
                                     <div className="space-y-1">
                                         {extras.suggested_values.map((val, idx) => (
                                             <div key={idx} className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900 p-2 rounded">
-                                                <span className="font-medium text-sm">{val.label}</span>
-                                                <span className="text-xs text-gray-500">→</span>
-                                                <code className="text-xs bg-gray-200 dark:bg-gray-700 px-1 rounded">{val.value}</code>
+                                                <span className="font-medium text-sm text-gray-900 dark:text-gray-100">{val.label}</span>
+                                                <span className="text-xs text-gray-500 dark:text-gray-400">→</span>
+                                                <code className="text-xs text-gray-800 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 px-1 rounded">{val.value}</code>
                                             </div>
                                         ))}
                                     </div>
@@ -640,14 +640,14 @@ function MessageDetailPanel({ message }: { message: Message }) {
                                         {extras.suggested_actions.map((action, idx) => (
                                             <div key={idx} className="bg-gray-50 dark:bg-gray-900 p-2 rounded">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="font-medium text-sm">{action.label}</span>
-                                                    <code className="text-xs bg-gray-200 dark:bg-gray-700 px-1 rounded">{action.action}</code>
+                                                    <span className="font-medium text-sm text-gray-900 dark:text-gray-100">{action.label}</span>
+                                                    <code className="text-xs text-gray-800 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 px-1 rounded">{action.action}</code>
                                                     {action.handler && (
-                                                        <span className="text-xs text-gray-500">({action.handler})</span>
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400">({action.handler})</span>
                                                     )}
                                                 </div>
                                                 {action.data && (
-                                                    <pre className="text-xs mt-1 bg-white dark:bg-gray-800 p-1 rounded overflow-x-auto">
+                                                    <pre className="text-xs mt-1 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 p-1 rounded overflow-x-auto">
                                                         {JSON.stringify(action.data, null, 2)}
                                                     </pre>
                                                 )}
