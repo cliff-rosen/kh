@@ -5,7 +5,7 @@ Handles LLM streaming interaction for the chat system with tool support.
 Uses the agent_loop for agentic processing. Handles chat persistence automatically.
 """
 
-from typing import Dict, Any, AsyncGenerator, List, Optional
+from typing import Dict, Any, AsyncGenerator, List, Optional, Tuple
 from datetime import datetime
 from sqlalchemy.orm import Session
 import anthropic
@@ -92,7 +92,7 @@ class ChatStreamService:
 
             # Build prompts
             system_prompt = self._build_system_prompt(context_with_chat, chat_id)
-            messages = self._build_messages(request, chat_id)
+            messages, conversation_history = self._build_messages(request, chat_id)
 
             # Get tools for this page, tab, and subtab (global + page + tab + subtab)
             current_page = context_with_chat.get("current_page", "unknown")
@@ -104,6 +104,7 @@ class ChatStreamService:
             yield StatusEvent(message="Thinking...").model_dump_json()
 
             # Build diagnostics object (what we're passing to the agent)
+            # Store clean conversation history (not the LLM-formatted messages)
             diagnostics = ChatDiagnostics(
                 model=CHAT_MODEL,
                 max_tokens=CHAT_MAX_TOKENS,
@@ -111,7 +112,7 @@ class ChatStreamService:
                 temperature=0.0,
                 tools=list(tools_by_name.keys()),
                 system_prompt=system_prompt,
-                messages=messages,
+                messages=conversation_history,  # Clean history without context wrapper
                 context=request.context
             )
 
@@ -365,21 +366,26 @@ class ChatStreamService:
     # Message Building
     # =========================================================================
 
-    def _build_messages(self, request, chat_id: Optional[int] = None) -> List[Dict[str, str]]:
+    def _build_messages(self, request, chat_id: Optional[int] = None) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
         """
         Build message history for LLM.
 
         Loads conversation history from database if chat_id is provided,
         otherwise starts fresh.
+
+        Returns:
+            tuple: (messages_for_llm, clean_history)
+                - messages_for_llm: Full messages including context-wrapped current request
+                - clean_history: Just the prior conversation (for diagnostics display)
         """
-        messages = []
+        history = []
 
         # Load history from database if we have a conversation
         if chat_id:
             db_messages = self.chat_service.get_messages(chat_id, self.user_id)
             for msg in db_messages:
                 if msg.role in ('user', 'assistant'):
-                    messages.append({"role": msg.role, "content": msg.content})
+                    history.append({"role": msg.role, "content": msg.content})
 
         # Build user prompt with context
         context_summary = "\n".join([f"{k}: {v}" for k, v in request.context.items()])
@@ -390,8 +396,10 @@ class ChatStreamService:
 
         User's message: {request.message}"""
 
-        messages.append({"role": "user", "content": user_prompt})
-        return messages
+        # Messages for LLM includes history + context-wrapped current request
+        messages_for_llm = history + [{"role": "user", "content": user_prompt}]
+
+        return messages_for_llm, history
 
     # =========================================================================
     # System Prompt Building

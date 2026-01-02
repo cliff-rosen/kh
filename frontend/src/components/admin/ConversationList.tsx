@@ -441,21 +441,25 @@ export function ConversationList() {
 
 // Full detail panel for a selected message
 function MessageDetailPanel({ message }: { message: Message }) {
-    const [activeTab, setActiveTab] = useState<'content' | 'input' | 'output' | 'extras'>('content');
-
     const extras = message.extras || {};
     const hasDiagnostics = !!extras.diagnostics;
-    const hasOutput = hasDiagnostics || (extras.tool_history && extras.tool_history.length > 0);
+    const hasRawOutput = !!extras.diagnostics?.raw_llm_response;
+    const hasToolCalls = extras.tool_history && extras.tool_history.length > 0;
     const hasExtras = !!extras.custom_payload ||
                       (extras.suggested_values && extras.suggested_values.length > 0) ||
                       (extras.suggested_actions && extras.suggested_actions.length > 0);
 
     const tabs = [
-        { id: 'content' as const, label: 'Content', show: true },
         { id: 'input' as const, label: 'LLM Input', show: hasDiagnostics },
-        { id: 'output' as const, label: 'LLM Output', show: hasOutput },
+        { id: 'raw' as const, label: 'Raw Output', show: hasRawOutput },
+        { id: 'tools' as const, label: `Tool Calls (${extras.tool_history?.length || 0})`, show: hasToolCalls },
         { id: 'extras' as const, label: 'Extras', show: hasExtras },
     ].filter(t => t.show);
+
+    // Default to first available tab
+    const [activeTab, setActiveTab] = useState<'input' | 'raw' | 'tools' | 'extras'>(
+        tabs.length > 0 ? tabs[0].id : 'input'
+    );
 
     return (
         <div className="space-y-4">
@@ -482,25 +486,27 @@ function MessageDetailPanel({ message }: { message: Message }) {
 
             {/* Tabs */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
-                <div className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
-                    {tabs.map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
-                                activeTab === tab.id
-                                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-b-2 border-blue-500'
-                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                            }`}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
+                {tabs.length > 0 && (
+                    <div className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+                        {tabs.map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
+                                    activeTab === tab.id
+                                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-b-2 border-blue-500'
+                                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                }`}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
 
                 <div className="p-4">
-                    {/* Content Tab */}
-                    {activeTab === 'content' && (
+                    {/* No tabs available (user messages) */}
+                    {tabs.length === 0 && (
                         <div className="prose dark:prose-invert max-w-none">
                             <pre className="whitespace-pre-wrap text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto">
                                 {message.content}
@@ -584,53 +590,42 @@ function MessageDetailPanel({ message }: { message: Message }) {
                         </div>
                     )}
 
-                    {/* LLM Output Tab */}
-                    {activeTab === 'output' && (
-                        <div className="space-y-6">
-                            {/* Raw LLM Response */}
-                            {extras.diagnostics?.raw_llm_response && (
-                                <div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Raw LLM Response ({extras.diagnostics.raw_llm_response.length} chars)</div>
-                                    <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-96 overflow-y-auto whitespace-pre-wrap">
-                                        {extras.diagnostics.raw_llm_response}
-                                    </pre>
-                                </div>
-                            )}
+                    {/* Raw Output Tab */}
+                    {activeTab === 'raw' && extras.diagnostics?.raw_llm_response && (
+                        <div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                Raw LLM Response ({extras.diagnostics.raw_llm_response.length} chars)
+                            </div>
+                            <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">
+                                {extras.diagnostics.raw_llm_response}
+                            </pre>
+                        </div>
+                    )}
 
-                            {/* Tool Executions */}
-                            {extras.tool_history && extras.tool_history.length > 0 && (
-                                <div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Tool Executions ({extras.tool_history.length})</div>
-                                    <div className="space-y-4">
-                                        {extras.tool_history.map((tool, idx) => (
-                                            <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
-                                                <div className="font-semibold text-purple-600 dark:text-purple-400 mb-3">
-                                                    {idx + 1}. {tool.tool_name}
-                                                </div>
-                                                <div className="space-y-3">
-                                                    <div>
-                                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Input</div>
-                                                        <pre className="text-xs text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto">
-                                                            {JSON.stringify(tool.input, null, 2)}
-                                                        </pre>
-                                                    </div>
-                                                    <div>
-                                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Output</div>
-                                                        <pre className="text-xs text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap">
-                                                            {tool.output}
-                                                        </pre>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
+                    {/* Tool Calls Tab */}
+                    {activeTab === 'tools' && extras.tool_history && extras.tool_history.length > 0 && (
+                        <div className="space-y-4">
+                            {extras.tool_history.map((tool, idx) => (
+                                <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                                    <div className="font-semibold text-purple-600 dark:text-purple-400 mb-3">
+                                        {idx + 1}. {tool.tool_name}
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Input</div>
+                                            <pre className="text-xs text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto">
+                                                {JSON.stringify(tool.input, null, 2)}
+                                            </pre>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Output</div>
+                                            <pre className="text-xs text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap">
+                                                {tool.output}
+                                            </pre>
+                                        </div>
                                     </div>
                                 </div>
-                            )}
-
-                            {/* Empty state */}
-                            {!extras.diagnostics?.raw_llm_response && (!extras.tool_history || extras.tool_history.length === 0) && (
-                                <p className="text-gray-500 dark:text-gray-400 text-sm">No output data available</p>
-                            )}
+                            ))}
                         </div>
                     )}
 
