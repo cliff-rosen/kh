@@ -8,6 +8,7 @@ Auto-imports all tool modules to register them with the global registry.
 from tools.builtin import pubmed
 from tools.builtin import reports
 from tools.builtin import conversation
+from tools.builtin import web
 
 # Add more tool modules here as they are created:
 # from tools.builtin import research

@@ -244,8 +244,29 @@ async def run_agent_loop(
                 collected_text += "\n\n"
                 yield AgentTextDelta(text="\n\n")
 
-        # Max iterations reached
-        logger.warning(f"Agent loop reached max iterations ({max_iterations})")
+        # Max iterations reached - make one final call without tools to get a summary
+        logger.warning(f"Agent loop reached max iterations ({max_iterations}), requesting final summary")
+
+        # Add a message asking for a final answer
+        messages.append({
+            "role": "user",
+            "content": "You've reached the maximum number of tool calls. Please provide a final summary of what you found based on your research above. Do not call any more tools."
+        })
+
+        # Remove tools to force a text response
+        final_kwargs = {**api_kwargs, "messages": messages}
+        final_kwargs.pop("tools", None)
+
+        # Clear collected_text - we want only the final summary, not the "thinking" text
+        collected_text = ""
+
+        # Make final call
+        async for event in _call_model(client, final_kwargs, stream_text, cancellation_token):
+            if isinstance(event, _ModelResult):
+                collected_text = event.text  # Use final summary only
+            else:
+                yield event
+
         yield AgentComplete(text=collected_text, tool_calls=tool_call_history, payloads=collected_payloads)
 
     except asyncio.CancelledError:

@@ -248,6 +248,30 @@ def _summarize_validation_feedback(data: Dict[str, Any]) -> str:
     return f"Validation feedback: {issues} issues, {strengths} strengths noted"
 
 
+def _summarize_web_search(data: Dict[str, Any]) -> str:
+    """Summarize web search results."""
+    query = data.get("query", "unknown query")
+    total = data.get("total_results", 0)
+    results = data.get("results", [])
+    return f"Web search for '{query}': {len(results)} of {total} results"
+
+
+def _summarize_webpage_content(data: Dict[str, Any]) -> str:
+    """Summarize fetched webpage content."""
+    title = data.get("title", "Untitled")
+    url = data.get("url", "")
+    # Truncate title if too long
+    if len(title) > 50:
+        title = title[:47] + "..."
+    # Extract domain from URL
+    try:
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc
+    except:
+        domain = url[:30] if url else "unknown"
+    return f"Webpage: {title} ({domain})"
+
+
 # =============================================================================
 # Tool Payload Types (from tools)
 # =============================================================================
@@ -307,6 +331,58 @@ register_payload_type(PayloadType(
             "doi": {"type": ["string", "null"]}
         },
         "required": ["pmid", "title"]
+    }
+))
+
+register_payload_type(PayloadType(
+    name="web_search_results",
+    description="Results from a web search",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_web_search,
+    schema={
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "The search query used"},
+            "total_results": {"type": "integer", "description": "Total results found"},
+            "results": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "url": {"type": "string"},
+                        "snippet": {"type": "string"},
+                        "source": {"type": "string"},
+                        "rank": {"type": "integer"}
+                    },
+                    "required": ["title", "url"]
+                }
+            }
+        },
+        "required": ["query", "results"]
+    }
+))
+
+register_payload_type(PayloadType(
+    name="webpage_content",
+    description="Content extracted from a webpage",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_webpage_content,
+    schema={
+        "type": "object",
+        "properties": {
+            "url": {"type": "string"},
+            "title": {"type": "string"},
+            "content": {"type": "string"},
+            "description": {"type": ["string", "null"]},
+            "author": {"type": ["string", "null"]},
+            "published_date": {"type": ["string", "null"]},
+            "word_count": {"type": ["integer", "null"]},
+            "truncated": {"type": "boolean"}
+        },
+        "required": ["url", "title", "content"]
     }
 ))
 
