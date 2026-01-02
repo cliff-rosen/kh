@@ -177,6 +177,9 @@ class ChatStreamService:
                     yield ErrorEvent(message=event.error).model_dump_json()
                     return
 
+            # Add raw LLM response to diagnostics
+            diagnostics.raw_llm_response = collected_text
+
             # Parse response and build final payload
             parsed = self._parse_llm_response(collected_text, request.context)
 

@@ -66,6 +66,7 @@ export interface ChatDiagnostics {
     system_prompt: string;
     messages: Record<string, unknown>[];
     context: Record<string, unknown>;
+    raw_llm_response?: string;  // Raw text collected from LLM before parsing
 }
 
 export interface ActionMetadata {

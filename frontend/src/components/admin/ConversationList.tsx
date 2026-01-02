@@ -39,6 +39,7 @@ interface MessageExtras {
         tools: string[];
         messages: Array<{ role: string; content: string }>;
         context: Record<string, unknown>;
+        raw_llm_response?: string;
     };
     suggested_values?: SuggestedValue[];
     suggested_actions?: SuggestedAction[];
@@ -440,23 +441,20 @@ export function ConversationList() {
 
 // Full detail panel for a selected message
 function MessageDetailPanel({ message }: { message: Message }) {
-    const [activeTab, setActiveTab] = useState<'content' | 'context' | 'diagnostics' | 'tools' | 'payload' | 'suggestions'>('content');
+    const [activeTab, setActiveTab] = useState<'content' | 'input' | 'output' | 'extras'>('content');
 
     const extras = message.extras || {};
-    const hasContext = message.context && Object.keys(message.context).length > 0;
     const hasDiagnostics = !!extras.diagnostics;
-    const hasTools = extras.tool_history && extras.tool_history.length > 0;
-    const hasPayload = !!extras.custom_payload;
-    const hasSuggestions = (extras.suggested_values && extras.suggested_values.length > 0) ||
-                          (extras.suggested_actions && extras.suggested_actions.length > 0);
+    const hasOutput = hasDiagnostics || (extras.tool_history && extras.tool_history.length > 0);
+    const hasExtras = !!extras.custom_payload ||
+                      (extras.suggested_values && extras.suggested_values.length > 0) ||
+                      (extras.suggested_actions && extras.suggested_actions.length > 0);
 
     const tabs = [
         { id: 'content' as const, label: 'Content', show: true },
-        { id: 'context' as const, label: 'Context', show: hasContext },
-        { id: 'diagnostics' as const, label: 'Diagnostics', show: hasDiagnostics },
-        { id: 'tools' as const, label: `Tools (${extras.tool_history?.length || 0})`, show: hasTools },
-        { id: 'payload' as const, label: 'Payload', show: hasPayload },
-        { id: 'suggestions' as const, label: 'Suggestions', show: hasSuggestions },
+        { id: 'input' as const, label: 'LLM Input', show: hasDiagnostics },
+        { id: 'output' as const, label: 'LLM Output', show: hasOutput },
+        { id: 'extras' as const, label: 'Extras', show: hasExtras },
     ].filter(t => t.show);
 
     return (
@@ -501,6 +499,7 @@ function MessageDetailPanel({ message }: { message: Message }) {
                 </div>
 
                 <div className="p-4">
+                    {/* Content Tab */}
                     {activeTab === 'content' && (
                         <div className="prose dark:prose-invert max-w-none">
                             <pre className="whitespace-pre-wrap text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto">
@@ -509,15 +508,11 @@ function MessageDetailPanel({ message }: { message: Message }) {
                         </div>
                     )}
 
-                    {activeTab === 'context' && message.context && (
-                        <pre className="text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto">
-                            {JSON.stringify(message.context, null, 2)}
-                        </pre>
-                    )}
-
-                    {activeTab === 'diagnostics' && extras.diagnostics && (
+                    {/* LLM Input Tab */}
+                    {activeTab === 'input' && extras.diagnostics && (
                         <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
+                            {/* Model Config */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
                                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Model</div>
                                     <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{extras.diagnostics.model}</div>
@@ -540,9 +535,10 @@ function MessageDetailPanel({ message }: { message: Message }) {
                                 )}
                             </div>
 
+                            {/* Tools */}
                             {extras.diagnostics.tools && extras.diagnostics.tools.length > 0 && (
                                 <div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Available Tools</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Available Tools ({extras.diagnostics.tools.length})</div>
                                     <div className="flex flex-wrap gap-1">
                                         {extras.diagnostics.tools.map((tool, idx) => (
                                             <span key={idx} className="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded text-xs font-mono">
@@ -553,15 +549,17 @@ function MessageDetailPanel({ message }: { message: Message }) {
                                 </div>
                             )}
 
+                            {/* Context */}
                             {extras.diagnostics.context && (
                                 <div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Request Context</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Context</div>
                                     <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-48 overflow-y-auto">
                                         {JSON.stringify(extras.diagnostics.context, null, 2)}
                                     </pre>
                                 </div>
                             )}
 
+                            {/* System Prompt */}
                             <div>
                                 <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">System Prompt ({extras.diagnostics.system_prompt?.length || 0} chars)</div>
                                 <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-96 overflow-y-auto whitespace-pre-wrap">
@@ -569,6 +567,7 @@ function MessageDetailPanel({ message }: { message: Message }) {
                                 </pre>
                             </div>
 
+                            {/* Message History */}
                             {extras.diagnostics.messages && extras.diagnostics.messages.length > 0 && (
                                 <div>
                                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Message History ({extras.diagnostics.messages.length} messages)</div>
@@ -585,43 +584,73 @@ function MessageDetailPanel({ message }: { message: Message }) {
                         </div>
                     )}
 
-                    {activeTab === 'tools' && extras.tool_history && (
-                        <div className="space-y-4">
-                            {extras.tool_history.map((tool, idx) => (
-                                <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
-                                    <div className="font-semibold text-purple-600 dark:text-purple-400 mb-3">
-                                        {idx + 1}. {tool.tool_name}
-                                    </div>
-                                    <div className="space-y-3">
-                                        <div>
-                                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Input</div>
-                                            <pre className="text-xs text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto">
-                                                {JSON.stringify(tool.input, null, 2)}
-                                            </pre>
-                                        </div>
-                                        <div>
-                                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Output</div>
-                                            <pre className="text-xs text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap">
-                                                {tool.output}
-                                            </pre>
-                                        </div>
+                    {/* LLM Output Tab */}
+                    {activeTab === 'output' && (
+                        <div className="space-y-6">
+                            {/* Raw LLM Response */}
+                            {extras.diagnostics?.raw_llm_response && (
+                                <div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Raw LLM Response ({extras.diagnostics.raw_llm_response.length} chars)</div>
+                                    <pre className="text-xs text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-96 overflow-y-auto whitespace-pre-wrap">
+                                        {extras.diagnostics.raw_llm_response}
+                                    </pre>
+                                </div>
+                            )}
+
+                            {/* Tool Executions */}
+                            {extras.tool_history && extras.tool_history.length > 0 && (
+                                <div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Tool Executions ({extras.tool_history.length})</div>
+                                    <div className="space-y-4">
+                                        {extras.tool_history.map((tool, idx) => (
+                                            <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                                                <div className="font-semibold text-purple-600 dark:text-purple-400 mb-3">
+                                                    {idx + 1}. {tool.tool_name}
+                                                </div>
+                                                <div className="space-y-3">
+                                                    <div>
+                                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Input</div>
+                                                        <pre className="text-xs text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto">
+                                                            {JSON.stringify(tool.input, null, 2)}
+                                                        </pre>
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Output</div>
+                                                        <pre className="text-xs text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap">
+                                                            {tool.output}
+                                                        </pre>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
-                            ))}
+                            )}
+
+                            {/* Empty state */}
+                            {!extras.diagnostics?.raw_llm_response && (!extras.tool_history || extras.tool_history.length === 0) && (
+                                <p className="text-gray-500 dark:text-gray-400 text-sm">No output data available</p>
+                            )}
                         </div>
                     )}
 
-                    {activeTab === 'payload' && extras.custom_payload && (
-                        <pre className="text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto">
-                            {JSON.stringify(extras.custom_payload, null, 2)}
-                        </pre>
-                    )}
+                    {/* Extras Tab */}
+                    {activeTab === 'extras' && (
+                        <div className="space-y-6">
+                            {/* Custom Payload */}
+                            {extras.custom_payload && (
+                                <div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Custom Payload</div>
+                                    <pre className="text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto">
+                                        {JSON.stringify(extras.custom_payload, null, 2)}
+                                    </pre>
+                                </div>
+                            )}
 
-                    {activeTab === 'suggestions' && (
-                        <div className="space-y-4">
+                            {/* Suggested Values */}
                             {extras.suggested_values && extras.suggested_values.length > 0 && (
                                 <div>
-                                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Suggested Values</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Suggested Values ({extras.suggested_values.length})</div>
                                     <div className="space-y-1">
                                         {extras.suggested_values.map((val, idx) => (
                                             <div key={idx} className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900 p-2 rounded">
@@ -633,9 +662,11 @@ function MessageDetailPanel({ message }: { message: Message }) {
                                     </div>
                                 </div>
                             )}
+
+                            {/* Suggested Actions */}
                             {extras.suggested_actions && extras.suggested_actions.length > 0 && (
                                 <div>
-                                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Suggested Actions</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Suggested Actions ({extras.suggested_actions.length})</div>
                                     <div className="space-y-1">
                                         {extras.suggested_actions.map((action, idx) => (
                                             <div key={idx} className="bg-gray-50 dark:bg-gray-900 p-2 rounded">

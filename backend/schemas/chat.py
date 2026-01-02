@@ -104,6 +104,7 @@ class ChatDiagnostics(BaseModel):
     system_prompt: str
     messages: List[dict]  # The messages passed to the LLM
     context: dict  # The context object
+    raw_llm_response: Optional[str] = None  # Raw text collected from LLM before parsing
 
 
 class ChatResponsePayload(BaseModel):
