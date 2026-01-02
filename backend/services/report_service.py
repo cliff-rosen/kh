@@ -241,6 +241,94 @@ class ReportService:
 
         return result
 
+    def get_report_articles_list(
+        self,
+        report_id: int,
+        user_id: int,
+        include_abstract: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get the list of articles in a report with metadata.
+
+        This is optimized for LLM consumption - returns a structured list
+        with category names resolved from IDs.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID (for access verification)
+            include_abstract: If True, include full abstracts (expanded mode)
+
+        Returns:
+            Dict with report info and articles list, or None if not found/no access
+        """
+        report = self.db.query(Report).filter(
+            Report.report_id == report_id
+        ).first()
+
+        if not report:
+            return None
+
+        # Check stream access
+        user = self.user_service.get_user_by_id(user_id)
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == report.research_stream_id
+        ).first()
+
+        if not user or not self._user_has_stream_access(user, stream):
+            return None
+
+        # Build category ID -> name mapping from stream's presentation_config
+        category_map = {}
+        if stream and stream.presentation_config:
+            categories = stream.presentation_config.get("categories", [])
+            for cat in categories:
+                if isinstance(cat, dict):
+                    category_map[cat.get("id", "")] = cat.get("name", cat.get("id", "Unknown"))
+
+        # Get articles with their associations
+        results = self.db.query(
+            Article, ReportArticleAssociation
+        ).join(
+            ReportArticleAssociation,
+            Article.article_id == ReportArticleAssociation.article_id
+        ).filter(
+            ReportArticleAssociation.report_id == report_id
+        ).order_by(
+            ReportArticleAssociation.ranking.asc()
+        ).all()
+
+        articles = []
+        for article, assoc in results:
+            # Resolve category IDs to names
+            category_ids = assoc.presentation_categories or []
+            category_names = [category_map.get(cid, cid) for cid in category_ids]
+
+            article_data = {
+                "pmid": article.pmid,
+                "title": article.title,
+                "journal": article.journal,
+                "publication_date": article.year or "Unknown",
+                "categories": category_names,
+                "category_ids": category_ids,
+                "relevance_score": assoc.relevance_score,
+                "ranking": assoc.ranking
+            }
+
+            if include_abstract:
+                article_data["authors"] = article.authors
+                article_data["abstract"] = article.abstract
+                article_data["doi"] = article.doi
+
+            articles.append(article_data)
+
+        return {
+            "report_id": report_id,
+            "report_name": report.report_name,
+            "report_date": report.report_date.isoformat() if report.report_date else None,
+            "total_articles": len(articles),
+            "articles": articles
+        }
+
     def get_report_with_articles(self, report_id: int, user_id: int) -> Optional[Dict[str, Any]]:
         """Get a report with its associated articles for a user with stream access."""
         report = self.db.query(Report).filter(

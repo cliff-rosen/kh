@@ -163,6 +163,85 @@ def execute_get_report_summary(
         return f"Error getting report summary: {str(e)}"
 
 
+def execute_get_report_articles(
+    params: Dict[str, Any],
+    db: Session,
+    user_id: int,
+    context: Dict[str, Any]
+) -> Union[str, ToolResult]:
+    """
+    Get the list of articles in a report with metadata.
+    Supports two modes:
+    - condensed: Basic info (PMID, title, date, journal, categories)
+    - expanded: Full info including abstract
+    """
+    from services.report_service import ReportService
+
+    report_id = params.get("report_id") or context.get("report_id")
+    mode = params.get("mode", "condensed").lower()
+
+    if mode not in ("condensed", "expanded"):
+        mode = "condensed"
+
+    if not report_id:
+        return "Error: No report_id provided or available in context."
+
+    try:
+        service = ReportService(db)
+        result = service.get_report_articles_list(
+            report_id=report_id,
+            user_id=user_id,
+            include_abstract=(mode == "expanded")
+        )
+
+        if not result:
+            return f"No report found with ID {report_id} or access denied."
+
+        if not result["articles"]:
+            return f"No articles found in report {report_id}."
+
+        # Format text for LLM
+        text_lines = [f"=== Articles in Report: {result['report_name']} ==="]
+        text_lines.append(f"Total: {result['total_articles']} articles\n")
+
+        for i, article in enumerate(result["articles"], 1):
+            categories_str = ', '.join(article["categories"]) if article["categories"] else 'Uncategorized'
+
+            if mode == "condensed":
+                text_lines.append(f"""
+{i}. PMID: {article['pmid']}
+   Title: {article['title']}
+   Journal: {article['journal'] or 'Unknown'} ({article['publication_date']})
+   Categories: {categories_str}
+""")
+            else:  # expanded
+                text_lines.append(f"""
+{i}. PMID: {article['pmid']}
+   Title: {article['title']}
+   Authors: {article.get('authors') or 'Unknown'}
+   Journal: {article['journal'] or 'Unknown'} ({article['publication_date']})
+   Categories: {categories_str}
+   Relevance Score: {article['relevance_score'] or 'N/A'}
+
+   Abstract:
+   {article.get('abstract') or 'No abstract available.'}
+""")
+
+        payload = {
+            "type": "report_articles",
+            "data": {
+                **result,
+                "mode": mode
+            }
+        }
+
+        return ToolResult(text="\n".join(text_lines), payload=payload)
+
+    except Exception as e:
+        logger.error(f"Error getting report articles: {e}", exc_info=True)
+        return f"Error getting report articles: {str(e)}"
+
+
 def execute_search_articles_in_reports(
     params: Dict[str, Any],
     db: Session,
@@ -653,6 +732,28 @@ register_tool(ToolConfig(
         }
     },
     executor=execute_get_report_summary,
+    category="reports"
+))
+
+register_tool(ToolConfig(
+    name="get_report_articles",
+    description="Get the list of articles in a report. Use 'condensed' mode for a quick overview (PMID, title, journal, date, categories) or 'expanded' mode for full details including abstracts. This is the primary way to see what articles are in a report.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "report_id": {
+                "type": "integer",
+                "description": "The report ID to get articles for (optional if viewing a report)"
+            },
+            "mode": {
+                "type": "string",
+                "enum": ["condensed", "expanded"],
+                "description": "condensed: Basic info (PMID, title, journal, date, categories). expanded: Full details including authors and abstracts.",
+                "default": "condensed"
+            }
+        }
+    },
+    executor=execute_get_report_articles,
     category="reports"
 ))
 
