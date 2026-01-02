@@ -365,7 +365,8 @@ class ChatStreamService:
                 f"- {a.action}: {a.description}" for a in client_actions
             ])
             parts.append(
-                f"CLIENT ACTIONS (use with handler='client' in SUGGESTED_ACTIONS):\n{actions_list}"
+                f"CLIENT ACTIONS (these are the ONLY actions you may suggest):\n{actions_list}\n"
+                f"To suggest: SUGGESTED_ACTIONS:\n[{{\"label\": \"Close\", \"action\": \"close_chat\", \"handler\": \"client\"}}]"
             )
 
         return "\n\n".join(parts)
@@ -376,16 +377,17 @@ class ChatStreamService:
 Be conversational and helpful. Use tools proactively when they help answer questions.
 
 SUGGESTED VALUES (optional):
-To offer the user quick-select options, include this at the end of your response:
+To offer quick-select text options the user can click to send as their next message:
 SUGGESTED_VALUES:
-[{"label": "Option A", "value": "option_a"}, {"label": "Option B", "value": "option_b"}]
+[{"label": "Display Text", "value": "text to send"}]
+Use this sparingly when a few specific choices would help (e.g., selecting from options you've listed).
 
-SUGGESTED ACTIONS (optional):
-To offer clickable action buttons, include this at the end of your response:
+SUGGESTED ACTIONS (optional, ONLY use actions listed in CLIENT ACTIONS above):
+To offer clickable buttons that trigger UI actions. You may ONLY use actions explicitly listed in the CLIENT ACTIONS section above. Do NOT invent new actions.
 SUGGESTED_ACTIONS:
-[{"label": "Button Text", "action": "action_name", "handler": "client", "data": {...}}]
+[{"label": "Button Text", "action": "action_from_list", "handler": "client"}]
 
-For simple questions, respond naturally without these structured elements."""
+IMPORTANT: Most responses should NOT include suggested values or actions. Only use them when genuinely helpful."""
 
     # =========================================================================
     # Context Loading
@@ -626,6 +628,7 @@ For simple questions, respond naturally without these structured elements."""
     def _parse_llm_response(self, response_text: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Parse LLM response to extract structured components."""
         import json
+        import re
 
         current_page = context.get("current_page", "unknown")
         active_tab = context.get("active_tab")
@@ -639,22 +642,24 @@ For simple questions, respond naturally without these structured elements."""
             "custom_payload": None
         }
 
-        # Parse SUGGESTED_VALUES marker
+        # Parse SUGGESTED_VALUES marker - find marker and everything after it on same/following lines
         values_marker = "SUGGESTED_VALUES:"
         if values_marker in message:
             marker_pos = message.find(values_marker)
-            after_marker = message[marker_pos + len(values_marker):].strip()
-            json_content = self._extract_json_array(after_marker)
+            after_marker = message[marker_pos + len(values_marker):]
+            # Strip leading whitespace/newlines before the JSON
+            after_marker_stripped = after_marker.lstrip()
+            json_content = self._extract_json_array(after_marker_stripped)
             if json_content:
                 try:
                     parsed = json.loads(json_content)
                     if isinstance(parsed, list):
                         result["suggested_values"] = parsed
-                        # Remove the marker and JSON from message
-                        full_text = values_marker + message[marker_pos + len(values_marker):marker_pos + len(values_marker) + len(after_marker.split('\n')[0].strip()) + (len(json_content) - len(json_content.lstrip()))]
-                        # Simpler approach: find and remove the marker + json
-                        to_remove = message[marker_pos:marker_pos + len(values_marker) + after_marker.find(json_content) + len(json_content)]
-                        message = message.replace(to_remove, "").strip()
+                        # Calculate whitespace between marker and JSON
+                        whitespace_len = len(after_marker) - len(after_marker_stripped)
+                        # Remove everything from marker through end of JSON
+                        end_pos = marker_pos + len(values_marker) + whitespace_len + len(json_content)
+                        message = (message[:marker_pos] + message[end_pos:]).strip()
                         result["message"] = message
                 except json.JSONDecodeError:
                     logger.warning(f"Failed to parse SUGGESTED_VALUES JSON: {json_content[:100]}")
@@ -663,15 +668,17 @@ For simple questions, respond naturally without these structured elements."""
         actions_marker = "SUGGESTED_ACTIONS:"
         if actions_marker in message:
             marker_pos = message.find(actions_marker)
-            after_marker = message[marker_pos + len(actions_marker):].strip()
-            json_content = self._extract_json_array(after_marker)
+            after_marker = message[marker_pos + len(actions_marker):]
+            after_marker_stripped = after_marker.lstrip()
+            json_content = self._extract_json_array(after_marker_stripped)
             if json_content:
                 try:
                     parsed = json.loads(json_content)
                     if isinstance(parsed, list):
                         result["suggested_actions"] = parsed
-                        to_remove = message[marker_pos:marker_pos + len(actions_marker) + after_marker.find(json_content) + len(json_content)]
-                        message = message.replace(to_remove, "").strip()
+                        whitespace_len = len(after_marker) - len(after_marker_stripped)
+                        end_pos = marker_pos + len(actions_marker) + whitespace_len + len(json_content)
+                        message = (message[:marker_pos] + message[end_pos:]).strip()
                         result["message"] = message
                 except json.JSONDecodeError:
                     logger.warning(f"Failed to parse SUGGESTED_ACTIONS JSON: {json_content[:100]}")
