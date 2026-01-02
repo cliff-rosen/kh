@@ -6,11 +6,11 @@ Uses the agent_loop for agentic processing. Handles chat persistence automatical
 """
 
 from typing import Dict, Any, AsyncGenerator, List, Optional
+from datetime import datetime
 from sqlalchemy.orm import Session
 import anthropic
 import os
 import logging
-
 import uuid
 from schemas.chat import (
     ChatResponsePayload,
@@ -410,9 +410,11 @@ class ChatStreamService:
 
         sections = []
 
-        # 1. IDENTITY (always present, one line)
+        # 1. IDENTITY (always present, with current date/time)
+        current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
         sections.append(
-            "You are a helpful AI assistant for Knowledge Horizon, a biomedical research intelligence platform."
+            f"You are a helpful AI assistant for Knowledge Horizon, a biomedical research intelligence platform.\n"
+            f"Current date and time: {current_time}"
         )
 
         # 2. CONTEXT (page context + loaded data)
