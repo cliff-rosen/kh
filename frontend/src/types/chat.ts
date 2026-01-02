@@ -14,25 +14,12 @@
 
 export type MessageRole = 'user' | 'assistant' | 'system';
 
-export interface Message {
-    id: number;
-    conversation_id?: number;
-    role: MessageRole;
-    content: string;
-    context?: Record<string, unknown>;
-    created_at: string;
-}
-
 export interface Conversation {
     id: number;
     user_id?: number;
     title?: string;
     created_at: string;
     updated_at: string;
-}
-
-export interface ConversationWithMessages extends Conversation {
-    messages: Message[];
 }
 
 
@@ -84,6 +71,33 @@ export interface ChatDiagnostics {
 export interface ActionMetadata {
     action_identifier: string;
     action_data?: unknown;
+}
+
+
+// ============================================================================
+// Message Types (depends on interaction types above)
+// ============================================================================
+
+export interface MessageExtras {
+    tool_history?: ToolHistoryEntry[];
+    custom_payload?: CustomPayload;
+    diagnostics?: ChatDiagnostics;
+    suggested_values?: SuggestedValue[];
+    suggested_actions?: SuggestedAction[];
+}
+
+export interface Message {
+    id: number;
+    conversation_id?: number;
+    role: MessageRole;
+    content: string;
+    context?: Record<string, unknown>;
+    extras?: MessageExtras;
+    created_at: string;
+}
+
+export interface ConversationWithMessages extends Conversation {
+    messages: Message[];
 }
 
 

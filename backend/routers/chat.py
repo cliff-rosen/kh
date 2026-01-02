@@ -25,17 +25,12 @@ class MessageResponse(BaseModel):
     role: str
     content: str
     context: Optional[dict] = None
-    created_at: str
-
-
-class AdminMessageResponse(BaseModel):
-    """Message response with extras for admin view"""
-    id: int
-    role: str
-    content: str
-    context: Optional[dict] = None
     extras: Optional[dict] = None
     created_at: str
+
+
+# AdminMessageResponse is same as MessageResponse now, kept for backwards compatibility
+AdminMessageResponse = MessageResponse
 
 
 class ChatResponse(BaseModel):
@@ -114,6 +109,7 @@ async def get_chat(
                 role=m.role,
                 content=m.content,
                 context=m.context,
+                extras=m.extras,
                 created_at=m.created_at.isoformat()
             )
             for m in messages

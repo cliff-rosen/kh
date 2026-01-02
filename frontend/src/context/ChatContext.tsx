@@ -215,7 +215,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                 .map(msg => ({
                     role: msg.role as 'user' | 'assistant',
                     content: msg.content,
-                    timestamp: msg.created_at
+                    timestamp: msg.created_at,
+                    // Include extras if present
+                    ...(msg.extras?.suggested_values && { suggested_values: msg.extras.suggested_values }),
+                    ...(msg.extras?.suggested_actions && { suggested_actions: msg.extras.suggested_actions }),
+                    ...(msg.extras?.tool_history && { tool_history: msg.extras.tool_history }),
+                    ...(msg.extras?.custom_payload && { custom_payload: msg.extras.custom_payload }),
+                    ...(msg.extras?.diagnostics && { diagnostics: msg.extras.diagnostics }),
                 }));
             setMessages(loadedMessages);
             setChatId(id);
