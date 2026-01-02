@@ -328,7 +328,8 @@ register_payload_type(PayloadType(
             "pages": {"type": "string"},
             "abstract": {"type": "string"},
             "pmc_id": {"type": ["string", "null"]},
-            "doi": {"type": ["string", "null"]}
+            "doi": {"type": ["string", "null"]},
+            "full_text": {"type": ["string", "null"], "description": "Full text content from PMC (Markdown formatted)"}
         },
         "required": ["pmid", "title"]
     }

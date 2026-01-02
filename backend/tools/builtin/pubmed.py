@@ -185,10 +185,11 @@ def execute_get_full_text(
     db: Session,
     user_id: int,
     context: Dict[str, Any]
-) -> str:
+) -> Union[str, ToolResult]:
     """
     Retrieve the full text of an article from PubMed Central.
     Only works for articles that have a PMC ID (free full text).
+    Returns a ToolResult with article card payload including full text.
     """
     from services.pubmed_service import PubMedService
 
@@ -200,6 +201,7 @@ def execute_get_full_text(
 
     try:
         service = PubMedService()
+        article = None
 
         # If only PMID provided, first fetch the article to get PMC ID
         if not pmc_id and pmid:
@@ -217,6 +219,15 @@ def execute_get_full_text(
                 return f"Article PMID {pmid} does not have free full text available in PubMed Central. Only the abstract is available."
 
             pmc_id = article.pmc_id
+        else:
+            # If PMC ID provided directly, try to get article metadata
+            # Clean the PMC ID
+            pmc_id = str(pmc_id).strip()
+            if pmc_id.lower().startswith("pmc"):
+                pmc_id_num = pmc_id[3:]
+            else:
+                pmc_id_num = pmc_id
+                pmc_id = f"PMC{pmc_id}"
 
         # Fetch the full text
         full_text = service.get_pmc_full_text(pmc_id)
@@ -224,12 +235,55 @@ def execute_get_full_text(
         if not full_text:
             return f"Could not retrieve full text for PMC ID: {pmc_id}. The article may not be available or there was an error."
 
-        # Truncate if too long (to avoid token limits)
-        max_chars = 15000
-        if len(full_text) > max_chars:
-            full_text = full_text[:max_chars] + f"\n\n... [Text truncated. Full article is {len(full_text)} characters]"
+        # If we don't have article metadata yet, try to fetch it
+        if not article and pmid:
+            articles = service.get_articles_from_ids([pmid])
+            if articles:
+                article = articles[0]
 
-        return f"=== Full Text (PMC ID: {pmc_id}) ===\n\n{full_text}"
+        # Build text result for LLM (truncated for token limits)
+        text_full_text = full_text
+        max_chars = 15000
+        if len(text_full_text) > max_chars:
+            text_full_text = text_full_text[:max_chars] + f"\n\n... [Text truncated. Full article is {len(full_text)} characters]"
+
+        text_result = f"=== Full Text (PMC ID: {pmc_id}) ===\n\n{text_full_text}"
+
+        # Build payload for frontend card with full text
+        if article:
+            payload = {
+                "type": "pubmed_article",
+                "data": {
+                    "pmid": article.PMID,
+                    "title": article.title,
+                    "authors": article.authors,
+                    "journal": article.journal,
+                    "year": article.year,
+                    "volume": article.volume,
+                    "issue": article.issue,
+                    "pages": article.pages,
+                    "abstract": article.abstract,
+                    "pmc_id": pmc_id,
+                    "doi": article.doi if article.doi else None,
+                    "full_text": full_text  # Full text for the card
+                }
+            }
+        else:
+            # Minimal payload if we couldn't fetch article metadata
+            payload = {
+                "type": "pubmed_article",
+                "data": {
+                    "pmid": pmid or "Unknown",
+                    "title": "Full Text Retrieved",
+                    "authors": "Unknown",
+                    "journal": "Unknown",
+                    "year": "Unknown",
+                    "pmc_id": pmc_id,
+                    "full_text": full_text
+                }
+            }
+
+        return ToolResult(text=text_result, payload=payload)
 
     except Exception as e:
         logger.error(f"Full text fetch error: {e}", exc_info=True)
@@ -300,5 +354,6 @@ register_tool(ToolConfig(
         }
     },
     executor=execute_get_full_text,
-    category="research"
+    category="research",
+    payload_type="pubmed_article"
 ))

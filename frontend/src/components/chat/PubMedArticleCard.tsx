@@ -10,6 +10,7 @@ import {
     ClipboardDocumentIcon,
     CheckIcon
 } from '@heroicons/react/24/outline';
+import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 
 export interface PubMedArticleData {
     pmid: string;
@@ -186,10 +187,8 @@ export default function PubMedArticleCard({ article }: PubMedArticleCardProps) {
                                     )}
                                 </button>
                             </div>
-                            <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-700">
-                                <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap prose prose-sm dark:prose-invert max-w-none">
-                                    {article.full_text}
-                                </div>
+                            <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 max-h-[600px] overflow-y-auto border border-gray-200 dark:border-gray-700">
+                                <MarkdownRenderer content={article.full_text!} className="text-sm" />
                             </div>
                         </div>
                     )}
