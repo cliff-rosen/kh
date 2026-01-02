@@ -210,28 +210,33 @@ export default function ChatTray({
     const [toolsToShow, setToolsToShow] = useState<ToolHistoryEntry[] | null>(null);
     const [diagnosticsToShow, setDiagnosticsToShow] = useState<ChatDiagnostics | null>(null);
 
-    // Track previous hidden state to detect when tray becomes visible
-    const prevHiddenRef = useRef(hidden);
+    // Track previous values to detect changes (start with undefined to trigger initial set)
+    const prevHiddenRef = useRef<boolean | undefined>(undefined);
+    const prevInitialContextRef = useRef<Record<string, any> | undefined>(undefined);
 
     // Replace context when initialContext changes OR when tray becomes visible again
     useEffect(() => {
         const wasHidden = prevHiddenRef.current;
-        prevHiddenRef.current = hidden;
+        const prevContext = prevInitialContextRef.current;
 
-        // Reset context when becoming visible (e.g., modal closed) or when initialContext changes
-        if (initialContext && (!hidden && wasHidden)) {
+        // Update refs for next comparison
+        prevHiddenRef.current = hidden;
+        prevInitialContextRef.current = initialContext;
+
+        if (!initialContext) return;
+
+        // Update context when:
+        // 1. First render (prevContext is undefined)
+        // 2. Becoming visible after being hidden (e.g., modal closed)
+        // 3. initialContext actually changed (deep compare by JSON)
+        const isFirstRender = prevContext === undefined;
+        const becameVisible = !hidden && wasHidden === true;
+        const contextChanged = JSON.stringify(initialContext) !== JSON.stringify(prevContext);
+
+        if (isFirstRender || becameVisible || contextChanged) {
             setContext(initialContext);
         }
     }, [hidden, initialContext, setContext]);
-
-    // Also set context on initial mount
-    useEffect(() => {
-        if (initialContext) {
-            setContext(initialContext);
-        }
-        // Only run on mount
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     // Track if we've loaded the initial conversation
     const hasLoadedInitial = useRef(false);

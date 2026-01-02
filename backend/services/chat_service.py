@@ -134,7 +134,8 @@ class ChatService:
         user_id: int,
         role: str,
         content: str,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
+        extras: Optional[Dict[str, Any]] = None
     ) -> Optional[Message]:
         """
         Add a message to a chat.
@@ -145,6 +146,7 @@ class ChatService:
             role: Message role ('user', 'assistant', 'system')
             content: Message content
             context: Optional context (page, report_id, article_pmid, etc.)
+            extras: Optional extended data (tool_history, custom_payload, diagnostics, etc.)
 
         Returns:
             Created Message if chat exists and owned by user
@@ -157,7 +159,8 @@ class ChatService:
             conversation_id=chat_id,
             role=role,
             content=content,
-            context=context
+            context=context,
+            extras=extras
         )
         self.db.add(message)
 

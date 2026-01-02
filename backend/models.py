@@ -465,6 +465,8 @@ class Message(Base):
     role = Column(String(20), nullable=False)  # 'user', 'assistant', 'system'
     content = Column(Text, nullable=False)
     context = Column(JSON, nullable=True)  # {page: 'reports', report_id: 123, article_pmid: '456'}
+    # Extended message data: tool_history, custom_payload, diagnostics, suggested_values, suggested_actions
+    extras = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships

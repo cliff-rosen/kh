@@ -79,6 +79,9 @@ export default function ReportsPage() {
         };
         if (selectedStream) {
             context.stream_id = parseInt(selectedStream, 10);
+            if (streamDetails) {
+                context.stream_name = streamDetails.stream_name;
+            }
         }
         if (selectedReport) {
             context.report_id = selectedReport.report_id;
@@ -86,7 +89,7 @@ export default function ReportsPage() {
             context.article_count = selectedReport.articles?.length || 0;
         }
         return context;
-    }, [selectedReport, selectedStream]);
+    }, [selectedReport, selectedStream, streamDetails]);
 
     // Payload handlers for ChatTray - handles custom payloads from the chat
     const payloadHandlers = useMemo<Record<string, PayloadHandler>>(() => ({

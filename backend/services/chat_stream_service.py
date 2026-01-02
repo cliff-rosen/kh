@@ -175,8 +175,24 @@ class ChatStreamService:
             parsed = self._parse_llm_response(collected_text, request.context)
             custom_payload = collected_payloads[-1] if collected_payloads else parsed.get("custom_payload")
 
+            # Build extras for persistence
+            extras = {
+                "tool_history": tool_call_history if tool_call_history else None,
+                "custom_payload": custom_payload,
+                "diagnostics": diagnostics.model_dump() if diagnostics else None,
+                "suggested_values": parsed.get("suggested_values"),
+                "suggested_actions": parsed.get("suggested_actions"),
+            }
+            # Remove None values to keep extras clean
+            extras = {k: v for k, v in extras.items() if v is not None}
+
             # Persist assistant message
-            self._save_assistant_message(chat_id, parsed["message"], request.context)
+            self._save_assistant_message(
+                chat_id,
+                parsed["message"],
+                request.context,
+                extras=extras if extras else None
+            )
 
             # Emit complete event
             final_payload = ChatResponsePayload(
@@ -233,7 +249,8 @@ class ChatStreamService:
         self,
         chat_id: Optional[int],
         content: str,
-        context: Dict[str, Any]
+        context: Dict[str, Any],
+        extras: Optional[Dict[str, Any]] = None
     ) -> None:
         """Save assistant message to chat history."""
         if not chat_id:
@@ -244,7 +261,8 @@ class ChatStreamService:
                 user_id=self.user_id,
                 role='assistant',
                 content=content,
-                context=context
+                context=context,
+                extras=extras
             )
         except Exception as e:
             logger.warning(f"Failed to persist assistant message: {e}")
@@ -356,7 +374,18 @@ class ChatStreamService:
         """Get brief response guidelines."""
         return """== GUIDELINES ==
 Be conversational and helpful. Use tools proactively when they help answer questions.
-For simple questions, respond naturally. Only use structured responses when they add value."""
+
+SUGGESTED VALUES (optional):
+To offer the user quick-select options, include this at the end of your response:
+SUGGESTED_VALUES:
+[{"label": "Option A", "value": "option_a"}, {"label": "Option B", "value": "option_b"}]
+
+SUGGESTED ACTIONS (optional):
+To offer clickable action buttons, include this at the end of your response:
+SUGGESTED_ACTIONS:
+[{"label": "Button Text", "action": "action_name", "handler": "client", "data": {...}}]
+
+For simple questions, respond naturally without these structured elements."""
 
     # =========================================================================
     # Context Loading
