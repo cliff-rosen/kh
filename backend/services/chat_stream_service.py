@@ -482,20 +482,20 @@ class ChatStreamService:
     def _get_guidelines(self) -> str:
         """Get brief response guidelines."""
         return """== GUIDELINES ==
-Be conversational and helpful. Use tools proactively when they help answer questions.
+        Be conversational and helpful. Use tools proactively when they help answer questions.
 
-SUGGESTED VALUES (optional):
-To offer quick-select text options the user can click to send as their next message:
-SUGGESTED_VALUES:
-[{"label": "Display Text", "value": "text to send"}]
-Use this sparingly when a few specific choices would help (e.g., selecting from options you've listed).
+        SUGGESTED VALUES (optional):
+        To offer quick-select text options the user can click to send as their next message:
+        SUGGESTED_VALUES:
+        [{"label": "Display Text", "value": "text to send"}]
+        Use this sparingly when a few specific choices would help (e.g., selecting from options you've listed).
 
-SUGGESTED ACTIONS (optional, ONLY use actions listed in CLIENT ACTIONS above):
-To offer clickable buttons that trigger UI actions. You may ONLY use actions explicitly listed in the CLIENT ACTIONS section above. Do NOT invent new actions.
-SUGGESTED_ACTIONS:
-[{"label": "Button Text", "action": "action_from_list", "handler": "client"}]
+        SUGGESTED ACTIONS (optional, ONLY use actions listed in CLIENT ACTIONS above):
+        To offer clickable buttons that trigger UI actions. You may ONLY use actions explicitly listed in the CLIENT ACTIONS section above. Do NOT invent new actions.
+        SUGGESTED_ACTIONS:
+        [{"label": "Button Text", "action": "action_from_list", "handler": "client"}]
 
-IMPORTANT: Most responses should NOT include suggested values or actions. Only use them when genuinely helpful."""
+        IMPORTANT: Most responses should NOT include suggested values or actions. Only use them when genuinely helpful."""
 
     # =========================================================================
     # Context Loading
