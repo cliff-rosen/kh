@@ -1,19 +1,53 @@
 /**
  * ConversationList Component
  *
- * Displays chat conversations for platform admins.
+ * Displays chat conversations for platform admins with full message inspection.
  */
 
 import { useState, useEffect } from 'react';
-import { ChatBubbleLeftRightIcon, XMarkIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftRightIcon, XMarkIcon, ArrowPathIcon, UserIcon, CpuChipIcon } from '@heroicons/react/24/outline';
 import { api } from '@/lib/api';
 import { showErrorToast } from '@/lib/errorToast';
+
+interface SuggestedValue {
+    label: string;
+    value: string;
+}
+
+interface SuggestedAction {
+    label: string;
+    action: string;
+    handler?: string;
+    data?: Record<string, unknown>;
+}
+
+interface MessageExtras {
+    tool_history?: Array<{
+        tool_name: string;
+        tool_input: Record<string, unknown>;
+        result?: unknown;
+    }>;
+    custom_payload?: Record<string, unknown>;
+    diagnostics?: {
+        model: string;
+        max_tokens: number;
+        max_iterations?: number;
+        temperature?: number;
+        system_prompt: string;
+        tools: string[];
+        messages: Array<{ role: string; content: string }>;
+        context: Record<string, unknown>;
+    };
+    suggested_values?: SuggestedValue[];
+    suggested_actions?: SuggestedAction[];
+}
 
 interface Message {
     id: number;
     role: string;
     content: string;
     context?: Record<string, unknown>;
+    extras?: MessageExtras;
     created_at: string;
 }
 
@@ -68,6 +102,7 @@ export function ConversationList() {
 
     // Detail view
     const [selectedConversation, setSelectedConversation] = useState<ConversationDetail | null>(null);
+    const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
 
     const fetchConversations = async () => {
@@ -275,72 +310,356 @@ export function ConversationList() {
                 </div>
             )}
 
-            {/* Conversation Detail Modal */}
+            {/* Conversation Detail - Full Screen Panel */}
             {selectedConversation && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl max-h-[80vh] flex flex-col">
-                        {/* Modal Header */}
-                        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                            <div>
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                    {selectedConversation.title || 'Conversation'}
-                                </h3>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    {selectedConversation.user_name || selectedConversation.user_email} - {formatDate(selectedConversation.created_at)}
-                                </p>
-                            </div>
-                            <button
-                                onClick={() => setSelectedConversation(null)}
-                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-                            >
-                                <XMarkIcon className="h-5 w-5 text-gray-500" />
-                            </button>
+                <div className="fixed inset-0 z-50 bg-gray-100 dark:bg-gray-900 overflow-hidden flex flex-col">
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-6 py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
+                        <div>
+                            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                                {selectedConversation.title || 'Untitled Conversation'}
+                            </h2>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                {selectedConversation.user_name || selectedConversation.user_email} •
+                                Started {formatDate(selectedConversation.created_at)} •
+                                {selectedConversation.messages.length} messages
+                            </p>
                         </div>
+                        <button
+                            onClick={() => {
+                                setSelectedConversation(null);
+                                setSelectedMessage(null);
+                            }}
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                        >
+                            <XMarkIcon className="h-6 w-6 text-gray-500" />
+                        </button>
+                    </div>
 
-                        {/* Messages */}
-                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {/* Content - Two column layout */}
+                    <div className="flex-1 flex overflow-hidden">
+                        {/* Messages List - Left Panel */}
+                        <div className="w-1/2 border-r border-gray-200 dark:border-gray-700 overflow-y-auto bg-white dark:bg-gray-800">
                             {loadingDetail ? (
                                 <div className="text-center text-gray-500 py-8">Loading messages...</div>
                             ) : selectedConversation.messages.length === 0 ? (
                                 <div className="text-center text-gray-500 py-8">No messages</div>
                             ) : (
-                                selectedConversation.messages.map((msg) => (
-                                    <div
-                                        key={msg.id}
-                                        className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                                    >
+                                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                                    {selectedConversation.messages.map((msg, idx) => (
                                         <div
-                                            className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                                                msg.role === 'user'
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
+                                            key={msg.id}
+                                            onClick={() => setSelectedMessage(msg)}
+                                            className={`p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
+                                                selectedMessage?.id === msg.id ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' : ''
                                             }`}
                                         >
-                                            <div className="text-xs font-medium opacity-70 mb-1">
-                                                {msg.role}
-                                            </div>
-                                            <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
-                                            <div className="text-xs opacity-70 mt-1">
-                                                {formatDate(msg.created_at)}
+                                            <div className="flex items-start gap-3">
+                                                <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                                                    msg.role === 'user'
+                                                        ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
+                                                        : 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400'
+                                                }`}>
+                                                    {msg.role === 'user' ? (
+                                                        <UserIcon className="h-4 w-4" />
+                                                    ) : (
+                                                        <CpuChipIcon className="h-4 w-4" />
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+                                                            {msg.role}
+                                                        </span>
+                                                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                                                            #{idx + 1}
+                                                        </span>
+                                                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                                                            {formatDate(msg.created_at)}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-sm text-gray-900 dark:text-white line-clamp-3">
+                                                        {msg.content}
+                                                    </p>
+                                                    {/* Badges for extras */}
+                                                    {msg.extras && Object.keys(msg.extras).length > 0 && (
+                                                        <div className="flex flex-wrap gap-1 mt-2">
+                                                            {msg.extras.diagnostics && (
+                                                                <span className="px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                                                                    diagnostics
+                                                                </span>
+                                                            )}
+                                                            {msg.extras.tool_history && msg.extras.tool_history.length > 0 && (
+                                                                <span className="px-1.5 py-0.5 text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded">
+                                                                    {msg.extras.tool_history.length} tool{msg.extras.tool_history.length !== 1 ? 's' : ''}
+                                                                </span>
+                                                            )}
+                                                            {msg.extras.custom_payload && (
+                                                                <span className="px-1.5 py-0.5 text-xs bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 rounded">
+                                                                    payload
+                                                                </span>
+                                                            )}
+                                                            {msg.extras.suggested_values && msg.extras.suggested_values.length > 0 && (
+                                                                <span className="px-1.5 py-0.5 text-xs bg-cyan-100 dark:bg-cyan-900 text-cyan-700 dark:text-cyan-300 rounded">
+                                                                    {msg.extras.suggested_values.length} values
+                                                                </span>
+                                                            )}
+                                                            {msg.extras.suggested_actions && msg.extras.suggested_actions.length > 0 && (
+                                                                <span className="px-1.5 py-0.5 text-xs bg-pink-100 dark:bg-pink-900 text-pink-700 dark:text-pink-300 rounded">
+                                                                    {msg.extras.suggested_actions.length} actions
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))
+                                    ))}
+                                </div>
                             )}
                         </div>
 
-                        {/* Modal Footer */}
-                        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-                            <button
-                                onClick={() => setSelectedConversation(null)}
-                                className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
-                            >
-                                Close
-                            </button>
+                        {/* Message Detail - Right Panel */}
+                        <div className="w-1/2 overflow-y-auto bg-gray-50 dark:bg-gray-900 p-6">
+                            {selectedMessage ? (
+                                <MessageDetailPanel message={selectedMessage} />
+                            ) : (
+                                <div className="h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
+                                    <p>Select a message to view details</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+// Full detail panel for a selected message
+function MessageDetailPanel({ message }: { message: Message }) {
+    const [activeTab, setActiveTab] = useState<'content' | 'context' | 'diagnostics' | 'tools' | 'payload' | 'suggestions'>('content');
+
+    const extras = message.extras || {};
+    const hasContext = message.context && Object.keys(message.context).length > 0;
+    const hasDiagnostics = !!extras.diagnostics;
+    const hasTools = extras.tool_history && extras.tool_history.length > 0;
+    const hasPayload = !!extras.custom_payload;
+    const hasSuggestions = (extras.suggested_values && extras.suggested_values.length > 0) ||
+                          (extras.suggested_actions && extras.suggested_actions.length > 0);
+
+    const tabs = [
+        { id: 'content' as const, label: 'Content', show: true },
+        { id: 'context' as const, label: 'Context', show: hasContext },
+        { id: 'diagnostics' as const, label: 'Diagnostics', show: hasDiagnostics },
+        { id: 'tools' as const, label: `Tools (${extras.tool_history?.length || 0})`, show: hasTools },
+        { id: 'payload' as const, label: 'Payload', show: hasPayload },
+        { id: 'suggestions' as const, label: 'Suggestions', show: hasSuggestions },
+    ].filter(t => t.show);
+
+    return (
+        <div className="space-y-4">
+            {/* Message Header */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+                <div className="flex items-center gap-3 mb-2">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        message.role === 'user'
+                            ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
+                            : 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400'
+                    }`}>
+                        {message.role === 'user' ? (
+                            <UserIcon className="h-5 w-5" />
+                        ) : (
+                            <CpuChipIcon className="h-5 w-5" />
+                        )}
+                    </div>
+                    <div>
+                        <div className="font-semibold text-gray-900 dark:text-white capitalize">{message.role}</div>
+                        <div className="text-xs text-gray-500">{new Date(message.created_at).toLocaleString()}</div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+                <div className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+                    {tabs.map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${
+                                activeTab === tab.id
+                                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-b-2 border-blue-500'
+                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                            }`}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="p-4">
+                    {activeTab === 'content' && (
+                        <div className="prose dark:prose-invert max-w-none">
+                            <pre className="whitespace-pre-wrap text-sm bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto">
+                                {message.content}
+                            </pre>
+                        </div>
+                    )}
+
+                    {activeTab === 'context' && message.context && (
+                        <pre className="text-sm bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto">
+                            {JSON.stringify(message.context, null, 2)}
+                        </pre>
+                    )}
+
+                    {activeTab === 'diagnostics' && extras.diagnostics && (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+                                    <div className="text-xs text-gray-500 mb-1">Model</div>
+                                    <div className="font-mono text-sm">{extras.diagnostics.model}</div>
+                                </div>
+                                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+                                    <div className="text-xs text-gray-500 mb-1">Max Tokens</div>
+                                    <div className="font-mono text-sm">{extras.diagnostics.max_tokens}</div>
+                                </div>
+                                {extras.diagnostics.temperature !== undefined && (
+                                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+                                        <div className="text-xs text-gray-500 mb-1">Temperature</div>
+                                        <div className="font-mono text-sm">{extras.diagnostics.temperature}</div>
+                                    </div>
+                                )}
+                                {extras.diagnostics.max_iterations !== undefined && (
+                                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+                                        <div className="text-xs text-gray-500 mb-1">Max Iterations</div>
+                                        <div className="font-mono text-sm">{extras.diagnostics.max_iterations}</div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {extras.diagnostics.tools && extras.diagnostics.tools.length > 0 && (
+                                <div>
+                                    <div className="text-xs text-gray-500 mb-2">Available Tools</div>
+                                    <div className="flex flex-wrap gap-1">
+                                        {extras.diagnostics.tools.map((tool, idx) => (
+                                            <span key={idx} className="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded text-xs font-mono">
+                                                {tool}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {extras.diagnostics.context && (
+                                <div>
+                                    <div className="text-xs text-gray-500 mb-2">Request Context</div>
+                                    <pre className="text-xs bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-48 overflow-y-auto">
+                                        {JSON.stringify(extras.diagnostics.context, null, 2)}
+                                    </pre>
+                                </div>
+                            )}
+
+                            <div>
+                                <div className="text-xs text-gray-500 mb-2">System Prompt ({extras.diagnostics.system_prompt?.length || 0} chars)</div>
+                                <pre className="text-xs bg-gray-50 dark:bg-gray-900 p-3 rounded-lg overflow-x-auto max-h-96 overflow-y-auto whitespace-pre-wrap">
+                                    {extras.diagnostics.system_prompt}
+                                </pre>
+                            </div>
+
+                            {extras.diagnostics.messages && extras.diagnostics.messages.length > 0 && (
+                                <div>
+                                    <div className="text-xs text-gray-500 mb-2">Message History ({extras.diagnostics.messages.length} messages)</div>
+                                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                                        {extras.diagnostics.messages.map((msg, idx) => (
+                                            <div key={idx} className="bg-gray-50 dark:bg-gray-900 p-2 rounded text-xs">
+                                                <span className="font-semibold text-gray-600 dark:text-gray-400">{msg.role}:</span>
+                                                <span className="ml-2 text-gray-800 dark:text-gray-200">{msg.content?.substring(0, 200)}{msg.content?.length > 200 ? '...' : ''}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === 'tools' && extras.tool_history && (
+                        <div className="space-y-4">
+                            {extras.tool_history.map((tool, idx) => (
+                                <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                                    <div className="font-semibold text-purple-600 dark:text-purple-400 mb-2">
+                                        {idx + 1}. {tool.tool_name}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <div>
+                                            <div className="text-xs text-gray-500 mb-1">Input</div>
+                                            <pre className="text-xs bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto">
+                                                {JSON.stringify(tool.tool_input, null, 2)}
+                                            </pre>
+                                        </div>
+                                        {tool.result !== undefined && (
+                                            <div>
+                                                <div className="text-xs text-gray-500 mb-1">Result</div>
+                                                <pre className="text-xs bg-white dark:bg-gray-800 p-2 rounded overflow-x-auto max-h-48 overflow-y-auto">
+                                                    {typeof tool.result === 'string' ? tool.result : JSON.stringify(tool.result, null, 2)}
+                                                </pre>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {activeTab === 'payload' && extras.custom_payload && (
+                        <pre className="text-sm bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto">
+                            {JSON.stringify(extras.custom_payload, null, 2)}
+                        </pre>
+                    )}
+
+                    {activeTab === 'suggestions' && (
+                        <div className="space-y-4">
+                            {extras.suggested_values && extras.suggested_values.length > 0 && (
+                                <div>
+                                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Suggested Values</div>
+                                    <div className="space-y-1">
+                                        {extras.suggested_values.map((val, idx) => (
+                                            <div key={idx} className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900 p-2 rounded">
+                                                <span className="font-medium text-sm">{val.label}</span>
+                                                <span className="text-xs text-gray-500">→</span>
+                                                <code className="text-xs bg-gray-200 dark:bg-gray-700 px-1 rounded">{val.value}</code>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {extras.suggested_actions && extras.suggested_actions.length > 0 && (
+                                <div>
+                                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Suggested Actions</div>
+                                    <div className="space-y-1">
+                                        {extras.suggested_actions.map((action, idx) => (
+                                            <div key={idx} className="bg-gray-50 dark:bg-gray-900 p-2 rounded">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-medium text-sm">{action.label}</span>
+                                                    <code className="text-xs bg-gray-200 dark:bg-gray-700 px-1 rounded">{action.action}</code>
+                                                    {action.handler && (
+                                                        <span className="text-xs text-gray-500">({action.handler})</span>
+                                                    )}
+                                                </div>
+                                                {action.data && (
+                                                    <pre className="text-xs mt-1 bg-white dark:bg-gray-800 p-1 rounded overflow-x-auto">
+                                                        {JSON.stringify(action.data, null, 2)}
+                                                    </pre>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }

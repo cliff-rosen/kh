@@ -625,44 +625,94 @@ For simple questions, respond naturally without these structured elements."""
 
     def _parse_llm_response(self, response_text: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Parse LLM response to extract structured components."""
+        import json
+
         current_page = context.get("current_page", "unknown")
         active_tab = context.get("active_tab")
         active_subtab = context.get("active_subtab")
 
+        message = response_text.strip()
         result = {
-            "message": response_text.strip(),
+            "message": message,
             "suggested_values": None,
             "suggested_actions": None,
             "custom_payload": None
         }
 
-        # Get all payloads for this page, tab, and subtab (global + page + tab + subtab)
-        payload_configs = get_all_payloads_for_page(current_page, active_tab, active_subtab)
-        if not payload_configs:
-            return result
+        # Parse SUGGESTED_VALUES marker
+        values_marker = "SUGGESTED_VALUES:"
+        if values_marker in message:
+            marker_pos = message.find(values_marker)
+            after_marker = message[marker_pos + len(values_marker):].strip()
+            json_content = self._extract_json_array(after_marker)
+            if json_content:
+                try:
+                    parsed = json.loads(json_content)
+                    if isinstance(parsed, list):
+                        result["suggested_values"] = parsed
+                        # Remove the marker and JSON from message
+                        full_text = values_marker + message[marker_pos + len(values_marker):marker_pos + len(values_marker) + len(after_marker.split('\n')[0].strip()) + (len(json_content) - len(json_content.lstrip()))]
+                        # Simpler approach: find and remove the marker + json
+                        to_remove = message[marker_pos:marker_pos + len(values_marker) + after_marker.find(json_content) + len(json_content)]
+                        message = message.replace(to_remove, "").strip()
+                        result["message"] = message
+                except json.JSONDecodeError:
+                    logger.warning(f"Failed to parse SUGGESTED_VALUES JSON: {json_content[:100]}")
 
+        # Parse SUGGESTED_ACTIONS marker
+        actions_marker = "SUGGESTED_ACTIONS:"
+        if actions_marker in message:
+            marker_pos = message.find(actions_marker)
+            after_marker = message[marker_pos + len(actions_marker):].strip()
+            json_content = self._extract_json_array(after_marker)
+            if json_content:
+                try:
+                    parsed = json.loads(json_content)
+                    if isinstance(parsed, list):
+                        result["suggested_actions"] = parsed
+                        to_remove = message[marker_pos:marker_pos + len(actions_marker) + after_marker.find(json_content) + len(json_content)]
+                        message = message.replace(to_remove, "").strip()
+                        result["message"] = message
+                except json.JSONDecodeError:
+                    logger.warning(f"Failed to parse SUGGESTED_ACTIONS JSON: {json_content[:100]}")
+
+        # Parse custom payloads (page-specific structured responses)
+        payload_configs = get_all_payloads_for_page(current_page, active_tab, active_subtab)
         for config in payload_configs:
             marker = config.parse_marker
             # Skip payloads without a parse_marker (tool payloads don't need parsing)
             if not marker:
                 continue
-            if marker in response_text:
-                marker_pos = response_text.find(marker)
-                after_marker = response_text[marker_pos + len(marker):].strip()
-                json_content = self._extract_json(after_marker)
+            if marker in message:
+                marker_pos = message.find(marker)
+                after_marker = message[marker_pos + len(marker):].strip()
+                json_content = self._extract_json_object(after_marker)
                 if json_content:
                     parsed = config.parser(json_content)
                     if parsed:
                         result["custom_payload"] = parsed
                         payload_text = marker + json_content
-                        result["message"] = response_text.replace(payload_text, "").strip()
+                        message = message.replace(payload_text, "").strip()
+                        result["message"] = message
                         break
 
         return result
 
-    def _extract_json(self, text: str) -> Optional[str]:
+    def _extract_json_object(self, text: str) -> Optional[str]:
         """Extract a JSON object from the start of text, handling nested braces."""
         if not text.startswith('{'):
+            return None
+        return self._extract_balanced(text, '{', '}')
+
+    def _extract_json_array(self, text: str) -> Optional[str]:
+        """Extract a JSON array from the start of text, handling nested brackets."""
+        if not text.startswith('['):
+            return None
+        return self._extract_balanced(text, '[', ']')
+
+    def _extract_balanced(self, text: str, open_char: str, close_char: str) -> Optional[str]:
+        """Extract balanced content between open and close characters."""
+        if not text or text[0] != open_char:
             return None
 
         depth = 0
@@ -685,9 +735,9 @@ For simple questions, respond naturally without these structured elements."""
             if in_string:
                 continue
 
-            if char == '{':
+            if char == open_char:
                 depth += 1
-            elif char == '}':
+            elif char == close_char:
                 depth -= 1
                 if depth == 0:
                     return text[:i + 1]

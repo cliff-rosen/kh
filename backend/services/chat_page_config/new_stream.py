@@ -6,7 +6,7 @@ Payload definitions (including parsers and LLM instructions) are in schemas/payl
 """
 
 from typing import Dict, Any
-from .registry import TabConfig, ClientAction, register_page
+from .registry import register_page
 
 
 # =============================================================================
@@ -95,24 +95,12 @@ questions when needed to provide better recommendations.
 
 
 # =============================================================================
-# Client Actions
-# =============================================================================
-
-CLIENT_ACTIONS = [
-    ClientAction(
-        action="close_chat",
-        description="Close the chat tray"
-    ),
-]
-
-
-# =============================================================================
 # Register Page
 # =============================================================================
 
 register_page(
     page="new_stream",
     context_builder=build_context,
-    payloads=["stream_template", "topic_suggestions", "validation_feedback"],
-    client_actions=CLIENT_ACTIONS
+    payloads=["stream_template", "topic_suggestions", "validation_feedback"]
+    # Note: Global actions (close_chat) are automatically included
 )

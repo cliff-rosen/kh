@@ -6,7 +6,7 @@ Payload definitions (including parsers and LLM instructions) are in schemas/payl
 """
 
 from typing import Dict, Any
-from .registry import TabConfig, SubTabConfig, ClientAction, register_page
+from .registry import TabConfig, SubTabConfig, register_page
 
 
 # =============================================================================
@@ -111,18 +111,6 @@ def build_context(context: Dict[str, Any]) -> str:
 
 
 # =============================================================================
-# Client Actions
-# =============================================================================
-
-CLIENT_ACTIONS = [
-    ClientAction(
-        action="close_chat",
-        description="Close the chat tray"
-    ),
-]
-
-
-# =============================================================================
 # Register Page
 # =============================================================================
 
@@ -147,6 +135,6 @@ register_page(
                 ),
             }
         ),
-    },
-    client_actions=CLIENT_ACTIONS
+    }
+    # Note: Global actions (close_chat) are automatically included
 )

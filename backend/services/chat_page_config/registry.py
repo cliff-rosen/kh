@@ -54,6 +54,18 @@ class PageConfig:
 
 
 # =============================================================================
+# Global Client Actions (available on all pages)
+# =============================================================================
+
+GLOBAL_CLIENT_ACTIONS: List[ClientAction] = [
+    ClientAction(
+        action="close_chat",
+        description="Close the chat panel"
+    ),
+]
+
+
+# =============================================================================
 # Registry
 # =============================================================================
 
@@ -151,6 +163,13 @@ def get_context_builder(page: str) -> Optional[Callable[[Dict[str, Any]], str]]:
 
 
 def get_client_actions(page: str) -> List[ClientAction]:
-    """Get all client actions for a page."""
+    """Get all client actions for a page (global + page-specific)."""
+    actions = list(GLOBAL_CLIENT_ACTIONS)  # Start with global actions
     config = _page_registry.get(page)
-    return config.client_actions if config else []
+    if config:
+        # Add page-specific actions, avoiding duplicates by action name
+        existing_actions = {a.action for a in actions}
+        for action in config.client_actions:
+            if action.action not in existing_actions:
+                actions.append(action)
+    return actions

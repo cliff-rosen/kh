@@ -303,6 +303,7 @@ class ChatService:
                     "role": msg.role,
                     "content": msg.content,
                     "context": msg.context,
+                    "extras": msg.extras,
                     "created_at": msg.created_at.isoformat()
                 }
                 for msg in messages

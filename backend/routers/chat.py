@@ -28,6 +28,16 @@ class MessageResponse(BaseModel):
     created_at: str
 
 
+class AdminMessageResponse(BaseModel):
+    """Message response with extras for admin view"""
+    id: int
+    role: str
+    content: str
+    context: Optional[dict] = None
+    extras: Optional[dict] = None
+    created_at: str
+
+
 class ChatResponse(BaseModel):
     """Chat response"""
     id: int
@@ -142,7 +152,7 @@ class AdminChatDetailResponse(BaseModel):
     title: Optional[str] = None
     created_at: str
     updated_at: str
-    messages: List[MessageResponse]
+    messages: List[AdminMessageResponse]
 
 
 @router.get("/admin/all", response_model=AdminChatsListResponse)
@@ -195,5 +205,5 @@ async def admin_get_chat(
         title=chat["title"],
         created_at=chat["created_at"],
         updated_at=chat["updated_at"],
-        messages=[MessageResponse(**m) for m in chat["messages"]]
+        messages=[AdminMessageResponse(**m) for m in chat["messages"]]
     )

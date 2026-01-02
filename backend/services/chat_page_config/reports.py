@@ -10,7 +10,7 @@ ARCHITECTURE:
 """
 
 from typing import Dict, Any
-from .registry import ClientAction, register_page
+from .registry import register_page
 
 
 # =============================================================================
@@ -63,23 +63,11 @@ def build_context(context: Dict[str, Any]) -> str:
 
 
 # =============================================================================
-# Client Actions
-# =============================================================================
-
-CLIENT_ACTIONS = [
-    ClientAction(
-        action="close_chat",
-        description="Close the chat panel"
-    ),
-]
-
-
-# =============================================================================
 # Register Page
 # =============================================================================
 
 register_page(
     page="reports",
-    context_builder=build_context,
-    client_actions=CLIENT_ACTIONS
+    context_builder=build_context
+    # Note: Global actions (close_chat) are automatically included
 )
