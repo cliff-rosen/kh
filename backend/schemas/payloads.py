@@ -59,6 +59,9 @@ class PayloadType:
     parser: Optional[Callable[[str], Optional[Dict[str, Any]]]] = None
     llm_instructions: Optional[str] = None  # Instructions for LLM
 
+    # For payload manifest (summarize for LLM context):
+    summarize: Optional[Callable[[Dict[str, Any]], str]] = None  # Returns brief summary
+
 
 # =============================================================================
 # Payload Type Registry
@@ -103,6 +106,148 @@ def get_payload_types_by_names(names: List[str]) -> List[PayloadType]:
     return [_payload_types[name] for name in names if name in _payload_types]
 
 
+def summarize_payload(payload_type: str, data: Dict[str, Any]) -> str:
+    """
+    Generate a brief summary of a payload for the LLM context manifest.
+
+    Args:
+        payload_type: The type name of the payload
+        data: The payload data
+
+    Returns:
+        A brief summary string (1-2 sentences max)
+    """
+    pt = _payload_types.get(payload_type)
+    if not pt:
+        return f"Unknown payload type: {payload_type}"
+
+    if pt.summarize:
+        try:
+            return pt.summarize(data)
+        except Exception as e:
+            logger.warning(f"Failed to summarize payload {payload_type}: {e}")
+            return pt.description
+
+    # Default: just return the description
+    return pt.description
+
+
+# =============================================================================
+# Summarizer Functions
+# =============================================================================
+
+def _summarize_pubmed_search(data: Dict[str, Any]) -> str:
+    """Summarize PubMed search results."""
+    query = data.get("query", "unknown query")
+    total = data.get("total_results", 0)
+    showing = data.get("showing", len(data.get("articles", [])))
+    return f"PubMed search for '{query}': {showing} of {total} results"
+
+
+def _summarize_pubmed_article(data: Dict[str, Any]) -> str:
+    """Summarize a single PubMed article."""
+    pmid = data.get("pmid", "unknown")
+    title = data.get("title", "Untitled")
+    # Truncate title if too long
+    if len(title) > 60:
+        title = title[:57] + "..."
+    return f"Article PMID:{pmid} - {title}"
+
+
+def _summarize_schema_proposal(data: Dict[str, Any]) -> str:
+    """Summarize a schema proposal."""
+    changes = data.get("proposed_changes", {})
+    fields = list(changes.keys())[:3]
+    confidence = data.get("confidence", "unknown")
+    if fields:
+        return f"Schema proposal ({confidence} confidence) for: {', '.join(fields)}"
+    return f"Schema proposal ({confidence} confidence)"
+
+
+def _summarize_validation_results(data: Dict[str, Any]) -> str:
+    """Summarize validation results."""
+    errors = len(data.get("errors", []))
+    warnings = len(data.get("warnings", []))
+    suggestions = len(data.get("suggestions", []))
+    parts = []
+    if errors:
+        parts.append(f"{errors} errors")
+    if warnings:
+        parts.append(f"{warnings} warnings")
+    if suggestions:
+        parts.append(f"{suggestions} suggestions")
+    return f"Validation results: {', '.join(parts)}" if parts else "Validation results: no issues"
+
+
+def _summarize_retrieval_proposal(data: Dict[str, Any]) -> str:
+    """Summarize a retrieval proposal."""
+    update_type = data.get("update_type", "unknown")
+    queries = len(data.get("queries", []))
+    filters = len(data.get("filters", []))
+    return f"Retrieval proposal ({update_type}): {queries} queries, {filters} filters"
+
+
+def _summarize_query_suggestion(data: Dict[str, Any]) -> str:
+    """Summarize a query suggestion."""
+    query = data.get("query_expression", "")
+    if len(query) > 50:
+        query = query[:47] + "..."
+    return f"Query suggestion: {query}"
+
+
+def _summarize_filter_suggestion(data: Dict[str, Any]) -> str:
+    """Summarize a filter suggestion."""
+    criteria = data.get("criteria", "")
+    threshold = data.get("threshold", 0.7)
+    if len(criteria) > 50:
+        criteria = criteria[:47] + "..."
+    return f"Filter suggestion (threshold {threshold}): {criteria}"
+
+
+def _summarize_stream_suggestions(data: Dict[str, Any]) -> str:
+    """Summarize stream suggestions."""
+    suggestions = data.get("suggestions", [])
+    names = [s.get("suggested_name", "unnamed") for s in suggestions[:3]]
+    return f"Stream suggestions: {', '.join(names)}" if names else "Stream suggestions"
+
+
+def _summarize_portfolio_insights(data: Dict[str, Any]) -> str:
+    """Summarize portfolio insights."""
+    summary = data.get("summary", {})
+    total = summary.get("total_streams", 0)
+    insights = len(data.get("insights", []))
+    return f"Portfolio analysis: {total} streams, {insights} insights"
+
+
+def _summarize_quick_setup(data: Dict[str, Any]) -> str:
+    """Summarize a quick setup."""
+    name = data.get("stream_name", "Unnamed stream")
+    topics = len(data.get("suggested_topics", []))
+    return f"Quick setup: '{name}' with {topics} topics"
+
+
+def _summarize_stream_template(data: Dict[str, Any]) -> str:
+    """Summarize a stream template."""
+    name = data.get("stream_name", "Unnamed stream")
+    topics = len(data.get("topics", []))
+    entities = len(data.get("entities", []))
+    return f"Stream template: '{name}' with {topics} topics, {entities} entities"
+
+
+def _summarize_topic_suggestions(data: Dict[str, Any]) -> str:
+    """Summarize topic suggestions."""
+    suggestions = data.get("suggestions", [])
+    names = [s.get("name", "unnamed") for s in suggestions[:3]]
+    return f"Topic suggestions: {', '.join(names)}" if names else "Topic suggestions"
+
+
+def _summarize_validation_feedback(data: Dict[str, Any]) -> str:
+    """Summarize validation feedback."""
+    issues = len(data.get("issues", []))
+    strengths = len(data.get("strengths", []))
+    return f"Validation feedback: {issues} issues, {strengths} strengths noted"
+
+
 # =============================================================================
 # Tool Payload Types (from tools)
 # =============================================================================
@@ -112,6 +257,7 @@ register_payload_type(PayloadType(
     description="Results from a PubMed search query",
     source="tool",
     is_global=True,  # Tool payloads from global tools are global
+    summarize=_summarize_pubmed_search,
     schema={
         "type": "object",
         "properties": {
@@ -144,6 +290,7 @@ register_payload_type(PayloadType(
     description="Details of a single PubMed article",
     source="tool",
     is_global=True,
+    summarize=_summarize_pubmed_article,
     schema={
         "type": "object",
         "properties": {
@@ -175,6 +322,7 @@ register_payload_type(PayloadType(
     is_global=False,
     parse_marker="SCHEMA_PROPOSAL:",
     parser=make_json_parser("schema_proposal"),
+    summarize=_summarize_schema_proposal,
     llm_instructions="""
 SCHEMA_PROPOSAL - Use when user asks for recommendations/proposals AND you have enough context:
 
@@ -222,6 +370,7 @@ register_payload_type(PayloadType(
     is_global=False,
     parse_marker="VALIDATION_RESULTS:",
     parser=make_json_parser("validation_results"),
+    summarize=_summarize_validation_results,
     llm_instructions="""
 VALIDATION_RESULTS - Use when analyzing current schema values for issues:
 
@@ -271,6 +420,7 @@ register_payload_type(PayloadType(
     is_global=False,
     parse_marker="RETRIEVAL_PROPOSAL:",
     parser=make_json_parser("retrieval_proposal"),
+    summarize=_summarize_retrieval_proposal,
     llm_instructions="""
 RETRIEVAL_PROPOSAL - Use when user asks for help with search queries or filters.
 
@@ -324,6 +474,7 @@ register_payload_type(PayloadType(
     is_global=False,
     parse_marker="QUERY_SUGGESTION:",
     parser=make_json_parser("query_suggestion"),
+    summarize=_summarize_query_suggestion,
     llm_instructions="""
 QUERY_SUGGESTION - Use when user asks for help writing or improving PubMed queries:
 
@@ -359,6 +510,7 @@ register_payload_type(PayloadType(
     is_global=False,
     parse_marker="FILTER_SUGGESTION:",
     parser=make_json_parser("filter_suggestion"),
+    summarize=_summarize_filter_suggestion,
     llm_instructions="""
 FILTER_SUGGESTION - Use when user asks for help with semantic filter criteria:
 
@@ -392,6 +544,7 @@ register_payload_type(PayloadType(
     is_global=False,
     parse_marker="STREAM_SUGGESTIONS:",
     parser=make_json_parser("stream_suggestions"),
+    summarize=_summarize_stream_suggestions,
     llm_instructions="""
 STREAM_SUGGESTIONS - Suggest new research streams based on user's needs:
 
@@ -444,6 +597,7 @@ register_payload_type(PayloadType(
     is_global=False,
     parse_marker="PORTFOLIO_INSIGHTS:",
     parser=make_json_parser("portfolio_insights"),
+    summarize=_summarize_portfolio_insights,
     llm_instructions="""
 PORTFOLIO_INSIGHTS - Analyze the user's current stream portfolio:
 
@@ -512,6 +666,7 @@ register_payload_type(PayloadType(
     is_global=False,
     parse_marker="QUICK_SETUP:",
     parser=make_json_parser("quick_setup"),
+    summarize=_summarize_quick_setup,
     llm_instructions="""
 QUICK_SETUP - Provide a pre-configured stream setup for quick creation:
 
@@ -581,6 +736,7 @@ register_payload_type(PayloadType(
     is_global=False,
     parse_marker="STREAM_TEMPLATE:",
     parser=make_json_parser("stream_template"),
+    summarize=_summarize_stream_template,
     llm_instructions="""
 STREAM_TEMPLATE - Suggest a complete research stream configuration:
 
@@ -645,6 +801,7 @@ register_payload_type(PayloadType(
     is_global=False,
     parse_marker="TOPIC_SUGGESTIONS:",
     parser=make_json_parser("topic_suggestions"),
+    summarize=_summarize_topic_suggestions,
     llm_instructions="""
 TOPIC_SUGGESTIONS - Suggest topics for the research stream:
 
@@ -694,6 +851,7 @@ register_payload_type(PayloadType(
     is_global=False,
     parse_marker="VALIDATION_FEEDBACK:",
     parser=make_json_parser("validation_feedback"),
+    summarize=_summarize_validation_feedback,
     llm_instructions="""
 VALIDATION_FEEDBACK - Provide validation and improvement suggestions:
 

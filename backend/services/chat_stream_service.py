@@ -11,6 +11,7 @@ import anthropic
 import os
 import logging
 
+import uuid
 from schemas.chat import (
     ChatResponsePayload,
     ChatDiagnostics,
@@ -22,6 +23,7 @@ from schemas.chat import (
     CompleteEvent,
     ErrorEvent,
 )
+from schemas.payloads import summarize_payload
 from services.chat_page_config import (
     get_context_builder,
     get_client_actions,
@@ -84,14 +86,18 @@ class ChatStreamService:
         chat_id = self._setup_chat(request)
 
         try:
+            # Inject conversation_id into context for tools that need it
+            context_with_chat = dict(request.context)
+            context_with_chat["conversation_id"] = chat_id
+
             # Build prompts
-            system_prompt = self._build_system_prompt(request.context)
+            system_prompt = self._build_system_prompt(context_with_chat, chat_id)
             messages = self._build_messages(request)
 
             # Get tools for this page, tab, and subtab (global + page + tab + subtab)
-            current_page = request.context.get("current_page", "unknown")
-            active_tab = request.context.get("active_tab")
-            active_subtab = request.context.get("active_subtab")
+            current_page = context_with_chat.get("current_page", "unknown")
+            active_tab = context_with_chat.get("active_tab")
+            active_subtab = context_with_chat.get("active_subtab")
             tools_by_name = get_tools_for_page_dict(current_page, active_tab, active_subtab)
 
             # Send initial status
@@ -125,7 +131,7 @@ class ChatStreamService:
                 tools=tools_by_name,
                 db=self.db,
                 user_id=self.user_id,
-                context=request.context,
+                context=context_with_chat,
                 cancellation_token=cancellation_token,
                 stream_text=True,
                 temperature=0.0
@@ -173,12 +179,23 @@ class ChatStreamService:
 
             # Parse response and build final payload
             parsed = self._parse_llm_response(collected_text, request.context)
-            custom_payload = collected_payloads[-1] if collected_payloads else parsed.get("custom_payload")
+
+            # Process and merge all payloads (from tools + parsed LLM response)
+            all_payloads = list(collected_payloads)
+            if parsed.get("custom_payload"):
+                all_payloads.append(parsed["custom_payload"])
+
+            # Assign IDs and summaries to payloads
+            payloads_with_ids = self._process_payloads(all_payloads)
+
+            # The "active" payload for UI rendering (last one, if any)
+            custom_payload = payloads_with_ids[-1] if payloads_with_ids else None
 
             # Build extras for persistence
             extras = {
                 "tool_history": tool_call_history if tool_call_history else None,
-                "custom_payload": custom_payload,
+                "custom_payload": custom_payload,  # For UI rendering
+                "payloads": payloads_with_ids if payloads_with_ids else None,  # Full list for retrieval
                 "diagnostics": diagnostics.model_dump() if diagnostics else None,
                 "suggested_values": parsed.get("suggested_values"),
                 "suggested_actions": parsed.get("suggested_actions"),
@@ -209,6 +226,80 @@ class ChatStreamService:
         except Exception as e:
             logger.error(f"Error in chat service: {str(e)}", exc_info=True)
             yield ErrorEvent(message=f"Service error: {str(e)}").model_dump_json()
+
+    # =========================================================================
+    # Payload Processing
+    # =========================================================================
+
+    def _process_payloads(self, payloads: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Process payloads by assigning unique IDs and generating summaries.
+
+        Args:
+            payloads: List of raw payloads ({"type": str, "data": dict})
+
+        Returns:
+            List of processed payloads with payload_id and summary added
+        """
+        processed = []
+        for payload in payloads:
+            if not payload:
+                continue
+
+            payload_type = payload.get("type", "unknown")
+            payload_data = payload.get("data", {})
+
+            # Generate a short unique ID (first 8 chars of UUID)
+            payload_id = str(uuid.uuid4())[:8]
+
+            # Generate summary using the registry
+            summary = summarize_payload(payload_type, payload_data)
+
+            processed.append({
+                "payload_id": payload_id,
+                "type": payload_type,
+                "data": payload_data,
+                "summary": summary
+            })
+
+        return processed
+
+    def _build_payload_manifest(self, chat_id: Optional[int]) -> Optional[str]:
+        """
+        Build a manifest of all payloads from the conversation history.
+
+        The manifest provides brief summaries of all payloads that have been
+        generated during this conversation, allowing the LLM to reference
+        them by ID using the get_payload tool.
+
+        Args:
+            chat_id: The conversation ID
+
+        Returns:
+            Formatted manifest string, or None if no payloads exist
+        """
+        if not chat_id:
+            return None
+
+        # Get all messages from this conversation
+        messages = self.chat_service.get_messages(chat_id, self.user_id)
+
+        manifest_entries = []
+        for msg in messages:
+            if msg.role != 'assistant' or not msg.extras:
+                continue
+
+            payloads = msg.extras.get("payloads", [])
+            for payload in payloads:
+                payload_id = payload.get("payload_id")
+                summary = payload.get("summary")
+                if payload_id and summary:
+                    manifest_entries.append(f"- [{payload_id}] {summary}")
+
+        if not manifest_entries:
+            return None
+
+        return "AVAILABLE PAYLOADS (use get_payload tool to retrieve full data):\n" + "\n".join(manifest_entries)
 
     # =========================================================================
     # Chat Persistence Helpers
@@ -294,14 +385,15 @@ class ChatStreamService:
     # System Prompt Building
     # =========================================================================
 
-    def _build_system_prompt(self, context: Dict[str, Any]) -> str:
+    def _build_system_prompt(self, context: Dict[str, Any], chat_id: Optional[int] = None) -> str:
         """
         Build system prompt with clean structure:
         1. IDENTITY - Who the assistant is
         2. CONTEXT - Current page and loaded data
-        3. CAPABILITIES - Available tools and payloads (only if any)
-        4. CUSTOM INSTRUCTIONS - Stream-specific instructions (only if defined)
-        5. GUIDELINES - Brief response guidance
+        3. PAYLOAD MANIFEST - Available payloads from conversation history (if any)
+        4. CAPABILITIES - Available tools and payloads (only if any)
+        5. CUSTOM INSTRUCTIONS - Stream-specific instructions (only if defined)
+        6. GUIDELINES - Brief response guidance
         """
         current_page = context.get("current_page", "unknown")
         active_tab = context.get("active_tab")
@@ -319,17 +411,22 @@ class ChatStreamService:
         if page_context:
             sections.append(f"== CURRENT CONTEXT ==\n{page_context}")
 
-        # 3. CAPABILITIES (tools + payloads + client actions, only if any exist)
+        # 3. PAYLOAD MANIFEST (payloads from conversation history, if any)
+        payload_manifest = self._build_payload_manifest(chat_id)
+        if payload_manifest:
+            sections.append(f"== CONVERSATION DATA ==\n{payload_manifest}")
+
+        # 4. CAPABILITIES (tools + payloads + client actions, only if any exist)
         capabilities = self._build_capabilities_section(current_page, active_tab, active_subtab)
         if capabilities:
             sections.append(f"== CAPABILITIES ==\n{capabilities}")
 
-        # 4. CUSTOM INSTRUCTIONS (stream-specific, only if defined)
+        # 5. CUSTOM INSTRUCTIONS (stream-specific, only if defined)
         stream_instructions = self._load_stream_instructions(context)
         if stream_instructions:
             sections.append(f"== CUSTOM INSTRUCTIONS ==\n{stream_instructions}")
 
-        # 5. GUIDELINES (always present, brief)
+        # 6. GUIDELINES (always present, brief)
         sections.append(self._get_guidelines())
 
         return "\n\n".join(sections)
