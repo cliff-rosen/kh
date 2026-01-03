@@ -1,0 +1,529 @@
+import { useState, useMemo, useCallback } from 'react';
+import {
+    TableCellsIcon,
+    ArrowDownTrayIcon,
+    ArrowsUpDownIcon,
+    SparklesIcon,
+    XMarkIcon,
+    ChevronUpIcon,
+    ChevronDownIcon,
+    ArrowPathIcon,
+    TrashIcon,
+    EyeIcon,
+    MagnifyingGlassIcon,
+    CheckCircleIcon,
+    XCircleIcon,
+    AdjustmentsHorizontalIcon
+} from '@heroicons/react/24/outline';
+import AddColumnModal from './AddColumnModal';
+import { tablizerApi } from '../../../lib/api';
+
+// Types
+export interface TableColumn {
+    id: string;
+    label: string;
+    accessor: string;  // Key in the data object or computed
+    type: 'text' | 'number' | 'date' | 'ai';
+    aiConfig?: {
+        promptTemplate: string;
+        inputColumns: string[];
+        outputType?: 'text' | 'number' | 'boolean';
+    };
+    width?: number;
+    visible?: boolean;
+}
+
+type BooleanFilterState = 'all' | 'yes' | 'no';
+
+export interface TableRow {
+    id: string;
+    [key: string]: any;
+}
+
+export interface TablizierProps {
+    initialData: TableRow[];
+    initialColumns: TableColumn[];
+    title?: string;
+    onExport?: (data: TableRow[], columns: TableColumn[]) => void;
+    onClose?: () => void;
+    isFullScreen?: boolean;
+}
+
+type SortDirection = 'asc' | 'desc' | null;
+
+interface SortConfig {
+    columnId: string;
+    direction: SortDirection;
+}
+
+export default function Tablizer({
+    initialData,
+    initialColumns,
+    title = 'Tablizer',
+    onExport,
+    onClose,
+    isFullScreen = false
+}: TablizierProps) {
+    // State
+    const [data, setData] = useState<TableRow[]>(initialData);
+    const [columns, setColumns] = useState<TableColumn[]>(
+        initialColumns.map(c => ({ ...c, visible: c.visible !== false }))
+    );
+    const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
+    const [filterText, setFilterText] = useState('');
+    const [showAddColumnModal, setShowAddColumnModal] = useState(false);
+    const [processingColumn, setProcessingColumn] = useState<string | null>(null);
+    const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0 });
+    const [booleanFilters, setBooleanFilters] = useState<Record<string, BooleanFilterState>>({});
+
+    // Get visible columns
+    const visibleColumns = useMemo(() =>
+        columns.filter(c => c.visible !== false),
+        [columns]
+    );
+
+    // Get boolean AI columns for quick filters
+    const booleanColumns = useMemo(() =>
+        columns.filter(c => c.type === 'ai' && c.aiConfig?.outputType === 'boolean'),
+        [columns]
+    );
+
+    // Sort data
+    const sortedData = useMemo(() => {
+        if (!sortConfig || !sortConfig.direction) return data;
+
+        return [...data].sort((a, b) => {
+            const aVal = a[sortConfig.columnId];
+            const bVal = b[sortConfig.columnId];
+
+            if (aVal === undefined || aVal === null) return 1;
+            if (bVal === undefined || bVal === null) return -1;
+
+            const column = columns.find(c => c.id === sortConfig.columnId);
+
+            if (column?.type === 'number') {
+                const aNum = parseFloat(aVal) || 0;
+                const bNum = parseFloat(bVal) || 0;
+                return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum;
+            }
+
+            const aStr = String(aVal).toLowerCase();
+            const bStr = String(bVal).toLowerCase();
+            const comparison = aStr.localeCompare(bStr);
+            return sortConfig.direction === 'asc' ? comparison : -comparison;
+        });
+    }, [data, sortConfig, columns]);
+
+    // Filter data
+    const filteredData = useMemo(() => {
+        let result = sortedData;
+
+        // Apply text filter
+        if (filterText.trim()) {
+            const searchLower = filterText.toLowerCase();
+            result = result.filter(row =>
+                Object.values(row).some(val =>
+                    String(val).toLowerCase().includes(searchLower)
+                )
+            );
+        }
+
+        // Apply boolean filters
+        for (const [columnId, filterState] of Object.entries(booleanFilters)) {
+            if (filterState === 'all') continue;
+            result = result.filter(row => {
+                const val = row[columnId];
+                const isYes = val === true || val === 'Yes' || val === 'yes' || val === 'YES';
+                return filterState === 'yes' ? isYes : !isYes;
+            });
+        }
+
+        return result;
+    }, [sortedData, filterText, booleanFilters]);
+
+    // Handle sort
+    const handleSort = useCallback((columnId: string) => {
+        setSortConfig(current => {
+            if (current?.columnId !== columnId) {
+                return { columnId, direction: 'asc' };
+            }
+            if (current.direction === 'asc') {
+                return { columnId, direction: 'desc' };
+            }
+            return null;
+        });
+    }, []);
+
+    // Toggle column visibility
+    const toggleColumnVisibility = useCallback((columnId: string) => {
+        setColumns(cols => cols.map(c =>
+            c.id === columnId ? { ...c, visible: !c.visible } : c
+        ));
+    }, []);
+
+    // Delete AI column
+    const deleteColumn = useCallback((columnId: string) => {
+        const column = columns.find(c => c.id === columnId);
+        if (column?.type !== 'ai') return; // Only delete AI columns
+
+        setColumns(cols => cols.filter(c => c.id !== columnId));
+        setData(rows => rows.map(row => {
+            const newRow = { ...row };
+            delete newRow[columnId];
+            return newRow;
+        }));
+    }, [columns]);
+
+    // Add AI column
+    const handleAddColumn = useCallback(async (
+        columnName: string,
+        promptTemplate: string,
+        inputColumns: string[],
+        outputType: 'text' | 'number' | 'boolean'
+    ) => {
+        const columnId = `ai_${Date.now()}`;
+
+        // Add the column definition
+        const newColumn: TableColumn = {
+            id: columnId,
+            label: columnName,
+            accessor: columnId,
+            type: 'ai',
+            aiConfig: {
+                promptTemplate,
+                inputColumns,
+                outputType
+            },
+            visible: true
+        };
+
+        setColumns(cols => [...cols, newColumn]);
+        setShowAddColumnModal(false);
+
+        // Process each row
+        setProcessingColumn(columnId);
+        setProcessingProgress({ current: 0, total: data.length });
+
+        try {
+            const updatedRows = [...data];
+
+            for (let i = 0; i < data.length; i++) {
+                setProcessingProgress({ current: i + 1, total: data.length });
+
+                const row = data[i];
+
+                // Build the prompt by replacing slugs with actual values
+                let prompt = promptTemplate;
+                for (const inputCol of inputColumns) {
+                    const value = row[inputCol] || '';
+                    prompt = prompt.replace(new RegExp(`\\{${inputCol}\\}`, 'g'), value);
+                }
+
+                try {
+                    const result = await tablizerApi.processCell({
+                        prompt,
+                        output_type: outputType
+                    });
+                    updatedRows[i] = { ...updatedRows[i], [columnId]: result.value };
+                } catch (err) {
+                    updatedRows[i] = { ...updatedRows[i], [columnId]: 'Error' };
+                }
+
+                // Update data incrementally for visual feedback
+                setData([...updatedRows]);
+            }
+        } finally {
+            setProcessingColumn(null);
+            setProcessingProgress({ current: 0, total: 0 });
+        }
+    }, [data]);
+
+    // Export to CSV
+    const handleExport = useCallback(() => {
+        const headers = visibleColumns.map(c => c.label);
+        const rows = filteredData.map(row =>
+            visibleColumns.map(c => {
+                const val = row[c.accessor];
+                // Escape quotes and wrap in quotes if contains comma
+                const strVal = String(val ?? '');
+                if (strVal.includes(',') || strVal.includes('"') || strVal.includes('\n')) {
+                    return `"${strVal.replace(/"/g, '""')}"`;
+                }
+                return strVal;
+            })
+        );
+
+        const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${title.toLowerCase().replace(/\s+/g, '_')}_export.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        if (onExport) {
+            onExport(filteredData, visibleColumns);
+        }
+    }, [filteredData, visibleColumns, title, onExport]);
+
+    const containerClass = isFullScreen
+        ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col'
+        : 'border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 flex flex-col h-[600px]';
+
+    return (
+        <div className={containerClass}>
+            {/* Header */}
+            <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-3">
+                    <TableCellsIcon className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                        {filteredData.length}{filteredData.length !== data.length ? ` of ${data.length}` : ''} rows
+                    </span>
+                    {processingColumn && (
+                        <span className="text-sm text-purple-600 dark:text-purple-400 flex items-center gap-2">
+                            <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                            Processing {processingProgress.current}/{processingProgress.total}...
+                        </span>
+                    )}
+                </div>
+                <div className="flex items-center gap-2">
+                    {onClose && (
+                        <button
+                            onClick={onClose}
+                            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+                        >
+                            <XMarkIcon className="h-5 w-5" />
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Toolbar */}
+            <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center justify-between gap-4 flex-shrink-0">
+                {/* Left: Search and Quick Filters */}
+                <div className="flex items-center gap-3 flex-1">
+                    {/* Search */}
+                    <div className="relative flex-1 max-w-xs">
+                        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <input
+                            type="text"
+                            value={filterText}
+                            onChange={(e) => setFilterText(e.target.value)}
+                            placeholder="Search all columns..."
+                            className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400"
+                        />
+                    </div>
+
+                    {/* Quick Boolean Filters */}
+                    {booleanColumns.length > 0 && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">Quick filters:</span>
+                            {booleanColumns.map(col => {
+                                const currentFilter = booleanFilters[col.id] || 'all';
+                                return (
+                                    <div key={col.id} className="flex items-center rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden">
+                                        <span className="px-2 py-1 text-xs bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-r border-gray-300 dark:border-gray-600">
+                                            {col.label}
+                                        </span>
+                                        <button
+                                            onClick={() => setBooleanFilters(prev => ({ ...prev, [col.id]: 'all' }))}
+                                            className={`px-2 py-1 text-xs transition-colors ${
+                                                currentFilter === 'all'
+                                                    ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
+                                                    : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                            }`}
+                                        >
+                                            All
+                                        </button>
+                                        <button
+                                            onClick={() => setBooleanFilters(prev => ({ ...prev, [col.id]: 'yes' }))}
+                                            className={`px-2 py-1 text-xs flex items-center gap-1 transition-colors ${
+                                                currentFilter === 'yes'
+                                                    ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
+                                                    : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                            }`}
+                                        >
+                                            <CheckCircleIcon className="h-3 w-3" />
+                                            Yes
+                                        </button>
+                                        <button
+                                            onClick={() => setBooleanFilters(prev => ({ ...prev, [col.id]: 'no' }))}
+                                            className={`px-2 py-1 text-xs flex items-center gap-1 transition-colors ${
+                                                currentFilter === 'no'
+                                                    ? 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
+                                                    : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                            }`}
+                                        >
+                                            <XCircleIcon className="h-3 w-3" />
+                                            No
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {/* Right: Actions */}
+                <div className="flex items-center gap-2">
+                    {/* Add AI Column */}
+                    <button
+                        onClick={() => setShowAddColumnModal(true)}
+                        disabled={!!processingColumn}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                        <SparklesIcon className="h-4 w-4" />
+                        Add AI Column
+                    </button>
+
+                    {/* Separator */}
+                    <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
+
+                    {/* Column visibility dropdown */}
+                    <div className="relative group">
+                        <button className="flex items-center gap-1.5 px-2 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md">
+                            <AdjustmentsHorizontalIcon className="h-4 w-4" />
+                            Columns
+                        </button>
+                        <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg z-10 hidden group-hover:block">
+                            <div className="p-2 space-y-1 max-h-60 overflow-y-auto">
+                                {columns.map(col => (
+                                    <label key={col.id} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={col.visible !== false}
+                                            onChange={() => toggleColumnVisibility(col.id)}
+                                            className="rounded border-gray-300 dark:border-gray-600"
+                                        />
+                                        <span className="text-sm text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                                            {col.type === 'ai' && <SparklesIcon className="h-3 w-3 text-purple-500" />}
+                                            {col.label}
+                                        </span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Export */}
+                    <button
+                        onClick={handleExport}
+                        className="flex items-center gap-1.5 px-2 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+                        title="Export to CSV"
+                    >
+                        <ArrowDownTrayIcon className="h-4 w-4" />
+                        Export
+                    </button>
+                </div>
+            </div>
+
+            {/* Table */}
+            <div className="flex-1 overflow-auto">
+                <table className="w-full">
+                    <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
+                        <tr>
+                            {visibleColumns.map(column => (
+                                <th
+                                    key={column.id}
+                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        {column.type === 'ai' && (
+                                            <SparklesIcon className="h-4 w-4 text-purple-500" />
+                                        )}
+                                        <button
+                                            onClick={() => handleSort(column.id)}
+                                            className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200"
+                                        >
+                                            {column.label}
+                                            {sortConfig?.columnId === column.id ? (
+                                                sortConfig.direction === 'asc' ? (
+                                                    <ChevronUpIcon className="h-4 w-4" />
+                                                ) : (
+                                                    <ChevronDownIcon className="h-4 w-4" />
+                                                )
+                                            ) : (
+                                                <ArrowsUpDownIcon className="h-4 w-4 opacity-30" />
+                                            )}
+                                        </button>
+                                        {column.type === 'ai' && (
+                                            <button
+                                                onClick={() => deleteColumn(column.id)}
+                                                className="p-0.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100"
+                                                title="Delete column"
+                                            >
+                                                <TrashIcon className="h-3 w-3" />
+                                            </button>
+                                        )}
+                                    </div>
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {filteredData.map((row, rowIdx) => (
+                            <tr
+                                key={row.id || rowIdx}
+                                className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                            >
+                                {visibleColumns.map(column => {
+                                    const cellValue = row[column.accessor];
+                                    const isBoolean = column.aiConfig?.outputType === 'boolean';
+                                    const isBooleanYes = isBoolean && (cellValue === true || cellValue === 'Yes' || cellValue === 'yes' || cellValue === 'YES');
+                                    const isBooleanNo = isBoolean && (cellValue === false || cellValue === 'No' || cellValue === 'no' || cellValue === 'NO');
+
+                                    return (
+                                        <td
+                                            key={column.id}
+                                            className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100"
+                                        >
+                                            {processingColumn === column.id && cellValue === undefined ? (
+                                                <span className="text-gray-400 italic">Processing...</span>
+                                            ) : isBoolean ? (
+                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                                    isBooleanYes
+                                                        ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
+                                                        : isBooleanNo
+                                                            ? 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
+                                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                                                }`}>
+                                                    {isBooleanYes && <CheckCircleIcon className="h-3 w-3" />}
+                                                    {isBooleanNo && <XCircleIcon className="h-3 w-3" />}
+                                                    {cellValue ?? '-'}
+                                                </span>
+                                            ) : (
+                                                <span className={column.type === 'ai' ? 'text-purple-700 dark:text-purple-300' : ''}>
+                                                    {cellValue ?? '-'}
+                                                </span>
+                                            )}
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+
+                {filteredData.length === 0 && (
+                    <div className="flex items-center justify-center py-12 text-gray-500 dark:text-gray-400">
+                        <p>No data to display</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Add Column Modal */}
+            {showAddColumnModal && (
+                <AddColumnModal
+                    availableColumns={columns.filter(c => c.type !== 'ai').map(c => ({
+                        id: c.accessor,
+                        label: c.label
+                    }))}
+                    onAdd={handleAddColumn}
+                    onClose={() => setShowAddColumnModal(false)}
+                />
+            )}
+        </div>
+    );
+}
