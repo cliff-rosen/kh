@@ -46,6 +46,7 @@ type BooleanFilterState = 'all' | 'yes' | 'no';
 
 export interface TablizierProps {
     articles: TablizableArticle[];
+    filterArticles?: TablizableArticle[];  // Optional larger set for AI column processing
     title?: string;
     onClose?: () => void;
     isFullScreen?: boolean;
@@ -75,10 +76,13 @@ const BASE_COLUMNS: TableColumn[] = [
 
 export default function Tablizer({
     articles,
+    filterArticles,
     title = 'Tablizer',
     onClose,
     isFullScreen = false
 }: TablizierProps) {
+    // Use filterArticles for AI processing if provided, otherwise use display articles
+    const articlesForAiProcessing = filterArticles || articles;
     // Convert articles to row format with string id
     const initialRows = useMemo((): TableRow[] =>
         articles.map((article, idx) => {
@@ -237,12 +241,13 @@ export default function Tablizer({
         setShowAddColumnModal(false);
 
         // Process using semantic filter service
+        // Use articlesForAiProcessing which may be a larger set (e.g., 500 articles for filtering)
         setProcessingColumn(columnId);
-        setProcessingProgress({ current: 0, total: articles.length });
+        setProcessingProgress({ current: 0, total: articlesForAiProcessing.length });
 
         try {
             // Convert to CanonicalResearchArticle format for the filter API
-            const canonicalArticles: CanonicalResearchArticle[] = articles.map((article, idx) => ({
+            const canonicalArticles: CanonicalResearchArticle[] = articlesForAiProcessing.map((article, idx) => ({
                 id: isReportArticle(article) ? article.article_id.toString() : (article.id || `row_${idx}`),
                 pmid: article.pmid || '',
                 title: article.title,
@@ -264,9 +269,10 @@ export default function Tablizer({
                 threshold: 0.5
             });
 
-            // Map results back to rows
+            // Map results back to display rows only (first N articles correspond to display)
             const updatedRows = [...data];
-            for (let i = 0; i < response.results.length; i++) {
+            const displayCount = Math.min(response.results.length, data.length);
+            for (let i = 0; i < displayCount; i++) {
                 const result = response.results[i];
                 let value: string | number | boolean;
 
@@ -279,9 +285,11 @@ export default function Tablizer({
                 }
 
                 updatedRows[i] = { ...updatedRows[i], [columnId]: value };
-                setProcessingProgress({ current: i + 1, total: articles.length });
+                setProcessingProgress({ current: i + 1, total: articlesForAiProcessing.length });
                 setData([...updatedRows]);
             }
+            // Update progress to show full completion
+            setProcessingProgress({ current: response.results.length, total: articlesForAiProcessing.length });
         } catch (err) {
             console.error('Error processing AI column:', err);
             // Mark all as error
@@ -291,7 +299,7 @@ export default function Tablizer({
             setProcessingColumn(null);
             setProcessingProgress({ current: 0, total: 0 });
         }
-    }, [articles, data]);
+    }, [articlesForAiProcessing, data]);
 
     // Export to CSV
     const handleExport = useCallback(() => {
@@ -320,7 +328,7 @@ export default function Tablizer({
 
     const containerClass = isFullScreen
         ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col'
-        : 'border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 flex flex-col h-[600px]';
+        : 'border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 flex flex-col';
 
     return (
         <div className={containerClass}>
