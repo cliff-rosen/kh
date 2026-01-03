@@ -16,8 +16,9 @@ import { Tablizer } from './Tablizer';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
 import { toolsApi } from '../../lib/api/toolsApi';
 
-const FILTER_LIMIT = 500;  // Max articles to fetch for filtering
-const DISPLAY_LIMIT = 100; // Max articles to display in table
+const INITIAL_FETCH_LIMIT = 20;  // Initial articles to fetch (fast)
+const AI_FETCH_LIMIT = 500;      // Max articles to fetch for AI processing
+const DISPLAY_LIMIT = 100;       // Max articles to display in table
 
 // ============================================================================
 // Search Snapshot Types
@@ -57,6 +58,15 @@ export default function TablizePubMed() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [hasSearched, setHasSearched] = useState(false);
+    const [hasFetchedFullSet, setHasFetchedFullSet] = useState(false);
+    const [fetchingMore, setFetchingMore] = useState(false);
+    // Store last search params for fetching more
+    const [lastSearchParams, setLastSearchParams] = useState<{
+        query: string;
+        startDate?: string;
+        endDate?: string;
+        dateType: 'publication' | 'entry';
+    } | null>(null);
 
     // History state
     const [snapshots, setSnapshots] = useState<SearchSnapshot[]>([]);
@@ -154,7 +164,7 @@ export default function TablizePubMed() {
         );
     }, [selectedSnapshotId, allArticles, snapshots, addDerivedSnapshot, getSnapshot]);
 
-    // Handle search
+    // Handle search - fetch only initial set for speed
     const handleSearch = async () => {
         if (!query.trim()) {
             setError('Please enter a search query');
@@ -167,18 +177,28 @@ export default function TablizePubMed() {
         setSelectedSnapshotId(null);
         setCompareMode(false);
         setCompareSnapshots(null);
+        setHasFetchedFullSet(false);
+
+        const searchParams = {
+            query: query,
+            startDate: startDate || undefined,
+            endDate: endDate || undefined,
+            dateType: dateType
+        };
+        setLastSearchParams(searchParams);
 
         try {
             const response = await toolsApi.searchPubMed({
-                query: query,
-                startDate: startDate || undefined,
-                endDate: endDate || undefined,
-                dateType: dateType,
-                maxResults: FILTER_LIMIT
+                ...searchParams,
+                maxResults: INITIAL_FETCH_LIMIT
             });
             setAllArticles(response.articles);
             setTotalMatched(response.total_results);
             setHasSearched(true);
+            // Mark as full set if we got everything
+            if (response.articles.length >= response.total_results || response.articles.length >= AI_FETCH_LIMIT) {
+                setHasFetchedFullSet(true);
+            }
             // Auto-save to history
             addSearchSnapshot(response.articles, response.total_results);
         } catch (err) {
@@ -187,6 +207,30 @@ export default function TablizePubMed() {
             setLoading(false);
         }
     };
+
+    // Fetch more articles for AI processing (up to 500)
+    const fetchMoreForAI = useCallback(async (): Promise<CanonicalResearchArticle[]> => {
+        // If we already have the full set, return current articles
+        if (hasFetchedFullSet || !lastSearchParams) {
+            return allArticles;
+        }
+
+        setFetchingMore(true);
+        try {
+            const response = await toolsApi.searchPubMed({
+                ...lastSearchParams,
+                maxResults: AI_FETCH_LIMIT
+            });
+            setAllArticles(response.articles);
+            setHasFetchedFullSet(true);
+            return response.articles;
+        } catch (err) {
+            console.error('Failed to fetch more articles:', err);
+            return allArticles; // Return what we have on error
+        } finally {
+            setFetchingMore(false);
+        }
+    }, [hasFetchedFullSet, lastSearchParams, allArticles]);
 
     // Handle clear all
     const handleClearAll = () => {
@@ -200,6 +244,8 @@ export default function TablizePubMed() {
         setTotalMatched(0);
         setHasSearched(false);
         setError(null);
+        setHasFetchedFullSet(false);
+        setLastSearchParams(null);
         // Clear history
         setSnapshots([]);
         setSelectedSnapshotId(null);
@@ -390,6 +436,52 @@ export default function TablizePubMed() {
                                     <option value="entry">Entry</option>
                                 </select>
                             </div>
+                            {/* Date preset buttons */}
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 dark:text-gray-400">Quick:</span>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const today = new Date();
+                                        const weekAgo = new Date(today);
+                                        weekAgo.setDate(today.getDate() - 7);
+                                        setStartDate(weekAgo.toISOString().split('T')[0]);
+                                        setEndDate(today.toISOString().split('T')[0]);
+                                    }}
+                                    className="px-2 py-1 text-xs text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                                >
+                                    Last Week
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const today = new Date();
+                                        const monthAgo = new Date(today);
+                                        monthAgo.setMonth(today.getMonth() - 1);
+                                        setStartDate(monthAgo.toISOString().split('T')[0]);
+                                        setEndDate(today.toISOString().split('T')[0]);
+                                    }}
+                                    className="px-2 py-1 text-xs text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                                >
+                                    Last Month
+                                </button>
+                                {(startDate || endDate) && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setStartDate('');
+                                            setEndDate('');
+                                        }}
+                                        className="px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                                    >
+                                        Clear dates
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Search button row */}
+                        <div className="flex items-center justify-between">
                             <button
                                 onClick={handleSearch}
                                 disabled={loading || !query.trim()}
@@ -414,7 +506,7 @@ export default function TablizePubMed() {
                                 <button
                                     onClick={handleClearAll}
                                     disabled={loading}
-                                    className="px-4 py-2 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                    className="px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 flex items-center gap-1.5"
                                     title="Clear search, results, and history"
                                 >
                                     <TrashIcon className="h-4 w-4" />
@@ -512,7 +604,7 @@ export default function TablizePubMed() {
                         )}
 
                         {/* Results Summary & Table - dimmed when loading */}
-                        <div className={`space-y-6 transition-opacity duration-200 ${loading ? 'opacity-40 pointer-events-none' : ''}`}>
+                        <div className={`space-y-6 transition-opacity duration-200 ${loading || fetchingMore ? 'opacity-40 pointer-events-none' : ''}`}>
                             {/* Results Summary */}
                             {(hasSearched || selectedSnapshot) && summaryInfo && (
                                 <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
@@ -522,26 +614,29 @@ export default function TablizePubMed() {
                                             <span className="text-gray-500 dark:text-gray-400">Total matches: </span>
                                             <span className="font-medium text-gray-900 dark:text-white">{summaryInfo.totalMatched.toLocaleString()}</span>
                                         </div>
-                                        {summaryInfo.hasMoreMatches && (
-                                            <div>
-                                                <span className="text-gray-500 dark:text-gray-400">Fetched for AI: </span>
-                                                <span className="font-medium text-gray-900 dark:text-white">{summaryInfo.fetched}</span>
-                                                <span className="text-amber-600 dark:text-amber-400 ml-1">(limit {FILTER_LIMIT})</span>
-                                            </div>
-                                        )}
+                                        <div>
+                                            <span className="text-gray-500 dark:text-gray-400">Fetched: </span>
+                                            <span className="font-medium text-gray-900 dark:text-white">{summaryInfo.fetched}</span>
+                                            {!hasFetchedFullSet && summaryInfo.totalMatched > summaryInfo.fetched && (
+                                                <span className="text-gray-400 dark:text-gray-500 ml-1">(more fetched for AI)</span>
+                                            )}
+                                        </div>
                                         {summaryInfo.isDisplayLimited && (
                                             <div>
                                                 <span className="text-gray-500 dark:text-gray-400">Displaying: </span>
                                                 <span className="font-medium text-gray-900 dark:text-white">{summaryInfo.displayed}</span>
-                                                <span className="text-gray-400 dark:text-gray-500 ml-1">(first {DISPLAY_LIMIT})</span>
                                             </div>
                                         )}
+                                        {fetchingMore && (
+                                            <span className="text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                                                <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                                </svg>
+                                                Fetching more for AI...
+                                            </span>
+                                        )}
                                     </div>
-                                    {summaryInfo.hasMoreMatches && (
-                                        <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-                                            Only the first {FILTER_LIMIT} articles will be processed when you add AI columns.
-                                        </p>
-                                    )}
                                 </div>
                             )}
 
@@ -553,6 +648,7 @@ export default function TablizePubMed() {
                                         articles={displayArticles}
                                         filterArticles={displayData.articles}
                                         onSaveToHistory={handleSaveFilteredToHistory}
+                                        onFetchMoreForAI={selectedSnapshotId ? undefined : fetchMoreForAI}
                                     />
                                 ) : (
                                     <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-8 text-center text-gray-500 dark:text-gray-400">

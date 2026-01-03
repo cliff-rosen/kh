@@ -51,6 +51,7 @@ export interface TablizierProps {
     onClose?: () => void;
     isFullScreen?: boolean;
     onSaveToHistory?: (filteredIds: string[], filterDescription: string) => void;  // Callback to save filtered results to history
+    onFetchMoreForAI?: () => Promise<TablizableArticle[]>;  // Callback to fetch more articles before AI processing
 }
 
 // Helper to check if article is from report
@@ -81,7 +82,8 @@ export default function Tablizer({
     title = 'Tablizer',
     onClose,
     isFullScreen = false,
-    onSaveToHistory
+    onSaveToHistory,
+    onFetchMoreForAI
 }: TablizierProps) {
     // Use filterArticles for AI processing if provided, otherwise use display articles
     const articlesForAiProcessing = filterArticles || articles;
@@ -284,14 +286,19 @@ export default function Tablizer({
         setColumns(cols => [...cols, newColumn]);
         setShowAddColumnModal(false);
 
+        // Fetch more articles if needed before AI processing
+        let aiArticles = articlesForAiProcessing;
+        if (onFetchMoreForAI) {
+            aiArticles = await onFetchMoreForAI();
+        }
+
         // Process using semantic filter service
-        // Use articlesForAiProcessing which may be a larger set (e.g., 500 articles for filtering)
         setProcessingColumn(columnId);
-        setProcessingProgress({ current: 0, total: articlesForAiProcessing.length });
+        setProcessingProgress({ current: 0, total: aiArticles.length });
 
         try {
             // Convert to CanonicalResearchArticle format for the filter API
-            const canonicalArticles: CanonicalResearchArticle[] = articlesForAiProcessing.map((article, idx) => ({
+            const canonicalArticles: CanonicalResearchArticle[] = aiArticles.map((article, idx) => ({
                 id: isReportArticle(article) ? article.article_id.toString() : (article.id || `row_${idx}`),
                 pmid: article.pmid || '',
                 title: article.title,
@@ -315,6 +322,7 @@ export default function Tablizer({
 
             // Map results back to display rows only (first N articles correspond to display)
             const updatedRows = [...data];
+            const totalForProgress = aiArticles.length;
             const displayCount = Math.min(response.results.length, data.length);
             for (let i = 0; i < displayCount; i++) {
                 const result = response.results[i];
@@ -329,11 +337,11 @@ export default function Tablizer({
                 }
 
                 updatedRows[i] = { ...updatedRows[i], [columnId]: value };
-                setProcessingProgress({ current: i + 1, total: articlesForAiProcessing.length });
+                setProcessingProgress({ current: i + 1, total: totalForProgress });
                 setData([...updatedRows]);
             }
             // Update progress to show full completion
-            setProcessingProgress({ current: response.results.length, total: articlesForAiProcessing.length });
+            setProcessingProgress({ current: response.results.length, total: totalForProgress });
         } catch (err) {
             console.error('Error processing AI column:', err);
             // Mark all as error
@@ -343,7 +351,7 @@ export default function Tablizer({
             setProcessingColumn(null);
             setProcessingProgress({ current: 0, total: 0 });
         }
-    }, [articlesForAiProcessing, data]);
+    }, [articlesForAiProcessing, data, onFetchMoreForAI]);
 
     // Export to CSV
     const handleExport = useCallback(() => {
