@@ -616,16 +616,20 @@ export default function EditStreamPage() {
                             domain: form.semantic_space.domain
                         },
                         categories: form.categories
+                    } : executeSubTab === 'workbench' ? {
+                        // Workbench subtab - lightweight context + workbench state
+                        stream_name: form.stream_name,
+                        semantic_space: {
+                            domain: form.semantic_space.domain,
+                            topics: form.semantic_space.topics
+                        },
+                        workbench: workbenchState
                     } : {
-                        // execute tab - include stream config + workbench state
+                        // Pipeline subtab - include full stream config
                         stream_name: form.stream_name,
                         semantic_space: form.semantic_space,
                         retrieval_config: form.retrieval_config,
-                        categories: form.categories,
-                        // Execute tab sub-tab (workbench vs pipeline)
-                        execute_sub_tab: executeSubTab,
-                        // Workbench-specific context for query refinement help (only relevant when on workbench sub-tab)
-                        workbench: executeSubTab === 'workbench' ? workbenchState : null
+                        categories: form.categories
                     }
                 }}
                 payloadHandlers={{
@@ -849,7 +853,7 @@ export default function EditStreamPage() {
                         </div>
                     </div>
 
-                    {/* Three-Layer Architecture Tabs */}
+                    {/* Tabs */}
                     <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
                         <nav className="-mb-px flex space-x-8">
                             <button
