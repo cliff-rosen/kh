@@ -8,7 +8,8 @@ import {
     ChevronDownIcon,
     ChevronUpIcon,
     ClipboardDocumentIcon,
-    CheckIcon
+    CheckIcon,
+    ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 
@@ -34,11 +35,39 @@ interface PubMedArticleCardProps {
 export default function PubMedArticleCard({ article }: PubMedArticleCardProps) {
     const [showFullText, setShowFullText] = useState(false);
     const [copiedField, setCopiedField] = useState<string | null>(null);
+    const [copyError, setCopyError] = useState(false);
 
-    const copyToClipboard = (text: string, field: string) => {
-        navigator.clipboard.writeText(text);
-        setCopiedField(field);
-        setTimeout(() => setCopiedField(null), 2000);
+    const copyToClipboard = async (text: string, field: string, e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        setCopyError(false);
+
+        try {
+            // Try modern clipboard API first
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                // Fallback for non-secure contexts (HTTP)
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                textArea.style.position = 'fixed';
+                textArea.style.left = '-999999px';
+                textArea.style.top = '-999999px';
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                const successful = document.execCommand('copy');
+                document.body.removeChild(textArea);
+                if (!successful) {
+                    throw new Error('execCommand copy failed');
+                }
+            }
+            setCopiedField(field);
+            setTimeout(() => setCopiedField(null), 2000);
+        } catch (err) {
+            console.error('Failed to copy to clipboard:', err);
+            setCopyError(true);
+            setTimeout(() => setCopyError(false), 2000);
+        }
     };
 
     const pubmedUrl = `https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`;
@@ -127,13 +156,19 @@ export default function PubMedArticleCard({ article }: PubMedArticleCardProps) {
                             Abstract
                         </h4>
                         <button
-                            onClick={() => copyToClipboard(article.abstract!, 'abstract')}
+                            type="button"
+                            onClick={(e) => copyToClipboard(article.abstract!, 'abstract', e)}
                             className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1"
                         >
                             {copiedField === 'abstract' ? (
                                 <>
                                     <CheckIcon className="h-3.5 w-3.5 text-green-500" />
                                     Copied!
+                                </>
+                            ) : copyError ? (
+                                <>
+                                    <ExclamationCircleIcon className="h-3.5 w-3.5 text-red-500" />
+                                    Failed
                                 </>
                             ) : (
                                 <>
@@ -153,6 +188,7 @@ export default function PubMedArticleCard({ article }: PubMedArticleCardProps) {
             {article.full_text && (
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
                     <button
+                        type="button"
                         onClick={() => setShowFullText(!showFullText)}
                         className="flex items-center justify-between w-full text-left"
                     >
@@ -171,13 +207,19 @@ export default function PubMedArticleCard({ article }: PubMedArticleCardProps) {
                         <div className="mt-3">
                             <div className="flex justify-end mb-2">
                                 <button
-                                    onClick={() => copyToClipboard(article.full_text!, 'fulltext')}
+                                    type="button"
+                                    onClick={(e) => copyToClipboard(article.full_text!, 'fulltext', e)}
                                     className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1"
                                 >
                                     {copiedField === 'fulltext' ? (
                                         <>
                                             <CheckIcon className="h-3.5 w-3.5 text-green-500" />
                                             Copied!
+                                        </>
+                                    ) : copyError ? (
+                                        <>
+                                            <ExclamationCircleIcon className="h-3.5 w-3.5 text-red-500" />
+                                            Failed
                                         </>
                                     ) : (
                                         <>
@@ -202,9 +244,10 @@ export default function PubMedArticleCard({ article }: PubMedArticleCardProps) {
                         Citation
                     </h4>
                     <button
-                        onClick={() => {
+                        type="button"
+                        onClick={(e) => {
                             const citation = `${article.authors}. ${article.title}. ${article.journal}. ${article.year};${article.volume || ''}(${article.issue || ''}):${article.pages || ''}. PMID: ${article.pmid}${article.doi ? `. doi: ${article.doi}` : ''}`;
-                            copyToClipboard(citation, 'citation');
+                            copyToClipboard(citation, 'citation', e);
                         }}
                         className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1"
                     >
@@ -212,6 +255,11 @@ export default function PubMedArticleCard({ article }: PubMedArticleCardProps) {
                             <>
                                 <CheckIcon className="h-3.5 w-3.5 text-green-500" />
                                 Copied!
+                            </>
+                        ) : copyError ? (
+                            <>
+                                <ExclamationCircleIcon className="h-3.5 w-3.5 text-red-500" />
+                                Failed
                             </>
                         ) : (
                             <>
