@@ -11,7 +11,8 @@ import {
     MagnifyingGlassIcon,
     CheckCircleIcon,
     XCircleIcon,
-    AdjustmentsHorizontalIcon
+    AdjustmentsHorizontalIcon,
+    PlusCircleIcon
 } from '@heroicons/react/24/outline';
 import AddColumnModal from './AddColumnModal';
 import { researchStreamApi } from '../../../lib/api';
@@ -49,6 +50,7 @@ export interface TablizierProps {
     title?: string;
     onClose?: () => void;
     isFullScreen?: boolean;
+    onSaveToHistory?: (filteredIds: string[], filterDescription: string) => void;  // Callback to save filtered results to history
 }
 
 // Helper to check if article is from report
@@ -78,7 +80,8 @@ export default function Tablizer({
     filterArticles,
     title = 'Tablizer',
     onClose,
-    isFullScreen = false
+    isFullScreen = false,
+    onSaveToHistory
 }: TablizierProps) {
     // Use filterArticles for AI processing if provided, otherwise use display articles
     const articlesForAiProcessing = filterArticles || articles;
@@ -188,6 +191,39 @@ export default function Tablizer({
 
         return result;
     }, [sortedData, filterText, booleanFilters]);
+
+    // Check if any filters are active (for Save to History button)
+    const hasActiveFilters = useMemo(() => {
+        if (filterText.trim()) return true;
+        for (const filterState of Object.values(booleanFilters)) {
+            if (filterState !== 'all') return true;
+        }
+        return false;
+    }, [filterText, booleanFilters]);
+
+    // Build filter description for history
+    const getFilterDescription = useCallback(() => {
+        const parts: string[] = [];
+        if (filterText.trim()) {
+            parts.push(`text: "${filterText}"`);
+        }
+        for (const [columnId, filterState] of Object.entries(booleanFilters)) {
+            if (filterState === 'all') continue;
+            const col = columns.find(c => c.id === columnId);
+            if (col) {
+                parts.push(`${col.label}=${filterState}`);
+            }
+        }
+        return parts.length > 0 ? parts.join(', ') : 'Filtered';
+    }, [filterText, booleanFilters, columns]);
+
+    // Handle save to history
+    const handleSaveToHistory = useCallback(() => {
+        if (!onSaveToHistory) return;
+        const filteredIds = filteredData.map(row => row.id);
+        const description = getFilterDescription();
+        onSaveToHistory(filteredIds, description);
+    }, [onSaveToHistory, filteredData, getFilterDescription]);
 
     // Handle sort
     const handleSort = useCallback((columnId: string) => {
@@ -421,6 +457,18 @@ export default function Tablizer({
 
                 {/* Right: Actions */}
                 <div className="flex items-center gap-2">
+                    {/* Save to History - shown when filters are active */}
+                    {onSaveToHistory && hasActiveFilters && filteredData.length > 0 && filteredData.length < data.length && (
+                        <button
+                            onClick={handleSaveToHistory}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+                            title={`Save ${filteredData.length} filtered articles to history`}
+                        >
+                            <PlusCircleIcon className="h-4 w-4" />
+                            Save to History ({filteredData.length})
+                        </button>
+                    )}
+
                     {/* Add AI Column */}
                     <button
                         onClick={() => setShowAddColumnModal(true)}

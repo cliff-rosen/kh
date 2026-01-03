@@ -123,6 +123,37 @@ export default function TablizePubMed() {
         ));
     }, []);
 
+    // Get snapshot by ID (defined early so it can be used in callbacks)
+    const getSnapshot = useCallback((id: string) => snapshots.find(s => s.id === id), [snapshots]);
+
+    // Handle save filtered results from Tablizer
+    const handleSaveFilteredToHistory = useCallback((filteredIds: string[], filterDescription: string) => {
+        // Get articles from current display data
+        const articleMap = new Map(
+            (selectedSnapshotId ? getSnapshot(selectedSnapshotId)?.articles : allArticles)
+                ?.map(a => [a.pmid || a.id || '', a]) || []
+        );
+
+        const filteredArticles = filteredIds
+            .map(id => articleMap.get(id))
+            .filter((a): a is CanonicalResearchArticle => !!a);
+
+        if (filteredArticles.length === 0) return;
+
+        // Determine parent - either the selected snapshot or the most recent search
+        const parentId = selectedSnapshotId || snapshots[0]?.id || 'unknown';
+
+        addDerivedSnapshot(
+            filteredArticles,
+            {
+                type: 'filter',
+                description: filterDescription,
+                parentId
+            },
+            filterDescription
+        );
+    }, [selectedSnapshotId, allArticles, snapshots, addDerivedSnapshot, getSnapshot]);
+
     // Handle search
     const handleSearch = async () => {
         if (!query.trim()) {
@@ -156,9 +187,6 @@ export default function TablizePubMed() {
             setLoading(false);
         }
     };
-
-    // Get snapshot by ID
-    const getSnapshot = (id: string) => snapshots.find(s => s.id === id);
 
     // Handle snapshot selection
     const handleSelectSnapshot = (id: string) => {
@@ -428,6 +456,7 @@ export default function TablizePubMed() {
                                     title="Search Results"
                                     articles={displayArticles}
                                     filterArticles={displayData.articles}
+                                    onSaveToHistory={handleSaveFilteredToHistory}
                                 />
                             ) : (
                                 <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-8 text-center text-gray-500 dark:text-gray-400">
