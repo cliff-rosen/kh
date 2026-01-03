@@ -9,7 +9,6 @@ import {
     ChevronDownIcon,
     ArrowPathIcon,
     TrashIcon,
-    EyeIcon,
     MagnifyingGlassIcon,
     CheckCircleIcon,
     XCircleIcon,
@@ -31,6 +30,12 @@ export interface TableColumn {
         outputType?: 'text' | 'number' | 'boolean';
     };
     visible?: boolean;
+}
+
+// Row type that allows dynamic AI column access
+interface TableRow {
+    id: string;
+    [key: string]: unknown;
 }
 
 type BooleanFilterState = 'all' | 'yes' | 'no';
@@ -66,17 +71,25 @@ export default function Tablizer({
     isFullScreen = false
 }: TablizierProps) {
     // Convert articles to row format with string id
-    const initialRows = useMemo(() =>
-        articles.map((article, idx) => ({
-            id: article.pmid || article.id?.toString() || `row_${idx}`,
-            ...article,
-            authors: Array.isArray(article.authors) ? article.authors.join(', ') : article.authors
-        })),
+    const initialRows = useMemo((): TableRow[] =>
+        articles.map((article, idx) => {
+            const row: TableRow = {
+                id: article.pmid || article.id?.toString() || `row_${idx}`,
+                pmid: article.pmid,
+                title: article.title,
+                abstract: article.abstract,
+                authors: Array.isArray(article.authors) ? article.authors.join(', ') : article.authors,
+                journal: article.journal,
+                publication_date: article.publication_date,
+                doi: article.doi,
+            };
+            return row;
+        }),
         [articles]
     );
 
     // State
-    const [data, setData] = useState(initialRows);
+    const [data, setData] = useState<TableRow[]>(initialRows);
     const [columns, setColumns] = useState<TableColumn[]>(
         BASE_COLUMNS.map(c => ({ ...c }))
     );
@@ -113,8 +126,8 @@ export default function Tablizer({
             const column = columns.find(c => c.id === sortConfig.columnId);
 
             if (column?.type === 'number') {
-                const aNum = parseFloat(aVal) || 0;
-                const bNum = parseFloat(bVal) || 0;
+                const aNum = parseFloat(String(aVal)) || 0;
+                const bNum = parseFloat(String(bVal)) || 0;
                 return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum;
             }
 
@@ -501,11 +514,11 @@ export default function Tablizer({
                                                 }`}>
                                                     {isBooleanYes && <CheckCircleIcon className="h-3 w-3" />}
                                                     {isBooleanNo && <XCircleIcon className="h-3 w-3" />}
-                                                    {cellValue ?? '-'}
+                                                    {String(cellValue ?? '-')}
                                                 </span>
                                             ) : (
                                                 <span className={column.type === 'ai' ? 'text-purple-700 dark:text-purple-300' : ''}>
-                                                    {cellValue ?? '-'}
+                                                    {String(cellValue ?? '-')}
                                                 </span>
                                             )}
                                         </td>
