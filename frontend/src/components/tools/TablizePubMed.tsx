@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PlayIcon, TableCellsIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { PlayIcon, TableCellsIcon } from '@heroicons/react/24/outline';
 import { Tablizer } from './Tablizer';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
 import { toolsApi } from '../../lib/api/toolsApi';
@@ -51,19 +51,28 @@ export default function TablizePubMed() {
     // Articles to display (first 100)
     const displayArticles = allArticles.slice(0, DISPLAY_LIMIT);
 
-    // Build title with counts
-    const buildTitle = () => {
-        if (allArticles.length === 0) return 'Search Results';
+    // Build summary info for display above table
+    const getSummaryInfo = () => {
+        if (allArticles.length === 0) return null;
 
-        const parts = [`Showing ${displayArticles.length}`];
-        if (allArticles.length > displayArticles.length) {
-            parts[0] += ` of ${allArticles.length} fetched`;
-        }
-        if (totalMatched > allArticles.length) {
-            parts.push(`(${totalMatched.toLocaleString()} total matches)`);
-        }
-        return parts.join(' ');
+        // How many are available for AI processing
+        const aiProcessCount = allArticles.length;
+        // Whether we're showing a subset of what was fetched
+        const isDisplayLimited = displayArticles.length < allArticles.length;
+        // Whether there are more matches than we fetched
+        const hasMoreMatches = totalMatched > allArticles.length;
+
+        return {
+            totalMatched,
+            fetched: allArticles.length,
+            displayed: displayArticles.length,
+            aiProcessCount,
+            isDisplayLimited,
+            hasMoreMatches
+        };
     };
+
+    const summaryInfo = getSummaryInfo();
 
     return (
         <div className="space-y-6">
@@ -162,14 +171,34 @@ export default function TablizePubMed() {
                 )}
             </div>
 
-            {/* Limit Warning */}
-            {hasSearched && totalMatched > FILTER_LIMIT && (
-                <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                    <ExclamationTriangleIcon className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                    <div className="text-sm text-amber-800 dark:text-amber-200">
-                        <strong>Note:</strong> Your search matched {totalMatched.toLocaleString()} articles, but only the first {FILTER_LIMIT} are available for AI analysis.
-                        Consider narrowing your search with date filters or more specific terms.
+            {/* Results Summary & Warning */}
+            {hasSearched && summaryInfo && (
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+                        <div>
+                            <span className="text-gray-500 dark:text-gray-400">Total matches: </span>
+                            <span className="font-medium text-gray-900 dark:text-white">{summaryInfo.totalMatched.toLocaleString()}</span>
+                        </div>
+                        {summaryInfo.hasMoreMatches && (
+                            <div>
+                                <span className="text-gray-500 dark:text-gray-400">Fetched for AI: </span>
+                                <span className="font-medium text-gray-900 dark:text-white">{summaryInfo.fetched}</span>
+                                <span className="text-amber-600 dark:text-amber-400 ml-1">(limit {FILTER_LIMIT})</span>
+                            </div>
+                        )}
+                        {summaryInfo.isDisplayLimited && (
+                            <div>
+                                <span className="text-gray-500 dark:text-gray-400">Displaying: </span>
+                                <span className="font-medium text-gray-900 dark:text-white">{summaryInfo.displayed}</span>
+                                <span className="text-gray-400 dark:text-gray-500 ml-1">(first {DISPLAY_LIMIT})</span>
+                            </div>
+                        )}
                     </div>
+                    {summaryInfo.hasMoreMatches && (
+                        <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                            Only the first {FILTER_LIMIT} articles will be processed when you add AI columns.
+                        </p>
+                    )}
                 </div>
             )}
 
@@ -177,9 +206,9 @@ export default function TablizePubMed() {
             {hasSearched && (
                 allArticles.length > 0 ? (
                     <Tablizer
-                        title={buildTitle()}
+                        title="Search Results"
                         articles={displayArticles}
-                        filterArticles={allArticles}  // All 500 for AI column processing
+                        filterArticles={allArticles}  // All fetched for AI column processing
                     />
                 ) : (
                     <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-8 text-center text-gray-500 dark:text-gray-400">
