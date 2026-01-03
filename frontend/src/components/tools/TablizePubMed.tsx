@@ -81,85 +81,96 @@ export default function TablizePubMed() {
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
                     Search PubMed
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                    {/* Query */}
-                    <div className="lg:col-span-2">
+                <div className="space-y-4">
+                    {/* Query - full width, auto-expanding */}
+                    <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Query
                         </label>
-                        <input
-                            type="text"
+                        <textarea
                             value={query}
-                            onChange={(e) => setQuery(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                            onChange={(e) => {
+                                setQuery(e.target.value);
+                                // Auto-resize
+                                e.target.style.height = 'auto';
+                                e.target.style.height = e.target.scrollHeight + 'px';
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSearch();
+                                }
+                            }}
                             placeholder="e.g., diabetes treatment"
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
+                            rows={1}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 resize-none overflow-hidden"
                         />
                     </div>
 
-                    {/* Start Date */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Start Date
-                        </label>
-                        <input
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        />
-                    </div>
+                    {/* Date filters row */}
+                    <div className="flex flex-wrap items-end gap-4">
+                        {/* Start Date */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Start Date
+                            </label>
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            />
+                        </div>
 
-                    {/* End Date */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            End Date
-                        </label>
-                        <input
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        />
-                    </div>
+                        {/* End Date */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                End Date
+                            </label>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            />
+                        </div>
 
-                    {/* Date Type + Search Button */}
-                    <div className="flex gap-2">
-                        <div className="flex-1">
+                        {/* Date Type */}
+                        <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Date Type
                             </label>
                             <select
                                 value={dateType}
                                 onChange={(e) => setDateType(e.target.value as 'publication' | 'entry')}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                             >
                                 <option value="publication">Publication</option>
                                 <option value="entry">Entry</option>
                             </select>
                         </div>
-                        <div className="flex items-end">
-                            <button
-                                onClick={handleSearch}
-                                disabled={loading || !query.trim()}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                            >
-                                {loading ? (
-                                    <>
-                                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                        </svg>
-                                        Searching...
-                                    </>
-                                ) : (
-                                    <>
-                                        <PlayIcon className="h-4 w-4" />
-                                        Search
-                                    </>
-                                )}
-                            </button>
-                        </div>
+
+                        {/* Search Button */}
+                        <button
+                            onClick={handleSearch}
+                            disabled={loading || !query.trim()}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            {loading ? (
+                                <>
+                                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                    </svg>
+                                    Searching...
+                                </>
+                            ) : (
+                                <>
+                                    <PlayIcon className="h-4 w-4" />
+                                    Search
+                                </>
+                            )}
+                        </button>
                     </div>
                 </div>
 
@@ -175,6 +186,7 @@ export default function TablizePubMed() {
             {hasSearched && summaryInfo && (
                 <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                     <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+                        <span className="font-semibold text-gray-900 dark:text-white">Search Results</span>
                         <div>
                             <span className="text-gray-500 dark:text-gray-400">Total matches: </span>
                             <span className="font-medium text-gray-900 dark:text-white">{summaryInfo.totalMatched.toLocaleString()}</span>

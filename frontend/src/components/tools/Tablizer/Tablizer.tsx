@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
-    TableCellsIcon,
     ArrowDownTrayIcon,
     ArrowsUpDownIcon,
     SparklesIcon,
@@ -341,36 +340,9 @@ export default function Tablizer({
 
     return (
         <div className={containerClass}>
-            {/* Header */}
-            <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between flex-shrink-0">
-                <div className="flex items-center gap-3">
-                    <TableCellsIcon className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                        {filteredData.length}{filteredData.length !== data.length ? ` of ${data.length}` : ''} rows
-                    </span>
-                    {processingColumn && (
-                        <span className="text-sm text-purple-600 dark:text-purple-400 flex items-center gap-2">
-                            <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                            Processing {processingProgress.current}/{processingProgress.total}...
-                        </span>
-                    )}
-                </div>
-                <div className="flex items-center gap-2">
-                    {onClose && (
-                        <button
-                            onClick={onClose}
-                            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
-                        >
-                            <XMarkIcon className="h-5 w-5" />
-                        </button>
-                    )}
-                </div>
-            </div>
-
             {/* Toolbar */}
             <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center justify-between gap-4 flex-shrink-0">
-                {/* Left: Search and Quick Filters */}
+                {/* Left: Search, Row Count, and Quick Filters */}
                 <div className="flex items-center gap-3 flex-1">
                     {/* Search */}
                     <div className="relative flex-1 max-w-xs">
@@ -383,6 +355,19 @@ export default function Tablizer({
                             className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400"
                         />
                     </div>
+
+                    {/* Row count */}
+                    <span className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        {filteredData.length}{filteredData.length !== data.length ? ` of ${data.length}` : ''} rows
+                    </span>
+
+                    {/* Processing indicator */}
+                    {processingColumn && (
+                        <span className="text-sm text-purple-600 dark:text-purple-400 flex items-center gap-2 whitespace-nowrap">
+                            <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                            Processing {processingProgress.current}/{processingProgress.total}...
+                        </span>
+                    )}
 
                     {/* Quick Boolean Filters */}
                     {booleanColumns.length > 0 && (
@@ -484,6 +469,19 @@ export default function Tablizer({
                         <ArrowDownTrayIcon className="h-4 w-4" />
                         Export
                     </button>
+
+                    {/* Close button (for full-screen mode) */}
+                    {onClose && (
+                        <>
+                            <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
+                            <button
+                                onClick={onClose}
+                                className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
+                            >
+                                <XMarkIcon className="h-5 w-5" />
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
 
