@@ -443,12 +443,37 @@ export default function TablizePubMed() {
                                     <div className="text-sm font-medium text-blue-800 dark:text-blue-200">
                                         Viewing: {selectedSnapshot.label || `Snapshot #${getVersionNumber(selectedSnapshot.id)}`}
                                     </div>
-                                    <button
-                                        onClick={() => setSelectedSnapshotId(null)}
-                                        className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                                    >
-                                        Return to live results
-                                    </button>
+                                    <div className="flex items-center gap-3">
+                                        {selectedSnapshot.source.type === 'search' && (
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        await navigator.clipboard.writeText(selectedSnapshot.source.query);
+                                                    } catch {
+                                                        // Fallback
+                                                        const textArea = document.createElement('textarea');
+                                                        textArea.value = selectedSnapshot.source.query;
+                                                        textArea.style.position = 'fixed';
+                                                        textArea.style.left = '-999999px';
+                                                        document.body.appendChild(textArea);
+                                                        textArea.select();
+                                                        document.execCommand('copy');
+                                                        document.body.removeChild(textArea);
+                                                    }
+                                                }}
+                                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                                            >
+                                                <ClipboardDocumentIcon className="h-3.5 w-3.5" />
+                                                Copy query
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => setSelectedSnapshotId(null)}
+                                            className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                        >
+                                            Return to live results
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="text-xs text-blue-700 dark:text-blue-300">
                                     {getSnapshotSourceDescription(selectedSnapshot)}
