@@ -17,9 +17,10 @@ import ExecutionConfigModal from '../components/stream/ExecutionConfigModal';
 import ArticleViewerModal from '../components/articles/ArticleViewerModal';
 import ChatTray from '../components/chat/ChatTray';
 import PubMedArticleCard, { PubMedArticleData } from '../components/chat/PubMedArticleCard';
-import { TablizeButton } from '../components/tools/Tablizer';
+import { Tablizer } from '../components/tools/Tablizer';
+import { TableCellsIcon } from '@heroicons/react/24/outline';
 
-type ReportView = 'all' | 'by-category';
+type ReportView = 'all' | 'by-category' | 'tablizer';
 type CardFormat = 'compact' | 'expanded';
 
 export default function ReportsPage() {
@@ -610,6 +611,22 @@ export default function ReportsPage() {
                                                     <Squares2X2Icon className="h-4 w-4" />
                                                     By Category
                                                 </button>
+                                                <button
+                                                    onClick={() => {
+                                                        if (reportView !== 'tablizer') {
+                                                            trackViewChange(reportView, 'tablizer', 'reports');
+                                                            setReportView('tablizer');
+                                                        }
+                                                    }}
+                                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                                                        reportView === 'tablizer'
+                                                            ? 'bg-purple-600 text-white'
+                                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                                    }`}
+                                                >
+                                                    <TableCellsIcon className="h-4 w-4" />
+                                                    Tablizer
+                                                </button>
                                             </div>
                                             {/* Card format toggle */}
                                             <div className="flex gap-1 border-l border-gray-300 dark:border-gray-600 pl-4">
@@ -717,15 +734,9 @@ export default function ReportsPage() {
                                             {reportView === 'all' ? (
                                                 /* All Articles View */
                                                 <div>
-                                                    <div className="flex items-center justify-between mb-3">
-                                                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                                            Articles ({selectedReport.articles.length})
-                                                        </h3>
-                                                        <TablizeButton
-                                                            articles={selectedReport.articles}
-                                                            title={`${selectedReport.report_name} - All Articles`}
-                                                        />
-                                                    </div>
+                                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                                                        Articles ({selectedReport.articles.length})
+                                                    </h3>
                                                     <div className="space-y-3">
                                                         {selectedReport.articles.map((article, idx) => (
                                                             <ArticleCard
@@ -737,18 +748,12 @@ export default function ReportsPage() {
                                                         ))}
                                                     </div>
                                                 </div>
-                                            ) : (
+                                            ) : reportView === 'by-category' ? (
                                                 /* By Category View */
                                                 <div>
-                                                    <div className="flex items-center justify-between mb-3">
-                                                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                                            Articles by Category ({selectedReport.articles.length})
-                                                        </h3>
-                                                        <TablizeButton
-                                                            articles={selectedReport.articles}
-                                                            title={`${selectedReport.report_name} - All Articles`}
-                                                        />
-                                                    </div>
+                                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                                                        Articles by Category ({selectedReport.articles.length})
+                                                    </h3>
                                                     <div className="space-y-6">
                                                         {Object.entries(getArticlesByCategory()).map(([categoryId, data]) => {
                                                             const isCollapsed = collapsedCategories.has(categoryId);
@@ -809,6 +814,12 @@ export default function ReportsPage() {
                                                         })}
                                                     </div>
                                                 </div>
+                                            ) : (
+                                                /* Tablizer View */
+                                                <Tablizer
+                                                    articles={selectedReport.articles}
+                                                    title={selectedReport.report_name}
+                                                />
                                             )}
                                         </div>
                                     )}
