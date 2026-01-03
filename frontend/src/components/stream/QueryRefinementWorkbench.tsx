@@ -388,6 +388,10 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
                                     setCompareMode(false);
                                     setCompareSnapshots(null);
                                 }}
+                                onArticleClick={(articles, index) => {
+                                    setViewerArticles(articles);
+                                    setViewerInitialIndex(index);
+                                }}
                                 onUseAsSource={async (pmids, _label) => {
                                     // Fetch the articles for these PMIDs
                                     try {
@@ -444,6 +448,10 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
                                 snapshot={getSnapshot(selectedSnapshotId)}
                                 onClose={() => setSelectedSnapshotId(null)}
                                 onCollapse={() => setResultsPaneCollapsed(true)}
+                                onArticleClick={(articles, index) => {
+                                    setViewerArticles(articles);
+                                    setViewerInitialIndex(index);
+                                }}
                             />
                         ) : (
                             <ResultsPane
@@ -1529,6 +1537,8 @@ interface RawResultsViewProps {
 function RawResultsView({ step, onArticleClick }: RawResultsViewProps) {
     // Filter toggle state for filter step results
     const [filterView, setFilterView] = useState<'all' | 'passed' | 'failed'>('all');
+    // Inline text search filter
+    const [searchFilter, setSearchFilter] = useState('');
 
     if (step.type === 'categorize') {
         // CategorizeResponse: { results: CategoryAssignment[], count, category_distribution }
@@ -1590,11 +1600,24 @@ function RawResultsView({ step, onArticleClick }: RawResultsViewProps) {
         // FilterResponse: { results: FilterResult[], count, passed, failed }
         // Filter results based on toggle selection
         const allResults = step.results.results || [];
-        const filteredResults = filterView === 'all'
+        const viewFilteredResults = filterView === 'all'
             ? allResults
             : filterView === 'passed'
                 ? allResults.filter((r: any) => r.passed)
                 : allResults.filter((r: any) => !r.passed);
+
+        // Apply text search filter
+        const filteredResults = searchFilter.trim()
+            ? viewFilteredResults.filter((r: any) => {
+                const searchLower = searchFilter.toLowerCase();
+                return (
+                    r.article.title?.toLowerCase().includes(searchLower) ||
+                    r.article.abstract?.toLowerCase().includes(searchLower) ||
+                    (r.article.pmid || r.article.id || '').toLowerCase().includes(searchLower) ||
+                    r.reasoning?.toLowerCase().includes(searchLower)
+                );
+            })
+            : viewFilteredResults;
 
         return (
             <div className="space-y-4">
@@ -1651,6 +1674,22 @@ function RawResultsView({ step, onArticleClick }: RawResultsViewProps) {
                     </button>
                 </div>
 
+                {/* Inline Search Filter */}
+                <div>
+                    <input
+                        type="text"
+                        value={searchFilter}
+                        onChange={(e) => setSearchFilter(e.target.value)}
+                        placeholder="Filter by title, abstract, PMID, or reasoning..."
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    {searchFilter && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Showing {filteredResults.length} of {viewFilteredResults.length} articles
+                        </p>
+                    )}
+                </div>
+
                 {/* Filtered Results */}
                 <div className="space-y-2">
                     {filteredResults.slice(0, 20).map((result: any, idx: number) => {
@@ -1687,7 +1726,12 @@ function RawResultsView({ step, onArticleClick }: RawResultsViewProps) {
                             Showing 20 of {filteredResults.length} articles
                         </p>
                     )}
-                    {filteredResults.length === 0 && (
+                    {filteredResults.length === 0 && searchFilter && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                            No articles match your filter
+                        </p>
+                    )}
+                    {filteredResults.length === 0 && !searchFilter && (
                         <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
                             No {filterView === 'passed' ? 'passed' : filterView === 'failed' ? 'failed' : ''} articles
                         </p>
@@ -1699,32 +1743,69 @@ function RawResultsView({ step, onArticleClick }: RawResultsViewProps) {
 
     // Source step - SourceResponse: { articles: CanonicalResearchArticle[], count, metadata }
     const articles = step.results.articles || [];
+
+    // Filter articles by search term
+    const filteredArticles = searchFilter.trim()
+        ? articles.filter((article: any) => {
+            const searchLower = searchFilter.toLowerCase();
+            return (
+                article.title?.toLowerCase().includes(searchLower) ||
+                article.abstract?.toLowerCase().includes(searchLower) ||
+                (article.pmid || article.id || '').toLowerCase().includes(searchLower)
+            );
+        })
+        : articles;
+
     return (
-        <div className="space-y-2">
-            {articles.slice(0, 20).map((article: any, idx: number) => (
-                <div
-                    key={idx}
-                    onClick={() => onArticleClick?.(articles, idx)}
-                    className={`border border-gray-200 dark:border-gray-700 rounded p-3 text-sm ${
-                        onArticleClick ? 'cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors' : ''
-                    }`}
-                >
-                    <p className="font-mono text-xs text-gray-500 dark:text-gray-400 mb-1">
-                        PMID: {article.pmid || article.id}
+        <div className="space-y-3">
+            {/* Inline Search Filter */}
+            <div>
+                <input
+                    type="text"
+                    value={searchFilter}
+                    onChange={(e) => setSearchFilter(e.target.value)}
+                    placeholder="Filter by title, abstract, or PMID..."
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {searchFilter && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Showing {filteredArticles.length} of {articles.length} articles
                     </p>
-                    <p className="text-gray-900 dark:text-white">{article.title}</p>
-                    {article.abstract && (
-                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
-                            {article.abstract}
+                )}
+            </div>
+
+            {/* Article List */}
+            <div className="space-y-2">
+                {filteredArticles.slice(0, 20).map((article: any, idx: number) => (
+                    <div
+                        key={idx}
+                        onClick={() => onArticleClick?.(filteredArticles, idx)}
+                        className={`border border-gray-200 dark:border-gray-700 rounded p-3 text-sm ${
+                            onArticleClick ? 'cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors' : ''
+                        }`}
+                    >
+                        <p className="font-mono text-xs text-gray-500 dark:text-gray-400 mb-1">
+                            PMID: {article.pmid || article.id}
                         </p>
-                    )}
-                </div>
-            ))}
-            {articles.length > 20 && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
-                    Showing 20 of {articles.length} articles
-                </p>
-            )}
+                        <p className="text-gray-900 dark:text-white">{article.title}</p>
+                        {article.abstract && (
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
+                                {article.abstract}
+                            </p>
+                        )}
+                    </div>
+                ))}
+                {filteredArticles.length > 20 && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
+                        Showing 20 of {filteredArticles.length} articles
+                    </p>
+                )}
+                {filteredArticles.length === 0 && searchFilter && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                        No articles match your filter
+                    </p>
+                )}
+            </div>
         </div>
     );
 }
@@ -2154,9 +2235,12 @@ interface SnapshotResultsPaneProps {
     snapshot: QuerySnapshot | undefined;
     onClose: () => void;
     onCollapse: () => void;
+    onArticleClick?: (articles: CanonicalResearchArticle[], index: number) => void;
 }
 
-function SnapshotResultsPane({ snapshot, onClose, onCollapse }: SnapshotResultsPaneProps) {
+function SnapshotResultsPane({ snapshot, onClose, onCollapse, onArticleClick }: SnapshotResultsPaneProps) {
+    const [searchFilter, setSearchFilter] = useState('');
+
     if (!snapshot) {
         return null;
     }
@@ -2164,6 +2248,18 @@ function SnapshotResultsPane({ snapshot, onClose, onCollapse }: SnapshotResultsP
     const formatTime = (date: Date) => {
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     };
+
+    // Filter articles by search term
+    const filteredArticles = searchFilter.trim()
+        ? snapshot.articles.filter(article => {
+            const searchLower = searchFilter.toLowerCase();
+            return (
+                article.title?.toLowerCase().includes(searchLower) ||
+                article.abstract?.toLowerCase().includes(searchLower) ||
+                (article.pmid || article.id || '').toLowerCase().includes(searchLower)
+            );
+        })
+        : snapshot.articles;
 
     return (
         <div className="border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 flex flex-col" style={{ height: 'calc(100vh - 320px)', minHeight: '500px' }}>
@@ -2214,22 +2310,54 @@ function SnapshotResultsPane({ snapshot, onClose, onCollapse }: SnapshotResultsP
                         <p><strong>Filter Results:</strong> {snapshot.passedCount} passed, {snapshot.failedCount} failed</p>
                     )}
                 </div>
+
+                {/* Inline Search Filter */}
+                <div className="mt-3">
+                    <input
+                        type="text"
+                        value={searchFilter}
+                        onChange={(e) => setSearchFilter(e.target.value)}
+                        placeholder="Filter by title, abstract, or PMID..."
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    {searchFilter && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Showing {filteredArticles.length} of {snapshot.articles.length} articles
+                        </p>
+                    )}
+                </div>
             </div>
 
             {/* Articles List */}
             <div className="flex-1 overflow-y-auto p-4">
                 <div className="space-y-2">
-                    {snapshot.articles.slice(0, 50).map((article, idx) => (
-                        <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded p-3 text-sm">
+                    {filteredArticles.slice(0, 50).map((article, idx) => (
+                        <div
+                            key={idx}
+                            onClick={() => onArticleClick?.(filteredArticles, idx)}
+                            className={`border border-gray-200 dark:border-gray-700 rounded p-3 text-sm ${
+                                onArticleClick ? 'cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors' : ''
+                            }`}
+                        >
                             <p className="font-mono text-xs text-gray-500 dark:text-gray-400 mb-1">
                                 PMID: {article.pmid || article.id}
                             </p>
                             <p className="text-gray-900 dark:text-white">{article.title}</p>
+                            {article.abstract && (
+                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
+                                    {article.abstract}
+                                </p>
+                            )}
                         </div>
                     ))}
-                    {snapshot.articles.length > 50 && (
+                    {filteredArticles.length > 50 && (
                         <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
-                            Showing 50 of {snapshot.articles.length} articles
+                            Showing 50 of {filteredArticles.length} articles
+                        </p>
+                    )}
+                    {filteredArticles.length === 0 && searchFilter && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                            No articles match your filter
                         </p>
                     )}
                 </div>
@@ -2247,11 +2375,13 @@ interface SnapshotCompareViewProps {
     snapshotB: QuerySnapshot | undefined;
     onClose: () => void;
     onUseAsSource: (pmids: string[], label: string) => void;
+    onArticleClick?: (articles: CanonicalResearchArticle[], index: number) => void;
 }
 
-function SnapshotCompareView({ snapshotA, snapshotB, onClose, onUseAsSource }: SnapshotCompareViewProps) {
+function SnapshotCompareView({ snapshotA, snapshotB, onClose, onUseAsSource, onArticleClick }: SnapshotCompareViewProps) {
     const [activeTab, setActiveTab] = useState<'only_a' | 'both' | 'only_b'>('only_a');
     const [copiedGroup, setCopiedGroup] = useState<string | null>(null);
+    const [searchFilter, setSearchFilter] = useState('');
 
     if (!snapshotA || !snapshotB) {
         return (
@@ -2485,52 +2615,95 @@ function SnapshotCompareView({ snapshotA, snapshotB, onClose, onUseAsSource }: S
                         Only in B ({onlyInBPmids.length.toLocaleString()})
                     </button>
                 </div>
+
+                {/* Inline Search Filter */}
+                <div className="mt-3">
+                    <input
+                        type="text"
+                        value={searchFilter}
+                        onChange={(e) => setSearchFilter(e.target.value)}
+                        placeholder="Filter by title, abstract, or PMID..."
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                </div>
             </div>
 
             {/* Article List */}
             <div className="flex-1 overflow-y-auto p-4">
-                <div className="space-y-2">
-                    {getDisplayArticles().slice(0, 50).map((article, idx) => (
-                        <div
-                            key={idx}
-                            className={`border rounded p-3 text-sm ${
-                                activeTab === 'only_a'
-                                    ? 'border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-900/10'
-                                    : activeTab === 'only_b'
-                                    ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10'
-                                    : 'border-gray-200 dark:border-gray-700'
-                            }`}
-                        >
-                            <p className="font-mono text-xs text-gray-500 dark:text-gray-400 mb-1">
-                                PMID: {article.pmid || article.id}
-                            </p>
-                            <p className="text-gray-900 dark:text-white">{article.title}</p>
+                {(() => {
+                    const displayArticles = getDisplayArticles();
+                    const filteredArticles = searchFilter.trim()
+                        ? displayArticles.filter(article => {
+                            const searchLower = searchFilter.toLowerCase();
+                            return (
+                                article.title?.toLowerCase().includes(searchLower) ||
+                                article.abstract?.toLowerCase().includes(searchLower) ||
+                                (article.pmid || article.id || '').toLowerCase().includes(searchLower)
+                            );
+                        })
+                        : displayArticles;
+
+                    return (
+                        <div className="space-y-2">
+                            {searchFilter && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                    Showing {filteredArticles.length} of {displayArticles.length} articles
+                                </p>
+                            )}
+                            {filteredArticles.slice(0, 50).map((article, idx) => (
+                                <div
+                                    key={idx}
+                                    onClick={() => onArticleClick?.(filteredArticles, idx)}
+                                    className={`border rounded p-3 text-sm transition-colors ${
+                                        activeTab === 'only_a'
+                                            ? 'border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-900/10'
+                                            : activeTab === 'only_b'
+                                            ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10'
+                                            : 'border-gray-200 dark:border-gray-700'
+                                    } ${onArticleClick ? 'cursor-pointer hover:ring-2 hover:ring-blue-400 dark:hover:ring-blue-500' : ''}`}
+                                >
+                                    <p className="font-mono text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                        PMID: {article.pmid || article.id}
+                                    </p>
+                                    <p className="text-gray-900 dark:text-white">{article.title}</p>
+                                    {article.abstract && (
+                                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 line-clamp-2">
+                                            {article.abstract}
+                                        </p>
+                                    )}
+                                </div>
+                            ))}
+                            {/* Show info about what we're displaying vs total count */}
+                            {getPmidCount() > displayArticles.length && !searchFilter && (
+                                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded p-3 text-center">
+                                    <p className="text-xs text-blue-800 dark:text-blue-200">
+                                        <strong>{getPmidCount().toLocaleString()} PMIDs</strong> in this category.
+                                        {displayArticles.length > 0 ? (
+                                            <> Showing {Math.min(50, displayArticles.length)} articles with full metadata.</>
+                                        ) : (
+                                            <> Full article data not available for display (PMIDs not in sample).</>
+                                        )}
+                                    </p>
+                                </div>
+                            )}
+                            {filteredArticles.length > 50 && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
+                                    Showing 50 of {filteredArticles.length} articles with full data
+                                </p>
+                            )}
+                            {filteredArticles.length === 0 && searchFilter && (
+                                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                    <p className="text-sm">No articles match your filter</p>
+                                </div>
+                            )}
+                            {displayArticles.length === 0 && getPmidCount() === 0 && !searchFilter && (
+                                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                    <p className="text-sm">No articles in this category</p>
+                                </div>
+                            )}
                         </div>
-                    ))}
-                    {/* Show info about what we're displaying vs total count */}
-                    {getPmidCount() > getDisplayArticles().length && (
-                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded p-3 text-center">
-                            <p className="text-xs text-blue-800 dark:text-blue-200">
-                                <strong>{getPmidCount().toLocaleString()} PMIDs</strong> in this category.
-                                {getDisplayArticles().length > 0 ? (
-                                    <> Showing {Math.min(50, getDisplayArticles().length)} articles with full metadata.</>
-                                ) : (
-                                    <> Full article data not available for display (PMIDs not in sample).</>
-                                )}
-                            </p>
-                        </div>
-                    )}
-                    {getDisplayArticles().length > 50 && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
-                            Showing 50 of {getDisplayArticles().length} articles with full data
-                        </p>
-                    )}
-                    {getDisplayArticles().length === 0 && getPmidCount() === 0 && (
-                        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                            <p className="text-sm">No articles in this category</p>
-                        </div>
-                    )}
-                </div>
+                    );
+                })()}
             </div>
         </div>
     );
