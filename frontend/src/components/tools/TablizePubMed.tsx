@@ -247,6 +247,41 @@ export default function TablizePubMed() {
 
     const displayArticles = displayData.articles.slice(0, DISPLAY_LIMIT);
 
+    // Get version number for a snapshot ID
+    const getVersionNumber = useCallback((id: string) => {
+        const idx = snapshots.findIndex(s => s.id === id);
+        return idx >= 0 ? snapshots.length - idx : null;
+    }, [snapshots]);
+
+    // Get full source description for a snapshot (including provenance)
+    const getSnapshotSourceDescription = useCallback((snapshot: SearchSnapshot): string => {
+        switch (snapshot.source.type) {
+            case 'search': {
+                const q = snapshot.source.query;
+                const queryPart = q.length > 50 ? q.substring(0, 50) + '...' : q;
+                let desc = `Search: "${queryPart}"`;
+                if (snapshot.source.startDate || snapshot.source.endDate) {
+                    desc += ` (${snapshot.source.startDate || '...'} to ${snapshot.source.endDate || '...'})`;
+                }
+                return desc;
+            }
+            case 'filter': {
+                const parentVersion = getVersionNumber(snapshot.source.parentId);
+                const parentRef = parentVersion ? `#${parentVersion}` : 'unknown';
+                return `Filtered from ${parentRef}: ${snapshot.source.description}`;
+            }
+            case 'compare': {
+                const parentVersions = snapshot.source.parentIds
+                    .map(id => getVersionNumber(id))
+                    .filter((v): v is number => v !== null);
+                const parentRef = parentVersions.length >= 2
+                    ? `#${parentVersions[0]} vs #${parentVersions[1]}`
+                    : 'comparison';
+                return `Compare result (${parentRef}): ${snapshot.source.description}`;
+            }
+        }
+    }, [getVersionNumber]);
+
     // Build summary info
     const getSummaryInfo = () => {
         if (displayData.articles.length === 0) return null;
@@ -403,17 +438,21 @@ export default function TablizePubMed() {
                     <>
                         {/* Viewing snapshot indicator */}
                         {selectedSnapshot && (
-                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3 flex items-center justify-between">
-                                <div className="text-sm text-blue-800 dark:text-blue-200">
-                                    <span className="font-medium">Viewing snapshot:</span>{' '}
-                                    {selectedSnapshot.label || `Search from ${selectedSnapshot.timestamp.toLocaleTimeString()}`}
+                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
+                                <div className="flex items-center justify-between mb-1">
+                                    <div className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                                        Viewing: {selectedSnapshot.label || `Snapshot #${getVersionNumber(selectedSnapshot.id)}`}
+                                    </div>
+                                    <button
+                                        onClick={() => setSelectedSnapshotId(null)}
+                                        className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                    >
+                                        Return to live results
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={() => setSelectedSnapshotId(null)}
-                                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                                >
-                                    Return to live results
-                                </button>
+                                <div className="text-xs text-blue-700 dark:text-blue-300">
+                                    {getSnapshotSourceDescription(selectedSnapshot)}
+                                </div>
                             </div>
                         )}
 
@@ -548,6 +587,38 @@ function SearchHistoryPanel({
                 return snapshot.source.description;
             case 'compare':
                 return snapshot.source.description;
+        }
+    };
+
+    // Get version number for a snapshot ID
+    const getVersionNumber = (id: string) => {
+        const idx = snapshots.findIndex(s => s.id === id);
+        return idx >= 0 ? snapshots.length - idx : null;
+    };
+
+    // Get provenance info for display
+    const getProvenanceInfo = (snapshot: SearchSnapshot): { text: string; parentVersions: number[] } | null => {
+        switch (snapshot.source.type) {
+            case 'search':
+                return null; // No parent for searches
+            case 'filter': {
+                const parentVersion = getVersionNumber(snapshot.source.parentId);
+                if (!parentVersion) return null;
+                return {
+                    text: `filtered from #${parentVersion}`,
+                    parentVersions: [parentVersion]
+                };
+            }
+            case 'compare': {
+                const parentVersions = snapshot.source.parentIds
+                    .map(id => getVersionNumber(id))
+                    .filter((v): v is number => v !== null);
+                if (parentVersions.length < 2) return null;
+                return {
+                    text: `from #${parentVersions[0]} vs #${parentVersions[1]}`,
+                    parentVersions
+                };
+            }
         }
     };
 
@@ -702,6 +773,18 @@ function SearchHistoryPanel({
                                         {getSourceSummary(snapshot)}
                                     </div>
                                 )}
+
+                                {/* Provenance info */}
+                                {(() => {
+                                    const provenance = getProvenanceInfo(snapshot);
+                                    if (!provenance) return null;
+                                    return (
+                                        <div className="mt-0.5 text-[10px] text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                                            <span>↳</span>
+                                            <span>{provenance.text}</span>
+                                        </div>
+                                    );
+                                })()}
 
                                 {/* Stats */}
                                 <div className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
