@@ -188,6 +188,25 @@ export default function TablizePubMed() {
         }
     };
 
+    // Handle clear all
+    const handleClearAll = () => {
+        // Clear search form
+        setQuery('');
+        setStartDate('');
+        setEndDate('');
+        setDateType('publication');
+        // Clear results
+        setAllArticles([]);
+        setTotalMatched(0);
+        setHasSearched(false);
+        setError(null);
+        // Clear history
+        setSnapshots([]);
+        setSelectedSnapshotId(null);
+        setCompareMode(false);
+        setCompareSnapshots(null);
+    };
+
     // Handle snapshot selection
     const handleSelectSnapshot = (id: string) => {
         if (compareMode) {
@@ -391,6 +410,17 @@ export default function TablizePubMed() {
                                     </>
                                 )}
                             </button>
+                            {(hasSearched || snapshots.length > 0 || query.trim()) && (
+                                <button
+                                    onClick={handleClearAll}
+                                    disabled={loading}
+                                    className="px-4 py-2 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                    title="Clear search, results, and history"
+                                >
+                                    <TrashIcon className="h-4 w-4" />
+                                    Clear
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -481,53 +511,56 @@ export default function TablizePubMed() {
                             </div>
                         )}
 
-                        {/* Results Summary */}
-                        {(hasSearched || selectedSnapshot) && summaryInfo && (
-                            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-                                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-                                    <span className="font-semibold text-gray-900 dark:text-white">Search Results</span>
-                                    <div>
-                                        <span className="text-gray-500 dark:text-gray-400">Total matches: </span>
-                                        <span className="font-medium text-gray-900 dark:text-white">{summaryInfo.totalMatched.toLocaleString()}</span>
+                        {/* Results Summary & Table - dimmed when loading */}
+                        <div className={`space-y-6 transition-opacity duration-200 ${loading ? 'opacity-40 pointer-events-none' : ''}`}>
+                            {/* Results Summary */}
+                            {(hasSearched || selectedSnapshot) && summaryInfo && (
+                                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+                                        <span className="font-semibold text-gray-900 dark:text-white">Search Results</span>
+                                        <div>
+                                            <span className="text-gray-500 dark:text-gray-400">Total matches: </span>
+                                            <span className="font-medium text-gray-900 dark:text-white">{summaryInfo.totalMatched.toLocaleString()}</span>
+                                        </div>
+                                        {summaryInfo.hasMoreMatches && (
+                                            <div>
+                                                <span className="text-gray-500 dark:text-gray-400">Fetched for AI: </span>
+                                                <span className="font-medium text-gray-900 dark:text-white">{summaryInfo.fetched}</span>
+                                                <span className="text-amber-600 dark:text-amber-400 ml-1">(limit {FILTER_LIMIT})</span>
+                                            </div>
+                                        )}
+                                        {summaryInfo.isDisplayLimited && (
+                                            <div>
+                                                <span className="text-gray-500 dark:text-gray-400">Displaying: </span>
+                                                <span className="font-medium text-gray-900 dark:text-white">{summaryInfo.displayed}</span>
+                                                <span className="text-gray-400 dark:text-gray-500 ml-1">(first {DISPLAY_LIMIT})</span>
+                                            </div>
+                                        )}
                                     </div>
                                     {summaryInfo.hasMoreMatches && (
-                                        <div>
-                                            <span className="text-gray-500 dark:text-gray-400">Fetched for AI: </span>
-                                            <span className="font-medium text-gray-900 dark:text-white">{summaryInfo.fetched}</span>
-                                            <span className="text-amber-600 dark:text-amber-400 ml-1">(limit {FILTER_LIMIT})</span>
-                                        </div>
-                                    )}
-                                    {summaryInfo.isDisplayLimited && (
-                                        <div>
-                                            <span className="text-gray-500 dark:text-gray-400">Displaying: </span>
-                                            <span className="font-medium text-gray-900 dark:text-white">{summaryInfo.displayed}</span>
-                                            <span className="text-gray-400 dark:text-gray-500 ml-1">(first {DISPLAY_LIMIT})</span>
-                                        </div>
+                                        <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                                            Only the first {FILTER_LIMIT} articles will be processed when you add AI columns.
+                                        </p>
                                     )}
                                 </div>
-                                {summaryInfo.hasMoreMatches && (
-                                    <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-                                        Only the first {FILTER_LIMIT} articles will be processed when you add AI columns.
-                                    </p>
-                                )}
-                            </div>
-                        )}
+                            )}
 
-                        {/* Results Table */}
-                        {(hasSearched || selectedSnapshot) && (
-                            displayData.articles.length > 0 ? (
-                                <Tablizer
-                                    title="Search Results"
-                                    articles={displayArticles}
-                                    filterArticles={displayData.articles}
-                                    onSaveToHistory={handleSaveFilteredToHistory}
-                                />
-                            ) : (
-                                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-8 text-center text-gray-500 dark:text-gray-400">
-                                    No articles found for your search.
-                                </div>
-                            )
-                        )}
+                            {/* Results Table */}
+                            {(hasSearched || selectedSnapshot) && (
+                                displayData.articles.length > 0 ? (
+                                    <Tablizer
+                                        title="Search Results"
+                                        articles={displayArticles}
+                                        filterArticles={displayData.articles}
+                                        onSaveToHistory={handleSaveFilteredToHistory}
+                                    />
+                                ) : (
+                                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-8 text-center text-gray-500 dark:text-gray-400">
+                                        No articles found for your search.
+                                    </div>
+                                )
+                            )}
+                        </div>
 
                         {/* Initial state */}
                         {!hasSearched && !selectedSnapshot && (
