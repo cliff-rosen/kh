@@ -7,7 +7,10 @@ import {
     ChevronDoubleRightIcon,
     ArrowsRightLeftIcon,
     TrashIcon,
-    ClipboardDocumentIcon
+    ClipboardDocumentIcon,
+    PlusCircleIcon,
+    FunnelIcon,
+    MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 import { Tablizer } from './Tablizer';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
@@ -20,19 +23,21 @@ const DISPLAY_LIMIT = 100; // Max articles to display in table
 // Search Snapshot Types
 // ============================================================================
 
+type SnapshotSource =
+    | { type: 'search'; query: string; startDate?: string; endDate?: string; dateType: 'publication' | 'entry' }
+    | { type: 'filter'; description: string; parentId: string }
+    | { type: 'compare'; description: string; parentIds: string[] };
+
 interface SearchSnapshot {
     id: string;
     timestamp: Date;
     label?: string;
-    // Search params
-    query: string;
-    startDate?: string;
-    endDate?: string;
-    dateType: 'publication' | 'entry';
+    // Source/provenance tracking
+    source: SnapshotSource;
     // Results
     articles: CanonicalResearchArticle[];  // All fetched (up to 500)
     allPmids: string[];  // PMIDs for comparison
-    totalMatched: number;  // Total from PubMed
+    totalMatched: number;  // Total from PubMed (or count for filtered)
 }
 
 // ============================================================================
@@ -60,21 +65,44 @@ export default function TablizePubMed() {
     const [compareMode, setCompareMode] = useState(false);
     const [compareSnapshots, setCompareSnapshots] = useState<[string, string] | null>(null);
 
-    // Add snapshot to history
-    const addSnapshot = useCallback((articles: CanonicalResearchArticle[], total: number) => {
+    // Add search snapshot to history
+    const addSearchSnapshot = useCallback((articles: CanonicalResearchArticle[], total: number) => {
         const newSnapshot: SearchSnapshot = {
             id: `snapshot_${Date.now()}`,
             timestamp: new Date(),
-            query: query,
-            startDate: startDate || undefined,
-            endDate: endDate || undefined,
-            dateType: dateType,
+            source: {
+                type: 'search',
+                query: query,
+                startDate: startDate || undefined,
+                endDate: endDate || undefined,
+                dateType: dateType
+            },
             articles: articles,
             allPmids: articles.map(a => a.pmid || a.id || '').filter(Boolean),
             totalMatched: total
         };
         setSnapshots(prev => [newSnapshot, ...prev]);
+        return newSnapshot.id;
     }, [query, startDate, endDate, dateType]);
+
+    // Add filtered/derived snapshot to history
+    const addDerivedSnapshot = useCallback((
+        articles: CanonicalResearchArticle[],
+        source: SnapshotSource,
+        label?: string
+    ) => {
+        const newSnapshot: SearchSnapshot = {
+            id: `snapshot_${Date.now()}`,
+            timestamp: new Date(),
+            label,
+            source,
+            articles: articles,
+            allPmids: articles.map(a => a.pmid || a.id || '').filter(Boolean),
+            totalMatched: articles.length
+        };
+        setSnapshots(prev => [newSnapshot, ...prev]);
+        return newSnapshot.id;
+    }, []);
 
     // Delete snapshot
     const deleteSnapshot = useCallback((id: string) => {
@@ -121,7 +149,7 @@ export default function TablizePubMed() {
             setTotalMatched(response.total_results);
             setHasSearched(true);
             // Auto-save to history
-            addSnapshot(response.articles, response.total_results);
+            addSearchSnapshot(response.articles, response.total_results);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Search failed');
         } finally {
@@ -141,13 +169,28 @@ export default function TablizePubMed() {
         }
     };
 
-    // Handle compare mode selection
+    // Handle compare mode selection - toggle A then B
     const handleSelectForCompare = (id: string) => {
         if (!compareSnapshots) {
-            setCompareSnapshots([id, id]);
+            // Nothing selected yet - set as A
+            setCompareSnapshots([id, '']);
         } else if (compareSnapshots[0] === id) {
-            // Clicking A again - do nothing or deselect
+            // Clicking A again - deselect A
+            if (compareSnapshots[1]) {
+                // If B is set, move B to A
+                setCompareSnapshots([compareSnapshots[1], '']);
+            } else {
+                // Nothing selected
+                setCompareSnapshots(null);
+            }
+        } else if (compareSnapshots[1] === id) {
+            // Clicking B again - deselect B
+            setCompareSnapshots([compareSnapshots[0], '']);
+        } else if (!compareSnapshots[1]) {
+            // A is set but not B - set as B
+            setCompareSnapshots([compareSnapshots[0], id]);
         } else {
+            // Both A and B are set - replace B
             setCompareSnapshots([compareSnapshots[0], id]);
         }
     };
@@ -159,12 +202,8 @@ export default function TablizePubMed() {
             setCompareSnapshots(null);
         } else {
             setCompareMode(true);
-            // Pre-select first two snapshots if available
-            if (snapshots.length >= 2) {
-                setCompareSnapshots([snapshots[0].id, snapshots[1].id]);
-            } else if (snapshots.length === 1) {
-                setCompareSnapshots([snapshots[0].id, snapshots[0].id]);
-            }
+            // Start with nothing selected - user picks
+            setCompareSnapshots(null);
         }
     };
 
@@ -172,12 +211,10 @@ export default function TablizePubMed() {
     const selectedSnapshot = selectedSnapshotId ? getSnapshot(selectedSnapshotId) : null;
     const displayData = selectedSnapshot ? {
         articles: selectedSnapshot.articles,
-        totalMatched: selectedSnapshot.totalMatched,
-        query: selectedSnapshot.query
+        totalMatched: selectedSnapshot.totalMatched
     } : {
         articles: allArticles,
-        totalMatched: totalMatched,
-        query: query
+        totalMatched: totalMatched
     };
 
     const displayArticles = displayData.articles.slice(0, DISPLAY_LIMIT);
@@ -302,7 +339,7 @@ export default function TablizePubMed() {
                 </div>
 
                 {/* Compare View */}
-                {compareMode && compareSnapshots && (
+                {compareMode && compareSnapshots && compareSnapshots[0] && compareSnapshots[1] && (
                     <SearchCompareView
                         snapshotA={getSnapshot(compareSnapshots[0])}
                         snapshotB={getSnapshot(compareSnapshots[1])}
@@ -310,7 +347,27 @@ export default function TablizePubMed() {
                             setCompareMode(false);
                             setCompareSnapshots(null);
                         }}
+                        onSaveToHistory={(articles, description) => {
+                            addDerivedSnapshot(articles, {
+                                type: 'compare',
+                                description,
+                                parentIds: [compareSnapshots[0], compareSnapshots[1]]
+                            }, description);
+                        }}
                     />
+                )}
+
+                {/* Compare mode instructions */}
+                {compareMode && (!compareSnapshots || !compareSnapshots[0] || !compareSnapshots[1]) && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-6 text-center">
+                        <ArrowsRightLeftIcon className="h-8 w-8 mx-auto mb-3 text-blue-500" />
+                        <p className="text-blue-800 dark:text-blue-200 font-medium">Select two snapshots to compare</p>
+                        <p className="text-sm text-blue-600 dark:text-blue-300 mt-1">
+                            {!compareSnapshots || !compareSnapshots[0]
+                                ? 'Click a snapshot in the history panel to select it as A'
+                                : 'Now click another snapshot to select it as B'}
+                        </p>
+                    </div>
                 )}
 
                 {/* Results Summary & Table (when not in compare mode) */}
@@ -444,6 +501,27 @@ function SearchHistoryPanel({
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
 
+    const getSourceIcon = (source: SnapshotSource) => {
+        switch (source.type) {
+            case 'search': return <MagnifyingGlassIcon className="h-3 w-3 text-blue-500" />;
+            case 'filter': return <FunnelIcon className="h-3 w-3 text-purple-500" />;
+            case 'compare': return <ArrowsRightLeftIcon className="h-3 w-3 text-green-500" />;
+        }
+    };
+
+    const getSourceSummary = (snapshot: SearchSnapshot) => {
+        if (snapshot.label) return snapshot.label;
+        switch (snapshot.source.type) {
+            case 'search':
+                const q = snapshot.source.query;
+                return q.substring(0, 30) + (q.length > 30 ? '...' : '');
+            case 'filter':
+                return snapshot.source.description;
+            case 'compare':
+                return snapshot.source.description;
+        }
+    };
+
     if (!isOpen) {
         return (
             <div className="flex-shrink-0">
@@ -529,6 +607,7 @@ function SearchHistoryPanel({
                             >
                                 <div className="flex items-center justify-between mb-1">
                                     <div className="flex items-center gap-1.5">
+                                        {getSourceIcon(snapshot.source)}
                                         <span className="text-xs font-medium text-gray-900 dark:text-white">
                                             #{versionNumber}
                                         </span>
@@ -591,7 +670,7 @@ function SearchHistoryPanel({
                                         }}
                                         title="Click to edit label"
                                     >
-                                        {snapshot.label || snapshot.query.substring(0, 30) + (snapshot.query.length > 30 ? '...' : '')}
+                                        {getSourceSummary(snapshot)}
                                     </div>
                                 )}
 
@@ -616,9 +695,10 @@ interface SearchCompareViewProps {
     snapshotA: SearchSnapshot | undefined;
     snapshotB: SearchSnapshot | undefined;
     onClose: () => void;
+    onSaveToHistory: (articles: CanonicalResearchArticle[], description: string) => void;
 }
 
-function SearchCompareView({ snapshotA, snapshotB, onClose }: SearchCompareViewProps) {
+function SearchCompareView({ snapshotA, snapshotB, onClose, onSaveToHistory }: SearchCompareViewProps) {
     const [activeTab, setActiveTab] = useState<'only_a' | 'both' | 'only_b'>('only_a');
     const [copiedGroup, setCopiedGroup] = useState<string | null>(null);
 
@@ -711,14 +791,14 @@ function SearchCompareView({ snapshotA, snapshotB, onClose }: SearchCompareViewP
                     <div className="flex items-center gap-2">
                         <span className="px-1.5 py-0.5 bg-orange-500 text-white text-xs rounded">A</span>
                         <span className="text-gray-700 dark:text-gray-300 truncate max-w-[200px]">
-                            {snapshotA.label || snapshotA.query.substring(0, 30)}
+                            {snapshotA.label || (snapshotA.source.type === 'search' ? snapshotA.source.query.substring(0, 30) : snapshotA.source.description)}
                         </span>
                         <span className="text-gray-400">({snapshotA.allPmids.length})</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="px-1.5 py-0.5 bg-green-500 text-white text-xs rounded">B</span>
                         <span className="text-gray-700 dark:text-gray-300 truncate max-w-[200px]">
-                            {snapshotB.label || snapshotB.query.substring(0, 30)}
+                            {snapshotB.label || (snapshotB.source.type === 'search' ? snapshotB.source.query.substring(0, 30) : snapshotB.source.description)}
                         </span>
                         <span className="text-gray-400">({snapshotB.allPmids.length})</span>
                     </div>
@@ -759,15 +839,25 @@ function SearchCompareView({ snapshotA, snapshotB, onClose }: SearchCompareViewP
                 </button>
             </div>
 
-            {/* Copy PMIDs button */}
-            {pmids.length > 0 && (
-                <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex-shrink-0">
+            {/* Actions bar */}
+            {displayArticles.length > 0 && (
+                <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex-shrink-0 flex items-center gap-4">
                     <button
                         onClick={() => copyToClipboard(pmids.join('\n'), activeTab)}
                         className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
                     >
                         <ClipboardDocumentIcon className="h-4 w-4" />
                         {copiedGroup === activeTab ? 'Copied!' : `Copy ${pmids.length} PMIDs`}
+                    </button>
+                    <button
+                        onClick={() => {
+                            const desc = activeTab === 'only_a' ? 'Only in A' : activeTab === 'only_b' ? 'Only in B' : 'In Both';
+                            onSaveToHistory(displayArticles, desc);
+                        }}
+                        className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400"
+                    >
+                        <PlusCircleIcon className="h-4 w-4" />
+                        Save to History
                     </button>
                 </div>
             )}
