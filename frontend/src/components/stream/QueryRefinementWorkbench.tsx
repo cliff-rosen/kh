@@ -513,6 +513,32 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
                                     setViewerArticles(articles);
                                     setViewerInitialIndex(index);
                                 }}
+                                onUseQuery={(query) => {
+                                    // Find source step and update its query
+                                    const sourceStep = steps.find(s => s.type === 'source');
+                                    if (sourceStep) {
+                                        setSteps(prev => prev.map(step =>
+                                            step.id === sourceStep.id
+                                                ? { ...step, config: { ...step.config, testQueryExpression: query } }
+                                                : step
+                                        ));
+                                        setFocusedStepId(sourceStep.id);
+                                    }
+                                    setSelectedSnapshotId(null); // Return to live view
+                                }}
+                                onUseFilter={(criteria, threshold) => {
+                                    // Find filter step and update its criteria
+                                    const filterStep = steps.find(s => s.type === 'filter');
+                                    if (filterStep) {
+                                        setSteps(prev => prev.map(step =>
+                                            step.id === filterStep.id
+                                                ? { ...step, config: { ...step.config, testCriteria: criteria, testThreshold: threshold } }
+                                                : step
+                                        ));
+                                        setFocusedStepId(filterStep.id);
+                                    }
+                                    setSelectedSnapshotId(null); // Return to live view
+                                }}
                             />
                         ) : (
                             <ResultsPane
@@ -2297,9 +2323,11 @@ interface SnapshotResultsPaneProps {
     onClose: () => void;
     onCollapse: () => void;
     onArticleClick?: (articles: CanonicalResearchArticle[], index: number) => void;
+    onUseQuery?: (query: string) => void;
+    onUseFilter?: (criteria: string, threshold: number) => void;
 }
 
-function SnapshotResultsPane({ snapshot, onClose, onCollapse, onArticleClick }: SnapshotResultsPaneProps) {
+function SnapshotResultsPane({ snapshot, onClose, onCollapse, onArticleClick, onUseQuery, onUseFilter }: SnapshotResultsPaneProps) {
     const [searchFilter, setSearchFilter] = useState('');
 
     if (!snapshot) {
@@ -2356,10 +2384,32 @@ function SnapshotResultsPane({ snapshot, onClose, onCollapse, onArticleClick }: 
                 <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
                     <p><strong>Type:</strong> {snapshot.stepType}</p>
                     {snapshot.queryExpression && (
-                        <p><strong>Query:</strong> {snapshot.queryExpression}</p>
+                        <div className="flex items-start gap-2">
+                            <p className="flex-1"><strong>Query:</strong> {snapshot.queryExpression}</p>
+                            {onUseQuery && (
+                                <button
+                                    type="button"
+                                    onClick={() => onUseQuery(snapshot.queryExpression!)}
+                                    className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800 rounded transition-colors whitespace-nowrap"
+                                >
+                                    Use Query
+                                </button>
+                            )}
+                        </div>
                     )}
                     {snapshot.filterCriteria && (
-                        <p><strong>Filter:</strong> {snapshot.filterCriteria} (threshold: {snapshot.filterThreshold})</p>
+                        <div className="flex items-start gap-2">
+                            <p className="flex-1"><strong>Filter:</strong> {snapshot.filterCriteria} (threshold: {snapshot.filterThreshold})</p>
+                            {onUseFilter && snapshot.filterThreshold !== undefined && (
+                                <button
+                                    type="button"
+                                    onClick={() => onUseFilter(snapshot.filterCriteria!, snapshot.filterThreshold!)}
+                                    className="px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-800 rounded transition-colors whitespace-nowrap"
+                                >
+                                    Use Filter
+                                </button>
+                            )}
+                        </div>
                     )}
                     <p>
                         <strong>Total Matched:</strong> {snapshot.totalCount.toLocaleString()} articles
