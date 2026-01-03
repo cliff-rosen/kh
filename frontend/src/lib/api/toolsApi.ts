@@ -42,6 +42,14 @@ export interface PubMedIdCheckResponse {
     query_total_results: number;
 }
 
+export interface PubMedSearchParams {
+    query: string;
+    startDate?: string;  // YYYY-MM-DD
+    endDate?: string;    // YYYY-MM-DD
+    dateType?: 'publication' | 'entry';
+    maxResults?: number;
+}
+
 export const toolsApi = {
     /**
      * Test a PubMed query and return articles with total count
@@ -57,5 +65,23 @@ export const toolsApi = {
     async checkPubMedIds(request: PubMedIdCheckRequest): Promise<PubMedIdCheckResponse> {
         const response = await api.post('/api/tools/pubmed/check-ids', request);
         return response.data;
+    },
+
+    /**
+     * Search PubMed with a simplified interface (for Tablizer)
+     */
+    async searchPubMed(params: PubMedSearchParams): Promise<PubMedQueryTestResponse> {
+        // Convert YYYY-MM-DD to YYYY/MM/DD for the API
+        const formatDate = (date?: string) => date ? date.replace(/-/g, '/') : undefined;
+
+        const request: PubMedQueryTestRequest = {
+            query_expression: params.query,
+            start_date: formatDate(params.startDate),
+            end_date: formatDate(params.endDate),
+            date_type: params.dateType,
+            max_results: params.maxResults || 100
+        };
+
+        return this.testPubMedQuery(request);
     }
 };

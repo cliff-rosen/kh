@@ -620,20 +620,15 @@ export default function EditStreamPage() {
                             domain: form.semantic_space.domain
                         },
                         categories: form.categories
-                    } : executeSubTab === 'workbench' ? {
-                        // Workbench subtab - lightweight context + workbench state
+                    } : {
+                        // Execute tab (workbench or pipeline) - lightweight semantic space
                         stream_name: form.stream_name,
                         semantic_space: {
                             domain: form.semantic_space.domain,
                             topics: form.semantic_space.topics
                         },
-                        workbench: workbenchState
-                    } : {
-                        // Pipeline subtab - include full stream config
-                        stream_name: form.stream_name,
-                        semantic_space: form.semantic_space,
-                        retrieval_config: form.retrieval_config,
-                        categories: form.categories
+                        execute_subtab: executeSubTab,
+                        workbench: executeSubTab === 'workbench' ? workbenchState : undefined
                     }
                 }}
                 payloadHandlers={{

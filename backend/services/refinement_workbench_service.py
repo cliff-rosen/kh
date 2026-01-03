@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from models import ResearchStream
 from schemas.canonical_types import CanonicalResearchArticle
+from schemas.research_article_converters import legacy_article_to_canonical_pubmed, pubmed_to_research_article
 from services.pubmed_service import PubMedService, fetch_articles_by_ids
 from services.semantic_filter_service import SemanticFilterService
 from services.article_categorization_service import ArticleCategorizationService
@@ -72,7 +73,8 @@ class RefinementWorkbenchService:
         start_date_formatted = start_date.replace("-", "/")
         end_date_formatted = end_date.replace("-", "/")
 
-        # First, get ALL matched PMIDs (just IDs, not full articles) for comparison
+        # Get ALL matched PMIDs (just IDs, not full articles) for comparison
+        # Using a single API call ensures consistency between comparison and display
         all_pmids, total_count = self.pubmed_service.get_article_ids(
             query=query_expression,
             max_results=10000,  # Get up to 10k PMIDs for comparison
@@ -82,15 +84,20 @@ class RefinementWorkbenchService:
             sort_by="relevance"
         )
 
-        # Then fetch a sample of full articles for display
-        articles, metadata = self.pubmed_service.search_articles(
-            query=query_expression,
-            max_results=100,  # Reasonable limit for testing display
-            start_date=start_date_formatted,
-            end_date=end_date_formatted,
-            date_type="publication",
-            sort_by="relevance"
-        )
+        # Fetch full articles for the FIRST 100 of the same PMIDs (ensures consistency)
+        display_pmids = all_pmids[:100]
+        raw_articles = self.pubmed_service.get_articles_from_ids(display_pmids) if display_pmids else []
+
+        # Convert to canonical format
+        articles: List[CanonicalResearchArticle] = []
+        for raw_article in raw_articles:
+            try:
+                canonical_pubmed = legacy_article_to_canonical_pubmed(raw_article)
+                canonical_article = pubmed_to_research_article(canonical_pubmed)
+                articles.append(canonical_article)
+            except Exception as e:
+                # Log but don't fail on individual article conversion errors
+                print(f"Warning: Failed to convert article {getattr(raw_article, 'PMID', 'unknown')}: {e}")
 
         # Add additional metadata
         enriched_metadata = {
@@ -99,7 +106,7 @@ class RefinementWorkbenchService:
             "start_date": start_date,
             "end_date": end_date,
             "total_results": total_count,  # True total from PubMed
-            **metadata
+            "returned": len(articles)
         }
 
         return articles, enriched_metadata, all_pmids
@@ -128,8 +135,8 @@ class RefinementWorkbenchService:
         start_date_formatted = start_date.replace("-", "/")
         end_date_formatted = end_date.replace("-", "/")
 
-        # First, get ALL matched PMIDs (just IDs, not full articles) for comparison
-        # Use publication date to match run_query behavior for consistent comparisons
+        # Get ALL matched PMIDs (just IDs, not full articles) for comparison
+        # Using a single API call ensures consistency between comparison and display
         all_pmids, total_count = self.pubmed_service.get_article_ids(
             query=query_expression,
             max_results=10000,  # Get up to 10k PMIDs for comparison
@@ -139,15 +146,19 @@ class RefinementWorkbenchService:
             sort_by="relevance"
         )
 
-        # Then fetch a sample of full articles for display
-        articles, metadata = self.pubmed_service.search_articles(
-            query=query_expression,
-            max_results=self.MAX_ARTICLES_PER_SOURCE,
-            start_date=start_date_formatted,
-            end_date=end_date_formatted,
-            date_type="publication",
-            sort_by="relevance"
-        )
+        # Fetch full articles for the FIRST N of the same PMIDs (ensures consistency)
+        display_pmids = all_pmids[:self.MAX_ARTICLES_PER_SOURCE]
+        raw_articles = self.pubmed_service.get_articles_from_ids(display_pmids) if display_pmids else []
+
+        # Convert to canonical format
+        articles: List[CanonicalResearchArticle] = []
+        for raw_article in raw_articles:
+            try:
+                canonical_pubmed = legacy_article_to_canonical_pubmed(raw_article)
+                canonical_article = pubmed_to_research_article(canonical_pubmed)
+                articles.append(canonical_article)
+            except Exception as e:
+                print(f"Warning: Failed to convert article {getattr(raw_article, 'PMID', 'unknown')}: {e}")
 
         # Add additional metadata
         enriched_metadata = {
@@ -155,7 +166,7 @@ class RefinementWorkbenchService:
             "start_date": start_date,
             "end_date": end_date,
             "total_results": total_count,  # True total from PubMed
-            **metadata
+            "returned": len(articles)
         }
 
         return articles, enriched_metadata, all_pmids
