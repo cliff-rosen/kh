@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { TableCellsIcon } from '@heroicons/react/24/outline';
-import Tablizer, { TableColumn, TableRow } from './Tablizer';
+import Tablizer from './Tablizer';
+import { CanonicalResearchArticle } from '../../../types/canonical_types';
 
 interface TablizeButtonProps {
-    data: any[];
-    columns: { id: string; label: string; accessor?: string }[];
+    articles: CanonicalResearchArticle[];
     title?: string;
     className?: string;
     buttonText?: string;
@@ -12,37 +12,20 @@ interface TablizeButtonProps {
 
 /**
  * A button that launches the Tablizer in full-screen mode.
- * Place this near any tabular data in the app.
+ * Place this near any article list in the app.
  */
 export default function TablizeButton({
-    data,
-    columns,
+    articles,
     title = 'Tablizer',
     className = '',
     buttonText
 }: TablizeButtonProps) {
     const [isOpen, setIsOpen] = useState(false);
 
-    // Convert data to TableRow format (ensure each row has an id)
-    const tableData: TableRow[] = data.map((item, idx) => ({
-        id: item.id || item.pmid || `row_${idx}`,
-        ...item
-    }));
-
-    // Convert columns to TableColumn format
-    const tableColumns: TableColumn[] = columns.map(col => ({
-        id: col.id,
-        label: col.label,
-        accessor: col.accessor || col.id,
-        type: 'text' as const,
-        visible: true
-    }));
-
     if (isOpen) {
         return (
             <Tablizer
-                initialData={tableData}
-                initialColumns={tableColumns}
+                articles={articles}
                 title={title}
                 isFullScreen={true}
                 onClose={() => setIsOpen(false)}

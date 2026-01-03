@@ -16,35 +16,28 @@ import {
     AdjustmentsHorizontalIcon
 } from '@heroicons/react/24/outline';
 import AddColumnModal from './AddColumnModal';
-import { tablizerApi } from '../../../lib/api';
+import { researchStreamApi } from '../../../lib/api';
+import { CanonicalResearchArticle } from '../../../types/canonical_types';
 
 // Types
 export interface TableColumn {
     id: string;
     label: string;
-    accessor: string;  // Key in the data object or computed
+    accessor: string;
     type: 'text' | 'number' | 'date' | 'ai';
     aiConfig?: {
         promptTemplate: string;
         inputColumns: string[];
         outputType?: 'text' | 'number' | 'boolean';
     };
-    width?: number;
     visible?: boolean;
 }
 
 type BooleanFilterState = 'all' | 'yes' | 'no';
 
-export interface TableRow {
-    id: string;
-    [key: string]: any;
-}
-
 export interface TablizierProps {
-    initialData: TableRow[];
-    initialColumns: TableColumn[];
+    articles: CanonicalResearchArticle[];
     title?: string;
-    onExport?: (data: TableRow[], columns: TableColumn[]) => void;
     onClose?: () => void;
     isFullScreen?: boolean;
 }
@@ -56,18 +49,36 @@ interface SortConfig {
     direction: SortDirection;
 }
 
+// Standard columns derived from article structure
+const BASE_COLUMNS: TableColumn[] = [
+    { id: 'pmid', label: 'PMID', accessor: 'pmid', type: 'text', visible: true },
+    { id: 'title', label: 'Title', accessor: 'title', type: 'text', visible: true },
+    { id: 'abstract', label: 'Abstract', accessor: 'abstract', type: 'text', visible: false },
+    { id: 'authors', label: 'Authors', accessor: 'authors', type: 'text', visible: false },
+    { id: 'journal', label: 'Journal', accessor: 'journal', type: 'text', visible: true },
+    { id: 'publication_date', label: 'Date', accessor: 'publication_date', type: 'date', visible: true },
+];
+
 export default function Tablizer({
-    initialData,
-    initialColumns,
+    articles,
     title = 'Tablizer',
-    onExport,
     onClose,
     isFullScreen = false
 }: TablizierProps) {
+    // Convert articles to row format with string id
+    const initialRows = useMemo(() =>
+        articles.map((article, idx) => ({
+            id: article.pmid || article.id?.toString() || `row_${idx}`,
+            ...article,
+            authors: Array.isArray(article.authors) ? article.authors.join(', ') : article.authors
+        })),
+        [articles]
+    );
+
     // State
-    const [data, setData] = useState<TableRow[]>(initialData);
+    const [data, setData] = useState(initialRows);
     const [columns, setColumns] = useState<TableColumn[]>(
-        initialColumns.map(c => ({ ...c, visible: c.visible !== false }))
+        BASE_COLUMNS.map(c => ({ ...c }))
     );
     const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
     const [filterText, setFilterText] = useState('');
@@ -200,43 +211,46 @@ export default function Tablizer({
         setColumns(cols => [...cols, newColumn]);
         setShowAddColumnModal(false);
 
-        // Process each row
+        // Process using semantic filter service
         setProcessingColumn(columnId);
-        setProcessingProgress({ current: 0, total: data.length });
+        setProcessingProgress({ current: 0, total: articles.length });
 
         try {
+            // Call the filter service with the original articles
+            const response = await researchStreamApi.filterArticles({
+                articles,
+                filter_criteria: promptTemplate,
+                threshold: 0.5
+            });
+
+            // Map results back to rows
             const updatedRows = [...data];
+            for (let i = 0; i < response.results.length; i++) {
+                const result = response.results[i];
+                let value: string | number | boolean;
 
-            for (let i = 0; i < data.length; i++) {
-                setProcessingProgress({ current: i + 1, total: data.length });
-
-                const row = data[i];
-
-                // Build the prompt by replacing slugs with actual values
-                let prompt = promptTemplate;
-                for (const inputCol of inputColumns) {
-                    const value = row[inputCol] || '';
-                    prompt = prompt.replace(new RegExp(`\\{${inputCol}\\}`, 'g'), value);
+                if (outputType === 'boolean') {
+                    value = result.passed ? 'Yes' : 'No';
+                } else if (outputType === 'number') {
+                    value = result.score;
+                } else {
+                    value = result.reasoning;
                 }
 
-                try {
-                    const result = await tablizerApi.processCell({
-                        prompt,
-                        output_type: outputType
-                    });
-                    updatedRows[i] = { ...updatedRows[i], [columnId]: result.value };
-                } catch (err) {
-                    updatedRows[i] = { ...updatedRows[i], [columnId]: 'Error' };
-                }
-
-                // Update data incrementally for visual feedback
+                updatedRows[i] = { ...updatedRows[i], [columnId]: value };
+                setProcessingProgress({ current: i + 1, total: articles.length });
                 setData([...updatedRows]);
             }
+        } catch (err) {
+            console.error('Error processing AI column:', err);
+            // Mark all as error
+            const updatedRows = data.map(row => ({ ...row, [columnId]: 'Error' }));
+            setData(updatedRows);
         } finally {
             setProcessingColumn(null);
             setProcessingProgress({ current: 0, total: 0 });
         }
-    }, [data]);
+    }, [articles, data]);
 
     // Export to CSV
     const handleExport = useCallback(() => {
@@ -261,11 +275,7 @@ export default function Tablizer({
         a.download = `${title.toLowerCase().replace(/\s+/g, '_')}_export.csv`;
         a.click();
         URL.revokeObjectURL(url);
-
-        if (onExport) {
-            onExport(filteredData, visibleColumns);
-        }
-    }, [filteredData, visibleColumns, title, onExport]);
+    }, [filteredData, visibleColumns, title]);
 
     const containerClass = isFullScreen
         ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col'
