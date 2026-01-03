@@ -17,6 +17,7 @@ import ExecutionConfigModal from '../components/stream/ExecutionConfigModal';
 import ArticleViewerModal from '../components/articles/ArticleViewerModal';
 import ChatTray from '../components/chat/ChatTray';
 import PubMedArticleCard, { PubMedArticleData } from '../components/chat/PubMedArticleCard';
+import { TablizeButton } from '../components/tools/Tablizer';
 
 type ReportView = 'all' | 'by-category';
 type CardFormat = 'compact' | 'expanded';
@@ -716,9 +717,15 @@ export default function ReportsPage() {
                                             {reportView === 'all' ? (
                                                 /* All Articles View */
                                                 <div>
-                                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                                        Articles ({selectedReport.articles.length})
-                                                    </h3>
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                                            Articles ({selectedReport.articles.length})
+                                                        </h3>
+                                                        <TablizeButton
+                                                            articles={selectedReport.articles}
+                                                            title={`${selectedReport.report_name} - All Articles`}
+                                                        />
+                                                    </div>
                                                     <div className="space-y-3">
                                                         {selectedReport.articles.map((article, idx) => (
                                                             <ArticleCard
@@ -733,9 +740,15 @@ export default function ReportsPage() {
                                             ) : (
                                                 /* By Category View */
                                                 <div>
-                                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                                        Articles by Category ({selectedReport.articles.length})
-                                                    </h3>
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                                            Articles by Category ({selectedReport.articles.length})
+                                                        </h3>
+                                                        <TablizeButton
+                                                            articles={selectedReport.articles}
+                                                            title={`${selectedReport.report_name} - All Articles`}
+                                                        />
+                                                    </div>
                                                     <div className="space-y-6">
                                                         {Object.entries(getArticlesByCategory()).map(([categoryId, data]) => {
                                                             const isCollapsed = collapsedCategories.has(categoryId);

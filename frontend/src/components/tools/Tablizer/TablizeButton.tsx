@@ -2,9 +2,13 @@ import { useState } from 'react';
 import { TableCellsIcon } from '@heroicons/react/24/outline';
 import Tablizer from './Tablizer';
 import { CanonicalResearchArticle } from '../../../types/canonical_types';
+import { ReportArticle } from '../../../types/report';
+
+// Union type for articles from different sources (same as Tablizer)
+type TablizableArticle = CanonicalResearchArticle | ReportArticle;
 
 interface TablizeButtonProps {
-    articles: CanonicalResearchArticle[];
+    articles: TablizableArticle[];
     title?: string;
     className?: string;
     buttonText?: string;

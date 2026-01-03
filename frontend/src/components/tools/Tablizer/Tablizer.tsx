@@ -17,6 +17,10 @@ import {
 import AddColumnModal from './AddColumnModal';
 import { researchStreamApi } from '../../../lib/api';
 import { CanonicalResearchArticle } from '../../../types/canonical_types';
+import { ReportArticle } from '../../../types/report';
+
+// Union type for articles from different sources
+type TablizableArticle = CanonicalResearchArticle | ReportArticle;
 
 // Types
 export interface TableColumn {
@@ -41,10 +45,15 @@ interface TableRow {
 type BooleanFilterState = 'all' | 'yes' | 'no';
 
 export interface TablizierProps {
-    articles: CanonicalResearchArticle[];
+    articles: TablizableArticle[];
     title?: string;
     onClose?: () => void;
     isFullScreen?: boolean;
+}
+
+// Helper to check if article is from report
+function isReportArticle(article: TablizableArticle): article is ReportArticle {
+    return 'article_id' in article;
 }
 
 type SortDirection = 'asc' | 'desc' | null;
@@ -73,8 +82,11 @@ export default function Tablizer({
     // Convert articles to row format with string id
     const initialRows = useMemo((): TableRow[] =>
         articles.map((article, idx) => {
+            const articleId = isReportArticle(article)
+                ? article.article_id.toString()
+                : (article.pmid || article.id?.toString() || `row_${idx}`);
             const row: TableRow = {
-                id: article.pmid || article.id?.toString() || `row_${idx}`,
+                id: articleId,
                 pmid: article.pmid,
                 title: article.title,
                 abstract: article.abstract,
@@ -229,9 +241,25 @@ export default function Tablizer({
         setProcessingProgress({ current: 0, total: articles.length });
 
         try {
-            // Call the filter service with the original articles
+            // Convert to CanonicalResearchArticle format for the filter API
+            const canonicalArticles: CanonicalResearchArticle[] = articles.map((article, idx) => ({
+                id: isReportArticle(article) ? article.article_id.toString() : (article.id || `row_${idx}`),
+                pmid: article.pmid || '',
+                title: article.title,
+                abstract: article.abstract || '',
+                authors: article.authors || [],
+                journal: article.journal || '',
+                publication_date: article.publication_date || '',
+                doi: article.doi || '',
+                keywords: [],
+                mesh_terms: [],
+                categories: [],
+                source: 'pubmed'
+            }));
+
+            // Call the filter service
             const response = await researchStreamApi.filterArticles({
-                articles,
+                articles: canonicalArticles,
                 filter_criteria: promptTemplate,
                 threshold: 0.5
             });
