@@ -15,6 +15,7 @@ import {
     PlusCircleIcon
 } from '@heroicons/react/24/outline';
 import AddColumnModal from './AddColumnModal';
+import ArticleViewerModal from '../../articles/ArticleViewerModal';
 import { researchStreamApi } from '../../../lib/api';
 import { CanonicalResearchArticle } from '../../../types/canonical_types';
 import { ReportArticle } from '../../../types/report';
@@ -119,6 +120,7 @@ export default function Tablizer({
     const [processingColumn, setProcessingColumn] = useState<string | null>(null);
     const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0 });
     const [booleanFilters, setBooleanFilters] = useState<Record<string, BooleanFilterState>>({});
+    const [selectedArticleIndex, setSelectedArticleIndex] = useState<number | null>(null);
 
     // Reset state when articles change (new search)
     useEffect(() => {
@@ -588,7 +590,17 @@ export default function Tablizer({
                         {filteredData.map((row, rowIdx) => (
                             <tr
                                 key={row.id || rowIdx}
-                                className="hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                                className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer"
+                                onClick={() => {
+                                    // Find the index in the original articles array
+                                    const articleIndex = articles.findIndex(a => {
+                                        const id = isReportArticle(a) ? a.article_id.toString() : (a.id || a.pmid || '');
+                                        return id === row.id;
+                                    });
+                                    if (articleIndex !== -1) {
+                                        setSelectedArticleIndex(articleIndex);
+                                    }
+                                }}
                             >
                                 {visibleColumns.map(column => {
                                     const cellValue = row[column.accessor];
@@ -644,6 +656,15 @@ export default function Tablizer({
                     }))}
                     onAdd={handleAddColumn}
                     onClose={() => setShowAddColumnModal(false)}
+                />
+            )}
+
+            {/* Article Viewer Modal */}
+            {selectedArticleIndex !== null && (
+                <ArticleViewerModal
+                    articles={articles}
+                    initialIndex={selectedArticleIndex}
+                    onClose={() => setSelectedArticleIndex(null)}
                 />
             )}
         </div>

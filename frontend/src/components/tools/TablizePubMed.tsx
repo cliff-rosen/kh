@@ -10,7 +10,9 @@ import {
     ClipboardDocumentIcon,
     PlusCircleIcon,
     FunnelIcon,
-    MagnifyingGlassIcon
+    MagnifyingGlassIcon,
+    QuestionMarkCircleIcon,
+    XMarkIcon
 } from '@heroicons/react/24/outline';
 import { Tablizer } from './Tablizer';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
@@ -74,6 +76,9 @@ export default function TablizePubMed() {
     const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
     const [compareMode, setCompareMode] = useState(false);
     const [compareSnapshots, setCompareSnapshots] = useState<[string, string] | null>(null);
+
+    // Help modal state
+    const [showHelp, setShowHelp] = useState(false);
 
     // Add search snapshot to history
     const addSearchSnapshot = useCallback((articles: CanonicalResearchArticle[], total: number) => {
@@ -371,9 +376,18 @@ export default function TablizePubMed() {
             <div className="flex-1 space-y-6 min-w-0">
                 {/* Search Form */}
                 <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                        Search PubMed
-                    </h3>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                            Search PubMed
+                        </h3>
+                        <button
+                            onClick={() => setShowHelp(true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
+                        >
+                            <QuestionMarkCircleIcon className="h-5 w-5" />
+                            Help
+                        </button>
+                    </div>
                     <div className="space-y-4">
                         {/* Query - full width, auto-expanding */}
                         <div>
@@ -399,7 +413,7 @@ export default function TablizePubMed() {
                             />
                         </div>
 
-                        {/* Date filters row */}
+                        {/* Date filters and search button row */}
                         <div className="flex flex-wrap items-end gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -478,10 +492,9 @@ export default function TablizePubMed() {
                                     </button>
                                 )}
                             </div>
-                        </div>
-
-                        {/* Search button row */}
-                        <div className="flex items-center justify-between">
+                            {/* Spacer to push search button right */}
+                            <div className="flex-1" />
+                            {/* Search button */}
                             <button
                                 onClick={handleSearch}
                                 disabled={loading || !query.trim()}
@@ -502,7 +515,10 @@ export default function TablizePubMed() {
                                     </>
                                 )}
                             </button>
-                            {(hasSearched || snapshots.length > 0 || query.trim()) && (
+                        </div>
+                        {/* Clear button row */}
+                        {(hasSearched || snapshots.length > 0 || query.trim()) && (
+                            <div className="flex justify-end">
                                 <button
                                     onClick={handleClearAll}
                                     disabled={loading}
@@ -510,10 +526,10 @@ export default function TablizePubMed() {
                                     title="Clear search, results, and history"
                                 >
                                     <TrashIcon className="h-4 w-4" />
-                                    Clear
+                                    Clear all
                                 </button>
-                            )}
-                        </div>
+                            </div>
+                        )}
                     </div>
 
                     {error && (
@@ -569,12 +585,14 @@ export default function TablizePubMed() {
                                         {selectedSnapshot.source.type === 'search' && (
                                             <button
                                                 onClick={async () => {
+                                                    const source = selectedSnapshot.source;
+                                                    if (source.type !== 'search') return;
                                                     try {
-                                                        await navigator.clipboard.writeText(selectedSnapshot.source.query);
+                                                        await navigator.clipboard.writeText(source.query);
                                                     } catch {
                                                         // Fallback
                                                         const textArea = document.createElement('textarea');
-                                                        textArea.value = selectedSnapshot.source.query;
+                                                        textArea.value = source.query;
                                                         textArea.style.position = 'fixed';
                                                         textArea.style.left = '-999999px';
                                                         document.body.appendChild(textArea);
@@ -1154,6 +1172,77 @@ function SearchCompareView({ snapshotA, snapshotB, onClose, onSaveToHistory }: S
                     </div>
                 )}
             </div>
+
+            {/* Help Modal */}
+            {showHelp && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/50" onClick={() => setShowHelp(false)} />
+                    <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+                        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Tablizer Help</h2>
+                            <button
+                                onClick={() => setShowHelp(false)}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                            >
+                                <XMarkIcon className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto space-y-6">
+                            <div>
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">What is Tablizer?</h3>
+                                <p className="text-gray-600 dark:text-gray-400">
+                                    Tablizer is a powerful alternative to searching directly on PubMed. It lets you search, filter, and enrich PubMed articles with AI-generated columns — all in one place.
+                                </p>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Getting Started</h3>
+                                <ol className="list-decimal list-inside space-y-2 text-gray-600 dark:text-gray-400">
+                                    <li><strong>Search:</strong> Enter a PubMed query (same syntax as PubMed). Use the quick date buttons or leave dates empty for all time.</li>
+                                    <li><strong>View Results:</strong> Click any row to open the full article viewer with abstract, links, and AI analysis.</li>
+                                    <li><strong>Add AI Columns:</strong> Click "Add AI Column" to create custom columns powered by AI (e.g., "Is this a clinical trial?" or "Extract sample size").</li>
+                                </ol>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">AI Column Types</h3>
+                                <ul className="space-y-2 text-gray-600 dark:text-gray-400">
+                                    <li><strong>Boolean (Yes/No):</strong> Great for filtering. Ask questions like "Does this study involve human subjects?" Then filter by Yes/No.</li>
+                                    <li><strong>Text:</strong> Extract information like study design, population, or key findings.</li>
+                                    <li><strong>Number:</strong> Extract numeric values like sample size or follow-up duration.</li>
+                                </ul>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Filtering & Saving</h3>
+                                <ul className="space-y-2 text-gray-600 dark:text-gray-400">
+                                    <li><strong>Text Filter:</strong> Type in the search box to filter across all visible columns.</li>
+                                    <li><strong>Boolean Filters:</strong> Click Yes/No/All to filter AI boolean columns.</li>
+                                    <li><strong>Save to History:</strong> After filtering, save your filtered set to history for later comparison.</li>
+                                </ul>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">History & Compare</h3>
+                                <ul className="space-y-2 text-gray-600 dark:text-gray-400">
+                                    <li><strong>Search History:</strong> Every search is saved. Click to view past results.</li>
+                                    <li><strong>Compare Mode:</strong> Select two search results to see what's common vs. unique to each.</li>
+                                    <li><strong>Provenance:</strong> Filtered and compared sets show where they came from (e.g., "filtered from #1").</li>
+                                </ul>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Tips</h3>
+                                <ul className="space-y-2 text-gray-600 dark:text-gray-400">
+                                    <li>Initial search fetches 20 articles quickly. When you add an AI column, it automatically fetches up to 500 for processing.</li>
+                                    <li>Use boolean AI columns to quickly identify relevant articles, then save that filtered set.</li>
+                                    <li>Export your table to CSV for use in other tools.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

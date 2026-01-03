@@ -79,15 +79,9 @@ async def test_pubmed_query(
     from services.pubmed_service import PubMedService
 
     try:
-        # Apply default date range if not provided
+        # Use dates as provided (None means no date filtering)
         start_date = request.start_date
         end_date = request.end_date
-
-        if not start_date or not end_date:
-            end_date_obj = datetime.now()
-            start_date_obj = end_date_obj - timedelta(days=7)
-            start_date = start_date_obj.strftime("%Y/%m/%d")
-            end_date = end_date_obj.strftime("%Y/%m/%d")
 
         # Execute query
         pubmed_service = PubMedService()
