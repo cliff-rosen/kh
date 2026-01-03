@@ -593,8 +593,9 @@ export default function Tablizer({
                                 className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer"
                                 onClick={() => {
                                     // Find the index in the original articles array
+                                    // Note: Must match the same ID priority used in row creation (pmid || id)
                                     const articleIndex = articles.findIndex(a => {
-                                        const id = isReportArticle(a) ? a.article_id.toString() : (a.id || a.pmid || '');
+                                        const id = isReportArticle(a) ? a.article_id.toString() : (a.pmid || a.id || '');
                                         return id === row.id;
                                     });
                                     if (articleIndex !== -1) {
