@@ -528,7 +528,7 @@ export default function Tablizer({
                                     return (
                                         <td
                                             key={column.id}
-                                            className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100"
+                                            className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 align-top"
                                         >
                                             {processingColumn === column.id && cellValue === undefined ? (
                                                 <span className="text-gray-400 italic">Processing...</span>
