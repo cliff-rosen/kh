@@ -125,6 +125,10 @@ export default function EditStreamPage() {
     // State for execute tab's sub-tab (workbench vs pipeline)
     const [executeSubTab, setExecuteSubTab] = useState<ExecuteSubTab>('workbench');
 
+    // State for pending query/filter updates (from chat suggestions to workbench)
+    const [pendingQueryUpdate, setPendingQueryUpdate] = useState<string | null>(null);
+    const [pendingFilterUpdate, setPendingFilterUpdate] = useState<{ criteria: string; threshold?: number } | null>(null);
+
     // Check URL params for initial tab
     const initialTab = (searchParams.get('tab') as TabType) || 'semantic';
     const [activeTab, setActiveTab] = useState<TabType>(initialTab);
@@ -706,8 +710,8 @@ export default function EditStreamPage() {
                             />
                         ),
                         onAccept: async (data: any) => {
-                            // Copy query to clipboard for user to paste into workbench
-                            await navigator.clipboard.writeText(data.query_expression);
+                            // Update the workbench with the new query expression
+                            setPendingQueryUpdate(data.query_expression);
                         },
                         onReject: () => {},
                         renderOptions: {
@@ -725,8 +729,8 @@ export default function EditStreamPage() {
                             />
                         ),
                         onAccept: async (data: any) => {
-                            // Copy filter criteria to clipboard for user to paste into workbench
-                            await navigator.clipboard.writeText(data.criteria);
+                            // Update the workbench with the new filter criteria
+                            setPendingFilterUpdate({ criteria: data.criteria, threshold: data.threshold });
                         },
                         onReject: () => {},
                         renderOptions: {
@@ -1030,6 +1034,10 @@ export default function EditStreamPage() {
                                 canModify={canModify}
                                 onWorkbenchStateChange={setWorkbenchState}
                                 onSubTabChange={setExecuteSubTab}
+                                pendingQueryUpdate={pendingQueryUpdate}
+                                onQueryUpdateApplied={() => setPendingQueryUpdate(null)}
+                                pendingFilterUpdate={pendingFilterUpdate}
+                                onFilterUpdateApplied={() => setPendingFilterUpdate(null)}
                             />
                         )}
 

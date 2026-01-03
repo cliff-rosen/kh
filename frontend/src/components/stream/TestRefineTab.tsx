@@ -13,9 +13,13 @@ interface TestRefineTabProps {
     canModify?: boolean;
     onWorkbenchStateChange?: (state: WorkbenchState | null) => void;
     onSubTabChange?: (subTab: ExecuteSubTab) => void;
+    pendingQueryUpdate?: string | null;
+    onQueryUpdateApplied?: () => void;
+    pendingFilterUpdate?: { criteria: string; threshold?: number } | null;
+    onFilterUpdateApplied?: () => void;
 }
 
-export default function TestRefineTab({ streamId, stream, onStreamUpdate, canModify = true, onWorkbenchStateChange, onSubTabChange }: TestRefineTabProps) {
+export default function TestRefineTab({ streamId, stream, onStreamUpdate, canModify = true, onWorkbenchStateChange, onSubTabChange, pendingQueryUpdate, onQueryUpdateApplied, pendingFilterUpdate, onFilterUpdateApplied }: TestRefineTabProps) {
     const [searchParams] = useSearchParams();
 
     // Check URL params for initial subtab
@@ -85,6 +89,10 @@ export default function TestRefineTab({ streamId, stream, onStreamUpdate, canMod
                         onStreamUpdate={onStreamUpdate}
                         canModify={canModify}
                         onStateChange={onWorkbenchStateChange}
+                        pendingQueryUpdate={pendingQueryUpdate}
+                        onQueryUpdateApplied={onQueryUpdateApplied}
+                        pendingFilterUpdate={pendingFilterUpdate}
+                        onFilterUpdateApplied={onFilterUpdateApplied}
                     />
                 )}
                 {activeSubTab === 'pipeline' && <ExecutePipelineTab streamId={streamId} canModify={canModify} />}

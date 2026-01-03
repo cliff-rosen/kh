@@ -49,7 +49,19 @@ export default function QuerySuggestionCard({
     };
 
     const copyToClipboard = async (text: string, isAlt: boolean = false, altIndex?: number) => {
-        await navigator.clipboard.writeText(text);
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            // Fallback for non-HTTPS contexts
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        }
         if (isAlt && altIndex !== undefined) {
             setCopiedAlt(altIndex);
             setTimeout(() => setCopiedAlt(null), 2000);
@@ -64,7 +76,7 @@ export default function QuerySuggestionCard({
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                 <div className="flex items-center gap-2 text-green-800 dark:text-green-200">
                     <CheckIcon className="h-5 w-5" />
-                    <span className="font-medium">Query copied! Paste it into the query expression field in the workbench.</span>
+                    <span className="font-medium">Query applied to the workbench!</span>
                 </div>
             </div>
         );
@@ -208,8 +220,8 @@ export default function QuerySuggestionCard({
                     disabled={isProcessing}
                     className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                    <ClipboardDocumentIcon className="h-4 w-4" />
-                    Copy & Use Query
+                    <CheckIcon className="h-4 w-4" />
+                    Use This Query
                 </button>
                 <button
                     type="button"

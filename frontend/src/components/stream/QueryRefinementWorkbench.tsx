@@ -86,6 +86,10 @@ interface QueryRefinementWorkbenchProps {
     onStreamUpdate: () => void;
     canModify?: boolean;
     onStateChange?: (state: WorkbenchState) => void;
+    pendingQueryUpdate?: string | null;
+    onQueryUpdateApplied?: () => void;
+    pendingFilterUpdate?: { criteria: string; threshold?: number } | null;
+    onFilterUpdateApplied?: () => void;
 }
 
 type StepType = 'source' | 'filter' | 'categorize';
@@ -101,7 +105,7 @@ interface WorkflowStep {
 
 type ResultView = 'raw' | 'compare' | 'analyze';
 
-export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpdate, canModify: _canModify = true, onStateChange }: QueryRefinementWorkbenchProps) {
+export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpdate, canModify: _canModify = true, onStateChange, pendingQueryUpdate, onQueryUpdateApplied, pendingFilterUpdate, onFilterUpdateApplied }: QueryRefinementWorkbenchProps) {
     // Note: _canModify is currently unused as the backend enforces permissions,
     // but the prop is accepted for future UI enhancements
     const [steps, setSteps] = useState<WorkflowStep[]>([
@@ -183,6 +187,63 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
             setCompareSnapshots(null);
         }
     }, [selectedSnapshotId, compareSnapshots]);
+
+    // Handle external query updates (from chat suggestions)
+    useEffect(() => {
+        if (!pendingQueryUpdate) return;
+
+        // Find a source step (prefer focused if it's a source, otherwise first source step)
+        const focusedStep = steps.find(s => s.id === focusedStepId);
+        const sourceStep = focusedStep?.type === 'source'
+            ? focusedStep
+            : steps.find(s => s.type === 'source');
+
+        if (sourceStep) {
+            // Update the step's test expression
+            setSteps(prev => prev.map(step =>
+                step.id === sourceStep.id
+                    ? { ...step, config: { ...step.config, testQueryExpression: pendingQueryUpdate } }
+                    : step
+            ));
+            // Focus on the source step so user sees the change
+            setFocusedStepId(sourceStep.id);
+        }
+
+        // Notify parent that update was applied
+        if (onQueryUpdateApplied) {
+            onQueryUpdateApplied();
+        }
+    }, [pendingQueryUpdate, focusedStepId, steps, onQueryUpdateApplied]);
+
+    // Handle external filter updates (from chat suggestions)
+    useEffect(() => {
+        if (!pendingFilterUpdate) return;
+
+        // Find the filter step (or create one if needed)
+        const filterStep = steps.find(s => s.type === 'filter');
+        if (filterStep) {
+            // Update the filter step's criteria
+            setSteps(prev => prev.map(step =>
+                step.id === filterStep.id
+                    ? {
+                        ...step,
+                        config: {
+                            ...step.config,
+                            testCriteria: pendingFilterUpdate.criteria,
+                            ...(pendingFilterUpdate.threshold !== undefined && { testThreshold: pendingFilterUpdate.threshold })
+                        }
+                    }
+                    : step
+            ));
+            // Focus on the filter step
+            setFocusedStepId(filterStep.id);
+        }
+
+        // Notify parent that update was applied
+        if (onFilterUpdateApplied) {
+            onFilterUpdateApplied();
+        }
+    }, [pendingFilterUpdate, steps, onFilterUpdateApplied]);
 
     // Report state changes to parent for chat context
     useEffect(() => {
