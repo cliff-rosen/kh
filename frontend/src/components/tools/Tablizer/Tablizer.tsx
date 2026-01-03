@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
     TableCellsIcon,
     ArrowDownTrayIcon,
@@ -115,6 +115,15 @@ export default function Tablizer({
     const [processingColumn, setProcessingColumn] = useState<string | null>(null);
     const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0 });
     const [booleanFilters, setBooleanFilters] = useState<Record<string, BooleanFilterState>>({});
+
+    // Reset state when articles change (new search)
+    useEffect(() => {
+        setData(initialRows);
+        setColumns(BASE_COLUMNS.map(c => ({ ...c })));
+        setSortConfig(null);
+        setFilterText('');
+        setBooleanFilters({});
+    }, [initialRows]);
 
     // Get visible columns
     const visibleColumns = useMemo(() =>
