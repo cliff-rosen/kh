@@ -16,6 +16,7 @@ import { setStreamSessionExpiredHandler } from './lib/api/streamUtils';
 import TopBar from './components/layout/TopBar';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import TablizerRoutes from './components/tablizer/TablizerRoutes';
+import TrialScoutRoutes from './components/trialscout/TrialScoutRoutes';
 
 // pages
 import LoginPage from './pages/LoginPage';
@@ -113,6 +114,14 @@ function App() {
         <Route path="/tablizer/*" element={
           <ThemeProvider>
             <TablizerRoutes />
+            <Toaster />
+          </ThemeProvider>
+        } />
+
+        {/* TrialScout standalone app - shares auth with Tablizer */}
+        <Route path="/trialscout/*" element={
+          <ThemeProvider>
+            <TrialScoutRoutes />
             <Toaster />
           </ThemeProvider>
         } />

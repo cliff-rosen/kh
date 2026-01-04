@@ -21,11 +21,18 @@ export const api = axios.create({
 let isRedirectingToLogin = false;
 
 api.interceptors.request.use((config) => {
-  // Use tablizer token when on /tablizer/* paths, otherwise use main app token
+  // Each standalone app has its own token
   const isTablizer = window.location.pathname.startsWith('/tablizer');
-  const token = isTablizer
-    ? localStorage.getItem('tablizer_token')
-    : localStorage.getItem('authToken');
+  const isTrialScout = window.location.pathname.startsWith('/trialscout');
+
+  let token: string | null = null;
+  if (isTablizer) {
+    token = localStorage.getItem('tablizer_token');
+  } else if (isTrialScout) {
+    token = localStorage.getItem('trialscout_token');
+  } else {
+    token = localStorage.getItem('authToken');
+  }
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -43,11 +50,16 @@ api.interceptors.response.use(
       !isRedirectingToLogin) {
 
       const isTablizer = window.location.pathname.startsWith('/tablizer');
+      const isTrialScout = window.location.pathname.startsWith('/trialscout');
+      const isStandaloneApp = isTablizer || isTrialScout;
 
       // Clear appropriate auth data
       if (isTablizer) {
         localStorage.removeItem('tablizer_token');
         localStorage.removeItem('tablizer_user');
+      } else if (isTrialScout) {
+        localStorage.removeItem('trialscout_token');
+        localStorage.removeItem('trialscout_user');
       } else {
         localStorage.removeItem('authToken');
         localStorage.removeItem('user');
@@ -57,11 +69,14 @@ api.interceptors.response.use(
       isRedirectingToLogin = true;
 
       // Call the session expired handler if it exists (main app only)
-      if (!isTablizer && sessionExpiredHandler) {
+      if (!isStandaloneApp && sessionExpiredHandler) {
         sessionExpiredHandler();
       } else {
         // Default behavior: redirect to appropriate login
-        window.location.href = isTablizer ? '/tablizer/login' : '/login';
+        let loginPath = '/login';
+        if (isTablizer) loginPath = '/tablizer/login';
+        else if (isTrialScout) loginPath = '/trialscout/login';
+        window.location.href = loginPath;
       }
 
       // Throw a user-friendly error

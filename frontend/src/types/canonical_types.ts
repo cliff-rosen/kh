@@ -175,6 +175,100 @@ export interface CanonicalScholarArticle {
     metadata?: Record<string, any>;
 }
 
+// --- Clinical Trial Types ---
+
+export interface CanonicalTrialIntervention {
+    type: string;           // DRUG, BIOLOGICAL, DEVICE, PROCEDURE, etc.
+    name: string;
+    description?: string;
+}
+
+export interface CanonicalTrialOutcome {
+    measure: string;
+    time_frame?: string;
+}
+
+export interface CanonicalTrialSponsor {
+    name: string;
+    type?: string;          // INDUSTRY, NIH, ACADEMIC, etc.
+}
+
+export interface CanonicalTrialLocation {
+    facility?: string;
+    city?: string;
+    state?: string;
+    country: string;
+}
+
+export interface CanonicalClinicalTrial {
+    // Identifiers
+    nct_id: string;
+    org_study_id?: string;
+
+    // Basic Info
+    title: string;
+    brief_title?: string;
+    brief_summary?: string;
+    detailed_description?: string;
+
+    // Status
+    status: string;         // RECRUITING, COMPLETED, TERMINATED, etc.
+    status_verified_date?: string;
+    start_date?: string;
+    completion_date?: string;
+    last_update_date?: string;
+
+    // Study Design
+    study_type: string;     // INTERVENTIONAL, OBSERVATIONAL
+    phase?: string;         // PHASE1, PHASE2, PHASE3, PHASE4, NA
+    allocation?: string;    // RANDOMIZED, NON_RANDOMIZED
+    intervention_model?: string; // PARALLEL, CROSSOVER, SINGLE_GROUP
+    masking?: string;       // NONE, SINGLE, DOUBLE, TRIPLE, QUADRUPLE
+    primary_purpose?: string; // TREATMENT, PREVENTION, DIAGNOSTIC
+
+    // Interventions
+    interventions: CanonicalTrialIntervention[];
+
+    // Conditions
+    conditions: string[];
+
+    // Eligibility
+    eligibility_criteria?: string;
+    sex?: string;           // ALL, MALE, FEMALE
+    min_age?: string;
+    max_age?: string;
+    healthy_volunteers?: boolean;
+    enrollment_count?: number;
+    enrollment_type?: string; // ESTIMATED, ACTUAL
+
+    // Outcomes
+    primary_outcomes: CanonicalTrialOutcome[];
+    secondary_outcomes?: CanonicalTrialOutcome[];
+
+    // Sponsors
+    lead_sponsor?: CanonicalTrialSponsor;
+    collaborators?: CanonicalTrialSponsor[];
+
+    // Locations
+    locations: CanonicalTrialLocation[];
+    location_countries: string[];
+
+    // Links
+    url: string;
+
+    // Keywords
+    keywords: string[];
+
+    // Source metadata
+    source_metadata?: Record<string, any>;
+
+    // Extraction and analysis results (for AI columns)
+    extracted_features?: Record<string, any>;
+
+    // Timestamps
+    retrieved_at?: string;
+}
+
 // --- Type Registry ---
 
 export type CanonicalType =

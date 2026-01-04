@@ -318,3 +318,131 @@ async def check_pubmed_ids(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"PubMed ID check failed: {str(e)}"
         )
+
+
+# ============================================================================
+# Clinical Trials Search (ClinicalTrials.gov)
+# ============================================================================
+
+from schemas.canonical_types import CanonicalClinicalTrial
+
+
+class TrialSearchRequest(BaseModel):
+    """Request for clinical trial search"""
+    condition: Optional[str] = Field(None, description="Disease or condition to search for")
+    intervention: Optional[str] = Field(None, description="Drug, treatment, or intervention name")
+    sponsor: Optional[str] = Field(None, description="Sponsor organization name")
+    status: Optional[List[str]] = Field(None, description="Recruitment statuses (RECRUITING, COMPLETED, etc.)")
+    phase: Optional[List[str]] = Field(None, description="Study phases (PHASE1, PHASE2, PHASE3, etc.)")
+    study_type: Optional[str] = Field(None, description="Study type (INTERVENTIONAL, OBSERVATIONAL)")
+    location: Optional[str] = Field(None, description="Country or location")
+    start_date: Optional[str] = Field(None, description="Start date filter (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="End date filter (YYYY-MM-DD)")
+    max_results: int = Field(100, ge=1, le=500, description="Maximum trials to return")
+
+
+class TrialSearchResponse(BaseModel):
+    """Response from clinical trial search"""
+    trials: List[CanonicalClinicalTrial] = Field(..., description="Trials returned")
+    total_results: int = Field(..., description="Total number of results matching the query")
+    returned_count: int = Field(..., description="Number of trials returned in this response")
+
+
+@router.post("/trials/search", response_model=TrialSearchResponse)
+async def search_clinical_trials(
+    request: TrialSearchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Search ClinicalTrials.gov for clinical trials.
+
+    Standalone tool for searching clinical trials with filters for condition,
+    intervention, sponsor, phase, status, and more.
+    """
+    from services.clinical_trials_service import get_clinical_trials_service
+
+    try:
+        service = get_clinical_trials_service()
+
+        # Fetch trials (may need multiple pages for large result sets)
+        all_trials = []
+        total_count = 0
+        page_token = None
+        remaining = request.max_results
+
+        while remaining > 0:
+            trials, total_count, next_token = service.search_trials(
+                condition=request.condition,
+                intervention=request.intervention,
+                sponsor=request.sponsor,
+                status=request.status,
+                phase=request.phase,
+                study_type=request.study_type,
+                location=request.location,
+                start_date=request.start_date,
+                end_date=request.end_date,
+                max_results=min(remaining, 100),
+                page_token=page_token
+            )
+
+            all_trials.extend(trials)
+            remaining -= len(trials)
+
+            # Stop if no more pages or we have enough
+            if not next_token or len(trials) == 0:
+                break
+            page_token = next_token
+
+        logger.info(f"Retrieved {len(all_trials)} trials from {total_count} total matches")
+
+        return TrialSearchResponse(
+            trials=all_trials,
+            total_results=total_count,
+            returned_count=len(all_trials)
+        )
+
+    except Exception as e:
+        logger.error(f"Clinical trials search failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Clinical trials search failed: {str(e)}"
+        )
+
+
+class TrialDetailRequest(BaseModel):
+    """Request for trial details by NCT ID"""
+    nct_id: str = Field(..., description="NCT identifier (e.g., NCT00000000)")
+
+
+@router.post("/trials/detail")
+async def get_trial_detail(
+    request: TrialDetailRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get detailed information about a specific clinical trial.
+    """
+    from services.clinical_trials_service import get_clinical_trials_service
+
+    try:
+        service = get_clinical_trials_service()
+        trial = service.get_trial_by_nct_id(request.nct_id)
+
+        if not trial:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Trial {request.nct_id} not found"
+            )
+
+        return trial
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get trial {request.nct_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get trial details: {str(e)}"
+        )

@@ -22,7 +22,10 @@
       "Bash(xargs ls:*)",
       "Bash(curl:*)",
       "Bash(powershell -Command \"cd C:\\\\code\\\\kh\\\\backend; python test_imports.py\")",
-      "Bash(powershell -Command:*)"
+      "Bash(powershell -Command:*)",
+      "WebSearch",
+      "WebFetch(domain:clinicaltrials.gov)",
+      "WebFetch(domain:biomcp.org)"
     ],
     "deny": [],
     "ask": [],

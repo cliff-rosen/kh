@@ -1,5 +1,5 @@
 import { api } from './index';
-import { CanonicalResearchArticle } from '../../types/canonical_types';
+import { CanonicalResearchArticle, CanonicalClinicalTrial } from '../../types/canonical_types';
 
 // ============================================================================
 // PubMed Query Tester API Types
@@ -136,5 +136,72 @@ export const toolsApi = {
 
         const response = await api.post('/api/tools/pubmed/search', request);
         return response.data;
+    },
+
+    // ========================================================================
+    // Clinical Trials API
+    // ========================================================================
+
+    /**
+     * Search ClinicalTrials.gov for clinical trials
+     */
+    async searchTrials(params: {
+        condition?: string;
+        intervention?: string;
+        sponsor?: string;
+        status?: string[];
+        phase?: string[];
+        studyType?: string;
+        location?: string;
+        startDate?: string;    // YYYY-MM-DD
+        endDate?: string;      // YYYY-MM-DD
+        maxResults?: number;
+    }): Promise<TrialSearchResponse> {
+        const request: TrialSearchRequest = {
+            condition: params.condition,
+            intervention: params.intervention,
+            sponsor: params.sponsor,
+            status: params.status,
+            phase: params.phase,
+            study_type: params.studyType,
+            location: params.location,
+            start_date: params.startDate,
+            end_date: params.endDate,
+            max_results: params.maxResults || 100
+        };
+
+        const response = await api.post('/api/tools/trials/search', request);
+        return response.data;
+    },
+
+    /**
+     * Get details for a specific trial by NCT ID
+     */
+    async getTrialDetail(nctId: string): Promise<CanonicalClinicalTrial> {
+        const response = await api.post('/api/tools/trials/detail', { nct_id: nctId });
+        return response.data;
     }
 };
+
+// ============================================================================
+// Clinical Trials API Types
+// ============================================================================
+
+export interface TrialSearchRequest {
+    condition?: string;
+    intervention?: string;
+    sponsor?: string;
+    status?: string[];
+    phase?: string[];
+    study_type?: string;
+    location?: string;
+    start_date?: string;
+    end_date?: string;
+    max_results?: number;
+}
+
+export interface TrialSearchResponse {
+    trials: CanonicalClinicalTrial[];
+    total_results: number;
+    returned_count: number;
+}

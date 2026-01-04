@@ -209,6 +209,108 @@ class CanonicalScholarArticle(BaseModel):
     position: int = Field(description="Position in search results")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional Scholar metadata")
 
+
+class CanonicalTrialIntervention(BaseModel):
+    """Intervention/treatment in a clinical trial."""
+    type: str = Field(description="Intervention type (DRUG, BIOLOGICAL, DEVICE, PROCEDURE, etc.)")
+    name: str = Field(description="Intervention name")
+    description: Optional[str] = Field(default=None, description="Intervention description")
+
+
+class CanonicalTrialOutcome(BaseModel):
+    """Outcome measure in a clinical trial."""
+    measure: str = Field(description="Outcome measure description")
+    time_frame: Optional[str] = Field(default=None, description="Time frame for measurement")
+
+
+class CanonicalTrialSponsor(BaseModel):
+    """Sponsor of a clinical trial."""
+    name: str = Field(description="Sponsor name")
+    type: Optional[str] = Field(default=None, description="Sponsor type (INDUSTRY, NIH, ACADEMIC, etc.)")
+
+
+class CanonicalTrialLocation(BaseModel):
+    """Location/site in a clinical trial."""
+    facility: Optional[str] = Field(default=None, description="Facility name")
+    city: Optional[str] = Field(default=None, description="City")
+    state: Optional[str] = Field(default=None, description="State/province")
+    country: str = Field(description="Country")
+
+
+class CanonicalClinicalTrial(BaseModel):
+    """
+    Canonical Clinical Trial schema - the definitive structure for clinical trials
+    from ClinicalTrials.gov across the entire system.
+    """
+    model_config = ConfigDict(extra='forbid')
+
+    # Identifiers
+    nct_id: str = Field(description="NCT identifier (e.g., NCT00000000)")
+    org_study_id: Optional[str] = Field(default=None, description="Organization's study ID")
+
+    # Basic Info
+    title: str = Field(description="Official study title")
+    brief_title: Optional[str] = Field(default=None, description="Brief study title")
+    brief_summary: Optional[str] = Field(default=None, description="Brief summary of the study")
+    detailed_description: Optional[str] = Field(default=None, description="Detailed study description")
+
+    # Status
+    status: str = Field(description="Overall recruitment status")
+    status_verified_date: Optional[str] = Field(default=None, description="Date status was verified")
+    start_date: Optional[str] = Field(default=None, description="Study start date")
+    completion_date: Optional[str] = Field(default=None, description="Primary completion date")
+    last_update_date: Optional[str] = Field(default=None, description="Last update posted date")
+
+    # Study Design
+    study_type: str = Field(description="Study type (INTERVENTIONAL, OBSERVATIONAL, etc.)")
+    phase: Optional[str] = Field(default=None, description="Study phase (PHASE1, PHASE2, etc.)")
+    allocation: Optional[str] = Field(default=None, description="Allocation type (RANDOMIZED, NON_RANDOMIZED)")
+    intervention_model: Optional[str] = Field(default=None, description="Intervention model (PARALLEL, CROSSOVER, etc.)")
+    masking: Optional[str] = Field(default=None, description="Masking/blinding (NONE, SINGLE, DOUBLE, etc.)")
+    primary_purpose: Optional[str] = Field(default=None, description="Primary purpose (TREATMENT, PREVENTION, etc.)")
+
+    # Interventions
+    interventions: List[CanonicalTrialIntervention] = Field(default=[], description="Study interventions")
+
+    # Conditions
+    conditions: List[str] = Field(default=[], description="Conditions being studied")
+
+    # Eligibility
+    eligibility_criteria: Optional[str] = Field(default=None, description="Full eligibility criteria text")
+    sex: Optional[str] = Field(default=None, description="Eligible sex (ALL, MALE, FEMALE)")
+    min_age: Optional[str] = Field(default=None, description="Minimum age for eligibility")
+    max_age: Optional[str] = Field(default=None, description="Maximum age for eligibility")
+    healthy_volunteers: Optional[bool] = Field(default=None, description="Whether healthy volunteers are accepted")
+    enrollment_count: Optional[int] = Field(default=None, description="Target or actual enrollment")
+    enrollment_type: Optional[str] = Field(default=None, description="ESTIMATED or ACTUAL")
+
+    # Outcomes
+    primary_outcomes: List[CanonicalTrialOutcome] = Field(default=[], description="Primary outcome measures")
+    secondary_outcomes: List[CanonicalTrialOutcome] = Field(default=[], description="Secondary outcome measures")
+
+    # Sponsors
+    lead_sponsor: Optional[CanonicalTrialSponsor] = Field(default=None, description="Lead sponsor")
+    collaborators: List[CanonicalTrialSponsor] = Field(default=[], description="Collaborating organizations")
+
+    # Locations
+    locations: List[CanonicalTrialLocation] = Field(default=[], description="Study locations")
+    location_countries: List[str] = Field(default=[], description="Countries with study sites")
+
+    # Links
+    url: str = Field(description="ClinicalTrials.gov URL")
+
+    # Keywords and classification
+    keywords: List[str] = Field(default=[], description="Study keywords")
+
+    # Source metadata
+    source_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional source-specific metadata")
+
+    # Extraction and analysis results (for AI columns)
+    extracted_features: Optional[Dict[str, Any]] = Field(default=None, description="Extracted feature data")
+
+    # Timestamps
+    retrieved_at: Optional[str] = Field(default=None, description="When trial was retrieved")
+
 class CanonicalPubMedExtraction(BaseModel):
     """
     Canonical PubMed Extraction schema - the definitive structure for extracted features from articles.
@@ -377,7 +479,8 @@ def get_canonical_model(type_name: str) -> type[BaseModel]:
         'newsletter': CanonicalNewsletter,
         'daily_newsletter_recap': CanonicalDailyNewsletterRecap,
         'pubmed_extraction': CanonicalPubMedExtraction,
-        'scored_article': CanonicalScoredArticle
+        'scored_article': CanonicalScoredArticle,
+        'clinical_trial': CanonicalClinicalTrial
     }
     
     if type_name not in models:
@@ -387,7 +490,7 @@ def get_canonical_model(type_name: str) -> type[BaseModel]:
 
 def list_canonical_types() -> List[str]:
     """Get a list of all available canonical types."""
-    return ['email', 'search_result', 'webpage', 'pubmed_article', 'scholar_article', 'research_article', 'newsletter', 'daily_newsletter_recap', 'pubmed_extraction', 'scored_article']
+    return ['email', 'search_result', 'webpage', 'pubmed_article', 'scholar_article', 'research_article', 'newsletter', 'daily_newsletter_recap', 'pubmed_extraction', 'scored_article', 'clinical_trial']
 
 def validate_canonical_data(type_name: str, data: Dict[str, Any]) -> Dict[str, Any]:
     """
