@@ -19,6 +19,7 @@ import ArticleViewerModal from '../../articles/ArticleViewerModal';
 import { researchStreamApi } from '../../../lib/api';
 import { CanonicalResearchArticle } from '../../../types/canonical_types';
 import { ReportArticle } from '../../../types/report';
+import { trackEvent } from '../../../lib/api/trackingApi';
 
 // Union type for articles from different sources
 type TablizableArticle = CanonicalResearchArticle | ReportArticle;
@@ -227,6 +228,9 @@ export default function Tablizer({
         const filteredIds = filteredData.map(row => row.id);
         const description = getFilterDescription();
         onSaveToHistory(filteredIds, description);
+        trackEvent('tablizer_save_to_history', {
+            filtered_count: filteredIds.length
+        });
     }, [onSaveToHistory, filteredData, getFilterDescription]);
 
     // Handle sort
@@ -344,6 +348,12 @@ export default function Tablizer({
             }
             // Update progress to show full completion
             setProcessingProgress({ current: response.results.length, total: totalForProgress });
+            // Track successful completion
+            trackEvent('tablizer_add_column_complete', {
+                column_name: columnName,
+                output_type: outputType,
+                article_count: response.results.length
+            });
         } catch (err) {
             console.error('Error processing AI column:', err);
             // Mark all as error
@@ -378,6 +388,10 @@ export default function Tablizer({
         a.download = `${title.toLowerCase().replace(/\s+/g, '_')}_export.csv`;
         a.click();
         URL.revokeObjectURL(url);
+        trackEvent('tablizer_export', {
+            row_count: filteredData.length,
+            column_count: visibleColumns.length
+        });
     }, [filteredData, visibleColumns, title]);
 
     const containerClass = isFullScreen
@@ -427,7 +441,10 @@ export default function Tablizer({
                                             {col.label}
                                         </span>
                                         <button
-                                            onClick={() => setBooleanFilters(prev => ({ ...prev, [col.id]: 'all' }))}
+                                            onClick={() => {
+                                                setBooleanFilters(prev => ({ ...prev, [col.id]: 'all' }));
+                                                trackEvent('tablizer_filter_boolean', { column: col.label, value: 'all' });
+                                            }}
                                             className={`px-2 py-1 text-xs transition-colors ${
                                                 currentFilter === 'all'
                                                     ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
@@ -437,7 +454,10 @@ export default function Tablizer({
                                             All
                                         </button>
                                         <button
-                                            onClick={() => setBooleanFilters(prev => ({ ...prev, [col.id]: 'yes' }))}
+                                            onClick={() => {
+                                                setBooleanFilters(prev => ({ ...prev, [col.id]: 'yes' }));
+                                                trackEvent('tablizer_filter_boolean', { column: col.label, value: 'yes' });
+                                            }}
                                             className={`px-2 py-1 text-xs flex items-center gap-1 transition-colors ${
                                                 currentFilter === 'yes'
                                                     ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
@@ -448,7 +468,10 @@ export default function Tablizer({
                                             Yes
                                         </button>
                                         <button
-                                            onClick={() => setBooleanFilters(prev => ({ ...prev, [col.id]: 'no' }))}
+                                            onClick={() => {
+                                                setBooleanFilters(prev => ({ ...prev, [col.id]: 'no' }));
+                                                trackEvent('tablizer_filter_boolean', { column: col.label, value: 'no' });
+                                            }}
                                             className={`px-2 py-1 text-xs flex items-center gap-1 transition-colors ${
                                                 currentFilter === 'no'
                                                     ? 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
@@ -481,7 +504,10 @@ export default function Tablizer({
 
                     {/* Add AI Column */}
                     <button
-                        onClick={() => setShowAddColumnModal(true)}
+                        onClick={() => {
+                            setShowAddColumnModal(true);
+                            trackEvent('tablizer_add_column_start', {});
+                        }}
                         disabled={!!processingColumn}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
@@ -600,6 +626,7 @@ export default function Tablizer({
                                     });
                                     if (articleIndex !== -1) {
                                         setSelectedArticleIndex(articleIndex);
+                                        trackEvent('tablizer_article_click', { pmid: row.pmid as string || row.id });
                                     }
                                 }}
                             >

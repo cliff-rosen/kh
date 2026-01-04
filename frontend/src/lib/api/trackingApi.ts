@@ -60,4 +60,21 @@ export const EventTypes = {
     CHAT_OPEN: 'chat_open',          // { page: 'reports' }
     CHAT_CLOSE: 'chat_close',        // { page: 'reports' }
     CHAT_MESSAGE: 'chat_message',    // { page: 'reports' }
+
+    // Tablizer events
+    TABLIZER_SEARCH: 'tablizer_search',                    // { query: '...', has_date_filter: true, result_count: 50 }
+    TABLIZER_CLEAR: 'tablizer_clear',                      // { had_results: true, snapshot_count: 3 }
+    TABLIZER_DATE_PRESET: 'tablizer_date_preset',          // { preset: 'last_week' | 'last_month' }
+    TABLIZER_SNAPSHOT_VIEW: 'tablizer_snapshot_view',      // { snapshot_type: 'search' | 'filter' | 'compare' }
+    TABLIZER_COMPARE_START: 'tablizer_compare_start',      // {}
+    TABLIZER_COMPARE_COMPLETE: 'tablizer_compare_complete', // { only_a: 10, both: 5, only_b: 8 }
+    TABLIZER_COPY_QUERY: 'tablizer_copy_query',            // {}
+    TABLIZER_ADD_COLUMN_START: 'tablizer_add_column_start', // {}
+    TABLIZER_ADD_COLUMN_COMPLETE: 'tablizer_add_column_complete', // { column_name: '...', output_type: 'boolean', article_count: 50 }
+    TABLIZER_FILTER_BOOLEAN: 'tablizer_filter_boolean',    // { column: '...', value: 'yes' | 'no' | 'all' }
+    TABLIZER_FILTER_TEXT: 'tablizer_filter_text',          // { has_text: true }
+    TABLIZER_SAVE_TO_HISTORY: 'tablizer_save_to_history',  // { filtered_count: 20 }
+    TABLIZER_EXPORT: 'tablizer_export',                    // { row_count: 50, column_count: 6 }
+    TABLIZER_ARTICLE_CLICK: 'tablizer_article_click',      // { pmid: '12345' }
+    TABLIZER_HELP_OPEN: 'tablizer_help_open',              // {}
 } as const;

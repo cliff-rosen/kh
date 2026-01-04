@@ -17,6 +17,7 @@ import {
 import { Tablizer } from './Tablizer';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
 import { toolsApi } from '../../lib/api/toolsApi';
+import { trackEvent } from '../../lib/api/trackingApi';
 
 const INITIAL_FETCH_LIMIT = 20;  // Initial articles to fetch (fast)
 const AI_FETCH_LIMIT = 500;      // Max articles to fetch for AI processing
@@ -206,6 +207,12 @@ export default function TablizePubMed() {
             }
             // Auto-save to history
             addSearchSnapshot(response.articles, response.total_results);
+            // Track search
+            trackEvent('tablizer_search', {
+                query_length: query.length,
+                has_date_filter: !!(startDate || endDate),
+                result_count: response.total_results
+            });
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Search failed');
         } finally {
@@ -239,6 +246,11 @@ export default function TablizePubMed() {
 
     // Handle clear all
     const handleClearAll = () => {
+        // Track before clearing
+        trackEvent('tablizer_clear', {
+            had_results: allArticles.length > 0,
+            snapshot_count: snapshots.length
+        });
         // Clear search form
         setQuery('');
         setStartDate('');
@@ -263,7 +275,14 @@ export default function TablizePubMed() {
         if (compareMode) {
             handleSelectForCompare(id);
         } else {
-            setSelectedSnapshotId(id === selectedSnapshotId ? null : id);
+            const isSelecting = id !== selectedSnapshotId;
+            setSelectedSnapshotId(isSelecting ? id : null);
+            if (isSelecting) {
+                const snapshot = snapshots.find(s => s.id === id);
+                trackEvent('tablizer_snapshot_view', {
+                    snapshot_type: snapshot?.source.type || 'unknown'
+                });
+            }
         }
     };
 
@@ -302,6 +321,7 @@ export default function TablizePubMed() {
             setCompareMode(true);
             // Start with nothing selected - user picks
             setCompareSnapshots(null);
+            trackEvent('tablizer_compare_start', {});
         }
     };
 
@@ -381,7 +401,10 @@ export default function TablizePubMed() {
                             Search PubMed
                         </h3>
                         <button
-                            onClick={() => setShowHelp(true)}
+                            onClick={() => {
+                                setShowHelp(true);
+                                trackEvent('tablizer_help_open', {});
+                            }}
                             className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors"
                         >
                             <QuestionMarkCircleIcon className="h-5 w-5" />
@@ -460,6 +483,7 @@ export default function TablizePubMed() {
                                         weekAgo.setDate(today.getDate() - 7);
                                         setStartDate(weekAgo.toISOString().split('T')[0]);
                                         setEndDate(today.toISOString().split('T')[0]);
+                                        trackEvent('tablizer_date_preset', { preset: 'last_week' });
                                     }}
                                     className="px-2 py-1 text-xs text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
                                 >
@@ -473,6 +497,7 @@ export default function TablizePubMed() {
                                         monthAgo.setMonth(today.getMonth() - 1);
                                         setStartDate(monthAgo.toISOString().split('T')[0]);
                                         setEndDate(today.toISOString().split('T')[0]);
+                                        trackEvent('tablizer_date_preset', { preset: 'last_month' });
                                     }}
                                     className="px-2 py-1 text-xs text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
                                 >
@@ -598,6 +623,7 @@ export default function TablizePubMed() {
                                                         document.execCommand('copy');
                                                         document.body.removeChild(textArea);
                                                     }
+                                                    trackEvent('tablizer_copy_query', {});
                                                 }}
                                                 className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                                             >
