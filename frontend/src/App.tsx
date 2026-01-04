@@ -15,6 +15,7 @@ import { setStreamSessionExpiredHandler } from './lib/api/streamUtils';
 // components
 import TopBar from './components/layout/TopBar';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import TablizerRoutes from './components/tablizer/TablizerRoutes';
 
 // pages
 import LoginPage from './pages/LoginPage';
@@ -107,9 +108,22 @@ function App() {
         v7_relativeSplatPath: true
       }}
     >
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <Routes>
+        {/* Tablizer standalone app - has its own auth context */}
+        <Route path="/tablizer/*" element={
+          <ThemeProvider>
+            <TablizerRoutes />
+            <Toaster />
+          </ThemeProvider>
+        } />
+
+        {/* Main Knowledge Horizon app */}
+        <Route path="/*" element={
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
+        } />
+      </Routes>
     </BrowserRouter>
   );
 }

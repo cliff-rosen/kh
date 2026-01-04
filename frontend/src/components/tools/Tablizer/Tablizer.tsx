@@ -46,7 +46,7 @@ interface TableRow {
 
 type BooleanFilterState = 'all' | 'yes' | 'no';
 
-export interface TablizierProps {
+export interface TablizerProps {
     articles: TablizableArticle[];
     filterArticles?: TablizableArticle[];  // Optional larger set for AI column processing
     title?: string;
@@ -86,7 +86,7 @@ export default function Tablizer({
     isFullScreen = false,
     onSaveToHistory,
     onFetchMoreForAI
-}: TablizierProps) {
+}: TablizerProps) {
     // Use filterArticles for AI processing if provided, otherwise use display articles
     const articlesForAiProcessing = filterArticles || articles;
     // Convert articles to row format with string id

@@ -21,7 +21,12 @@ export const api = axios.create({
 let isRedirectingToLogin = false;
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('authToken');
+  // Use tablizer token when on /tablizer/* paths, otherwise use main app token
+  const isTablizer = window.location.pathname.startsWith('/tablizer');
+  const token = isTablizer
+    ? localStorage.getItem('tablizer_token')
+    : localStorage.getItem('authToken');
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -37,19 +42,26 @@ api.interceptors.response.use(
       !error.config.url?.includes('/login') &&
       !isRedirectingToLogin) {
 
-      // Clear auth data
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('user');
+      const isTablizer = window.location.pathname.startsWith('/tablizer');
+
+      // Clear appropriate auth data
+      if (isTablizer) {
+        localStorage.removeItem('tablizer_token');
+        localStorage.removeItem('tablizer_user');
+      } else {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
+      }
 
       // Set redirecting flag
       isRedirectingToLogin = true;
 
-      // Call the session expired handler if it exists
-      if (sessionExpiredHandler) {
+      // Call the session expired handler if it exists (main app only)
+      if (!isTablizer && sessionExpiredHandler) {
         sessionExpiredHandler();
       } else {
-        // Default behavior: redirect to login
-        window.location.href = '/login';
+        // Default behavior: redirect to appropriate login
+        window.location.href = isTablizer ? '/tablizer/login' : '/login';
       }
 
       // Throw a user-friendly error
