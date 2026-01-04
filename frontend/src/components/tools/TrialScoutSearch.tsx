@@ -4,13 +4,12 @@ import {
     BeakerIcon,
     TrashIcon,
     QuestionMarkCircleIcon,
-    XMarkIcon,
-    ArrowTopRightOnSquareIcon
+    XMarkIcon
 } from '@heroicons/react/24/outline';
 import { CanonicalClinicalTrial } from '../../types/canonical_types';
 import { toolsApi } from '../../lib/api/toolsApi';
 import { trackEvent } from '../../lib/api/trackingApi';
-import { TrialsTablizer } from './TrialsTablizer';
+import { TrialScoutTable } from './TrialScoutTable';
 
 // Status options for filter
 const STATUS_OPTIONS = [
@@ -40,7 +39,7 @@ const STUDY_TYPE_OPTIONS = [
     { value: 'OBSERVATIONAL', label: 'Observational' },
 ];
 
-export default function TablizeTrials() {
+export default function TrialScoutSearch() {
     // Search form state
     const [condition, setCondition] = useState('');
     const [intervention, setIntervention] = useState('');
@@ -58,7 +57,6 @@ export default function TablizeTrials() {
     const [hasSearched, setHasSearched] = useState(false);
 
     // UI state
-    const [selectedTrial, setSelectedTrial] = useState<CanonicalClinicalTrial | null>(null);
     const [showHelp, setShowHelp] = useState(false);
 
     // Handle search
@@ -113,7 +111,6 @@ export default function TablizeTrials() {
         setTotalResults(0);
         setHasSearched(false);
         setError(null);
-        setSelectedTrial(null);
     };
 
     // Toggle multi-select options
@@ -326,10 +323,7 @@ export default function TablizeTrials() {
 
                     {/* Results table with AI columns */}
                     {trials.length > 0 ? (
-                        <TrialsTablizer
-                            trials={trials}
-                            onTrialClick={setSelectedTrial}
-                        />
+                        <TrialScoutTable trials={trials} />
                     ) : (
                         <div className="p-8 text-center text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                             No trials found matching your search criteria.
@@ -345,14 +339,6 @@ export default function TablizeTrials() {
                     <p>Search ClinicalTrials.gov to explore clinical trials.</p>
                     <p className="text-sm mt-1">Filter by condition, intervention, sponsor, phase, and status.</p>
                 </div>
-            )}
-
-            {/* Trial Detail Modal */}
-            {selectedTrial && (
-                <TrialDetailModal
-                    trial={selectedTrial}
-                    onClose={() => setSelectedTrial(null)}
-                />
             )}
 
             {/* Help Modal */}
@@ -408,155 +394,6 @@ export default function TablizeTrials() {
                     </div>
                 </div>
             )}
-        </div>
-    );
-}
-
-// Trial Detail Modal Component
-function TrialDetailModal({ trial, onClose }: { trial: CanonicalClinicalTrial; onClose: () => void }) {
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-            <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
-                {/* Header */}
-                <div className="flex items-start justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                    <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <a
-                                href={trial.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1 text-sm"
-                            >
-                                {trial.nct_id}
-                                <ArrowTopRightOnSquareIcon className="h-3 w-3" />
-                            </a>
-                            <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                                trial.status === 'RECRUITING' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                                trial.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
-                                'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                            }`}>
-                                {trial.status.split('_').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ')}
-                            </span>
-                        </div>
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                            {trial.brief_title || trial.title}
-                        </h2>
-                    </div>
-                    <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
-                        <XMarkIcon className="h-5 w-5" />
-                    </button>
-                </div>
-
-                {/* Content */}
-                <div className="p-4 overflow-y-auto space-y-4">
-                    {/* Key Info Grid */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Phase</div>
-                            <div className="font-medium text-gray-900 dark:text-white">
-                                {trial.phase?.replace('PHASE', 'Phase ').replace('NA', 'N/A') || 'N/A'}
-                            </div>
-                        </div>
-                        <div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Study Type</div>
-                            <div className="font-medium text-gray-900 dark:text-white capitalize">
-                                {trial.study_type?.toLowerCase() || 'N/A'}
-                            </div>
-                        </div>
-                        <div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Enrollment</div>
-                            <div className="font-medium text-gray-900 dark:text-white">
-                                {trial.enrollment_count?.toLocaleString() || 'N/A'} {trial.enrollment_type && `(${trial.enrollment_type.toLowerCase()})`}
-                            </div>
-                        </div>
-                        <div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">Start Date</div>
-                            <div className="font-medium text-gray-900 dark:text-white">
-                                {trial.start_date || 'N/A'}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Sponsor */}
-                    {trial.lead_sponsor && (
-                        <div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">Lead Sponsor</div>
-                            <div className="text-gray-900 dark:text-white">
-                                {trial.lead_sponsor.name}
-                                {trial.lead_sponsor.type && <span className="text-gray-500 ml-1">({trial.lead_sponsor.type})</span>}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Conditions */}
-                    {trial.conditions.length > 0 && (
-                        <div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">Conditions</div>
-                            <div className="flex flex-wrap gap-1">
-                                {trial.conditions.map((c, i) => (
-                                    <span key={i} className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-sm">
-                                        {c}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Interventions */}
-                    {trial.interventions.length > 0 && (
-                        <div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">Interventions</div>
-                            <div className="space-y-1">
-                                {trial.interventions.map((interv, i) => (
-                                    <div key={i} className="text-sm">
-                                        <span className="font-medium text-gray-900 dark:text-white">{interv.name}</span>
-                                        <span className="text-gray-500 dark:text-gray-400 ml-1">({interv.type})</span>
-                                        {interv.description && (
-                                            <p className="text-gray-600 dark:text-gray-400 text-xs mt-0.5">{interv.description}</p>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Primary Outcomes */}
-                    {trial.primary_outcomes.length > 0 && (
-                        <div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">Primary Outcomes</div>
-                            <ul className="list-disc list-inside space-y-1">
-                                {trial.primary_outcomes.map((outcome, i) => (
-                                    <li key={i} className="text-sm text-gray-700 dark:text-gray-300">
-                                        {outcome.measure}
-                                        {outcome.time_frame && <span className="text-gray-500 ml-1">({outcome.time_frame})</span>}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-
-                    {/* Brief Summary */}
-                    {trial.brief_summary && (
-                        <div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">Summary</div>
-                            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                                {trial.brief_summary}
-                            </p>
-                        </div>
-                    )}
-
-                    {/* Locations */}
-                    {trial.location_countries.length > 0 && (
-                        <div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">Countries</div>
-                            <div className="text-sm text-gray-700 dark:text-gray-300">
-                                {trial.location_countries.join(', ')}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
         </div>
     );
 }

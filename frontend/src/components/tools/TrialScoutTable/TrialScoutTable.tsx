@@ -13,6 +13,7 @@ import {
     AdjustmentsHorizontalIcon
 } from '@heroicons/react/24/outline';
 import AddColumnModal from '../Tablizer/AddColumnModal';
+import TrialViewerModal from './TrialViewerModal';
 import { toolsApi } from '../../../lib/api/toolsApi';
 import { CanonicalClinicalTrial } from '../../../types/canonical_types';
 import { trackEvent } from '../../../lib/api/trackingApi';
@@ -38,10 +39,8 @@ interface TableRow {
 
 type BooleanFilterState = 'all' | 'yes' | 'no';
 
-export interface TrialsTablizerProps {
+export interface TrialScoutTableProps {
     trials: CanonicalClinicalTrial[];
-    title?: string;
-    onTrialClick?: (trial: CanonicalClinicalTrial) => void;
 }
 
 type SortDirection = 'asc' | 'desc' | null;
@@ -51,40 +50,112 @@ interface SortConfig {
     direction: SortDirection;
 }
 
-// Standard columns for trials
+// Standard columns for trials - all fields from CanonicalClinicalTrial
+// Most are hidden by default, users can enable them via Columns dropdown
 const BASE_COLUMNS: TableColumn[] = [
+    // Core identification - visible by default
     { id: 'nct_id', label: 'NCT ID', accessor: 'nct_id', type: 'text', visible: true },
     { id: 'title', label: 'Title', accessor: 'title', type: 'text', visible: true },
     { id: 'status', label: 'Status', accessor: 'status', type: 'text', visible: true },
     { id: 'phase', label: 'Phase', accessor: 'phase', type: 'text', visible: true },
-    { id: 'sponsor', label: 'Sponsor', accessor: 'sponsor', type: 'text', visible: true },
-    { id: 'conditions', label: 'Conditions', accessor: 'conditions', type: 'text', visible: false },
-    { id: 'interventions', label: 'Interventions', accessor: 'interventions', type: 'text', visible: false },
+    { id: 'sponsor', label: 'Lead Sponsor', accessor: 'sponsor', type: 'text', visible: true },
     { id: 'enrollment', label: 'Enrollment', accessor: 'enrollment', type: 'number', visible: true },
     { id: 'start_date', label: 'Start Date', accessor: 'start_date', type: 'date', visible: true },
+
+    // Study info - hidden by default
+    { id: 'org_study_id', label: 'Org Study ID', accessor: 'org_study_id', type: 'text', visible: false },
+    { id: 'study_type', label: 'Study Type', accessor: 'study_type', type: 'text', visible: false },
+    { id: 'completion_date', label: 'Completion Date', accessor: 'completion_date', type: 'date', visible: false },
+    { id: 'last_update_date', label: 'Last Updated', accessor: 'last_update_date', type: 'date', visible: false },
+    { id: 'enrollment_type', label: 'Enrollment Type', accessor: 'enrollment_type', type: 'text', visible: false },
+
+    // Study design
+    { id: 'allocation', label: 'Allocation', accessor: 'allocation', type: 'text', visible: false },
+    { id: 'intervention_model', label: 'Intervention Model', accessor: 'intervention_model', type: 'text', visible: false },
+    { id: 'masking', label: 'Masking', accessor: 'masking', type: 'text', visible: false },
+    { id: 'primary_purpose', label: 'Primary Purpose', accessor: 'primary_purpose', type: 'text', visible: false },
+
+    // Conditions & interventions
+    { id: 'conditions', label: 'Conditions', accessor: 'conditions', type: 'text', visible: false },
+    { id: 'interventions', label: 'Interventions', accessor: 'interventions', type: 'text', visible: false },
+    { id: 'primary_outcomes', label: 'Primary Outcomes', accessor: 'primary_outcomes', type: 'text', visible: false },
+    { id: 'secondary_outcomes', label: 'Secondary Outcomes', accessor: 'secondary_outcomes', type: 'text', visible: false },
+
+    // Eligibility
+    { id: 'sex', label: 'Sex', accessor: 'sex', type: 'text', visible: false },
+    { id: 'min_age', label: 'Min Age', accessor: 'min_age', type: 'text', visible: false },
+    { id: 'max_age', label: 'Max Age', accessor: 'max_age', type: 'text', visible: false },
+    { id: 'healthy_volunteers', label: 'Healthy Volunteers', accessor: 'healthy_volunteers', type: 'text', visible: false },
+
+    // Sponsors
+    { id: 'sponsor_type', label: 'Sponsor Type', accessor: 'sponsor_type', type: 'text', visible: false },
+    { id: 'collaborators', label: 'Collaborators', accessor: 'collaborators', type: 'text', visible: false },
+
+    // Locations
+    { id: 'location_countries', label: 'Countries', accessor: 'location_countries', type: 'text', visible: false },
+    { id: 'location_count', label: 'Site Count', accessor: 'location_count', type: 'number', visible: false },
+
+    // Text content
     { id: 'brief_summary', label: 'Summary', accessor: 'brief_summary', type: 'text', visible: false },
+    { id: 'keywords', label: 'Keywords', accessor: 'keywords', type: 'text', visible: false },
 ];
 
-export default function TrialsTablizer({
-    trials,
-    title: _title = 'Clinical Trials',
-    onTrialClick
-}: TrialsTablizerProps) {
-    // _title is reserved for potential future use in exports/headers
-    // Convert trials to row format
+export default function TrialScoutTable({
+    trials
+}: TrialScoutTableProps) {
+    // Convert trials to row format with all available fields
     const initialRows = useMemo((): TableRow[] =>
         trials.map((trial) => ({
             id: trial.nct_id,
+            // Core identification
             nct_id: trial.nct_id,
+            org_study_id: trial.org_study_id || '',
             title: trial.brief_title || trial.title,
+
+            // Status & dates
             status: trial.status,
-            phase: trial.phase || 'N/A',
-            sponsor: trial.lead_sponsor?.name || 'Unknown',
-            conditions: trial.conditions.join(', '),
-            interventions: trial.interventions.map(i => i.name).join(', '),
-            enrollment: trial.enrollment_count || 0,
             start_date: trial.start_date || '',
+            completion_date: trial.completion_date || '',
+            last_update_date: trial.last_update_date || '',
+
+            // Study design
+            study_type: trial.study_type || '',
+            phase: trial.phase || 'N/A',
+            allocation: trial.allocation || '',
+            intervention_model: trial.intervention_model || '',
+            masking: trial.masking || '',
+            primary_purpose: trial.primary_purpose || '',
+
+            // Enrollment
+            enrollment: trial.enrollment_count || 0,
+            enrollment_type: trial.enrollment_type || '',
+
+            // Conditions & interventions
+            conditions: trial.conditions.join(', '),
+            interventions: trial.interventions.map(i => `${i.name} (${i.type})`).join('; '),
+            primary_outcomes: trial.primary_outcomes.map(o => o.measure).join('; '),
+            secondary_outcomes: trial.secondary_outcomes?.map(o => o.measure).join('; ') || '',
+
+            // Eligibility
+            sex: trial.sex || '',
+            min_age: trial.min_age || '',
+            max_age: trial.max_age || '',
+            healthy_volunteers: trial.healthy_volunteers ? 'Yes' : trial.healthy_volunteers === false ? 'No' : '',
+
+            // Sponsors
+            sponsor: trial.lead_sponsor?.name || 'Unknown',
+            sponsor_type: trial.lead_sponsor?.type || '',
+            collaborators: trial.collaborators?.map(c => c.name).join(', ') || '',
+
+            // Locations
+            location_countries: trial.location_countries.join(', '),
+            location_count: trial.locations.length,
+
+            // Text content
             brief_summary: trial.brief_summary || '',
+            keywords: trial.keywords.join(', '),
+
+            // Link
             url: trial.url
         })),
         [trials]
@@ -101,6 +172,9 @@ export default function TrialsTablizer({
     const [processingColumn, setProcessingColumn] = useState<string | null>(null);
     const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0 });
     const [booleanFilters, setBooleanFilters] = useState<Record<string, BooleanFilterState>>({});
+
+    // Modal state
+    const [selectedTrialIndex, setSelectedTrialIndex] = useState<number | null>(null);
 
     // Reset state when trials change
     useEffect(() => {
@@ -511,9 +585,10 @@ export default function TrialsTablizer({
                                 key={row.id || rowIdx}
                                 className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer"
                                 onClick={() => {
-                                    const trial = trials.find(t => t.nct_id === row.id);
-                                    if (trial && onTrialClick) {
-                                        onTrialClick(trial);
+                                    const trialIndex = trials.findIndex(t => t.nct_id === row.id);
+                                    if (trialIndex >= 0) {
+                                        setSelectedTrialIndex(trialIndex);
+                                        trackEvent('trialscout_view_trial', { nct_id: row.id });
                                     }
                                 }}
                             >
@@ -598,6 +673,15 @@ export default function TrialsTablizer({
                     }))}
                     onAdd={handleAddColumn}
                     onClose={() => setShowAddColumnModal(false)}
+                />
+            )}
+
+            {/* Trial Viewer Modal */}
+            {selectedTrialIndex !== null && (
+                <TrialViewerModal
+                    trials={trials}
+                    initialIndex={selectedTrialIndex}
+                    onClose={() => setSelectedTrialIndex(null)}
                 />
             )}
         </div>

@@ -25,7 +25,8 @@
       "Bash(powershell -Command:*)",
       "WebSearch",
       "WebFetch(domain:clinicaltrials.gov)",
-      "WebFetch(domain:biomcp.org)"
+      "WebFetch(domain:biomcp.org)",
+      "Bash(copy \"C:\\\\code\\\\kh\\\\frontend\\\\src\\\\components\\\\tools\\\\TrialsTablizer\\\\TrialViewerModal.tsx\" \"C:\\\\code\\\\kh\\\\frontend\\\\src\\\\components\\\\tools\\\\TrialScoutTable\\\\TrialViewerModal.tsx\")"
     ],
     "deny": [],
     "ask": [],

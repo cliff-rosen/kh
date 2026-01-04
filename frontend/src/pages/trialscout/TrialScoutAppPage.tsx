@@ -4,7 +4,7 @@ import {
     ArrowRightOnRectangleIcon
 } from '@heroicons/react/24/outline';
 import { useTrialScoutAuth } from '../../context/TrialScoutAuthContext';
-import TablizeTrials from '../../components/tools/TablizeTrials';
+import TrialScoutSearch from '../../components/tools/TrialScoutSearch';
 
 export default function TrialScoutAppPage() {
     const { user, logout } = useTrialScoutAuth();
@@ -42,7 +42,7 @@ export default function TrialScoutAppPage() {
 
             {/* Main content */}
             <main className="flex-1 container mx-auto px-4 py-6">
-                <TablizeTrials />
+                <TrialScoutSearch />
             </main>
 
             {/* Footer */}
