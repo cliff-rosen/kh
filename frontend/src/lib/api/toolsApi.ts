@@ -180,6 +180,14 @@ export const toolsApi = {
     async getTrialDetail(nctId: string): Promise<CanonicalClinicalTrial> {
         const response = await api.post('/api/tools/trials/detail', { nct_id: nctId });
         return response.data;
+    },
+
+    /**
+     * Filter trials using AI semantic evaluation
+     */
+    async filterTrials(request: TrialFilterRequest): Promise<TrialFilterResponse> {
+        const response = await api.post('/api/tools/trials/filter', request);
+        return response.data;
     }
 };
 
@@ -204,4 +212,24 @@ export interface TrialSearchResponse {
     trials: CanonicalClinicalTrial[];
     total_results: number;
     returned_count: number;
+}
+
+export interface TrialFilterRequest {
+    trials: CanonicalClinicalTrial[];
+    filter_criteria: string;
+    threshold?: number;
+}
+
+export interface TrialFilterResult {
+    nct_id: string;
+    passed: boolean;
+    score: number;
+    reasoning: string;
+}
+
+export interface TrialFilterResponse {
+    results: TrialFilterResult[];
+    count: number;
+    passed: number;
+    failed: number;
 }

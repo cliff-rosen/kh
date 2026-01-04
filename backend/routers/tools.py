@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from database import get_db
 from models import User
 from routers.auth import get_current_user
-from schemas.canonical_types import CanonicalResearchArticle
+from schemas.canonical_types import CanonicalResearchArticle, CanonicalClinicalTrial
 
 logger = logging.getLogger(__name__)
 
@@ -445,4 +445,111 @@ async def get_trial_detail(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get trial details: {str(e)}"
+        )
+
+
+# ============================================================================
+# Clinical Trials Filter (AI Column Support)
+# ============================================================================
+
+class TrialFilterRequest(BaseModel):
+    """Request to filter clinical trials using AI"""
+    trials: List[CanonicalClinicalTrial] = Field(..., description="Trials to filter")
+    filter_criteria: str = Field(..., description="Natural language filter criteria")
+    threshold: float = Field(0.5, ge=0.0, le=1.0, description="Minimum score to pass")
+
+
+class TrialFilterResult(BaseModel):
+    """Result for a single trial filter evaluation"""
+    nct_id: str
+    passed: bool
+    score: float
+    reasoning: str
+
+
+class TrialFilterResponse(BaseModel):
+    """Response from trial filter"""
+    results: List[TrialFilterResult]
+    count: int
+    passed: int
+    failed: int
+
+
+@router.post("/trials/filter", response_model=TrialFilterResponse)
+async def filter_clinical_trials(
+    request: TrialFilterRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Apply semantic AI filtering to clinical trials.
+
+    Used by TrialScout to power AI columns that analyze trial data
+    based on natural language criteria.
+    """
+    from services.semantic_filter_service import SemanticFilterService
+
+    try:
+        filter_service = SemanticFilterService()
+
+        # Adapt trials to have the attributes the filter service expects
+        # The filter service looks for 'title' and 'abstract' attributes
+        class TrialAdapter:
+            def __init__(self, trial: CanonicalClinicalTrial):
+                self.trial = trial
+                self.title = trial.title or trial.brief_title or ""
+                # Combine relevant trial info into "abstract" for evaluation
+                abstract_parts = []
+                if trial.brief_summary:
+                    abstract_parts.append(trial.brief_summary)
+                if trial.conditions:
+                    abstract_parts.append(f"Conditions: {', '.join(trial.conditions)}")
+                if trial.interventions:
+                    interv_names = [i.name for i in trial.interventions]
+                    abstract_parts.append(f"Interventions: {', '.join(interv_names)}")
+                if trial.phase:
+                    abstract_parts.append(f"Phase: {trial.phase}")
+                if trial.status:
+                    abstract_parts.append(f"Status: {trial.status}")
+                if trial.primary_outcomes:
+                    outcomes = [o.measure for o in trial.primary_outcomes[:3]]
+                    abstract_parts.append(f"Primary Outcomes: {', '.join(outcomes)}")
+                self.abstract = "\n".join(abstract_parts)
+                self.journal = trial.lead_sponsor.name if trial.lead_sponsor else None
+                self.year = trial.start_date[:4] if trial.start_date else None
+
+        adapted_trials = [TrialAdapter(t) for t in request.trials]
+
+        # Use the semantic filter service
+        batch_results = await filter_service.evaluate_articles_batch(
+            articles=adapted_trials,
+            filter_criteria=request.filter_criteria,
+            threshold=request.threshold,
+            max_concurrent=50
+        )
+
+        # Convert results
+        results = []
+        for adapter, is_relevant, score, reasoning in batch_results:
+            results.append(TrialFilterResult(
+                nct_id=adapter.trial.nct_id,
+                passed=is_relevant,
+                score=score,
+                reasoning=reasoning
+            ))
+
+        passed_count = sum(1 for r in results if r.passed)
+
+        return TrialFilterResponse(
+            results=results,
+            count=len(results),
+            passed=passed_count,
+            failed=len(results) - passed_count
+        )
+
+    except Exception as e:
+        logger.error(f"Trial filter failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Trial filter failed: {str(e)}"
         )
