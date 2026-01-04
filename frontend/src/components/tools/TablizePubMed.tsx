@@ -83,7 +83,7 @@ export default function TablizePubMed() {
     const [helpTab, setHelpTab] = useState<'basics' | 'use-cases'>('basics');
 
     // Add search snapshot to history
-    const addSearchSnapshot = useCallback((articles: CanonicalResearchArticle[], total: number) => {
+    const addSearchSnapshot = useCallback((articles: CanonicalResearchArticle[], total: number, pmids: string[]) => {
         const newSnapshot: SearchSnapshot = {
             id: `snapshot_${Date.now()}`,
             timestamp: new Date(),
@@ -95,7 +95,7 @@ export default function TablizePubMed() {
                 dateType: dateType
             },
             articles: articles,
-            allPmids: articles.map(a => a.pmid || a.id || '').filter(Boolean),
+            allPmids: pmids,  // Use full list of PMIDs from search (up to 500)
             totalMatched: total
         };
         setSnapshots(prev => [newSnapshot, ...prev]);
@@ -171,7 +171,7 @@ export default function TablizePubMed() {
         );
     }, [selectedSnapshotId, allArticles, snapshots, addDerivedSnapshot, getSnapshot]);
 
-    // Handle search - fetch only initial set for speed
+    // Handle search - uses optimized endpoint that returns PMIDs + first N articles
     const handleSearch = async () => {
         if (!query.trim()) {
             setError('Please enter a search query');
@@ -195,9 +195,13 @@ export default function TablizePubMed() {
         setLastSearchParams(searchParams);
 
         try {
-            const response = await toolsApi.searchPubMed({
+            // Use optimized search that returns:
+            // - all_pmids: up to 500 PMIDs for comparison
+            // - articles: first 20 with full data for display
+            const response = await toolsApi.optimizedSearch({
                 ...searchParams,
-                maxResults: INITIAL_FETCH_LIMIT
+                maxPmids: 500,
+                articlesToFetch: INITIAL_FETCH_LIMIT
             });
             setAllArticles(response.articles);
             setTotalMatched(response.total_results);
@@ -206,13 +210,14 @@ export default function TablizePubMed() {
             if (response.articles.length >= response.total_results || response.articles.length >= AI_FETCH_LIMIT) {
                 setHasFetchedFullSet(true);
             }
-            // Auto-save to history
-            addSearchSnapshot(response.articles, response.total_results);
+            // Auto-save to history with full PMID list for comparison
+            addSearchSnapshot(response.articles, response.total_results, response.all_pmids);
             // Track search
             trackEvent('tablizer_search', {
                 query_length: query.length,
                 has_date_filter: !!(startDate || endDate),
-                result_count: response.total_results
+                result_count: response.total_results,
+                pmids_retrieved: response.pmids_retrieved
             });
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Search failed');
@@ -230,9 +235,10 @@ export default function TablizePubMed() {
 
         setFetchingMore(true);
         try {
-            const response = await toolsApi.searchPubMed({
+            const response = await toolsApi.optimizedSearch({
                 ...lastSearchParams,
-                maxResults: AI_FETCH_LIMIT
+                maxPmids: 500,
+                articlesToFetch: AI_FETCH_LIMIT
             });
             setAllArticles(response.articles);
             setHasFetchedFullSet(true);
@@ -1162,7 +1168,7 @@ function SearchHistoryPanel({
 
                                 {/* Stats */}
                                 <div className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
-                                    {snapshot.articles.length} fetched / {snapshot.totalMatched.toLocaleString()} total
+                                    {snapshot.allPmids.length} for compare / {snapshot.totalMatched.toLocaleString()} total
                                 </div>
                             </div>
                         );

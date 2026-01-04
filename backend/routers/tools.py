@@ -40,6 +40,26 @@ class PubMedQueryTestResponse(BaseModel):
     returned_count: int = Field(..., description="Number of articles returned in this response")
 
 
+class PubMedSearchRequest(BaseModel):
+    """Request for optimized PubMed search (returns PMIDs + first N articles)"""
+    query_expression: str = Field(..., description="PubMed query expression")
+    max_pmids: int = Field(500, ge=1, le=1000, description="Maximum PMIDs to retrieve for comparison")
+    articles_to_fetch: int = Field(20, ge=1, le=100, description="Number of articles to fetch with full data")
+    start_date: Optional[str] = Field(None, description="Start date for filtering (YYYY/MM/DD)")
+    end_date: Optional[str] = Field(None, description="End date for filtering (YYYY/MM/DD)")
+    date_type: Optional[str] = Field('publication', description="Date type for filtering")
+    sort_by: Optional[str] = Field('relevance', description="Sort order (relevance, date)")
+
+
+class PubMedSearchResponse(BaseModel):
+    """Response with PMIDs for comparison + articles for display"""
+    all_pmids: List[str] = Field(..., description="All PMIDs matching query (up to max_pmids)")
+    articles: List[CanonicalResearchArticle] = Field(..., description="Full article data for first N")
+    total_results: int = Field(..., description="Total number of results matching the query")
+    pmids_retrieved: int = Field(..., description="Number of PMIDs retrieved")
+    articles_retrieved: int = Field(..., description="Number of articles with full data")
+
+
 class PubMedIdCheckRequest(BaseModel):
     """Request to check which PubMed IDs are captured by a query"""
     query_expression: str = Field(..., description="PubMed query expression to test")
@@ -106,6 +126,84 @@ async def test_pubmed_query(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"PubMed query test failed: {str(e)}"
+        )
+
+
+@router.post("/pubmed/search", response_model=PubMedSearchResponse)
+async def search_pubmed(
+    request: PubMedSearchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Optimized PubMed search that returns:
+    - Up to max_pmids PMIDs for comparison (fast)
+    - Full article data for first articles_to_fetch articles (for display)
+
+    This enables efficient comparison of search results while keeping
+    the initial display fast.
+    """
+    from services.pubmed_service import PubMedService
+    from schemas.canonical_types import CanonicalPubMedArticle
+    from schemas.research_article_converters import pubmed_to_research_article
+
+    try:
+        pubmed_service = PubMedService()
+
+        # Step 1: Get all PMIDs (fast - no article data)
+        all_pmids, total_count = pubmed_service.get_article_ids(
+            query=request.query_expression,
+            max_results=request.max_pmids,
+            sort_by=request.sort_by,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            date_type=request.date_type
+        )
+
+        logger.info(f"Retrieved {len(all_pmids)} PMIDs from {total_count} total results")
+
+        # Step 2: Fetch full article data for first N PMIDs
+        articles = []
+        if all_pmids:
+            pmids_to_fetch = all_pmids[:request.articles_to_fetch]
+            raw_articles = pubmed_service.get_articles_from_ids(pmids_to_fetch)
+
+            # Convert to canonical format
+            for article in raw_articles:
+                try:
+                    canonical_pubmed = CanonicalPubMedArticle(
+                        pmid=article.PMID,
+                        title=article.title or "[No title available]",
+                        abstract=article.abstract or "[No abstract available]",
+                        authors=article.authors.split(', ') if article.authors else [],
+                        journal=article.journal or "[Unknown journal]",
+                        publication_date=article.pub_date if article.pub_date else None,
+                        keywords=[],
+                        mesh_terms=[],
+                        metadata={
+                            "volume": article.volume,
+                            "issue": article.issue,
+                            "pages": article.pages,
+                        }
+                    )
+                    research_article = pubmed_to_research_article(canonical_pubmed)
+                    articles.append(research_article)
+                except Exception as e:
+                    logger.error(f"Error converting article {article.PMID}: {e}")
+
+        return PubMedSearchResponse(
+            all_pmids=all_pmids,
+            articles=articles,
+            total_results=total_count,
+            pmids_retrieved=len(all_pmids),
+            articles_retrieved=len(articles)
+        )
+
+    except Exception as e:
+        logger.error(f"PubMed search failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"PubMed search failed: {str(e)}"
         )
 
 

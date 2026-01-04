@@ -50,6 +50,28 @@ export interface PubMedSearchParams {
     maxResults?: number;
 }
 
+// ============================================================================
+// Optimized PubMed Search (returns PMIDs for comparison + articles for display)
+// ============================================================================
+
+export interface PubMedOptimizedSearchRequest {
+    query_expression: string;
+    max_pmids?: number;        // Maximum PMIDs to retrieve for comparison (default 500)
+    articles_to_fetch?: number; // Number of articles with full data (default 20)
+    start_date?: string;       // YYYY/MM/DD
+    end_date?: string;         // YYYY/MM/DD
+    date_type?: string;        // 'publication', 'entry', etc.
+    sort_by?: string;          // 'relevance', 'date'
+}
+
+export interface PubMedOptimizedSearchResponse {
+    all_pmids: string[];       // All PMIDs matching query (up to max_pmids)
+    articles: CanonicalResearchArticle[];  // Full article data for first N
+    total_results: number;     // Total number of results matching the query
+    pmids_retrieved: number;   // Number of PMIDs retrieved
+    articles_retrieved: number; // Number of articles with full data
+}
+
 export const toolsApi = {
     /**
      * Test a PubMed query and return articles with total count
@@ -83,5 +105,36 @@ export const toolsApi = {
         };
 
         return this.testPubMedQuery(request);
+    },
+
+    /**
+     * Optimized PubMed search that returns:
+     * - Up to max_pmids PMIDs for comparison (fast)
+     * - Full article data for first articles_to_fetch articles (for display)
+     */
+    async optimizedSearch(params: {
+        query: string;
+        startDate?: string;    // YYYY-MM-DD
+        endDate?: string;      // YYYY-MM-DD
+        dateType?: 'publication' | 'entry';
+        maxPmids?: number;     // Default 500
+        articlesToFetch?: number; // Default 20
+        sortBy?: 'relevance' | 'date';
+    }): Promise<PubMedOptimizedSearchResponse> {
+        // Convert YYYY-MM-DD to YYYY/MM/DD for the API
+        const formatDate = (date?: string) => date ? date.replace(/-/g, '/') : undefined;
+
+        const request: PubMedOptimizedSearchRequest = {
+            query_expression: params.query,
+            start_date: formatDate(params.startDate),
+            end_date: formatDate(params.endDate),
+            date_type: params.dateType,
+            max_pmids: params.maxPmids || 500,
+            articles_to_fetch: params.articlesToFetch || 20,
+            sort_by: params.sortBy || 'relevance'
+        };
+
+        const response = await api.post('/api/tools/pubmed/search', request);
+        return response.data;
     }
 };
