@@ -41,6 +41,7 @@ type BooleanFilterState = 'all' | 'yes' | 'no';
 
 export interface TrialScoutTableProps {
     trials: CanonicalClinicalTrial[];
+    onFetchMoreForAI?: () => Promise<CanonicalClinicalTrial[]>;  // Callback to fetch more trials before AI processing
 }
 
 type SortDirection = 'asc' | 'desc' | null;
@@ -101,7 +102,8 @@ const BASE_COLUMNS: TableColumn[] = [
 ];
 
 export default function TrialScoutTable({
-    trials
+    trials,
+    onFetchMoreForAI
 }: TrialScoutTableProps) {
     // Convert trials to row format with all available fields
     const initialRows = useMemo((): TableRow[] =>
@@ -314,14 +316,20 @@ export default function TrialScoutTable({
         setColumns(cols => [...cols, newColumn]);
         setShowAddColumnModal(false);
 
+        // Fetch more trials for AI processing if callback is provided
+        let trialsForAI = trials;
+        if (onFetchMoreForAI) {
+            trialsForAI = await onFetchMoreForAI();
+        }
+
         // Process using trial filter API
         setProcessingColumn(columnId);
-        setProcessingProgress({ current: 0, total: trials.length });
+        setProcessingProgress({ current: 0, total: trialsForAI.length });
 
         try {
-            // Call the trial filter API
+            // Call the trial filter API with expanded trial set
             const response = await toolsApi.filterTrials({
-                trials: trials,
+                trials: trialsForAI,
                 filter_criteria: promptTemplate,
                 threshold: 0.5
             });
@@ -345,14 +353,14 @@ export default function TrialScoutTable({
 
                     updatedRows[i] = { ...updatedRows[i], [columnId]: value };
                 }
-                setProcessingProgress({ current: i + 1, total: trials.length });
+                setProcessingProgress({ current: i + 1, total: trialsForAI.length });
                 setData([...updatedRows]);
             }
 
             trackEvent('trialscout_add_column_complete', {
                 column_name: columnName,
                 output_type: outputType,
-                trial_count: trials.length
+                trial_count: trialsForAI.length
             });
         } catch (err) {
             console.error('Error processing AI column:', err);
@@ -362,7 +370,7 @@ export default function TrialScoutTable({
             setProcessingColumn(null);
             setProcessingProgress({ current: 0, total: 0 });
         }
-    }, [trials, data]);
+    }, [trials, data, onFetchMoreForAI]);
 
     // Export to CSV
     const handleExport = useCallback(() => {
@@ -400,7 +408,7 @@ export default function TrialScoutTable({
     };
 
     return (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 flex flex-col">
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 flex flex-col h-full">
             {/* Toolbar */}
             <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center justify-between gap-4 flex-shrink-0">
                 {/* Left: Search, Row Count, and Quick Filters */}
@@ -537,7 +545,7 @@ export default function TrialScoutTable({
             </div>
 
             {/* Table */}
-            <div className="flex-1 overflow-auto max-h-[600px]">
+            <div className="flex-1 overflow-auto min-h-0">
                 <table className="w-full">
                     <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
                         <tr>

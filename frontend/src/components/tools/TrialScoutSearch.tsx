@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
     PlayIcon,
     BeakerIcon,
@@ -10,6 +10,10 @@ import { CanonicalClinicalTrial } from '../../types/canonical_types';
 import { toolsApi } from '../../lib/api/toolsApi';
 import { trackEvent } from '../../lib/api/trackingApi';
 import { TrialScoutTable } from './TrialScoutTable';
+
+// Fetch limits - initial search is fast, AI processing gets more
+const INITIAL_FETCH_LIMIT = 50;   // Initial trials to fetch (fast)
+const AI_FETCH_LIMIT = 500;       // Max trials to fetch for AI processing
 
 // Status options for filter
 const STATUS_OPTIONS = [
@@ -56,6 +60,19 @@ export default function TrialScoutSearch() {
     const [error, setError] = useState<string | null>(null);
     const [hasSearched, setHasSearched] = useState(false);
 
+    // AI fetch state - track if we've fetched the expanded set
+    const [hasFetchedFullSet, setHasFetchedFullSet] = useState(false);
+    const [fetchingMore, setFetchingMore] = useState(false);
+    const [lastSearchParams, setLastSearchParams] = useState<{
+        condition?: string;
+        intervention?: string;
+        sponsor?: string;
+        status?: string[];
+        phase?: string[];
+        studyType?: string;
+        location?: string;
+    } | null>(null);
+
     // UI state
     const [showHelp, setShowHelp] = useState(false);
 
@@ -69,16 +86,23 @@ export default function TrialScoutSearch() {
         setLoading(true);
         setError(null);
 
+        // Save search params for potential expanded fetch later
+        const searchParams = {
+            condition: condition || undefined,
+            intervention: intervention || undefined,
+            sponsor: sponsor || undefined,
+            status: selectedStatus.length > 0 ? selectedStatus : undefined,
+            phase: selectedPhase.length > 0 ? selectedPhase : undefined,
+            studyType: studyType || undefined,
+            location: location || undefined,
+        };
+        setLastSearchParams(searchParams);
+        setHasFetchedFullSet(false);
+
         try {
             const response = await toolsApi.searchTrials({
-                condition: condition || undefined,
-                intervention: intervention || undefined,
-                sponsor: sponsor || undefined,
-                status: selectedStatus.length > 0 ? selectedStatus : undefined,
-                phase: selectedPhase.length > 0 ? selectedPhase : undefined,
-                studyType: studyType || undefined,
-                location: location || undefined,
-                maxResults: 100
+                ...searchParams,
+                maxResults: INITIAL_FETCH_LIMIT
             });
 
             setTrials(response.trials);
@@ -98,6 +122,30 @@ export default function TrialScoutSearch() {
         }
     };
 
+    // Fetch more trials for AI processing (up to 500)
+    const fetchMoreForAI = useCallback(async (): Promise<CanonicalClinicalTrial[]> => {
+        // If we already have the full set, return current trials
+        if (hasFetchedFullSet || !lastSearchParams) {
+            return trials;
+        }
+
+        setFetchingMore(true);
+        try {
+            const response = await toolsApi.searchTrials({
+                ...lastSearchParams,
+                maxResults: AI_FETCH_LIMIT
+            });
+            setTrials(response.trials);
+            setHasFetchedFullSet(true);
+            return response.trials;
+        } catch (err) {
+            console.error('Failed to fetch more trials:', err);
+            return trials; // Return what we have on error
+        } finally {
+            setFetchingMore(false);
+        }
+    }, [hasFetchedFullSet, lastSearchParams, trials]);
+
     // Handle clear
     const handleClear = () => {
         setCondition('');
@@ -111,6 +159,8 @@ export default function TrialScoutSearch() {
         setTotalResults(0);
         setHasSearched(false);
         setError(null);
+        setHasFetchedFullSet(false);
+        setLastSearchParams(null);
     };
 
     // Toggle multi-select options
@@ -123,9 +173,9 @@ export default function TrialScoutSearch() {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="flex flex-col h-full gap-6">
             {/* Search Form */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex-shrink-0 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
                         <BeakerIcon className="h-5 w-5 text-purple-500" />
@@ -312,18 +362,35 @@ export default function TrialScoutSearch() {
 
             {/* Results */}
             {hasSearched && (
-                <div>
+                <div className="flex-1 flex flex-col min-h-0">
                     {/* Results header */}
-                    <div className="mb-2 flex items-center justify-between">
+                    <div className="flex-shrink-0 mb-2 flex items-center gap-4">
                         <div className="text-sm text-gray-600 dark:text-gray-400">
-                            Showing <span className="font-medium text-gray-900 dark:text-white">{trials.length}</span> of{' '}
-                            <span className="font-medium text-gray-900 dark:text-white">{totalResults.toLocaleString()}</span> trials
+                            <span className="text-gray-500 dark:text-gray-400">Total matches: </span>
+                            <span className="font-medium text-gray-900 dark:text-white">{totalResults.toLocaleString()}</span>
                         </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                            <span className="text-gray-500 dark:text-gray-400">Fetched: </span>
+                            <span className="font-medium text-gray-900 dark:text-white">{trials.length}</span>
+                            {!hasFetchedFullSet && totalResults > trials.length && (
+                                <span className="text-gray-400 dark:text-gray-500 ml-1">(up to {AI_FETCH_LIMIT} fetched for AI)</span>
+                            )}
+                        </div>
+                        {fetchingMore && (
+                            <span className="text-sm text-purple-600 dark:text-purple-400">
+                                Fetching more for AI processing...
+                            </span>
+                        )}
                     </div>
 
                     {/* Results table with AI columns */}
                     {trials.length > 0 ? (
-                        <TrialScoutTable trials={trials} />
+                        <div className="flex-1 min-h-0">
+                            <TrialScoutTable
+                                trials={trials}
+                                onFetchMoreForAI={fetchMoreForAI}
+                            />
+                        </div>
                     ) : (
                         <div className="p-8 text-center text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                             No trials found matching your search criteria.
@@ -380,6 +447,10 @@ export default function TrialScoutSearch() {
                                     <li>Quick filters appear for boolean columns</li>
                                     <li>Example: "Does this trial involve gene therapy?"</li>
                                 </ul>
+                                <p className="text-gray-500 dark:text-gray-500 text-xs mt-2 italic">
+                                    Initial search fetches {INITIAL_FETCH_LIMIT} trials for fast display. When you add an AI column,
+                                    up to {AI_FETCH_LIMIT} trials are automatically fetched for processing.
+                                </p>
                             </div>
                             <div>
                                 <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Status Meanings</h3>

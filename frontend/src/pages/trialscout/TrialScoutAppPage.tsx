@@ -12,7 +12,7 @@ export default function TrialScoutAppPage() {
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
             {/* Header */}
-            <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+            <header className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
                 <div className="container mx-auto flex items-center justify-between">
                     <Link to="/trialscout" className="flex items-center gap-2">
                         <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-violet-600 rounded-lg flex items-center justify-center">
@@ -41,12 +41,12 @@ export default function TrialScoutAppPage() {
             </header>
 
             {/* Main content */}
-            <main className="flex-1 container mx-auto px-4 py-6">
+            <main className="flex-1 min-h-0 container mx-auto px-4 py-6 flex flex-col">
                 <TrialScoutSearch />
             </main>
 
             {/* Footer */}
-            <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-3">
+            <footer className="flex-shrink-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-3">
                 <div className="container mx-auto text-center text-sm text-gray-500 dark:text-gray-400">
                     Data from ClinicalTrials.gov
                 </div>
