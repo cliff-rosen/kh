@@ -48,7 +48,7 @@ class SemanticFilterService:
         threshold: float = 0.7,
         article_data: Dict[str, str] = None,
         output_type: str = "boolean"
-    ) -> Tuple[bool, float, str]:
+    ) -> Tuple[bool, float, str, str]:
         """
         Evaluate a single article against filter criteria using LLM.
         Private method - use batch methods for production code.
@@ -68,7 +68,8 @@ class SemanticFilterService:
             output_type: Expected output type ('boolean', 'number', or 'text')
 
         Returns:
-            Tuple of (is_relevant, score, reasoning)
+            Tuple of (is_relevant, score, reasoning, text_value)
+            - text_value is the actual text answer for text output type, empty string otherwise
         """
         # Build article data dict if not provided
         if article_data is None:
@@ -103,13 +104,15 @@ class SemanticFilterService:
             }"""
         else:  # text
             response_instruction = """Respond with:
-            1. A confidence score from 0.0 to 1.0 (where 1.0 is highest confidence)
-            2. Your classification or text answer
+            1. Your text answer or classification (the actual value requested)
+            2. A confidence score from 0.0 to 1.0 (where 1.0 is highest confidence)
+            3. Brief reasoning explaining your answer
 
             Format your response as JSON:
             {
+                "text_value": "your answer/classification here",
                 "score": 0.0 to 1.0,
-                "reasoning": "your text answer/classification here"
+                "reasoning": "brief explanation"
             }"""
 
         # Check if criteria contains template slugs like {title}, {abstract}
@@ -151,14 +154,26 @@ class SemanticFilterService:
         from agents.prompts.base_prompt_caller import BasePromptCaller
         from config.llm_models import get_task_config, supports_reasoning_effort
 
-        response_schema = {
-            "type": "object",
-            "properties": {
-                "score": {"type": "number", "minimum": 0, "maximum": 1},
-                "reasoning": {"type": "string"}
-            },
-            "required": ["score", "reasoning"]
-        }
+        # Build response schema based on output type
+        if output_type == "text":
+            response_schema = {
+                "type": "object",
+                "properties": {
+                    "text_value": {"type": "string"},
+                    "score": {"type": "number", "minimum": 0, "maximum": 1},
+                    "reasoning": {"type": "string"}
+                },
+                "required": ["text_value", "score", "reasoning"]
+            }
+        else:
+            response_schema = {
+                "type": "object",
+                "properties": {
+                    "score": {"type": "number", "minimum": 0, "maximum": 1},
+                    "reasoning": {"type": "string"}
+                },
+                "required": ["score", "reasoning"]
+            }
 
         system_prompt = "You are evaluating research articles for relevance based on semantic filter criteria."
 
@@ -196,9 +211,10 @@ class SemanticFilterService:
 
         score = response_data.get("score", 0)
         reasoning = response_data.get("reasoning", "")
+        text_value = response_data.get("text_value", "")  # For text output type
 
         is_relevant = score >= threshold
-        return is_relevant, score, reasoning
+        return is_relevant, score, reasoning, text_value
 
     async def evaluate_articles_batch(
         self,

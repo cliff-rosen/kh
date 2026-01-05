@@ -1,5 +1,8 @@
 """
 Tools API endpoints - Standalone utilities for testing and analysis
+
+Only contains endpoints used by the Tools page in the main navigation.
+Tablizer-specific endpoints (search, filter, extract) are in the tablizer router.
 """
 
 import logging
@@ -12,7 +15,7 @@ from datetime import datetime, timedelta
 from database import get_db
 from models import User
 from routers.auth import get_current_user
-from schemas.canonical_types import CanonicalResearchArticle, CanonicalClinicalTrial
+from schemas.canonical_types import CanonicalResearchArticle
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +23,7 @@ router = APIRouter(prefix="/api/tools", tags=["tools"])
 
 
 # ============================================================================
-# PubMed Query Tester
+# PubMed Query Tester (Tools Page)
 # ============================================================================
 
 class PubMedQueryTestRequest(BaseModel):
@@ -38,26 +41,6 @@ class PubMedQueryTestResponse(BaseModel):
     articles: List[CanonicalResearchArticle] = Field(..., description="Articles returned")
     total_results: int = Field(..., description="Total number of results matching the query")
     returned_count: int = Field(..., description="Number of articles returned in this response")
-
-
-class PubMedSearchRequest(BaseModel):
-    """Request for optimized PubMed search (returns PMIDs + first N articles)"""
-    query_expression: str = Field(..., description="PubMed query expression")
-    max_pmids: int = Field(500, ge=1, le=1000, description="Maximum PMIDs to retrieve for comparison")
-    articles_to_fetch: int = Field(20, ge=1, le=500, description="Number of articles to fetch with full data")
-    start_date: Optional[str] = Field(None, description="Start date for filtering (YYYY/MM/DD)")
-    end_date: Optional[str] = Field(None, description="End date for filtering (YYYY/MM/DD)")
-    date_type: Optional[str] = Field('publication', description="Date type for filtering")
-    sort_by: Optional[str] = Field('relevance', description="Sort order (relevance, date)")
-
-
-class PubMedSearchResponse(BaseModel):
-    """Response with PMIDs for comparison + articles for display"""
-    all_pmids: List[str] = Field(..., description="All PMIDs matching query (up to max_pmids)")
-    articles: List[CanonicalResearchArticle] = Field(..., description="Full article data for first N")
-    total_results: int = Field(..., description="Total number of results matching the query")
-    pmids_retrieved: int = Field(..., description="Number of PMIDs retrieved")
-    articles_retrieved: int = Field(..., description="Number of articles with full data")
 
 
 class PubMedIdCheckRequest(BaseModel):
@@ -126,84 +109,6 @@ async def test_pubmed_query(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"PubMed query test failed: {str(e)}"
-        )
-
-
-@router.post("/pubmed/search", response_model=PubMedSearchResponse)
-async def search_pubmed(
-    request: PubMedSearchRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Optimized PubMed search that returns:
-    - Up to max_pmids PMIDs for comparison (fast)
-    - Full article data for first articles_to_fetch articles (for display)
-
-    This enables efficient comparison of search results while keeping
-    the initial display fast.
-    """
-    from services.pubmed_service import PubMedService
-    from schemas.canonical_types import CanonicalPubMedArticle
-    from schemas.research_article_converters import pubmed_to_research_article
-
-    try:
-        pubmed_service = PubMedService()
-
-        # Step 1: Get all PMIDs (fast - no article data)
-        all_pmids, total_count = pubmed_service.get_article_ids(
-            query=request.query_expression,
-            max_results=request.max_pmids,
-            sort_by=request.sort_by,
-            start_date=request.start_date,
-            end_date=request.end_date,
-            date_type=request.date_type
-        )
-
-        logger.info(f"Retrieved {len(all_pmids)} PMIDs from {total_count} total results")
-
-        # Step 2: Fetch full article data for first N PMIDs
-        articles = []
-        if all_pmids:
-            pmids_to_fetch = all_pmids[:request.articles_to_fetch]
-            raw_articles = pubmed_service.get_articles_from_ids(pmids_to_fetch)
-
-            # Convert to canonical format
-            for article in raw_articles:
-                try:
-                    canonical_pubmed = CanonicalPubMedArticle(
-                        pmid=article.PMID,
-                        title=article.title or "[No title available]",
-                        abstract=article.abstract or "[No abstract available]",
-                        authors=article.authors.split(', ') if article.authors else [],
-                        journal=article.journal or "[Unknown journal]",
-                        publication_date=article.pub_date if article.pub_date else None,
-                        keywords=[],
-                        mesh_terms=[],
-                        metadata={
-                            "volume": article.volume,
-                            "issue": article.issue,
-                            "pages": article.pages,
-                        }
-                    )
-                    research_article = pubmed_to_research_article(canonical_pubmed)
-                    articles.append(research_article)
-                except Exception as e:
-                    logger.error(f"Error converting article {article.PMID}: {e}")
-
-        return PubMedSearchResponse(
-            all_pmids=all_pmids,
-            articles=articles,
-            total_results=total_count,
-            pmids_retrieved=len(all_pmids),
-            articles_retrieved=len(articles)
-        )
-
-    except Exception as e:
-        logger.error(f"PubMed search failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"PubMed search failed: {str(e)}"
         )
 
 
@@ -317,260 +222,4 @@ async def check_pubmed_ids(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"PubMed ID check failed: {str(e)}"
-        )
-
-
-# ============================================================================
-# Clinical Trials Search (ClinicalTrials.gov)
-# ============================================================================
-
-from schemas.canonical_types import CanonicalClinicalTrial
-
-
-class TrialSearchRequest(BaseModel):
-    """Request for clinical trial search"""
-    condition: Optional[str] = Field(None, description="Disease or condition to search for")
-    intervention: Optional[str] = Field(None, description="Drug, treatment, or intervention name")
-    sponsor: Optional[str] = Field(None, description="Sponsor organization name")
-    status: Optional[List[str]] = Field(None, description="Recruitment statuses (RECRUITING, COMPLETED, etc.)")
-    phase: Optional[List[str]] = Field(None, description="Study phases (PHASE1, PHASE2, PHASE3, etc.)")
-    study_type: Optional[str] = Field(None, description="Study type (INTERVENTIONAL, OBSERVATIONAL)")
-    location: Optional[str] = Field(None, description="Country or location")
-    start_date: Optional[str] = Field(None, description="Start date filter (YYYY-MM-DD)")
-    end_date: Optional[str] = Field(None, description="End date filter (YYYY-MM-DD)")
-    max_results: int = Field(100, ge=1, le=500, description="Maximum trials to return")
-
-
-class TrialSearchResponse(BaseModel):
-    """Response from clinical trial search"""
-    trials: List[CanonicalClinicalTrial] = Field(..., description="Trials returned")
-    total_results: int = Field(..., description="Total number of results matching the query")
-    returned_count: int = Field(..., description="Number of trials returned in this response")
-
-
-@router.post("/trials/search", response_model=TrialSearchResponse)
-async def search_clinical_trials(
-    request: TrialSearchRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Search ClinicalTrials.gov for clinical trials.
-
-    Standalone tool for searching clinical trials with filters for condition,
-    intervention, sponsor, phase, status, and more.
-    """
-    from services.clinical_trials_service import get_clinical_trials_service
-
-    try:
-        service = get_clinical_trials_service()
-
-        # Fetch trials (may need multiple pages for large result sets)
-        all_trials = []
-        total_count = 0
-        page_token = None
-        remaining = request.max_results
-
-        while remaining > 0:
-            trials, total_count, next_token = service.search_trials(
-                condition=request.condition,
-                intervention=request.intervention,
-                sponsor=request.sponsor,
-                status=request.status,
-                phase=request.phase,
-                study_type=request.study_type,
-                location=request.location,
-                start_date=request.start_date,
-                end_date=request.end_date,
-                max_results=min(remaining, 100),
-                page_token=page_token
-            )
-
-            all_trials.extend(trials)
-            remaining -= len(trials)
-
-            # Stop if no more pages or we have enough
-            if not next_token or len(trials) == 0:
-                break
-            page_token = next_token
-
-        logger.info(f"Retrieved {len(all_trials)} trials from {total_count} total matches")
-
-        return TrialSearchResponse(
-            trials=all_trials,
-            total_results=total_count,
-            returned_count=len(all_trials)
-        )
-
-    except Exception as e:
-        logger.error(f"Clinical trials search failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Clinical trials search failed: {str(e)}"
-        )
-
-
-class TrialDetailRequest(BaseModel):
-    """Request for trial details by NCT ID"""
-    nct_id: str = Field(..., description="NCT identifier (e.g., NCT00000000)")
-
-
-@router.post("/trials/detail")
-async def get_trial_detail(
-    request: TrialDetailRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Get detailed information about a specific clinical trial.
-    """
-    from services.clinical_trials_service import get_clinical_trials_service
-
-    try:
-        service = get_clinical_trials_service()
-        trial = service.get_trial_by_nct_id(request.nct_id)
-
-        if not trial:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Trial {request.nct_id} not found"
-            )
-
-        return trial
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to get trial {request.nct_id}: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get trial details: {str(e)}"
-        )
-
-
-# ============================================================================
-# Clinical Trials Filter (AI Column Support)
-# ============================================================================
-
-class TrialFilterRequest(BaseModel):
-    """Request to filter clinical trials using AI"""
-    trials: List[CanonicalClinicalTrial] = Field(..., description="Trials to filter")
-    filter_criteria: str = Field(..., description="Natural language filter criteria")
-    threshold: float = Field(0.5, ge=0.0, le=1.0, description="Minimum score to pass")
-    output_type: str = Field("boolean", description="Expected output type: 'boolean' (yes/no), 'number' (score), or 'text' (classification)")
-
-
-class TrialFilterResult(BaseModel):
-    """Result for a single trial filter evaluation"""
-    nct_id: str
-    passed: bool
-    score: float
-    reasoning: str
-
-
-class TrialFilterResponse(BaseModel):
-    """Response from trial filter"""
-    results: List[TrialFilterResult]
-    count: int
-    passed: int
-    failed: int
-
-
-@router.post("/trials/filter", response_model=TrialFilterResponse)
-async def filter_clinical_trials(
-    request: TrialFilterRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Apply semantic AI filtering to clinical trials.
-
-    Used by TrialScout to power AI columns that analyze trial data
-    based on natural language criteria.
-    """
-    from services.semantic_filter_service import SemanticFilterService
-
-    try:
-        filter_service = SemanticFilterService()
-
-        # Adapt trials to have the attributes the filter service expects
-        # The filter service looks for 'title' and 'abstract' attributes
-        # Also expose trial-specific fields for template slug replacement
-        class TrialAdapter:
-            def __init__(self, trial: CanonicalClinicalTrial):
-                self.trial = trial
-                self.title = trial.title or trial.brief_title or ""
-
-                # Combine relevant trial info into "abstract" for simple criteria evaluation
-                abstract_parts = []
-                if trial.brief_summary:
-                    abstract_parts.append(trial.brief_summary)
-                if trial.conditions:
-                    abstract_parts.append(f"Conditions: {', '.join(trial.conditions)}")
-                if trial.interventions:
-                    interv_names = [i.name for i in trial.interventions]
-                    abstract_parts.append(f"Interventions: {', '.join(interv_names)}")
-                if trial.phase:
-                    abstract_parts.append(f"Phase: {trial.phase}")
-                if trial.status:
-                    abstract_parts.append(f"Status: {trial.status}")
-                if trial.primary_outcomes:
-                    outcomes = [o.measure for o in trial.primary_outcomes[:3]]
-                    abstract_parts.append(f"Primary Outcomes: {', '.join(outcomes)}")
-                self.abstract = "\n".join(abstract_parts)
-
-                # Standard fields expected by filter service
-                self.journal = trial.lead_sponsor.name if trial.lead_sponsor else None
-                self.year = trial.start_date[:4] if trial.start_date else None
-
-                # Trial-specific fields for template slug replacement like {nct_id}, {phase}, etc.
-                self.nct_id = trial.nct_id or ""
-                self.conditions = ', '.join(trial.conditions) if trial.conditions else ""
-                self.interventions = ', '.join([i.name for i in trial.interventions]) if trial.interventions else ""
-                self.phase = trial.phase or ""
-                self.status = trial.status or ""
-                self.enrollment = str(trial.enrollment) if trial.enrollment else ""
-                self.sponsor = trial.lead_sponsor.name if trial.lead_sponsor else ""
-                self.brief_summary = trial.brief_summary or ""
-                self.study_type = trial.study_type or ""
-                self.start_date = trial.start_date or ""
-                self.completion_date = trial.completion_date or ""
-                self.primary_outcomes = '; '.join([o.measure for o in trial.primary_outcomes]) if trial.primary_outcomes else ""
-                self.eligibility_criteria = trial.eligibility_criteria or ""
-
-        adapted_trials = [TrialAdapter(t) for t in request.trials]
-
-        # Use the semantic filter service
-        batch_results = await filter_service.evaluate_articles_batch(
-            articles=adapted_trials,
-            filter_criteria=request.filter_criteria,
-            threshold=request.threshold,
-            max_concurrent=50,
-            output_type=request.output_type
-        )
-
-        # Convert results
-        results = []
-        for adapter, is_relevant, score, reasoning in batch_results:
-            results.append(TrialFilterResult(
-                nct_id=adapter.trial.nct_id,
-                passed=is_relevant,
-                score=score,
-                reasoning=reasoning
-            ))
-
-        passed_count = sum(1 for r in results if r.passed)
-
-        return TrialFilterResponse(
-            results=results,
-            count=len(results),
-            passed=passed_count,
-            failed=len(results) - passed_count
-        )
-
-    except Exception as e:
-        logger.error(f"Trial filter failed: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Trial filter failed: {str(e)}"
         )
