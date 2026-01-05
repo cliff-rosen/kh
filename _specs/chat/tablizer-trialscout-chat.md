@@ -314,10 +314,45 @@ The holding pen is interesting: context can be sent to the backend but held in a
 
 | Service | Location | What It Does |
 |---------|----------|--------------|
+| **Chat Infrastructure** | | |
+| `ChatService` | `services/chat_service.py` | Conversation/message CRUD - `create_chat()`, `add_message()`, `get_messages()` |
+| `ChatStreamService` | `services/chat_stream_service.py` | Orchestrates chat flow - builds prompts, runs agent loop, streams events, persists automatically |
+| `Conversation`, `Message` | `models.py` | DB models - messages have `context` and `extras` fields for page state and payloads |
+| **Page Config** | | |
+| `chat_page_config/` | `services/chat_page_config/` | Page registration framework - `register_page()`, context builders, payload/tool resolution |
+| **Data Services** | | |
 | `ClinicalTrialsService` | `services/clinical_trials_service.py` | `search_trials()`, `get_trial_by_nct_id()`, `get_trials_by_nct_ids()` |
 | `PubMedService` | `services/pubmed_service.py` | Article search and retrieval |
-| `chat_page_config/` | `services/chat_page_config/` | Page registration framework (registry.py) |
+| **Tools** | | |
 | PubMed tools | `tools/builtin/pubmed.py` | `search_pubmed`, `get_pubmed_article`, `get_full_text` |
+
+### Chat Flow (How It Works)
+
+```
+Frontend                    Backend
+   │                           │
+   │ POST /chat/stream         │
+   │ { message, context,       │
+   │   conversation_id }       │
+   ├──────────────────────────>│
+   │                           │ ChatStreamService.stream_chat_message()
+   │                           │   ├─ _setup_chat() - create/get conversation
+   │                           │   ├─ _build_system_prompt() - calls page context_builder
+   │                           │   ├─ _build_messages() - load history + new message
+   │                           │   ├─ get_tools_for_page_dict() - resolve tools
+   │                           │   └─ run_agent_loop() - LLM + tools
+   │                           │
+   │ SSE: text_delta, tool_*,  │
+   │      complete             │
+   │<──────────────────────────│
+   │                           │ auto-persist messages
+```
+
+**Key points:**
+- Conversations are auto-created/retrieved via `conversation_id`
+- Context from frontend is passed to `context_builder` which formats it for LLM
+- Tools/payloads are resolved based on `current_page` + `active_tab`
+- Messages are auto-persisted with context and extras (payloads, tool history)
 
 ### New Backend Components Needed
 
@@ -499,6 +534,85 @@ Implementation would require:
 - Staging storage in chat service (per-request cache)
 - `get_staged_items` tool that reads from staging
 - Context builder that puts data in staging and returns reference
+
+---
+
+## Frontend Integration
+
+### Pattern (from ReportsPage.tsx)
+
+```tsx
+// 1. Build chat context with all dynamic state
+const chatContext = useMemo(() => ({
+    current_page: 'tablizer',
+    query: searchQuery,
+    total_matched: totalResults,
+    loaded_count: articles.length,
+    snapshots: snapshots,
+    compare_mode: isCompareMode,
+    ai_columns: aiColumns.map(c => ({ name: c.name, type: c.type })),
+    articles: articles.slice(0, 20).map(a => ({
+        pmid: a.pmid,
+        title: a.title,
+        year: a.year,
+        journal: a.journal
+    }))
+}), [searchQuery, totalResults, articles, snapshots, isCompareMode, aiColumns]);
+
+// 2. Define payload handlers with callbacks
+const payloadHandlers = useMemo<Record<string, PayloadHandler>>(() => ({
+    pubmed_query_suggestion: {
+        render: (payload, callbacks) => (
+            <PubMedQueryCard
+                query={payload.query}
+                explanation={payload.explanation}
+                onAccept={() => {
+                    setSearchQuery(payload.query);
+                    callbacks.onAccept?.(payload);
+                }}
+                onReject={callbacks.onReject}
+            />
+        )
+    },
+    ai_column_suggestion: {
+        render: (payload, callbacks) => (
+            <AIColumnCard
+                name={payload.name}
+                criteria={payload.criteria}
+                type={payload.type}
+                onAccept={() => {
+                    addAIColumn(payload.name, payload.criteria, payload.type);
+                    callbacks.onAccept?.(payload);
+                }}
+                onReject={callbacks.onReject}
+            />
+        )
+    }
+}), [setSearchQuery, addAIColumn]);
+
+// 3. Render ChatTray
+<ChatTray
+    initialContext={chatContext}
+    payloadHandlers={payloadHandlers}
+/>
+```
+
+### What Frontend Needs to Provide
+
+| Data | Source | Notes |
+|------|--------|-------|
+| `current_page` | Static | `"tablizer"` or `"trialscout"` |
+| Search state | Component state | Query, filters, dates |
+| Results counts | API response | total_matched, loaded_count |
+| Snapshots | Component state | Tablizer only |
+| AI columns | Component state | Name, type, filter status |
+| Item summaries | Component state | First 20-50 items with key fields |
+
+### Payload Handler Callbacks
+
+When user clicks Accept:
+1. Apply the change (set query, create AI column, etc.)
+2. Call `callbacks.onAccept(payload)` to notify chat system
 
 ---
 
