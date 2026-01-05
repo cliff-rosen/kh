@@ -291,13 +291,11 @@ Detection uses first 3 article IDs as fingerprint.
 ## Files
 
 ```
-components/tools/Tablizer/
+frontend/src/components/tools/Tablizer/
 ├── Tablizer.tsx        # Main component
 ├── AddColumnModal.tsx  # AI column configuration modal
 ├── TablizeButton.tsx   # Button to open Tablizer (for embedding)
-├── index.tsx           # Exports
-└── _specs/
-    └── tablizer-contract.md  # This file
+└── index.tsx           # Exports
 ```
 
 ---
