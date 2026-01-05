@@ -18,18 +18,18 @@ The chat system provides an intelligent, context-aware assistant that understand
 
 ## Chat Assistance Philosophy
 
-The chat system is **not** meant to replace the application—it helps users **use** the application effectively. Chat operates in two primary modes:
+The chat system serves as an expert colleague who can see what the user is doing. It has three roles:
 
-### Guide Mode (Primary)
+### 1. Guide & Facilitate
 
-Chat helps users navigate and use application features. This includes:
+Help users discover and use features they might not find on their own. This goes beyond explaining—it includes **automating** tedious tasks:
 
-- **Explaining workflows**: Walking users through multi-step processes they might not discover on their own
-- **Suggesting actions**: Recommending what the user should do next, with actionable payloads they can accept
-- **Formulating queries**: Helping users construct proper syntax (e.g., PubMed queries, search filters)
-- **Teaching features**: Explaining what features exist and when to use them
+- **Formulating queries**: Constructing proper syntax (PubMed queries, search filters) the user doesn't know
+- **Filling forms**: Populating search fields, filter criteria, or configurations from natural language
+- **Walking through workflows**: Guiding multi-step processes with actionable steps
+- **Discovering features**: Surfacing capabilities the user didn't know existed
 
-**Key principle**: Guide mode suggestions are actionable payloads. When chat suggests a query, filter criteria, or configuration, it returns a payload the user can **Accept** to apply directly to the application.
+**Key principle**: Chat does the work, user approves. When chat suggests a query or configuration, it returns a payload the user can **Accept** (apply immediately) or **Modify** (adjust before applying).
 
 ```
 User: "I want to find EGFR resistance articles"
@@ -48,14 +48,16 @@ Chat: "Here's a well-formed PubMed query for that:"
 User clicks Accept → Query populates the search field
 ```
 
-### Analyze Mode (Secondary)
+### 2. Enhance (Analyze)
 
-Chat retrieves loaded data and answers questions directly. Use this when:
+Provide capabilities **beyond** what the UI offers directly. Chat can retrieve loaded data and answer questions, synthesize patterns, and provide insights:
 
-- The question is **specific and factual** (not subjective filtering)
-- It's a **one-time question** (not an ongoing filtering need)
-- The answer can be derived from **already-loaded data**
-- The user would benefit from **synthesis across multiple items**
+- **Analyze loaded results**: Answer questions about current data
+- **Synthesize patterns**: Identify trends across many items
+- **Cross-reference**: Find relationships the user would miss
+- **Compute insights**: Statistics, distributions, comparisons
+
+Use this when the question is specific/factual, it's a one-time question (not ongoing filtering), and the answer can be derived from already-loaded data.
 
 ```
 User: [Has 35 trials loaded]
@@ -69,27 +71,29 @@ Chat: "Looking at your 35 trials:
 The majority are late-stage trials."
 ```
 
-### When to Use Each Mode
+### When to Guide vs. Enhance
 
 | User Intent | Mode | Reasoning |
 |-------------|------|-----------|
-| "How do I compare searches?" | Guide | User needs to learn a workflow |
+| "Find EGFR resistance articles" | Guide | Automate query formulation, return payload |
 | "Help me write a better query" | Guide | Actionable output (query suggestion payload) |
-| "I want to filter to only Phase 3" | Guide | Suggests filter/AI column criteria payload |
-| "Which trials have OS as primary endpoint?" | Analyze | Specific factual question about loaded data |
-| "What patterns do you see?" | Analyze | Synthesis across results |
+| "I want to filter to only Phase 3" | Guide | Automate AI column creation, return payload |
+| "Which trials have OS as primary endpoint?" | Enhance | Specific factual question, analyze loaded data |
+| "What patterns do you see?" | Enhance | Synthesis across results |
 | "Am I missing relevant articles?" | Guide | Walk through comparison workflow, suggest broader query |
+| "How do I compare searches?" | Guide | Explain workflow with actionable steps |
 
-### Payloads Enable Actionable Guidance
+### Payloads Enable Automation
 
-The payload system is critical for effective guide mode. Common actionable payloads:
+The payload system is critical—it's how chat **does the work** for the user. Common actionable payloads:
 
 | Payload Type | Accept Action | Use Case |
 |--------------|---------------|----------|
-| `query_suggestion` | Populates search field | Query development |
+| `query_suggestion` | Populates search field | Query formulation |
 | `ai_column_suggestion` | Creates AI column with criteria | Filtering/enrichment |
 | `filter_suggestion` | Applies filter to results | Quick filtering |
-| `workflow_checklist` | Interactive step tracker | Multi-step guidance |
+| `search_params` | Populates multiple form fields | Complex search setup |
+| `workflow_guide` | Interactive step tracker | Multi-step guidance |
 
 ---
 
@@ -271,6 +275,27 @@ These instructions are loaded by `_get_stream_instructions()` when a `stream_id`
 
 The chat adapts to the user's current location in the app. This is the foundation that makes the assistant useful.
 
+### Context Design Principle
+
+**If the user sees it on screen and it's dynamic, it should be in the context.**
+
+This is critical because:
+- The user might ask "Why did I get so few results?" but the answer is that they have a narrow date filter
+- Without seeing all UI state, the LLM can't diagnose obvious issues or provide relevant guidance
+- Small, lightweight state is cheap to include and dramatically improves assistance quality
+
+**Always include:**
+- All form field values (search terms, filters, date ranges)
+- Pagination state (current page, rows per page)
+- Sort state (column, direction)
+- Selection state (selected items)
+- Modal/viewer state (what detail view is open)
+- Results summary (totals, filtered counts)
+
+**For data items** (articles, trials, etc.):
+- Send summaries (id, title, key fields) - not full records
+- Provide a tool (`retrieve_items`) so the LLM can fetch full details on-demand
+
 ### What Context Includes
 
 ```typescript
@@ -280,6 +305,14 @@ interface ChatContext {
     stream_id?: number;         // If viewing a specific stream
     current_article?: {...};    // If viewing an article detail
     active_tab?: string;        // Which tab is active on the page
+
+    // NEW: All dynamic UI state that affects what user sees
+    search_form?: {...};        // All search form fields
+    pagination?: {...};         // Current page, rows per page
+    sort?: {...};               // Current sort column/direction
+    results?: {...};            // Counts: total, loaded, filtered, visible
+    viewer?: {...};             // What detail modal is open
+    item_summaries?: [...];     // Brief info for loaded items
 }
 ```
 
