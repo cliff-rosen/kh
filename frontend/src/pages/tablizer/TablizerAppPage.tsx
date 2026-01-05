@@ -48,9 +48,22 @@ export default function TablizerAppPage() {
     }), [tablizePubMedState]);
 
     // Handle query suggestion acceptance
-    const handleQueryAccept = useCallback((data: { query_expression: string }) => {
+    const handleQueryAccept = useCallback((data: {
+        query_expression: string;
+        start_date?: string | null;
+        end_date?: string | null;
+        date_type?: 'publication' | 'entry';
+    }) => {
         if (tablizePubMedRef.current) {
             tablizePubMedRef.current.setQuery(data.query_expression);
+            // Set dates if provided
+            if (data.start_date || data.end_date) {
+                tablizePubMedRef.current.setDates(
+                    data.start_date || '',
+                    data.end_date || '',
+                    data.date_type || 'publication'
+                );
+            }
             tablizePubMedRef.current.executeSearch();
         }
     }, []);

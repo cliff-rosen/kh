@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckIcon, XMarkIcon, MagnifyingGlassIcon, ClipboardDocumentIcon, ChevronDownIcon } from '@heroicons/react/24/solid';
+import { CheckIcon, XMarkIcon, MagnifyingGlassIcon, ClipboardDocumentIcon, ChevronDownIcon, CalendarIcon } from '@heroicons/react/24/solid';
 import { LightBulbIcon } from '@heroicons/react/24/outline';
 
 interface QueryAlternative {
@@ -13,6 +13,10 @@ interface QuerySuggestionPayload {
     syntax_notes?: string[];
     expected_results?: string;
     alternatives?: QueryAlternative[];
+    // Date filtering (separate from query_expression)
+    start_date?: string | null;
+    end_date?: string | null;
+    date_type?: 'publication' | 'entry';
 }
 
 interface QuerySuggestionCardProps {
@@ -124,6 +128,31 @@ export default function QuerySuggestionCard({
                     </code>
                 </div>
             </div>
+
+            {/* Date Filters (if specified) */}
+            {(proposal.start_date || proposal.end_date) && (
+                <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                        <CalendarIcon className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                        <h5 className="text-xs font-medium text-purple-800 dark:text-purple-200 uppercase tracking-wide">
+                            Date Filter
+                        </h5>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-purple-900 dark:text-purple-100">
+                        {proposal.start_date && (
+                            <span>From: <strong>{proposal.start_date}</strong></span>
+                        )}
+                        {proposal.end_date && (
+                            <span>To: <strong>{proposal.end_date}</strong></span>
+                        )}
+                        {proposal.date_type && (
+                            <span className="text-purple-600 dark:text-purple-400">
+                                ({proposal.date_type === 'publication' ? 'Publication date' : 'Entry date'})
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Explanation */}
             <div>

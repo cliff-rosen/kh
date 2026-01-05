@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { useState, useMemo, useCallback, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
 import {
     ArrowDownTrayIcon,
     ArrowsUpDownIcon,
@@ -127,13 +127,29 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
     const [booleanFilters, setBooleanFilters] = useState<Record<string, BooleanFilterState>>({});
     const [selectedArticleIndex, setSelectedArticleIndex] = useState<number | null>(null);
 
-    // Reset state when articles change (new search)
+    // Track if this is a new dataset or just more data loaded
+    const prevInitialRowsRef = useRef<TableRow[]>(initialRows);
+
+    // Update data when articles change, but preserve AI columns
     useEffect(() => {
+        const prevRows = prevInitialRowsRef.current;
+        const isNewDataset = prevRows.length === 0 || initialRows.length === 0 ||
+            // Check if first few IDs are different (indicating new search)
+            (prevRows.slice(0, 3).map(r => r.id || '').join(',') !==
+             initialRows.slice(0, 3).map(r => r.id || '').join(','));
+
         setData(initialRows);
-        setColumns(BASE_COLUMNS.map(c => ({ ...c })));
-        setSortConfig(null);
-        setFilterText('');
-        setBooleanFilters({});
+
+        if (isNewDataset) {
+            // New search - reset everything
+            setColumns(BASE_COLUMNS.map(c => ({ ...c })));
+            setSortConfig(null);
+            setFilterText('');
+            setBooleanFilters({});
+        }
+        // If not a new dataset, keep columns (including AI columns)
+
+        prevInitialRowsRef.current = initialRows;
     }, [initialRows]);
 
     // Get visible columns

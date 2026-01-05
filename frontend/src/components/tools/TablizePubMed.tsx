@@ -61,6 +61,7 @@ export interface TablizePubMedProps {
 
 export interface TablizePubMedRef {
     setQuery: (query: string) => void;
+    setDates: (startDate: string, endDate: string, dateType: 'publication' | 'entry') => void;
     executeSearch: () => void;
     addAIColumn: (name: string, criteria: string, type: 'boolean' | 'text') => void;
 }
@@ -132,6 +133,9 @@ const TablizePubMed = forwardRef<TablizePubMedRef, TablizePubMedProps>(function 
 
     // Ref to track if we should execute search after query is set
     const pendingSearchRef = useRef(false);
+
+    // Ref for query textarea to handle auto-expansion
+    const queryTextareaRef = useRef<HTMLTextAreaElement>(null);
 
     // Add search snapshot to history
     const addSearchSnapshot = useCallback((articles: CanonicalResearchArticle[], total: number, pmids: string[]) => {
@@ -453,6 +457,11 @@ const TablizePubMed = forwardRef<TablizePubMedRef, TablizePubMedProps>(function 
         setQuery: (newQuery: string) => {
             setQuery(newQuery);
         },
+        setDates: (newStartDate: string, newEndDate: string, newDateType: 'publication' | 'entry') => {
+            setStartDate(newStartDate || '');
+            setEndDate(newEndDate || '');
+            setDateType(newDateType || 'publication');
+        },
         executeSearch: () => {
             // Need to wait for state update, so set a flag
             pendingSearchRef.current = true;
@@ -467,6 +476,14 @@ const TablizePubMed = forwardRef<TablizePubMedRef, TablizePubMedProps>(function 
         if (pendingSearchRef.current && query.trim()) {
             pendingSearchRef.current = false;
             handleSearch();
+        }
+    }, [query]);
+
+    // Auto-expand query textarea when query changes (including programmatic changes)
+    useEffect(() => {
+        if (queryTextareaRef.current) {
+            queryTextareaRef.current.style.height = 'auto';
+            queryTextareaRef.current.style.height = queryTextareaRef.current.scrollHeight + 'px';
         }
     }, [query]);
 
@@ -529,6 +546,7 @@ const TablizePubMed = forwardRef<TablizePubMedRef, TablizePubMedProps>(function 
                                 Query
                             </label>
                             <textarea
+                                ref={queryTextareaRef}
                                 value={query}
                                 onChange={(e) => {
                                     setQuery(e.target.value);
