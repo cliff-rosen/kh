@@ -6,7 +6,6 @@ import { Toaster } from './components/ui/toaster';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ResearchStreamProvider } from './context/ResearchStreamContext';
-import { StreamChatProvider } from './context/StreamChatContext';
 import { ChatProvider } from './context/ChatContext';
 
 // utils
@@ -25,7 +24,6 @@ import TokenLogin from './pages/TokenLogin';
 
 // Knowledge Horizon pages
 import NewStreamPage from './pages/NewStreamPage';
-import NewStreamChatPage from './pages/NewStreamChatPage';
 import DashboardPage from './pages/DashboardPage';
 import StreamsPage from './pages/StreamsPage';
 import EditStreamPage from './pages/EditStreamPage';
@@ -61,7 +59,6 @@ function AppContent() {
             <Route path="/streams/:streamId/edit" element={<EditStreamPage />} />
             <Route path="/streams/:streamId/configure-retrieval" element={<RetrievalWizardPage />} />
             <Route path="/new-stream" element={<NewStreamPage />} />
-            <Route path="/new-stream/chat" element={<NewStreamChatPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/tools" element={<ToolsPage />} />
             <Route path="/profile" element={<Profile />} />
@@ -87,11 +84,9 @@ function AppContent() {
           </Routes>
         ) : (
           <ResearchStreamProvider>
-            <StreamChatProvider>
-              <ChatProvider>
-                <AuthenticatedApp />
-              </ChatProvider>
-            </StreamChatProvider>
+            <ChatProvider>
+              <AuthenticatedApp />
+            </ChatProvider>
           </ResearchStreamProvider>
         )}
       </ErrorBoundary>
