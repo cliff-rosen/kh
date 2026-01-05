@@ -44,7 +44,7 @@ class PubMedSearchRequest(BaseModel):
     """Request for optimized PubMed search (returns PMIDs + first N articles)"""
     query_expression: str = Field(..., description="PubMed query expression")
     max_pmids: int = Field(500, ge=1, le=1000, description="Maximum PMIDs to retrieve for comparison")
-    articles_to_fetch: int = Field(20, ge=1, le=100, description="Number of articles to fetch with full data")
+    articles_to_fetch: int = Field(20, ge=1, le=500, description="Number of articles to fetch with full data")
     start_date: Optional[str] = Field(None, description="Start date for filtering (YYYY/MM/DD)")
     end_date: Optional[str] = Field(None, description="End date for filtering (YYYY/MM/DD)")
     date_type: Optional[str] = Field('publication', description="Date type for filtering")
