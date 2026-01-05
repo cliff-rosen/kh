@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TableCellsIcon } from '@heroicons/react/24/outline';
-import { useTablizerAuth } from '../../context/TablizerAuthContext';
+import { usePubMedAuth } from '../../context/PubMedAuthContext';
 
-export default function TablizerRegisterPage() {
+export default function PubMedRegisterPage() {
     const navigate = useNavigate();
-    const { register, isLoading, error, clearError } = useTablizerAuth();
+    const { register, isLoading, error, clearError } = usePubMedAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -28,7 +28,7 @@ export default function TablizerRegisterPage() {
 
         try {
             await register({ email, password });
-            navigate('/tablizer/app');
+            navigate('/pubmed/app');
         } catch {
             // Error is handled by context
         }
@@ -41,12 +41,12 @@ export default function TablizerRegisterPage() {
             <div className="w-full max-w-md">
                 {/* Logo */}
                 <div className="text-center mb-8">
-                    <Link to="/tablizer" className="inline-flex items-center gap-2">
+                    <Link to="/pubmed" className="inline-flex items-center gap-2">
                         <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-violet-600 rounded-xl flex items-center justify-center">
                             <TableCellsIcon className="h-7 w-7 text-white" />
                         </div>
                         <span className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-violet-600 bg-clip-text text-transparent">
-                            Tablizer
+                            PubMed Tablizer
                         </span>
                     </Link>
                 </div>
@@ -93,7 +93,7 @@ export default function TablizerRegisterPage() {
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
                                 className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                placeholder="••••••••"
+                                placeholder="********"
                             />
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 At least 8 characters
@@ -111,7 +111,7 @@ export default function TablizerRegisterPage() {
                                 onChange={(e) => setConfirmPassword(e.target.value)}
                                 required
                                 className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                placeholder="••••••••"
+                                placeholder="********"
                             />
                         </div>
 
@@ -136,7 +136,7 @@ export default function TablizerRegisterPage() {
 
                     <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
                         Already have an account?{' '}
-                        <Link to="/tablizer/login" className="text-purple-600 hover:text-purple-700 font-medium">
+                        <Link to="/pubmed/login" className="text-purple-600 hover:text-purple-700 font-medium">
                             Sign in
                         </Link>
                     </p>

@@ -3,7 +3,7 @@ import { authApi, type LoginCredentials, type RegisterCredentials } from '../lib
 import { trackEvent } from '../lib/api/trackingApi';
 import type { AuthUser, UserRole } from '../types/user';
 
-interface TablizerAuthContextType {
+interface PubMedAuthContextType {
     isAuthenticated: boolean;
     user: AuthUser | null;
     login: (credentials: LoginCredentials) => Promise<void>;
@@ -14,25 +14,46 @@ interface TablizerAuthContextType {
     clearError: () => void;
 }
 
-const TablizerAuthContext = createContext<TablizerAuthContextType | undefined>(undefined);
+const PubMedAuthContext = createContext<PubMedAuthContextType | undefined>(undefined);
 
 // Storage keys - separate from main app
+// Note: Using 'pubmed_' prefix but checking for legacy 'tablizer_' keys for backwards compatibility
 const STORAGE_KEYS = {
+    token: 'pubmed_token',
+    user: 'pubmed_user',
+};
+
+const LEGACY_STORAGE_KEYS = {
     token: 'tablizer_token',
     user: 'tablizer_user',
 };
 
-export const TablizerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const PubMedAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [user, setUser] = useState<AuthUser | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isInitialized, setIsInitialized] = useState(false);
 
-    // Restore auth state on mount
+    // Restore auth state on mount (check new keys first, then legacy)
     useEffect(() => {
-        const token = localStorage.getItem(STORAGE_KEYS.token);
-        const userData = localStorage.getItem(STORAGE_KEYS.user);
+        let token = localStorage.getItem(STORAGE_KEYS.token);
+        let userData = localStorage.getItem(STORAGE_KEYS.user);
+
+        // Check legacy keys if new keys not found
+        if (!token || !userData) {
+            token = localStorage.getItem(LEGACY_STORAGE_KEYS.token);
+            userData = localStorage.getItem(LEGACY_STORAGE_KEYS.user);
+
+            // Migrate to new keys if found
+            if (token && userData) {
+                localStorage.setItem(STORAGE_KEYS.token, token);
+                localStorage.setItem(STORAGE_KEYS.user, userData);
+                localStorage.removeItem(LEGACY_STORAGE_KEYS.token);
+                localStorage.removeItem(LEGACY_STORAGE_KEYS.user);
+            }
+        }
+
         if (token && userData) {
             try {
                 setUser(JSON.parse(userData));
@@ -83,7 +104,7 @@ export const TablizerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
             const authResponse = await authApi.login(credentials);
             handleAuthSuccess(authResponse);
-            trackEvent('tablizer_login', { method: 'password' });
+            trackEvent('pubmed_login', { method: 'password' });
         } catch (error: any) {
             const errorMessage = extractErrorMessage(error, 'Login failed. Please try again.');
             setError(errorMessage);
@@ -100,7 +121,7 @@ export const TablizerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
             const authResponse = await authApi.register(credentials);
             handleAuthSuccess(authResponse);
-            trackEvent('tablizer_register', {});
+            trackEvent('pubmed_register', {});
         } catch (error: any) {
             const errorMessage = extractErrorMessage(error, 'Registration failed. Please try again.');
             setError(errorMessage);
@@ -111,7 +132,7 @@ export const TablizerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
 
     const logout = () => {
-        trackEvent('tablizer_logout', {});
+        trackEvent('pubmed_logout', {});
         localStorage.removeItem(STORAGE_KEYS.token);
         localStorage.removeItem(STORAGE_KEYS.user);
         setIsAuthenticated(false);
@@ -126,7 +147,7 @@ export const TablizerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
 
     return (
-        <TablizerAuthContext.Provider value={{
+        <PubMedAuthContext.Provider value={{
             isAuthenticated,
             user,
             login,
@@ -137,17 +158,17 @@ export const TablizerAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
             clearError
         }}>
             {children}
-        </TablizerAuthContext.Provider>
+        </PubMedAuthContext.Provider>
     );
 };
 
-export const useTablizerAuth = () => {
-    const context = useContext(TablizerAuthContext);
+export const usePubMedAuth = () => {
+    const context = useContext(PubMedAuthContext);
     if (!context) {
-        throw new Error('useTablizerAuth must be used within a TablizerAuthProvider');
+        throw new Error('usePubMedAuth must be used within a PubMedAuthProvider');
     }
     return context;
 };
 
 // Export storage keys for API interceptor
-export { STORAGE_KEYS as TABLIZER_STORAGE_KEYS };
+export { STORAGE_KEYS as PUBMED_STORAGE_KEYS };

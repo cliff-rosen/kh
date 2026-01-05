@@ -15,7 +15,7 @@ import { setStreamSessionExpiredHandler } from './lib/api/streamUtils';
 // components
 import TopBar from './components/layout/TopBar';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import TablizerRoutes from './components/tablizer/TablizerRoutes';
+import PubMedRoutes from './components/pubmed/PubMedRoutes';
 import TrialScoutRoutes from './components/trialscout/TrialScoutRoutes';
 
 // pages
@@ -110,10 +110,10 @@ function App() {
       }}
     >
       <Routes>
-        {/* Tablizer standalone app - has its own auth context */}
-        <Route path="/tablizer/*" element={
+        {/* PubMed Tablizer standalone app - has its own auth context */}
+        <Route path="/pubmed/*" element={
           <ThemeProvider>
-            <TablizerRoutes />
+            <PubMedRoutes />
             <Toaster />
           </ThemeProvider>
         } />

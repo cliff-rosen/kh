@@ -1,20 +1,20 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid';
-import TablizerLayout from '../../components/tablizer/TablizerLayout';
-import TablizePubMed, { TablizePubMedRef, TablizePubMedState } from '../../components/tools/TablizePubMed';
+import PubMedLayout from '../../components/pubmed/PubMedLayout';
+import PubMedTableView, { PubMedTableViewRef, PubMedTableViewState } from '../../components/pubmed/PubMedTableView';
 import ChatTray from '../../components/chat/ChatTray';
 import QuerySuggestionCard from '../../components/chat/QuerySuggestionCard';
 import AIColumnCard from '../../components/chat/AIColumnCard';
 import { PayloadHandler } from '../../types/chat';
 
-export default function TablizerAppPage() {
+export default function PubMedAppPage() {
     const [isChatOpen, setIsChatOpen] = useState(false);
 
-    // Ref to TablizePubMed for imperative commands
-    const tablizePubMedRef = useRef<TablizePubMedRef>(null);
+    // Ref to PubMedTableView for imperative commands
+    const pubMedTableViewRef = useRef<PubMedTableViewRef>(null);
 
-    // State from TablizePubMed for chat context
-    const [tablizePubMedState, setTablizePubMedState] = useState<TablizePubMedState>({
+    // State from PubMedTableView for chat context
+    const [pubMedTableViewState, setPubMedTableViewState] = useState<PubMedTableViewState>({
         query: '',
         startDate: '',
         endDate: '',
@@ -27,25 +27,25 @@ export default function TablizerAppPage() {
         articles: []
     });
 
-    // Handle state changes from TablizePubMed
-    const handleStateChange = useCallback((state: TablizePubMedState) => {
-        setTablizePubMedState(state);
+    // Handle state changes from PubMedTableView
+    const handleStateChange = useCallback((state: PubMedTableViewState) => {
+        setPubMedTableViewState(state);
     }, []);
 
-    // Chat context for the Tablizer page
+    // Chat context for the PubMed Tablizer page
     const chatContext = useMemo(() => ({
-        current_page: 'tablizer',
-        query: tablizePubMedState.query,
-        start_date: tablizePubMedState.startDate,
-        end_date: tablizePubMedState.endDate,
-        date_type: tablizePubMedState.dateType,
-        total_matched: tablizePubMedState.totalMatched,
-        loaded_count: tablizePubMedState.loadedCount,
-        snapshots: tablizePubMedState.snapshots,
-        compare_mode: tablizePubMedState.compareMode,
-        ai_columns: tablizePubMedState.aiColumns,
-        articles: tablizePubMedState.articles
-    }), [tablizePubMedState]);
+        current_page: 'tablizer',  // Keep as 'tablizer' for backend compatibility
+        query: pubMedTableViewState.query,
+        start_date: pubMedTableViewState.startDate,
+        end_date: pubMedTableViewState.endDate,
+        date_type: pubMedTableViewState.dateType,
+        total_matched: pubMedTableViewState.totalMatched,
+        loaded_count: pubMedTableViewState.loadedCount,
+        snapshots: pubMedTableViewState.snapshots,
+        compare_mode: pubMedTableViewState.compareMode,
+        ai_columns: pubMedTableViewState.aiColumns,
+        articles: pubMedTableViewState.articles
+    }), [pubMedTableViewState]);
 
     // Handle query suggestion acceptance
     const handleQueryAccept = useCallback((data: {
@@ -54,24 +54,24 @@ export default function TablizerAppPage() {
         end_date?: string | null;
         date_type?: 'publication' | 'entry';
     }) => {
-        if (tablizePubMedRef.current) {
-            tablizePubMedRef.current.setQuery(data.query_expression);
+        if (pubMedTableViewRef.current) {
+            pubMedTableViewRef.current.setQuery(data.query_expression);
             // Set dates if provided
             if (data.start_date || data.end_date) {
-                tablizePubMedRef.current.setDates(
+                pubMedTableViewRef.current.setDates(
                     data.start_date || '',
                     data.end_date || '',
                     data.date_type || 'publication'
                 );
             }
-            tablizePubMedRef.current.executeSearch();
+            pubMedTableViewRef.current.executeSearch();
         }
     }, []);
 
     // Handle AI column suggestion acceptance
     const handleAIColumnAccept = useCallback((data: { name: string; criteria: string; type: 'boolean' | 'text' }) => {
-        if (tablizePubMedRef.current) {
-            tablizePubMedRef.current.addAIColumn(data.name, data.criteria, data.type);
+        if (pubMedTableViewRef.current) {
+            pubMedTableViewRef.current.addAIColumn(data.name, data.criteria, data.type);
         }
     }, []);
 
@@ -114,7 +114,7 @@ export default function TablizerAppPage() {
     }), [handleQueryAccept, handleAIColumnAccept]);
 
     return (
-        <TablizerLayout hideFooter>
+        <PubMedLayout hideFooter>
             <div className="flex h-full">
                 {/* Chat Tray */}
                 <ChatTray
@@ -127,8 +127,8 @@ export default function TablizerAppPage() {
                 {/* Main Content - scrollable */}
                 <div className="flex-1 min-w-0 overflow-y-auto">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                        <TablizePubMed
-                            ref={tablizePubMedRef}
+                        <PubMedTableView
+                            ref={pubMedTableViewRef}
                             onStateChange={handleStateChange}
                         />
                     </div>
@@ -145,6 +145,6 @@ export default function TablizerAppPage() {
                     </button>
                 )}
             </div>
-        </TablizerLayout>
+        </PubMedLayout>
     );
 }

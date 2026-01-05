@@ -22,12 +22,12 @@ let isRedirectingToLogin = false;
 
 api.interceptors.request.use((config) => {
   // Each standalone app has its own token
-  const isTablizer = window.location.pathname.startsWith('/tablizer');
+  const isPubMed = window.location.pathname.startsWith('/pubmed');
   const isTrialScout = window.location.pathname.startsWith('/trialscout');
 
   let token: string | null = null;
-  if (isTablizer) {
-    token = localStorage.getItem('tablizer_token');
+  if (isPubMed) {
+    token = localStorage.getItem('pubmed_token');
   } else if (isTrialScout) {
     token = localStorage.getItem('trialscout_token');
   } else {
@@ -49,14 +49,14 @@ api.interceptors.response.use(
       !error.config.url?.includes('/login') &&
       !isRedirectingToLogin) {
 
-      const isTablizer = window.location.pathname.startsWith('/tablizer');
+      const isPubMed = window.location.pathname.startsWith('/pubmed');
       const isTrialScout = window.location.pathname.startsWith('/trialscout');
-      const isStandaloneApp = isTablizer || isTrialScout;
+      const isStandaloneApp = isPubMed || isTrialScout;
 
       // Clear appropriate auth data
-      if (isTablizer) {
-        localStorage.removeItem('tablizer_token');
-        localStorage.removeItem('tablizer_user');
+      if (isPubMed) {
+        localStorage.removeItem('pubmed_token');
+        localStorage.removeItem('pubmed_user');
       } else if (isTrialScout) {
         localStorage.removeItem('trialscout_token');
         localStorage.removeItem('trialscout_user');
@@ -74,7 +74,7 @@ api.interceptors.response.use(
       } else {
         // Default behavior: redirect to appropriate login
         let loginPath = '/login';
-        if (isTablizer) loginPath = '/tablizer/login';
+        if (isPubMed) loginPath = '/pubmed/login';
         else if (isTrialScout) loginPath = '/trialscout/login';
         window.location.href = loginPath;
       }

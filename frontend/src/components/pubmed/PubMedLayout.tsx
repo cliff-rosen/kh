@@ -4,16 +4,16 @@ import {
     TableCellsIcon,
     UserCircleIcon
 } from '@heroicons/react/24/outline';
-import { useTablizerAuth } from '../../context/TablizerAuthContext';
+import { usePubMedAuth } from '../../context/PubMedAuthContext';
 
-interface TablizerLayoutProps {
+interface PubMedLayoutProps {
     children: React.ReactNode;
     /** Hide footer for full-height app views */
     hideFooter?: boolean;
 }
 
-export default function TablizerLayout({ children, hideFooter = false }: TablizerLayoutProps) {
-    const { user, logout, isAuthenticated } = useTablizerAuth();
+export default function PubMedLayout({ children, hideFooter = false }: PubMedLayoutProps) {
+    const { user, logout, isAuthenticated } = usePubMedAuth();
 
     return (
         <div className="h-screen bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden">
@@ -22,12 +22,12 @@ export default function TablizerLayout({ children, hideFooter = false }: Tablize
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-16">
                         {/* Logo */}
-                        <Link to="/tablizer" className="flex items-center gap-2">
+                        <Link to="/pubmed" className="flex items-center gap-2">
                             <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-violet-600 rounded-lg flex items-center justify-center">
                                 <TableCellsIcon className="h-5 w-5 text-white" />
                             </div>
                             <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-violet-600 bg-clip-text text-transparent">
-                                Tablizer
+                                PubMed Tablizer
                             </span>
                         </Link>
 
@@ -53,13 +53,13 @@ export default function TablizerLayout({ children, hideFooter = false }: Tablize
                             ) : (
                                 <>
                                     <Link
-                                        to="/tablizer/login"
+                                        to="/pubmed/login"
                                         className="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
                                     >
                                         Sign In
                                     </Link>
                                     <Link
-                                        to="/tablizer/register"
+                                        to="/pubmed/register"
                                         className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors"
                                     >
                                         Get Started
@@ -85,7 +85,7 @@ export default function TablizerLayout({ children, hideFooter = false }: Tablize
                                 <div className="w-5 h-5 bg-gradient-to-br from-purple-500 to-violet-600 rounded flex items-center justify-center">
                                     <TableCellsIcon className="h-3 w-3 text-white" />
                                 </div>
-                                <span>Tablizer</span>
+                                <span>PubMed Tablizer</span>
                             </div>
                             <div>
                                 Powered by AI

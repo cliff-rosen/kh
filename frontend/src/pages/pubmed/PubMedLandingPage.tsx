@@ -7,7 +7,7 @@ import {
     ArrowDownTrayIcon,
     CheckCircleIcon
 } from '@heroicons/react/24/outline';
-import TablizerLayout from '../../components/tablizer/TablizerLayout';
+import PubMedLayout from '../../components/pubmed/PubMedLayout';
 
 const features = [
     {
@@ -40,9 +40,9 @@ const benefits = [
     'Works with any PubMed query'
 ];
 
-export default function TablizerLandingPage() {
+export default function PubMedLandingPage() {
     return (
-        <TablizerLayout>
+        <PubMedLayout>
             {/* Hero Section */}
             <section className="relative overflow-hidden">
                 {/* Background gradient */}
@@ -62,13 +62,13 @@ export default function TablizerLandingPage() {
                         </p>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                             <Link
-                                to="/tablizer/register"
+                                to="/pubmed/register"
                                 className="w-full sm:w-auto px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl shadow-lg shadow-purple-500/25 transition-all hover:shadow-xl hover:shadow-purple-500/30"
                             >
                                 Start Analyzing Free
                             </Link>
                             <Link
-                                to="/tablizer/login"
+                                to="/pubmed/login"
                                 className="w-full sm:w-auto px-8 py-4 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold rounded-xl border border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-600 transition-colors"
                             >
                                 Sign In
@@ -151,7 +151,7 @@ export default function TablizerLandingPage() {
                             Everything you need to analyze literature
                         </h2>
                         <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-                            Tablizer combines powerful search with AI analysis to supercharge your literature review workflow.
+                            PubMed Tablizer combines powerful search with AI analysis to supercharge your literature review workflow.
                         </p>
                     </div>
 
@@ -183,7 +183,7 @@ export default function TablizerLandingPage() {
                             </h2>
                             <p className="text-lg text-purple-100 mb-8">
                                 Whether you're doing a systematic review, exploring a new research area,
-                                or just trying to stay on top of the literature — Tablizer helps you
+                                or just trying to stay on top of the literature - PubMed Tablizer helps you
                                 work smarter, not harder.
                             </p>
                             <ul className="space-y-4">
@@ -214,7 +214,7 @@ export default function TablizerLandingPage() {
                         Join researchers who are already using AI to analyze papers faster.
                     </p>
                     <Link
-                        to="/tablizer/register"
+                        to="/pubmed/register"
                         className="inline-flex items-center gap-2 px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl shadow-lg shadow-purple-500/25 transition-all hover:shadow-xl hover:shadow-purple-500/30"
                     >
                         <SparklesIcon className="h-5 w-5" />
@@ -222,6 +222,6 @@ export default function TablizerLandingPage() {
                     </Link>
                 </div>
             </section>
-        </TablizerLayout>
+        </PubMedLayout>
     );
 }
