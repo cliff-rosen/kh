@@ -553,10 +553,20 @@ register_payload_type(PayloadType(
     parser=make_json_parser("query_suggestion"),
     summarize=_summarize_query_suggestion,
     llm_instructions="""
-QUERY_SUGGESTION - Use when user asks for help writing or improving PubMed queries:
+QUERY_SUGGESTION - Use when user asks for help writing or improving PubMed queries.
+
+When you output this payload, it will appear in a side panel for the user to review.
+If they click "Accept", the query will be automatically executed and results will load.
+Tell the user: "I've prepared a query for you - you can see it in the panel on the right. Click 'Use This Query' to run the search."
+
+IMPORTANT: Date filtering is done via separate fields, NOT in the query_expression itself.
+Do NOT add date ranges like "2020:2024[dp]" to the query - use start_date/end_date instead.
 
 QUERY_SUGGESTION: {
-  "query_expression": "The complete PubMed search query",
+  "query_expression": "The PubMed search query (NO date filters here)",
+  "start_date": "YYYY-MM-DD or null (e.g., '2020-01-01')",
+  "end_date": "YYYY-MM-DD or null (e.g., '2024-12-31')",
+  "date_type": "publication or entry (default: publication)",
   "explanation": "Plain English explanation of what this query searches for",
   "syntax_notes": ["Explanation of specific syntax elements used"],
   "expected_results": "What types of articles this query should find",
@@ -567,11 +577,24 @@ QUERY_SUGGESTION: {
     }
   ]
 }
+
+Example with date filter:
+QUERY_SUGGESTION: {
+  "query_expression": "CRISPR[MeSH] AND gene therapy[MeSH]",
+  "start_date": "2020-01-01",
+  "end_date": null,
+  "date_type": "publication",
+  "explanation": "Searches for articles about CRISPR gene therapy published since 2020",
+  ...
+}
 """,
     schema={
         "type": "object",
         "properties": {
             "query_expression": {"type": "string"},
+            "start_date": {"type": ["string", "null"]},
+            "end_date": {"type": ["string", "null"]},
+            "date_type": {"type": "string", "enum": ["publication", "entry"]},
             "explanation": {"type": "string"},
             "syntax_notes": {"type": "array"},
             "expected_results": {"type": "string"},
@@ -996,7 +1019,11 @@ register_payload_type(PayloadType(
     parser=make_json_parser("ai_column_suggestion"),
     summarize=_summarize_ai_column_suggestion,
     llm_instructions="""
-AI_COLUMN - Use when user wants to filter or categorize results with an AI-powered column:
+AI_COLUMN - Use when user wants to filter or categorize results with an AI-powered column.
+
+When you output this payload, it will appear in a side panel for the user to review.
+If they click "Add Column", the AI column will be created and start processing their articles.
+Tell the user: "I've prepared an AI column for you - you can see the details in the panel on the right. Click 'Add Column' to create it."
 
 AI_COLUMN: {
   "name": "Column display name",
@@ -1006,18 +1033,18 @@ AI_COLUMN: {
 }
 
 Guidelines:
-- type should be "boolean" for yes/no filtering (enables quick filter toggles)
-- type should be "text" for extracting or summarizing information
-- Write clear, specific criteria that the AI can evaluate for each article/trial
-- The explanation should tell the user what the column does and how to use it
+- type "boolean" = yes/no filtering (enables quick filter toggles) - best for narrowing results
+- type "text" = extract or summarize information from each article
+- Write clear, specific criteria that the AI can evaluate for each article
+- The explanation should tell the user what the column does and how to use the results
 
-Example for filtering:
+Example:
 User: "I only want articles about clinical trials"
 AI_COLUMN: {
   "name": "Is Clinical Trial",
-  "criteria": "Is this article about a clinical trial? Look for trial registration numbers, study design descriptions (randomized, placebo-controlled, etc.), or explicit mention of clinical trial phases.",
+  "criteria": "Is this article about a clinical trial? Look for trial registration, randomized/placebo-controlled design, or clinical trial phases.",
   "type": "boolean",
-  "explanation": "Identifies articles that describe clinical trials. After adding, filter to 'Yes' to see only clinical trial articles."
+  "explanation": "Identifies clinical trial articles. After adding, filter to 'Yes' to see only trials."
 }
 
 Example for extraction:

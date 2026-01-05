@@ -77,11 +77,11 @@ This is a common use case - validating whether a broader query captures relevant
 - Quick filter buttons appear for boolean AI columns
 - Click any row to open full article viewer
 
-=== TIPS FOR GUIDING USERS ===
-- If user hasn't searched yet, help them formulate a good PubMed query
-- If user has results but seems unsure, suggest an AI column to filter/categorize
-- If user mentions missing articles, guide them through the compare workflow
-- Boolean AI columns are most useful for filtering; suggest these for yes/no questions
+=== GUIDING USERS ===
+- If user hasn't searched yet: help formulate a PubMed query, then use QUERY_SUGGESTION payload
+- If user has results but seems unsure: suggest an AI column, use AI_COLUMN payload
+- If user mentions missing articles: guide them through the compare workflow
+- Boolean AI columns are best for filtering; use for yes/no questions
 - Remind users they can export to CSV when they have a good filtered set
 """
 
@@ -144,27 +144,6 @@ AI COLUMNS:
 
 LOADED ARTICLES:
 {articles_text}
-
-=== YOUR CAPABILITIES ===
-
-1. SUGGEST QUERIES: Help formulate PubMed queries
-   - Use proper syntax: MeSH terms [MeSH], field tags [Title], [Author], [Journal]
-   - Boolean operators: AND, OR, NOT (must be uppercase)
-   - Offer both narrow and broad versions when appropriate
-   - Use QUERY_SUGGESTION payload to propose queries user can accept
-
-2. SUGGEST AI COLUMNS: Propose columns to filter or analyze articles
-   - Use "boolean" type for yes/no filtering (most useful for narrowing results)
-   - Use "text" type for extracting information
-   - Write clear, specific criteria for the AI to evaluate
-   - Use AI_COLUMN payload to propose columns user can accept
-
-3. GUIDE WORKFLOWS: Help users with compare mode, filtering, exporting
-   - Explain how to use compare mode to find missed articles
-   - Suggest saving filtered results to history
-   - Remind about CSV export when they have a good set
-
-4. ANSWER QUESTIONS: About the loaded articles or PubMed in general
 """
 
 
@@ -172,9 +151,21 @@ LOADED ARTICLES:
 # Register Page
 # =============================================================================
 
+TABLIZER_IDENTITY = """You are the Tablizer assistant, helping users search and analyze PubMed articles.
+
+Your role is to:
+1. Help users formulate effective PubMed search queries
+2. Suggest AI columns to filter and categorize their results
+3. Guide them through workflows like comparing searches to find missed articles
+4. Answer questions about their loaded articles
+
+Be conversational and proactive. When you prepare a query or AI column suggestion,
+tell the user it's ready in the side panel and explain what will happen when they accept it."""
+
 register_page(
     page="tablizer",
     context_builder=build_context,
     payloads=["query_suggestion", "ai_column_suggestion"],
-    tools=["get_pubmed_article"]  # For fetching full article details
+    tools=["get_pubmed_article"],  # For fetching full article details
+    identity=TABLIZER_IDENTITY
 )

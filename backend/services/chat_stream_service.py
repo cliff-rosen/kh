@@ -421,25 +421,31 @@ class ChatStreamService:
     def _build_system_prompt(self, context: Dict[str, Any], chat_id: Optional[int] = None) -> str:
         """
         Build system prompt with clean structure:
-        1. IDENTITY - Who the assistant is
+        1. IDENTITY - Who the assistant is (page-specific or default)
         2. CONTEXT - Current page and loaded data
         3. PAYLOAD MANIFEST - Available payloads from conversation history (if any)
         4. CAPABILITIES - Available tools and payloads (only if any)
         5. CUSTOM INSTRUCTIONS - Stream-specific instructions (only if defined)
         6. GUIDELINES - Brief response guidance
         """
+        from services.chat_page_config import get_identity
+
         current_page = context.get("current_page", "unknown")
         active_tab = context.get("active_tab")
         active_subtab = context.get("active_subtab")
 
         sections = []
 
-        # 1. IDENTITY (always present, with current date/time)
+        # 1. IDENTITY (page-specific or default, with current date/time)
         current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-        sections.append(
-            f"You are a helpful AI assistant for Knowledge Horizon, a biomedical research intelligence platform.\n"
-            f"Current date and time: {current_time}"
-        )
+        page_identity = get_identity(current_page)
+        if page_identity:
+            sections.append(f"{page_identity}\n\nCurrent date and time: {current_time}")
+        else:
+            sections.append(
+                f"You are a helpful AI assistant for Knowledge Horizon, a biomedical research intelligence platform.\n"
+                f"Current date and time: {current_time}"
+            )
 
         # 2. CONTEXT (page context + loaded data)
         page_context = self._build_page_context(current_page, context)

@@ -51,6 +51,7 @@ class PageConfig:
     payloads: List[str] = field(default_factory=list)         # Page-wide payloads
     tools: List[str] = field(default_factory=list)            # Page-wide tools
     client_actions: List[ClientAction] = field(default_factory=list)
+    identity: Optional[str] = None  # Custom identity for this page (overrides default)
 
 
 # =============================================================================
@@ -78,7 +79,8 @@ def register_page(
     tabs: Optional[Dict[str, TabConfig]] = None,
     payloads: Optional[List[str]] = None,
     tools: Optional[List[str]] = None,
-    client_actions: Optional[List[ClientAction]] = None
+    client_actions: Optional[List[ClientAction]] = None,
+    identity: Optional[str] = None
 ) -> None:
     """Register a page configuration."""
     _page_registry[page] = PageConfig(
@@ -86,7 +88,8 @@ def register_page(
         tabs=tabs or {},
         payloads=payloads or [],
         tools=tools or [],
-        client_actions=client_actions or []
+        client_actions=client_actions or [],
+        identity=identity
     )
 
 
@@ -160,6 +163,12 @@ def get_context_builder(page: str) -> Optional[Callable[[Dict[str, Any]], str]]:
     """Get the context builder function for a page."""
     config = _page_registry.get(page)
     return config.context_builder if config else None
+
+
+def get_identity(page: str) -> Optional[str]:
+    """Get the custom identity for a page (or None to use default)."""
+    config = _page_registry.get(page)
+    return config.identity if config else None
 
 
 def get_client_actions(page: str) -> List[ClientAction]:

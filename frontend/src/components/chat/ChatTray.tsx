@@ -257,7 +257,7 @@ export default function ChatTray({
         scrollToBottom();
     }, [messages, streamingText]);
 
-    // Detect new payloads and set as pending (don't auto-open the panel)
+    // Detect new payloads and auto-open the panel
     // Payloads come through custom_payload regardless of source (tool or LLM)
     useEffect(() => {
         const messageIndex = messages.length - 1;
@@ -272,12 +272,17 @@ export default function ChatTray({
             const hasLocalHandler = payloadHandlers && payloadHandlers[payloadType];
             const hasGlobalHandler = getPayloadHandler(payloadType);
 
-            // Only set as pending if we have a handler and haven't dismissed this payload
+            // Auto-open if we have a handler and haven't dismissed this payload
             if ((hasLocalHandler || hasGlobalHandler) && !dismissedPayloads.has(messageIndex)) {
                 setPendingPayload({
                     type: payloadType,
                     data: latestMessage.custom_payload.data,
                     messageIndex
+                });
+                // Auto-open the payload panel
+                setActivePayload({
+                    type: payloadType,
+                    data: latestMessage.custom_payload.data
                 });
             }
         }
