@@ -46,7 +46,8 @@ class SemanticFilterService:
         article_year: str = None,
         filter_criteria: str = "",
         threshold: float = 0.7,
-        article_data: Dict[str, str] = None
+        article_data: Dict[str, str] = None,
+        output_type: str = "boolean"
     ) -> Tuple[bool, float, str]:
         """
         Evaluate a single article against filter criteria using LLM.
@@ -64,6 +65,7 @@ class SemanticFilterService:
             filter_criteria: Natural language description of relevance criteria (may contain {slugs})
             threshold: Minimum score (0-1) for article to pass filter
             article_data: Dict of field name -> value for slug replacement
+            output_type: Expected output type ('boolean', 'number', or 'text')
 
         Returns:
             Tuple of (is_relevant, score, reasoning)
@@ -78,6 +80,38 @@ class SemanticFilterService:
                 'publication_date': article_year or 'N/A',  # alias
             }
 
+        # Build output-type-specific response instructions
+        if output_type == "boolean":
+            response_instruction = """Respond with:
+            1. A confidence score from 0.0 to 1.0 (where 1.0 is highest confidence in Yes)
+            2. Your reasoning explaining why Yes or No
+
+            Format your response as JSON:
+            {
+                "score": 0.0 to 1.0,
+                "reasoning": "Yes/No with explanation"
+            }"""
+        elif output_type == "number":
+            response_instruction = """Respond with:
+            1. A numerical score from 0.0 to 1.0 representing your evaluation
+            2. Your reasoning explaining the score
+
+            Format your response as JSON:
+            {
+                "score": 0.0 to 1.0,
+                "reasoning": "explanation of the score"
+            }"""
+        else:  # text
+            response_instruction = """Respond with:
+            1. A confidence score from 0.0 to 1.0 (where 1.0 is highest confidence)
+            2. Your classification or text answer
+
+            Format your response as JSON:
+            {
+                "score": 0.0 to 1.0,
+                "reasoning": "your text answer/classification here"
+            }"""
+
         # Check if criteria contains template slugs like {title}, {abstract}
         if self._has_slugs(filter_criteria):
             # Template mode: replace slugs with article data and use as user prompt
@@ -86,15 +120,7 @@ class SemanticFilterService:
 
             {user_prompt}
 
-            Respond with:
-            1. A relevance/confidence score from 0.0 to 1.0 (where 1.0 is highest confidence in your answer)
-            2. Your answer/reasoning
-
-            Format your response as JSON:
-            {{
-                "score": 0.0 to 1.0,
-                "reasoning": "your answer here"
-            }}
+            {response_instruction}
             """
         else:
             # Simple criteria mode: prepend article content
@@ -117,15 +143,7 @@ class SemanticFilterService:
 
             Evaluate whether this article meets the filter criteria. Consider the title, abstract, and context.
 
-            Respond with:
-            1. A relevance score from 0.0 to 1.0 (where 1.0 is highly relevant)
-            2. A brief explanation (2-3 sentences) of why the article does or does not meet the criteria
-
-            Format your response as JSON:
-            {{
-                "score": 0.0 to 1.0,
-                "reasoning": "explanation here"
-            }}
+            {response_instruction}
             """
 
         # Call LLM using BasePromptCaller
@@ -187,7 +205,8 @@ class SemanticFilterService:
         articles: List[Any],
         filter_criteria: str,
         threshold: float = 0.7,
-        max_concurrent: int = 10
+        max_concurrent: int = 10,
+        output_type: str = "boolean"
     ) -> List[Tuple[Any, bool, float, str]]:
         """
         Evaluate multiple articles in parallel with rate limiting.
@@ -200,6 +219,7 @@ class SemanticFilterService:
             filter_criteria: Natural language description of relevance criteria
             threshold: Minimum score (0-1) for article to pass filter
             max_concurrent: Maximum number of concurrent LLM evaluations (default: 10)
+            output_type: Expected output type ('boolean', 'number', or 'text')
 
         Returns:
             List of tuples: (article, is_relevant, score, reasoning)
@@ -278,7 +298,8 @@ class SemanticFilterService:
                         article_year=str(year) if year else None,
                         filter_criteria=filter_criteria,
                         threshold=threshold,
-                        article_data=article_data
+                        article_data=article_data,
+                        output_type=output_type
                     )
                     return article, is_relevant, score, reasoning
                 except Exception as e:
@@ -298,7 +319,8 @@ class SemanticFilterService:
         articles: List[WipArticle],
         filter_criteria: str,
         threshold: float = 0.7,
-        max_concurrent: int = 10
+        max_concurrent: int = 10,
+        output_type: str = "boolean"
     ) -> List[Tuple[WipArticle, bool, float, str]]:
         """
         Evaluate multiple WipArticles in parallel.
@@ -308,6 +330,7 @@ class SemanticFilterService:
             filter_criteria: Natural language description of relevance criteria
             threshold: Minimum score for article to pass
             max_concurrent: Maximum number of concurrent evaluations
+            output_type: Expected output type ('boolean', 'number', or 'text')
 
         Returns:
             List of tuples: (article, is_relevant, score, reasoning)
@@ -316,7 +339,8 @@ class SemanticFilterService:
             articles=articles,
             filter_criteria=filter_criteria,
             threshold=threshold,
-            max_concurrent=max_concurrent
+            max_concurrent=max_concurrent,
+            output_type=output_type
         )
 
     async def evaluate_canonical_articles_batch(
@@ -324,7 +348,8 @@ class SemanticFilterService:
         articles: List['CanonicalResearchArticle'],
         filter_criteria: str,
         threshold: float = 0.7,
-        max_concurrent: int = 10
+        max_concurrent: int = 10,
+        output_type: str = "boolean"
     ) -> List[Tuple['CanonicalResearchArticle', bool, float, str]]:
         """
         Evaluate multiple CanonicalResearchArticles in parallel.
@@ -334,6 +359,7 @@ class SemanticFilterService:
             filter_criteria: Natural language description of relevance criteria
             threshold: Minimum score for article to pass
             max_concurrent: Maximum number of concurrent evaluations
+            output_type: Expected output type ('boolean', 'number', or 'text')
 
         Returns:
             List of tuples: (article, is_relevant, score, reasoning)
@@ -342,5 +368,6 @@ class SemanticFilterService:
             articles=articles,
             filter_criteria=filter_criteria,
             threshold=threshold,
-            max_concurrent=max_concurrent
+            max_concurrent=max_concurrent,
+            output_type=output_type
         )

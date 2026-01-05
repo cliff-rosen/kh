@@ -43,6 +43,7 @@ export interface FilterArticlesRequest {
     articles: CanonicalResearchArticle[];
     filter_criteria: string;
     threshold: number;  // 0.0-1.0
+    output_type?: 'boolean' | 'number' | 'text';  // Expected output type
 }
 
 export interface FilterResult {

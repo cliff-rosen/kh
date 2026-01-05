@@ -62,7 +62,7 @@ const PubMedTable = forwardRef<TablizerRef, PubMedTableProps>(function PubMedTab
     const handleProcessAIColumn = useCallback(async (
         data: CanonicalResearchArticle[],
         promptTemplate: string,
-        _outputType: 'text' | 'number' | 'boolean'
+        outputType: 'text' | 'number' | 'boolean'
     ): Promise<AIColumnResult[]> => {
         const response = await researchStreamApi.filterArticles({
             articles: data.map(a => ({
@@ -80,7 +80,8 @@ const PubMedTable = forwardRef<TablizerRef, PubMedTableProps>(function PubMedTab
                 source: 'pubmed'
             })),
             filter_criteria: promptTemplate,
-            threshold: 0.5
+            threshold: 0.5,
+            output_type: outputType
         });
 
         return response.results.map(r => ({

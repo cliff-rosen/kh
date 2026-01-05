@@ -224,7 +224,8 @@ class RefinementWorkbenchService:
         self,
         articles: List[CanonicalResearchArticle],
         filter_criteria: str,
-        threshold: float
+        threshold: float,
+        output_type: str = "boolean"
     ) -> List[Dict]:
         """
         Apply semantic filtering to articles in parallel.
@@ -233,6 +234,7 @@ class RefinementWorkbenchService:
             articles: List of articles to filter
             filter_criteria: Natural language filter criteria
             threshold: Minimum score to pass (0.0-1.0)
+            output_type: Expected output type ('boolean', 'number', or 'text')
 
         Returns:
             List of filter result dicts with article, passed, score, reasoning
@@ -246,7 +248,8 @@ class RefinementWorkbenchService:
             articles=articles,
             filter_criteria=filter_criteria,
             threshold=threshold,
-            max_concurrent=50
+            max_concurrent=50,
+            output_type=output_type
         )
 
         # Convert batch results to expected format

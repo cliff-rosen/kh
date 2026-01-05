@@ -457,6 +457,7 @@ class TrialFilterRequest(BaseModel):
     trials: List[CanonicalClinicalTrial] = Field(..., description="Trials to filter")
     filter_criteria: str = Field(..., description="Natural language filter criteria")
     threshold: float = Field(0.5, ge=0.0, le=1.0, description="Minimum score to pass")
+    output_type: str = Field("boolean", description="Expected output type: 'boolean' (yes/no), 'number' (score), or 'text' (classification)")
 
 
 class TrialFilterResult(BaseModel):
@@ -544,7 +545,8 @@ async def filter_clinical_trials(
             articles=adapted_trials,
             filter_criteria=request.filter_criteria,
             threshold=request.threshold,
-            max_concurrent=50
+            max_concurrent=50,
+            output_type=request.output_type
         )
 
         # Convert results

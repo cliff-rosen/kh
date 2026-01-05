@@ -59,6 +59,7 @@ class FilterArticlesRequest(BaseModel):
     articles: List[CanonicalResearchArticle] = Field(..., description="Articles to filter")
     filter_criteria: str = Field(..., description="Natural language filter criteria")
     threshold: float = Field(0.7, ge=0.0, le=1.0, description="Minimum score to pass (0.0-1.0)")
+    output_type: str = Field("boolean", description="Expected output type: 'boolean' (yes/no), 'number' (score), or 'text' (classification)")
 
 
 class FilterResult(BaseModel):
@@ -248,7 +249,8 @@ async def filter_articles(
         results_list = await service.filter_articles(
             articles=request.articles,
             filter_criteria=request.filter_criteria,
-            threshold=request.threshold
+            threshold=request.threshold,
+            output_type=request.output_type
         )
 
         # Convert dicts to FilterResult models

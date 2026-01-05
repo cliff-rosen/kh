@@ -218,6 +218,7 @@ export interface TrialFilterRequest {
     trials: CanonicalClinicalTrial[];
     filter_criteria: string;
     threshold?: number;
+    output_type?: 'boolean' | 'number' | 'text';  // Expected output type
 }
 
 export interface TrialFilterResult {

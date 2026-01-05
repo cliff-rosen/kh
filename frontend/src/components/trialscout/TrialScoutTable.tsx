@@ -168,7 +168,7 @@ export default function TrialScoutTable({
     const handleProcessAIColumn = useCallback(async (
         data: TrialRowData[],
         promptTemplate: string,
-        _outputType: 'text' | 'number' | 'boolean'
+        outputType: 'text' | 'number' | 'boolean'
     ): Promise<AIColumnResult[]> => {
         // Get the original trials for the API call
         const trialMap = new Map(trials.map(t => [t.nct_id, t]));
@@ -179,7 +179,8 @@ export default function TrialScoutTable({
         const response = await toolsApi.filterTrials({
             trials: trialsForApi,
             filter_criteria: promptTemplate,
-            threshold: 0.5
+            threshold: 0.5,
+            output_type: outputType
         });
 
         return response.results.map(r => ({

@@ -53,7 +53,7 @@ export default function TablizeButton({
     const handleProcessAIColumn = useCallback(async (
         data: TablizableArticle[],
         promptTemplate: string,
-        _outputType: 'text' | 'number' | 'boolean'
+        outputType: 'text' | 'number' | 'boolean'
     ): Promise<AIColumnResult[]> => {
         const response = await researchStreamApi.filterArticles({
             articles: data.map(a => ({
@@ -71,7 +71,8 @@ export default function TablizeButton({
                 source: 'pubmed'
             })),
             filter_criteria: promptTemplate,
-            threshold: 0.5
+            threshold: 0.5,
+            output_type: outputType
         });
 
         return response.results.map(r => ({
