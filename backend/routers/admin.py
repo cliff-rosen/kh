@@ -7,17 +7,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
-from datetime import datetime, timedelta
-import secrets
+from datetime import datetime
 import logging
 
 from database import get_db
 from config.settings import settings
-from models import User, UserRole, Organization, ResearchStream, StreamScope, Invitation
+from models import User, UserRole
 from services import auth_service
 from services.organization_service import OrganizationService
 from services.user_service import UserService
 from services.subscription_service import SubscriptionService
+from services.invitation_service import InvitationService
+from services.research_stream_service import ResearchStreamService
 from schemas.organization import (
     Organization as OrgSchema,
     OrganizationUpdate,
@@ -257,7 +258,6 @@ async def assign_user_to_org(
 
 
 # ==================== Global Stream Management ====================
-# NOTE: These endpoints have direct DB access which should be refactored to use services
 
 @router.get(
     "/streams",
@@ -272,13 +272,11 @@ async def list_global_streams(
     logger.info(f"list_global_streams - admin_user_id={current_user.user_id}")
 
     try:
-        # TODO: Move to ResearchStreamService
-        streams = db.query(ResearchStream).filter(
-            ResearchStream.scope == StreamScope.GLOBAL
-        ).all()
+        service = ResearchStreamService(db)
+        streams = service.list_global_streams()
 
         logger.info(f"list_global_streams complete - admin_user_id={current_user.user_id}, count={len(streams)}")
-        return [StreamSchema.model_validate(s) for s in streams]
+        return streams
 
     except HTTPException:
         raise
@@ -307,10 +305,8 @@ async def set_stream_scope_global(
     logger.info(f"set_stream_scope_global - admin_user_id={current_user.user_id}, stream_id={stream_id}")
 
     try:
-        # TODO: Move to ResearchStreamService
-        stream = db.query(ResearchStream).filter(
-            ResearchStream.stream_id == stream_id
-        ).first()
+        service = ResearchStreamService(db)
+        stream = service.set_stream_scope_global(stream_id)
 
         if not stream:
             logger.warning(f"set_stream_scope_global - not found - admin_user_id={current_user.user_id}, stream_id={stream_id}")
@@ -319,15 +315,8 @@ async def set_stream_scope_global(
                 detail="Stream not found"
             )
 
-        # Update scope to global
-        stream.scope = StreamScope.GLOBAL
-        stream.org_id = None  # Global streams don't belong to an org
-
-        db.commit()
-        db.refresh(stream)
-
         logger.info(f"set_stream_scope_global complete - admin_user_id={current_user.user_id}, stream_id={stream_id}")
-        return StreamSchema.model_validate(stream)
+        return stream
 
     except HTTPException:
         raise
@@ -353,21 +342,15 @@ async def delete_global_stream(
     logger.info(f"delete_global_stream - admin_user_id={current_user.user_id}, stream_id={stream_id}")
 
     try:
-        # TODO: Move to ResearchStreamService
-        stream = db.query(ResearchStream).filter(
-            ResearchStream.stream_id == stream_id,
-            ResearchStream.scope == StreamScope.GLOBAL
-        ).first()
+        service = ResearchStreamService(db)
+        success = service.delete_global_stream(stream_id)
 
-        if not stream:
+        if not success:
             logger.warning(f"delete_global_stream - not found - admin_user_id={current_user.user_id}, stream_id={stream_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Global stream not found"
             )
-
-        db.delete(stream)
-        db.commit()
 
         logger.info(f"delete_global_stream complete - admin_user_id={current_user.user_id}, stream_id={stream_id}")
 
@@ -549,41 +532,14 @@ async def list_invitations(
     logger.info(f"list_invitations - admin_user_id={current_user.user_id}, org_id={org_id}")
 
     try:
-        # TODO: Move to InvitationService
-        query = db.query(Invitation)
+        service = InvitationService(db)
+        invitations = service.list_invitations(
+            org_id=org_id,
+            include_accepted=include_accepted,
+            include_expired=include_expired
+        )
 
-        if org_id:
-            query = query.filter(Invitation.org_id == org_id)
-
-        if not include_accepted:
-            query = query.filter(Invitation.accepted_at == None)
-
-        if not include_expired:
-            query = query.filter(Invitation.expires_at > datetime.utcnow())
-
-        query = query.filter(Invitation.is_revoked == False)
-        invitations = query.order_by(Invitation.created_at.desc()).all()
-
-        user_service = UserService(db)
-        result = []
-        for inv in invitations:
-            org = db.query(Organization).filter(Organization.org_id == inv.org_id).first() if inv.org_id else None
-            inviter = user_service.get_user_by_id(inv.invited_by) if inv.invited_by else None
-
-            result.append(InvitationResponse(
-                invitation_id=inv.invitation_id,
-                email=inv.email,
-                org_id=inv.org_id,
-                org_name=org.name if org else None,
-                role=inv.role,
-                token=inv.token,
-                invite_url=f"{settings.FRONTEND_URL}/register?token={inv.token}",
-                created_at=inv.created_at,
-                expires_at=inv.expires_at,
-                accepted_at=inv.accepted_at,
-                is_revoked=inv.is_revoked,
-                inviter_email=inviter.email if inviter else None
-            ))
+        result = [InvitationResponse(**inv) for inv in invitations]
 
         logger.info(f"list_invitations complete - admin_user_id={current_user.user_id}, count={len(result)}")
         return result
@@ -627,80 +583,25 @@ async def create_invitation(
                 detail="User with this email already exists"
             )
 
-        # TODO: Move to InvitationService
-        # Check if pending invitation exists
-        existing_invite = db.query(Invitation).filter(
-            Invitation.email == invitation.email,
-            Invitation.accepted_at == None,
-            Invitation.is_revoked == False,
-            Invitation.expires_at > datetime.utcnow()
-        ).first()
-
-        if existing_invite:
+        # Validate org_id based on role (non-platform_admin requires org)
+        if invitation.role != UserRoleSchema.PLATFORM_ADMIN and not invitation.org_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="A pending invitation for this email already exists"
+                detail="Organization is required for non-platform-admin roles"
             )
 
-        # Validate org_id based on role
-        org = None
-        if invitation.role == UserRoleSchema.PLATFORM_ADMIN:
-            # Platform admins don't require an organization
-            if invitation.org_id:
-                org = db.query(Organization).filter(Organization.org_id == invitation.org_id).first()
-                if not org:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="Organization not found"
-                    )
-        else:
-            # Non-platform-admin roles require an organization
-            if not invitation.org_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Organization is required for non-platform-admin roles"
-                )
-            org = db.query(Organization).filter(Organization.org_id == invitation.org_id).first()
-            if not org:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Organization not found"
-                )
-
-        # Generate secure token
-        token = secrets.token_urlsafe(32)
-
-        # Create invitation
-        new_invitation = Invitation(
+        # Create invitation via service
+        invitation_service = InvitationService(db)
+        result = invitation_service.create_invitation(
             email=invitation.email,
-            token=token,
-            org_id=invitation.org_id,
             role=invitation.role.value,
             invited_by=current_user.user_id,
-            expires_at=datetime.utcnow() + timedelta(days=invitation.expires_in_days)
+            org_id=invitation.org_id,
+            expires_in_days=invitation.expires_in_days
         )
 
-        db.add(new_invitation)
-        db.commit()
-        db.refresh(new_invitation)
-
-        org_info = f"org {org.name}" if org else "no org (platform admin)"
-        logger.info(f"create_invitation complete - admin_user_id={current_user.user_id}, email={invitation.email}, to {org_info}")
-
-        return InvitationResponse(
-            invitation_id=new_invitation.invitation_id,
-            email=new_invitation.email,
-            org_id=new_invitation.org_id,
-            org_name=org.name if org else None,
-            role=new_invitation.role,
-            token=new_invitation.token,
-            invite_url=f"{settings.FRONTEND_URL}/register?token={new_invitation.token}",
-            created_at=new_invitation.created_at,
-            expires_at=new_invitation.expires_at,
-            accepted_at=new_invitation.accepted_at,
-            is_revoked=new_invitation.is_revoked,
-            inviter_email=current_user.email
-        )
+        logger.info(f"create_invitation complete - admin_user_id={current_user.user_id}, email={invitation.email}, org_id={invitation.org_id}")
+        return InvitationResponse(**result)
 
     except HTTPException:
         raise
@@ -726,28 +627,17 @@ async def revoke_invitation(
     logger.info(f"revoke_invitation - admin_user_id={current_user.user_id}, invitation_id={invitation_id}")
 
     try:
-        # TODO: Move to InvitationService
-        invitation = db.query(Invitation).filter(
-            Invitation.invitation_id == invitation_id
-        ).first()
+        service = InvitationService(db)
+        success = service.revoke_invitation(invitation_id)
 
-        if not invitation:
+        if not success:
             logger.warning(f"revoke_invitation - not found - admin_user_id={current_user.user_id}, invitation_id={invitation_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Invitation not found"
             )
 
-        if invitation.accepted_at:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot revoke an already accepted invitation"
-            )
-
-        invitation.is_revoked = True
-        db.commit()
-
-        logger.info(f"revoke_invitation complete - admin_user_id={current_user.user_id}, invitation_id={invitation_id}, email={invitation.email}")
+        logger.info(f"revoke_invitation complete - admin_user_id={current_user.user_id}, invitation_id={invitation_id}")
 
     except HTTPException:
         raise
@@ -777,8 +667,9 @@ async def create_user_directly(
     logger.info(f"create_user_directly - admin_user_id={current_user.user_id}, email={user_data.email}, org_id={user_data.org_id}")
 
     try:
-        # TODO: Move org verification to OrganizationService
-        org = db.query(Organization).filter(Organization.org_id == user_data.org_id).first()
+        # Verify organization exists
+        org_service = OrganizationService(db)
+        org = org_service.get_organization(user_data.org_id)
         if not org:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -808,7 +699,6 @@ async def create_user_directly(
 
 
 # ==================== Organization Stream Subscriptions ====================
-# NOTE: These endpoints have some direct DB access for validation which should be refactored
 
 @router.get(
     "/orgs/{org_id}/global-streams",
@@ -827,8 +717,9 @@ async def list_org_global_stream_subscriptions(
     logger.info(f"list_org_global_stream_subscriptions - admin_user_id={current_user.user_id}, org_id={org_id}")
 
     try:
-        # TODO: Move org verification to OrganizationService
-        org = db.query(Organization).filter(Organization.org_id == org_id).first()
+        # Verify organization exists
+        org_service = OrganizationService(db)
+        org = org_service.get_organization(org_id)
         if not org:
             logger.warning(f"list_org_global_stream_subscriptions - org not found - admin_user_id={current_user.user_id}, org_id={org_id}")
             raise HTTPException(
@@ -870,8 +761,9 @@ async def subscribe_org_to_global_stream(
     logger.info(f"subscribe_org_to_global_stream - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}")
 
     try:
-        # TODO: Move these validations to services
-        org = db.query(Organization).filter(Organization.org_id == org_id).first()
+        # Verify organization exists
+        org_service = OrganizationService(db)
+        org = org_service.get_organization(org_id)
         if not org:
             logger.warning(f"subscribe_org_to_global_stream - org not found - admin_user_id={current_user.user_id}, org_id={org_id}")
             raise HTTPException(
@@ -879,10 +771,9 @@ async def subscribe_org_to_global_stream(
                 detail="Organization not found"
             )
 
-        stream = db.query(ResearchStream).filter(
-            ResearchStream.stream_id == stream_id,
-            ResearchStream.scope == StreamScope.GLOBAL
-        ).first()
+        # Verify global stream exists
+        stream_service = ResearchStreamService(db)
+        stream = stream_service.get_global_stream(stream_id)
         if not stream:
             logger.warning(f"subscribe_org_to_global_stream - stream not found - admin_user_id={current_user.user_id}, stream_id={stream_id}")
             raise HTTPException(
@@ -1090,22 +981,18 @@ async def get_chat_config(
                 client_actions=[ca.action for ca in config.client_actions]
             ))
 
-        # TODO: Move to ResearchStreamService
         # Get all streams with their chat instructions status
-        stream_instructions = []
-        streams = db.query(ResearchStream).order_by(ResearchStream.stream_name).all()
-        for stream in streams:
-            has_instr = stream.chat_instructions is not None and len(stream.chat_instructions.strip()) > 0
-            preview = None
-            if has_instr:
-                preview = stream.chat_instructions[:200] + "..." if len(stream.chat_instructions) > 200 else stream.chat_instructions
-
-            stream_instructions.append(StreamInstructionsInfo(
-                stream_id=stream.stream_id,
-                stream_name=stream.stream_name,
-                has_instructions=has_instr,
-                instructions_preview=preview
-            ))
+        stream_service = ResearchStreamService(db)
+        streams_data = stream_service.get_all_streams_with_chat_instructions()
+        stream_instructions = [
+            StreamInstructionsInfo(
+                stream_id=s["stream_id"],
+                stream_name=s["stream_name"],
+                has_instructions=s["has_instructions"],
+                instructions_preview=s["instructions_preview"]
+            )
+            for s in streams_data
+        ]
 
         # Build summary
         streams_with_instructions = len([s for s in stream_instructions if s.has_instructions])

@@ -528,3 +528,127 @@ class ResearchStreamService:
         stream.updated_at = datetime.utcnow()
         self.db.commit()
         logger.info(f"Committed enrichment_config for stream {stream_id}")
+
+    # ==================== Admin Methods for Global Streams ====================
+
+    def list_global_streams(self) -> List[ResearchStreamSchema]:
+        """
+        Get all global streams. For platform admin use.
+
+        Returns:
+            List of global ResearchStream schemas
+        """
+        streams = self.db.query(ResearchStream).filter(
+            ResearchStream.scope == StreamScope.GLOBAL
+        ).all()
+
+        logger.info(f"Listed {len(streams)} global streams")
+        return [ResearchStreamSchema.model_validate(s) for s in streams]
+
+    def get_global_stream(self, stream_id: int) -> Optional[ResearchStreamSchema]:
+        """
+        Get a specific global stream by ID. For platform admin use.
+
+        Args:
+            stream_id: ID of the global stream
+
+        Returns:
+            ResearchStream schema if found, None otherwise
+        """
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == stream_id,
+            ResearchStream.scope == StreamScope.GLOBAL
+        ).first()
+
+        if stream:
+            return ResearchStreamSchema.model_validate(stream)
+        return None
+
+    def set_stream_scope_global(self, stream_id: int) -> ResearchStreamSchema:
+        """
+        Change a stream's scope to global. For platform admin use.
+
+        Args:
+            stream_id: ID of stream to promote to global
+
+        Returns:
+            Updated ResearchStream schema
+
+        Raises:
+            HTTPException: If stream not found
+        """
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == stream_id
+        ).first()
+
+        if not stream:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Stream not found"
+            )
+
+        # Update scope to global
+        stream.scope = StreamScope.GLOBAL
+        stream.org_id = None  # Global streams don't belong to an org
+
+        self.db.commit()
+        self.db.refresh(stream)
+
+        logger.info(f"Set stream {stream_id} scope to global")
+        return ResearchStreamSchema.model_validate(stream)
+
+    def delete_global_stream(self, stream_id: int) -> bool:
+        """
+        Delete a global stream. For platform admin use.
+
+        Args:
+            stream_id: ID of global stream to delete
+
+        Returns:
+            True if deleted
+
+        Raises:
+            HTTPException: If stream not found or not global
+        """
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == stream_id,
+            ResearchStream.scope == StreamScope.GLOBAL
+        ).first()
+
+        if not stream:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Global stream not found"
+            )
+
+        self.db.delete(stream)
+        self.db.commit()
+
+        logger.info(f"Deleted global stream {stream_id}")
+        return True
+
+    def get_all_streams_with_chat_instructions(self) -> List[Dict[str, Any]]:
+        """
+        Get all streams with their chat instructions status. For admin chat config.
+
+        Returns:
+            List of dicts with stream_id, stream_name, has_instructions, instructions_preview
+        """
+        streams = self.db.query(ResearchStream).order_by(ResearchStream.stream_name).all()
+
+        result = []
+        for stream in streams:
+            has_instr = stream.chat_instructions is not None and len(stream.chat_instructions.strip()) > 0
+            preview = None
+            if has_instr:
+                preview = stream.chat_instructions[:200] + "..." if len(stream.chat_instructions) > 200 else stream.chat_instructions
+
+            result.append({
+                "stream_id": stream.stream_id,
+                "stream_name": stream.stream_name,
+                "has_instructions": has_instr,
+                "instructions_preview": preview
+            })
+
+        logger.info(f"Got chat instructions status for {len(result)} streams")
+        return result
