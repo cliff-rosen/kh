@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { DocumentTextIcon, ChevronLeftIcon, ChevronRightIcon, Squares2X2Icon, ListBulletIcon, ChevronDownIcon, ChartBarIcon, Cog6ToothIcon, TrashIcon, Bars2Icon, Bars3BottomLeftIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon, ChevronDownIcon, ChevronRightIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 
 import { Report, ReportWithArticles, ReportArticle } from '../types';
 import { ResearchStream, Category } from '../types';
@@ -12,38 +12,22 @@ import { showErrorToast } from '../lib/errorToast';
 import { useResearchStream } from '../context/ResearchStreamContext';
 import { useAuth } from '../context/AuthContext';
 import { useTracking } from '../hooks/useTracking';
+
 import PipelineAnalyticsModal from '../components/stream/PipelineAnalyticsModal';
 import ExecutionConfigModal from '../components/stream/ExecutionConfigModal';
 import ArticleViewerModal from '../components/articles/ArticleViewerModal';
 import ChatTray from '../components/chat/ChatTray';
 import PubMedArticleCard, { PubMedArticleData } from '../components/chat/PubMedArticleCard';
-import { Tablizer, TableColumn, RowViewerProps } from '../components/tools/Tablizer';
-import { TableCellsIcon } from '@heroicons/react/24/outline';
 
-// Column definitions for report articles
-const REPORT_COLUMNS: TableColumn[] = [
-    { id: 'pmid', label: 'PMID', accessor: 'pmid', type: 'text', visible: true },
-    { id: 'title', label: 'Title', accessor: 'title', type: 'text', visible: true },
-    { id: 'abstract', label: 'Abstract', accessor: 'abstract', type: 'text', visible: false },
-    { id: 'journal', label: 'Journal', accessor: 'journal', type: 'text', visible: true },
-    { id: 'publication_date', label: 'Date', accessor: 'publication_date', type: 'date', visible: true },
-    { id: 'relevance_score', label: 'Relevance', accessor: 'relevance_score', type: 'number', visible: true },
-    { id: 'categories', label: 'Categories', accessor: 'presentation_categories', type: 'text', visible: true },
-];
-
-// Adapter component for ArticleViewerModal to match RowViewer interface
-function ReportArticleRowViewer({ data, initialIndex, onClose }: RowViewerProps<ReportArticle>) {
-    return (
-        <ArticleViewerModal
-            articles={data}
-            initialIndex={initialIndex}
-            onClose={onClose}
-        />
-    );
-}
-
-type ReportView = 'all' | 'by-category' | 'tablizer';
-type CardFormat = 'compact' | 'expanded';
+import {
+    ReportArticleTable,
+    ReportStreamSelector,
+    ReportSidebar,
+    ReportHeader,
+    ReportArticleCard,
+    ReportView,
+    CardFormat
+} from '../components/reports';
 
 export default function ReportsPage() {
     const [searchParams] = useSearchParams();
@@ -51,20 +35,28 @@ export default function ReportsPage() {
     const { researchStreams, loadResearchStreams } = useResearchStream();
     const { isPlatformAdmin, isOrgAdmin } = useAuth();
     const { track, trackViewChange, trackChatOpen, trackChatClose } = useTracking({ defaultContext: { page: 'reports' } });
+
+    // Stream and report state
     const [selectedStream, setSelectedStream] = useState('');
     const [reports, setReports] = useState<Report[]>([]);
     const [selectedReport, setSelectedReport] = useState<ReportWithArticles | null>(null);
+    const [streamDetails, setStreamDetails] = useState<ResearchStream | null>(null);
+
+    // Loading state
     const [loadingReports, setLoadingReports] = useState(false);
     const [loadingReportDetails, setLoadingReportDetails] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // UI state
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [reportView, setReportView] = useState<ReportView>('all');
     const [cardFormat, setCardFormat] = useState<CardFormat>('compact');
-    const [streamDetails, setStreamDetails] = useState<ResearchStream | null>(null);
     const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+    const [executiveSummaryCollapsed, setExecutiveSummaryCollapsed] = useState(false);
+
+    // Modal state
     const [showAnalytics, setShowAnalytics] = useState(false);
     const [showExecutionConfig, setShowExecutionConfig] = useState(false);
-    const [executiveSummaryCollapsed, setExecutiveSummaryCollapsed] = useState(false);
 
     // Chat state
     const [isChatOpen, setIsChatOpen] = useState(false);
@@ -74,23 +66,20 @@ export default function ReportsPage() {
     const [articleViewerArticles, setArticleViewerArticles] = useState<ReportArticle[]>([]);
     const [articleViewerInitialIndex, setArticleViewerInitialIndex] = useState(0);
 
+    const hasStreams = researchStreams.length > 0;
+    const hasPipelineData = selectedReport?.pipeline_execution_id != null;
+
     // Handle article updates from the modal (notes, enrichments)
     const handleArticleUpdate = useCallback((articleId: number, updates: { notes?: string; ai_enrichments?: any }) => {
-        // Update the modal's article list
         setArticleViewerArticles(prev => prev.map(article =>
-            article.article_id === articleId
-                ? { ...article, ...updates }
-                : article
+            article.article_id === articleId ? { ...article, ...updates } : article
         ));
 
-        // Also update the source report data so changes persist
         if (selectedReport) {
             setSelectedReport(prev => prev ? {
                 ...prev,
                 articles: prev.articles?.map(article =>
-                    article.article_id === articleId
-                        ? { ...article, ...updates }
-                        : article
+                    article.article_id === articleId ? { ...article, ...updates } : article
                 )
             } : null);
         }
@@ -98,9 +87,7 @@ export default function ReportsPage() {
 
     // Chat context for the general chat system
     const chatContext = useMemo(() => {
-        const context: Record<string, any> = {
-            current_page: 'reports'
-        };
+        const context: Record<string, any> = { current_page: 'reports' };
         if (selectedStream) {
             context.stream_id = parseInt(selectedStream, 10);
             if (streamDetails) {
@@ -115,12 +102,10 @@ export default function ReportsPage() {
         return context;
     }, [selectedReport, selectedStream, streamDetails]);
 
-    // Payload handlers for ChatTray - handles custom payloads from the chat
+    // Payload handlers for ChatTray
     const payloadHandlers = useMemo<Record<string, PayloadHandler>>(() => ({
         pubmed_article: {
-            render: (data: PubMedArticleData) => (
-                <PubMedArticleCard article={data} />
-            ),
+            render: (data: PubMedArticleData) => <PubMedArticleCard article={data} />,
             renderOptions: {
                 panelWidth: '550px',
                 headerTitle: 'PubMed Article',
@@ -128,23 +113,6 @@ export default function ReportsPage() {
             }
         }
     }), []);
-
-    const hasStreams = researchStreams.length > 0;
-    const hasPipelineData = selectedReport?.pipeline_execution_id != null;
-
-    const toggleCategory = (categoryId: string) => {
-        setCollapsedCategories(prev => {
-            const newSet = new Set(prev);
-            const willCollapse = !newSet.has(categoryId);
-            if (newSet.has(categoryId)) {
-                newSet.delete(categoryId);
-            } else {
-                newSet.add(categoryId);
-            }
-            track('category_toggle', { category: categoryId, collapsed: willCollapse });
-            return newSet;
-        });
-    };
 
     // Load research streams on mount
     useEffect(() => {
@@ -169,15 +137,12 @@ export default function ReportsPage() {
                 setSelectedReport(null);
                 setStreamDetails(null);
                 try {
-                    // Load stream details for presentation categories
                     const stream = await researchStreamApi.getResearchStream(Number(selectedStream));
                     setStreamDetails(stream);
 
-                    // Load reports
                     const streamReports = await reportApi.getReportsForStream(Number(selectedStream));
                     setReports(streamReports);
 
-                    // Auto-select report from URL param, or fall back to first report
                     const reportParam = searchParams.get('report');
                     if (reportParam) {
                         const reportId = Number(reportParam);
@@ -185,11 +150,9 @@ export default function ReportsPage() {
                         if (report) {
                             loadReportDetails(reportId);
                         } else if (streamReports.length > 0) {
-                            // Report not found, select first report
                             loadReportDetails(streamReports[0].report_id);
                         }
                     } else if (streamReports.length > 0) {
-                        // No report param, select first report
                         loadReportDetails(streamReports[0].report_id);
                     }
                 } catch (err: any) {
@@ -209,8 +172,8 @@ export default function ReportsPage() {
 
     const loadReportDetails = async (reportId: number) => {
         setLoadingReportDetails(true);
-        setCollapsedCategories(new Set()); // Reset collapsed state when switching reports
-        setExecutiveSummaryCollapsed(false); // Reset executive summary collapsed state
+        setCollapsedCategories(new Set());
+        setExecutiveSummaryCollapsed(false);
         try {
             const reportDetails = await reportApi.getReportWithArticles(reportId);
             setSelectedReport(reportDetails);
@@ -235,12 +198,9 @@ export default function ReportsPage() {
 
         try {
             await reportApi.deleteReport(reportId);
-
-            // Remove from local state
             const updatedReports = reports.filter(r => r.report_id !== reportId);
             setReports(updatedReports);
 
-            // If we just deleted the selected report, select the first remaining report
             if (selectedReport?.report_id === reportId) {
                 if (updatedReports.length > 0) {
                     loadReportDetails(updatedReports[0].report_id);
@@ -253,7 +213,28 @@ export default function ReportsPage() {
         }
     };
 
-    // Open article viewer with a group of articles
+    const handleStreamChange = (streamId: string) => {
+        setSelectedStream(streamId);
+        if (streamId) {
+            const stream = researchStreams.find(s => s.stream_id.toString() === streamId);
+            track('stream_select', { stream_id: parseInt(streamId, 10), stream_name: stream?.stream_name });
+        }
+    };
+
+    const handleViewChange = (view: ReportView) => {
+        if (reportView !== view) {
+            trackViewChange(reportView, view, 'reports');
+            setReportView(view);
+        }
+    };
+
+    const handleCardFormatChange = (format: CardFormat) => {
+        if (cardFormat !== format) {
+            track('card_format_change', { from: cardFormat, to: format });
+            setCardFormat(format);
+        }
+    };
+
     const openArticleViewer = (articles: ReportArticle[], clickedIndex: number) => {
         const article = articles[clickedIndex];
         track('article_open', {
@@ -266,6 +247,20 @@ export default function ReportsPage() {
         setArticleViewerOpen(true);
     };
 
+    const toggleCategory = (categoryId: string) => {
+        setCollapsedCategories(prev => {
+            const newSet = new Set(prev);
+            const willCollapse = !newSet.has(categoryId);
+            if (newSet.has(categoryId)) {
+                newSet.delete(categoryId);
+            } else {
+                newSet.add(categoryId);
+            }
+            track('category_toggle', { category: categoryId, collapsed: willCollapse });
+            return newSet;
+        });
+    };
+
     // Helper function to organize articles by category
     const getArticlesByCategory = () => {
         if (!selectedReport || !streamDetails) return {};
@@ -273,24 +268,19 @@ export default function ReportsPage() {
         const categories = streamDetails.presentation_config?.categories || [];
         const categoryMap: Record<string, { category: Category; articles: ReportArticle[] }> = {};
 
-        // Initialize with all categories
         categories.forEach(cat => {
             categoryMap[cat.id] = { category: cat, articles: [] };
         });
 
-        // Add uncategorized bucket
         categoryMap['uncategorized'] = {
             category: { id: 'uncategorized', name: 'Uncategorized', topics: [], specific_inclusions: [] },
             articles: []
         };
 
-        // Group articles by category
-        // Each article is assigned to exactly one category (stored as single-item array)
         selectedReport.articles?.forEach(article => {
             if (!article.presentation_categories || article.presentation_categories.length === 0) {
                 categoryMap['uncategorized'].articles.push(article);
             } else {
-                // Article should have exactly one category
                 const catId = article.presentation_categories[0];
                 if (categoryMap[catId]) {
                     categoryMap[catId].articles.push(article);
@@ -298,144 +288,15 @@ export default function ReportsPage() {
             }
         });
 
-        // Filter out empty categories
         return Object.fromEntries(
             Object.entries(categoryMap).filter(([_, data]) => data.articles.length > 0)
         );
     };
 
-    const ArticleCard = ({ article, showAbstract = false, onTitleClick }: { article: ReportArticle; showAbstract?: boolean; onTitleClick?: () => void }) => (
-        <div
-            onClick={onTitleClick}
-            className={`border border-gray-200 dark:border-gray-700 rounded-lg p-4 transition-all ${
-                onTitleClick
-                    ? 'cursor-pointer hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md hover:bg-blue-50/50 dark:hover:bg-blue-900/10'
-                    : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
-            }`}
-        >
-            <div className="flex items-start gap-4">
-                <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-blue-600 dark:text-blue-400 mb-1 group-hover:underline">
-                        {article.title}
-                    </h4>
-                    {article.authors && article.authors.length > 0 && (
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                            {article.authors.slice(0, 3).join(', ')}
-                            {article.authors.length > 3 && ` et al.`}
-                        </p>
-                    )}
-                    <div className="flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-500">
-                        {article.journal && <span>{article.journal}</span>}
-                        {article.publication_date && (
-                            <span>• {new Date(article.publication_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
-                        )}
-                        {article.pmid && <span>• PMID: {article.pmid}</span>}
-                    </div>
-                    {showAbstract && article.abstract && (
-                        <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700">
-                            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-                                {article.abstract}
-                            </p>
-                        </div>
-                    )}
-                    {article.relevance_rationale && (
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 italic">
-                            {article.relevance_rationale}
-                        </p>
-                    )}
-                </div>
-                {onTitleClick && (
-                    <ChevronRightIcon className="h-5 w-5 text-gray-400 flex-shrink-0 mt-1" />
-                )}
-            </div>
-        </div>
-    );
-
-    return (
-        <div className="h-[calc(100vh-4rem)] flex">
-            {/* Chat Tray - inline on left side, hidden when article viewer is open */}
-            <ChatTray
-                initialContext={chatContext}
-                payloadHandlers={payloadHandlers}
-                hidden={articleViewerOpen}
-                isOpen={isChatOpen}
-                onOpenChange={(open) => {
-                    if (!open) trackChatClose('reports');
-                    setIsChatOpen(open);
-                }}
-            />
-
-            {/* Main Content */}
-            <div className="flex-1 overflow-y-auto p-6 relative">
-                {/* Chat toggle button - fixed to lower left */}
-                {!isChatOpen && !articleViewerOpen && (
-                    <button
-                        onClick={() => {
-                            trackChatOpen('reports');
-                            setIsChatOpen(true);
-                        }}
-                        className="fixed bottom-6 left-6 z-40 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
-                        title="Open chat"
-                    >
-                        <ChatBubbleLeftRightIcon className="h-6 w-6" />
-                    </button>
-                )}
-
-            <div className="flex justify-between items-center mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                        Reports
-                    </h1>
-                    <p className="text-gray-600 dark:text-gray-400 mt-2">
-                        Generated reports from your research streams
-                    </p>
-                </div>
-            </div>
-
-            {hasStreams && (
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-                    <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-4">
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Research Stream:
-                            </label>
-                            <select
-                                value={selectedStream}
-                                onChange={(e) => {
-                                    const streamId = e.target.value;
-                                    setSelectedStream(streamId);
-                                    if (streamId) {
-                                        const stream = researchStreams.find(s => s.stream_id.toString() === streamId);
-                                        track('stream_select', { stream_id: parseInt(streamId, 10), stream_name: stream?.stream_name });
-                                    }
-                                }}
-                                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white min-w-64"
-                            >
-                                <option value="">Select a research stream...</option>
-                                {researchStreams.map(stream => (
-                                    <option key={stream.stream_id} value={stream.stream_id}>
-                                        {stream.stream_name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        {selectedStream && (isPlatformAdmin || isOrgAdmin) && (
-                            <button
-                                onClick={() => {
-                                    track('pipeline_run_click', { stream_id: parseInt(selectedStream, 10) });
-                                    navigate(`/streams/${selectedStream}/edit?tab=execute&subtab=pipeline`);
-                                }}
-                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-                            >
-                                <DocumentTextIcon className="h-5 w-5" />
-                                Run Pipeline
-                            </button>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {!hasStreams ? (
+    // Render empty states
+    const renderEmptyState = () => {
+        if (!hasStreams) {
+            return (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
                     <DocumentTextIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
@@ -445,7 +306,11 @@ export default function ReportsPage() {
                         You need to create a research stream before reports can be generated.
                     </p>
                 </div>
-            ) : !selectedStream ? (
+            );
+        }
+
+        if (!selectedStream) {
+            return (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
                     <DocumentTextIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
@@ -455,12 +320,20 @@ export default function ReportsPage() {
                         Choose a research stream above to view its reports.
                     </p>
                 </div>
-            ) : loadingReports ? (
+            );
+        }
+
+        if (loadingReports) {
+            return (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
                     <p className="text-gray-600 dark:text-gray-400">Loading reports...</p>
                 </div>
-            ) : error === 'error' ? (
+            );
+        }
+
+        if (error === 'error') {
+            return (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
                     <div className="text-red-500 text-5xl mb-4">⚠️</div>
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
@@ -476,7 +349,11 @@ export default function ReportsPage() {
                         Retry
                     </button>
                 </div>
-            ) : error === 'no_reports' || reports.length === 0 ? (
+            );
+        }
+
+        if (error === 'no_reports' || reports.length === 0) {
+            return (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
                     <DocumentTextIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
@@ -486,411 +363,316 @@ export default function ReportsPage() {
                         No reports have been generated for this research stream yet.
                     </p>
                 </div>
-            ) : (
-                <div className="flex gap-6">
-                    {/* Report List - Collapsible Left Panel */}
-                    <div className={`transition-all duration-300 ${sidebarCollapsed ? 'w-12' : 'w-80'} flex-shrink-0`}>
-                        <div className="sticky top-6">
-                            {/* Collapse/Expand Button */}
-                            <button
-                                onClick={() => {
-                                    track('sidebar_toggle', { collapsed: !sidebarCollapsed });
-                                    setSidebarCollapsed(!sidebarCollapsed);
-                                }}
-                                className="w-full mb-4 flex items-center justify-center p-2 bg-white dark:bg-gray-800 rounded-lg shadow hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                                title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                            >
-                                {sidebarCollapsed ? (
-                                    <ChevronRightIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                                ) : (
-                                    <ChevronLeftIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                                )}
-                            </button>
+            );
+        }
 
-                            {/* Reports List */}
-                            {!sidebarCollapsed && (
-                                <div className="space-y-4">
-                                    {reports.map((report) => (
-                                        <div
-                                            key={report.report_id}
-                                            onClick={() => handleReportClick(report)}
-                                            className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 cursor-pointer transition-all ${selectedReport?.report_id === report.report_id
-                                                ? 'ring-2 ring-blue-600'
-                                                : 'hover:shadow-md'
-                                                }`}
-                                        >
-                                            <h3 className="font-semibold text-gray-900 dark:text-white">
-                                                {report.report_name}
-                                            </h3>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                {report.article_count || 0} articles
-                                            </p>
-                                            {report.retrieval_params?.start_date && report.retrieval_params?.end_date && (
-                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                    {new Date(report.retrieval_params.start_date).toLocaleDateString()} - {new Date(report.retrieval_params.end_date).toLocaleDateString()}
-                                                </p>
-                                            )}
+        return null;
+    };
+
+    // Render report content based on view mode
+    const renderReportContent = () => {
+        if (!selectedReport?.articles || selectedReport.articles.length === 0) return null;
+
+        if (reportView === 'tablizer') {
+            return (
+                <ReportArticleTable
+                    articles={selectedReport.articles}
+                    title={selectedReport.report_name}
+                    onRowClick={(articles, index) => openArticleViewer(articles, index)}
+                />
+            );
+        }
+
+        if (reportView === 'by-category') {
+            return (
+                <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                        Articles by Category ({selectedReport.articles.length})
+                    </h3>
+                    <div className="space-y-6">
+                        {Object.entries(getArticlesByCategory()).map(([categoryId, data]) => {
+                            const isCollapsed = collapsedCategories.has(categoryId);
+                            return (
+                                <div key={categoryId} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                    <button
+                                        onClick={() => toggleCategory(categoryId)}
+                                        className="w-full bg-gray-50 dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors text-left"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                {isCollapsed ? (
+                                                    <ChevronRightIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                                                ) : (
+                                                    <ChevronDownIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                                                )}
+                                                <h4 className="font-semibold text-gray-900 dark:text-white">
+                                                    {data.category.name}
+                                                </h4>
+                                            </div>
+                                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                                                {data.articles.length} article{data.articles.length !== 1 ? 's' : ''}
+                                            </span>
                                         </div>
-                                    ))}
+                                    </button>
+                                    {!isCollapsed && (
+                                        <div className="bg-white dark:bg-gray-900">
+                                            {selectedReport.enrichments?.category_summaries?.[categoryId] && (
+                                                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                                                    <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                                        Category Summary
+                                                    </h5>
+                                                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                                                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                                                            {selectedReport.enrichments.category_summaries[categoryId]}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <div className="p-4 space-y-3">
+                                                {data.articles.map((article, idx) => (
+                                                    <ReportArticleCard
+                                                        key={article.article_id}
+                                                        article={article}
+                                                        showAbstract={cardFormat === 'expanded'}
+                                                        onClick={() => openArticleViewer(data.articles, idx)}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
+        // Default: 'all' view
+        return (
+            <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                    Articles ({selectedReport.articles.length})
+                </h3>
+                <div className="space-y-3">
+                    {selectedReport.articles.map((article, idx) => (
+                        <ReportArticleCard
+                            key={article.article_id}
+                            article={article}
+                            showAbstract={cardFormat === 'expanded'}
+                            onClick={() => openArticleViewer(selectedReport.articles, idx)}
+                        />
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="h-[calc(100vh-4rem)] flex">
+            {/* Chat Tray */}
+            <ChatTray
+                initialContext={chatContext}
+                payloadHandlers={payloadHandlers}
+                hidden={articleViewerOpen}
+                isOpen={isChatOpen}
+                onOpenChange={(open) => {
+                    if (!open) trackChatClose('reports');
+                    setIsChatOpen(open);
+                }}
+            />
+
+            {/* Main Content */}
+            <div className="flex-1 overflow-y-auto p-6 relative">
+                {/* Chat toggle button */}
+                {!isChatOpen && !articleViewerOpen && (
+                    <button
+                        onClick={() => {
+                            trackChatOpen('reports');
+                            setIsChatOpen(true);
+                        }}
+                        className="fixed bottom-6 left-6 z-40 p-4 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-110"
+                        title="Open chat"
+                    >
+                        <ChatBubbleLeftRightIcon className="h-6 w-6" />
+                    </button>
+                )}
+
+                {/* Page Header */}
+                <div className="flex justify-between items-center mb-8">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                            Reports
+                        </h1>
+                        <p className="text-gray-600 dark:text-gray-400 mt-2">
+                            Generated reports from your research streams
+                        </p>
+                    </div>
+                </div>
+
+                {/* Stream Selector */}
+                {hasStreams && (
+                    <ReportStreamSelector
+                        researchStreams={researchStreams}
+                        selectedStream={selectedStream}
+                        onStreamChange={handleStreamChange}
+                        onRunPipeline={() => {
+                            track('pipeline_run_click', { stream_id: parseInt(selectedStream, 10) });
+                            navigate(`/streams/${selectedStream}/edit?tab=execute&subtab=pipeline`);
+                        }}
+                        showRunPipeline={!!selectedStream && (isPlatformAdmin || isOrgAdmin)}
+                    />
+                )}
+
+                {/* Empty States or Report Content */}
+                {renderEmptyState() || (
+                    <div className="flex gap-6">
+                        {/* Report List Sidebar */}
+                        <ReportSidebar
+                            reports={reports}
+                            selectedReportId={selectedReport?.report_id || null}
+                            collapsed={sidebarCollapsed}
+                            onToggleCollapse={() => {
+                                track('sidebar_toggle', { collapsed: !sidebarCollapsed });
+                                setSidebarCollapsed(!sidebarCollapsed);
+                            }}
+                            onSelectReport={handleReportClick}
+                            onDeleteReport={handleDeleteReport}
+                        />
+
+                        {/* Report Details */}
+                        <div className="flex-1 min-w-0">
+                            {loadingReportDetails ? (
+                                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
+                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                                    <p className="text-gray-600 dark:text-gray-400">Loading report details...</p>
+                                </div>
+                            ) : selectedReport ? (
+                                <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+                                    {/* Report Header */}
+                                    <ReportHeader
+                                        report={selectedReport}
+                                        reportView={reportView}
+                                        cardFormat={cardFormat}
+                                        hasPipelineData={hasPipelineData}
+                                        onViewChange={handleViewChange}
+                                        onCardFormatChange={handleCardFormatChange}
+                                        onShowExecutionConfig={() => {
+                                            track('execution_config_open', { report_id: selectedReport.report_id });
+                                            setShowExecutionConfig(true);
+                                        }}
+                                        onShowAnalytics={() => {
+                                            track('analytics_open', { report_id: selectedReport.report_id });
+                                            setShowAnalytics(true);
+                                        }}
+                                        onDeleteReport={() => handleDeleteReport(selectedReport.report_id, selectedReport.report_name)}
+                                    />
+
+                                    {/* Report Content */}
+                                    <div className="p-6 space-y-6">
+                                        {/* Executive Summary */}
+                                        {selectedReport.enrichments?.executive_summary && (
+                                            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                                <button
+                                                    onClick={() => {
+                                                        track('executive_summary_toggle', { collapsed: !executiveSummaryCollapsed });
+                                                        setExecutiveSummaryCollapsed(!executiveSummaryCollapsed);
+                                                    }}
+                                                    className="w-full bg-gray-50 dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors text-left"
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        {executiveSummaryCollapsed ? (
+                                                            <ChevronRightIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                                                        ) : (
+                                                            <ChevronDownIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                                                        )}
+                                                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                                            Executive Summary
+                                                        </h3>
+                                                    </div>
+                                                </button>
+                                                {!executiveSummaryCollapsed && (
+                                                    <div className="bg-gray-50 dark:bg-gray-700 p-4">
+                                                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                                                            {selectedReport.enrichments.executive_summary}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Key Highlights */}
+                                        {selectedReport.key_highlights && selectedReport.key_highlights.length > 0 && (
+                                            <div>
+                                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                                                    Key Highlights
+                                                </h3>
+                                                <ul className="list-disc list-inside space-y-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                                                    {selectedReport.key_highlights.map((highlight, idx) => (
+                                                        <li key={idx}>{highlight}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+
+                                        {/* Thematic Analysis */}
+                                        {selectedReport.thematic_analysis && (
+                                            <div>
+                                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                                                    Thematic Analysis
+                                                </h3>
+                                                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                                                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                                        {selectedReport.thematic_analysis}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Articles */}
+                                        {renderReportContent()}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
+                                    <DocumentTextIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                                    <p className="text-gray-600 dark:text-gray-400">
+                                        Select a report from the list to view details
+                                    </p>
                                 </div>
                             )}
                         </div>
                     </div>
+                )}
 
-                    {/* Report Details - Right Panel */}
-                    <div className="flex-1 min-w-0">
-                        {loadingReportDetails ? (
-                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
-                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                                <p className="text-gray-600 dark:text-gray-400">Loading report details...</p>
-                            </div>
-                        ) : selectedReport ? (
-                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-                                {/* Report Header */}
-                                <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-                                    {/* First line: Title (left) + Config/Analytics icons (right) */}
-                                    <div className="flex items-center justify-between">
-                                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                                            {selectedReport.report_name}
-                                        </h2>
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                onClick={() => {
-                                                    track('execution_config_open', { report_id: selectedReport.report_id });
-                                                    setShowExecutionConfig(true);
-                                                }}
-                                                className="p-2 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                                                title="View execution configuration snapshot"
-                                            >
-                                                <Cog6ToothIcon className="h-5 w-5" />
-                                            </button>
-                                            {hasPipelineData && (
-                                                <button
-                                                    onClick={() => {
-                                                        track('analytics_open', { report_id: selectedReport.report_id });
-                                                        setShowAnalytics(true);
-                                                    }}
-                                                    className="p-2 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                                                    title="View pipeline analytics and detailed metrics"
-                                                >
-                                                    <ChartBarIcon className="h-5 w-5" />
-                                                </button>
-                                            )}
-                                            <button
-                                                onClick={() => handleDeleteReport(selectedReport.report_id, selectedReport.report_name)}
-                                                className="p-2 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400"
-                                                title="Delete report"
-                                            >
-                                                <TrashIcon className="h-5 w-5" />
-                                            </button>
-                                        </div>
-                                    </div>
+                {/* Pipeline Analytics Modal */}
+                {showAnalytics && selectedReport && (
+                    <PipelineAnalyticsModal
+                        reportId={selectedReport.report_id}
+                        onClose={() => setShowAnalytics(false)}
+                    />
+                )}
 
-                                    {/* Second line: Dates (left) + View buttons (right) */}
-                                    <div className="flex items-center justify-between mt-3">
-                                        <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-                                            <span>
-                                                Generated: {new Date(selectedReport.created_at).toLocaleDateString()}
-                                            </span>
-                                            {selectedReport.retrieval_params?.start_date && selectedReport.retrieval_params?.end_date && (
-                                                <span>
-                                                    Report range: {new Date(selectedReport.retrieval_params.start_date).toLocaleDateString()} – {new Date(selectedReport.retrieval_params.end_date).toLocaleDateString()}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            {/* View mode toggle */}
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => {
-                                                        if (reportView !== 'all') {
-                                                            trackViewChange(reportView, 'all', 'reports');
-                                                            setReportView('all');
-                                                        }
-                                                    }}
-                                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                                                        reportView === 'all'
-                                                            ? 'bg-blue-600 text-white'
-                                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                                    }`}
-                                                >
-                                                    <ListBulletIcon className="h-4 w-4" />
-                                                    All Articles
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        if (reportView !== 'by-category') {
-                                                            trackViewChange(reportView, 'by-category', 'reports');
-                                                            setReportView('by-category');
-                                                        }
-                                                    }}
-                                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                                                        reportView === 'by-category'
-                                                            ? 'bg-blue-600 text-white'
-                                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                                    }`}
-                                                >
-                                                    <Squares2X2Icon className="h-4 w-4" />
-                                                    By Category
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        if (reportView !== 'tablizer') {
-                                                            trackViewChange(reportView, 'tablizer', 'reports');
-                                                            setReportView('tablizer');
-                                                        }
-                                                    }}
-                                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                                                        reportView === 'tablizer'
-                                                            ? 'bg-purple-600 text-white'
-                                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                                    }`}
-                                                >
-                                                    <TableCellsIcon className="h-4 w-4" />
-                                                    Tablizer
-                                                </button>
-                                            </div>
-                                            {/* Card format toggle */}
-                                            <div className="flex gap-1 border-l border-gray-300 dark:border-gray-600 pl-4">
-                                                <button
-                                                    onClick={() => {
-                                                        if (cardFormat !== 'compact') {
-                                                            track('card_format_change', { from: cardFormat, to: 'compact' });
-                                                            setCardFormat('compact');
-                                                        }
-                                                    }}
-                                                    className={`p-1.5 rounded-md transition-colors ${
-                                                        cardFormat === 'compact'
-                                                            ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white'
-                                                            : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                                    }`}
-                                                    title="Compact view"
-                                                >
-                                                    <Bars2Icon className="h-4 w-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        if (cardFormat !== 'expanded') {
-                                                            track('card_format_change', { from: cardFormat, to: 'expanded' });
-                                                            setCardFormat('expanded');
-                                                        }
-                                                    }}
-                                                    className={`p-1.5 rounded-md transition-colors ${
-                                                        cardFormat === 'expanded'
-                                                            ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white'
-                                                            : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                                    }`}
-                                                    title="Expanded view with abstracts"
-                                                >
-                                                    <Bars3BottomLeftIcon className="h-4 w-4" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                {/* Execution Config Modal */}
+                {showExecutionConfig && selectedReport && selectedReport.retrieval_params && (
+                    <ExecutionConfigModal
+                        reportName={selectedReport.report_name}
+                        retrievalParams={selectedReport.retrieval_params}
+                        onClose={() => setShowExecutionConfig(false)}
+                    />
+                )}
 
-                                {/* Report Content */}
-                                <div className="p-6 space-y-6">
-                                    {/* Executive Summary */}
-                                    {selectedReport.enrichments?.executive_summary && (
-                                        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                                            <button
-                                                onClick={() => {
-                                                    track('executive_summary_toggle', { collapsed: !executiveSummaryCollapsed });
-                                                    setExecutiveSummaryCollapsed(!executiveSummaryCollapsed);
-                                                }}
-                                                className="w-full bg-gray-50 dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors text-left"
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    {executiveSummaryCollapsed ? (
-                                                        <ChevronRightIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                                                    ) : (
-                                                        <ChevronDownIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                                                    )}
-                                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                                        Executive Summary
-                                                    </h3>
-                                                </div>
-                                            </button>
-                                            {!executiveSummaryCollapsed && (
-                                                <div className="bg-gray-50 dark:bg-gray-700 p-4">
-                                                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
-                                                        {selectedReport.enrichments.executive_summary}
-                                                    </p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Key Highlights */}
-                                    {selectedReport.key_highlights && selectedReport.key_highlights.length > 0 && (
-                                        <div>
-                                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                                Key Highlights
-                                            </h3>
-                                            <ul className="list-disc list-inside space-y-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                                                {selectedReport.key_highlights.map((highlight, idx) => (
-                                                    <li key={idx}>{highlight}</li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    )}
-
-                                    {/* Thematic Analysis */}
-                                    {selectedReport.thematic_analysis && (
-                                        <div>
-                                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                                Thematic Analysis
-                                            </h3>
-                                            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                                                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                                                    {selectedReport.thematic_analysis}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Articles - View based on selected mode */}
-                                    {selectedReport.articles && selectedReport.articles.length > 0 && (
-                                        <div>
-                                            {reportView === 'all' ? (
-                                                /* All Articles View */
-                                                <div>
-                                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                                        Articles ({selectedReport.articles.length})
-                                                    </h3>
-                                                    <div className="space-y-3">
-                                                        {selectedReport.articles.map((article, idx) => (
-                                                            <ArticleCard
-                                                                key={article.article_id}
-                                                                article={article}
-                                                                showAbstract={cardFormat === 'expanded'}
-                                                                onTitleClick={() => openArticleViewer(selectedReport.articles, idx)}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            ) : reportView === 'by-category' ? (
-                                                /* By Category View */
-                                                <div>
-                                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                                        Articles by Category ({selectedReport.articles.length})
-                                                    </h3>
-                                                    <div className="space-y-6">
-                                                        {Object.entries(getArticlesByCategory()).map(([categoryId, data]) => {
-                                                            const isCollapsed = collapsedCategories.has(categoryId);
-                                                            return (
-                                                                <div key={categoryId} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                                                                    {/* Category Header - Clickable */}
-                                                                    <button
-                                                                        onClick={() => toggleCategory(categoryId)}
-                                                                        className="w-full bg-gray-50 dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors text-left"
-                                                                    >
-                                                                        <div className="flex items-center justify-between">
-                                                                            <div className="flex items-center gap-2">
-                                                                                {isCollapsed ? (
-                                                                                    <ChevronRightIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                                                                                ) : (
-                                                                                    <ChevronDownIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                                                                                )}
-                                                                                <h4 className="font-semibold text-gray-900 dark:text-white">
-                                                                                    {data.category.name}
-                                                                                </h4>
-                                                                            </div>
-                                                                            <span className="text-sm text-gray-500 dark:text-gray-400">
-                                                                                {data.articles.length} article{data.articles.length !== 1 ? 's' : ''}
-                                                                            </span>
-                                                                        </div>
-                                                                    </button>
-                                                                    {/* Category Articles - Collapsible */}
-                                                                    {!isCollapsed && (
-                                                                        <div className="bg-white dark:bg-gray-900">
-                                                                            {/* Category Summary */}
-                                                                            {selectedReport.enrichments?.category_summaries?.[categoryId] && (
-                                                                                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                                                                                    <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                                                                        Category Summary
-                                                                                    </h5>
-                                                                                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
-                                                                                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
-                                                                                            {selectedReport.enrichments.category_summaries[categoryId]}
-                                                                                        </p>
-                                                                                    </div>
-                                                                                </div>
-                                                                            )}
-                                                                            {/* Articles */}
-                                                                            <div className="p-4 space-y-3">
-                                                                                {data.articles.map((article, idx) => (
-                                                                                    <ArticleCard
-                                                                                        key={article.article_id}
-                                                                                        article={article}
-                                                                                        showAbstract={cardFormat === 'expanded'}
-                                                                                        onTitleClick={() => openArticleViewer(data.articles, idx)}
-                                                                                    />
-                                                                                ))}
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                /* Tablizer View */
-                                                <Tablizer<ReportArticle>
-                                                    data={selectedReport.articles}
-                                                    idField="pmid"
-                                                    columns={REPORT_COLUMNS}
-                                                    title={selectedReport.report_name}
-                                                    rowLabel="articles"
-                                                    RowViewer={ReportArticleRowViewer}
-                                                />
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
-                                <DocumentTextIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                                <p className="text-gray-600 dark:text-gray-400">
-                                    Select a report from the list to view details
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Pipeline Analytics Modal */}
-            {showAnalytics && selectedReport && (
-                <PipelineAnalyticsModal
-                    reportId={selectedReport.report_id}
-                    onClose={() => setShowAnalytics(false)}
-                />
-            )}
-
-            {/* Execution Config Modal */}
-            {showExecutionConfig && selectedReport && selectedReport.retrieval_params && (
-                <ExecutionConfigModal
-                    reportName={selectedReport.report_name}
-                    retrievalParams={selectedReport.retrieval_params}
-                    onClose={() => setShowExecutionConfig(false)}
-                />
-            )}
-
-            {/* Article Viewer Modal */}
-            {articleViewerOpen && articleViewerArticles.length > 0 && (
-                <ArticleViewerModal
-                    articles={articleViewerArticles}
-                    initialIndex={articleViewerInitialIndex}
-                    onClose={() => setArticleViewerOpen(false)}
-                    chatContext={chatContext}
-                    chatPayloadHandlers={payloadHandlers}
-                    onArticleUpdate={handleArticleUpdate}
-                />
-            )}
+                {/* Article Viewer Modal */}
+                {articleViewerOpen && articleViewerArticles.length > 0 && (
+                    <ArticleViewerModal
+                        articles={articleViewerArticles}
+                        initialIndex={articleViewerInitialIndex}
+                        onClose={() => setArticleViewerOpen(false)}
+                        chatContext={chatContext}
+                        chatPayloadHandlers={payloadHandlers}
+                        onArticleUpdate={handleArticleUpdate}
+                    />
+                )}
             </div>
         </div>
     );

@@ -103,7 +103,12 @@ export interface TablizerProps<T extends object = Record<string, any>> {
     onColumnsChange?: (aiColumns: AIColumnInfo[]) => void;
 
     // Optional: Custom component to render when a row is clicked
+    // If RowViewer is provided, Tablizer manages the modal internally
     RowViewer?: React.ComponentType<RowViewerProps<T>>;
+
+    // Optional: Callback when a row is clicked (alternative to RowViewer)
+    // If provided, parent component manages the viewer - RowViewer is ignored
+    onRowClick?: (data: T[], index: number) => void;
 
     // Optional: Custom cell renderer for special columns
     renderCell?: (row: TableRow, column: TableColumn) => React.ReactNode | null;
@@ -147,6 +152,7 @@ function TablizerInner<T extends object>(
         onProcessAIColumn,
         onColumnsChange,
         RowViewer,
+        onRowClick,
         renderCell
     } = props;
 
@@ -764,14 +770,23 @@ function TablizerInner<T extends object>(
                         {filteredData.map((row, rowIdx) => (
                             <tr
                                 key={row.id || rowIdx}
-                                className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 ${RowViewer ? 'cursor-pointer' : ''}`}
+                                className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 ${(RowViewer || onRowClick) ? 'cursor-pointer' : ''}`}
                                 onClick={() => {
-                                    if (!RowViewer) return;
                                     // Find the index in the original data array
                                     const itemIndex = inputData.findIndex(item => getItemId(item, idField) === row.id);
-                                    if (itemIndex !== -1) {
+                                    if (itemIndex === -1) return;
+
+                                    trackEvent('tablizer_row_click', { id: row.id });
+
+                                    // If onRowClick is provided, let parent handle the viewer
+                                    if (onRowClick) {
+                                        onRowClick(inputData, itemIndex);
+                                        return;
+                                    }
+
+                                    // Otherwise use internal RowViewer if provided
+                                    if (RowViewer) {
                                         setSelectedItemIndex(itemIndex);
-                                        trackEvent('tablizer_row_click', { id: row.id });
                                     }
                                 }}
                             >
@@ -844,8 +859,8 @@ function TablizerInner<T extends object>(
                 />
             )}
 
-            {/* Row Viewer Modal - only render if RowViewer is provided */}
-            {RowViewer && selectedItemIndex !== null && (
+            {/* Row Viewer Modal - only render if RowViewer is provided and onRowClick is not */}
+            {RowViewer && !onRowClick && selectedItemIndex !== null && (
                 <RowViewer
                     data={inputData}
                     initialIndex={selectedItemIndex}
