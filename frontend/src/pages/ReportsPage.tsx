@@ -17,7 +17,7 @@ import ExecutionConfigModal from '../components/stream/ExecutionConfigModal';
 import ArticleViewerModal from '../components/articles/ArticleViewerModal';
 import ChatTray from '../components/chat/ChatTray';
 import PubMedArticleCard, { PubMedArticleData } from '../components/chat/PubMedArticleCard';
-import { Tablizer, TableColumn } from '../components/tools/Tablizer';
+import { Tablizer, TableColumn, RowViewerProps } from '../components/tools/Tablizer';
 import { TableCellsIcon } from '@heroicons/react/24/outline';
 
 // Column definitions for report articles
@@ -30,6 +30,17 @@ const REPORT_COLUMNS: TableColumn[] = [
     { id: 'relevance_score', label: 'Relevance', accessor: 'relevance_score', type: 'number', visible: true },
     { id: 'category', label: 'Category', accessor: 'category', type: 'text', visible: true },
 ];
+
+// Adapter component for ArticleViewerModal to match RowViewer interface
+function ReportArticleRowViewer({ data, initialIndex, onClose }: RowViewerProps<ReportArticle>) {
+    return (
+        <ArticleViewerModal
+            articles={data}
+            initialIndex={initialIndex}
+            onClose={onClose}
+        />
+    );
+}
 
 type ReportView = 'all' | 'by-category' | 'tablizer';
 type CardFormat = 'compact' | 'expanded';
@@ -833,6 +844,7 @@ export default function ReportsPage() {
                                                     columns={REPORT_COLUMNS}
                                                     title={selectedReport.report_name}
                                                     rowLabel="articles"
+                                                    RowViewer={ReportArticleRowViewer}
                                                 />
                                             )}
                                         </div>
