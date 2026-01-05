@@ -229,7 +229,13 @@ AI_COLUMN: {
 
 ### Design Principle
 
-**If the user sees it on screen and it's dynamic, include it in context.**
+**If the user sees it on screen, it's dynamic, and it's small → include it directly.**
+
+If it's large, we have options:
+1. **Send a reference** - include IDs/summaries, provide a tool to fetch full data
+2. **Holding pen pattern** - send to orchestration layer (not model), expose via tool
+
+The holding pen is interesting: context can be sent to the backend but held in a staging area rather than immediately sent to the model. The LLM can then pull from this staging area via a tool. This keeps the model context small while making data available on-demand.
 
 ### Tablizer Context
 
@@ -246,15 +252,26 @@ AI_COLUMN: {
   total_matched: 1234,
   loaded_count: 100,
 
+  // Snapshots (search history)
+  snapshots: [
+    { id: "1", label: "Original search", query: "EGFR lung cancer", count: 100 },
+    { id: "2", label: "Broader search", query: "EGFR NSCLC therapy", count: 250 }
+  ],
+  selected_snapshot_id: "1",
+
+  // Compare mode
+  compare_mode: false,
+  compare_snapshots: null,  // or ["1", "2"] when comparing
+
   // AI columns
   ai_columns: [
     { name: "Mentions resistance", type: "boolean", filter_active: true }
   ],
 
-  // Article summaries (for analysis)
+  // Article summaries (for analysis) - or just IDs if too large
   articles: [
     { pmid: "12345", title: "EGFR mutations...", year: 2023, journal: "Nature" }
-    // ... first 20-50 articles
+    // ...
   ]
 }
 ```
@@ -281,63 +298,225 @@ AI_COLUMN: {
     { name: "Allows brain mets", type: "boolean", filter_active: false }
   ],
 
-  // Trial summaries (for analysis)
+  // Trial summaries (for analysis) - or just IDs if too large
   trials: [
     { nct_id: "NCT04613596", title: "Study of...", phase: "Phase 3", status: "Recruiting", enrollment: 450 }
-    // ... first 20-50 trials
+    // ...
   ]
 }
 ```
 
 ---
 
-## Data Retrieval Tools
+## Backend Tech Spec
 
-For analysis, the LLM needs to fetch full article/trial data on demand.
+### Existing Services (Already Have)
 
-### `fetch_articles` (Tablizer)
+| Service | Location | What It Does |
+|---------|----------|--------------|
+| `ClinicalTrialsService` | `services/clinical_trials_service.py` | `search_trials()`, `get_trial_by_nct_id()`, `get_trials_by_nct_ids()` |
+| `PubMedService` | `services/pubmed_service.py` | Article search and retrieval |
+| `chat_page_config/` | `services/chat_page_config/` | Page registration framework (registry.py) |
+| PubMed tools | `tools/builtin/pubmed.py` | `search_pubmed`, `get_pubmed_article`, `get_full_text` |
 
-Uses existing PubMed article retrieval. Already have `pubmed_article` payload type.
+### New Backend Components Needed
 
-### `fetch_trials` (TrialScout - NEW)
+#### 1. Page Configs
 
-**Backend Tool** (`tools/builtin/trials.py`):
+**`services/chat_page_config/tablizer.py`**
 ```python
+from .registry import register_page, TabConfig
+
+def build_tablizer_context(context: Dict[str, Any]) -> str:
+    """Build context from Tablizer page state."""
+    query = context.get("query", "")
+    total_matched = context.get("total_matched", 0)
+    loaded_count = context.get("loaded_count", 0)
+    snapshots = context.get("snapshots", [])
+    compare_mode = context.get("compare_mode", False)
+    ai_columns = context.get("ai_columns", [])
+
+    # Format article summaries if provided
+    articles = context.get("articles", [])
+    article_list = ""
+    if articles:
+        article_list = "\n".join([
+            f"- [{a['pmid']}] {a['title'][:50]}... ({a['year']})"
+            for a in articles[:20]
+        ])
+
+    return f"""User is on Tablizer (PubMed article analysis).
+
+SEARCH STATE:
+- Query: {query or "No search yet"}
+- Results: {loaded_count} loaded of {total_matched} total
+- Snapshots: {len(snapshots)} saved searches
+- Compare mode: {"ACTIVE" if compare_mode else "inactive"}
+
+AI COLUMNS: {len(ai_columns)} columns
+{chr(10).join([f"- {c['name']} ({c['type']})" for c in ai_columns]) if ai_columns else "None"}
+
+LOADED ARTICLES:
+{article_list or "None loaded"}
+"""
+
+register_page(
+    page="tablizer",
+    context_builder=build_tablizer_context,
+    payloads=["pubmed_query_suggestion", "ai_column_suggestion"],
+    tools=["get_pubmed_article"]  # For fetching full article details
+)
+```
+
+**`services/chat_page_config/trialscout.py`**
+```python
+def build_trialscout_context(context: Dict[str, Any]) -> str:
+    """Build context from TrialScout page state."""
+    condition = context.get("condition", "")
+    intervention = context.get("intervention", "")
+    phase = context.get("phase", [])
+    status = context.get("status", [])
+    total_matched = context.get("total_matched", 0)
+    loaded_count = context.get("loaded_count", 0)
+    ai_columns = context.get("ai_columns", [])
+
+    trials = context.get("trials", [])
+    trial_list = ""
+    if trials:
+        trial_list = "\n".join([
+            f"- [{t['nct_id']}] {t['title'][:40]}... ({t['phase']}, {t['status']})"
+            for t in trials[:20]
+        ])
+
+    return f"""User is on TrialScout (clinical trials analysis).
+
+SEARCH STATE:
+- Condition: {condition or "not set"}
+- Intervention: {intervention or "not set"}
+- Phase: {', '.join(phase) if phase else "any"}
+- Status: {', '.join(status) if status else "any"}
+- Results: {loaded_count} loaded of {total_matched} total
+
+AI COLUMNS: {len(ai_columns)} columns
+{chr(10).join([f"- {c['name']} ({c['type']})" for c in ai_columns]) if ai_columns else "None"}
+
+LOADED TRIALS:
+{trial_list or "None loaded"}
+"""
+
+register_page(
+    page="trialscout",
+    context_builder=build_trialscout_context,
+    payloads=["trial_search_suggestion", "ai_column_suggestion"],
+    tools=["get_trial"]  # For fetching full trial details
+)
+```
+
+#### 2. Trial Tools
+
+**`tools/builtin/trials.py`** (NEW - mirrors pubmed.py pattern)
+```python
+from tools.registry import ToolConfig, ToolResult, register_tool
+from services.clinical_trials_service import get_clinical_trials_service
+
+def execute_get_trial(params, db, user_id, context):
+    """Fetch full details for a clinical trial by NCT ID."""
+    nct_id = params.get("nct_id", "")
+    if not nct_id:
+        return "Error: No NCT ID provided."
+
+    service = get_clinical_trials_service()
+    trial = service.get_trial_by_nct_id(nct_id)
+
+    if not trial:
+        return f"No trial found with NCT ID: {nct_id}"
+
+    # Format for LLM
+    text_result = f"""
+    === Clinical Trial {trial.nct_id} ===
+    Title: {trial.title}
+    Phase: {trial.phase}
+    Status: {trial.status}
+    Sponsor: {trial.lead_sponsor.name if trial.lead_sponsor else 'Unknown'}
+    Enrollment: {trial.enrollment_count}
+
+    === Eligibility ===
+    {trial.eligibility_criteria or 'Not specified'}
+
+    === Primary Outcomes ===
+    {chr(10).join([f"- {o.measure}" for o in trial.primary_outcomes]) if trial.primary_outcomes else 'Not specified'}
+    """
+
+    # Payload for frontend
+    payload = {
+        "type": "trial_details",
+        "data": trial.model_dump()
+    }
+
+    return ToolResult(text=text_result, payload=payload)
+
 register_tool(ToolConfig(
-    name="fetch_trials",
-    description="Fetch full details for clinical trials by NCT ID",
+    name="get_trial",
+    description="Get full details of a clinical trial by NCT ID",
     input_schema={
         "type": "object",
         "properties": {
-            "nct_ids": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "NCT IDs to fetch (max 5)"
-            }
+            "nct_id": {"type": "string", "description": "The NCT ID (e.g., NCT04613596)"}
         },
-        "required": ["nct_ids"]
+        "required": ["nct_id"]
     },
-    executor=execute_fetch_trials,
-    is_global=False,  # Only for TrialScout
+    executor=execute_get_trial,
+    is_global=False,
     payload_type="trial_details"
 ))
 ```
+
+#### 3. Payloads
+
+Add to `schemas/payloads.py`:
+- `pubmed_query_suggestion` - for Tablizer query suggestions
+- `trial_search_suggestion` - for TrialScout search form suggestions
+- `ai_column_suggestion` - for both apps (AI column setup)
+- `trial_details` - for displaying trial data (tool payload)
+
+---
+
+## Holding Pen Pattern (Future)
+
+For large data (many articles/trials), instead of sending all summaries to the model:
+
+1. Frontend sends context including article/trial data to backend
+2. Backend **holds data in staging area** (not sent to model)
+3. Model receives only a reference: "50 trials available, use get_staged_trials tool to retrieve"
+4. Model calls tool when needed → pulls from staging (no API call)
+
+Benefits:
+- Model context stays small
+- Data is pre-loaded (fast retrieval)
+- Model pulls only what it needs
+
+Implementation would require:
+- Staging storage in chat service (per-request cache)
+- `get_staged_items` tool that reads from staging
+- Context builder that puts data in staging and returns reference
 
 ---
 
 ## Implementation Checklist
 
 ### Backend
+- [ ] Create `services/chat_page_config/tablizer.py`
+- [ ] Create `services/chat_page_config/trialscout.py`
+- [ ] Create `tools/builtin/trials.py` with `get_trial` tool
 - [ ] Add `pubmed_query_suggestion` payload to `schemas/payloads.py`
 - [ ] Add `trial_search_suggestion` payload to `schemas/payloads.py`
 - [ ] Add `ai_column_suggestion` payload to `schemas/payloads.py`
-- [ ] Create `chat_page_config/tablizer.py` with context builder
-- [ ] Create `chat_page_config/trialscout.py` with context builder
-- [ ] Add `fetch_trials` tool for TrialScout analysis
+- [ ] Add `trial_details` payload to `schemas/payloads.py`
+- [ ] Import new page configs in `chat_page_config/__init__.py`
 
 ### Frontend
-- [ ] Create `PubMedQueryCard.tsx` (or reuse QuerySuggestionCard)
+- [ ] Create `PubMedQueryCard.tsx` (or adapt QuerySuggestionCard)
 - [ ] Create `TrialSearchCard.tsx`
 - [ ] Create `AIColumnCard.tsx`
-- [ ] Add ChatTray to Tablizer with payloadHandlers
-- [ ] Add ChatTray to TrialScout with payloadHandlers
+- [ ] Add ChatTray to Tablizer with context + payloadHandlers
+- [ ] Add ChatTray to TrialScout with context + payloadHandlers
