@@ -84,49 +84,49 @@ class SemanticFilterService:
             user_prompt = self._replace_slugs(filter_criteria, article_data)
             prompt = f"""You are analyzing a research article. Follow the instructions below and respond.
 
-{user_prompt}
+            {user_prompt}
 
-Respond with:
-1. A relevance/confidence score from 0.0 to 1.0 (where 1.0 is highest confidence in your answer)
-2. Your answer/reasoning
+            Respond with:
+            1. A relevance/confidence score from 0.0 to 1.0 (where 1.0 is highest confidence in your answer)
+            2. Your answer/reasoning
 
-Format your response as JSON:
-{{
-    "score": 0.0 to 1.0,
-    "reasoning": "your answer here"
-}}
-"""
+            Format your response as JSON:
+            {{
+                "score": 0.0 to 1.0,
+                "reasoning": "your answer here"
+            }}
+            """
         else:
             # Simple criteria mode: prepend article content
             article_content = f"""
-        Title: {article_title}
+            Title: {article_title}
 
-        Abstract: {article_abstract or 'N/A'}
+            Abstract: {article_abstract or 'N/A'}
 
-        Journal: {article_journal or 'N/A'}
-        Year: {article_year or 'N/A'}
-        """
+            Journal: {article_journal or 'N/A'}
+            Year: {article_year or 'N/A'}
+            """
 
             prompt = f"""You are evaluating whether a research article is relevant based on specific criteria.
 
-        FILTER CRITERIA:
-        {filter_criteria}
+            FILTER CRITERIA:
+            {filter_criteria}
 
-        ARTICLE:
-        {article_content}
+            ARTICLE:
+            {article_content}
 
-        Evaluate whether this article meets the filter criteria. Consider the title, abstract, and context.
+            Evaluate whether this article meets the filter criteria. Consider the title, abstract, and context.
 
-        Respond with:
-        1. A relevance score from 0.0 to 1.0 (where 1.0 is highly relevant)
-        2. A brief explanation (2-3 sentences) of why the article does or does not meet the criteria
+            Respond with:
+            1. A relevance score from 0.0 to 1.0 (where 1.0 is highly relevant)
+            2. A brief explanation (2-3 sentences) of why the article does or does not meet the criteria
 
-        Format your response as JSON:
-        {{
-            "score": 0.0 to 1.0,
-            "reasoning": "explanation here"
-        }}
-        """
+            Format your response as JSON:
+            {{
+                "score": 0.0 to 1.0,
+                "reasoning": "explanation here"
+            }}
+            """
 
         # Call LLM using BasePromptCaller
         from schemas.llm import ChatMessage, MessageRole
@@ -215,7 +215,7 @@ Format your response as JSON:
             """Evaluate a single article with rate limiting"""
             async with semaphore:
                 try:
-                    # Extract article attributes (works with WipArticle, Article, CanonicalResearchArticle, or dict)
+                    # Extract article attributes (works with WipArticle, Article, CanonicalResearchArticle, TrialAdapter, or dict)
                     if hasattr(article, 'title'):
                         title = article.title
                         abstract = getattr(article, 'abstract', None)
@@ -238,7 +238,7 @@ Format your response as JSON:
                         raise ValueError(f"Unsupported article type: {type(article)}")
 
                     # Build article_data dict for slug replacement
-                    # This allows templates like "{title}" and "{abstract}" to be replaced
+                    # Start with common fields
                     article_data = {
                         'title': title or '',
                         'abstract': abstract or 'N/A',
@@ -249,6 +249,27 @@ Format your response as JSON:
                         'authors': ', '.join(authors) if isinstance(authors, list) else (authors or 'N/A'),
                         'publication_date': publication_date or str(year) if year else 'N/A',
                     }
+
+                    # Extract additional attributes for slug replacement (e.g., trial-specific fields)
+                    # This allows templates like "{nct_id}", "{phase}", "{conditions}" etc.
+                    if hasattr(article, '__dict__'):
+                        for key, value in article.__dict__.items():
+                            if key.startswith('_') or key in article_data or key == 'trial':
+                                continue  # Skip private attrs, already-added fields, and nested objects
+                            if isinstance(value, str):
+                                article_data[key] = value or 'N/A'
+                            elif isinstance(value, (int, float)):
+                                article_data[key] = str(value)
+                            elif isinstance(value, list) and all(isinstance(v, str) for v in value):
+                                article_data[key] = ', '.join(value) if value else 'N/A'
+                    elif isinstance(article, dict):
+                        for key, value in article.items():
+                            if key in article_data:
+                                continue
+                            if isinstance(value, str):
+                                article_data[key] = value or 'N/A'
+                            elif isinstance(value, (int, float)):
+                                article_data[key] = str(value)
 
                     is_relevant, score, reasoning = await self._evaluate_single(
                         article_title=title,

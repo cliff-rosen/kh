@@ -494,11 +494,13 @@ async def filter_clinical_trials(
 
         # Adapt trials to have the attributes the filter service expects
         # The filter service looks for 'title' and 'abstract' attributes
+        # Also expose trial-specific fields for template slug replacement
         class TrialAdapter:
             def __init__(self, trial: CanonicalClinicalTrial):
                 self.trial = trial
                 self.title = trial.title or trial.brief_title or ""
-                # Combine relevant trial info into "abstract" for evaluation
+
+                # Combine relevant trial info into "abstract" for simple criteria evaluation
                 abstract_parts = []
                 if trial.brief_summary:
                     abstract_parts.append(trial.brief_summary)
@@ -515,8 +517,25 @@ async def filter_clinical_trials(
                     outcomes = [o.measure for o in trial.primary_outcomes[:3]]
                     abstract_parts.append(f"Primary Outcomes: {', '.join(outcomes)}")
                 self.abstract = "\n".join(abstract_parts)
+
+                # Standard fields expected by filter service
                 self.journal = trial.lead_sponsor.name if trial.lead_sponsor else None
                 self.year = trial.start_date[:4] if trial.start_date else None
+
+                # Trial-specific fields for template slug replacement like {nct_id}, {phase}, etc.
+                self.nct_id = trial.nct_id or ""
+                self.conditions = ', '.join(trial.conditions) if trial.conditions else ""
+                self.interventions = ', '.join([i.name for i in trial.interventions]) if trial.interventions else ""
+                self.phase = trial.phase or ""
+                self.status = trial.status or ""
+                self.enrollment = str(trial.enrollment) if trial.enrollment else ""
+                self.sponsor = trial.lead_sponsor.name if trial.lead_sponsor else ""
+                self.brief_summary = trial.brief_summary or ""
+                self.study_type = trial.study_type or ""
+                self.start_date = trial.start_date or ""
+                self.completion_date = trial.completion_date or ""
+                self.primary_outcomes = '; '.join([o.measure for o in trial.primary_outcomes]) if trial.primary_outcomes else ""
+                self.eligibility_criteria = trial.eligibility_criteria or ""
 
         adapted_trials = [TrialAdapter(t) for t in request.trials]
 
