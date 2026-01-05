@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid';
 import PubMedLayout from '../../components/pubmed/PubMedLayout';
-import PubMedTableView, { PubMedTableViewRef, PubMedTableViewState } from '../../components/pubmed/PubMedTableView';
+import PubMedWorkbench, { PubMedWorkbenchRef, PubMedWorkbenchState } from '../../components/pubmed/PubMedWorkbench';
 import ChatTray from '../../components/chat/ChatTray';
 import QuerySuggestionCard from '../../components/chat/QuerySuggestionCard';
 import AIColumnCard from '../../components/chat/AIColumnCard';
@@ -10,11 +10,11 @@ import { PayloadHandler } from '../../types/chat';
 export default function PubMedAppPage() {
     const [isChatOpen, setIsChatOpen] = useState(false);
 
-    // Ref to PubMedTableView for imperative commands
-    const pubMedTableViewRef = useRef<PubMedTableViewRef>(null);
+    // Ref to PubMedWorkbench for imperative commands
+    const pubMedWorkbenchRef = useRef<PubMedWorkbenchRef>(null);
 
-    // State from PubMedTableView for chat context
-    const [pubMedTableViewState, setPubMedTableViewState] = useState<PubMedTableViewState>({
+    // State from PubMedWorkbench for chat context
+    const [pubMedWorkbenchState, setPubMedWorkbenchState] = useState<PubMedWorkbenchState>({
         query: '',
         startDate: '',
         endDate: '',
@@ -27,25 +27,25 @@ export default function PubMedAppPage() {
         articles: []
     });
 
-    // Handle state changes from PubMedTableView
-    const handleStateChange = useCallback((state: PubMedTableViewState) => {
-        setPubMedTableViewState(state);
+    // Handle state changes from PubMedWorkbench
+    const handleStateChange = useCallback((state: PubMedWorkbenchState) => {
+        setPubMedWorkbenchState(state);
     }, []);
 
     // Chat context for the PubMed Tablizer page
     const chatContext = useMemo(() => ({
         current_page: 'tablizer',  // Keep as 'tablizer' for backend compatibility
-        query: pubMedTableViewState.query,
-        start_date: pubMedTableViewState.startDate,
-        end_date: pubMedTableViewState.endDate,
-        date_type: pubMedTableViewState.dateType,
-        total_matched: pubMedTableViewState.totalMatched,
-        loaded_count: pubMedTableViewState.loadedCount,
-        snapshots: pubMedTableViewState.snapshots,
-        compare_mode: pubMedTableViewState.compareMode,
-        ai_columns: pubMedTableViewState.aiColumns,
-        articles: pubMedTableViewState.articles
-    }), [pubMedTableViewState]);
+        query: pubMedWorkbenchState.query,
+        start_date: pubMedWorkbenchState.startDate,
+        end_date: pubMedWorkbenchState.endDate,
+        date_type: pubMedWorkbenchState.dateType,
+        total_matched: pubMedWorkbenchState.totalMatched,
+        loaded_count: pubMedWorkbenchState.loadedCount,
+        snapshots: pubMedWorkbenchState.snapshots,
+        compare_mode: pubMedWorkbenchState.compareMode,
+        ai_columns: pubMedWorkbenchState.aiColumns,
+        articles: pubMedWorkbenchState.articles
+    }), [pubMedWorkbenchState]);
 
     // Handle query suggestion acceptance
     const handleQueryAccept = useCallback((data: {
@@ -54,24 +54,24 @@ export default function PubMedAppPage() {
         end_date?: string | null;
         date_type?: 'publication' | 'entry';
     }) => {
-        if (pubMedTableViewRef.current) {
-            pubMedTableViewRef.current.setQuery(data.query_expression);
+        if (pubMedWorkbenchRef.current) {
+            pubMedWorkbenchRef.current.setQuery(data.query_expression);
             // Set dates if provided
             if (data.start_date || data.end_date) {
-                pubMedTableViewRef.current.setDates(
+                pubMedWorkbenchRef.current.setDates(
                     data.start_date || '',
                     data.end_date || '',
                     data.date_type || 'publication'
                 );
             }
-            pubMedTableViewRef.current.executeSearch();
+            pubMedWorkbenchRef.current.executeSearch();
         }
     }, []);
 
     // Handle AI column suggestion acceptance
     const handleAIColumnAccept = useCallback((data: { name: string; criteria: string; type: 'boolean' | 'text' }) => {
-        if (pubMedTableViewRef.current) {
-            pubMedTableViewRef.current.addAIColumn(data.name, data.criteria, data.type);
+        if (pubMedWorkbenchRef.current) {
+            pubMedWorkbenchRef.current.addAIColumn(data.name, data.criteria, data.type);
         }
     }, []);
 
@@ -127,8 +127,8 @@ export default function PubMedAppPage() {
                 {/* Main Content - scrollable */}
                 <div className="flex-1 min-w-0 overflow-y-auto">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                        <PubMedTableView
-                            ref={pubMedTableViewRef}
+                        <PubMedWorkbench
+                            ref={pubMedWorkbenchRef}
                             onStateChange={handleStateChange}
                         />
                     </div>

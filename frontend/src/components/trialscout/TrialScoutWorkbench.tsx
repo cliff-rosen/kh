@@ -43,7 +43,7 @@ const STUDY_TYPE_OPTIONS = [
     { value: 'OBSERVATIONAL', label: 'Observational' },
 ];
 
-export default function TrialScoutSearch() {
+export default function TrialScoutWorkbench() {
     // Search form state
     const [condition, setCondition] = useState('');
     const [intervention, setIntervention] = useState('');
