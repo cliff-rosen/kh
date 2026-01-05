@@ -138,7 +138,7 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
     // Track if this is a new dataset or just more data loaded
     const prevInitialRowsRef = useRef<TableRow[]>(initialRows);
 
-    // Update data when articles change, but preserve AI columns
+    // Update data when articles change, but preserve AI column values
     useEffect(() => {
         const prevRows = prevInitialRowsRef.current;
         const isNewDataset = prevRows.length === 0 || initialRows.length === 0 ||
@@ -146,19 +146,43 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
             (prevRows.slice(0, 3).map(r => r.id || '').join(',') !==
              initialRows.slice(0, 3).map(r => r.id || '').join(','));
 
-        setData(initialRows);
-
         if (isNewDataset) {
-            // New search - reset everything
+            // New search - reset everything including data
+            setData(initialRows);
             setColumns(BASE_COLUMNS.map(c => ({ ...c })));
             setSortConfig(null);
             setFilterText('');
             setBooleanFilters({});
+        } else {
+            // Same dataset (e.g., more articles loaded for AI processing)
+            // Merge new rows while preserving AI column values from existing data
+            setData(currentData => {
+                // Build a map of existing AI column values by row ID
+                const existingAiValues = new Map<string, Record<string, unknown>>();
+                const aiColumnIds = columns.filter(c => c.type === 'ai').map(c => c.id);
+
+                for (const row of currentData) {
+                    const aiValues: Record<string, unknown> = {};
+                    for (const colId of aiColumnIds) {
+                        if (row[colId] !== undefined) {
+                            aiValues[colId] = row[colId];
+                        }
+                    }
+                    if (Object.keys(aiValues).length > 0) {
+                        existingAiValues.set(row.id, aiValues);
+                    }
+                }
+
+                // Merge AI values into new rows
+                return initialRows.map(row => {
+                    const aiValues = existingAiValues.get(row.id);
+                    return aiValues ? { ...row, ...aiValues } : row;
+                });
+            });
         }
-        // If not a new dataset, keep columns (including AI columns)
 
         prevInitialRowsRef.current = initialRows;
-    }, [initialRows]);
+    }, [initialRows, columns]);
 
     // Get visible columns
     const visibleColumns = useMemo(() =>

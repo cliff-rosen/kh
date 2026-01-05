@@ -830,13 +830,17 @@ class ChatStreamService:
                 continue
             if marker in message:
                 marker_pos = message.find(marker)
-                after_marker = message[marker_pos + len(marker):].strip()
+                after_marker_raw = message[marker_pos + len(marker):]
+                after_marker = after_marker_raw.strip()
                 json_content = self._extract_json_object(after_marker)
                 if json_content:
                     parsed = config.parser(json_content)
                     if parsed:
                         result["custom_payload"] = parsed
-                        payload_text = marker + json_content
+                        # Find where JSON starts in the raw after_marker (preserving whitespace)
+                        json_start_in_raw = after_marker_raw.find(json_content)
+                        # Calculate full payload text including any whitespace between marker and JSON
+                        payload_text = message[marker_pos:marker_pos + len(marker) + json_start_in_raw + len(json_content)]
                         message = message.replace(payload_text, "").strip()
                         result["message"] = message
                         break

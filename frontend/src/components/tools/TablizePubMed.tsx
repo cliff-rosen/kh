@@ -134,8 +134,8 @@ const TablizePubMed = forwardRef<TablizePubMedRef, TablizePubMedProps>(function 
     // Track AI columns from Tablizer for chat context
     const [aiColumns, setAiColumns] = useState<AIColumnInfo[]>([]);
 
-    // Ref to track if we should execute search after query is set
-    const pendingSearchRef = useRef(false);
+    // Counter to trigger search execution (increment to trigger)
+    const [searchTrigger, setSearchTrigger] = useState(0);
 
     // Ref for query textarea to handle auto-expansion
     const queryTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -466,21 +466,20 @@ const TablizePubMed = forwardRef<TablizePubMedRef, TablizePubMedProps>(function 
             setDateType(newDateType || 'publication');
         },
         executeSearch: () => {
-            // Need to wait for state update, so set a flag
-            pendingSearchRef.current = true;
+            // Increment trigger to execute search after state updates
+            setSearchTrigger(t => t + 1);
         },
         addAIColumn: (name: string, criteria: string, type: 'boolean' | 'text') => {
             tablizerRef.current?.addAIColumn(name, criteria, type);
         }
     }), []);
 
-    // Execute pending search when query changes and flag is set
+    // Execute search when trigger increments (after state updates are applied)
     useEffect(() => {
-        if (pendingSearchRef.current && query.trim()) {
-            pendingSearchRef.current = false;
+        if (searchTrigger > 0 && query.trim()) {
             handleSearch();
         }
-    }, [query]);
+    }, [searchTrigger]);
 
     // Auto-expand query textarea when query changes (including programmatic changes)
     useEffect(() => {
