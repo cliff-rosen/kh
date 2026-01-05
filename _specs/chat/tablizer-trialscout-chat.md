@@ -4,13 +4,27 @@ This document specifies how the chat system integrates with Tablizer (PubMed art
 
 ## Philosophy
 
-Chat serves as an **expert colleague** who can see what the user is doing:
+Chat serves as an **expert colleague** who can see what the user is doing. It has two roles:
 
-1. **Guide & Facilitate**: Help users use the app - constructing queries, filling forms, setting up AI columns
-2. **Enhance**: Analyze loaded results, synthesize patterns, provide insights
-3. **Automate**: When user describes what they want, chat fills in the form for them
+### 1. Guide & Facilitate
 
-**Key principle**: Chat does the work, user approves. Suggestions come as cards with Accept/Dismiss buttons.
+Make it easier for users to navigate and use the app. This includes:
+- Constructing queries the user doesn't know the syntax for
+- Filling in search forms based on natural language ("find Phase 3 NSCLC trials")
+- Setting up AI columns with well-crafted criteria
+- Explaining features and walking through workflows
+
+This is about **helping users drive the application**. Chat does the work, user approves—suggestions come as cards with Accept/Dismiss buttons.
+
+### 2. Enhance
+
+Add an intelligence layer over the data in the app. This includes:
+- Analyzing loaded results and answering questions about them
+- Synthesizing patterns across many items
+- Cross-referencing and identifying relationships
+- Providing insights the user would have to manually compute
+
+This is about **capabilities beyond what the UI offers**—the LLM can see all the data and reason about it.
 
 ---
 

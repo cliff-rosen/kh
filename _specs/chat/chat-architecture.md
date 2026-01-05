@@ -18,18 +18,19 @@ The chat system provides an intelligent, context-aware assistant that understand
 
 ## Chat Assistance Philosophy
 
-The chat system serves as an expert colleague who can see what the user is doing. It has three roles:
+The chat system serves as an expert colleague who can see what the user is doing. It has two roles:
 
 ### 1. Guide & Facilitate
 
-Help users discover and use features they might not find on their own. This goes beyond explaining—it includes **automating** tedious tasks:
+Make it easier for users to navigate and use the application. This includes:
 
-- **Formulating queries**: Constructing proper syntax (PubMed queries, search filters) the user doesn't know
+- **Constructing queries**: Building proper syntax (PubMed queries, search filters) the user doesn't know
 - **Filling forms**: Populating search fields, filter criteria, or configurations from natural language
+- **Setting up features**: Creating AI columns with well-crafted criteria
 - **Walking through workflows**: Guiding multi-step processes with actionable steps
 - **Discovering features**: Surfacing capabilities the user didn't know existed
 
-**Key principle**: Chat does the work, user approves. When chat suggests a query or configuration, it returns a payload the user can **Accept** (apply immediately) or **Modify** (adjust before applying).
+This is about **helping users drive the application**. Chat does the work, user approves—when chat suggests a query or configuration, it returns a payload the user can **Accept** (apply immediately) or **Dismiss**.
 
 ```
 User: "I want to find EGFR resistance articles"
@@ -42,22 +43,22 @@ Chat: "Here's a well-formed PubMed query for that:"
 │ receptor") AND (resistance OR resistant) AND   │
 │ (lung neoplasms[MeSH] OR "lung cancer")        │
 │                                                 │
-│ [Accept]  [Modify]                              │
+│ [Accept]  [Dismiss]                             │
 └─────────────────────────────────────────────────┘
 
 User clicks Accept → Query populates the search field
 ```
 
-### 2. Enhance (Analyze)
+### 2. Enhance
 
-Provide capabilities **beyond** what the UI offers directly. Chat can retrieve loaded data and answer questions, synthesize patterns, and provide insights:
+Add an intelligence layer over the data in the app. This includes:
 
 - **Analyze loaded results**: Answer questions about current data
 - **Synthesize patterns**: Identify trends across many items
 - **Cross-reference**: Find relationships the user would miss
 - **Compute insights**: Statistics, distributions, comparisons
 
-Use this when the question is specific/factual, it's a one-time question (not ongoing filtering), and the answer can be derived from already-loaded data.
+This is about **capabilities beyond what the UI offers**—the LLM can see all the data and reason about it.
 
 ```
 User: [Has 35 trials loaded]
@@ -75,25 +76,24 @@ The majority are late-stage trials."
 
 | User Intent | Mode | Reasoning |
 |-------------|------|-----------|
-| "Find EGFR resistance articles" | Guide | Automate query formulation, return payload |
+| "Find EGFR resistance articles" | Guide | Construct query, return payload |
 | "Help me write a better query" | Guide | Actionable output (query suggestion payload) |
-| "I want to filter to only Phase 3" | Guide | Automate AI column creation, return payload |
-| "Which trials have OS as primary endpoint?" | Enhance | Specific factual question, analyze loaded data |
+| "I want to filter to only Phase 3" | Guide | Set up AI column, return payload |
+| "Which trials have OS as primary endpoint?" | Enhance | Factual question, analyze loaded data |
 | "What patterns do you see?" | Enhance | Synthesis across results |
-| "Am I missing relevant articles?" | Guide | Walk through comparison workflow, suggest broader query |
+| "Am I missing relevant articles?" | Guide | Suggest broader query, walk through comparison |
 | "How do I compare searches?" | Guide | Explain workflow with actionable steps |
 
-### Payloads Enable Automation
+### Payloads Enable Guide Mode
 
-The payload system is critical—it's how chat **does the work** for the user. Common actionable payloads:
+The payload system is how chat **does the work** for the user. Common actionable payloads:
 
 | Payload Type | Accept Action | Use Case |
 |--------------|---------------|----------|
 | `query_suggestion` | Populates search field | Query formulation |
 | `ai_column_suggestion` | Creates AI column with criteria | Filtering/enrichment |
+| `trial_search_suggestion` | Populates trial search form | TrialScout searches |
 | `filter_suggestion` | Applies filter to results | Quick filtering |
-| `search_params` | Populates multiple form fields | Complex search setup |
-| `workflow_guide` | Interactive step tracker | Multi-step guidance |
 
 ---
 
