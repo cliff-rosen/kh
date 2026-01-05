@@ -61,8 +61,23 @@ async def list_all_organizations(
     db: Session = Depends(get_db)
 ):
     """Get all organizations with member counts. Platform admin only."""
-    service = OrganizationService(db)
-    return service.list_organizations(include_inactive=True)
+    logger.info(f"list_all_organizations - admin_user_id={current_user.user_id}")
+
+    try:
+        service = OrganizationService(db)
+        orgs = service.list_organizations(include_inactive=True)
+
+        logger.info(f"list_all_organizations complete - admin_user_id={current_user.user_id}, count={len(orgs)}")
+        return orgs
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"list_all_organizations failed - admin_user_id={current_user.user_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list organizations: {str(e)}"
+        )
 
 
 @router.post(
@@ -77,9 +92,24 @@ async def create_organization(
     db: Session = Depends(get_db)
 ):
     """Create a new organization. Platform admin only."""
-    from schemas.organization import OrganizationCreate
-    service = OrganizationService(db)
-    return service.create_organization(OrganizationCreate(name=name))
+    logger.info(f"create_organization - admin_user_id={current_user.user_id}, name={name}")
+
+    try:
+        from schemas.organization import OrganizationCreate
+        service = OrganizationService(db)
+        org = service.create_organization(OrganizationCreate(name=name))
+
+        logger.info(f"create_organization complete - admin_user_id={current_user.user_id}, org_id={org.org_id}")
+        return org
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"create_organization failed - admin_user_id={current_user.user_id}, name={name}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create organization: {str(e)}"
+        )
 
 
 @router.get(
@@ -93,16 +123,30 @@ async def get_organization(
     db: Session = Depends(get_db)
 ):
     """Get organization details by ID. Platform admin only."""
-    service = OrganizationService(db)
-    org = service.get_organization_with_stats(org_id)
+    logger.info(f"get_organization - admin_user_id={current_user.user_id}, org_id={org_id}")
 
-    if not org:
+    try:
+        service = OrganizationService(db)
+        org = service.get_organization_with_stats(org_id)
+
+        if not org:
+            logger.warning(f"get_organization - not found - admin_user_id={current_user.user_id}, org_id={org_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Organization not found"
+            )
+
+        logger.info(f"get_organization complete - admin_user_id={current_user.user_id}, org_id={org_id}")
+        return org
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_organization failed - admin_user_id={current_user.user_id}, org_id={org_id}: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Organization not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get organization: {str(e)}"
         )
-
-    return org
 
 
 @router.put(
@@ -117,16 +161,30 @@ async def update_organization(
     db: Session = Depends(get_db)
 ):
     """Update an organization. Platform admin only."""
-    service = OrganizationService(db)
-    org = service.update_organization(org_id, update_data)
+    logger.info(f"update_organization - admin_user_id={current_user.user_id}, org_id={org_id}")
 
-    if not org:
+    try:
+        service = OrganizationService(db)
+        org = service.update_organization(org_id, update_data)
+
+        if not org:
+            logger.warning(f"update_organization - not found - admin_user_id={current_user.user_id}, org_id={org_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Organization not found"
+            )
+
+        logger.info(f"update_organization complete - admin_user_id={current_user.user_id}, org_id={org_id}")
+        return OrgSchema.model_validate(org)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"update_organization failed - admin_user_id={current_user.user_id}, org_id={org_id}: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Organization not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update organization: {str(e)}"
         )
-
-    return OrgSchema.model_validate(org)
 
 
 @router.delete(
@@ -143,13 +201,28 @@ async def delete_organization(
     Delete an organization. Platform admin only.
     Will fail if organization has members.
     """
-    service = OrganizationService(db)
-    success = service.delete_organization(org_id)
+    logger.info(f"delete_organization - admin_user_id={current_user.user_id}, org_id={org_id}")
 
-    if not success:
+    try:
+        service = OrganizationService(db)
+        success = service.delete_organization(org_id)
+
+        if not success:
+            logger.warning(f"delete_organization - cannot delete - admin_user_id={current_user.user_id}, org_id={org_id}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete organization. It may have members or not exist."
+            )
+
+        logger.info(f"delete_organization complete - admin_user_id={current_user.user_id}, org_id={org_id}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"delete_organization failed - admin_user_id={current_user.user_id}, org_id={org_id}: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot delete organization. It may have members or not exist."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete organization: {str(e)}"
         )
 
 
@@ -164,12 +237,27 @@ async def assign_user_to_org(
     db: Session = Depends(get_db)
 ):
     """Assign a user to an organization. Platform admin only."""
-    user_service = UserService(db)
-    user = user_service.assign_to_org(user_id, org_id, current_user)
-    return {"status": "success", "user_id": user.user_id, "org_id": user.org_id}
+    logger.info(f"assign_user_to_org - admin_user_id={current_user.user_id}, user_id={user_id}, org_id={org_id}")
+
+    try:
+        user_service = UserService(db)
+        user = user_service.assign_to_org(user_id, org_id, current_user)
+
+        logger.info(f"assign_user_to_org complete - admin_user_id={current_user.user_id}, user_id={user_id}, org_id={org_id}")
+        return {"status": "success", "user_id": user.user_id, "org_id": user.org_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"assign_user_to_org failed - admin_user_id={current_user.user_id}, user_id={user_id}, org_id={org_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to assign user to organization: {str(e)}"
+        )
 
 
 # ==================== Global Stream Management ====================
+# NOTE: These endpoints have direct DB access which should be refactored to use services
 
 @router.get(
     "/streams",
@@ -181,11 +269,25 @@ async def list_global_streams(
     db: Session = Depends(get_db)
 ):
     """Get all global streams. Platform admin only."""
-    streams = db.query(ResearchStream).filter(
-        ResearchStream.scope == StreamScope.GLOBAL
-    ).all()
+    logger.info(f"list_global_streams - admin_user_id={current_user.user_id}")
 
-    return [StreamSchema.model_validate(s) for s in streams]
+    try:
+        # TODO: Move to ResearchStreamService
+        streams = db.query(ResearchStream).filter(
+            ResearchStream.scope == StreamScope.GLOBAL
+        ).all()
+
+        logger.info(f"list_global_streams complete - admin_user_id={current_user.user_id}, count={len(streams)}")
+        return [StreamSchema.model_validate(s) for s in streams]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"list_global_streams failed - admin_user_id={current_user.user_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list global streams: {str(e)}"
+        )
 
 
 @router.put(
@@ -202,24 +304,39 @@ async def set_stream_scope_global(
     Change an existing stream's scope to global.
     Platform admin only. Use this to promote any stream to global scope.
     """
-    stream = db.query(ResearchStream).filter(
-        ResearchStream.stream_id == stream_id
-    ).first()
+    logger.info(f"set_stream_scope_global - admin_user_id={current_user.user_id}, stream_id={stream_id}")
 
-    if not stream:
+    try:
+        # TODO: Move to ResearchStreamService
+        stream = db.query(ResearchStream).filter(
+            ResearchStream.stream_id == stream_id
+        ).first()
+
+        if not stream:
+            logger.warning(f"set_stream_scope_global - not found - admin_user_id={current_user.user_id}, stream_id={stream_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Stream not found"
+            )
+
+        # Update scope to global
+        stream.scope = StreamScope.GLOBAL
+        stream.org_id = None  # Global streams don't belong to an org
+
+        db.commit()
+        db.refresh(stream)
+
+        logger.info(f"set_stream_scope_global complete - admin_user_id={current_user.user_id}, stream_id={stream_id}")
+        return StreamSchema.model_validate(stream)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"set_stream_scope_global failed - admin_user_id={current_user.user_id}, stream_id={stream_id}: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Stream not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update stream scope: {str(e)}"
         )
-
-    # Update scope to global
-    stream.scope = StreamScope.GLOBAL
-    stream.org_id = None  # Global streams don't belong to an org
-
-    db.commit()
-    db.refresh(stream)
-
-    return StreamSchema.model_validate(stream)
 
 
 @router.delete(
@@ -233,19 +350,35 @@ async def delete_global_stream(
     db: Session = Depends(get_db)
 ):
     """Delete a global stream. Platform admin only."""
-    stream = db.query(ResearchStream).filter(
-        ResearchStream.stream_id == stream_id,
-        ResearchStream.scope == StreamScope.GLOBAL
-    ).first()
+    logger.info(f"delete_global_stream - admin_user_id={current_user.user_id}, stream_id={stream_id}")
 
-    if not stream:
+    try:
+        # TODO: Move to ResearchStreamService
+        stream = db.query(ResearchStream).filter(
+            ResearchStream.stream_id == stream_id,
+            ResearchStream.scope == StreamScope.GLOBAL
+        ).first()
+
+        if not stream:
+            logger.warning(f"delete_global_stream - not found - admin_user_id={current_user.user_id}, stream_id={stream_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Global stream not found"
+            )
+
+        db.delete(stream)
+        db.commit()
+
+        logger.info(f"delete_global_stream complete - admin_user_id={current_user.user_id}, stream_id={stream_id}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"delete_global_stream failed - admin_user_id={current_user.user_id}, stream_id={stream_id}: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Global stream not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete global stream: {str(e)}"
         )
-
-    db.delete(stream)
-    db.commit()
 
 
 # ==================== User Management ====================
@@ -265,19 +398,32 @@ async def list_all_users(
     db: Session = Depends(get_db)
 ):
     """Get all users with optional filters. Platform admin only."""
-    user_service = UserService(db)
-    users, total = user_service.list_users(
-        org_id=org_id,
-        role=role,
-        is_active=is_active,
-        limit=limit,
-        offset=offset
-    )
+    logger.info(f"list_all_users - admin_user_id={current_user.user_id}, org_id={org_id}, role={role}, limit={limit}")
 
-    return UserList(
-        users=[UserSchema.model_validate(u) for u in users],
-        total=total
-    )
+    try:
+        user_service = UserService(db)
+        users, total = user_service.list_users(
+            org_id=org_id,
+            role=role,
+            is_active=is_active,
+            limit=limit,
+            offset=offset
+        )
+
+        logger.info(f"list_all_users complete - admin_user_id={current_user.user_id}, total={total}, returned={len(users)}")
+        return UserList(
+            users=[UserSchema.model_validate(u) for u in users],
+            total=total
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"list_all_users failed - admin_user_id={current_user.user_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list users: {str(e)}"
+        )
 
 
 @router.put(
@@ -292,9 +438,23 @@ async def update_user_role(
     db: Session = Depends(get_db)
 ):
     """Update any user's role. Platform admin only."""
-    user_service = UserService(db)
-    user = user_service.update_role(user_id, new_role, current_user)
-    return UserSchema.model_validate(user)
+    logger.info(f"update_user_role - admin_user_id={current_user.user_id}, user_id={user_id}, new_role={new_role}")
+
+    try:
+        user_service = UserService(db)
+        user = user_service.update_role(user_id, new_role, current_user)
+
+        logger.info(f"update_user_role complete - admin_user_id={current_user.user_id}, user_id={user_id}, new_role={new_role}")
+        return UserSchema.model_validate(user)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"update_user_role failed - admin_user_id={current_user.user_id}, user_id={user_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update user role: {str(e)}"
+        )
 
 
 @router.delete(
@@ -311,8 +471,22 @@ async def delete_user(
     Permanently delete a user from the system.
     Platform admin only. Cannot delete yourself or other platform admins.
     """
-    user_service = UserService(db)
-    user_service.delete_user(user_id, current_user)
+    logger.info(f"delete_user - admin_user_id={current_user.user_id}, user_id={user_id}")
+
+    try:
+        user_service = UserService(db)
+        user_service.delete_user(user_id, current_user)
+
+        logger.info(f"delete_user complete - admin_user_id={current_user.user_id}, user_id={user_id}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"delete_user failed - admin_user_id={current_user.user_id}, user_id={user_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete user: {str(e)}"
+        )
 
 
 # ==================== Invitation Management ====================
@@ -372,42 +546,56 @@ async def list_invitations(
     db: Session = Depends(get_db)
 ):
     """Get all invitations with optional filters. Platform admin only."""
-    query = db.query(Invitation)
+    logger.info(f"list_invitations - admin_user_id={current_user.user_id}, org_id={org_id}")
 
-    if org_id:
-        query = query.filter(Invitation.org_id == org_id)
+    try:
+        # TODO: Move to InvitationService
+        query = db.query(Invitation)
 
-    if not include_accepted:
-        query = query.filter(Invitation.accepted_at == None)
+        if org_id:
+            query = query.filter(Invitation.org_id == org_id)
 
-    if not include_expired:
-        query = query.filter(Invitation.expires_at > datetime.utcnow())
+        if not include_accepted:
+            query = query.filter(Invitation.accepted_at == None)
 
-    query = query.filter(Invitation.is_revoked == False)
-    invitations = query.order_by(Invitation.created_at.desc()).all()
+        if not include_expired:
+            query = query.filter(Invitation.expires_at > datetime.utcnow())
 
-    user_service = UserService(db)
-    result = []
-    for inv in invitations:
-        org = db.query(Organization).filter(Organization.org_id == inv.org_id).first() if inv.org_id else None
-        inviter = user_service.get_user_by_id(inv.invited_by) if inv.invited_by else None
+        query = query.filter(Invitation.is_revoked == False)
+        invitations = query.order_by(Invitation.created_at.desc()).all()
 
-        result.append(InvitationResponse(
-            invitation_id=inv.invitation_id,
-            email=inv.email,
-            org_id=inv.org_id,
-            org_name=org.name if org else None,
-            role=inv.role,
-            token=inv.token,
-            invite_url=f"{settings.FRONTEND_URL}/register?token={inv.token}",
-            created_at=inv.created_at,
-            expires_at=inv.expires_at,
-            accepted_at=inv.accepted_at,
-            is_revoked=inv.is_revoked,
-            inviter_email=inviter.email if inviter else None
-        ))
+        user_service = UserService(db)
+        result = []
+        for inv in invitations:
+            org = db.query(Organization).filter(Organization.org_id == inv.org_id).first() if inv.org_id else None
+            inviter = user_service.get_user_by_id(inv.invited_by) if inv.invited_by else None
 
-    return result
+            result.append(InvitationResponse(
+                invitation_id=inv.invitation_id,
+                email=inv.email,
+                org_id=inv.org_id,
+                org_name=org.name if org else None,
+                role=inv.role,
+                token=inv.token,
+                invite_url=f"{settings.FRONTEND_URL}/register?token={inv.token}",
+                created_at=inv.created_at,
+                expires_at=inv.expires_at,
+                accepted_at=inv.accepted_at,
+                is_revoked=inv.is_revoked,
+                inviter_email=inviter.email if inviter else None
+            ))
+
+        logger.info(f"list_invitations complete - admin_user_id={current_user.user_id}, count={len(result)}")
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"list_invitations failed - admin_user_id={current_user.user_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list invitations: {str(e)}"
+        )
 
 
 @router.post(
@@ -426,89 +614,102 @@ async def create_invitation(
     Returns an invitation token that can be used during registration.
     Platform admin only.
     """
-    user_service = UserService(db)
+    logger.info(f"create_invitation - admin_user_id={current_user.user_id}, email={invitation.email}, org_id={invitation.org_id}")
 
-    # Check if email already registered
-    existing_user = user_service.get_user_by_email(invitation.email)
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User with this email already exists"
-        )
+    try:
+        user_service = UserService(db)
 
-    # Check if pending invitation exists
-    existing_invite = db.query(Invitation).filter(
-        Invitation.email == invitation.email,
-        Invitation.accepted_at == None,
-        Invitation.is_revoked == False,
-        Invitation.expires_at > datetime.utcnow()
-    ).first()
+        # Check if email already registered
+        existing_user = user_service.get_user_by_email(invitation.email)
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User with this email already exists"
+            )
 
-    if existing_invite:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A pending invitation for this email already exists"
-        )
+        # TODO: Move to InvitationService
+        # Check if pending invitation exists
+        existing_invite = db.query(Invitation).filter(
+            Invitation.email == invitation.email,
+            Invitation.accepted_at == None,
+            Invitation.is_revoked == False,
+            Invitation.expires_at > datetime.utcnow()
+        ).first()
 
-    # Validate org_id based on role
-    org = None
-    if invitation.role == UserRoleSchema.PLATFORM_ADMIN:
-        # Platform admins don't require an organization
-        if invitation.org_id:
+        if existing_invite:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A pending invitation for this email already exists"
+            )
+
+        # Validate org_id based on role
+        org = None
+        if invitation.role == UserRoleSchema.PLATFORM_ADMIN:
+            # Platform admins don't require an organization
+            if invitation.org_id:
+                org = db.query(Organization).filter(Organization.org_id == invitation.org_id).first()
+                if not org:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Organization not found"
+                    )
+        else:
+            # Non-platform-admin roles require an organization
+            if not invitation.org_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Organization is required for non-platform-admin roles"
+                )
             org = db.query(Organization).filter(Organization.org_id == invitation.org_id).first()
             if not org:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Organization not found"
                 )
-    else:
-        # Non-platform-admin roles require an organization
-        if not invitation.org_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Organization is required for non-platform-admin roles"
-            )
-        org = db.query(Organization).filter(Organization.org_id == invitation.org_id).first()
-        if not org:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found"
-            )
 
-    # Generate secure token
-    token = secrets.token_urlsafe(32)
+        # Generate secure token
+        token = secrets.token_urlsafe(32)
 
-    # Create invitation
-    new_invitation = Invitation(
-        email=invitation.email,
-        token=token,
-        org_id=invitation.org_id,
-        role=invitation.role.value,
-        invited_by=current_user.user_id,
-        expires_at=datetime.utcnow() + timedelta(days=invitation.expires_in_days)
-    )
+        # Create invitation
+        new_invitation = Invitation(
+            email=invitation.email,
+            token=token,
+            org_id=invitation.org_id,
+            role=invitation.role.value,
+            invited_by=current_user.user_id,
+            expires_at=datetime.utcnow() + timedelta(days=invitation.expires_in_days)
+        )
 
-    db.add(new_invitation)
-    db.commit()
-    db.refresh(new_invitation)
+        db.add(new_invitation)
+        db.commit()
+        db.refresh(new_invitation)
 
-    org_info = f"org {org.name}" if org else "no org (platform admin)"
-    logger.info(f"Created invitation for {invitation.email} to {org_info}")
+        org_info = f"org {org.name}" if org else "no org (platform admin)"
+        logger.info(f"create_invitation complete - admin_user_id={current_user.user_id}, email={invitation.email}, to {org_info}")
 
-    return InvitationResponse(
-        invitation_id=new_invitation.invitation_id,
-        email=new_invitation.email,
-        org_id=new_invitation.org_id,
-        org_name=org.name if org else None,
-        role=new_invitation.role,
-        token=new_invitation.token,
-        invite_url=f"{settings.FRONTEND_URL}/register?token={new_invitation.token}",
-        created_at=new_invitation.created_at,
-        expires_at=new_invitation.expires_at,
-        accepted_at=new_invitation.accepted_at,
-        is_revoked=new_invitation.is_revoked,
-        inviter_email=current_user.email
-    )
+        return InvitationResponse(
+            invitation_id=new_invitation.invitation_id,
+            email=new_invitation.email,
+            org_id=new_invitation.org_id,
+            org_name=org.name if org else None,
+            role=new_invitation.role,
+            token=new_invitation.token,
+            invite_url=f"{settings.FRONTEND_URL}/register?token={new_invitation.token}",
+            created_at=new_invitation.created_at,
+            expires_at=new_invitation.expires_at,
+            accepted_at=new_invitation.accepted_at,
+            is_revoked=new_invitation.is_revoked,
+            inviter_email=current_user.email
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"create_invitation failed - admin_user_id={current_user.user_id}, email={invitation.email}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create invitation: {str(e)}"
+        )
 
 
 @router.delete(
@@ -522,26 +723,40 @@ async def revoke_invitation(
     db: Session = Depends(get_db)
 ):
     """Revoke an invitation. Platform admin only."""
-    invitation = db.query(Invitation).filter(
-        Invitation.invitation_id == invitation_id
-    ).first()
+    logger.info(f"revoke_invitation - admin_user_id={current_user.user_id}, invitation_id={invitation_id}")
 
-    if not invitation:
+    try:
+        # TODO: Move to InvitationService
+        invitation = db.query(Invitation).filter(
+            Invitation.invitation_id == invitation_id
+        ).first()
+
+        if not invitation:
+            logger.warning(f"revoke_invitation - not found - admin_user_id={current_user.user_id}, invitation_id={invitation_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Invitation not found"
+            )
+
+        if invitation.accepted_at:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot revoke an already accepted invitation"
+            )
+
+        invitation.is_revoked = True
+        db.commit()
+
+        logger.info(f"revoke_invitation complete - admin_user_id={current_user.user_id}, invitation_id={invitation_id}, email={invitation.email}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"revoke_invitation failed - admin_user_id={current_user.user_id}, invitation_id={invitation_id}: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Invitation not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to revoke invitation: {str(e)}"
         )
-
-    if invitation.accepted_at:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot revoke an already accepted invitation"
-        )
-
-    invitation.is_revoked = True
-    db.commit()
-
-    logger.info(f"Revoked invitation {invitation_id} for {invitation.email}")
 
 
 @router.post(
@@ -559,28 +774,41 @@ async def create_user_directly(
     Create a user directly without invitation.
     Platform admin only.
     """
-    # Verify organization exists
-    org = db.query(Organization).filter(Organization.org_id == user_data.org_id).first()
-    if not org:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Organization not found"
+    logger.info(f"create_user_directly - admin_user_id={current_user.user_id}, email={user_data.email}, org_id={user_data.org_id}")
+
+    try:
+        # TODO: Move org verification to OrganizationService
+        org = db.query(Organization).filter(Organization.org_id == user_data.org_id).first()
+        if not org:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Organization not found"
+            )
+
+        user_service = UserService(db)
+        user = user_service.create_user(
+            email=user_data.email,
+            password=user_data.password,
+            full_name=user_data.full_name,
+            role=user_data.role,
+            org_id=user_data.org_id
         )
 
-    user_service = UserService(db)
-    user = user_service.create_user(
-        email=user_data.email,
-        password=user_data.password,
-        full_name=user_data.full_name,
-        role=user_data.role,
-        org_id=user_data.org_id
-    )
+        logger.info(f"create_user_directly complete - admin_user_id={current_user.user_id}, new_user_id={user.user_id}, email={user.email}")
+        return UserSchema.model_validate(user)
 
-    logger.info(f"Platform admin {current_user.email} created user {user.email}")
-    return UserSchema.model_validate(user)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"create_user_directly failed - admin_user_id={current_user.user_id}, email={user_data.email}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create user: {str(e)}"
+        )
 
 
 # ==================== Organization Stream Subscriptions ====================
+# NOTE: These endpoints have some direct DB access for validation which should be refactored
 
 @router.get(
     "/orgs/{org_id}/global-streams",
@@ -596,17 +824,32 @@ async def list_org_global_stream_subscriptions(
     Get all global streams with subscription status for the specified org.
     Platform admin only.
     """
-    # Verify org exists
-    org = db.query(Organization).filter(Organization.org_id == org_id).first()
-    if not org:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Organization not found"
-        )
+    logger.info(f"list_org_global_stream_subscriptions - admin_user_id={current_user.user_id}, org_id={org_id}")
 
-    sub_service = SubscriptionService(db)
-    result = sub_service.get_global_streams_for_org(org_id)
-    return result.streams
+    try:
+        # TODO: Move org verification to OrganizationService
+        org = db.query(Organization).filter(Organization.org_id == org_id).first()
+        if not org:
+            logger.warning(f"list_org_global_stream_subscriptions - org not found - admin_user_id={current_user.user_id}, org_id={org_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Organization not found"
+            )
+
+        sub_service = SubscriptionService(db)
+        result = sub_service.get_global_streams_for_org(org_id)
+
+        logger.info(f"list_org_global_stream_subscriptions complete - admin_user_id={current_user.user_id}, org_id={org_id}, count={len(result.streams)}")
+        return result.streams
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"list_org_global_stream_subscriptions failed - admin_user_id={current_user.user_id}, org_id={org_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list global stream subscriptions: {str(e)}"
+        )
 
 
 @router.post(
@@ -624,30 +867,43 @@ async def subscribe_org_to_global_stream(
     Subscribe an organization to a global stream.
     Platform admin only.
     """
-    # Verify org exists
-    org = db.query(Organization).filter(Organization.org_id == org_id).first()
-    if not org:
+    logger.info(f"subscribe_org_to_global_stream - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}")
+
+    try:
+        # TODO: Move these validations to services
+        org = db.query(Organization).filter(Organization.org_id == org_id).first()
+        if not org:
+            logger.warning(f"subscribe_org_to_global_stream - org not found - admin_user_id={current_user.user_id}, org_id={org_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Organization not found"
+            )
+
+        stream = db.query(ResearchStream).filter(
+            ResearchStream.stream_id == stream_id,
+            ResearchStream.scope == StreamScope.GLOBAL
+        ).first()
+        if not stream:
+            logger.warning(f"subscribe_org_to_global_stream - stream not found - admin_user_id={current_user.user_id}, stream_id={stream_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Global stream not found"
+            )
+
+        sub_service = SubscriptionService(db)
+        sub_service.subscribe_org_to_global_stream(org_id, stream_id, current_user.user_id)
+
+        logger.info(f"subscribe_org_to_global_stream complete - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}")
+        return {"status": "subscribed", "org_id": org_id, "stream_id": stream_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"subscribe_org_to_global_stream failed - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Organization not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to subscribe to global stream: {str(e)}"
         )
-
-    # Verify stream is global
-    stream = db.query(ResearchStream).filter(
-        ResearchStream.stream_id == stream_id,
-        ResearchStream.scope == StreamScope.GLOBAL
-    ).first()
-    if not stream:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Global stream not found"
-        )
-
-    sub_service = SubscriptionService(db)
-    sub_service.subscribe_org_to_global_stream(org_id, stream_id, current_user.user_id)
-
-    logger.info(f"Platform admin subscribed org {org_id} to global stream {stream_id}")
-    return {"status": "subscribed", "org_id": org_id, "stream_id": stream_id}
 
 
 @router.delete(
@@ -665,16 +921,29 @@ async def unsubscribe_org_from_global_stream(
     Unsubscribe an organization from a global stream.
     Platform admin only.
     """
-    sub_service = SubscriptionService(db)
-    success = sub_service.unsubscribe_org_from_global_stream(org_id, stream_id)
+    logger.info(f"unsubscribe_org_from_global_stream - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}")
 
-    if not success:
+    try:
+        sub_service = SubscriptionService(db)
+        success = sub_service.unsubscribe_org_from_global_stream(org_id, stream_id)
+
+        if not success:
+            logger.warning(f"unsubscribe_org_from_global_stream - not found - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Subscription not found"
+            )
+
+        logger.info(f"unsubscribe_org_from_global_stream complete - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"unsubscribe_org_from_global_stream failed - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Subscription not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to unsubscribe from global stream: {str(e)}"
         )
-
-    logger.info(f"Platform admin unsubscribed org {org_id} from global stream {stream_id}")
 
 
 # ==================== Chat System Configuration ====================
@@ -760,98 +1029,112 @@ async def get_chat_config(
     payload types, tools, page configurations, and stream-specific
     chat instructions. Platform admin only.
     """
-    from schemas.payloads import get_all_payload_types
-    from tools.registry import get_all_tools
-    from services.chat_page_config import get_page_config
-    from services.chat_page_config.registry import _page_registry
+    logger.info(f"get_chat_config - admin_user_id={current_user.user_id}")
 
-    # Get all payload types
-    payload_types = []
-    for pt in get_all_payload_types():
-        payload_types.append(PayloadTypeInfo(
-            name=pt.name,
-            description=pt.description,
-            source=pt.source,
-            is_global=pt.is_global,
-            parse_marker=pt.parse_marker,
-            has_parser=pt.parser is not None,
-            has_instructions=pt.llm_instructions is not None and len(pt.llm_instructions) > 0
-        ))
+    try:
+        from schemas.payloads import get_all_payload_types
+        from tools.registry import get_all_tools
+        from services.chat_page_config import get_page_config
+        from services.chat_page_config.registry import _page_registry
 
-    # Get all tools
-    tools = []
-    for tool in get_all_tools():
-        tools.append(ToolInfo(
-            name=tool.name,
-            description=tool.description,
-            category=tool.category,
-            is_global=tool.is_global,
-            payload_type=tool.payload_type,
-            streaming=tool.streaming
-        ))
+        # Get all payload types
+        payload_types = []
+        for pt in get_all_payload_types():
+            payload_types.append(PayloadTypeInfo(
+                name=pt.name,
+                description=pt.description,
+                source=pt.source,
+                is_global=pt.is_global,
+                parse_marker=pt.parse_marker,
+                has_parser=pt.parser is not None,
+                has_instructions=pt.llm_instructions is not None and len(pt.llm_instructions) > 0
+            ))
 
-    # Get all page configs
-    pages = []
-    for page_name, config in _page_registry.items():
-        tabs_info = {}
-        for tab_name, tab_config in config.tabs.items():
-            # Build subtabs info
-            subtabs_info = {}
-            for subtab_name, subtab_config in tab_config.subtabs.items():
-                subtabs_info[subtab_name] = SubTabConfigInfo(
-                    payloads=subtab_config.payloads,
-                    tools=subtab_config.tools
+        # Get all tools
+        tools = []
+        for tool in get_all_tools():
+            tools.append(ToolInfo(
+                name=tool.name,
+                description=tool.description,
+                category=tool.category,
+                is_global=tool.is_global,
+                payload_type=tool.payload_type,
+                streaming=tool.streaming
+            ))
+
+        # Get all page configs
+        pages = []
+        for page_name, config in _page_registry.items():
+            tabs_info = {}
+            for tab_name, tab_config in config.tabs.items():
+                # Build subtabs info
+                subtabs_info = {}
+                for subtab_name, subtab_config in tab_config.subtabs.items():
+                    subtabs_info[subtab_name] = SubTabConfigInfo(
+                        payloads=subtab_config.payloads,
+                        tools=subtab_config.tools
+                    )
+
+                tabs_info[tab_name] = TabConfigInfo(
+                    payloads=tab_config.payloads,
+                    tools=tab_config.tools,
+                    subtabs=subtabs_info
                 )
 
-            tabs_info[tab_name] = TabConfigInfo(
-                payloads=tab_config.payloads,
-                tools=tab_config.tools,
-                subtabs=subtabs_info
-            )
+            pages.append(PageConfigInfo(
+                page=page_name,
+                has_context_builder=config.context_builder is not None,
+                payloads=config.payloads,
+                tools=config.tools,
+                tabs=tabs_info,
+                client_actions=[ca.action for ca in config.client_actions]
+            ))
 
-        pages.append(PageConfigInfo(
-            page=page_name,
-            has_context_builder=config.context_builder is not None,
-            payloads=config.payloads,
-            tools=config.tools,
-            tabs=tabs_info,
-            client_actions=[ca.action for ca in config.client_actions]
-        ))
+        # TODO: Move to ResearchStreamService
+        # Get all streams with their chat instructions status
+        stream_instructions = []
+        streams = db.query(ResearchStream).order_by(ResearchStream.stream_name).all()
+        for stream in streams:
+            has_instr = stream.chat_instructions is not None and len(stream.chat_instructions.strip()) > 0
+            preview = None
+            if has_instr:
+                preview = stream.chat_instructions[:200] + "..." if len(stream.chat_instructions) > 200 else stream.chat_instructions
 
-    # Get all streams with their chat instructions status
-    stream_instructions = []
-    streams = db.query(ResearchStream).order_by(ResearchStream.stream_name).all()
-    for stream in streams:
-        has_instr = stream.chat_instructions is not None and len(stream.chat_instructions.strip()) > 0
-        preview = None
-        if has_instr:
-            preview = stream.chat_instructions[:200] + "..." if len(stream.chat_instructions) > 200 else stream.chat_instructions
+            stream_instructions.append(StreamInstructionsInfo(
+                stream_id=stream.stream_id,
+                stream_name=stream.stream_name,
+                has_instructions=has_instr,
+                instructions_preview=preview
+            ))
 
-        stream_instructions.append(StreamInstructionsInfo(
-            stream_id=stream.stream_id,
-            stream_name=stream.stream_name,
-            has_instructions=has_instr,
-            instructions_preview=preview
-        ))
+        # Build summary
+        streams_with_instructions = len([s for s in stream_instructions if s.has_instructions])
+        summary = {
+            "total_payload_types": len(payload_types),
+            "global_payloads": len([p for p in payload_types if p.is_global]),
+            "llm_payloads": len([p for p in payload_types if p.source == "llm"]),
+            "tool_payloads": len([p for p in payload_types if p.source == "tool"]),
+            "total_tools": len(tools),
+            "global_tools": len([t for t in tools if t.is_global]),
+            "total_pages": len(pages),
+            "total_streams": len(stream_instructions),
+            "streams_with_instructions": streams_with_instructions,
+        }
 
-    # Build summary
-    streams_with_instructions = len([s for s in stream_instructions if s.has_instructions])
-    summary = {
-        "total_payload_types": len(payload_types),
-        "global_payloads": len([p for p in payload_types if p.is_global]),
-        "llm_payloads": len([p for p in payload_types if p.source == "llm"]),
-        "tool_payloads": len([p for p in payload_types if p.source == "tool"]),
-        "total_tools": len(tools),
-        "global_tools": len([t for t in tools if t.is_global]),
-        "total_pages": len(pages),
-        "total_streams": len(stream_instructions),
-        "streams_with_instructions": streams_with_instructions,
-    }
+        logger.info(f"get_chat_config complete - admin_user_id={current_user.user_id}, payloads={len(payload_types)}, tools={len(tools)}, pages={len(pages)}")
+        return ChatConfigResponse(
+            payload_types=payload_types,
+            tools=tools,
+            pages=pages,
+            stream_instructions=stream_instructions,
+            summary=summary
+        )
 
-    return ChatConfigResponse(
-        payload_types=payload_types,
-        tools=tools,
-        pages=pages,
-        stream_instructions=stream_instructions,
-        summary=summary
-    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_chat_config failed - admin_user_id={current_user.user_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get chat config: {str(e)}"
+        )

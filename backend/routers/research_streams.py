@@ -126,8 +126,23 @@ async def get_research_streams(
     current_user: User = Depends(get_current_user)
 ):
     """Get all research streams for the current user"""
-    service = ResearchStreamService(db)
-    return service.get_user_research_streams(current_user.user_id)
+    logger.info(f"get_research_streams - user_id={current_user.user_id}")
+
+    try:
+        service = ResearchStreamService(db)
+        streams = service.get_user_research_streams(current_user.user_id)
+
+        logger.info(f"get_research_streams complete - user_id={current_user.user_id}, count={len(streams)}")
+        return streams
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_research_streams failed - user_id={current_user.user_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get research streams: {str(e)}"
+        )
 
 
 @router.get("/{stream_id}", response_model=ResearchStream)
@@ -138,9 +153,24 @@ async def get_research_stream(
     current_user: User = Depends(get_current_user)
 ):
     """Get a specific research stream by ID"""
-    service = ResearchStreamService(db)
-    # Service raises 404 if not found or not authorized
-    return service.get_research_stream(stream_id, current_user.user_id)
+    logger.info(f"get_research_stream - user_id={current_user.user_id}, stream_id={stream_id}")
+
+    try:
+        service = ResearchStreamService(db)
+        # Service raises 404 if not found or not authorized
+        stream = service.get_research_stream(stream_id, current_user.user_id)
+
+        logger.info(f"get_research_stream complete - user_id={current_user.user_id}, stream_id={stream_id}")
+        return stream
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_research_stream failed - user_id={current_user.user_id}, stream_id={stream_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get research stream: {str(e)}"
+        )
 
 
 @router.post("", response_model=ResearchStream, status_code=status.HTTP_201_CREATED)
@@ -157,54 +187,69 @@ async def create_research_stream(
     - organization: Org members can subscribe (org_admin only)
     - global: Platform-wide (platform_admin only)
     """
-    service = ResearchStreamService(db)
+    logger.info(f"create_research_stream - user_id={current_user.user_id}, stream_name={request.stream_name}, scope={request.scope}")
 
-    # Parse and validate scope
-    scope_str = (request.scope or "personal").lower()
     try:
-        scope = StreamScope(scope_str)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid scope: {scope_str}. Must be one of: personal, organization, global"
-        )
+        service = ResearchStreamService(db)
 
-    # Validate scope based on user role
-    if scope == StreamScope.GLOBAL and current_user.role != UserRole.PLATFORM_ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only platform admins can create global streams"
-        )
-
-    if scope == StreamScope.ORGANIZATION:
-        if current_user.role not in (UserRole.PLATFORM_ADMIN, UserRole.ORG_ADMIN):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only org admins can create organization streams"
-            )
-        if not current_user.org_id and current_user.role != UserRole.PLATFORM_ADMIN:
+        # Parse and validate scope
+        scope_str = (request.scope or "personal").lower()
+        try:
+            scope = StreamScope(scope_str)
+        except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="You must belong to an organization to create org streams"
+                detail=f"Invalid scope: {scope_str}. Must be one of: personal, organization, global"
             )
 
-    # Convert Pydantic models to dicts
-    semantic_space_dict = request.semantic_space.dict() if hasattr(request.semantic_space, 'dict') else request.semantic_space
-    retrieval_config_dict = request.retrieval_config.dict() if hasattr(request.retrieval_config, 'dict') else request.retrieval_config
-    presentation_config_dict = request.presentation_config.dict() if hasattr(request.presentation_config, 'dict') else request.presentation_config
+        # Validate scope based on user role
+        if scope == StreamScope.GLOBAL and current_user.role != UserRole.PLATFORM_ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only platform admins can create global streams"
+            )
 
-    return service.create_research_stream(
-        user_id=current_user.user_id,
-        stream_name=request.stream_name,
-        purpose=request.purpose,
-        report_frequency=request.report_frequency,
-        chat_instructions=request.chat_instructions,
-        semantic_space=semantic_space_dict,
-        retrieval_config=retrieval_config_dict,
-        presentation_config=presentation_config_dict,
-        scope=scope,
-        org_id=current_user.org_id
-    )
+        if scope == StreamScope.ORGANIZATION:
+            if current_user.role not in (UserRole.PLATFORM_ADMIN, UserRole.ORG_ADMIN):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only org admins can create organization streams"
+                )
+            if not current_user.org_id and current_user.role != UserRole.PLATFORM_ADMIN:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="You must belong to an organization to create org streams"
+                )
+
+        # Convert Pydantic models to dicts
+        semantic_space_dict = request.semantic_space.dict() if hasattr(request.semantic_space, 'dict') else request.semantic_space
+        retrieval_config_dict = request.retrieval_config.dict() if hasattr(request.retrieval_config, 'dict') else request.retrieval_config
+        presentation_config_dict = request.presentation_config.dict() if hasattr(request.presentation_config, 'dict') else request.presentation_config
+
+        stream = service.create_research_stream(
+            user_id=current_user.user_id,
+            stream_name=request.stream_name,
+            purpose=request.purpose,
+            report_frequency=request.report_frequency,
+            chat_instructions=request.chat_instructions,
+            semantic_space=semantic_space_dict,
+            retrieval_config=retrieval_config_dict,
+            presentation_config=presentation_config_dict,
+            scope=scope,
+            org_id=current_user.org_id
+        )
+
+        logger.info(f"create_research_stream complete - user_id={current_user.user_id}, stream_id={stream.stream_id}")
+        return stream
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"create_research_stream failed - user_id={current_user.user_id}, stream_name={request.stream_name}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create research stream: {str(e)}"
+        )
 
 
 @router.put("/{stream_id}", response_model=ResearchStream)
@@ -215,28 +260,44 @@ async def update_research_stream(
     current_user: User = Depends(get_current_user)
 ):
     """Update an existing research stream with Phase 1 support"""
-    service = ResearchStreamService(db)
+    logger.info(f"update_research_stream - user_id={current_user.user_id}, stream_id={stream_id}")
 
-    # Verify ownership
-    existing_stream = service.get_research_stream(stream_id, current_user.user_id)
-    if not existing_stream:
+    try:
+        service = ResearchStreamService(db)
+
+        # Verify ownership
+        existing_stream = service.get_research_stream(stream_id, current_user.user_id)
+        if not existing_stream:
+            logger.warning(f"update_research_stream - not found - user_id={current_user.user_id}, stream_id={stream_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found"
+            )
+
+        # Check if user can modify this stream (based on scope and role)
+        _check_can_modify_stream(existing_stream, current_user)
+
+        # Prepare update data (only non-None values)
+        update_data = {k: v for k, v in request.dict().items() if v is not None}
+
+        # Convert scoring_config from Pydantic model to dict if present
+        if 'scoring_config' in update_data and update_data['scoring_config'] is not None:
+            if hasattr(update_data['scoring_config'], 'dict'):
+                update_data['scoring_config'] = update_data['scoring_config'].dict()
+
+        stream = service.update_research_stream(stream_id, update_data)
+
+        logger.info(f"update_research_stream complete - user_id={current_user.user_id}, stream_id={stream_id}")
+        return stream
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"update_research_stream failed - user_id={current_user.user_id}, stream_id={stream_id}: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Research stream not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update research stream: {str(e)}"
         )
-
-    # Check if user can modify this stream (based on scope and role)
-    _check_can_modify_stream(existing_stream, current_user)
-
-    # Prepare update data (only non-None values)
-    update_data = {k: v for k, v in request.dict().items() if v is not None}
-
-    # Convert scoring_config from Pydantic model to dict if present
-    if 'scoring_config' in update_data and update_data['scoring_config'] is not None:
-        if hasattr(update_data['scoring_config'], 'dict'):
-            update_data['scoring_config'] = update_data['scoring_config'].dict()
-
-    return service.update_research_stream(stream_id, update_data)
 
 
 @router.delete("/{stream_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -246,20 +307,35 @@ async def delete_research_stream(
     current_user: User = Depends(get_current_user)
 ):
     """Delete a research stream"""
-    service = ResearchStreamService(db)
+    logger.info(f"delete_research_stream - user_id={current_user.user_id}, stream_id={stream_id}")
 
-    # Verify ownership
-    existing_stream = service.get_research_stream(stream_id, current_user.user_id)
-    if not existing_stream:
+    try:
+        service = ResearchStreamService(db)
+
+        # Verify ownership
+        existing_stream = service.get_research_stream(stream_id, current_user.user_id)
+        if not existing_stream:
+            logger.warning(f"delete_research_stream - not found - user_id={current_user.user_id}, stream_id={stream_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found"
+            )
+
+        # Check if user can modify this stream (based on scope and role)
+        _check_can_modify_stream(existing_stream, current_user)
+
+        service.delete_research_stream(stream_id)
+
+        logger.info(f"delete_research_stream complete - user_id={current_user.user_id}, stream_id={stream_id}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"delete_research_stream failed - user_id={current_user.user_id}, stream_id={stream_id}: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Research stream not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete research stream: {str(e)}"
         )
-
-    # Check if user can modify this stream (based on scope and role)
-    _check_can_modify_stream(existing_stream, current_user)
-
-    service.delete_research_stream(stream_id)
 
 
 @router.patch("/{stream_id}/status", response_model=ResearchStream)
@@ -270,20 +346,36 @@ async def toggle_research_stream_status(
     current_user: User = Depends(get_current_user)
 ):
     """Toggle research stream active status"""
-    service = ResearchStreamService(db)
+    logger.info(f"toggle_research_stream_status - user_id={current_user.user_id}, stream_id={stream_id}, is_active={request.is_active}")
 
-    # Verify ownership
-    existing_stream = service.get_research_stream(stream_id, current_user.user_id)
-    if not existing_stream:
+    try:
+        service = ResearchStreamService(db)
+
+        # Verify ownership
+        existing_stream = service.get_research_stream(stream_id, current_user.user_id)
+        if not existing_stream:
+            logger.warning(f"toggle_research_stream_status - not found - user_id={current_user.user_id}, stream_id={stream_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found"
+            )
+
+        # Check if user can modify this stream (based on scope and role)
+        _check_can_modify_stream(existing_stream, current_user)
+
+        stream = service.update_research_stream(stream_id, {"is_active": request.is_active})
+
+        logger.info(f"toggle_research_stream_status complete - user_id={current_user.user_id}, stream_id={stream_id}, is_active={request.is_active}")
+        return stream
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"toggle_research_stream_status failed - user_id={current_user.user_id}, stream_id={stream_id}: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Research stream not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to toggle stream status: {str(e)}"
         )
-
-    # Check if user can modify this stream (based on scope and role)
-    _check_can_modify_stream(existing_stream, current_user)
-
-    return service.update_research_stream(stream_id, {"is_active": request.is_active})
 
 
 # ============================================================================
@@ -303,7 +395,7 @@ class UpdateSemanticFilterRequest(BaseModel):
     threshold: float = Field(0.7, ge=0.0, le=1.0, description="Relevance threshold (0.0-1.0)")
 
 
-@router.patch("/{stream_id}/retrieval-config/queries/{query_index}")
+@router.patch("/{stream_id}/retrieval-config/queries/{query_index}", response_model=ResearchStream)
 async def update_broad_query(
     stream_id: int,
     query_index: int,
@@ -323,9 +415,11 @@ async def update_broad_query(
     Returns:
         Updated ResearchStream
     """
-    service = ResearchStreamService(db)
+    logger.info(f"update_broad_query - user_id={current_user.user_id}, stream_id={stream_id}, query_index={query_index}")
 
     try:
+        service = ResearchStreamService(db)
+
         # Verify ownership (will raise if not found/unauthorized)
         stream = service.get_research_stream(stream_id, current_user.user_id)
 
@@ -338,15 +432,27 @@ async def update_broad_query(
             query_index=query_index,
             query_expression=request.query_expression
         )
+
+        logger.info(f"update_broad_query complete - user_id={current_user.user_id}, stream_id={stream_id}, query_index={query_index}")
         return updated_stream
+
     except ValueError as e:
+        logger.warning(f"update_broad_query validation error - user_id={current_user.user_id}, stream_id={stream_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"update_broad_query failed - user_id={current_user.user_id}, stream_id={stream_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update broad query: {str(e)}"
+        )
 
 
-@router.patch("/{stream_id}/retrieval-config/queries/{query_index}/semantic-filter")
+@router.patch("/{stream_id}/retrieval-config/queries/{query_index}/semantic-filter", response_model=ResearchStream)
 async def update_semantic_filter(
     stream_id: int,
     query_index: int,
@@ -366,9 +472,11 @@ async def update_semantic_filter(
     Returns:
         Updated ResearchStream
     """
-    service = ResearchStreamService(db)
+    logger.info(f"update_semantic_filter - user_id={current_user.user_id}, stream_id={stream_id}, query_index={query_index}")
 
     try:
+        service = ResearchStreamService(db)
+
         # Verify ownership (will raise if not found/unauthorized)
         stream = service.get_research_stream(stream_id, current_user.user_id)
 
@@ -383,11 +491,23 @@ async def update_semantic_filter(
             criteria=request.criteria,
             threshold=request.threshold
         )
+
+        logger.info(f"update_semantic_filter complete - user_id={current_user.user_id}, stream_id={stream_id}, query_index={query_index}")
         return updated_stream
+
     except ValueError as e:
+        logger.warning(f"update_semantic_filter validation error - user_id={current_user.user_id}, stream_id={stream_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"update_semantic_filter failed - user_id={current_user.user_id}, stream_id={stream_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update semantic filter: {str(e)}"
         )
 
 
