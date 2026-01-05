@@ -243,6 +243,7 @@ async def validate_token(
         HTTPException: If token invalid or user not found
     """
     try:
+        logger.info("[AUTH] validate_token called")
         token = credentials.credentials
         logger.debug(f"Validating token: {token[:10]}...")
 

@@ -134,20 +134,14 @@ async def analyze_article_stance(
     Requires a stream_id to load the stream's chat_instructions which define
     the classification criteria.
     """
-    from models import ResearchStream
+    from services.research_stream_service import ResearchStreamService
+
+    logger.info(f"[STANCE] Endpoint entered - user_id={current_user.user_id}, stream_id={request.stream_id}")
 
     try:
-        # Load the research stream to get context and instructions
-        stream = db.query(ResearchStream).filter(
-            ResearchStream.stream_id == request.stream_id,
-            ResearchStream.user_id == current_user.user_id
-        ).first()
-
-        if not stream:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Research stream {request.stream_id} not found"
-            )
+        # Load the research stream via service (handles access control)
+        stream_service = ResearchStreamService(db)
+        stream = stream_service.get_research_stream(request.stream_id, current_user.user_id)
 
         logger.info(f"Stance analysis request from user {current_user.user_id} for stream {stream.stream_name}")
 

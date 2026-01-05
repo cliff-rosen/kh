@@ -13,6 +13,7 @@ from database import init_db
 from config import settings, setup_logging
 from middleware import LoggingMiddleware
 from pydantic import ValidationError
+from fastapi.exceptions import RequestValidationError
 from starlette.responses import JSONResponse
 
 # Setup logging first
@@ -117,12 +118,34 @@ async def health_check():
 
 @app.exception_handler(ValidationError)
 async def validation_exception_handler(request: Request, exc: ValidationError):
-    logger.error(f"Validation error in {request.url.path}:")
+    logger.error(f"Pydantic ValidationError in {request.url.path}:")
     for error in exc.errors():
         logger.error(f"  - {error['loc']}: {error['msg']} (type: {error['type']})")
     return JSONResponse(
         status_code=422,
         content={"detail": exc.errors()}
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle FastAPI request validation errors (body parsing, query params, etc.)"""
+    logger.error(f"RequestValidationError in {request.url.path}:")
+    for error in exc.errors():
+        logger.error(f"  - {error.get('loc')}: {error.get('msg')} (type: {error.get('type')})")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors()}
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch-all handler for any unhandled exceptions"""
+    logger.exception(f"Unhandled exception in {request.url.path}: {type(exc).__name__}: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {type(exc).__name__}"}
     )
 
 
