@@ -8,15 +8,17 @@ import { useTablizerAuth } from '../../context/TablizerAuthContext';
 
 interface TablizerLayoutProps {
     children: React.ReactNode;
+    /** Hide footer for full-height app views */
+    hideFooter?: boolean;
 }
 
-export default function TablizerLayout({ children }: TablizerLayoutProps) {
+export default function TablizerLayout({ children, hideFooter = false }: TablizerLayoutProps) {
     const { user, logout, isAuthenticated } = useTablizerAuth();
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+        <div className="h-screen bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden">
             {/* Header */}
-            <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50">
+            <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 z-50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-16">
                         {/* Logo */}
@@ -70,26 +72,28 @@ export default function TablizerLayout({ children }: TablizerLayoutProps) {
             </header>
 
             {/* Main content */}
-            <main className="flex-1">
+            <main className="flex-1 overflow-hidden">
                 {children}
             </main>
 
             {/* Footer */}
-            <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-6">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
-                        <div className="flex items-center gap-2">
-                            <div className="w-5 h-5 bg-gradient-to-br from-purple-500 to-violet-600 rounded flex items-center justify-center">
-                                <TableCellsIcon className="h-3 w-3 text-white" />
+            {!hideFooter && (
+                <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-6 flex-shrink-0">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+                            <div className="flex items-center gap-2">
+                                <div className="w-5 h-5 bg-gradient-to-br from-purple-500 to-violet-600 rounded flex items-center justify-center">
+                                    <TableCellsIcon className="h-3 w-3 text-white" />
+                                </div>
+                                <span>Tablizer</span>
                             </div>
-                            <span>Tablizer</span>
-                        </div>
-                        <div>
-                            Powered by AI
+                            <div>
+                                Powered by AI
+                            </div>
                         </div>
                     </div>
-                </div>
-            </footer>
+                </footer>
+            )}
         </div>
     );
 }

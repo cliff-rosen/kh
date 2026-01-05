@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
 import {
     ArrowDownTrayIcon,
     ArrowsUpDownIcon,
@@ -56,6 +56,10 @@ export interface TablizerProps {
     onFetchMoreForAI?: () => Promise<TablizableArticle[]>;  // Callback to fetch more articles before AI processing
 }
 
+export interface TablizerRef {
+    addAIColumn: (name: string, criteria: string, type: 'boolean' | 'text') => void;
+}
+
 // Helper to check if article is from report
 function isReportArticle(article: TablizableArticle): article is ReportArticle {
     return 'article_id' in article;
@@ -78,7 +82,7 @@ const BASE_COLUMNS: TableColumn[] = [
     { id: 'publication_date', label: 'Date', accessor: 'publication_date', type: 'date', visible: true },
 ];
 
-export default function Tablizer({
+const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
     articles,
     filterArticles,
     title = 'Tablizer',
@@ -86,7 +90,7 @@ export default function Tablizer({
     isFullScreen = false,
     onSaveToHistory,
     onFetchMoreForAI
-}: TablizerProps) {
+}, ref) {
     // Use filterArticles for AI processing if provided, otherwise use display articles
     const articlesForAiProcessing = filterArticles || articles;
     // Convert articles to row format with string id
@@ -394,6 +398,13 @@ export default function Tablizer({
         });
     }, [filteredData, visibleColumns, title]);
 
+    // Expose addAIColumn method via ref for parent component
+    useImperativeHandle(ref, () => ({
+        addAIColumn: (name: string, criteria: string, type: 'boolean' | 'text') => {
+            handleAddColumn(name, criteria, ['title', 'abstract'], type);
+        }
+    }), [handleAddColumn]);
+
     const containerClass = isFullScreen
         ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col'
         : 'border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 flex flex-col';
@@ -697,4 +708,6 @@ export default function Tablizer({
             )}
         </div>
     );
-}
+});
+
+export default Tablizer;

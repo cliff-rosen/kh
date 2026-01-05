@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
 import {
     PlayIcon,
     TableCellsIcon,
@@ -14,7 +14,7 @@ import {
     QuestionMarkCircleIcon,
     XMarkIcon
 } from '@heroicons/react/24/outline';
-import { Tablizer } from './Tablizer';
+import { Tablizer, TablizerRef } from './Tablizer';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
 import { toolsApi } from '../../lib/api/toolsApi';
 import { trackEvent } from '../../lib/api/trackingApi';
@@ -22,6 +22,48 @@ import { trackEvent } from '../../lib/api/trackingApi';
 const INITIAL_FETCH_LIMIT = 20;  // Initial articles to fetch (fast)
 const AI_FETCH_LIMIT = 500;      // Max articles to fetch for AI processing
 const DISPLAY_LIMIT = 100;       // Max articles to display in table
+
+// ============================================================================
+// State Types for Chat Integration
+// ============================================================================
+
+export interface TablizePubMedState {
+    query: string;
+    startDate: string;
+    endDate: string;
+    dateType: 'publication' | 'entry';
+    totalMatched: number;
+    loadedCount: number;
+    snapshots: Array<{
+        id: string;
+        label?: string;
+        query?: string;
+        count: number;
+        type: 'search' | 'filter' | 'compare';
+    }>;
+    compareMode: boolean;
+    aiColumns: Array<{
+        name: string;
+        type: string;
+        filterActive?: boolean;
+    }>;
+    articles: Array<{
+        pmid: string;
+        title: string;
+        year: string;
+        journal: string;
+    }>;
+}
+
+export interface TablizePubMedProps {
+    onStateChange?: (state: TablizePubMedState) => void;
+}
+
+export interface TablizePubMedRef {
+    setQuery: (query: string) => void;
+    executeSearch: () => void;
+    addAIColumn: (name: string, criteria: string, type: 'boolean' | 'text') => void;
+}
 
 // ============================================================================
 // Search Snapshot Types
@@ -48,7 +90,10 @@ interface SearchSnapshot {
 // Main Component
 // ============================================================================
 
-export default function TablizePubMed() {
+const TablizePubMed = forwardRef<TablizePubMedRef, TablizePubMedProps>(function TablizePubMed(
+    { onStateChange },
+    ref
+) {
     // Search form state
     const [query, setQuery] = useState('');
     const [startDate, setStartDate] = useState('');
@@ -81,6 +126,12 @@ export default function TablizePubMed() {
     // Help modal state
     const [showHelp, setShowHelp] = useState(false);
     const [helpTab, setHelpTab] = useState<'basics' | 'use-cases'>('basics');
+
+    // Ref to Tablizer for AI column operations
+    const tablizerRef = useRef<TablizerRef>(null);
+
+    // Ref to track if we should execute search after query is set
+    const pendingSearchRef = useRef(false);
 
     // Add search snapshot to history
     const addSearchSnapshot = useCallback((articles: CanonicalResearchArticle[], total: number, pmids: string[]) => {
@@ -397,6 +448,59 @@ export default function TablizePubMed() {
 
     const summaryInfo = getSummaryInfo();
 
+    // Expose methods via ref for parent component
+    useImperativeHandle(ref, () => ({
+        setQuery: (newQuery: string) => {
+            setQuery(newQuery);
+        },
+        executeSearch: () => {
+            // Need to wait for state update, so set a flag
+            pendingSearchRef.current = true;
+        },
+        addAIColumn: (name: string, criteria: string, type: 'boolean' | 'text') => {
+            tablizerRef.current?.addAIColumn(name, criteria, type);
+        }
+    }), []);
+
+    // Execute pending search when query changes and flag is set
+    useEffect(() => {
+        if (pendingSearchRef.current && query.trim()) {
+            pendingSearchRef.current = false;
+            handleSearch();
+        }
+    }, [query]);
+
+    // Report state changes to parent
+    useEffect(() => {
+        if (!onStateChange) return;
+
+        const state: TablizePubMedState = {
+            query,
+            startDate,
+            endDate,
+            dateType,
+            totalMatched,
+            loadedCount: allArticles.length,
+            snapshots: snapshots.map(s => ({
+                id: s.id,
+                label: s.label,
+                query: s.source.type === 'search' ? s.source.query : undefined,
+                count: s.totalMatched,
+                type: s.source.type
+            })),
+            compareMode,
+            aiColumns: [], // Will be populated when Tablizer reports columns
+            articles: allArticles.slice(0, 15).map(a => ({
+                pmid: a.pmid || '',
+                title: a.title || '',
+                year: a.publication_date?.substring(0, 4) || '',
+                journal: a.journal || ''
+            }))
+        };
+
+        onStateChange(state);
+    }, [onStateChange, query, startDate, endDate, dateType, totalMatched, allArticles, snapshots, compareMode]);
+
     return (
         <div className="flex gap-4">
             {/* Main Content */}
@@ -693,6 +797,7 @@ export default function TablizePubMed() {
                             {(hasSearched || selectedSnapshot) && (
                                 displayData.articles.length > 0 ? (
                                     <Tablizer
+                                        ref={tablizerRef}
                                         title="Search Results"
                                         articles={displayArticles}
                                         filterArticles={displayData.articles}
@@ -911,7 +1016,7 @@ export default function TablizePubMed() {
             )}
         </div>
     );
-}
+});
 
 // ============================================================================
 // Search History Panel
@@ -1383,3 +1488,6 @@ function SearchCompareView({ snapshotA, snapshotB, onClose, onSaveToHistory }: S
         </div>
     );
 }
+
+// Export the component
+export default TablizePubMed;

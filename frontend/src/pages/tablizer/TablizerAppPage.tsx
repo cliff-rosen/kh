@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
+import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid';
 import TablizerLayout from '../../components/tablizer/TablizerLayout';
-import TablizePubMed from '../../components/tools/TablizePubMed';
+import TablizePubMed, { TablizePubMedRef, TablizePubMedState } from '../../components/tools/TablizePubMed';
 import ChatTray from '../../components/chat/ChatTray';
 import QuerySuggestionCard from '../../components/chat/QuerySuggestionCard';
 import AIColumnCard from '../../components/chat/AIColumnCard';
@@ -9,19 +10,57 @@ import { PayloadHandler } from '../../types/chat';
 export default function TablizerAppPage() {
     const [isChatOpen, setIsChatOpen] = useState(false);
 
+    // Ref to TablizePubMed for imperative commands
+    const tablizePubMedRef = useRef<TablizePubMedRef>(null);
+
+    // State from TablizePubMed for chat context
+    const [tablizePubMedState, setTablizePubMedState] = useState<TablizePubMedState>({
+        query: '',
+        startDate: '',
+        endDate: '',
+        dateType: 'publication',
+        totalMatched: 0,
+        loadedCount: 0,
+        snapshots: [],
+        compareMode: false,
+        aiColumns: [],
+        articles: []
+    });
+
+    // Handle state changes from TablizePubMed
+    const handleStateChange = useCallback((state: TablizePubMedState) => {
+        setTablizePubMedState(state);
+    }, []);
+
     // Chat context for the Tablizer page
-    // TODO: Wire up actual state from TablizePubMed component
     const chatContext = useMemo(() => ({
         current_page: 'tablizer',
-        // These would ideally come from TablizePubMed state
-        query: '',
-        total_matched: 0,
-        loaded_count: 0,
-        snapshots: [],
-        compare_mode: false,
-        ai_columns: [],
-        articles: []
-    }), []);
+        query: tablizePubMedState.query,
+        start_date: tablizePubMedState.startDate,
+        end_date: tablizePubMedState.endDate,
+        date_type: tablizePubMedState.dateType,
+        total_matched: tablizePubMedState.totalMatched,
+        loaded_count: tablizePubMedState.loadedCount,
+        snapshots: tablizePubMedState.snapshots,
+        compare_mode: tablizePubMedState.compareMode,
+        ai_columns: tablizePubMedState.aiColumns,
+        articles: tablizePubMedState.articles
+    }), [tablizePubMedState]);
+
+    // Handle query suggestion acceptance
+    const handleQueryAccept = useCallback((data: { query_expression: string }) => {
+        if (tablizePubMedRef.current) {
+            tablizePubMedRef.current.setQuery(data.query_expression);
+            tablizePubMedRef.current.executeSearch();
+        }
+    }, []);
+
+    // Handle AI column suggestion acceptance
+    const handleAIColumnAccept = useCallback((data: { name: string; criteria: string; type: 'boolean' | 'text' }) => {
+        if (tablizePubMedRef.current) {
+            tablizePubMedRef.current.addAIColumn(data.name, data.criteria, data.type);
+        }
+    }, []);
 
     // Payload handlers for ChatTray
     const payloadHandlers = useMemo<Record<string, PayloadHandler>>(() => ({
@@ -30,8 +69,7 @@ export default function TablizerAppPage() {
                 <QuerySuggestionCard
                     proposal={payload}
                     onAccept={(data) => {
-                        // TODO: Wire up to set query in TablizePubMed
-                        console.log('Query suggestion accepted:', data);
+                        handleQueryAccept(data);
                         callbacks.onAccept?.(payload);
                     }}
                     onReject={callbacks.onReject}
@@ -48,8 +86,7 @@ export default function TablizerAppPage() {
                 <AIColumnCard
                     suggestion={payload}
                     onAccept={(data) => {
-                        // TODO: Wire up to add AI column in TablizePubMed
-                        console.log('AI column suggestion accepted:', data);
+                        handleAIColumnAccept(data);
                         callbacks.onAccept?.(payload);
                     }}
                     onReject={callbacks.onReject}
@@ -61,10 +98,10 @@ export default function TablizerAppPage() {
                 headerIcon: '✨'
             }
         }
-    }), []);
+    }), [handleQueryAccept, handleAIColumnAccept]);
 
     return (
-        <TablizerLayout>
+        <TablizerLayout hideFooter>
             <div className="flex h-full">
                 {/* Chat Tray */}
                 <ChatTray
@@ -74,10 +111,26 @@ export default function TablizerAppPage() {
                     onOpenChange={setIsChatOpen}
                 />
 
-                {/* Main Content */}
-                <div className="flex-1 min-w-0 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                    <TablizePubMed />
+                {/* Main Content - scrollable */}
+                <div className="flex-1 min-w-0 overflow-y-auto">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        <TablizePubMed
+                            ref={tablizePubMedRef}
+                            onStateChange={handleStateChange}
+                        />
+                    </div>
                 </div>
+
+                {/* Floating Chat Button - visible when chat is closed */}
+                {!isChatOpen && (
+                    <button
+                        onClick={() => setIsChatOpen(true)}
+                        className="fixed bottom-6 left-6 p-4 bg-purple-600 hover:bg-purple-700 text-white rounded-full shadow-lg transition-all hover:scale-105 z-50"
+                        aria-label="Open chat assistant"
+                    >
+                        <ChatBubbleLeftRightIcon className="h-6 w-6" />
+                    </button>
+                )}
             </div>
         </TablizerLayout>
     );

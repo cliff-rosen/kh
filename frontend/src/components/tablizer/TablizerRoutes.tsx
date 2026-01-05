@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { TablizerAuthProvider, useTablizerAuth } from '../../context/TablizerAuthContext';
+import { ChatProvider } from '../../context/ChatContext';
 import TablizerLandingPage from '../../pages/tablizer/TablizerLandingPage';
 import TablizerLoginPage from '../../pages/tablizer/TablizerLoginPage';
 import TablizerRegisterPage from '../../pages/tablizer/TablizerRegisterPage';
@@ -55,7 +56,9 @@ function TablizerRoutesInner() {
                 path="/app"
                 element={
                     <TablizerProtectedRoute>
-                        <TablizerAppPage />
+                        <ChatProvider app="tablizer">
+                            <TablizerAppPage />
+                        </ChatProvider>
                     </TablizerProtectedRoute>
                 }
             />

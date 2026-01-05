@@ -53,9 +53,9 @@ export const chatApi = {
     /**
      * List user's chats
      */
-    async listChats(limit = 50, offset = 0): Promise<ChatsListResponse> {
+    async listChats(limit = 50, offset = 0, app = 'kh'): Promise<ChatsListResponse> {
         const response = await api.get('/api/chats', {
-            params: { limit, offset }
+            params: { limit, offset, app }
         });
         return response.data;
     },

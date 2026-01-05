@@ -34,7 +34,13 @@ interface ChatContextType {
 
 const ChatContext = createContext<ChatContextType | null>(null);
 
-export function ChatProvider({ children }: { children: React.ReactNode }) {
+interface ChatProviderProps {
+    children: React.ReactNode;
+    /** App identifier for scoping conversations (default: 'kh') */
+    app?: 'kh' | 'tablizer' | 'trialscout';
+}
+
+export function ChatProvider({ children, app = 'kh' }: ChatProviderProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [context, setContext] = useState<Record<string, unknown>>({});
     const [isLoading, setIsLoading] = useState(false);
@@ -230,7 +236,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
     const loadMostRecent = useCallback(async () => {
         try {
-            const { chats } = await chatApi.listChats(1, 0);
+            const { chats } = await chatApi.listChats(1, 0, app);
             if (chats.length > 0) {
                 return await loadChat(chats[0].id);
             }
@@ -239,7 +245,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             console.error('Failed to load most recent chat:', err);
             return false;
         }
-    }, [loadChat]);
+    }, [loadChat, app]);
 
     return (
         <ChatContext.Provider value={{
