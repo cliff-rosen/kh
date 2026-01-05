@@ -46,6 +46,12 @@ interface TableRow {
 
 type BooleanFilterState = 'all' | 'yes' | 'no';
 
+export interface AIColumnInfo {
+    name: string;
+    type: string;
+    filterActive?: boolean;
+}
+
 export interface TablizerProps {
     articles: TablizableArticle[];
     filterArticles?: TablizableArticle[];  // Optional larger set for AI column processing
@@ -54,6 +60,7 @@ export interface TablizerProps {
     isFullScreen?: boolean;
     onSaveToHistory?: (filteredIds: string[], filterDescription: string) => void;  // Callback to save filtered results to history
     onFetchMoreForAI?: () => Promise<TablizableArticle[]>;  // Callback to fetch more articles before AI processing
+    onColumnsChange?: (aiColumns: AIColumnInfo[]) => void;  // Callback when AI columns change
 }
 
 export interface TablizerRef {
@@ -89,7 +96,8 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
     onClose,
     isFullScreen = false,
     onSaveToHistory,
-    onFetchMoreForAI
+    onFetchMoreForAI,
+    onColumnsChange
 }, ref) {
     // Use filterArticles for AI processing if provided, otherwise use display articles
     const articlesForAiProcessing = filterArticles || articles;
@@ -163,6 +171,21 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
         columns.filter(c => c.type === 'ai' && c.aiConfig?.outputType === 'boolean'),
         [columns]
     );
+
+    // Report AI column changes to parent
+    useEffect(() => {
+        if (!onColumnsChange) return;
+
+        const aiColumns = columns
+            .filter(c => c.type === 'ai')
+            .map(c => ({
+                name: c.label,
+                type: c.aiConfig?.outputType || 'text',
+                filterActive: c.aiConfig?.outputType === 'boolean' && booleanFilters[c.id] !== 'all' && booleanFilters[c.id] !== undefined
+            }));
+
+        onColumnsChange(aiColumns);
+    }, [columns, booleanFilters, onColumnsChange]);
 
     // Sort data
     const sortedData = useMemo(() => {

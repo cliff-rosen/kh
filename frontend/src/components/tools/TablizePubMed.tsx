@@ -14,7 +14,7 @@ import {
     QuestionMarkCircleIcon,
     XMarkIcon
 } from '@heroicons/react/24/outline';
-import { Tablizer, TablizerRef } from './Tablizer';
+import { Tablizer, TablizerRef, AIColumnInfo } from './Tablizer';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
 import { toolsApi } from '../../lib/api/toolsApi';
 import { trackEvent } from '../../lib/api/trackingApi';
@@ -130,6 +130,9 @@ const TablizePubMed = forwardRef<TablizePubMedRef, TablizePubMedProps>(function 
 
     // Ref to Tablizer for AI column operations
     const tablizerRef = useRef<TablizerRef>(null);
+
+    // Track AI columns from Tablizer for chat context
+    const [aiColumns, setAiColumns] = useState<AIColumnInfo[]>([]);
 
     // Ref to track if we should execute search after query is set
     const pendingSearchRef = useRef(false);
@@ -506,7 +509,7 @@ const TablizePubMed = forwardRef<TablizePubMedRef, TablizePubMedProps>(function 
                 type: s.source.type
             })),
             compareMode,
-            aiColumns: [], // Will be populated when Tablizer reports columns
+            aiColumns: aiColumns,
             articles: allArticles.slice(0, 15).map(a => ({
                 pmid: a.pmid || '',
                 title: a.title || '',
@@ -516,7 +519,7 @@ const TablizePubMed = forwardRef<TablizePubMedRef, TablizePubMedProps>(function 
         };
 
         onStateChange(state);
-    }, [onStateChange, query, startDate, endDate, dateType, totalMatched, allArticles, snapshots, compareMode]);
+    }, [onStateChange, query, startDate, endDate, dateType, totalMatched, allArticles, snapshots, compareMode, aiColumns]);
 
     return (
         <div className="flex gap-4">
@@ -821,6 +824,7 @@ const TablizePubMed = forwardRef<TablizePubMedRef, TablizePubMedProps>(function 
                                         filterArticles={displayData.articles}
                                         onSaveToHistory={handleSaveFilteredToHistory}
                                         onFetchMoreForAI={selectedSnapshotId ? undefined : fetchMoreForAI}
+                                        onColumnsChange={setAiColumns}
                                     />
                                 ) : (
                                     <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-8 text-center text-gray-500 dark:text-gray-400">
