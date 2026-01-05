@@ -246,6 +246,32 @@ def get_reports_for_user(self, user_id: int, limit: int = 50) -> List[Report]:
 
 ## 5. Access Control
 
+### User ID Must Come From JWT
+
+The `user_id` used for access control MUST come from the authenticated JWT token, never from request parameters:
+
+```python
+# CORRECT - user_id from JWT via dependency
+@router.get("/{report_id}")
+async def get_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(auth_service.validate_token)  # <-- user_id from JWT
+):
+    service = ReportService(db)
+    return service.get_report(report_id, current_user.user_id)  # <-- use JWT user_id
+
+# WRONG - user_id from request parameter (security vulnerability!)
+@router.get("/{report_id}")
+async def get_report(
+    report_id: int,
+    user_id: int,  # <-- NEVER DO THIS
+    db: Session = Depends(get_db)
+):
+    service = ReportService(db)
+    return service.get_report(report_id, user_id)  # <-- attacker can spoof any user_id
+```
+
 ### Always Check User Access
 
 Never trust that a resource belongs to a user just because they provided an ID:
@@ -321,6 +347,7 @@ Before merging any new endpoint:
 - [ ] All database access is through a service, not direct queries
 - [ ] Try/except block catches and logs unexpected exceptions
 - [ ] HTTPExceptions are re-raised without modification
+- [ ] **user_id comes from JWT (`current_user.user_id`), never from request parameters**
 - [ ] User access is verified for any resource access
 - [ ] Admin endpoints verify admin role before any operations
 
