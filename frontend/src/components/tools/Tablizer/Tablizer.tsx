@@ -15,14 +15,7 @@ import {
     PlusCircleIcon
 } from '@heroicons/react/24/outline';
 import AddColumnModal from './AddColumnModal';
-import ArticleViewerModal from '../../articles/ArticleViewerModal';
-import { researchStreamApi } from '../../../lib/api';
-import { CanonicalResearchArticle } from '../../../types/canonical_types';
-import { ReportArticle } from '../../../types/report';
 import { trackEvent } from '../../../lib/api/trackingApi';
-
-// Union type for articles from different sources
-type TablizableArticle = CanonicalResearchArticle | ReportArticle;
 
 // Types
 export interface TableColumn {
@@ -39,7 +32,7 @@ export interface TableColumn {
 }
 
 // Row type that allows dynamic AI column access
-interface TableRow {
+export interface TableRow {
     id: string;
     [key: string]: unknown;
 }
@@ -52,24 +45,72 @@ export interface AIColumnInfo {
     filterActive?: boolean;
 }
 
-export interface TablizerProps {
-    articles: TablizableArticle[];
-    filterArticles?: TablizableArticle[];  // Optional larger set for AI column processing
+// Result from AI processing
+export interface AIColumnResult {
+    id: string;        // Row ID
+    passed: boolean;   // For boolean output
+    score: number;     // For number output
+    reasoning: string; // For text output
+}
+
+// Props passed to RowViewer component
+export interface RowViewerProps<T> {
+    data: T[];           // Full dataset
+    initialIndex: number; // Which item was clicked
+    onClose: () => void;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface TablizerProps<T extends object = Record<string, any>> {
+    // REQUIRED: Data to display in the table
+    data: T[];
+
+    // REQUIRED: Which field is the unique ID (e.g., 'pmid' or 'nct_id')
+    idField: string;
+
+    // REQUIRED: Column definitions
+    columns: TableColumn[];
+
+    // Optional: Larger set for AI processing
+    filterData?: T[];
+
+    // Optional: Title shown in toolbar (default: "Tablizer")
     title?: string;
+
+    // Optional: Label for row count (default: "rows")
+    rowLabel?: string;
+
+    // Optional: Close button handler (for modal/fullscreen mode)
     onClose?: () => void;
+
+    // Optional: Fullscreen layout mode (default: false)
     isFullScreen?: boolean;
-    onSaveToHistory?: (filteredIds: string[], filterDescription: string) => void;  // Callback to save filtered results to history
-    onFetchMoreForAI?: () => Promise<TablizableArticle[]>;  // Callback to fetch more articles before AI processing
-    onColumnsChange?: (aiColumns: AIColumnInfo[]) => void;  // Callback when AI columns change
+
+    // Optional: Callback when user saves filtered results to history
+    onSaveToHistory?: (filteredIds: string[], filterDescription: string) => void;
+
+    // Optional: Lazy-load more data before AI processing
+    onFetchMoreForAI?: () => Promise<T[]>;
+
+    // REQUIRED for AI columns: Process AI column on data
+    onProcessAIColumn?: (
+        data: T[],
+        promptTemplate: string,
+        outputType: 'text' | 'number' | 'boolean'
+    ) => Promise<AIColumnResult[]>;
+
+    // Optional: Report AI column state changes to parent
+    onColumnsChange?: (aiColumns: AIColumnInfo[]) => void;
+
+    // Optional: Custom component to render when a row is clicked
+    RowViewer?: React.ComponentType<RowViewerProps<T>>;
+
+    // Optional: Custom cell renderer for special columns
+    renderCell?: (row: TableRow, column: TableColumn) => React.ReactNode | null;
 }
 
 export interface TablizerRef {
     addAIColumn: (name: string, criteria: string, type: 'boolean' | 'text') => void;
-}
-
-// Helper to check if article is from report
-function isReportArticle(article: TablizableArticle): article is ReportArticle {
-    return 'article_id' in article;
 }
 
 type SortDirection = 'asc' | 'desc' | null;
@@ -79,53 +120,63 @@ interface SortConfig {
     direction: SortDirection;
 }
 
-// Standard columns derived from article structure
-const BASE_COLUMNS: TableColumn[] = [
-    { id: 'pmid', label: 'PMID', accessor: 'pmid', type: 'text', visible: true },
-    { id: 'title', label: 'Title', accessor: 'title', type: 'text', visible: true },
-    { id: 'abstract', label: 'Abstract', accessor: 'abstract', type: 'text', visible: false },
-    { id: 'authors', label: 'Authors', accessor: 'authors', type: 'text', visible: false },
-    { id: 'journal', label: 'Journal', accessor: 'journal', type: 'text', visible: true },
-    { id: 'publication_date', label: 'Date', accessor: 'publication_date', type: 'date', visible: true },
-];
+// Helper to get ID from data item
+function getItemId<T extends object>(item: T, idField: string): string {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const id = (item as any)[idField];
+    if (id === null || id === undefined) return '';
+    return String(id);
+}
 
-const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
-    articles,
-    filterArticles,
-    title = 'Tablizer',
-    onClose,
-    isFullScreen = false,
-    onSaveToHistory,
-    onFetchMoreForAI,
-    onColumnsChange
-}, ref) {
-    // Use filterArticles for AI processing if provided, otherwise use display articles
-    const articlesForAiProcessing = filterArticles || articles;
-    // Convert articles to row format with string id
+// Create a generic forwardRef component
+function TablizerInner<T extends object>(
+    props: TablizerProps<T>,
+    ref: React.ForwardedRef<TablizerRef>
+) {
+    const {
+        data: inputData,
+        idField,
+        columns: inputColumns,
+        filterData,
+        title = 'Tablizer',
+        rowLabel = 'rows',
+        onClose,
+        isFullScreen = false,
+        onSaveToHistory,
+        onFetchMoreForAI,
+        onProcessAIColumn,
+        onColumnsChange,
+        RowViewer,
+        renderCell
+    } = props;
+
+    // Use filterData for AI processing if provided, otherwise use display data
+    const dataForAiProcessing = filterData || inputData;
+
+    // Convert input data to row format with string id
     const initialRows = useMemo((): TableRow[] =>
-        articles.map((article, idx) => {
-            const articleId = isReportArticle(article)
-                ? article.article_id.toString()
-                : (article.pmid || article.id?.toString() || `row_${idx}`);
-            const row: TableRow = {
-                id: articleId,
-                pmid: article.pmid,
-                title: article.title,
-                abstract: article.abstract,
-                authors: Array.isArray(article.authors) ? article.authors.join(', ') : article.authors,
-                journal: article.journal,
-                publication_date: article.publication_date,
-                doi: article.doi,
-            };
+        inputData.map((item, idx) => {
+            const itemId = getItemId(item, idField) || `row_${idx}`;
+            const row: TableRow = { id: itemId };
+
+            // Copy all accessible fields from the item
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const itemAny = item as any;
+            for (const col of inputColumns) {
+                if (col.type !== 'ai') {
+                    row[col.accessor] = itemAny[col.accessor];
+                }
+            }
+
             return row;
         }),
-        [articles]
+        [inputData, idField, inputColumns]
     );
 
     // State
-    const [data, setData] = useState<TableRow[]>(initialRows);
+    const [rowData, setRowData] = useState<TableRow[]>(initialRows);
     const [columns, setColumns] = useState<TableColumn[]>(
-        BASE_COLUMNS.map(c => ({ ...c }))
+        inputColumns.map(c => ({ ...c }))
     );
     const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
     const [filterText, setFilterText] = useState('');
@@ -133,12 +184,20 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
     const [processingColumn, setProcessingColumn] = useState<string | null>(null);
     const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0 });
     const [booleanFilters, setBooleanFilters] = useState<Record<string, BooleanFilterState>>({});
-    const [selectedArticleIndex, setSelectedArticleIndex] = useState<number | null>(null);
+    const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
 
     // Track if this is a new dataset or just more data loaded
     const prevInitialRowsRef = useRef<TableRow[]>(initialRows);
 
-    // Update data when articles change, but preserve AI column values
+    // Update when input columns change (reset AI columns but keep base visible state)
+    useEffect(() => {
+        setColumns(current => {
+            const aiColumns = current.filter(c => c.type === 'ai');
+            return [...inputColumns.map(c => ({ ...c })), ...aiColumns];
+        });
+    }, [inputColumns]);
+
+    // Update data when inputData changes, but preserve AI column values
     useEffect(() => {
         const prevRows = prevInitialRowsRef.current;
         const isNewDataset = prevRows.length === 0 || initialRows.length === 0 ||
@@ -148,15 +207,15 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
 
         if (isNewDataset) {
             // New search - reset everything including data
-            setData(initialRows);
-            setColumns(BASE_COLUMNS.map(c => ({ ...c })));
+            setRowData(initialRows);
+            setColumns([...inputColumns.map(c => ({ ...c }))]);
             setSortConfig(null);
             setFilterText('');
             setBooleanFilters({});
         } else {
-            // Same dataset (e.g., more articles loaded for AI processing)
+            // Same dataset (e.g., more items loaded for AI processing)
             // Merge new rows while preserving AI column values from existing data
-            setData(currentData => {
+            setRowData(currentData => {
                 // Build a map of existing AI column values by row ID
                 const existingAiValues = new Map<string, Record<string, unknown>>();
                 const aiColumnIds = columns.filter(c => c.type === 'ai').map(c => c.id);
@@ -182,7 +241,7 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
         }
 
         prevInitialRowsRef.current = initialRows;
-    }, [initialRows, columns]);
+    }, [initialRows, columns, inputColumns]);
 
     // Get visible columns
     const visibleColumns = useMemo(() =>
@@ -213,9 +272,9 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
 
     // Sort data
     const sortedData = useMemo(() => {
-        if (!sortConfig || !sortConfig.direction) return data;
+        if (!sortConfig || !sortConfig.direction) return rowData;
 
-        return [...data].sort((a, b) => {
+        return [...rowData].sort((a, b) => {
             const aVal = a[sortConfig.columnId];
             const bVal = b[sortConfig.columnId];
 
@@ -235,7 +294,7 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
             const comparison = aStr.localeCompare(bStr);
             return sortConfig.direction === 'asc' ? comparison : -comparison;
         });
-    }, [data, sortConfig, columns]);
+    }, [rowData, sortConfig, columns]);
 
     // Filter data
     const filteredData = useMemo(() => {
@@ -326,20 +385,30 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
         if (column?.type !== 'ai') return; // Only delete AI columns
 
         setColumns(cols => cols.filter(c => c.id !== columnId));
-        setData(rows => rows.map(row => {
+        setRowData(rows => rows.map(row => {
             const newRow = { ...row };
             delete newRow[columnId];
             return newRow;
         }));
+        setBooleanFilters(prev => {
+            const newFilters = { ...prev };
+            delete newFilters[columnId];
+            return newFilters;
+        });
     }, [columns]);
 
     // Add AI column
     const handleAddColumn = useCallback(async (
         columnName: string,
         promptTemplate: string,
-        inputColumns: string[],
+        inputCols: string[],
         outputType: 'text' | 'number' | 'boolean'
     ) => {
+        if (!onProcessAIColumn) {
+            console.error('Tablizer: onProcessAIColumn callback is required for AI columns');
+            return;
+        }
+
         const columnId = `ai_${Date.now()}`;
 
         // Add the column definition
@@ -350,7 +419,7 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
             type: 'ai',
             aiConfig: {
                 promptTemplate,
-                inputColumns,
+                inputColumns: inputCols,
                 outputType
             },
             visible: true
@@ -359,78 +428,62 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
         setColumns(cols => [...cols, newColumn]);
         setShowAddColumnModal(false);
 
-        // Fetch more articles if needed before AI processing
-        let aiArticles = articlesForAiProcessing;
+        // Fetch more data if needed before AI processing
+        let aiData = dataForAiProcessing;
         if (onFetchMoreForAI) {
-            aiArticles = await onFetchMoreForAI();
+            aiData = await onFetchMoreForAI();
         }
 
-        // Process using semantic filter service
+        // Process using callback
         setProcessingColumn(columnId);
-        setProcessingProgress({ current: 0, total: aiArticles.length });
+        setProcessingProgress({ current: 0, total: aiData.length });
 
         try {
-            // Convert to CanonicalResearchArticle format for the filter API
-            const canonicalArticles: CanonicalResearchArticle[] = aiArticles.map((article, idx) => ({
-                id: isReportArticle(article) ? article.article_id.toString() : (article.id || `row_${idx}`),
-                pmid: article.pmid || '',
-                title: article.title,
-                abstract: article.abstract || '',
-                authors: article.authors || [],
-                journal: article.journal || '',
-                publication_date: article.publication_date || '',
-                doi: article.doi || '',
-                keywords: [],
-                mesh_terms: [],
-                categories: [],
-                source: 'pubmed'
-            }));
+            // Call the parent's AI processing callback
+            const results = await onProcessAIColumn(aiData, promptTemplate, outputType);
 
-            // Call the filter service
-            const response = await researchStreamApi.filterArticles({
-                articles: canonicalArticles,
-                filter_criteria: promptTemplate,
-                threshold: 0.5
-            });
+            // Build a map of results by ID
+            const resultMap = new Map(results.map(r => [r.id, r]));
 
-            // Map results back to display rows only (first N articles correspond to display)
-            const updatedRows = [...data];
-            const totalForProgress = aiArticles.length;
-            const displayCount = Math.min(response.results.length, data.length);
-            for (let i = 0; i < displayCount; i++) {
-                const result = response.results[i];
-                let value: string | number | boolean;
+            // Map results back to display rows
+            const updatedRows = [...rowData];
+            const totalForProgress = aiData.length;
 
-                if (outputType === 'boolean') {
-                    value = result.passed ? 'Yes' : 'No';
-                } else if (outputType === 'number') {
-                    value = result.score;
-                } else {
-                    value = result.reasoning;
+            for (let i = 0; i < updatedRows.length; i++) {
+                const result = resultMap.get(updatedRows[i].id);
+                if (result) {
+                    let value: string | number | boolean;
+
+                    if (outputType === 'boolean') {
+                        value = result.passed ? 'Yes' : 'No';
+                    } else if (outputType === 'number') {
+                        value = result.score;
+                    } else {
+                        value = result.reasoning;
+                    }
+
+                    updatedRows[i] = { ...updatedRows[i], [columnId]: value };
                 }
-
-                updatedRows[i] = { ...updatedRows[i], [columnId]: value };
                 setProcessingProgress({ current: i + 1, total: totalForProgress });
-                setData([...updatedRows]);
+                setRowData([...updatedRows]);
             }
-            // Update progress to show full completion
-            setProcessingProgress({ current: response.results.length, total: totalForProgress });
+
             // Track successful completion
             trackEvent('tablizer_add_column_complete', {
                 column_name: columnName,
                 output_type: outputType,
-                article_count: response.results.length
+                item_count: results.length
             });
         } catch (err) {
             console.error('Error processing AI column:', err);
             // Mark all as error
-            const updatedRows = data.map(row => ({ ...row, [columnId]: 'Error' }));
-            setData(updatedRows);
+            const updatedRows = rowData.map(row => ({ ...row, [columnId]: 'Error' }));
+            setRowData(updatedRows);
         } finally {
             setProcessingColumn(null);
             setProcessingProgress({ current: 0, total: 0 });
         }
-    }, [articlesForAiProcessing, data, onFetchMoreForAI]);
+    }, [dataForAiProcessing, rowData, onFetchMoreForAI, onProcessAIColumn]);
 
     // Export to CSV
     const handleExport = useCallback(() => {
@@ -470,7 +523,7 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
 
     const containerClass = isFullScreen
         ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col'
-        : 'border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 flex flex-col';
+        : 'border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 flex flex-col h-full';
 
     return (
         <div className={containerClass}>
@@ -492,7 +545,7 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
 
                     {/* Row count */}
                     <span className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                        {filteredData.length}{filteredData.length !== data.length ? ` of ${data.length}` : ''} rows
+                        {filteredData.length}{filteredData.length !== rowData.length ? ` of ${rowData.length}` : ''} {rowLabel}
                     </span>
 
                     {/* Processing indicator */}
@@ -565,29 +618,31 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
                 {/* Right: Actions */}
                 <div className="flex items-center gap-2">
                     {/* Save to History - shown when filters are active */}
-                    {onSaveToHistory && hasActiveFilters && filteredData.length > 0 && filteredData.length < data.length && (
+                    {onSaveToHistory && hasActiveFilters && filteredData.length > 0 && filteredData.length < rowData.length && (
                         <button
                             onClick={handleSaveToHistory}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
-                            title={`Save ${filteredData.length} filtered articles to history`}
+                            title={`Save ${filteredData.length} filtered items to history`}
                         >
                             <PlusCircleIcon className="h-4 w-4" />
                             Save to History ({filteredData.length})
                         </button>
                     )}
 
-                    {/* Add AI Column */}
-                    <button
-                        onClick={() => {
-                            setShowAddColumnModal(true);
-                            trackEvent('tablizer_add_column_start', {});
-                        }}
-                        disabled={!!processingColumn}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                        <SparklesIcon className="h-4 w-4" />
-                        Add AI Column
-                    </button>
+                    {/* Add AI Column - only show if callback is provided */}
+                    {onProcessAIColumn && (
+                        <button
+                            onClick={() => {
+                                setShowAddColumnModal(true);
+                                trackEvent('tablizer_add_column_start', {});
+                            }}
+                            disabled={!!processingColumn}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                            <SparklesIcon className="h-4 w-4" />
+                            Add AI Column
+                        </button>
+                    )}
 
                     {/* Separator */}
                     <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
@@ -644,7 +699,7 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
             </div>
 
             {/* Table */}
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto min-h-0">
                 <table className="w-full">
                     <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
                         <tr>
@@ -675,7 +730,7 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
                                         {column.type === 'ai' && (
                                             <button
                                                 onClick={() => deleteColumn(column.id)}
-                                                className="p-0.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100"
+                                                className="p-0.5 text-gray-400 hover:text-red-500"
                                                 title="Delete column"
                                             >
                                                 <TrashIcon className="h-3 w-3" />
@@ -690,21 +745,30 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
                         {filteredData.map((row, rowIdx) => (
                             <tr
                                 key={row.id || rowIdx}
-                                className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer"
+                                className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 ${RowViewer ? 'cursor-pointer' : ''}`}
                                 onClick={() => {
-                                    // Find the index in the original articles array
-                                    // Note: Must match the same ID priority used in row creation (pmid || id)
-                                    const articleIndex = articles.findIndex(a => {
-                                        const id = isReportArticle(a) ? a.article_id.toString() : (a.pmid || a.id || '');
-                                        return id === row.id;
-                                    });
-                                    if (articleIndex !== -1) {
-                                        setSelectedArticleIndex(articleIndex);
-                                        trackEvent('tablizer_article_click', { pmid: row.pmid as string || row.id });
+                                    if (!RowViewer) return;
+                                    // Find the index in the original data array
+                                    const itemIndex = inputData.findIndex(item => getItemId(item, idField) === row.id);
+                                    if (itemIndex !== -1) {
+                                        setSelectedItemIndex(itemIndex);
+                                        trackEvent('tablizer_row_click', { id: row.id });
                                     }
                                 }}
                             >
                                 {visibleColumns.map(column => {
+                                    // Check for custom cell renderer first
+                                    if (renderCell) {
+                                        const customCell = renderCell(row, column);
+                                        if (customCell !== null) {
+                                            return (
+                                                <td key={column.id} className="px-4 py-3 text-sm">
+                                                    {customCell}
+                                                </td>
+                                            );
+                                        }
+                                    }
+
                                     const cellValue = row[column.accessor];
                                     const isBoolean = column.aiConfig?.outputType === 'boolean';
                                     const isBooleanYes = isBoolean && (cellValue === true || cellValue === 'Yes' || cellValue === 'yes' || cellValue === 'YES');
@@ -713,7 +777,7 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
                                     return (
                                         <td
                                             key={column.id}
-                                            className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 align-top"
+                                            className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 align-top max-w-xs truncate"
                                         >
                                             {processingColumn === column.id && cellValue === undefined ? (
                                                 <span className="text-gray-400 italic">Processing...</span>
@@ -761,16 +825,21 @@ const Tablizer = forwardRef<TablizerRef, TablizerProps>(function Tablizer({
                 />
             )}
 
-            {/* Article Viewer Modal */}
-            {selectedArticleIndex !== null && (
-                <ArticleViewerModal
-                    articles={articles}
-                    initialIndex={selectedArticleIndex}
-                    onClose={() => setSelectedArticleIndex(null)}
+            {/* Row Viewer Modal - only render if RowViewer is provided */}
+            {RowViewer && selectedItemIndex !== null && (
+                <RowViewer
+                    data={inputData}
+                    initialIndex={selectedItemIndex}
+                    onClose={() => setSelectedItemIndex(null)}
                 />
             )}
         </div>
     );
-});
+}
+
+// Wrap with forwardRef - TypeScript workaround for generic forwardRef
+const Tablizer = forwardRef(TablizerInner) as <T extends object>(
+    props: TablizerProps<T> & { ref?: React.ForwardedRef<TablizerRef> }
+) => ReturnType<typeof TablizerInner>;
 
 export default Tablizer;

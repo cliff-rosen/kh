@@ -14,10 +14,33 @@ import {
     QuestionMarkCircleIcon,
     XMarkIcon
 } from '@heroicons/react/24/outline';
-import { Tablizer, TablizerRef, AIColumnInfo } from '../tools/Tablizer';
+import { Tablizer, TablizerRef, AIColumnInfo, TableColumn, AIColumnResult, RowViewerProps } from '../tools/Tablizer';
+import ArticleViewerModal from '../articles/ArticleViewerModal';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
 import { toolsApi } from '../../lib/api/toolsApi';
+import { researchStreamApi } from '../../lib/api';
 import { trackEvent } from '../../lib/api/trackingApi';
+
+// Column definitions for PubMed articles
+const PUBMED_COLUMNS: TableColumn[] = [
+    { id: 'pmid', label: 'PMID', accessor: 'pmid', type: 'text', visible: true },
+    { id: 'title', label: 'Title', accessor: 'title', type: 'text', visible: true },
+    { id: 'abstract', label: 'Abstract', accessor: 'abstract', type: 'text', visible: false },
+    { id: 'authors', label: 'Authors', accessor: 'authors', type: 'text', visible: false },
+    { id: 'journal', label: 'Journal', accessor: 'journal', type: 'text', visible: true },
+    { id: 'publication_date', label: 'Date', accessor: 'publication_date', type: 'date', visible: true },
+];
+
+// Adapter component for ArticleViewerModal to match RowViewer interface
+function ArticleRowViewer({ data, initialIndex, onClose }: RowViewerProps<CanonicalResearchArticle>) {
+    return (
+        <ArticleViewerModal
+            articles={data}
+            initialIndex={initialIndex}
+            onClose={onClose}
+        />
+    );
+}
 
 const INITIAL_FETCH_LIMIT = 20;  // Initial articles to fetch (fast)
 const AI_FETCH_LIMIT = 500;      // Max articles to fetch for AI processing
@@ -308,6 +331,39 @@ const PubMedTableView = forwardRef<PubMedTableViewRef, PubMedTableViewProps>(fun
             setFetchingMore(false);
         }
     }, [hasFetchedFullSet, lastSearchParams, allArticles]);
+
+    // Handle AI column processing via semantic filter service
+    const handleProcessAIColumn = useCallback(async (
+        articles: CanonicalResearchArticle[],
+        promptTemplate: string,
+        _outputType: 'text' | 'number' | 'boolean'
+    ): Promise<AIColumnResult[]> => {
+        const response = await researchStreamApi.filterArticles({
+            articles: articles.map(a => ({
+                id: a.id || a.pmid || '',
+                pmid: a.pmid || '',
+                title: a.title || '',
+                abstract: a.abstract || '',
+                authors: a.authors || [],
+                journal: a.journal || '',
+                publication_date: a.publication_date || '',
+                doi: a.doi || '',
+                keywords: [],
+                mesh_terms: [],
+                categories: [],
+                source: 'pubmed'
+            })),
+            filter_criteria: promptTemplate,
+            threshold: 0.5
+        });
+
+        return response.results.map(r => ({
+            id: r.article.pmid || r.article.id || '',
+            passed: r.passed,
+            score: r.score,
+            reasoning: r.reasoning
+        }));
+    }, []);
 
     // Handle clear all
     const handleClearAll = () => {
@@ -816,11 +872,16 @@ const PubMedTableView = forwardRef<PubMedTableViewRef, PubMedTableViewProps>(fun
                             {/* Results Table */}
                             {(hasSearched || selectedSnapshot) && (
                                 displayData.articles.length > 0 ? (
-                                    <Tablizer
+                                    <Tablizer<CanonicalResearchArticle>
                                         ref={tablizerRef}
                                         title="Search Results"
-                                        articles={displayArticles}
-                                        filterArticles={displayData.articles}
+                                        data={displayArticles}
+                                        idField="pmid"
+                                        columns={PUBMED_COLUMNS}
+                                        filterData={displayData.articles}
+                                        rowLabel="articles"
+                                        RowViewer={ArticleRowViewer}
+                                        onProcessAIColumn={handleProcessAIColumn}
                                         onSaveToHistory={handleSaveFilteredToHistory}
                                         onFetchMoreForAI={selectedSnapshotId ? undefined : fetchMoreForAI}
                                         onColumnsChange={setAiColumns}

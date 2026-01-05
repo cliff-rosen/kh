@@ -17,8 +17,19 @@ import ExecutionConfigModal from '../components/stream/ExecutionConfigModal';
 import ArticleViewerModal from '../components/articles/ArticleViewerModal';
 import ChatTray from '../components/chat/ChatTray';
 import PubMedArticleCard, { PubMedArticleData } from '../components/chat/PubMedArticleCard';
-import { Tablizer } from '../components/tools/Tablizer';
+import { Tablizer, TableColumn } from '../components/tools/Tablizer';
 import { TableCellsIcon } from '@heroicons/react/24/outline';
+
+// Column definitions for report articles
+const REPORT_COLUMNS: TableColumn[] = [
+    { id: 'pmid', label: 'PMID', accessor: 'pmid', type: 'text', visible: true },
+    { id: 'title', label: 'Title', accessor: 'title', type: 'text', visible: true },
+    { id: 'abstract', label: 'Abstract', accessor: 'abstract', type: 'text', visible: false },
+    { id: 'journal', label: 'Journal', accessor: 'journal', type: 'text', visible: true },
+    { id: 'publication_date', label: 'Date', accessor: 'publication_date', type: 'date', visible: true },
+    { id: 'relevance_score', label: 'Relevance', accessor: 'relevance_score', type: 'number', visible: true },
+    { id: 'category', label: 'Category', accessor: 'category', type: 'text', visible: true },
+];
 
 type ReportView = 'all' | 'by-category' | 'tablizer';
 type CardFormat = 'compact' | 'expanded';
@@ -816,9 +827,12 @@ export default function ReportsPage() {
                                                 </div>
                                             ) : (
                                                 /* Tablizer View */
-                                                <Tablizer
-                                                    articles={selectedReport.articles}
+                                                <Tablizer<ReportArticle>
+                                                    data={selectedReport.articles}
+                                                    idField="pmid"
+                                                    columns={REPORT_COLUMNS}
                                                     title={selectedReport.report_name}
+                                                    rowLabel="articles"
                                                 />
                                             )}
                                         </div>

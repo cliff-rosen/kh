@@ -4,7 +4,7 @@ import {
     ArrowRightOnRectangleIcon
 } from '@heroicons/react/24/outline';
 import { useTrialScoutAuth } from '../../context/TrialScoutAuthContext';
-import TrialScoutSearch from '../../components/tools/TrialScoutSearch';
+import TrialScoutSearch from '../../components/trialscout/TrialScoutSearch';
 
 export default function TrialScoutAppPage() {
     const { user, logout } = useTrialScoutAuth();

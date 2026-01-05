@@ -3,7 +3,7 @@ import { WrenchScrewdriverIcon, MagnifyingGlassIcon, DocumentTextIcon, DocumentM
 import PubMedIdChecker from '../components/tools/PubMedIdChecker';
 import PubMedSearch from '../components/tools/PubMedSearch';
 import { DocumentAnalysis } from '../components/tools/DocumentAnalysis';
-import TablizePubMed from '../components/tools/TablizePubMed';
+import PubMedTableView from '../components/pubmed/PubMedTableView';
 
 type ToolTab = 'search' | 'id-checker' | 'document-analysis' | 'tablizer';
 
@@ -85,7 +85,7 @@ export default function ToolsPage() {
                 {activeTab === 'search' && <PubMedSearch />}
                 {activeTab === 'id-checker' && <PubMedIdChecker />}
                 {activeTab === 'document-analysis' && <DocumentAnalysis />}
-                {activeTab === 'tablizer' && <TablizePubMed />}
+                {activeTab === 'tablizer' && <PubMedTableView />}
             </div>
         </div>
     );

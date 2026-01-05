@@ -9,7 +9,7 @@ import {
 import { CanonicalClinicalTrial } from '../../types/canonical_types';
 import { toolsApi } from '../../lib/api/toolsApi';
 import { trackEvent } from '../../lib/api/trackingApi';
-import { TrialScoutTable } from './TrialScoutTable';
+import TrialScoutTable from './TrialScoutTable';
 
 // Fetch limits - initial search is fast, AI processing gets more
 const INITIAL_FETCH_LIMIT = 50;   // Initial trials to fetch (fast)

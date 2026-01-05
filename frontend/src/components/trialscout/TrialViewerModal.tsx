@@ -12,8 +12,8 @@ import {
     BuildingOfficeIcon,
     DocumentTextIcon
 } from '@heroicons/react/24/outline';
-import { CanonicalClinicalTrial } from '../../../types/canonical_types';
-import { trackEvent } from '../../../lib/api/trackingApi';
+import { CanonicalClinicalTrial } from '../../types/canonical_types';
+import { trackEvent } from '../../lib/api/trackingApi';
 
 interface TrialViewerModalProps {
     trials: CanonicalClinicalTrial[];
