@@ -59,15 +59,17 @@ class ChatsListResponse(BaseModel):
 
 @router.get("", response_model=ChatsListResponse)
 async def list_chats(
+    app: str = Query("kh", description="App identifier: kh, tablizer, trialscout"),
     limit: int = Query(50, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(auth_service.validate_token)
 ):
-    """List user's chats."""
+    """List user's chats for a specific app."""
     service = ChatService(db)
     chats = service.get_user_chats(
         user_id=current_user.user_id,
+        app=app,
         limit=limit,
         offset=offset
     )

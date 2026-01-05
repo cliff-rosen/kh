@@ -447,6 +447,7 @@ class Conversation(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
+    app = Column(String(50), nullable=False, default="kh", index=True)  # "kh", "tablizer", "trialscout"
     title = Column(String(255), nullable=True)  # Optional, can auto-generate from first message
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

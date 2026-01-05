@@ -36,6 +36,7 @@ from . import edit_stream
 from . import streams_list
 from . import new_stream
 from . import reports
+from . import tablizer
 
 
 # =============================================================================

@@ -24,6 +24,7 @@ class ChatService:
     def create_chat(
         self,
         user_id: int,
+        app: str = "kh",
         title: Optional[str] = None
     ) -> Conversation:
         """
@@ -31,6 +32,7 @@ class ChatService:
 
         Args:
             user_id: ID of the user
+            app: App identifier ("kh", "tablizer", "trialscout")
             title: Optional title (can be set later)
 
         Returns:
@@ -38,13 +40,14 @@ class ChatService:
         """
         chat = Conversation(
             user_id=user_id,
+            app=app,
             title=title
         )
         self.db.add(chat)
         self.db.commit()
         self.db.refresh(chat)
 
-        logger.debug(f"Created chat {chat.id} for user {user_id}")
+        logger.debug(f"Created chat {chat.id} for user {user_id} in app {app}")
         return chat
 
     def get_chat(self, chat_id: int, user_id: int) -> Optional[Conversation]:
@@ -66,14 +69,16 @@ class ChatService:
     def get_user_chats(
         self,
         user_id: int,
+        app: str = "kh",
         limit: int = 50,
         offset: int = 0
     ) -> List[Conversation]:
         """
-        Get chats for a user, ordered by most recent.
+        Get chats for a user in a specific app, ordered by most recent.
 
         Args:
             user_id: ID of the user
+            app: App identifier ("kh", "tablizer", "trialscout")
             limit: Max chats to return
             offset: Pagination offset
 
@@ -81,7 +86,8 @@ class ChatService:
             List of chats
         """
         return self.db.query(Conversation).filter(
-            Conversation.user_id == user_id
+            Conversation.user_id == user_id,
+            Conversation.app == app
         ).order_by(
             desc(Conversation.updated_at)
         ).offset(offset).limit(limit).all()

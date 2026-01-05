@@ -43,6 +43,7 @@ class Conversation(BaseModel):
     """A chat conversation"""
     id: int
     user_id: int
+    app: str = "kh"  # "kh", "tablizer", "trialscout"
     title: Optional[str] = None
     created_at: datetime
     updated_at: datetime

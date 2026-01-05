@@ -974,3 +974,69 @@ Use this when:
         }
     }
 ))
+
+
+# =============================================================================
+# Tablizer / TrialScout Payloads
+# =============================================================================
+
+def _summarize_ai_column_suggestion(data: Dict[str, Any]) -> str:
+    """Summarize an AI column suggestion."""
+    name = data.get("name", "Unnamed column")
+    col_type = data.get("type", "unknown")
+    return f"AI column suggestion: '{name}' ({col_type})"
+
+
+register_payload_type(PayloadType(
+    name="ai_column_suggestion",
+    description="Suggested AI column for filtering or categorizing results",
+    source="llm",
+    is_global=False,
+    parse_marker="AI_COLUMN:",
+    parser=make_json_parser("ai_column_suggestion"),
+    summarize=_summarize_ai_column_suggestion,
+    llm_instructions="""
+AI_COLUMN - Use when user wants to filter or categorize results with an AI-powered column:
+
+AI_COLUMN: {
+  "name": "Column display name",
+  "criteria": "The criteria prompt for the AI to evaluate each item",
+  "type": "boolean",
+  "explanation": "What this column will help identify and how to use it"
+}
+
+Guidelines:
+- type should be "boolean" for yes/no filtering (enables quick filter toggles)
+- type should be "text" for extracting or summarizing information
+- Write clear, specific criteria that the AI can evaluate for each article/trial
+- The explanation should tell the user what the column does and how to use it
+
+Example for filtering:
+User: "I only want articles about clinical trials"
+AI_COLUMN: {
+  "name": "Is Clinical Trial",
+  "criteria": "Is this article about a clinical trial? Look for trial registration numbers, study design descriptions (randomized, placebo-controlled, etc.), or explicit mention of clinical trial phases.",
+  "type": "boolean",
+  "explanation": "Identifies articles that describe clinical trials. After adding, filter to 'Yes' to see only clinical trial articles."
+}
+
+Example for extraction:
+User: "Add a column showing the main drug studied"
+AI_COLUMN: {
+  "name": "Main Drug",
+  "criteria": "What is the primary drug or compound being studied in this article? Provide the drug name or 'N/A' if not applicable.",
+  "type": "text",
+  "explanation": "Extracts the main drug or compound studied, making it easy to scan and compare across articles."
+}
+""",
+    schema={
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "description": "Display name for the column"},
+            "criteria": {"type": "string", "description": "Criteria prompt for AI evaluation"},
+            "type": {"type": "string", "enum": ["boolean", "text"], "description": "Output type"},
+            "explanation": {"type": "string", "description": "Explanation for the user"}
+        },
+        "required": ["name", "criteria", "type"]
+    }
+))

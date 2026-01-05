@@ -309,6 +309,18 @@ class ChatStreamService:
     # Chat Persistence Helpers
     # =========================================================================
 
+    def _get_app_from_context(self, context: Dict[str, Any]) -> str:
+        """
+        Derive app identifier from context.
+        Maps current_page to app: tablizer -> tablizer, trialscout -> trialscout, else -> kh
+        """
+        current_page = context.get("current_page", "")
+        if current_page == "tablizer":
+            return "tablizer"
+        elif current_page == "trialscout":
+            return "trialscout"
+        return "kh"
+
     def _setup_chat(self, request) -> Optional[int]:
         """
         Set up chat persistence and save user message.
@@ -317,6 +329,7 @@ class ChatStreamService:
         """
         try:
             chat_id = request.conversation_id
+            app = self._get_app_from_context(request.context)
 
             if chat_id:
                 chat = self.chat_service.get_chat(chat_id, self.user_id)
@@ -324,7 +337,7 @@ class ChatStreamService:
                     chat_id = None
 
             if not chat_id:
-                chat = self.chat_service.create_chat(self.user_id)
+                chat = self.chat_service.create_chat(self.user_id, app=app)
                 chat_id = chat.id
 
             self.chat_service.add_message(

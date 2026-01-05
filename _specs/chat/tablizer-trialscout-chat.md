@@ -354,6 +354,60 @@ Frontend                    Backend
 - Tools/payloads are resolved based on `current_page` + `active_tab`
 - Messages are auto-persisted with context and extras (payloads, tool history)
 
+### Database Changes
+
+#### Add `app` column to Conversations table
+
+Tablizer and TrialScout share the same users but have separate sessions. Conversations must be scoped to their app.
+
+**Model change** (`models.py`):
+```python
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
+    app = Column(String(50), nullable=False, default="kh", index=True)  # NEW: "kh", "tablizer", "trialscout"
+    title = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+```
+
+**Migration**:
+```sql
+ALTER TABLE conversations ADD COLUMN app VARCHAR(50) NOT NULL DEFAULT 'kh';
+CREATE INDEX ix_conversations_app ON conversations(app);
+CREATE INDEX ix_conversations_user_app ON conversations(user_id, app);
+```
+
+**ChatService changes** (`services/chat_service.py`):
+```python
+def create_chat(self, user_id: int, app: str = "kh", title: str = None) -> Conversation:
+    chat = Conversation(user_id=user_id, app=app, title=title)
+    ...
+
+def get_user_chats(self, user_id: int, app: str = "kh", limit: int = 50) -> List[Conversation]:
+    return self.db.query(Conversation).filter(
+        Conversation.user_id == user_id,
+        Conversation.app == app  # Filter by app
+    ).order_by(desc(Conversation.updated_at)).limit(limit).all()
+```
+
+**Schema change** (`schemas/chat.py`):
+```python
+class Conversation(BaseModel):
+    id: int
+    user_id: int
+    app: str = "kh"  # NEW
+    title: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+```
+
+**Frontend**: Pass `app` in chat requests (or derive from `current_page`).
+
+---
+
 ### New Backend Components Needed
 
 #### 1. Page Configs
@@ -618,19 +672,35 @@ When user clicks Accept:
 
 ## Implementation Checklist
 
-### Backend
+### Database
+- [ ] Add `app` column to Conversation model (`models.py`)
+- [ ] Create Alembic migration for `app` column + indexes
+- [ ] Run migration
+
+### Backend - ChatService Updates
+- [ ] Update `ChatService.create_chat()` to accept `app` parameter
+- [ ] Update `ChatService.get_user_chats()` to filter by `app`
+- [ ] Update `ChatStreamService` to pass `app` from context
+- [ ] Update `schemas/chat.py` Conversation schema to include `app`
+
+### Backend - Page Configs & Tools
 - [ ] Create `services/chat_page_config/tablizer.py`
 - [ ] Create `services/chat_page_config/trialscout.py`
 - [ ] Create `tools/builtin/trials.py` with `get_trial` tool
+- [ ] Import new page configs in `chat_page_config/__init__.py`
+
+### Backend - Payloads
 - [ ] Add `pubmed_query_suggestion` payload to `schemas/payloads.py`
 - [ ] Add `trial_search_suggestion` payload to `schemas/payloads.py`
 - [ ] Add `ai_column_suggestion` payload to `schemas/payloads.py`
 - [ ] Add `trial_details` payload to `schemas/payloads.py`
-- [ ] Import new page configs in `chat_page_config/__init__.py`
 
-### Frontend
+### Frontend - Cards
 - [ ] Create `PubMedQueryCard.tsx` (or adapt QuerySuggestionCard)
 - [ ] Create `TrialSearchCard.tsx`
 - [ ] Create `AIColumnCard.tsx`
+
+### Frontend - Integration
 - [ ] Add ChatTray to Tablizer with context + payloadHandlers
 - [ ] Add ChatTray to TrialScout with context + payloadHandlers
+- [ ] Pass `app` identifier in chat context (or derive from `current_page`)
