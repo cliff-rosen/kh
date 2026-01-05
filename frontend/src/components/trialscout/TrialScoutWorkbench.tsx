@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { BeakerIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { CanonicalClinicalTrial } from '../../types/canonical_types';
-import { toolsApi } from '../../lib/api/toolsApi';
+import { tablizerApi } from '../../lib/api/tablizerApi';
 import { trackEvent } from '../../lib/api/trackingApi';
 import TrialScoutTable from './TrialScoutTable';
 import TrialScoutSearchForm from './TrialScoutSearchForm';
@@ -67,9 +67,9 @@ export default function TrialScoutWorkbench() {
         setHasFetchedFullSet(false);
 
         try {
-            const response = await toolsApi.searchTrials({
+            const response = await tablizerApi.searchTrials({
                 ...searchParams,
-                maxResults: INITIAL_FETCH_LIMIT
+                max_results: INITIAL_FETCH_LIMIT
             });
 
             setTrials(response.trials);
@@ -98,9 +98,9 @@ export default function TrialScoutWorkbench() {
 
         setFetchingMore(true);
         try {
-            const response = await toolsApi.searchTrials({
+            const response = await tablizerApi.searchTrials({
                 ...lastSearchParams,
-                maxResults: AI_FETCH_LIMIT
+                max_results: AI_FETCH_LIMIT
             });
             setTrials(response.trials);
             setHasFetchedFullSet(true);

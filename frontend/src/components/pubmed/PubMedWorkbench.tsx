@@ -16,7 +16,7 @@ import { AIColumnInfo, TablizerRef } from '../tools/Tablizer';
 import PubMedTable from './PubMedTable';
 import PubMedSearchForm from './PubMedSearchForm';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
-import { toolsApi } from '../../lib/api/toolsApi';
+import { tablizerApi } from '../../lib/api/tablizerApi';
 import { trackEvent } from '../../lib/api/trackingApi';
 
 const INITIAL_FETCH_LIMIT = 20;  // Initial articles to fetch (fast)
@@ -253,7 +253,7 @@ const PubMedWorkbench = forwardRef<PubMedWorkbenchRef, PubMedWorkbenchProps>(fun
             // Use optimized search that returns:
             // - all_pmids: up to 500 PMIDs for comparison
             // - articles: first 20 with full data for display
-            const response = await toolsApi.optimizedSearch({
+            const response = await tablizerApi.searchPubMed({
                 ...searchParams,
                 maxPmids: 500,
                 articlesToFetch: INITIAL_FETCH_LIMIT
@@ -290,7 +290,7 @@ const PubMedWorkbench = forwardRef<PubMedWorkbenchRef, PubMedWorkbenchProps>(fun
 
         setFetchingMore(true);
         try {
-            const response = await toolsApi.optimizedSearch({
+            const response = await tablizerApi.searchPubMed({
                 ...lastSearchParams,
                 maxPmids: 500,
                 articlesToFetch: AI_FETCH_LIMIT

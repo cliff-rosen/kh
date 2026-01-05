@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from 'react';
 import { Tablizer, TableColumn, TableRow, AIColumnResult, RowViewerProps } from '../tools/Tablizer';
 import TrialViewerModal from './TrialViewerModal';
-import { toolsApi } from '../../lib/api/toolsApi';
+import { tablizerApi } from '../../lib/api/tablizerApi';
 import { CanonicalClinicalTrial } from '../../types/canonical_types';
 
 // ============================================================================
@@ -164,7 +164,7 @@ export default function TrialScoutTable({
         [trials]
     );
 
-    // Handle AI column processing via trial filter API
+    // Handle AI column processing via tablizer API
     const handleProcessAIColumn = useCallback(async (
         data: TrialRowData[],
         promptTemplate: string,
@@ -176,19 +176,14 @@ export default function TrialScoutTable({
             .map(d => trialMap.get(d.nct_id))
             .filter((t): t is CanonicalClinicalTrial => !!t);
 
-        const response = await toolsApi.filterTrials({
-            trials: trialsForApi,
-            filter_criteria: promptTemplate,
-            threshold: 0.5,
-            output_type: outputType
+        // Use unified processAIColumn which routes to filter or extract
+        return await tablizerApi.processAIColumn({
+            items: trialsForApi as unknown as Record<string, unknown>[],
+            itemType: 'trial',
+            criteria: promptTemplate,
+            outputType: outputType,
+            threshold: 0.5
         });
-
-        return response.results.map(r => ({
-            id: r.nct_id,
-            passed: r.passed,
-            score: r.score,
-            reasoning: r.reasoning
-        }));
     }, [trials]);
 
     // Custom cell renderer for status/phase formatting
