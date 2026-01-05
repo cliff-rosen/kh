@@ -1,7 +1,7 @@
 import { useCallback, forwardRef } from 'react';
 import { Tablizer, TableColumn, AIColumnResult, TablizerRef, AIColumnInfo } from '../tools/Tablizer';
 import { ReportArticle } from '../../types';
-import { researchStreamApi } from '../../lib/api';
+import { tablizerApi } from '../../lib/api/tablizerApi';
 
 // ============================================================================
 // Types
@@ -41,38 +41,19 @@ const ReportArticleTable = forwardRef<TablizerRef, ReportArticleTableProps>(func
     onColumnsChange,
     onRowClick
 }, ref) {
-    // Handle AI column processing via semantic filter service
+    // Handle AI column processing via tablizer API
     const handleProcessAIColumn = useCallback(async (
         data: ReportArticle[],
         promptTemplate: string,
         outputType: 'text' | 'number' | 'boolean'
     ): Promise<AIColumnResult[]> => {
-        const response = await researchStreamApi.filterArticles({
-            articles: data.map(a => ({
-                id: a.article_id?.toString() || a.pmid || '',
-                pmid: a.pmid || '',
-                title: a.title || '',
-                abstract: a.abstract || '',
-                authors: a.authors || [],
-                journal: a.journal || '',
-                publication_date: a.publication_date || '',
-                doi: a.doi || '',
-                keywords: [],
-                mesh_terms: [],
-                categories: a.presentation_categories || [],
-                source: 'pubmed'
-            })),
-            filter_criteria: promptTemplate,
-            threshold: 0.5,
-            output_type: outputType
+        return await tablizerApi.processAIColumn({
+            items: data as unknown as Record<string, unknown>[],
+            itemType: 'article',
+            criteria: promptTemplate,
+            outputType: outputType,
+            threshold: 0.5
         });
-
-        return response.results.map(r => ({
-            id: r.article.pmid || r.article.id || '',
-            passed: r.passed,
-            score: r.score,
-            reasoning: r.reasoning
-        }));
     }, []);
 
     return (
