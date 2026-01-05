@@ -16,6 +16,83 @@ The chat system provides an intelligent, context-aware assistant that understand
 
 ---
 
+## Chat Assistance Philosophy
+
+The chat system is **not** meant to replace the application—it helps users **use** the application effectively. Chat operates in two primary modes:
+
+### Guide Mode (Primary)
+
+Chat helps users navigate and use application features. This includes:
+
+- **Explaining workflows**: Walking users through multi-step processes they might not discover on their own
+- **Suggesting actions**: Recommending what the user should do next, with actionable payloads they can accept
+- **Formulating queries**: Helping users construct proper syntax (e.g., PubMed queries, search filters)
+- **Teaching features**: Explaining what features exist and when to use them
+
+**Key principle**: Guide mode suggestions are actionable payloads. When chat suggests a query, filter criteria, or configuration, it returns a payload the user can **Accept** to apply directly to the application.
+
+```
+User: "I want to find EGFR resistance articles"
+Chat: "Here's a well-formed PubMed query for that:"
+
+┌─────────────────────────────────────────────────┐
+│ Suggested Query                                 │
+│                                                 │
+│ (EGFR[MeSH] OR "epidermal growth factor        │
+│ receptor") AND (resistance OR resistant) AND   │
+│ (lung neoplasms[MeSH] OR "lung cancer")        │
+│                                                 │
+│ [Accept]  [Modify]                              │
+└─────────────────────────────────────────────────┘
+
+User clicks Accept → Query populates the search field
+```
+
+### Analyze Mode (Secondary)
+
+Chat retrieves loaded data and answers questions directly. Use this when:
+
+- The question is **specific and factual** (not subjective filtering)
+- It's a **one-time question** (not an ongoing filtering need)
+- The answer can be derived from **already-loaded data**
+- The user would benefit from **synthesis across multiple items**
+
+```
+User: [Has 35 trials loaded]
+User: "What's the most common phase among these?"
+
+Chat: "Looking at your 35 trials:
+- Phase 3: 18 trials (51%)
+- Phase 2: 12 trials (34%)
+- Phase 1: 5 trials (14%)
+
+The majority are late-stage trials."
+```
+
+### When to Use Each Mode
+
+| User Intent | Mode | Reasoning |
+|-------------|------|-----------|
+| "How do I compare searches?" | Guide | User needs to learn a workflow |
+| "Help me write a better query" | Guide | Actionable output (query suggestion payload) |
+| "I want to filter to only Phase 3" | Guide | Suggests filter/AI column criteria payload |
+| "Which trials have OS as primary endpoint?" | Analyze | Specific factual question about loaded data |
+| "What patterns do you see?" | Analyze | Synthesis across results |
+| "Am I missing relevant articles?" | Guide | Walk through comparison workflow, suggest broader query |
+
+### Payloads Enable Actionable Guidance
+
+The payload system is critical for effective guide mode. Common actionable payloads:
+
+| Payload Type | Accept Action | Use Case |
+|--------------|---------------|----------|
+| `query_suggestion` | Populates search field | Query development |
+| `ai_column_suggestion` | Creates AI column with criteria | Filtering/enrichment |
+| `filter_suggestion` | Applies filter to results | Quick filtering |
+| `workflow_checklist` | Interactive step tracker | Multi-step guidance |
+
+---
+
 ## Core Concepts: Entity Relationships
 
 Understanding the relationship between the four core entities is key to understanding the entire system.
