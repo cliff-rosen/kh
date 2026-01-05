@@ -164,7 +164,9 @@ function TablizerInner<T extends object>(
             const itemAny = item as any;
             for (const col of inputColumns) {
                 if (col.type !== 'ai') {
-                    row[col.accessor] = itemAny[col.accessor];
+                    const value = itemAny[col.accessor];
+                    // Convert arrays to comma-separated strings
+                    row[col.accessor] = Array.isArray(value) ? value.join(', ') : value;
                 }
             }
 
@@ -181,6 +183,7 @@ function TablizerInner<T extends object>(
     const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
     const [filterText, setFilterText] = useState('');
     const [showAddColumnModal, setShowAddColumnModal] = useState(false);
+    const [showColumnsDropdown, setShowColumnsDropdown] = useState(false);
     const [processingColumn, setProcessingColumn] = useState<string | null>(null);
     const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0 });
     const [booleanFilters, setBooleanFilters] = useState<Record<string, BooleanFilterState>>({});
@@ -648,29 +651,45 @@ function TablizerInner<T extends object>(
                     <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
 
                     {/* Column visibility dropdown */}
-                    <div className="relative group">
-                        <button className="flex items-center gap-1.5 px-2 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md">
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowColumnsDropdown(!showColumnsDropdown)}
+                            className={`flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-md transition-colors ${
+                                showColumnsDropdown
+                                    ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
+                                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                            }`}
+                        >
                             <AdjustmentsHorizontalIcon className="h-4 w-4" />
                             Columns
                         </button>
-                        <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg z-10 hidden group-hover:block">
-                            <div className="p-2 space-y-1 max-h-60 overflow-y-auto">
-                                {columns.map(col => (
-                                    <label key={col.id} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={col.visible !== false}
-                                            onChange={() => toggleColumnVisibility(col.id)}
-                                            className="rounded border-gray-300 dark:border-gray-600"
-                                        />
-                                        <span className="text-sm text-gray-700 dark:text-gray-300 flex items-center gap-1">
-                                            {col.type === 'ai' && <SparklesIcon className="h-3 w-3 text-purple-500" />}
-                                            {col.label}
-                                        </span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
+                        {showColumnsDropdown && (
+                            <>
+                                {/* Backdrop to close dropdown when clicking outside */}
+                                <div
+                                    className="fixed inset-0 z-10"
+                                    onClick={() => setShowColumnsDropdown(false)}
+                                />
+                                <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg z-20">
+                                    <div className="p-2 space-y-1 max-h-60 overflow-y-auto">
+                                        {columns.map(col => (
+                                            <label key={col.id} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={col.visible !== false}
+                                                    onChange={() => toggleColumnVisibility(col.id)}
+                                                    className="rounded border-gray-300 dark:border-gray-600"
+                                                />
+                                                <span className="text-sm text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                                                    {col.type === 'ai' && <SparklesIcon className="h-3 w-3 text-purple-500" />}
+                                                    {col.label}
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     {/* Export */}

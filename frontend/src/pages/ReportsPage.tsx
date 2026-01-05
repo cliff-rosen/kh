@@ -28,7 +28,7 @@ const REPORT_COLUMNS: TableColumn[] = [
     { id: 'journal', label: 'Journal', accessor: 'journal', type: 'text', visible: true },
     { id: 'publication_date', label: 'Date', accessor: 'publication_date', type: 'date', visible: true },
     { id: 'relevance_score', label: 'Relevance', accessor: 'relevance_score', type: 'number', visible: true },
-    { id: 'category', label: 'Category', accessor: 'category', type: 'text', visible: true },
+    { id: 'categories', label: 'Categories', accessor: 'presentation_categories', type: 'text', visible: true },
 ];
 
 // Adapter component for ArticleViewerModal to match RowViewer interface
