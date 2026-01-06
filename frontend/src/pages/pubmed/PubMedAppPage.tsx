@@ -83,7 +83,6 @@ export default function PubMedAppPage() {
                     proposal={payload}
                     onAccept={(data) => {
                         handleQueryAccept(data);
-                        callbacks.onAccept?.(payload);
                     }}
                     onReject={callbacks.onReject}
                 />
