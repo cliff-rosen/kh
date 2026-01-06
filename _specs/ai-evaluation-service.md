@@ -163,7 +163,8 @@ class AIEvaluationService:
         item: Dict[str, Any],
         schema: Dict[str, Any],
         instructions: str,
-        field_instructions: Optional[Dict[str, str]] = None
+        field_instructions: Optional[Dict[str, str]] = None,
+        include_reasoning: bool = True
     ) -> FieldsResult:
         """
         Extract multiple fields from an item according to a schema.
@@ -175,6 +176,7 @@ class AIEvaluationService:
             field_instructions: Optional per-field instructions
                                e.g., {"study_type": "Classify as RCT, cohort, etc.",
                                       "sample_size": "Extract the number of participants"}
+            include_reasoning: Whether to include overall reasoning about the extraction
         """
 
     async def extract_fields_batch(
@@ -183,6 +185,7 @@ class AIEvaluationService:
         schema: Dict[str, Any],
         instructions: str,
         field_instructions: Optional[Dict[str, str]] = None,
+        include_reasoning: bool = True,
         max_concurrent: int = 50
     ) -> List[FieldsResult]:
         """Extract multiple fields from multiple items in parallel."""
@@ -195,17 +198,48 @@ class EvaluationResult(BaseModel):
     """Result from filter, score, or single-value extract operations."""
     item_id: str                                    # Identifier for the source item
     value: Union[str, bool, float, int, None]       # The result (type depends on operation)
-    confidence: float                                # LLM's confidence (0-1)
+    confidence: float                                # LLM's confidence in the result (0-1)
     reasoning: Optional[str] = None                  # Explanation (if include_reasoning=True)
     error: Optional[str] = None                      # Error message if evaluation failed
+```
 
+### Value vs Confidence
 
+These are two distinct concepts:
+
+| Field | Meaning | Example |
+|-------|---------|---------|
+| **value** | The answer to the question asked | `True`, `0.7`, `"RCT"` |
+| **confidence** | How certain the LLM is about that answer | `0.95` |
+
+**Filter example:**
+- Question: "Is this about cancer treatment?"
+- `value: True` — "Yes, it is"
+- `confidence: 0.95` — "I'm 95% sure about that yes"
+
+**Score example:**
+- Question: "Rate relevance to cardiology (0-1)"
+- `value: 0.3` — "Low relevance"
+- `confidence: 0.85` — "I'm 85% sure 0.3 is the right score"
+
+**Extract example:**
+- Question: "What is the study design?"
+- `value: "cohort study"` — The extracted answer
+- `confidence: 0.70` — "I'm 70% sure it's a cohort study (abstract was vague)"
+
+Confidence is always 0-1 regardless of the score range. A score of 8 on a 1-10 scale might have confidence 0.6 if the LLM found the assessment difficult.
+
+```python
 class FieldsResult(BaseModel):
     """Result from multi-field extraction."""
     item_id: str                                    # Identifier for the source item
     fields: Optional[Dict[str, Any]] = None         # Extracted field values (matches schema)
+    confidence: float                                # LLM's overall confidence in the extraction (0-1)
+    reasoning: Optional[str] = None                  # Overall explanation (if include_reasoning=True)
     error: Optional[str] = None                      # Error message if extraction failed
 ```
+
+Both result types now have uniform quality indicators (confidence + optional reasoning), allowing callers to handle them consistently.
 
 ### Note on Filter vs Extract
 
@@ -348,13 +382,17 @@ abstract: This is the abstract text...
 }
 ```
 
-**Extract Fields (no per-value reasoning):**
+**Extract Fields (with overall confidence and reasoning):**
 ```json
 {
-  "study_type": "RCT",
-  "sample_size": 1250,
-  "primary_outcome": "Overall survival at 5 years",
-  "intervention": "Drug X 100mg daily"
+  "fields": {
+    "study_type": "RCT",
+    "sample_size": 1250,
+    "primary_outcome": "Overall survival at 5 years",
+    "intervention": "Drug X 100mg daily"
+  },
+  "confidence": 0.88,
+  "reasoning": "All fields clearly stated in methods section except sample_size which required inference from results table"
 }
 ```
 
@@ -684,8 +722,11 @@ result = await service.extract_fields(
         "study_type": "Classify as RCT, cohort, case-control, or meta-analysis",
         "sample_size": "Number of participants enrolled",
         "primary_outcome": "Main outcome measured"
-    }
+    },
+    include_reasoning=True
 )
 assert "study_type" in result.fields
 assert "sample_size" in result.fields
+assert 0 <= result.confidence <= 1
+assert result.reasoning is not None  # Requested reasoning
 ```
