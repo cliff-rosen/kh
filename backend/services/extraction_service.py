@@ -10,6 +10,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 import uuid
 import json
+import asyncio
 from pydantic import BaseModel, Field
 from typing import Union
 
@@ -199,48 +200,76 @@ class ExtractionService:
         result_schema: Dict[str, Any],
         extraction_instructions: str,
         schema_key: Optional[str] = None,
-        continue_on_error: bool = True
+        continue_on_error: bool = True,
+        max_concurrent: int = 50
     ) -> List[ExtractionResult]:
         """
         Extract information from multiple items using the same schema and instructions.
-        
+
+        Runs extractions in parallel with rate limiting via semaphore.
+
         Args:
             items: List of source items to extract from
             result_schema: JSON schema defining the structure of extraction results
             extraction_instructions: Natural language instructions for extraction
             schema_key: Optional key for caching the prompt caller
             continue_on_error: Whether to continue processing if individual items fail
-            
+            max_concurrent: Maximum number of concurrent extractions (default: 50)
+
         Returns:
-            List of ExtractionResult objects
+            List of ExtractionResult objects (in same order as input items)
         """
-        results = []
-        
-        for item in items:
-            try:
-                result = await self.perform_extraction(
-                    item=item,
-                    result_schema=result_schema,
-                    extraction_instructions=extraction_instructions,
-                    schema_key=schema_key
-                )
-                results.append(result)
-                
-            except Exception as e:
-                if continue_on_error:
-                    # Create error result and continue
-                    item_id = item.get("id", str(uuid.uuid4()))
-                    results.append(ExtractionResult(
-                        item_id=item_id,
-                        original_item=item,
-                        extraction=None,
-                        error=str(e)
-                    ))
-                else:
-                    # Re-raise the exception to stop processing
-                    raise
-        
-        return results
+        if not items:
+            return []
+
+        # Create semaphore to limit concurrent LLM calls (avoid rate limits)
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def extract_single(item: Dict[str, Any]) -> ExtractionResult:
+            """Extract from a single item with rate limiting"""
+            async with semaphore:
+                try:
+                    return await self.perform_extraction(
+                        item=item,
+                        result_schema=result_schema,
+                        extraction_instructions=extraction_instructions,
+                        schema_key=schema_key
+                    )
+                except Exception as e:
+                    if continue_on_error:
+                        # Create error result
+                        item_id = item.get("id", str(uuid.uuid4()))
+                        return ExtractionResult(
+                            item_id=item_id,
+                            original_item=item,
+                            extraction=None,
+                            error=str(e)
+                        )
+                    else:
+                        raise
+
+        # Execute all extractions in parallel
+        results = await asyncio.gather(
+            *[extract_single(item) for item in items],
+            return_exceptions=not continue_on_error
+        )
+
+        # Handle any exceptions that were returned (when continue_on_error=True)
+        final_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                item = items[i]
+                item_id = item.get("id", str(uuid.uuid4()))
+                final_results.append(ExtractionResult(
+                    item_id=item_id,
+                    original_item=item,
+                    extraction=None,
+                    error=str(result)
+                ))
+            else:
+                final_results.append(result)
+
+        return final_results
     
     async def extract_with_predefined_schema(
         self,
