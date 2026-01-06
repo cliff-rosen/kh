@@ -463,7 +463,7 @@ class PipelineService:
             return 0, 0
 
         # Use centralized batch evaluation from SemanticFilterService
-        results = await self.filter_service.evaluate_wip_articles_batch(
+        results = await self.filter_service.evaluate_articles_batch(
             articles=articles,
             filter_criteria=filter_criteria,
             threshold=threshold,

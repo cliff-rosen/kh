@@ -12,16 +12,11 @@ Supports two modes:
 
 import re
 import logging
-from typing import Tuple, List, Any, Dict, TYPE_CHECKING
+from typing import Tuple, List, Any, Dict
 from datetime import datetime
 import asyncio
 
-from models import WipArticle, Article
-
 logger = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    from schemas.canonical_types import CanonicalResearchArticle
 
 
 class SemanticFilterService:
@@ -360,60 +355,3 @@ class SemanticFilterService:
 
         return results
 
-    async def evaluate_wip_articles_batch(
-        self,
-        articles: List[WipArticle],
-        filter_criteria: str,
-        threshold: float = 0.7,
-        max_concurrent: int = 10,
-        output_type: str = "boolean"
-    ) -> List[Tuple[WipArticle, bool, float, str]]:
-        """
-        Evaluate multiple WipArticles in parallel.
-
-        Args:
-            articles: List of WipArticle instances
-            filter_criteria: Natural language description of relevance criteria
-            threshold: Minimum score for article to pass
-            max_concurrent: Maximum number of concurrent evaluations
-            output_type: Expected output type ('boolean', 'number', or 'text')
-
-        Returns:
-            List of tuples: (article, is_relevant, score, reasoning)
-        """
-        return await self.evaluate_articles_batch(
-            articles=articles,
-            filter_criteria=filter_criteria,
-            threshold=threshold,
-            max_concurrent=max_concurrent,
-            output_type=output_type
-        )
-
-    async def evaluate_canonical_articles_batch(
-        self,
-        articles: List['CanonicalResearchArticle'],
-        filter_criteria: str,
-        threshold: float = 0.7,
-        max_concurrent: int = 10,
-        output_type: str = "boolean"
-    ) -> List[Tuple['CanonicalResearchArticle', bool, float, str]]:
-        """
-        Evaluate multiple CanonicalResearchArticles in parallel.
-
-        Args:
-            articles: List of CanonicalResearchArticle instances
-            filter_criteria: Natural language description of relevance criteria
-            threshold: Minimum score for article to pass
-            max_concurrent: Maximum number of concurrent evaluations
-            output_type: Expected output type ('boolean', 'number', or 'text')
-
-        Returns:
-            List of tuples: (article, is_relevant, score, reasoning)
-        """
-        return await self.evaluate_articles_batch(
-            articles=articles,
-            filter_criteria=filter_criteria,
-            threshold=threshold,
-            max_concurrent=max_concurrent,
-            output_type=output_type
-        )

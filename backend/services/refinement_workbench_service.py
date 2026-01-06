@@ -244,7 +244,7 @@ class RefinementWorkbenchService:
 
         # Use centralized batch evaluation from SemanticFilterService
         # Use max_concurrent=50 to match pipeline performance
-        batch_results = await self.filter_service.evaluate_canonical_articles_batch(
+        batch_results = await self.filter_service.evaluate_articles_batch(
             articles=articles,
             filter_criteria=filter_criteria,
             threshold=threshold,

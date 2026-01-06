@@ -12,7 +12,8 @@ import {
     CheckCircleIcon,
     XCircleIcon,
     AdjustmentsHorizontalIcon,
-    PlusCircleIcon
+    PlusCircleIcon,
+    ChatBubbleLeftIcon
 } from '@heroicons/react/24/outline';
 import AddColumnModal from './AddColumnModal';
 import { trackEvent } from '../../../lib/api/trackingApi';
@@ -27,6 +28,7 @@ export interface TableColumn {
         promptTemplate: string;
         inputColumns: string[];
         outputType?: 'text' | 'number' | 'boolean';
+        showReasoning?: boolean;  // Whether to display reasoning in cells
     };
     visible?: boolean;
 }
@@ -188,6 +190,9 @@ function TablizerInner<T extends object>(
     // This is the ONLY state for row data - everything else is derived
     const [aiColumnValues, setAiColumnValues] = useState<Record<string, Record<string, unknown>>>({});
 
+    // AI column reasoning stored separately: { columnId: { rowId: reasoning } }
+    const [aiColumnReasoning, setAiColumnReasoning] = useState<Record<string, Record<string, string>>>({});
+
     // Column definitions (base columns + AI columns)
     const [columns, setColumns] = useState<TableColumn[]>(
         inputColumns.map(c => ({ ...c }))
@@ -214,6 +219,7 @@ function TablizerInner<T extends object>(
         if (prevDatasetIdRef.current && prevDatasetIdRef.current !== datasetId) {
             // New dataset - reset AI-related state
             setAiColumnValues({});
+            setAiColumnReasoning({});
             setColumns(inputColumns.map(c => ({ ...c })));
             setSortConfig(null);
             setFilterText('');
@@ -396,12 +402,26 @@ function TablizerInner<T extends object>(
             delete newValues[columnId];
             return newValues;
         });
+        setAiColumnReasoning(prev => {
+            const newReasoning = { ...prev };
+            delete newReasoning[columnId];
+            return newReasoning;
+        });
         setBooleanFilters(prev => {
             const newFilters = { ...prev };
             delete newFilters[columnId];
             return newFilters;
         });
     }, [columns]);
+
+    // Toggle show reasoning for AI column
+    const toggleShowReasoning = useCallback((columnId: string) => {
+        setColumns(cols => cols.map(c =>
+            c.id === columnId && c.aiConfig
+                ? { ...c, aiConfig: { ...c.aiConfig, showReasoning: !c.aiConfig.showReasoning } }
+                : c
+        ));
+    }, []);
 
     // Add AI column
     const handleAddColumn = useCallback(async (
@@ -450,8 +470,9 @@ function TablizerInner<T extends object>(
             // Call the parent's AI processing callback
             const results = await onProcessAIColumn(aiData, promptTemplate, outputType);
 
-            // Convert results to columnValues map: { rowId: value }
+            // Convert results to columnValues and columnReasoning maps: { rowId: value/reasoning }
             const columnValues: Record<string, unknown> = {};
+            const columnReasoning: Record<string, string> = {};
             for (const result of results) {
                 let value: unknown;
                 if (outputType === 'boolean') {
@@ -464,14 +485,20 @@ function TablizerInner<T extends object>(
                     value = result.text_value || result.reasoning;
                 }
                 columnValues[result.id] = value;
+                // Store reasoning for all types (useful for boolean and number)
+                columnReasoning[result.id] = result.reasoning || '';
             }
 
-            // Store AI values - this is all we need to do!
+            // Store AI values and reasoning
             // When inputData prop updates (from parent's fetchMore), baseRows will
             // automatically include the new rows, and displayRows will merge the AI values
             setAiColumnValues(prev => ({
                 ...prev,
                 [columnId]: columnValues
+            }));
+            setAiColumnReasoning(prev => ({
+                ...prev,
+                [columnId]: columnReasoning
             }));
 
             setProcessingProgress({ current: aiData.length, total: aiData.length });
@@ -758,13 +785,22 @@ function TablizerInner<T extends object>(
                                             )}
                                         </button>
                                         {column.type === 'ai' && (
-                                            <button
-                                                onClick={() => deleteColumn(column.id)}
-                                                className="p-0.5 text-gray-400 hover:text-red-500"
-                                                title="Delete column"
-                                            >
-                                                <TrashIcon className="h-3 w-3" />
-                                            </button>
+                                            <>
+                                                <button
+                                                    onClick={() => toggleShowReasoning(column.id)}
+                                                    className={`p-0.5 ${column.aiConfig?.showReasoning ? 'text-purple-500' : 'text-gray-400 hover:text-purple-500'}`}
+                                                    title={column.aiConfig?.showReasoning ? "Hide reasoning" : "Show reasoning"}
+                                                >
+                                                    <ChatBubbleLeftIcon className="h-3 w-3" />
+                                                </button>
+                                                <button
+                                                    onClick={() => deleteColumn(column.id)}
+                                                    className="p-0.5 text-gray-400 hover:text-red-500"
+                                                    title="Delete column"
+                                                >
+                                                    <TrashIcon className="h-3 w-3" />
+                                                </button>
+                                            </>
                                         )}
                                     </div>
                                 </th>
@@ -813,29 +849,50 @@ function TablizerInner<T extends object>(
                                     const isBooleanYes = isBoolean && (cellValue === true || cellValue === 'Yes' || cellValue === 'yes' || cellValue === 'YES');
                                     const isBooleanNo = isBoolean && (cellValue === false || cellValue === 'No' || cellValue === 'no' || cellValue === 'NO');
 
+                                    // Get reasoning if available and showReasoning is enabled
+                                    const showReasoning = column.aiConfig?.showReasoning;
+                                    const reasoning = showReasoning && column.type === 'ai'
+                                        ? aiColumnReasoning[column.id]?.[row.id]
+                                        : null;
+
                                     return (
                                         <td
                                             key={column.id}
-                                            className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 align-top max-w-xs truncate"
+                                            className={`px-4 py-3 text-sm text-gray-900 dark:text-gray-100 align-top ${showReasoning ? 'max-w-md' : 'max-w-xs'}`}
+                                            title={!showReasoning && column.type === 'ai' ? aiColumnReasoning[column.id]?.[row.id] : undefined}
                                         >
                                             {processingColumn === column.id && cellValue === undefined ? (
                                                 <span className="text-gray-400 italic">Processing...</span>
                                             ) : isBoolean ? (
-                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                                                    isBooleanYes
-                                                        ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
-                                                        : isBooleanNo
-                                                            ? 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
-                                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                                                }`}>
-                                                    {isBooleanYes && <CheckCircleIcon className="h-3 w-3" />}
-                                                    {isBooleanNo && <XCircleIcon className="h-3 w-3" />}
-                                                    {String(cellValue ?? '-')}
-                                                </span>
+                                                <div>
+                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                                        isBooleanYes
+                                                            ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
+                                                            : isBooleanNo
+                                                                ? 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
+                                                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                                                    }`}>
+                                                        {isBooleanYes && <CheckCircleIcon className="h-3 w-3" />}
+                                                        {isBooleanNo && <XCircleIcon className="h-3 w-3" />}
+                                                        {String(cellValue ?? '-')}
+                                                    </span>
+                                                    {reasoning && (
+                                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 whitespace-normal">
+                                                            {reasoning}
+                                                        </p>
+                                                    )}
+                                                </div>
                                             ) : (
-                                                <span className={column.type === 'ai' ? 'text-purple-700 dark:text-purple-300' : ''}>
-                                                    {String(cellValue ?? '-')}
-                                                </span>
+                                                <div>
+                                                    <span className={column.type === 'ai' ? 'text-purple-700 dark:text-purple-300' : ''}>
+                                                        {String(cellValue ?? '-')}
+                                                    </span>
+                                                    {reasoning && (
+                                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 whitespace-normal">
+                                                            {reasoning}
+                                                        </p>
+                                                    )}
+                                                </div>
                                             )}
                                         </td>
                                     );
