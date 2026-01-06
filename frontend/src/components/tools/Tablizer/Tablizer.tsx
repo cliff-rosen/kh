@@ -71,7 +71,7 @@ export interface TablizerProps<T extends object = Record<string, any>> {
     // REQUIRED: Column definitions
     columns: TableColumn[];
 
-    // Optional: Larger set for AI processing
+    // Optional: Larger set for AI processing (deprecated - parent should handle fetch)
     filterData?: T[];
 
     // Optional: Title shown in toolbar (default: "Tablizer")
@@ -90,6 +90,7 @@ export interface TablizerProps<T extends object = Record<string, any>> {
     onSaveToHistory?: (filteredIds: string[], filterDescription: string) => void;
 
     // Optional: Lazy-load more data before AI processing
+    // Returns the expanded data array (parent updates its state too)
     onFetchMoreForAI?: () => Promise<T[]>;
 
     // REQUIRED for AI columns: Process AI column on data
@@ -156,11 +157,16 @@ function TablizerInner<T extends object>(
         renderCell
     } = props;
 
-    // Use filterData for AI processing if provided, otherwise use display data
-    const dataForAiProcessing = filterData || inputData;
+    // ==========================================================================
+    // CORE DATA FLOW:
+    // 1. inputData (prop) -> baseRows (derived, no state)
+    // 2. aiColumnValues (state) -> stores AI results by columnId -> rowId -> value
+    // 3. displayRows (derived) -> merges baseRows + aiColumnValues
+    // 4. sortedData, filteredData (derived) -> for display
+    // ==========================================================================
 
-    // Convert input data to row format with string id
-    const initialRows = useMemo((): TableRow[] =>
+    // Derive base rows from inputData (pure transformation, no state)
+    const baseRows = useMemo((): TableRow[] =>
         inputData.map((item, idx) => {
             const itemId = getItemId(item, idField) || `row_${idx}`;
             const row: TableRow = { id: itemId };
@@ -181,11 +187,16 @@ function TablizerInner<T extends object>(
         [inputData, idField, inputColumns]
     );
 
-    // State
-    const [rowData, setRowData] = useState<TableRow[]>(initialRows);
+    // AI column values stored separately: { columnId: { rowId: value } }
+    // This is the ONLY state for row data - everything else is derived
+    const [aiColumnValues, setAiColumnValues] = useState<Record<string, Record<string, unknown>>>({});
+
+    // Column definitions (base columns + AI columns)
     const [columns, setColumns] = useState<TableColumn[]>(
         inputColumns.map(c => ({ ...c }))
     );
+
+    // UI state
     const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
     const [filterText, setFilterText] = useState('');
     const [showAddColumnModal, setShowAddColumnModal] = useState(false);
@@ -195,10 +206,27 @@ function TablizerInner<T extends object>(
     const [booleanFilters, setBooleanFilters] = useState<Record<string, BooleanFilterState>>({});
     const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
 
-    // Track if this is a new dataset or just more data loaded
-    const prevInitialRowsRef = useRef<TableRow[]>(initialRows);
+    // Track dataset identity for reset detection
+    const prevDatasetIdRef = useRef<string>('');
 
-    // Update when input columns change (reset AI columns but keep base visible state)
+    // Detect new dataset and reset AI columns
+    useEffect(() => {
+        // Use first 3 IDs as dataset identity fingerprint
+        const datasetId = baseRows.slice(0, 3).map(r => r.id).join(',');
+
+        if (prevDatasetIdRef.current && prevDatasetIdRef.current !== datasetId) {
+            // New dataset - reset AI-related state
+            setAiColumnValues({});
+            setColumns(inputColumns.map(c => ({ ...c })));
+            setSortConfig(null);
+            setFilterText('');
+            setBooleanFilters({});
+        }
+
+        prevDatasetIdRef.current = datasetId;
+    }, [baseRows, inputColumns]);
+
+    // Update columns when inputColumns change (preserve AI columns)
     useEffect(() => {
         setColumns(current => {
             const aiColumns = current.filter(c => c.type === 'ai');
@@ -206,51 +234,23 @@ function TablizerInner<T extends object>(
         });
     }, [inputColumns]);
 
-    // Update data when inputData changes, but preserve AI column values
-    useEffect(() => {
-        const prevRows = prevInitialRowsRef.current;
-        const isNewDataset = prevRows.length === 0 || initialRows.length === 0 ||
-            // Check if first few IDs are different (indicating new search)
-            (prevRows.slice(0, 3).map(r => r.id || '').join(',') !==
-             initialRows.slice(0, 3).map(r => r.id || '').join(','));
+    // Merge base rows + AI column values for display
+    const displayRows = useMemo((): TableRow[] =>
+        baseRows.map(row => {
+            // Start with base row data
+            const merged: TableRow = { ...row };
 
-        if (isNewDataset) {
-            // New search - reset everything including data
-            setRowData(initialRows);
-            setColumns([...inputColumns.map(c => ({ ...c }))]);
-            setSortConfig(null);
-            setFilterText('');
-            setBooleanFilters({});
-        } else {
-            // Same dataset (e.g., more items loaded for AI processing)
-            // Merge new rows while preserving AI column values from existing data
-            setRowData(currentData => {
-                // Build a map of existing AI column values by row ID
-                const existingAiValues = new Map<string, Record<string, unknown>>();
-                const aiColumnIds = columns.filter(c => c.type === 'ai').map(c => c.id);
-
-                for (const row of currentData) {
-                    const aiValues: Record<string, unknown> = {};
-                    for (const colId of aiColumnIds) {
-                        if (row[colId] !== undefined) {
-                            aiValues[colId] = row[colId];
-                        }
-                    }
-                    if (Object.keys(aiValues).length > 0) {
-                        existingAiValues.set(row.id, aiValues);
-                    }
+            // Add AI column values for this row
+            for (const [colId, values] of Object.entries(aiColumnValues)) {
+                if (values[row.id] !== undefined) {
+                    merged[colId] = values[row.id];
                 }
+            }
 
-                // Merge AI values into new rows
-                return initialRows.map(row => {
-                    const aiValues = existingAiValues.get(row.id);
-                    return aiValues ? { ...row, ...aiValues } : row;
-                });
-            });
-        }
-
-        prevInitialRowsRef.current = initialRows;
-    }, [initialRows, columns, inputColumns]);
+            return merged;
+        }),
+        [baseRows, aiColumnValues]
+    );
 
     // Get visible columns
     const visibleColumns = useMemo(() =>
@@ -281,9 +281,9 @@ function TablizerInner<T extends object>(
 
     // Sort data
     const sortedData = useMemo(() => {
-        if (!sortConfig || !sortConfig.direction) return rowData;
+        if (!sortConfig || !sortConfig.direction) return displayRows;
 
-        return [...rowData].sort((a, b) => {
+        return [...displayRows].sort((a, b) => {
             const aVal = a[sortConfig.columnId];
             const bVal = b[sortConfig.columnId];
 
@@ -303,7 +303,7 @@ function TablizerInner<T extends object>(
             const comparison = aStr.localeCompare(bStr);
             return sortConfig.direction === 'asc' ? comparison : -comparison;
         });
-    }, [rowData, sortConfig, columns]);
+    }, [displayRows, sortConfig, columns]);
 
     // Filter data
     const filteredData = useMemo(() => {
@@ -394,11 +394,11 @@ function TablizerInner<T extends object>(
         if (column?.type !== 'ai') return; // Only delete AI columns
 
         setColumns(cols => cols.filter(c => c.id !== columnId));
-        setRowData(rows => rows.map(row => {
-            const newRow = { ...row };
-            delete newRow[columnId];
-            return newRow;
-        }));
+        setAiColumnValues(prev => {
+            const newValues = { ...prev };
+            delete newValues[columnId];
+            return newValues;
+        });
         setBooleanFilters(prev => {
             const newFilters = { ...prev };
             delete newFilters[columnId];
@@ -438,7 +438,8 @@ function TablizerInner<T extends object>(
         setShowAddColumnModal(false);
 
         // Fetch more data if needed before AI processing
-        let aiData = dataForAiProcessing;
+        // This triggers parent to expand its data, which will update inputData prop
+        let aiData: T[] = filterData || inputData;
         if (onFetchMoreForAI) {
             aiData = await onFetchMoreForAI();
         }
@@ -451,64 +452,28 @@ function TablizerInner<T extends object>(
             // Call the parent's AI processing callback
             const results = await onProcessAIColumn(aiData, promptTemplate, outputType);
 
-            // Build a map of results by ID
-            const resultMap = new Map(results.map(r => [r.id, r]));
-
-            // Build rows from aiData directly (rowData might be stale after fetchMoreForAI)
-            // Also preserve any existing AI column values from current rowData
-            const existingAiValues = new Map<string, Record<string, unknown>>();
-            const existingAiColumnIds = columns.filter(c => c.type === 'ai' && c.id !== columnId).map(c => c.id);
-            for (const row of rowData) {
-                const aiVals: Record<string, unknown> = {};
-                for (const colId of existingAiColumnIds) {
-                    if (row[colId] !== undefined) {
-                        aiVals[colId] = row[colId];
-                    }
+            // Convert results to columnValues map: { rowId: value }
+            const columnValues: Record<string, unknown> = {};
+            for (const result of results) {
+                let value: unknown;
+                if (outputType === 'boolean') {
+                    value = result.passed ? 'Yes' : 'No';
+                } else if (outputType === 'number') {
+                    value = result.score;
+                } else {
+                    value = result.reasoning;
                 }
-                if (Object.keys(aiVals).length > 0) {
-                    existingAiValues.set(row.id, aiVals);
-                }
+                columnValues[result.id] = value;
             }
 
-            // Convert aiData to rows and apply ALL results
-            const updatedRows: TableRow[] = aiData.map((item, idx) => {
-                const itemId = getItemId(item, idField) || `row_${idx}`;
-                const row: TableRow = { id: itemId };
+            // Store AI values - this is all we need to do!
+            // When inputData prop updates (from parent's fetchMore), baseRows will
+            // automatically include the new rows, and displayRows will merge the AI values
+            setAiColumnValues(prev => ({
+                ...prev,
+                [columnId]: columnValues
+            }));
 
-                // Copy base fields from item
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const itemAny = item as any;
-                for (const col of inputColumns) {
-                    if (col.type !== 'ai') {
-                        const value = itemAny[col.accessor];
-                        row[col.accessor] = Array.isArray(value) ? value.join(', ') : value;
-                    }
-                }
-
-                // Restore existing AI column values
-                const existingVals = existingAiValues.get(itemId);
-                if (existingVals) {
-                    Object.assign(row, existingVals);
-                }
-
-                // Apply new AI result
-                const result = resultMap.get(itemId);
-                if (result) {
-                    let value: string | number | boolean;
-                    if (outputType === 'boolean') {
-                        value = result.passed ? 'Yes' : 'No';
-                    } else if (outputType === 'number') {
-                        value = result.score;
-                    } else {
-                        value = result.reasoning;
-                    }
-                    row[columnId] = value;
-                }
-
-                return row;
-            });
-
-            setRowData(updatedRows);
             setProcessingProgress({ current: aiData.length, total: aiData.length });
 
             // Track successful completion
@@ -519,14 +484,20 @@ function TablizerInner<T extends object>(
             });
         } catch (err) {
             console.error('Error processing AI column:', err);
-            // Mark all as error - use current rowData since we failed
-            const updatedRows = rowData.map(row => ({ ...row, [columnId]: 'Error' }));
-            setRowData(updatedRows);
+            // Store error state for all current rows
+            const errorValues: Record<string, unknown> = {};
+            for (const row of baseRows) {
+                errorValues[row.id] = 'Error';
+            }
+            setAiColumnValues(prev => ({
+                ...prev,
+                [columnId]: errorValues
+            }));
         } finally {
             setProcessingColumn(null);
             setProcessingProgress({ current: 0, total: 0 });
         }
-    }, [dataForAiProcessing, rowData, columns, idField, inputColumns, onFetchMoreForAI, onProcessAIColumn]);
+    }, [inputData, filterData, baseRows, onFetchMoreForAI, onProcessAIColumn]);
 
     // Export to CSV
     const handleExport = useCallback(() => {
@@ -588,7 +559,7 @@ function TablizerInner<T extends object>(
 
                     {/* Row count */}
                     <span className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                        {filteredData.length}{filteredData.length !== rowData.length ? ` of ${rowData.length}` : ''} {rowLabel}
+                        {filteredData.length}{filteredData.length !== displayRows.length ? ` of ${displayRows.length}` : ''} {rowLabel}
                     </span>
 
                     {/* Processing indicator */}
@@ -661,7 +632,7 @@ function TablizerInner<T extends object>(
                 {/* Right: Actions */}
                 <div className="flex items-center gap-2">
                     {/* Save to History - shown when filters are active */}
-                    {onSaveToHistory && hasActiveFilters && filteredData.length > 0 && filteredData.length < rowData.length && (
+                    {onSaveToHistory && hasActiveFilters && filteredData.length > 0 && filteredData.length < displayRows.length && (
                         <button
                             onClick={handleSaveToHistory}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
