@@ -392,45 +392,20 @@ async def extract_from_items(
         # Determine ID field based on item type
         id_field = "nct_id" if request.item_type == "trial" else "pmid"
 
-        # Build extraction schema for text output
-        result_schema = {
-            "type": "object",
-            "properties": {
-                "answer": {"type": "string", "description": "The extracted answer"},
-                "confidence": {"type": "number", "minimum": 0, "maximum": 1},
-                "reasoning": {"type": "string", "description": "Brief explanation"}
-            },
-            "required": ["answer", "confidence"]
-        }
-
-        # Build extraction instructions
-        extraction_instructions = f"""
-        Based on the provided item data, answer the following question:
-
-        {request.prompt}
-
-        Provide:
-        1. A direct answer to the question
-        2. A confidence score from 0.0 to 1.0
-        3. Brief reasoning for your answer
-        """
-
-        # Prepare items for extraction
+        # Prepare items with correct ID field
         extraction_items = []
         for item in request.items:
             item_id = item.get(id_field) or item.get("id", "")
-            # Spread item first, then override "id" to ensure correct ID is used
             extraction_items.append({
                 **item,
                 "id": item_id,
             })
 
-        # Run extraction
-        extraction_results = await extraction_service.extract_multiple_items(
+        # Use the new extract_value_batch API
+        extraction_results = await extraction_service.extract_value_batch(
             items=extraction_items,
-            result_schema=result_schema,
-            extraction_instructions=extraction_instructions,
-            continue_on_error=True
+            instruction=request.prompt,
+            output_type="text"
         )
 
         # Convert results
@@ -439,24 +414,21 @@ async def extract_from_items(
         failed = 0
 
         for result in extraction_results:
-            item_id = result.item_id or ""
-
             if result.error:
                 failed += 1
                 results.append(ExtractResultItem(
-                    id=item_id,
+                    id=result.item_id,
                     text_value="[Extraction failed]",
                     confidence=0.0,
                     reasoning=result.error
                 ))
             else:
                 succeeded += 1
-                extraction = result.extraction or {}
                 results.append(ExtractResultItem(
-                    id=item_id,
-                    text_value=extraction.get("answer", ""),
-                    confidence=extraction.get("confidence", 0.0),
-                    reasoning=extraction.get("reasoning", "")
+                    id=result.item_id,
+                    text_value=str(result.value) if result.value else "",
+                    confidence=result.score,
+                    reasoning=result.reasoning
                 ))
 
         logger.info(f"extract_from_items complete - user_id={current_user.user_id}, succeeded={succeeded}, failed={failed}")

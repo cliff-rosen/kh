@@ -30,32 +30,29 @@ logger = logging.getLogger(__name__)
 # Request/Response Models
 # ============================================================================
 
-class ExtractionRequest(BaseModel):
-    """Request model for batch data extraction."""
+class FieldsExtractionRequest(BaseModel):
+    """Request model for schema-based extraction (multiple fields per item)"""
     items: List[Dict[str, Any]] = Field(..., description="List of items to extract data from")
-    result_schema: Dict[str, Any] = Field(..., description="JSON schema defining the structure of extraction results")
-    extraction_instructions: str = Field(..., description="Natural language instructions for extraction")
-    schema_key: Optional[str] = Field(None, description="Optional key for caching prompt caller")
-    continue_on_error: bool = Field(True, description="Whether to continue processing if individual items fail")
+    result_schema: Dict[str, Any] = Field(..., description="JSON schema defining the fields to extract")
+    instructions: str = Field(..., description="Natural language instructions for extraction")
 
 
-class SingleExtractionRequest(BaseModel):
-    """Request model for single item extraction."""
+class SingleFieldsExtractionRequest(BaseModel):
+    """Request model for single item schema-based extraction"""
     item: Dict[str, Any] = Field(..., description="Item to extract data from")
-    result_schema: Dict[str, Any] = Field(..., description="JSON schema defining the structure of extraction results")
-    extraction_instructions: str = Field(..., description="Natural language instructions for extraction")
-    schema_key: Optional[str] = Field(None, description="Optional key for caching prompt caller")
+    result_schema: Dict[str, Any] = Field(..., description="JSON schema defining the fields to extract")
+    instructions: str = Field(..., description="Natural language instructions for extraction")
 
 
-class ExtractionResponse(BaseModel):
-    """Response model for batch extraction operations."""
+class FieldsExtractionResponse(BaseModel):
+    """Response model for schema-based extraction"""
     results: List[Dict[str, Any]] = Field(..., description="List of extraction results")
-    metadata: Dict[str, Any] = Field(..., description="Extraction metadata including success/failure counts")
-    success: bool = Field(..., description="Whether the extraction operation was successful")
+    metadata: Dict[str, Any] = Field(..., description="Extraction metadata")
+    success: bool = Field(..., description="Whether the operation was successful")
 
 
-class SingleExtractionResponse(BaseModel):
-    """Response model for single item extraction."""
+class SingleFieldsExtractionResponse(BaseModel):
+    """Response model for single item extraction"""
     result: Dict[str, Any] = Field(..., description="Extraction result")
     success: bool = Field(..., description="Whether the extraction was successful")
 
@@ -64,32 +61,30 @@ class SingleExtractionResponse(BaseModel):
 # Endpoints
 # ============================================================================
 
-@router.post("/extract-multiple", response_model=ExtractionResponse)
-async def extract_multiple_items(
-    request: ExtractionRequest,
+@router.post("/extract-fields-batch", response_model=FieldsExtractionResponse)
+async def extract_fields_batch(
+    request: FieldsExtractionRequest,
     current_user: User = Depends(validate_token)
 ):
     """
-    Extract data from multiple items using LLM analysis.
+    Extract multiple fields from multiple items using a schema.
 
     Args:
         request: Extraction parameters including items, schema, and instructions
         current_user: Authenticated user
 
     Returns:
-        ExtractionResponse with results and metadata
+        FieldsExtractionResponse with results and metadata
     """
-    logger.info(f"extract_multiple_items - user_id={current_user.user_id}, items={len(request.items)}")
+    logger.info(f"extract_fields_batch - user_id={current_user.user_id}, items={len(request.items)}")
 
     try:
         extraction_service = get_extraction_service()
 
-        extraction_results = await extraction_service.extract_multiple_items(
+        extraction_results = await extraction_service.extract_fields_batch(
             items=request.items,
-            result_schema=request.result_schema,
-            extraction_instructions=request.extraction_instructions,
-            schema_key=request.schema_key,
-            continue_on_error=request.continue_on_error
+            schema=request.result_schema,
+            instructions=request.instructions
         )
 
         # Convert results to API format
@@ -100,9 +95,7 @@ async def extract_multiple_items(
         for result in extraction_results:
             api_result = {
                 "item_id": result.item_id,
-                "original_item": result.original_item,
-                "extraction": result.extraction,
-                "extraction_timestamp": result.extraction_timestamp
+                "fields": result.fields
             }
 
             if result.error:
@@ -111,20 +104,16 @@ async def extract_multiple_items(
             else:
                 successful += 1
 
-            if result.confidence_score is not None:
-                api_result["confidence_score"] = result.confidence_score
-
             results.append(api_result)
 
-        logger.info(f"extract_multiple_items complete - user_id={current_user.user_id}, successful={successful}, failed={failed}")
+        logger.info(f"extract_fields_batch complete - user_id={current_user.user_id}, successful={successful}, failed={failed}")
 
-        return ExtractionResponse(
+        return FieldsExtractionResponse(
             results=results,
             metadata={
                 "items_processed": len(request.items),
                 "successful_extractions": successful,
-                "failed_extractions": failed,
-                "schema_key": request.schema_key
+                "failed_extractions": failed
             },
             success=True
         )
@@ -134,53 +123,47 @@ async def extract_multiple_items(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"extract_multiple_items failed - user_id={current_user.user_id}: {e}", exc_info=True)
+        logger.error(f"extract_fields_batch failed - user_id={current_user.user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
 
 
-@router.post("/extract-single", response_model=SingleExtractionResponse)
-async def extract_single_item(
-    request: SingleExtractionRequest,
+@router.post("/extract-fields", response_model=SingleFieldsExtractionResponse)
+async def extract_fields(
+    request: SingleFieldsExtractionRequest,
     current_user: User = Depends(validate_token)
 ):
     """
-    Extract data from a single item using LLM analysis.
+    Extract multiple fields from a single item using a schema.
 
     Args:
         request: Extraction parameters including item, schema, and instructions
         current_user: Authenticated user
 
     Returns:
-        SingleExtractionResponse with result
+        SingleFieldsExtractionResponse with result
     """
-    logger.info(f"extract_single_item - user_id={current_user.user_id}")
+    logger.info(f"extract_fields - user_id={current_user.user_id}")
 
     try:
         extraction_service = get_extraction_service()
 
-        extraction_result = await extraction_service.perform_extraction(
+        extraction_result = await extraction_service.extract_fields(
             item=request.item,
-            result_schema=request.result_schema,
-            extraction_instructions=request.extraction_instructions,
-            schema_key=request.schema_key
+            schema=request.result_schema,
+            instructions=request.instructions
         )
 
         api_result = {
             "item_id": extraction_result.item_id,
-            "original_item": extraction_result.original_item,
-            "extraction": extraction_result.extraction,
-            "extraction_timestamp": extraction_result.extraction_timestamp
+            "fields": extraction_result.fields
         }
 
         if extraction_result.error:
             api_result["error"] = extraction_result.error
 
-        if extraction_result.confidence_score is not None:
-            api_result["confidence_score"] = extraction_result.confidence_score
+        logger.info(f"extract_fields complete - user_id={current_user.user_id}, success={extraction_result.error is None}")
 
-        logger.info(f"extract_single_item complete - user_id={current_user.user_id}, success={extraction_result.error is None}")
-
-        return SingleExtractionResponse(
+        return SingleFieldsExtractionResponse(
             result=api_result,
             success=extraction_result.error is None
         )
@@ -190,7 +173,7 @@ async def extract_single_item(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"extract_single_item failed - user_id={current_user.user_id}: {e}", exc_info=True)
+        logger.error(f"extract_fields failed - user_id={current_user.user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
 
 
@@ -207,20 +190,11 @@ async def test_extraction_service(
         extraction_service = get_extraction_service()
 
         # Simple test extraction
-        test_item = {"title": "Test Article", "content": "This is a test"}
-        test_schema = {
-            "type": "object",
-            "properties": {
-                "summary": {"type": "string"},
-                "confidence": {"type": "number"}
-            },
-            "required": ["summary", "confidence"]
-        }
-
-        result = await extraction_service.perform_extraction(
+        test_item = {"title": "Test Article", "content": "This is a test about machine learning."}
+        test_result = await extraction_service.extract_value(
             item=test_item,
-            result_schema=test_schema,
-            extraction_instructions="Summarize the content and provide a confidence score between 0 and 1."
+            instruction="Is this article about technology?",
+            output_type="boolean"
         )
 
         logger.info(f"test_extraction_service complete - user_id={current_user.user_id}")
@@ -229,9 +203,10 @@ async def test_extraction_service(
             "status": "success",
             "message": "Extraction service is operational",
             "test_result": {
-                "extraction_successful": result.error is None,
-                "has_extraction": result.extraction is not None,
-                "error": result.error
+                "extraction_successful": test_result.error is None,
+                "value": test_result.value,
+                "score": test_result.score,
+                "error": test_result.error
             }
         }
 
