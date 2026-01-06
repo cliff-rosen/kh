@@ -16,6 +16,7 @@ import {
 import { AIColumnInfo, TablizerRef } from '../tools/Tablizer';
 import PubMedTable from './PubMedTable';
 import PubMedSearchForm from './PubMedSearchForm';
+import ArticleViewerModal from '../articles/ArticleViewerModal';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
 import { tablizerApi } from '../../lib/api/tablizerApi';
 import { trackEvent } from '../../lib/api/trackingApi';
@@ -1164,6 +1165,7 @@ interface SearchCompareViewProps {
 function SearchCompareView({ snapshotA, snapshotB, onClose, onSaveToHistory }: SearchCompareViewProps) {
     const [activeTab, setActiveTab] = useState<'only_a' | 'both' | 'only_b'>('only_a');
     const [copiedGroup, setCopiedGroup] = useState<string | null>(null);
+    const [selectedArticleIndex, setSelectedArticleIndex] = useState<number | null>(null);
 
     const handleCopy = async (text: string, group: string) => {
         const result = await copyToClipboard(text);
@@ -1320,15 +1322,19 @@ function SearchCompareView({ snapshotA, snapshotB, onClose, onSaveToHistory }: S
                     </div>
                 ) : (
                     <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {displayArticles.slice(0, 50).map((article) => (
-                            <div key={article.pmid || article.id} className="p-3 hover:bg-gray-50 dark:hover:bg-gray-800">
+                        {displayArticles.slice(0, 50).map((article, index) => (
+                            <button
+                                key={article.pmid || article.id}
+                                onClick={() => setSelectedArticleIndex(index)}
+                                className="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                            >
                                 <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                                     PMID: {article.pmid}
                                 </div>
                                 <div className="text-sm text-gray-900 dark:text-white line-clamp-2">
                                     {article.title}
                                 </div>
-                            </div>
+                            </button>
                         ))}
                         {displayArticles.length > 50 && (
                             <div className="p-3 text-center text-sm text-gray-500 dark:text-gray-400">
@@ -1338,6 +1344,15 @@ function SearchCompareView({ snapshotA, snapshotB, onClose, onSaveToHistory }: S
                     </div>
                 )}
             </div>
+
+            {/* Article Viewer Modal */}
+            {selectedArticleIndex !== null && (
+                <ArticleViewerModal
+                    articles={displayArticles}
+                    initialIndex={selectedArticleIndex}
+                    onClose={() => setSelectedArticleIndex(null)}
+                />
+            )}
         </div>
     );
 }

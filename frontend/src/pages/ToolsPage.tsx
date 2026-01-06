@@ -37,8 +37,13 @@ const tabs: { id: ToolTab; label: string; description: string; icon: React.Compo
 export default function ToolsPage() {
     const [activeTab, setActiveTab] = useState<ToolTab>('search');
 
+    // Use full width for Tablizer, constrained for other tools
+    const containerClass = activeTab === 'tablizer'
+        ? 'px-4 sm:px-6 lg:px-8 py-6'
+        : 'max-w-7xl mx-auto px-4 py-8';
+
     return (
-        <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className={containerClass}>
             {/* Page Header */}
             <div className="mb-8">
                 <div className="flex items-center gap-3 mb-2">

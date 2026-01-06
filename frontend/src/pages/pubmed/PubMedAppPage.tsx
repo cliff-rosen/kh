@@ -124,9 +124,9 @@ export default function PubMedAppPage() {
                     onOpenChange={setIsChatOpen}
                 />
 
-                {/* Main Content - scrollable */}
+                {/* Main Content - scrollable, full width for table with many columns */}
                 <div className="flex-1 min-w-0 overflow-y-auto">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div className="px-4 sm:px-6 lg:px-8 py-6">
                         <PubMedWorkbench
                             ref={pubMedWorkbenchRef}
                             onStateChange={handleStateChange}
