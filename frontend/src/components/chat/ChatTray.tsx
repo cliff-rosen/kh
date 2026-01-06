@@ -11,6 +11,7 @@ import ToolResultCard, { ToolHistoryPanel } from './ToolResultCard';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
 
 const STORAGE_KEY = 'chatTrayWidth';
+const CHAT_ID_KEY = 'chatCurrentConversationId';
 
 interface ChatTrayProps {
     initialContext?: Record<string, any>;
@@ -196,7 +197,7 @@ export default function ChatTray({
         };
     }, [width, minWidth, maxWidth]);
 
-    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, setContext, reset, loadMostRecent, context } = useChatContext();
+    const { messages, sendMessage, isLoading, streamingText, statusText, activeToolProgress, cancelRequest, setContext, reset, loadMostRecent, loadChat, chatId, context } = useChatContext();
     const [input, setInput] = useState('');
     const [showDebug, setShowDebug] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -241,13 +242,42 @@ export default function ChatTray({
     // Track if we've loaded the initial conversation
     const hasLoadedInitial = useRef(false);
 
-    // Load most recent conversation when tray opens for the first time
+    // Load conversation when tray opens for the first time
+    // Check sessionStorage to restore previous state (including "new chat" state)
     useEffect(() => {
         if (isOpen && !hasLoadedInitial.current) {
             hasLoadedInitial.current = true;
+            const storedChatId = sessionStorage.getItem(CHAT_ID_KEY);
+
+            if (storedChatId === 'new') {
+                // User explicitly started a new chat - stay empty
+                return;
+            } else if (storedChatId) {
+                // Load the specific conversation they were viewing
+                const chatId = parseInt(storedChatId, 10);
+                if (!isNaN(chatId)) {
+                    loadChat(chatId);
+                    return;
+                }
+            }
+            // No stored state - load most recent
             loadMostRecent();
         }
-    }, [isOpen, loadMostRecent]);
+    }, [isOpen, loadMostRecent, loadChat]);
+
+    // Sync chatId to sessionStorage when a conversation is created or loaded
+    // This ensures refresh loads the correct conversation
+    useEffect(() => {
+        // Only sync after initial load is complete
+        if (!hasLoadedInitial.current) return;
+
+        if (chatId !== null) {
+            // A conversation exists - save its ID
+            sessionStorage.setItem(CHAT_ID_KEY, chatId.toString());
+        }
+        // Note: We don't clear on chatId === null here because reset() handles that
+        // by explicitly setting 'new' in sessionStorage
+    }, [chatId]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -314,6 +344,8 @@ export default function ChatTray({
         setPendingPayload(null);
         setActivePayload(null);
         setDismissedPayloads(new Set());
+        // Persist "new chat" state so refresh doesn't reload old conversation
+        sessionStorage.setItem(CHAT_ID_KEY, 'new');
         // Focus the input after reset
         setTimeout(() => inputRef.current?.focus(), 0);
     }, [reset]);
