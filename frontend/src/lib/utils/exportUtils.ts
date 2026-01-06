@@ -5,6 +5,7 @@
 
 import type { SmartSearchArticle } from '@/types/smartsearch2';
 import type { CanonicalFeatureDefinition } from '@/types/canonical_types';
+import { copyToClipboard } from './clipboard';
 
 /**
  * Export articles to CSV format
@@ -103,29 +104,15 @@ export const copyPMIDsToClipboard = async (articles: SmartSearchArticle[]) => {
   }
 
   const pmidText = pmids.join('\n');
+  const result = await copyToClipboard(pmidText);
 
-  try {
-    await navigator.clipboard.writeText(pmidText);
-    return {
-      success: true,
-      count: pmids.length,
-      message: `Copied ${pmids.length} PubMed IDs to clipboard`
-    };
-  } catch (error) {
-    // Fallback for older browsers
-    const textArea = document.createElement('textarea');
-    textArea.value = pmidText;
-    document.body.appendChild(textArea);
-    textArea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textArea);
-
-    return {
-      success: true,
-      count: pmids.length,
-      message: `Copied ${pmids.length} PubMed IDs to clipboard`
-    };
-  }
+  return {
+    success: result.success,
+    count: pmids.length,
+    message: result.success
+      ? `Copied ${pmids.length} PubMed IDs to clipboard`
+      : `Failed to copy: ${result.error}`
+  };
 };
 
 /**

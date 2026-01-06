@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CheckIcon, XMarkIcon, FunnelIcon, ClipboardDocumentIcon } from '@heroicons/react/24/solid';
 import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
+import { copyToClipboard } from '../../lib/utils/clipboard';
 
 interface FilterSuggestionPayload {
     criteria: string;
@@ -44,10 +45,12 @@ export default function FilterSuggestionCard({
         }
     };
 
-    const copyToClipboard = async () => {
-        await navigator.clipboard.writeText(proposal.criteria);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+    const handleCopy = async () => {
+        const result = await copyToClipboard(proposal.criteria);
+        if (result.success) {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
     };
 
     const getThresholdLabel = (threshold: number): { label: string; color: string } => {
@@ -102,7 +105,7 @@ export default function FilterSuggestionCard({
                     </h5>
                     <button
                         type="button"
-                        onClick={copyToClipboard}
+                        onClick={handleCopy}
                         className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-100 dark:bg-purple-800 hover:bg-purple-200 dark:hover:bg-purple-700 text-purple-700 dark:text-purple-200 rounded transition-colors"
                     >
                         <ClipboardDocumentIcon className="h-3.5 w-3.5" />

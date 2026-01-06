@@ -12,6 +12,7 @@ import {
     ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
+import { copyToClipboard } from '../../lib/utils/clipboard';
 
 export interface PubMedArticleData {
     pmid: string;
@@ -37,34 +38,15 @@ export default function PubMedArticleCard({ article }: PubMedArticleCardProps) {
     const [copiedField, setCopiedField] = useState<string | null>(null);
     const [copyError, setCopyError] = useState(false);
 
-    const copyToClipboard = async (text: string, field: string, e?: React.MouseEvent) => {
+    const handleCopy = async (text: string, field: string, e?: React.MouseEvent) => {
         e?.stopPropagation();
         setCopyError(false);
 
-        try {
-            // Try modern clipboard API first
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                await navigator.clipboard.writeText(text);
-            } else {
-                // Fallback for non-secure contexts (HTTP)
-                const textArea = document.createElement('textarea');
-                textArea.value = text;
-                textArea.style.position = 'fixed';
-                textArea.style.left = '-999999px';
-                textArea.style.top = '-999999px';
-                document.body.appendChild(textArea);
-                textArea.focus();
-                textArea.select();
-                const successful = document.execCommand('copy');
-                document.body.removeChild(textArea);
-                if (!successful) {
-                    throw new Error('execCommand copy failed');
-                }
-            }
+        const result = await copyToClipboard(text);
+        if (result.success) {
             setCopiedField(field);
             setTimeout(() => setCopiedField(null), 2000);
-        } catch (err) {
-            console.error('Failed to copy to clipboard:', err);
+        } else {
             setCopyError(true);
             setTimeout(() => setCopyError(false), 2000);
         }
@@ -157,7 +139,7 @@ export default function PubMedArticleCard({ article }: PubMedArticleCardProps) {
                         </h4>
                         <button
                             type="button"
-                            onClick={(e) => copyToClipboard(article.abstract!, 'abstract', e)}
+                            onClick={(e) => handleCopy(article.abstract!, 'abstract', e)}
                             className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1"
                         >
                             {copiedField === 'abstract' ? (
@@ -208,7 +190,7 @@ export default function PubMedArticleCard({ article }: PubMedArticleCardProps) {
                             <div className="flex justify-end mb-2">
                                 <button
                                     type="button"
-                                    onClick={(e) => copyToClipboard(article.full_text!, 'fulltext', e)}
+                                    onClick={(e) => handleCopy(article.full_text!, 'fulltext', e)}
                                     className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1"
                                 >
                                     {copiedField === 'fulltext' ? (
@@ -247,7 +229,7 @@ export default function PubMedArticleCard({ article }: PubMedArticleCardProps) {
                         type="button"
                         onClick={(e) => {
                             const citation = `${article.authors}. ${article.title}. ${article.journal}. ${article.year};${article.volume || ''}(${article.issue || ''}):${article.pages || ''}. PMID: ${article.pmid}${article.doi ? `. doi: ${article.doi}` : ''}`;
-                            copyToClipboard(citation, 'citation', e);
+                            handleCopy(citation, 'citation', e);
                         }}
                         className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1"
                     >

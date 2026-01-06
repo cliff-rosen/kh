@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CheckIcon, XMarkIcon, MagnifyingGlassIcon, FunnelIcon, ClipboardDocumentIcon } from '@heroicons/react/24/solid';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
+import { copyToClipboard } from '../../lib/utils/clipboard';
 
 interface QueryProposal {
     query_id: string;
@@ -72,10 +73,12 @@ export default function RetrievalProposalCard({
         });
     };
 
-    const copyToClipboard = async (text: string, id: string) => {
-        await navigator.clipboard.writeText(text);
-        setCopiedId(id);
-        setTimeout(() => setCopiedId(null), 2000);
+    const handleCopy = async (text: string, id: string) => {
+        const result = await copyToClipboard(text);
+        if (result.success) {
+            setCopiedId(id);
+            setTimeout(() => setCopiedId(null), 2000);
+        }
     };
 
     const getUpdateTypeLabel = () => {
@@ -204,7 +207,7 @@ export default function RetrievalProposalCard({
                                             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Query String</span>
                                             <button
                                                 type="button"
-                                                onClick={() => copyToClipboard(query.query_string, query.query_id)}
+                                                onClick={() => handleCopy(query.query_string, query.query_id)}
                                                 className="flex items-center gap-1 px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded transition-colors"
                                             >
                                                 <ClipboardDocumentIcon className="h-3 w-3" />

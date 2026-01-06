@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CheckIcon, XMarkIcon, MagnifyingGlassIcon, ClipboardDocumentIcon, ChevronDownIcon, CalendarIcon } from '@heroicons/react/24/solid';
 import { LightBulbIcon } from '@heroicons/react/24/outline';
+import { copyToClipboard } from '../../lib/utils/clipboard';
 
 interface QueryAlternative {
     query_expression: string;
@@ -52,26 +53,16 @@ export default function QuerySuggestionCard({
         }
     };
 
-    const copyToClipboard = async (text: string, isAlt: boolean = false, altIndex?: number) => {
-        if (navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(text);
-        } else {
-            // Fallback for non-HTTPS contexts
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            textarea.style.position = 'fixed';
-            textarea.style.opacity = '0';
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textarea);
-        }
-        if (isAlt && altIndex !== undefined) {
-            setCopiedAlt(altIndex);
-            setTimeout(() => setCopiedAlt(null), 2000);
-        } else {
-            setCopiedMain(true);
-            setTimeout(() => setCopiedMain(false), 2000);
+    const handleCopy = async (text: string, isAlt: boolean = false, altIndex?: number) => {
+        const result = await copyToClipboard(text);
+        if (result.success) {
+            if (isAlt && altIndex !== undefined) {
+                setCopiedAlt(altIndex);
+                setTimeout(() => setCopiedAlt(null), 2000);
+            } else {
+                setCopiedMain(true);
+                setTimeout(() => setCopiedMain(false), 2000);
+            }
         }
     };
 
@@ -115,7 +106,7 @@ export default function QuerySuggestionCard({
                     </h5>
                     <button
                         type="button"
-                        onClick={() => copyToClipboard(proposal.query_expression)}
+                        onClick={() => handleCopy(proposal.query_expression)}
                         className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 dark:bg-blue-800 hover:bg-blue-200 dark:hover:bg-blue-700 text-blue-700 dark:text-blue-200 rounded transition-colors"
                     >
                         <ClipboardDocumentIcon className="h-3.5 w-3.5" />
@@ -219,7 +210,7 @@ export default function QuerySuggestionCard({
                                         </span>
                                         <button
                                             type="button"
-                                            onClick={() => copyToClipboard(alt.query_expression, true, index)}
+                                            onClick={() => handleCopy(alt.query_expression, true, index)}
                                             className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded transition-colors"
                                         >
                                             <ClipboardDocumentIcon className="h-3.5 w-3.5" />

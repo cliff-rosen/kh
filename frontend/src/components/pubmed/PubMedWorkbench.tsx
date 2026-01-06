@@ -18,6 +18,7 @@ import PubMedSearchForm from './PubMedSearchForm';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
 import { tablizerApi } from '../../lib/api/tablizerApi';
 import { trackEvent } from '../../lib/api/trackingApi';
+import { copyToClipboard } from '../../lib/utils/clipboard';
 
 const INITIAL_FETCH_LIMIT = 20;  // Initial articles to fetch (fast)
 const AI_FETCH_LIMIT = 500;      // Max articles to fetch for AI processing
@@ -582,19 +583,7 @@ const PubMedWorkbench = forwardRef<PubMedWorkbenchRef, PubMedWorkbenchProps>(fun
                                                 onClick={async () => {
                                                     const source = selectedSnapshot.source;
                                                     if (source.type !== 'search') return;
-                                                    try {
-                                                        await navigator.clipboard.writeText(source.query);
-                                                    } catch {
-                                                        // Fallback
-                                                        const textArea = document.createElement('textarea');
-                                                        textArea.value = source.query;
-                                                        textArea.style.position = 'fixed';
-                                                        textArea.style.left = '-999999px';
-                                                        document.body.appendChild(textArea);
-                                                        textArea.select();
-                                                        document.execCommand('copy');
-                                                        document.body.removeChild(textArea);
-                                                    }
+                                                    await copyToClipboard(source.query);
                                                     trackEvent('pubmed_copy_query', {});
                                                 }}
                                                 className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
@@ -1160,24 +1149,11 @@ function SearchCompareView({ snapshotA, snapshotB, onClose, onSaveToHistory }: S
     const [activeTab, setActiveTab] = useState<'only_a' | 'both' | 'only_b'>('only_a');
     const [copiedGroup, setCopiedGroup] = useState<string | null>(null);
 
-    const copyToClipboard = async (text: string, group: string) => {
-        try {
-            if (navigator.clipboard?.writeText) {
-                await navigator.clipboard.writeText(text);
-            } else {
-                const textArea = document.createElement('textarea');
-                textArea.value = text;
-                textArea.style.position = 'fixed';
-                textArea.style.left = '-999999px';
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-            }
+    const handleCopy = async (text: string, group: string) => {
+        const result = await copyToClipboard(text);
+        if (result.success) {
             setCopiedGroup(group);
             setTimeout(() => setCopiedGroup(null), 2000);
-        } catch (err) {
-            console.error('Failed to copy:', err);
         }
     };
 
@@ -1301,7 +1277,7 @@ function SearchCompareView({ snapshotA, snapshotB, onClose, onSaveToHistory }: S
             {displayArticles.length > 0 && (
                 <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex-shrink-0 flex items-center gap-4">
                     <button
-                        onClick={() => copyToClipboard(pmids.join('\n'), activeTab)}
+                        onClick={() => handleCopy(pmids.join('\n'), activeTab)}
                         className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
                     >
                         <ClipboardDocumentIcon className="h-4 w-4" />

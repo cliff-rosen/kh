@@ -25,6 +25,7 @@ import {
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
 import { ResearchStream } from '../../types';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
+import { copyToClipboard } from '../../lib/utils/clipboard';
 import ArticleViewerModal from '../articles/ArticleViewerModal';
 
 // ============================================================================
@@ -2503,32 +2504,14 @@ function SnapshotCompareView({ snapshotA, snapshotB, onClose, onUseAsSource, onA
     const [filterResults, setFilterResults] = useState<Map<string, { passed: boolean; score: number; reasoning: string }> | null>(null);
     const [filterError, setFilterError] = useState<string | null>(null);
 
-    // Copy to clipboard with fallback for non-secure contexts
-    const copyToClipboard = async (text: string, group: string) => {
+    // Copy to clipboard handler
+    const handleCopy = async (text: string, group: string) => {
         setCopyError(false);
-        try {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                await navigator.clipboard.writeText(text);
-            } else {
-                // Fallback for non-secure contexts (HTTP)
-                const textArea = document.createElement('textarea');
-                textArea.value = text;
-                textArea.style.position = 'fixed';
-                textArea.style.left = '-999999px';
-                textArea.style.top = '-999999px';
-                document.body.appendChild(textArea);
-                textArea.focus();
-                textArea.select();
-                const successful = document.execCommand('copy');
-                document.body.removeChild(textArea);
-                if (!successful) {
-                    throw new Error('execCommand copy failed');
-                }
-            }
+        const result = await copyToClipboard(text);
+        if (result.success) {
             setCopiedGroup(group);
             setTimeout(() => setCopiedGroup(null), 2000);
-        } catch (err) {
-            console.error('Failed to copy to clipboard:', err);
+        } else {
             setCopyError(true);
             setTimeout(() => setCopyError(false), 2000);
         }
@@ -2675,7 +2658,7 @@ function SnapshotCompareView({ snapshotA, snapshotB, onClose, onUseAsSource, onA
                             <div className="flex gap-1 justify-center">
                                 <button
                                     type="button"
-                                    onClick={() => copyToClipboard(onlyInAPmids.join('\n'), 'only_a')}
+                                    onClick={() => handleCopy(onlyInAPmids.join('\n'), 'only_a')}
                                     className="px-2 py-1 text-xs bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-orange-300 dark:border-orange-600 rounded hover:bg-orange-100 dark:hover:bg-orange-900/50 transition-colors flex items-center gap-1"
                                     title="Copy PMIDs to clipboard"
                                 >
@@ -2704,7 +2687,7 @@ function SnapshotCompareView({ snapshotA, snapshotB, onClose, onUseAsSource, onA
                             <div className="flex gap-1 justify-center">
                                 <button
                                     type="button"
-                                    onClick={() => copyToClipboard(inBothPmids.join('\n'), 'both')}
+                                    onClick={() => handleCopy(inBothPmids.join('\n'), 'both')}
                                     className="px-2 py-1 text-xs bg-white dark:bg-gray-600 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded hover:bg-gray-100 dark:hover:bg-gray-500 transition-colors flex items-center gap-1"
                                     title="Copy PMIDs to clipboard"
                                 >
@@ -2733,7 +2716,7 @@ function SnapshotCompareView({ snapshotA, snapshotB, onClose, onUseAsSource, onA
                             <div className="flex gap-1 justify-center">
                                 <button
                                     type="button"
-                                    onClick={() => copyToClipboard(onlyInBPmids.join('\n'), 'only_b')}
+                                    onClick={() => handleCopy(onlyInBPmids.join('\n'), 'only_b')}
                                     className="px-2 py-1 text-xs bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-green-300 dark:border-green-600 rounded hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors flex items-center gap-1"
                                     title="Copy PMIDs to clipboard"
                                 >

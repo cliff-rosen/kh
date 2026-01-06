@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { EnvelopeIcon, PlusIcon, ClipboardDocumentIcon, XMarkIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../../lib/api/adminApi';
 import { handleApiError } from '../../lib/api';
+import { copyToClipboard } from '../../lib/utils/clipboard';
 import type { Invitation, OrganizationWithStats, UserRole } from '../../types/organization';
 
 const ROLE_OPTIONS: { value: UserRole; label: string; requiresOrg: boolean }[] = [
@@ -89,11 +90,13 @@ export function InvitationList() {
         }
     };
 
-    const copyToClipboard = async (invitation: Invitation) => {
+    const handleCopyInviteLink = async (invitation: Invitation) => {
         const inviteUrl = `${window.location.origin}/register?token=${invitation.token}`;
-        await navigator.clipboard.writeText(inviteUrl);
-        setCopiedToken(invitation.token);
-        setTimeout(() => setCopiedToken(null), 2000);
+        const result = await copyToClipboard(inviteUrl);
+        if (result.success) {
+            setCopiedToken(invitation.token);
+            setTimeout(() => setCopiedToken(null), 2000);
+        }
     };
 
     const getStatusBadge = (invitation: Invitation) => {
@@ -168,7 +171,7 @@ export function InvitationList() {
                                     {window.location.origin}/register?token={createdInvitation.token}
                                 </code>
                                 <button
-                                    onClick={() => copyToClipboard(createdInvitation)}
+                                    onClick={() => handleCopyInviteLink(createdInvitation)}
                                     className="p-2 hover:bg-green-100 dark:hover:bg-green-800/50 rounded"
                                     title="Copy to clipboard"
                                 >
@@ -254,7 +257,7 @@ export function InvitationList() {
                                         {isPending && (
                                             <>
                                                 <button
-                                                    onClick={() => copyToClipboard(invitation)}
+                                                    onClick={() => handleCopyInviteLink(invitation)}
                                                     className="text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300"
                                                     title="Copy invite link"
                                                 >

@@ -37,6 +37,7 @@ import {
 } from '../../lib/api/promptWorkbenchApi';
 import { reportApi } from '../../lib/api/reportApi';
 import { Report } from '../../types';
+import { copyToClipboard } from '../../lib/utils/clipboard';
 
 interface PromptSuggestion {
     target: 'system_prompt' | 'user_prompt_template';
@@ -289,8 +290,8 @@ export default function ContentEnrichmentForm({
     };
 
     // Copy to clipboard
-    const copyToClipboard = (text: string) => {
-        navigator.clipboard.writeText(text);
+    const handleCopySlug = (text: string) => {
+        copyToClipboard(text);
     };
 
     // History navigation
@@ -572,7 +573,7 @@ export default function ContentEnrichmentForm({
                                         <div
                                             key={slug.slug}
                                             className="group flex flex-col gap-1 p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                                            onClick={() => copyToClipboard(slug.slug)}
+                                            onClick={() => handleCopySlug(slug.slug)}
                                         >
                                             <div className="flex items-center justify-between">
                                                 <code className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 px-1.5 py-0.5 rounded font-mono">

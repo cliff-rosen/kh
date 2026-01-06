@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CheckIcon, XMarkIcon, SparklesIcon, ClipboardDocumentIcon } from '@heroicons/react/24/solid';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
+import { copyToClipboard } from '../../lib/utils/clipboard';
 
 interface PromptSuggestion {
     target: 'system_prompt' | 'user_prompt_template';
@@ -59,10 +60,12 @@ export default function PromptSuggestionsCard({
         });
     };
 
-    const copyToClipboard = async (text: string, index: number) => {
-        await navigator.clipboard.writeText(text);
-        setCopiedIndex(index);
-        setTimeout(() => setCopiedIndex(null), 2000);
+    const handleCopy = async (text: string, index: number) => {
+        const result = await copyToClipboard(text);
+        if (result.success) {
+            setCopiedIndex(index);
+            setTimeout(() => setCopiedIndex(null), 2000);
+        }
     };
 
     const formatTargetName = (target: string): string => {
@@ -171,7 +174,7 @@ export default function PromptSuggestionsCard({
                                         </h5>
                                         <button
                                             type="button"
-                                            onClick={() => copyToClipboard(suggestion.suggested_text, index)}
+                                            onClick={() => handleCopy(suggestion.suggested_text, index)}
                                             className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded transition-colors"
                                         >
                                             <ClipboardDocumentIcon className="h-3.5 w-3.5" />
