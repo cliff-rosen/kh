@@ -11,11 +11,9 @@ Used by both PubMed Tablizer (/pubmed) and TrialScout (/trialscout) frontends.
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from pydantic import BaseModel, Field
 
-from database import get_db
 from models import User
 from routers.auth import get_current_user
 from schemas.canonical_types import CanonicalResearchArticle, CanonicalClinicalTrial
@@ -36,8 +34,8 @@ class PubMedSearchRequest(BaseModel):
     articles_to_fetch: int = Field(20, ge=1, le=500, description="Number of articles to fetch with full data")
     start_date: Optional[str] = Field(None, description="Start date for filtering (YYYY/MM/DD)")
     end_date: Optional[str] = Field(None, description="End date for filtering (YYYY/MM/DD)")
-    date_type: Optional[str] = Field('publication', description="Date type for filtering")
-    sort_by: Optional[str] = Field('relevance', description="Sort order (relevance, date)")
+    date_type: Optional[Literal["publication", "entry"]] = Field('publication', description="Date type for filtering")
+    sort_by: Optional[Literal["relevance", "date"]] = Field('relevance', description="Sort order")
 
 
 class PubMedSearchResponse(BaseModel):
@@ -52,7 +50,6 @@ class PubMedSearchResponse(BaseModel):
 @router.post("/search/pubmed", response_model=PubMedSearchResponse)
 async def search_pubmed(
     request: PubMedSearchRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -61,6 +58,8 @@ async def search_pubmed(
     Optimized for Tablizer: returns up to max_pmids PMIDs (fast) plus
     full article data for the first articles_to_fetch articles.
     """
+    logger.info(f"search_pubmed - user_id={current_user.user_id}, query='{request.query_expression[:50]}...'")
+
     from services.pubmed_service import PubMedService
     from schemas.canonical_types import CanonicalPubMedArticle
     from schemas.research_article_converters import pubmed_to_research_article
@@ -108,6 +107,7 @@ async def search_pubmed(
                 except Exception as e:
                     logger.error(f"Error converting article {article.PMID}: {e}")
 
+        logger.info(f"search_pubmed complete - user_id={current_user.user_id}, pmids={len(all_pmids)}, articles={len(articles)}")
         return PubMedSearchResponse(
             all_pmids=all_pmids,
             articles=articles,
@@ -116,8 +116,10 @@ async def search_pubmed(
             articles_retrieved=len(articles)
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"PubMed search failed: {e}", exc_info=True)
+        logger.error(f"search_pubmed failed - user_id={current_user.user_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"PubMed search failed: {str(e)}"
@@ -152,12 +154,13 @@ class TrialSearchResponse(BaseModel):
 @router.post("/search/trials", response_model=TrialSearchResponse)
 async def search_trials(
     request: TrialSearchRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     Search ClinicalTrials.gov for clinical trials.
     """
+    logger.info(f"search_trials - user_id={current_user.user_id}, condition={request.condition}, intervention={request.intervention}")
+
     from services.clinical_trials_service import get_clinical_trials_service
 
     try:
@@ -190,7 +193,7 @@ async def search_trials(
                 break
             page_token = next_token
 
-        logger.info(f"Retrieved {len(all_trials)} trials from {total_count} total matches")
+        logger.info(f"search_trials complete - user_id={current_user.user_id}, trials={len(all_trials)}, total={total_count}")
 
         return TrialSearchResponse(
             trials=all_trials,
@@ -198,8 +201,10 @@ async def search_trials(
             returned_count=len(all_trials)
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Clinical trials search failed: {e}", exc_info=True)
+        logger.error(f"search_trials failed - user_id={current_user.user_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Clinical trials search failed: {str(e)}"
@@ -214,10 +219,11 @@ class TrialDetailRequest(BaseModel):
 @router.post("/trials/detail", response_model=CanonicalClinicalTrial)
 async def get_trial_detail(
     request: TrialDetailRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get detailed information about a specific clinical trial."""
+    logger.info(f"get_trial_detail - user_id={current_user.user_id}, nct_id={request.nct_id}")
+
     from services.clinical_trials_service import get_clinical_trials_service
 
     try:
@@ -225,17 +231,19 @@ async def get_trial_detail(
         trial = service.get_trial_by_nct_id(request.nct_id)
 
         if not trial:
+            logger.warning(f"get_trial_detail - not found - user_id={current_user.user_id}, nct_id={request.nct_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Trial {request.nct_id} not found"
             )
 
+        logger.info(f"get_trial_detail complete - user_id={current_user.user_id}, nct_id={request.nct_id}")
         return trial
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get trial {request.nct_id}: {e}", exc_info=True)
+        logger.error(f"get_trial_detail failed - user_id={current_user.user_id}, nct_id={request.nct_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get trial details: {str(e)}"
@@ -249,10 +257,10 @@ async def get_trial_detail(
 class FilterRequest(BaseModel):
     """Request to filter items using AI (for boolean/number AI columns)"""
     items: List[Dict[str, Any]] = Field(..., description="Items to filter (articles or trials)")
-    item_type: str = Field("article", description="Type of items: 'article' or 'trial'")
+    item_type: Literal["article", "trial"] = Field("article", description="Type of items")
     criteria: str = Field(..., description="Natural language filter criteria")
     threshold: float = Field(0.5, ge=0.0, le=1.0, description="Minimum score to pass")
-    output_type: str = Field("boolean", description="Output type: 'boolean' or 'number'")
+    output_type: Literal["boolean", "number"] = Field("boolean", description="Output type")
 
 
 class FilterResultItem(BaseModel):
@@ -274,7 +282,6 @@ class FilterResponse(BaseModel):
 @router.post("/filter", response_model=FilterResponse)
 async def filter_items(
     request: FilterRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -283,6 +290,8 @@ async def filter_items(
     For boolean output: Returns passed=true/false based on criteria match
     For number output: Returns score representing the evaluation
     """
+    logger.info(f"filter_items - user_id={current_user.user_id}, item_type={request.item_type}, items={len(request.items)}, output_type={request.output_type}")
+
     from services.semantic_filter_service import SemanticFilterService
 
     try:
@@ -318,6 +327,7 @@ async def filter_items(
 
         passed_count = sum(1 for r in results if r.passed)
 
+        logger.info(f"filter_items complete - user_id={current_user.user_id}, processed={len(results)}, passed={passed_count}")
         return FilterResponse(
             results=results,
             count=len(results),
@@ -325,8 +335,10 @@ async def filter_items(
             failed=len(results) - passed_count
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Filter operation failed: {e}", exc_info=True)
+        logger.error(f"filter_items failed - user_id={current_user.user_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Filter operation failed: {str(e)}"
@@ -340,7 +352,7 @@ async def filter_items(
 class ExtractRequest(BaseModel):
     """Request to extract text from items (for text AI columns)"""
     items: List[Dict[str, Any]] = Field(..., description="Items to extract from (articles or trials)")
-    item_type: str = Field("article", description="Type of items: 'article' or 'trial'")
+    item_type: Literal["article", "trial"] = Field("article", description="Type of items")
     prompt: str = Field(..., description="What to extract (e.g., 'What is the study design?')")
 
 
@@ -363,7 +375,6 @@ class ExtractResponse(BaseModel):
 @router.post("/extract", response_model=ExtractResponse)
 async def extract_from_items(
     request: ExtractRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -371,6 +382,8 @@ async def extract_from_items(
 
     Uses the extraction service to pull specific information based on the prompt.
     """
+    logger.info(f"extract_from_items - user_id={current_user.user_id}, item_type={request.item_type}, items={len(request.items)}")
+
     from services.extraction_service import get_extraction_service
 
     try:
@@ -446,6 +459,7 @@ async def extract_from_items(
                     reasoning=extraction.get("reasoning", "")
                 ))
 
+        logger.info(f"extract_from_items complete - user_id={current_user.user_id}, succeeded={succeeded}, failed={failed}")
         return ExtractResponse(
             results=results,
             count=len(results),
@@ -453,8 +467,10 @@ async def extract_from_items(
             failed=failed
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Extract operation failed: {e}", exc_info=True)
+        logger.error(f"extract_from_items failed - user_id={current_user.user_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Extract operation failed: {str(e)}"
