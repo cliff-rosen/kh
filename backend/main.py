@@ -59,7 +59,6 @@ async def token_refresh_middleware(request: Request, call_next):
     # Check if a new token was generated during validation
     if hasattr(request.state, 'new_token') and request.state.new_token:
         response.headers["X-New-Token"] = request.state.new_token
-        logger.debug("Added X-New-Token header to response")
 
     return response
 

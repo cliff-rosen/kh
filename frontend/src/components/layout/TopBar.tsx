@@ -10,9 +10,7 @@ import { trackEvent } from '../../lib/api/trackingApi';
 export default function TopBar() {
     const { isDarkMode, toggleTheme } = useTheme();
     const location = useLocation();
-    const { logout, isPlatformAdmin, isOrgAdmin, user } = useAuth();
-
-    console.log('[TopBar] render - user role:', user?.role, 'isPlatformAdmin:', isPlatformAdmin, 'isOrgAdmin:', isOrgAdmin);
+    const { logout, isPlatformAdmin, isOrgAdmin } = useAuth();
 
     const getLinkClass = (path: string) => {
         const isActive = location.pathname === path;

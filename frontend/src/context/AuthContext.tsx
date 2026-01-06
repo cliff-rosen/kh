@@ -348,10 +348,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
      * Handle token refresh - update user state if role or other info changed
      */
     const handleTokenRefreshed = useCallback((payload: TokenPayload) => {
-        console.log('[AuthContext] handleTokenRefreshed called with payload:', payload)
-
         setUser(prevUser => {
-            console.log('[AuthContext] prevUser:', prevUser)
             if (!prevUser) return prevUser
 
             const newUser: AuthUser = {
@@ -361,26 +358,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 role: payload.role as UserRole,
                 org_id: payload.org_id ?? undefined
             }
-            console.log('[AuthContext] newUser:', newUser)
 
             // Check if anything actually changed
             const changed = prevUser.role !== newUser.role ||
                            prevUser.org_id !== newUser.org_id ||
                            prevUser.email !== newUser.email
 
-            console.log('[AuthContext] changed:', changed, {
-                roleChanged: prevUser.role !== newUser.role,
-                orgIdChanged: prevUser.org_id !== newUser.org_id,
-                emailChanged: prevUser.email !== newUser.email
-            })
-
             if (changed) {
-                console.log('[AuthContext] Updating user state:', {
-                    oldRole: prevUser.role,
-                    newRole: newUser.role,
-                    oldOrgId: prevUser.org_id,
-                    newOrgId: newUser.org_id
-                })
                 // Update localStorage
                 localStorage.setItem('user', JSON.stringify(newUser))
                 return newUser

@@ -72,8 +72,9 @@ def create_access_token(data: TokenPayload, expires_delta: Optional[timedelta] =
     now = datetime.utcnow()
 
     # Add issued-at time if not already present
+    # Use time.time() for consistent UTC timestamp (datetime.utcnow().timestamp() has timezone issues)
     if "iat" not in to_encode:
-        to_encode["iat"] = int(now.timestamp())
+        to_encode["iat"] = int(time.time())
 
     if expires_delta:
         expire = now + expires_delta
@@ -318,8 +319,9 @@ async def validate_token(
         iat_timestamp = payload.get('iat')  # issued-at time
 
         should_refresh = False
+        current_time = int(time.time())
+
         if exp_timestamp:
-            current_time = int(time.time())
             time_until_expiry = exp_timestamp - current_time
 
             # Calculate token lifetime and how much has been used
@@ -330,15 +332,14 @@ async def validate_token(
 
                 if lifetime_used >= TOKEN_REFRESH_THRESHOLD:
                     should_refresh = True
-                    logger.debug(f"Token at {lifetime_used:.0%} of lifetime - will refresh")
             else:
                 # No iat claim - use expiry time to estimate
                 # If less than 20% of default lifetime remains, refresh
                 total_lifetime_seconds = ACCESS_TOKEN_EXPIRE_MINUTES * 60
                 threshold_seconds = total_lifetime_seconds * (1 - TOKEN_REFRESH_THRESHOLD)
+
                 if time_until_expiry < threshold_seconds:
                     should_refresh = True
-                    logger.debug(f"Token expires in {time_until_expiry}s - will refresh")
 
         # Generate new token if refresh needed or role changed
         if should_refresh or role_changed:
@@ -353,7 +354,7 @@ async def validate_token(
             }
             new_token = create_access_token(data=new_token_data)
             request.state.new_token = new_token
-            logger.info(f"Generated refresh token for {email}")
+            logger.debug(f"Generated refresh token for {email}")
 
         logger.debug(f"Token validated for: {email}")
         return user
