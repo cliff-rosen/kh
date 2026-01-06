@@ -211,7 +211,7 @@ class TrialDetailRequest(BaseModel):
     nct_id: str = Field(..., description="NCT identifier (e.g., NCT00000000)")
 
 
-@router.post("/trials/detail")
+@router.post("/trials/detail", response_model=CanonicalClinicalTrial)
 async def get_trial_detail(
     request: TrialDetailRequest,
     db: Session = Depends(get_db),

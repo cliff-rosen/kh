@@ -1,5 +1,15 @@
 
 
+
+Tablizer
+  props
+    data as inputData
+    columns as inputColumns
+  state
+    baseRows (maps from inputData )
+
+
+
 PubMedAppPage
     <PubMedWorkbench
         ref={pubMedWorkbenchRef}
