@@ -454,15 +454,47 @@ function TablizerInner<T extends object>(
             // Build a map of results by ID
             const resultMap = new Map(results.map(r => [r.id, r]));
 
-            // Map results back to display rows
-            const updatedRows = [...rowData];
-            const totalForProgress = aiData.length;
+            // Build rows from aiData directly (rowData might be stale after fetchMoreForAI)
+            // Also preserve any existing AI column values from current rowData
+            const existingAiValues = new Map<string, Record<string, unknown>>();
+            const existingAiColumnIds = columns.filter(c => c.type === 'ai' && c.id !== columnId).map(c => c.id);
+            for (const row of rowData) {
+                const aiVals: Record<string, unknown> = {};
+                for (const colId of existingAiColumnIds) {
+                    if (row[colId] !== undefined) {
+                        aiVals[colId] = row[colId];
+                    }
+                }
+                if (Object.keys(aiVals).length > 0) {
+                    existingAiValues.set(row.id, aiVals);
+                }
+            }
 
-            for (let i = 0; i < updatedRows.length; i++) {
-                const result = resultMap.get(updatedRows[i].id);
+            // Convert aiData to rows and apply ALL results
+            const updatedRows: TableRow[] = aiData.map((item, idx) => {
+                const itemId = getItemId(item, idField) || `row_${idx}`;
+                const row: TableRow = { id: itemId };
+
+                // Copy base fields from item
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const itemAny = item as any;
+                for (const col of inputColumns) {
+                    if (col.type !== 'ai') {
+                        const value = itemAny[col.accessor];
+                        row[col.accessor] = Array.isArray(value) ? value.join(', ') : value;
+                    }
+                }
+
+                // Restore existing AI column values
+                const existingVals = existingAiValues.get(itemId);
+                if (existingVals) {
+                    Object.assign(row, existingVals);
+                }
+
+                // Apply new AI result
+                const result = resultMap.get(itemId);
                 if (result) {
                     let value: string | number | boolean;
-
                     if (outputType === 'boolean') {
                         value = result.passed ? 'Yes' : 'No';
                     } else if (outputType === 'number') {
@@ -470,12 +502,14 @@ function TablizerInner<T extends object>(
                     } else {
                         value = result.reasoning;
                     }
-
-                    updatedRows[i] = { ...updatedRows[i], [columnId]: value };
+                    row[columnId] = value;
                 }
-                setProcessingProgress({ current: i + 1, total: totalForProgress });
-                setRowData([...updatedRows]);
-            }
+
+                return row;
+            });
+
+            setRowData(updatedRows);
+            setProcessingProgress({ current: aiData.length, total: aiData.length });
 
             // Track successful completion
             trackEvent('tablizer_add_column_complete', {
@@ -485,14 +519,14 @@ function TablizerInner<T extends object>(
             });
         } catch (err) {
             console.error('Error processing AI column:', err);
-            // Mark all as error
+            // Mark all as error - use current rowData since we failed
             const updatedRows = rowData.map(row => ({ ...row, [columnId]: 'Error' }));
             setRowData(updatedRows);
         } finally {
             setProcessingColumn(null);
             setProcessingProgress({ current: 0, total: 0 });
         }
-    }, [dataForAiProcessing, rowData, onFetchMoreForAI, onProcessAIColumn]);
+    }, [dataForAiProcessing, rowData, columns, idField, inputColumns, onFetchMoreForAI, onProcessAIColumn]);
 
     // Export to CSV
     const handleExport = useCallback(() => {
