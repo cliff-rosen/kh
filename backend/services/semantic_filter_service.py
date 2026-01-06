@@ -11,11 +11,14 @@ Supports two modes:
 """
 
 import re
+import logging
 from typing import Tuple, List, Any, Dict, TYPE_CHECKING
 from datetime import datetime
 import asyncio
 
 from models import WipArticle, Article
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from schemas.canonical_types import CanonicalResearchArticle
@@ -202,16 +205,41 @@ class SemanticFilterService:
 
         # Extract result
         llm_response = result.result
+        logger.info(f"LLM raw response type: {type(llm_response)}")
+
         if hasattr(llm_response, 'model_dump'):
             response_data = llm_response.model_dump()
         elif hasattr(llm_response, 'dict'):
             response_data = llm_response.dict()
-        else:
+        elif isinstance(llm_response, dict):
             response_data = llm_response
+        elif isinstance(llm_response, str):
+            # Try to parse as JSON if it's a string
+            import json
+            try:
+                response_data = json.loads(llm_response)
+            except json.JSONDecodeError:
+                logger.error(f"Failed to parse LLM response as JSON: {llm_response[:200]}")
+                response_data = {}
+        else:
+            logger.warning(f"Unexpected LLM response type: {type(llm_response)}, value: {llm_response}")
+            response_data = {}
 
-        score = response_data.get("score", 0)
-        reasoning = response_data.get("reasoning", "")
-        text_value = response_data.get("text_value", "")  # For text output type
+        logger.info(f"Parsed response_data: {response_data}")
+
+        score = response_data.get("score", 0) if isinstance(response_data, dict) else 0
+        reasoning = response_data.get("reasoning", "") if isinstance(response_data, dict) else ""
+        text_value = response_data.get("text_value", "") if isinstance(response_data, dict) else ""
+
+        # Ensure score is a number
+        if not isinstance(score, (int, float)):
+            logger.warning(f"Score is not a number: {score} (type: {type(score)})")
+            try:
+                score = float(score)
+            except (ValueError, TypeError):
+                score = 0
+
+        logger.info(f"Final score: {score}, reasoning preview: {reasoning[:100] if reasoning else 'None'}...")
 
         is_relevant = score >= threshold
         return is_relevant, score, reasoning, text_value

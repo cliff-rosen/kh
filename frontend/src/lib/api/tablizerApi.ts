@@ -187,6 +187,10 @@ export const tablizerApi = {
      *
      * This is the main entry point for Tablizer AI columns.
      * Returns a unified AIColumnResult format regardless of output type.
+     *
+     * - boolean: Uses filter endpoint (returns Yes/No based on criteria match)
+     * - number: Uses filter endpoint (returns 0-1 relevance score)
+     * - text: Uses extract endpoint (returns text answer/classification)
      */
     async processAIColumn(params: {
         items: Record<string, unknown>[];
