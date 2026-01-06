@@ -307,7 +307,7 @@ class SemanticFilterService:
                             elif isinstance(value, (int, float)):
                                 article_data[key] = str(value)
 
-                    is_relevant, score, reasoning = await self._evaluate_single(
+                    is_relevant, score, reasoning, text_value = await self._evaluate_single(
                         article_title=title,
                         article_abstract=abstract or "",
                         article_journal=journal,
@@ -317,7 +317,9 @@ class SemanticFilterService:
                         article_data=article_data,
                         output_type=output_type
                     )
-                    return article, is_relevant, score, reasoning
+                    # For text output type, use text_value as the reasoning (it's the actual answer)
+                    final_reasoning = text_value if output_type == "text" and text_value else reasoning
+                    return article, is_relevant, score, final_reasoning
                 except Exception as e:
                     # On error, reject the article with error message
                     return article, False, 0.0, f"Evaluation failed: {str(e)}"
