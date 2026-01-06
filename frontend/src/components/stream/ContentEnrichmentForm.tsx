@@ -102,6 +102,7 @@ export default function ContentEnrichmentForm({
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [slugsPaneCollapsed, setSlugsPaneCollapsed] = useState(false);
+    const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
     const [resultsPaneMode, setResultsPaneMode] = useState<ResultsPaneMode>('collapsed');
     const [showRenderedPrompts, setShowRenderedPrompts] = useState(false);
 
@@ -290,8 +291,12 @@ export default function ContentEnrichmentForm({
     };
 
     // Copy to clipboard
-    const handleCopySlug = (text: string) => {
-        copyToClipboard(text);
+    const handleCopySlug = async (slug: string) => {
+        const result = await copyToClipboard(slug);
+        if (result.success) {
+            setCopiedSlug(slug);
+            setTimeout(() => setCopiedSlug(null), 2000);
+        }
     };
 
     // History navigation
@@ -579,7 +584,11 @@ export default function ContentEnrichmentForm({
                                                 <code className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 px-1.5 py-0.5 rounded font-mono">
                                                     {slug.slug}
                                                 </code>
-                                                <ClipboardDocumentIcon className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100" />
+                                                {copiedSlug === slug.slug ? (
+                                                    <span className="text-xs text-green-600 dark:text-green-400 font-medium">Copied!</span>
+                                                ) : (
+                                                    <ClipboardDocumentIcon className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100" />
+                                                )}
                                             </div>
                                             <span className="text-xs text-gray-500 dark:text-gray-400">
                                                 {slug.description}

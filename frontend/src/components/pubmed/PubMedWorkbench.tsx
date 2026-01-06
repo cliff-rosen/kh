@@ -10,7 +10,8 @@ import {
     PlusCircleIcon,
     FunnelIcon,
     MagnifyingGlassIcon,
-    XMarkIcon
+    XMarkIcon,
+    CheckIcon
 } from '@heroicons/react/24/outline';
 import { AIColumnInfo, TablizerRef } from '../tools/Tablizer';
 import PubMedTable from './PubMedTable';
@@ -137,6 +138,9 @@ const PubMedWorkbench = forwardRef<PubMedWorkbenchRef, PubMedWorkbenchProps>(fun
 
     // Counter to trigger search execution (increment to trigger)
     const [searchTrigger, setSearchTrigger] = useState(0);
+
+    // Clipboard feedback state
+    const [copiedQuery, setCopiedQuery] = useState(false);
 
     // Add search snapshot to history
     const addSearchSnapshot = useCallback((articles: CanonicalResearchArticle[], total: number, pmids: string[]) => {
@@ -583,13 +587,26 @@ const PubMedWorkbench = forwardRef<PubMedWorkbenchRef, PubMedWorkbenchProps>(fun
                                                 onClick={async () => {
                                                     const source = selectedSnapshot.source;
                                                     if (source.type !== 'search') return;
-                                                    await copyToClipboard(source.query);
+                                                    const result = await copyToClipboard(source.query);
+                                                    if (result.success) {
+                                                        setCopiedQuery(true);
+                                                        setTimeout(() => setCopiedQuery(false), 2000);
+                                                    }
                                                     trackEvent('pubmed_copy_query', {});
                                                 }}
                                                 className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                                             >
-                                                <ClipboardDocumentIcon className="h-3.5 w-3.5" />
-                                                Copy query
+                                                {copiedQuery ? (
+                                                    <>
+                                                        <CheckIcon className="h-3.5 w-3.5 text-green-500" />
+                                                        <span className="text-green-600 dark:text-green-400">Copied!</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <ClipboardDocumentIcon className="h-3.5 w-3.5" />
+                                                        Copy query
+                                                    </>
+                                                )}
                                             </button>
                                         )}
                                         <button
