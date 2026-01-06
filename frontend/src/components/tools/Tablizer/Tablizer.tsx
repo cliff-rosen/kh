@@ -50,7 +50,8 @@ export interface AIColumnResult {
     id: string;        // Row ID
     passed: boolean;   // For boolean output
     score: number;     // For number output
-    reasoning: string; // For text output
+    reasoning: string; // Explanation
+    text_value?: string; // For text output - the actual extracted answer
 }
 
 // Props passed to RowViewer component
@@ -70,9 +71,6 @@ export interface TablizerProps<T extends object = Record<string, any>> {
 
     // REQUIRED: Column definitions
     columns: TableColumn[];
-
-    // Optional: Larger set for AI processing (deprecated - parent should handle fetch)
-    filterData?: T[];
 
     // Optional: Title shown in toolbar (default: "Tablizer")
     title?: string;
@@ -143,7 +141,6 @@ function TablizerInner<T extends object>(
         data: inputData,
         idField,
         columns: inputColumns,
-        filterData,
         title = 'Tablizer',
         rowLabel = 'rows',
         onClose,
@@ -439,7 +436,8 @@ function TablizerInner<T extends object>(
 
         // Fetch more data if needed before AI processing
         // This triggers parent to expand its data, which will update inputData prop
-        let aiData: T[] = filterData || inputData;
+        // We use the returned data for AI processing (inputData prop updates asynchronously)
+        let aiData: T[] = inputData;
         if (onFetchMoreForAI) {
             aiData = await onFetchMoreForAI();
         }
@@ -461,7 +459,9 @@ function TablizerInner<T extends object>(
                 } else if (outputType === 'number') {
                     value = result.score;
                 } else {
-                    value = result.reasoning;
+                    // For text type, use text_value (the actual extracted answer)
+                    // Fall back to reasoning if text_value is not present
+                    value = result.text_value || result.reasoning;
                 }
                 columnValues[result.id] = value;
             }
@@ -497,7 +497,7 @@ function TablizerInner<T extends object>(
             setProcessingColumn(null);
             setProcessingProgress({ current: 0, total: 0 });
         }
-    }, [inputData, filterData, baseRows, onFetchMoreForAI, onProcessAIColumn]);
+    }, [inputData, baseRows, onFetchMoreForAI, onProcessAIColumn]);
 
     // Export to CSV
     const handleExport = useCallback(() => {

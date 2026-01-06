@@ -666,7 +666,6 @@ const PubMedWorkbench = forwardRef<PubMedWorkbenchRef, PubMedWorkbenchProps>(fun
                                     <PubMedTable
                                         ref={tablizerRef}
                                         articles={displayArticles}
-                                        filterArticles={displayData.articles}
                                         onSaveToHistory={handleSaveFilteredToHistory}
                                         onFetchMoreForAI={selectedSnapshotId ? undefined : fetchMoreForAI}
                                         onColumnsChange={setAiColumns}

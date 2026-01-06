@@ -10,7 +10,6 @@ import { tablizerApi } from '../../lib/api/tablizerApi';
 
 export interface PubMedTableProps {
     articles: CanonicalResearchArticle[];
-    filterArticles?: CanonicalResearchArticle[];
     onSaveToHistory?: (filteredIds: string[], filterDescription: string) => void;
     onFetchMoreForAI?: () => Promise<CanonicalResearchArticle[]>;
     onColumnsChange?: (aiColumns: Array<{ name: string; type: string; filterActive?: boolean }>) => void;
@@ -53,7 +52,6 @@ function ArticleRowViewer({ data, initialIndex, onClose }: RowViewerProps<Canoni
 
 const PubMedTable = forwardRef<TablizerRef, PubMedTableProps>(function PubMedTable({
     articles,
-    filterArticles,
     onSaveToHistory,
     onFetchMoreForAI,
     onColumnsChange
@@ -79,7 +77,6 @@ const PubMedTable = forwardRef<TablizerRef, PubMedTableProps>(function PubMedTab
             data={articles}
             idField="pmid"
             columns={PUBMED_COLUMNS}
-            filterData={filterArticles}
             rowLabel="articles"
             RowViewer={ArticleRowViewer}
             onProcessAIColumn={handleProcessAIColumn}
