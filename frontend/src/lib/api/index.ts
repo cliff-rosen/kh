@@ -1,12 +1,43 @@
 import axios from 'axios';
 import settings from '../../config/settings';
 
-// Add this to store the handleSessionExpired callback
+// Callback for session expiration
 let sessionExpiredHandler: (() => void) | null = null;
 
 export const setSessionExpiredHandler = (handler: () => void) => {
   sessionExpiredHandler = handler;
 };
+
+// Callback for token refresh - receives decoded token payload
+export interface TokenPayload {
+  sub: string;      // email
+  user_id: number;
+  org_id: number | null;
+  username: string;
+  role: string;
+  iat: number;
+  exp: number;
+}
+
+let tokenRefreshedHandler: ((payload: TokenPayload) => void) | null = null;
+
+export const setTokenRefreshedHandler = (handler: (payload: TokenPayload) => void) => {
+  tokenRefreshedHandler = handler;
+};
+
+/**
+ * Decode a JWT token payload (without verification - that's done server-side)
+ */
+function decodeTokenPayload(token: string): TokenPayload | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1]));
+    return payload as TokenPayload;
+  } catch {
+    return null;
+  }
+}
 
 export const api = axios.create({
   baseURL: settings.apiUrl,
@@ -41,7 +72,33 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Check for refreshed token in response header
+    const newToken = response.headers['x-new-token'];
+    if (newToken) {
+      // Determine which token storage to update based on current path
+      const isPubMed = window.location.pathname.startsWith('/pubmed');
+      const isTrialScout = window.location.pathname.startsWith('/trialscout');
+
+      if (isPubMed) {
+        localStorage.setItem('pubmed_token', newToken);
+      } else if (isTrialScout) {
+        localStorage.setItem('trialscout_token', newToken);
+      } else {
+        localStorage.setItem('authToken', newToken);
+
+        // Notify AuthContext of the refreshed token so it can update user state
+        if (tokenRefreshedHandler) {
+          const payload = decodeTokenPayload(newToken);
+          if (payload) {
+            tokenRefreshedHandler(payload);
+          }
+        }
+      }
+      console.debug('Token refreshed silently');
+    }
+    return response;
+  },
   (error) => {
     console.log('API Error:', error);
     // Check for authentication/authorization errors

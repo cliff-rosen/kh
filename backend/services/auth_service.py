@@ -10,10 +10,10 @@ User CRUD operations are handled by user_service.
 """
 
 from datetime import datetime, timedelta
-from typing import Optional
-from jose import JWTError, jwt
+from typing import Optional, TypedDict
+from jose import JWTError, ExpiredSignatureError, jwt
 from passlib.context import CryptContext
-from fastapi import HTTPException, status, Depends, Security
+from fastapi import HTTPException, status, Depends, Security, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from models import User
@@ -29,9 +29,22 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = settings.JWT_SECRET_KEY
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
+# Refresh token when this percentage of lifetime has passed (e.g., 0.8 = 80%)
+TOKEN_REFRESH_THRESHOLD = 0.8
 logger = logging.getLogger(__name__)
 
 security = HTTPBearer()
+
+
+class TokenPayload(TypedDict, total=False):
+    """Strongly-typed JWT token payload."""
+    sub: str          # Subject (email)
+    user_id: int      # User ID
+    org_id: int       # Organization ID (can be None but typed as int for simplicity)
+    username: str     # Display username
+    role: str         # User role value
+    iat: int          # Issued-at timestamp (added automatically)
+    exp: datetime     # Expiration (added automatically)
 
 
 def get_password_hash(password: str) -> str:
@@ -44,22 +57,28 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: TokenPayload, expires_delta: Optional[timedelta] = None) -> str:
     """
     Create a JWT access token.
 
     Args:
-        data: Token payload data (should include sub, user_id, role, etc.)
+        data: Token payload data
         expires_delta: Optional custom expiration time
 
     Returns:
         Encoded JWT token string
     """
-    to_encode = data.copy()
+    to_encode: dict = dict(data)
+    now = datetime.utcnow()
+
+    # Add issued-at time if not already present
+    if "iat" not in to_encode:
+        to_encode["iat"] = int(now.timestamp())
+
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = now + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     logger.info(f"Created access token for user_id={data.get('user_id')}")
@@ -224,6 +243,7 @@ async def login_user(db: Session, email: str, password: str) -> Token:
 
 
 async def validate_token(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Security(security),
     db: Session = Depends(get_db)
 ) -> User:
@@ -232,7 +252,12 @@ async def validate_token(
 
     This is used as a dependency in routers: Depends(auth_service.validate_token)
 
+    If the token is valid but past the refresh threshold (80% of lifetime),
+    a new token is generated and stored in request.state.new_token for
+    the middleware to return in the response header.
+
     Args:
+        request: FastAPI request object (for storing refresh token)
         credentials: HTTP Authorization header with Bearer token
         db: Database session
 
@@ -243,7 +268,7 @@ async def validate_token(
         HTTPException: If token invalid or user not found
     """
     try:
-        logger.info("[AUTH] validate_token called")
+        logger.debug("[AUTH] validate_token called")
         token = credentials.credentials
         logger.debug(f"Validating token: {token[:10]}...")
 
@@ -252,6 +277,8 @@ async def validate_token(
         email: str = payload.get("sub")
         username: str = payload.get("username")
         role: str = payload.get("role")
+        user_id: int = payload.get("user_id")
+        org_id: int = payload.get("org_id")
 
         if email is None:
             logger.error("Token missing email claim")
@@ -259,12 +286,6 @@ async def validate_token(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token payload"
             )
-
-        # Log token expiry info
-        exp_timestamp = payload.get('exp')
-        if exp_timestamp:
-            time_until_expiry = exp_timestamp - int(time.time())
-            logger.debug(f"Token expires in {time_until_expiry} seconds")
 
         # Get user from database
         user_service = UserService(db)
@@ -287,18 +308,67 @@ async def validate_token(
         # Add username to user object for convenience
         user.username = username
 
-        # Warn if role has changed since token was issued
-        if role and user.role.value != role:
-            logger.warning(f"Role mismatch for {email}: token={role}, db={user.role.value}")
+        # Check if role has changed - if so, force a token refresh with new role
+        role_changed = role and user.role.value != role
+        if role_changed:
+            logger.info(f"Role changed for {email}: token={role}, db={user.role.value} - will refresh token")
+
+        # Check if token needs refresh (past threshold of lifetime)
+        exp_timestamp = payload.get('exp')
+        iat_timestamp = payload.get('iat')  # issued-at time
+
+        should_refresh = False
+        if exp_timestamp:
+            current_time = int(time.time())
+            time_until_expiry = exp_timestamp - current_time
+
+            # Calculate token lifetime and how much has been used
+            if iat_timestamp:
+                total_lifetime = exp_timestamp - iat_timestamp
+                time_elapsed = current_time - iat_timestamp
+                lifetime_used = time_elapsed / total_lifetime if total_lifetime > 0 else 0
+
+                if lifetime_used >= TOKEN_REFRESH_THRESHOLD:
+                    should_refresh = True
+                    logger.debug(f"Token at {lifetime_used:.0%} of lifetime - will refresh")
+            else:
+                # No iat claim - use expiry time to estimate
+                # If less than 20% of default lifetime remains, refresh
+                total_lifetime_seconds = ACCESS_TOKEN_EXPIRE_MINUTES * 60
+                threshold_seconds = total_lifetime_seconds * (1 - TOKEN_REFRESH_THRESHOLD)
+                if time_until_expiry < threshold_seconds:
+                    should_refresh = True
+                    logger.debug(f"Token expires in {time_until_expiry}s - will refresh")
+
+        # Generate new token if refresh needed or role changed
+        if should_refresh or role_changed:
+            # Use current user data from DB (picks up role changes, org changes, etc.)
+            new_token_data = {
+                "sub": user.email,
+                "user_id": user.user_id,
+                "org_id": user.org_id,
+                "username": user.email.split('@')[0],
+                "role": user.role.value,
+                "iat": int(time.time())  # Add issued-at for future refresh calculations
+            }
+            new_token = create_access_token(data=new_token_data)
+            request.state.new_token = new_token
+            logger.info(f"Generated refresh token for {email}")
 
         logger.debug(f"Token validated for: {email}")
         return user
 
+    except ExpiredSignatureError:
+        logger.info("Token expired")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token expired"
+        )
     except JWTError as e:
         logger.error(f"JWT validation error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token format or signature"
+            detail="Invalid token"
         )
     except HTTPException:
         raise

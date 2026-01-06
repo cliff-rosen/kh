@@ -33,15 +33,35 @@ app = FastAPI(
 # Add logging middleware
 app.add_middleware(LoggingMiddleware, request_id_filter=request_id_filter)
 
-# CORS configuration
+# CORS configuration - include X-New-Token in exposed headers for token refresh
+cors_expose_headers = list(settings.CORS_EXPOSE_HEADERS) + ["X-New-Token"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
     allow_methods=settings.CORS_ALLOW_METHODS,
     allow_headers=settings.CORS_ALLOW_HEADERS,
-    expose_headers=settings.CORS_EXPOSE_HEADERS,
+    expose_headers=cors_expose_headers,
 )
+
+
+@app.middleware("http")
+async def token_refresh_middleware(request: Request, call_next):
+    """
+    Middleware to inject refreshed token into response header.
+
+    If validate_token() determines the token needs refresh, it stores
+    the new token in request.state.new_token. This middleware reads it
+    and adds it to the response header so the frontend can update its stored token.
+    """
+    response = await call_next(request)
+
+    # Check if a new token was generated during validation
+    if hasattr(request.state, 'new_token') and request.state.new_token:
+        response.headers["X-New-Token"] = request.state.new_token
+        logger.debug("Added X-New-Token header to response")
+
+    return response
 
 # Include routers
 logger.info("Including routers...")

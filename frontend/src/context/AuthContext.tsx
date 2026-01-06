@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { authApi, type LoginCredentials, type RegisterCredentials } from '../lib/api/authApi'
+import { setTokenRefreshedHandler, type TokenPayload } from '../lib/api'
+import { setStreamTokenRefreshedHandler } from '../lib/api/streamUtils'
 import { trackEvent } from '../lib/api/trackingApi'
 import type { AuthUser, UserRole } from '../types/user'
 
@@ -341,6 +343,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout()
         setError('Your session has expired. Please login again.')
     }
+
+    /**
+     * Handle token refresh - update user state if role or other info changed
+     */
+    const handleTokenRefreshed = useCallback((payload: TokenPayload) => {
+        console.log('[AuthContext] handleTokenRefreshed called with payload:', payload)
+
+        setUser(prevUser => {
+            console.log('[AuthContext] prevUser:', prevUser)
+            if (!prevUser) return prevUser
+
+            const newUser: AuthUser = {
+                id: payload.user_id,
+                username: payload.username,
+                email: payload.sub,
+                role: payload.role as UserRole,
+                org_id: payload.org_id ?? undefined
+            }
+            console.log('[AuthContext] newUser:', newUser)
+
+            // Check if anything actually changed
+            const changed = prevUser.role !== newUser.role ||
+                           prevUser.org_id !== newUser.org_id ||
+                           prevUser.email !== newUser.email
+
+            console.log('[AuthContext] changed:', changed, {
+                roleChanged: prevUser.role !== newUser.role,
+                orgIdChanged: prevUser.org_id !== newUser.org_id,
+                emailChanged: prevUser.email !== newUser.email
+            })
+
+            if (changed) {
+                console.log('[AuthContext] Updating user state:', {
+                    oldRole: prevUser.role,
+                    newRole: newUser.role,
+                    oldOrgId: prevUser.org_id,
+                    newOrgId: newUser.org_id
+                })
+                // Update localStorage
+                localStorage.setItem('user', JSON.stringify(newUser))
+                return newUser
+            }
+
+            return prevUser
+        })
+    }, [])
+
+    // Register token refresh handlers (axios and streaming)
+    useEffect(() => {
+        setTokenRefreshedHandler(handleTokenRefreshed)
+        setStreamTokenRefreshedHandler(handleTokenRefreshed)
+    }, [handleTokenRefreshed])
 
     return (
         <AuthContext.Provider value={{

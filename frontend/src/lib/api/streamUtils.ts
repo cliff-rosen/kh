@@ -1,4 +1,5 @@
 import settings from '../../config/settings';
+import type { TokenPayload } from './index';
 
 export interface StreamUpdate {
     data: string;
@@ -12,12 +13,33 @@ export interface StreamError {
     endpoint: string;
 }
 
-// Add this to store the handleSessionExpired callback
+// Callback for session expiration
 let sessionExpiredHandler: (() => void) | null = null;
 
 export const setStreamSessionExpiredHandler = (handler: () => void) => {
     sessionExpiredHandler = handler;
 };
+
+// Callback for token refresh
+let tokenRefreshedHandler: ((payload: TokenPayload) => void) | null = null;
+
+export const setStreamTokenRefreshedHandler = (handler: (payload: TokenPayload) => void) => {
+    tokenRefreshedHandler = handler;
+};
+
+/**
+ * Decode a JWT token payload (without verification - that's done server-side)
+ */
+function decodeTokenPayload(token: string): TokenPayload | null {
+    try {
+        const parts = token.split('.');
+        if (parts.length !== 3) return null;
+        const payload = JSON.parse(atob(parts[1]));
+        return payload as TokenPayload;
+    } catch {
+        return null;
+    }
+}
 
 export async function* makeStreamRequest(
     endpoint: string,
@@ -78,6 +100,21 @@ export async function* makeStreamRequest(
             throw new Error('Authentication required');
         }
         throw new Error(`Stream request failed: ${response.statusText}`);
+    }
+
+    // Check for refreshed token in response header
+    const newToken = response.headers.get('x-new-token');
+    if (newToken) {
+        localStorage.setItem('authToken', newToken);
+        console.debug('Token refreshed silently (stream)');
+
+        // Notify AuthContext of the refreshed token so it can update user state
+        if (tokenRefreshedHandler) {
+            const payload = decodeTokenPayload(newToken);
+            if (payload) {
+                tokenRefreshedHandler(payload);
+            }
+        }
     }
 
     const reader = response.body?.getReader();
