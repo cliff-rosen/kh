@@ -203,6 +203,23 @@ class EvaluationResult(BaseModel):
     error: Optional[str] = None                      # Error message if evaluation failed
 ```
 
+### Value Types by Operation
+
+Each operation returns a specific type for `value`:
+
+| Operation | Type | Notes |
+|-----------|------|-------|
+| **filter** | `bool` | Always True or False. If undeterminable, set `error`. |
+| **score** | `float` | Always a number in the specified range. If unscorable, set `error`. |
+| **extract** | `str \| float \| bool \| None` | Type depends on `output_type`. `None` means info not present. |
+
+**When to use `None` vs `error`:**
+
+- `value=None, error=None` → Information not present in source data (valid result)
+- `value=None, error="..."` → Operation failed (API error, malformed response, etc.)
+
+Example: Extracting "sample size" from an abstract that doesn't mention participants returns `value=None` with no error. But if the LLM API times out, that's `error="Request timed out"`.
+
 ### Value vs Confidence
 
 These are two distinct concepts:
@@ -210,24 +227,29 @@ These are two distinct concepts:
 | Field | Meaning | Example |
 |-------|---------|---------|
 | **value** | The answer to the question asked | `True`, `0.7`, `"RCT"` |
-| **confidence** | How certain the LLM is about that answer | `0.95` |
+| **confidence** | How certain the LLM is based on evidence quality | `0.95` |
 
-**Filter example:**
-- Question: "Is this about cancer treatment?"
-- `value: True` — "Yes, it is"
-- `confidence: 0.95` — "I'm 95% sure about that yes"
+### Confidence Rubric (Operational Definition)
 
-**Score example:**
-- Question: "Rate relevance to cardiology (0-1)"
-- `value: 0.3` — "Low relevance"
-- `confidence: 0.85` — "I'm 85% sure 0.3 is the right score"
+Confidence is calibrated based on **evidence quality in the source data**, not subjective certainty:
 
-**Extract example:**
-- Question: "What is the study design?"
-- `value: "cohort study"` — The extracted answer
-- `confidence: 0.70` — "I'm 70% sure it's a cohort study (abstract was vague)"
+| Range | Meaning | When to Use |
+|-------|---------|-------------|
+| **0.9–1.0** | Explicit statement | Source text directly states the answer |
+| **0.7–0.89** | Strong inference | Answer derived from clear supporting context |
+| **0.4–0.69** | Weak inference | Ambiguous or partial evidence; educated guess |
+| **< 0.4** | Insufficient evidence | For extract: prefer `value=None` instead |
 
-Confidence is always 0-1 regardless of the score range. A score of 8 on a 1-10 scale might have confidence 0.6 if the LLM found the assessment difficult.
+**Examples:**
+
+- Abstract says "randomized controlled trial" → `value="RCT", confidence=0.95`
+- Abstract describes randomization without naming study type → `value="RCT", confidence=0.75`
+- Abstract is vague, mentions "participants were followed" → `value="cohort", confidence=0.5`
+- Abstract doesn't mention study design at all → `value=None, confidence=0.0` (for extract)
+
+**For filter/score** (where None is not valid): Low confidence (< 0.4) signals the answer is unreliable and callers should treat it cautiously.
+
+This rubric is embedded in the system prompts to ensure consistent calibration across all operations.
 
 ```python
 class FieldsResult(BaseModel):
@@ -267,24 +289,47 @@ The service owns all prompt templates. Callers provide:
 
 ### System Messages (Service-Owned)
 
+All system prompts include the confidence rubric for consistent calibration:
+
+```
+CONFIDENCE RUBRIC (included in all prompts):
+Rate your confidence based on evidence quality:
+- 0.9–1.0: Explicit statement in source text
+- 0.7–0.89: Strong inference with clear supporting context
+- 0.4–0.69: Weak inference or ambiguous evidence
+- Below 0.4: Insufficient evidence (for extraction, return null instead)
+```
+
 ```
 FILTER:
 You are a classification function that answers yes/no questions about data.
 Given source data and criteria, determine whether the answer is Yes or No.
+You must provide an answer (True or False) even when uncertain—use low confidence to signal unreliability.
+
+{CONFIDENCE RUBRIC}
 
 SCORE:
 You are a scoring function that rates data on a numeric scale.
 Given source data and criteria, provide a score within the specified range.
 {If interval specified: Use only values at the specified intervals.}
+You must provide a score even when uncertain—use low confidence to signal unreliability.
+
+{CONFIDENCE RUBRIC}
 
 EXTRACT (single value):
 You are an extraction function that extracts specific information from data.
 Given source data and an instruction, extract the requested value.
+If the information is not present in the source data, return null for value.
+
+{CONFIDENCE RUBRIC}
 
 EXTRACT FIELDS (schema-based):
 You are an extraction function that extracts structured data.
 Given source data and a schema, extract all requested fields.
 Follow per-field instructions where provided.
+For fields where information is not present, return null.
+
+{CONFIDENCE RUBRIC}
 ```
 
 ### User Message (Constructed from Caller Input)
