@@ -406,9 +406,10 @@ async def extract_from_items(
         extraction_items = []
         for item in request.items:
             item_id = item.get(id_field) or item.get("id", "")
+            # Spread item first, then override "id" to ensure correct ID is used
             extraction_items.append({
+                **item,
                 "id": item_id,
-                **item
             })
 
         # Run extraction
