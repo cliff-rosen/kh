@@ -253,6 +253,7 @@ class RefinementWorkbenchService:
                 criteria=filter_criteria,
                 id_field="pmid",
                 include_reasoning=True,
+                include_source_data=True,  # Include full article data for LLM context
                 max_concurrent=50
             )
         elif output_type == "number":
@@ -261,6 +262,7 @@ class RefinementWorkbenchService:
                 criteria=filter_criteria,
                 id_field="pmid",
                 include_reasoning=True,
+                include_source_data=True,  # Include full article data for LLM context
                 max_concurrent=50
             )
         else:  # "text"
@@ -270,6 +272,7 @@ class RefinementWorkbenchService:
                 id_field="pmid",
                 output_type="text",
                 include_reasoning=True,
+                include_source_data=True,  # Include full article data for LLM context
                 max_concurrent=50
             )
 

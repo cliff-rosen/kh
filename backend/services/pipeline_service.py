@@ -485,6 +485,7 @@ class PipelineService:
             min_value=0.0,
             max_value=1.0,
             include_reasoning=True,
+            include_source_data=True,  # Include full article data for LLM context
             max_concurrent=50
         )
 

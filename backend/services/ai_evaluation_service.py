@@ -304,14 +304,65 @@ class AIEvaluationService:
                 lines.append(f"{key}: {value}")
         return "\n".join(lines)
 
-    def _build_user_message(self, item_text: str, instruction: str) -> "ChatMessage":
-        """Build a ChatMessage for the LLM call."""
+    def _populate_template(self, template: str, item: Dict[str, Any]) -> str:
+        """
+        Populate a template string with item field values.
+
+        Replaces {field_name} placeholders with corresponding item values.
+        Unmatched placeholders are left as-is.
+
+        Args:
+            template: String with {field_name} placeholders
+            item: Dict with field values
+
+        Returns:
+            Template with placeholders replaced by item values
+        """
+        result = template
+        for key, value in item.items():
+            if value is not None:
+                # Handle lists (like authors)
+                if isinstance(value, list):
+                    value = ", ".join(str(v) for v in value)
+                # Replace {key} with value
+                result = result.replace(f"{{{key}}}", str(value))
+        return result
+
+    def _build_user_message(
+        self,
+        instruction: str,
+        item: Optional[Dict[str, Any]] = None,
+        include_source_data: bool = False
+    ) -> "ChatMessage":
+        """
+        Build a ChatMessage for the LLM call.
+
+        Args:
+            instruction: The instruction/criteria (may contain {field} templates)
+            item: Item data for template population and optional source data
+            include_source_data: If True, include full item data in prompt
+
+        Returns:
+            ChatMessage with populated content
+        """
         from schemas.llm import ChatMessage, MessageRole
+
+        # Populate any template placeholders in the instruction
+        if item:
+            instruction = self._populate_template(instruction, item)
+
+        # Build content based on whether to include source data
+        if include_source_data and item:
+            item_text = self._format_item_for_prompt(item)
+            content = f"## Source Data\n{item_text}\n\n## Instruction\n{instruction}"
+        else:
+            content = instruction
+
         return ChatMessage(
             id="evaluation",
             chat_id="evaluation",
             role=MessageRole.USER,
-            content=f"## Source Data\n{item_text}\n\n## Instruction\n{instruction}",
+            content=content,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
@@ -360,16 +411,18 @@ class AIEvaluationService:
         item: Dict[str, Any],
         criteria: str,
         id_field: str,
-        include_reasoning: bool = True
+        include_reasoning: bool = True,
+        include_source_data: bool = False
     ) -> EvaluationResult:
         """
         Evaluate whether an item meets criteria (yes/no).
 
         Args:
             item: Source data to evaluate (as dict)
-            criteria: Natural language criteria to evaluate against
+            criteria: Natural language criteria (may contain {field} templates)
             id_field: Name of the field containing the item's unique identifier
             include_reasoning: Whether to include explanation in result
+            include_source_data: If True, include all item fields in prompt context
 
         Returns:
             EvaluationResult with boolean value
@@ -384,8 +437,7 @@ class AIEvaluationService:
 
             # Create prompt caller and build message
             prompt_caller = self._create_prompt_caller(response_schema, system_message)
-            item_text = self._format_item_for_prompt(item)
-            user_message = self._build_user_message(item_text, criteria)
+            user_message = self._build_user_message(criteria, item, include_source_data)
 
             # Call LLM
             result = await self._call_llm(prompt_caller, user_message)
@@ -414,6 +466,7 @@ class AIEvaluationService:
         criteria: str,
         id_field: str,
         include_reasoning: bool = True,
+        include_source_data: bool = False,
         max_concurrent: int = 50
     ) -> List[EvaluationResult]:
         """
@@ -421,9 +474,10 @@ class AIEvaluationService:
 
         Args:
             items: List of source data items to evaluate
-            criteria: Natural language criteria (same for all items)
+            criteria: Natural language criteria (may contain {field} templates)
             id_field: Name of the field containing each item's unique identifier
             include_reasoning: Whether to include explanation in results
+            include_source_data: If True, include all item fields in prompt context
             max_concurrent: Maximum concurrent LLM calls (default: 50)
 
         Returns:
@@ -439,7 +493,7 @@ class AIEvaluationService:
 
         async def filter_one(item: Dict[str, Any]) -> EvaluationResult:
             async with semaphore:
-                return await self.filter(item, criteria, id_field, include_reasoning)
+                return await self.filter(item, criteria, id_field, include_reasoning, include_source_data)
 
         # Execute all filters in parallel
         results = await asyncio.gather(
@@ -481,19 +535,21 @@ class AIEvaluationService:
         min_value: float = 0,
         max_value: float = 1,
         interval: Optional[float] = None,
-        include_reasoning: bool = True
+        include_reasoning: bool = True,
+        include_source_data: bool = False
     ) -> EvaluationResult:
         """
         Score an item on a numeric scale based on criteria.
 
         Args:
             item: Source data to evaluate (as dict)
-            criteria: Natural language scoring criteria
+            criteria: Natural language scoring criteria (may contain {field} templates)
             id_field: Name of the field containing the item's unique identifier
             min_value: Lower bound of score range (default: 0)
             max_value: Upper bound of score range (default: 1)
             interval: Optional step size (e.g., 0.5 for discrete steps)
             include_reasoning: Whether to include explanation in result
+            include_source_data: If True, include all item fields in prompt context
 
         Returns:
             EvaluationResult with float value in specified range
@@ -514,8 +570,7 @@ class AIEvaluationService:
 
             # Create prompt caller and build message
             prompt_caller = self._create_prompt_caller(response_schema, system_message)
-            item_text = self._format_item_for_prompt(item)
-            user_message = self._build_user_message(item_text, full_instruction)
+            user_message = self._build_user_message(full_instruction, item, include_source_data)
 
             # Call LLM
             result = await self._call_llm(prompt_caller, user_message)
@@ -547,6 +602,7 @@ class AIEvaluationService:
         max_value: float = 1,
         interval: Optional[float] = None,
         include_reasoning: bool = True,
+        include_source_data: bool = False,
         max_concurrent: int = 50
     ) -> List[EvaluationResult]:
         """
@@ -554,12 +610,13 @@ class AIEvaluationService:
 
         Args:
             items: List of source data items to score
-            criteria: Natural language scoring criteria (same for all items)
+            criteria: Natural language scoring criteria (may contain {field} templates)
             id_field: Name of the field containing each item's unique identifier
             min_value: Lower bound of score range (default: 0)
             max_value: Upper bound of score range (default: 1)
             interval: Optional step size (e.g., 0.5 for discrete steps)
             include_reasoning: Whether to include explanation in results
+            include_source_data: If True, include all item fields in prompt context
             max_concurrent: Maximum concurrent LLM calls (default: 50)
 
         Returns:
@@ -575,7 +632,7 @@ class AIEvaluationService:
 
         async def score_one(item: Dict[str, Any]) -> EvaluationResult:
             async with semaphore:
-                return await self.score(item, criteria, id_field, min_value, max_value, interval, include_reasoning)
+                return await self.score(item, criteria, id_field, min_value, max_value, interval, include_reasoning, include_source_data)
 
         # Execute all scores in parallel
         results = await asyncio.gather(
@@ -616,18 +673,20 @@ class AIEvaluationService:
         id_field: str,
         output_type: ExtractOutputType = "text",
         enum_values: Optional[List[str]] = None,
-        include_reasoning: bool = True
+        include_reasoning: bool = True,
+        include_source_data: bool = False
     ) -> EvaluationResult:
         """
         Extract a single value of any type from an item.
 
         Args:
             item: Source data to extract from (as dict)
-            instruction: Natural language instruction describing what to extract
+            instruction: Natural language instruction (may contain {field} templates)
             id_field: Name of the field containing the item's unique identifier
             output_type: Expected type - "text", "number", "boolean", or "enum"
             enum_values: Required list of valid values if output_type is "enum"
             include_reasoning: Whether to include explanation in result
+            include_source_data: If True, include all item fields in prompt context
 
         Returns:
             EvaluationResult with value of specified type (or None if not present)
@@ -656,8 +715,7 @@ class AIEvaluationService:
 
             # Create prompt caller and build message
             prompt_caller = self._create_prompt_caller(response_schema, system_message)
-            item_text = self._format_item_for_prompt(item)
-            user_message = self._build_user_message(item_text, full_instruction)
+            user_message = self._build_user_message(full_instruction, item, include_source_data)
 
             # Call LLM
             result = await self._call_llm(prompt_caller, user_message)
@@ -688,6 +746,7 @@ class AIEvaluationService:
         output_type: ExtractOutputType = "text",
         enum_values: Optional[List[str]] = None,
         include_reasoning: bool = True,
+        include_source_data: bool = False,
         max_concurrent: int = 50
     ) -> List[EvaluationResult]:
         """
@@ -695,11 +754,12 @@ class AIEvaluationService:
 
         Args:
             items: List of source data items to extract from
-            instruction: Natural language instruction (same for all items)
+            instruction: Natural language instruction (may contain {field} templates)
             id_field: Name of the field containing each item's unique identifier
             output_type: Expected type - "text", "number", "boolean", or "enum"
             enum_values: Required list of valid values if output_type is "enum"
             include_reasoning: Whether to include explanation in results
+            include_source_data: If True, include all item fields in prompt context
             max_concurrent: Maximum concurrent LLM calls (default: 50)
 
         Returns:
@@ -715,7 +775,7 @@ class AIEvaluationService:
 
         async def extract_one(item: Dict[str, Any]) -> EvaluationResult:
             async with semaphore:
-                return await self.extract(item, instruction, id_field, output_type, enum_values, include_reasoning)
+                return await self.extract(item, instruction, id_field, output_type, enum_values, include_reasoning, include_source_data)
 
         # Execute all extractions in parallel
         results = await asyncio.gather(
@@ -756,7 +816,8 @@ class AIEvaluationService:
         instructions: str,
         id_field: str,
         field_instructions: Optional[Dict[str, str]] = None,
-        include_reasoning: bool = True
+        include_reasoning: bool = True,
+        include_source_data: bool = False
     ) -> FieldsResult:
         """
         Extract multiple fields from an item according to a schema.
@@ -764,11 +825,12 @@ class AIEvaluationService:
         Args:
             item: Source data to extract from (as dict)
             schema: JSON schema defining the output structure
-            instructions: Overall context/instructions for the extraction
+            instructions: Overall context/instructions (may contain {field} templates)
             id_field: Name of the field containing the item's unique identifier
             field_instructions: Optional per-field instructions
                                e.g., {"study_type": "Classify as RCT, cohort, etc."}
             include_reasoning: Whether to include overall reasoning about the extraction
+            include_source_data: If True, include all item fields in prompt context
 
         Returns:
             FieldsResult with extracted fields matching the schema
@@ -789,8 +851,7 @@ class AIEvaluationService:
 
             # Create prompt caller and build message
             prompt_caller = self._create_prompt_caller(response_schema, system_message)
-            item_text = self._format_item_for_prompt(item)
-            user_message = self._build_user_message(item_text, full_instruction)
+            user_message = self._build_user_message(full_instruction, item, include_source_data)
 
             # Call LLM
             result = await self._call_llm(prompt_caller, user_message)
@@ -823,6 +884,7 @@ class AIEvaluationService:
         id_field: str,
         field_instructions: Optional[Dict[str, str]] = None,
         include_reasoning: bool = True,
+        include_source_data: bool = False,
         max_concurrent: int = 50
     ) -> List[FieldsResult]:
         """
@@ -831,10 +893,11 @@ class AIEvaluationService:
         Args:
             items: List of source data items to extract from
             schema: JSON schema defining the output structure
-            instructions: Overall context/instructions (same for all items)
+            instructions: Overall context/instructions (may contain {field} templates)
             id_field: Name of the field containing each item's unique identifier
             field_instructions: Optional per-field instructions
             include_reasoning: Whether to include overall reasoning
+            include_source_data: If True, include all item fields in prompt context
             max_concurrent: Maximum concurrent LLM calls (default: 50)
 
         Returns:
@@ -850,7 +913,7 @@ class AIEvaluationService:
 
         async def extract_one(item: Dict[str, Any]) -> FieldsResult:
             async with semaphore:
-                return await self.extract_fields(item, schema, instructions, id_field, field_instructions, include_reasoning)
+                return await self.extract_fields(item, schema, instructions, id_field, field_instructions, include_reasoning, include_source_data)
 
         # Execute all extractions in parallel
         results = await asyncio.gather(
