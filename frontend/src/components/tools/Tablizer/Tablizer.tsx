@@ -226,6 +226,7 @@ function TablizerInner<T extends object>(
             // New dataset - reset AI-related state
             setAiColumnValues({});
             setAiColumnReasoning({});
+            setAiColumnConfidence({});
             setColumns(inputColumns.map(c => ({ ...c })));
             setSortConfig(null);
             setFilterText('');
