@@ -310,7 +310,6 @@ async def filter_items(
                 criteria=request.criteria,
                 id_field="id",  # _prepare_item_for_evaluation normalizes to "id"
                 include_reasoning=True,
-                include_source_data=True,  # Include full item data for LLM context
                 max_concurrent=50
             )
         else:  # "number"
@@ -319,7 +318,6 @@ async def filter_items(
                 criteria=request.criteria,
                 id_field="id",  # _prepare_item_for_evaluation normalizes to "id"
                 include_reasoning=True,
-                include_source_data=True,  # Include full item data for LLM context
                 max_concurrent=50
             )
 
@@ -414,7 +412,6 @@ async def extract_from_items(
             id_field="id",  # _prepare_item_for_evaluation normalizes to "id"
             output_type="text",
             include_reasoning=True,
-            include_source_data=True,  # Include full item data for LLM context
             max_concurrent=50
         )
 
