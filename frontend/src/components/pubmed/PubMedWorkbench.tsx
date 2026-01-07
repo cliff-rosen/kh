@@ -10,7 +10,8 @@ import {
     PlusCircleIcon,
     FunnelIcon,
     MagnifyingGlassIcon,
-    CheckIcon
+    CheckIcon,
+    PencilSquareIcon
 } from '@heroicons/react/24/outline';
 import { AIColumnInfo, TablizerRef } from '../tools/Tablizer';
 import PubMedTable from './PubMedTable';
@@ -700,6 +701,14 @@ const PubMedWorkbench = forwardRef<PubMedWorkbenchRef, PubMedWorkbenchProps>(fun
                 onToggleCompareMode={toggleCompareMode}
                 onUpdateLabel={updateSnapshotLabel}
                 onDeleteSnapshot={deleteSnapshot}
+                onPopulateSearch={(source) => {
+                    setQuery(source.query);
+                    setStartDate(source.startDate || '');
+                    setEndDate(source.endDate || '');
+                    setDateType(source.dateType);
+                    // Clear snapshot selection to show live form
+                    setSelectedSnapshotId(null);
+                }}
                 isOpen={historyPanelOpen}
                 onToggleOpen={() => setHistoryPanelOpen(!historyPanelOpen)}
             />
@@ -723,6 +732,7 @@ interface SearchHistoryPanelProps {
     onToggleCompareMode: () => void;
     onUpdateLabel: (id: string, label: string) => void;
     onDeleteSnapshot: (id: string) => void;
+    onPopulateSearch?: (source: { query: string; startDate?: string; endDate?: string; dateType: 'publication' | 'entry' }) => void;
     isOpen: boolean;
     onToggleOpen: () => void;
 }
@@ -736,6 +746,7 @@ function SearchHistoryPanel({
     onToggleCompareMode,
     onUpdateLabel,
     onDeleteSnapshot,
+    onPopulateSearch,
     isOpen,
     onToggleOpen
 }: SearchHistoryPanelProps) {
@@ -897,6 +908,19 @@ function SearchHistoryPanel({
                                         <span className="text-[10px] text-gray-500 dark:text-gray-400">
                                             {formatTime(snapshot.timestamp)}
                                         </span>
+                                        {snapshot.source.type === 'search' && onPopulateSearch && (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onPopulateSearch(snapshot.source as { query: string; startDate?: string; endDate?: string; dateType: 'publication' | 'entry' });
+                                                }}
+                                                className="p-0.5 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 rounded transition-colors"
+                                                title="Edit search (populate form)"
+                                            >
+                                                <PencilSquareIcon className="h-3 w-3" />
+                                            </button>
+                                        )}
                                         <button
                                             type="button"
                                             onClick={(e) => {
