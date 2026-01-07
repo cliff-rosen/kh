@@ -12,7 +12,7 @@ from models import ResearchStream
 from schemas.canonical_types import CanonicalResearchArticle
 from schemas.research_article_converters import legacy_article_to_canonical_pubmed, pubmed_to_research_article
 from services.pubmed_service import PubMedService, fetch_articles_by_ids
-from services.semantic_filter_service import SemanticFilterService
+from services.ai_evaluation_service import get_ai_evaluation_service
 from services.article_categorization_service import ArticleCategorizationService
 
 
@@ -23,7 +23,7 @@ class RefinementWorkbenchService:
         self.MAX_ARTICLES_PER_SOURCE = 500
         self.db = db
         self.pubmed_service = PubMedService()
-        self.filter_service = SemanticFilterService()
+        self.eval_service = get_ai_evaluation_service()
         self.categorization_service = ArticleCategorizationService()
 
     async def run_query(
@@ -242,24 +242,69 @@ class RefinementWorkbenchService:
         if not articles:
             return []
 
-        # Use centralized batch evaluation from SemanticFilterService
-        # Use max_concurrent=50 to match pipeline performance
-        batch_results = await self.filter_service.evaluate_articles_batch(
-            articles=articles,
-            filter_criteria=filter_criteria,
-            threshold=threshold,
-            max_concurrent=50,
-            output_type=output_type
-        )
+        # Convert articles to dicts for evaluation
+        items = [article.model_dump() for article in articles]
 
-        # Convert batch results to expected format
+        # Use AIEvaluationService based on output type
+        # CanonicalResearchArticle uses "pmid" as the ID field
+        if output_type == "boolean":
+            eval_results = await self.eval_service.filter_batch(
+                items=items,
+                criteria=filter_criteria,
+                id_field="pmid",
+                include_reasoning=True,
+                max_concurrent=50
+            )
+        elif output_type == "number":
+            eval_results = await self.eval_service.score_batch(
+                items=items,
+                criteria=filter_criteria,
+                id_field="pmid",
+                include_reasoning=True,
+                max_concurrent=50
+            )
+        else:  # "text"
+            eval_results = await self.eval_service.extract_batch(
+                items=items,
+                instruction=filter_criteria,
+                id_field="pmid",
+                output_type="text",
+                include_reasoning=True,
+                max_concurrent=50
+            )
+
+        # Build a map from item_id to result for correlation
+        result_map = {r.item_id: r for r in eval_results}
+
+        # Convert results to expected format
         results = []
-        for article, is_relevant, score, reasoning in batch_results:
+        for article in articles:
+            result = result_map.get(article.pmid)
+            if not result:
+                # Shouldn't happen, but handle gracefully
+                results.append({
+                    "article": article,
+                    "passed": False,
+                    "score": 0.0,
+                    "reasoning": "No result found"
+                })
+                continue
+
+            if output_type == "boolean":
+                passed = result.value is True
+                score = result.confidence
+            elif output_type == "number":
+                passed = (result.value or 0) >= threshold
+                score = result.value if result.value is not None else 0.0
+            else:  # "text"
+                passed = result.value is not None
+                score = result.confidence
+
             results.append({
                 "article": article,
-                "passed": is_relevant,
+                "passed": passed,
                 "score": score,
-                "reasoning": reasoning
+                "reasoning": result.reasoning or result.error or ""
             })
 
         return results

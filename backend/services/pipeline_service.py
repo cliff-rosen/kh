@@ -31,7 +31,7 @@ from models import (
 )
 from schemas.research_stream import RetrievalConfig, PresentationConfig
 from services.pubmed_service import PubMedService
-from services.semantic_filter_service import SemanticFilterService
+from services.ai_evaluation_service import get_ai_evaluation_service
 from services.article_categorization_service import ArticleCategorizationService
 from services.research_stream_service import ResearchStreamService
 from services.report_summary_service import ReportSummaryService
@@ -69,7 +69,7 @@ class PipelineService:
         self.wip_article_service = WipArticleService(db)
         self.report_service = ReportService(db)
         self.pubmed_service = PubMedService()
-        self.filter_service = SemanticFilterService()
+        self.eval_service = get_ai_evaluation_service()
         self.categorization_service = ArticleCategorizationService()
         self.summary_service = ReportSummaryService()
 
@@ -462,11 +462,29 @@ class PipelineService:
         if not articles:
             return 0, 0
 
-        # Use centralized batch evaluation from SemanticFilterService
-        results = await self.filter_service.evaluate_articles_batch(
-            articles=articles,
-            filter_criteria=filter_criteria,
-            threshold=threshold,
+        # Convert WipArticle objects to dicts for evaluation
+        items = []
+        article_map = {}  # Map from id to WipArticle for result matching
+        for article in articles:
+            article_id = str(article.id)  # Use database primary key
+            article_map[article_id] = article
+            items.append({
+                "id": article_id,
+                "title": article.title or "",
+                "abstract": article.abstract or "",
+                "pmid": article.pmid,
+                "journal": article.journal,
+                "authors": article.authors
+            })
+
+        # Use AIEvaluationService score_batch to get relevance scores
+        results = await self.eval_service.score_batch(
+            items=items,
+            criteria=filter_criteria,
+            id_field="id",
+            min_value=0.0,
+            max_value=1.0,
+            include_reasoning=True,
             max_concurrent=50
         )
 
@@ -474,7 +492,15 @@ class PipelineService:
         passed = 0
         rejected = 0
 
-        for article, is_relevant, score, reasoning in results:
+        for result in results:
+            article = article_map.get(result.item_id)
+            if not article:
+                continue
+
+            score = result.value if result.value is not None else 0.0
+            is_relevant = score >= threshold
+            reasoning = result.reasoning or result.error or ""
+
             self.wip_article_service.update_filter_result(
                 article=article,
                 passed=is_relevant,

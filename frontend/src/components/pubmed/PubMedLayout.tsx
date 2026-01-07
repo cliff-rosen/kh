@@ -2,9 +2,12 @@ import { Link } from 'react-router-dom';
 import {
     ArrowRightOnRectangleIcon,
     TableCellsIcon,
-    UserCircleIcon
+    UserCircleIcon,
+    SunIcon,
+    MoonIcon
 } from '@heroicons/react/24/outline';
 import { usePubMedAuth } from '../../context/PubMedAuthContext';
+import { useTheme } from '../../context/ThemeContext';
 
 interface PubMedLayoutProps {
     children: React.ReactNode;
@@ -14,6 +17,7 @@ interface PubMedLayoutProps {
 
 export default function PubMedLayout({ children, hideFooter = false }: PubMedLayoutProps) {
     const { user, logout, isAuthenticated } = usePubMedAuth();
+    const { isDarkMode, toggleTheme } = useTheme();
 
     return (
         <div className="h-screen bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden">
@@ -33,6 +37,15 @@ export default function PubMedLayout({ children, hideFooter = false }: PubMedLay
 
                         {/* Right side */}
                         <div className="flex items-center gap-4">
+                            {/* Dark mode toggle */}
+                            <button
+                                onClick={toggleTheme}
+                                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+                            >
+                                {isDarkMode ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
+                            </button>
+
                             {isAuthenticated ? (
                                 <>
                                     {/* User info */}

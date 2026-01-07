@@ -292,37 +292,50 @@ async def filter_items(
     """
     logger.info(f"filter_items - user_id={current_user.user_id}, item_type={request.item_type}, items={len(request.items)}, output_type={request.output_type}")
 
-    from services.semantic_filter_service import SemanticFilterService
+    from services.ai_evaluation_service import get_ai_evaluation_service
 
     try:
-        filter_service = SemanticFilterService()
+        service = get_ai_evaluation_service()
 
-        # Adapt items based on type
-        if request.item_type == "trial":
-            adapted_items = [_adapt_trial_for_filter(item) for item in request.items]
-            id_field = "nct_id"
-        else:
-            adapted_items = [_adapt_article_for_filter(item) for item in request.items]
-            id_field = "pmid"
+        # Determine ID field based on item type
+        id_field = "nct_id" if request.item_type == "trial" else "pmid"
 
-        # Run batch evaluation
-        batch_results = await filter_service.evaluate_articles_batch(
-            articles=adapted_items,
-            filter_criteria=request.criteria,
-            threshold=request.threshold,
-            max_concurrent=50,
-            output_type=request.output_type
-        )
+        # Prepare items as dicts
+        prepared_items = [_prepare_item_for_evaluation(item, request.item_type) for item in request.items]
 
-        # Convert results
+        # Run evaluation based on output type
+        if request.output_type == "boolean":
+            eval_results = await service.filter_batch(
+                items=prepared_items,
+                criteria=request.criteria,
+                id_field="id",  # _prepare_item_for_evaluation normalizes to "id"
+                include_reasoning=True,
+                max_concurrent=50
+            )
+        else:  # "number"
+            eval_results = await service.score_batch(
+                items=prepared_items,
+                criteria=request.criteria,
+                id_field="id",  # _prepare_item_for_evaluation normalizes to "id"
+                include_reasoning=True,
+                max_concurrent=50
+            )
+
+        # Convert results - each result has item_id
         results = []
-        for adapter, is_relevant, score, reasoning in batch_results:
-            item_id = getattr(adapter, id_field, "") or getattr(adapter, "id", "")
+        for result in eval_results:
+            if request.output_type == "boolean":
+                passed = result.value is True
+                score = result.confidence
+            else:  # "number"
+                passed = (result.value or 0) >= request.threshold
+                score = result.value if result.value is not None else 0.0
+
             results.append(FilterResultItem(
-                id=item_id,
-                passed=is_relevant,
+                id=result.item_id,
+                passed=passed,
                 score=score,
-                reasoning=reasoning
+                reasoning=result.reasoning or result.error or ""
             ))
 
         passed_count = sum(1 for r in results if r.passed)
@@ -380,40 +393,34 @@ async def extract_from_items(
     """
     Extract text information from items for text AI columns.
 
-    Uses the extraction service to pull specific information based on the prompt.
+    Uses the AI evaluation service to pull specific information based on the prompt.
     """
     logger.info(f"extract_from_items - user_id={current_user.user_id}, item_type={request.item_type}, items={len(request.items)}")
 
-    from services.extraction_service import get_extraction_service
+    from services.ai_evaluation_service import get_ai_evaluation_service
 
     try:
-        extraction_service = get_extraction_service()
+        service = get_ai_evaluation_service()
 
-        # Determine ID field based on item type
-        id_field = "nct_id" if request.item_type == "trial" else "pmid"
+        # Prepare items as dicts
+        prepared_items = [_prepare_item_for_evaluation(item, request.item_type) for item in request.items]
 
-        # Prepare items with correct ID field
-        extraction_items = []
-        for item in request.items:
-            item_id = item.get(id_field) or item.get("id", "")
-            extraction_items.append({
-                **item,
-                "id": item_id,
-            })
-
-        # Use the new extract_value_batch API
-        extraction_results = await extraction_service.extract_value_batch(
-            items=extraction_items,
+        # Run extraction
+        eval_results = await service.extract_batch(
+            items=prepared_items,
             instruction=request.prompt,
-            output_type="text"
+            id_field="id",  # _prepare_item_for_evaluation normalizes to "id"
+            output_type="text",
+            include_reasoning=True,
+            max_concurrent=50
         )
 
-        # Convert results
+        # Convert results - each result has item_id
         results = []
         succeeded = 0
         failed = 0
 
-        for result in extraction_results:
+        for result in eval_results:
             if result.error:
                 failed += 1
                 results.append(ExtractResultItem(
@@ -427,8 +434,8 @@ async def extract_from_items(
                 results.append(ExtractResultItem(
                     id=result.item_id,
                     text_value=str(result.value) if result.value else "",
-                    confidence=result.score,
-                    reasoning=result.reasoning
+                    confidence=result.confidence,
+                    reasoning=result.reasoning or ""
                 ))
 
         logger.info(f"extract_from_items complete - user_id={current_user.user_id}, succeeded={succeeded}, failed={failed}")
@@ -453,63 +460,64 @@ async def extract_from_items(
 # Helper Functions
 # ============================================================================
 
-class _ArticleAdapter:
-    """Adapts article dict for SemanticFilterService"""
-    def __init__(self, article: Dict[str, Any]):
-        self.id = article.get("id") or article.get("pmid", "")
-        self.pmid = article.get("pmid", "")
-        self.title = article.get("title", "")
-        self.abstract = article.get("abstract", "")
-        self.journal = article.get("journal")
-        self.year = article.get("publication_date", "")[:4] if article.get("publication_date") else None
-        self.authors = article.get("authors", [])
-        self.doi = article.get("doi", "")
+def _prepare_item_for_evaluation(item: Dict[str, Any], item_type: str) -> Dict[str, Any]:
+    """
+    Prepare an item dict for AI evaluation.
+    Normalizes article/trial data into a consistent format.
+    """
+    if item_type == "trial":
+        return _prepare_trial(item)
+    else:
+        return _prepare_article(item)
 
 
-class _TrialAdapter:
-    """Adapts trial dict for SemanticFilterService"""
-    def __init__(self, trial: Dict[str, Any]):
-        self.nct_id = trial.get("nct_id", "")
-        self.id = self.nct_id
-        self.title = trial.get("title") or trial.get("brief_title", "")
+def _prepare_article(article: Dict[str, Any]) -> Dict[str, Any]:
+    """Prepare article dict for evaluation."""
+    authors = article.get("authors", [])
+    if isinstance(authors, list):
+        authors = ", ".join(authors)
 
-        # Build abstract from trial fields
-        abstract_parts = []
-        if trial.get("brief_summary"):
-            abstract_parts.append(trial["brief_summary"])
-        if trial.get("conditions"):
-            conditions = trial["conditions"]
-            if isinstance(conditions, list):
-                abstract_parts.append(f"Conditions: {', '.join(conditions)}")
-        if trial.get("interventions"):
-            interventions = trial["interventions"]
-            if isinstance(interventions, list):
-                interv_names = [i.get("name", "") if isinstance(i, dict) else str(i) for i in interventions]
-                abstract_parts.append(f"Interventions: {', '.join(interv_names)}")
-        if trial.get("phase"):
-            abstract_parts.append(f"Phase: {trial['phase']}")
-        if trial.get("status"):
-            abstract_parts.append(f"Status: {trial['status']}")
-
-        self.abstract = "\n".join(abstract_parts)
-
-        # Standard fields
-        sponsor = trial.get("lead_sponsor")
-        self.journal = sponsor.get("name") if isinstance(sponsor, dict) else None
-        self.year = trial.get("start_date", "")[:4] if trial.get("start_date") else None
-
-        # Trial-specific fields for template replacement
-        self.conditions = ', '.join(trial.get("conditions", [])) if isinstance(trial.get("conditions"), list) else ""
-        self.phase = trial.get("phase", "")
-        self.status = trial.get("status", "")
-        self.sponsor = sponsor.get("name") if isinstance(sponsor, dict) else ""
-        self.brief_summary = trial.get("brief_summary", "")
-        self.study_type = trial.get("study_type", "")
+    return {
+        "id": article.get("pmid") or article.get("id", ""),
+        "title": article.get("title", ""),
+        "abstract": article.get("abstract", ""),
+        "authors": authors,
+        "journal": article.get("journal", ""),
+        "publication_date": article.get("publication_date", ""),
+    }
 
 
-def _adapt_article_for_filter(article: Dict[str, Any]) -> _ArticleAdapter:
-    return _ArticleAdapter(article)
+def _prepare_trial(trial: Dict[str, Any]) -> Dict[str, Any]:
+    """Prepare trial dict for evaluation."""
+    # Build abstract from trial fields
+    abstract_parts = []
+    if trial.get("brief_summary"):
+        abstract_parts.append(trial["brief_summary"])
+    if trial.get("conditions"):
+        conditions = trial["conditions"]
+        if isinstance(conditions, list):
+            abstract_parts.append(f"Conditions: {', '.join(conditions)}")
+    if trial.get("interventions"):
+        interventions = trial["interventions"]
+        if isinstance(interventions, list):
+            interv_names = [i.get("name", "") if isinstance(i, dict) else str(i) for i in interventions]
+            abstract_parts.append(f"Interventions: {', '.join(interv_names)}")
+    if trial.get("phase"):
+        abstract_parts.append(f"Phase: {trial['phase']}")
+    if trial.get("status"):
+        abstract_parts.append(f"Status: {trial['status']}")
 
+    sponsor = trial.get("lead_sponsor")
+    sponsor_name = sponsor.get("name") if isinstance(sponsor, dict) else ""
 
-def _adapt_trial_for_filter(trial: Dict[str, Any]) -> _TrialAdapter:
-    return _TrialAdapter(trial)
+    return {
+        "id": trial.get("nct_id", ""),
+        "nct_id": trial.get("nct_id", ""),
+        "title": trial.get("title") or trial.get("brief_title", ""),
+        "abstract": "\n".join(abstract_parts),
+        "sponsor": sponsor_name,
+        "phase": trial.get("phase", ""),
+        "status": trial.get("status", ""),
+        "conditions": ", ".join(trial.get("conditions", [])) if isinstance(trial.get("conditions"), list) else "",
+        "study_type": trial.get("study_type", ""),
+    }

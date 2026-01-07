@@ -15,7 +15,7 @@ import logging
 
 from models import User
 from services.auth_service import validate_token
-from services.extraction_service import get_extraction_service
+from services.ai_evaluation_service import get_ai_evaluation_service
 
 
 router = APIRouter(
@@ -79,12 +79,13 @@ async def extract_fields_batch(
     logger.info(f"extract_fields_batch - user_id={current_user.user_id}, items={len(request.items)}")
 
     try:
-        extraction_service = get_extraction_service()
+        eval_service = get_ai_evaluation_service()
 
-        extraction_results = await extraction_service.extract_fields_batch(
+        extraction_results = await eval_service.extract_fields_batch(
             items=request.items,
             schema=request.result_schema,
-            instructions=request.instructions
+            instructions=request.instructions,
+            id_field="id"  # Callers should include "id" field in items
         )
 
         # Convert results to API format
@@ -145,12 +146,13 @@ async def extract_fields(
     logger.info(f"extract_fields - user_id={current_user.user_id}")
 
     try:
-        extraction_service = get_extraction_service()
+        eval_service = get_ai_evaluation_service()
 
-        extraction_result = await extraction_service.extract_fields(
+        extraction_result = await eval_service.extract_fields(
             item=request.item,
             schema=request.result_schema,
-            instructions=request.instructions
+            instructions=request.instructions,
+            id_field="id"  # Callers should include "id" field in item
         )
 
         api_result = {
@@ -187,13 +189,14 @@ async def test_extraction_service(
     logger.info(f"test_extraction_service - user_id={current_user.user_id}")
 
     try:
-        extraction_service = get_extraction_service()
+        eval_service = get_ai_evaluation_service()
 
         # Simple test extraction
-        test_item = {"title": "Test Article", "content": "This is a test about machine learning."}
-        test_result = await extraction_service.extract_value(
+        test_item = {"id": "test", "title": "Test Article", "content": "This is a test about machine learning."}
+        test_result = await eval_service.extract(
             item=test_item,
             instruction="Is this article about technology?",
+            id_field="id",
             output_type="boolean"
         )
 
@@ -205,7 +208,7 @@ async def test_extraction_service(
             "test_result": {
                 "extraction_successful": test_result.error is None,
                 "value": test_result.value,
-                "score": test_result.score,
+                "confidence": test_result.confidence,
                 "error": test_result.error
             }
         }

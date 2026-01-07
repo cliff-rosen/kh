@@ -196,12 +196,13 @@ class AIEvaluationService:
 ```python
 class EvaluationResult(BaseModel):
     """Result from filter, score, or single-value extract operations."""
-    item_id: str                                    # Identifier for the source item
     value: Union[str, bool, float, int, None]       # The result (type depends on operation)
     confidence: float                                # LLM's confidence in the result (0-1)
     reasoning: Optional[str] = None                  # Explanation (if include_reasoning=True)
     error: Optional[str] = None                      # Error message if evaluation failed
 ```
+
+**Note:** Results do not include `item_id`. Batch methods return results in the same order as input items, so callers correlate by index: `for item, result in zip(items, results)`.
 
 ### Value Types by Operation
 
@@ -254,14 +255,13 @@ This rubric is embedded in the system prompts to ensure consistent calibration a
 ```python
 class FieldsResult(BaseModel):
     """Result from multi-field extraction."""
-    item_id: str                                    # Identifier for the source item
     fields: Optional[Dict[str, Any]] = None         # Extracted field values (matches schema)
     confidence: float                                # LLM's overall confidence in the extraction (0-1)
     reasoning: Optional[str] = None                  # Overall explanation (if include_reasoning=True)
     error: Optional[str] = None                      # Error message if extraction failed
 ```
 
-Both result types now have uniform quality indicators (confidence + optional reasoning), allowing callers to handle them consistently.
+Both result types have uniform quality indicators (confidence + optional reasoning), allowing callers to handle them consistently.
 
 ### Note on Filter vs Extract
 

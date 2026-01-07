@@ -283,12 +283,9 @@ class AIEvaluationService:
     # Helper Methods
     # =========================================================================
 
-    def _get_item_id(self, item: Dict[str, Any]) -> str:
-        """
-        Determine item ID by checking common ID fields.
-        Checks: id, pmid, nct_id, then falls back to 'unknown'.
-        """
-        return str(item.get("id") or item.get("pmid") or item.get("nct_id") or "unknown")
+    def _get_item_id(self, item: Dict[str, Any], id_field: str) -> str:
+        """Extract item ID from the item dict using the specified field."""
+        return str(item.get(id_field, "unknown"))
 
     def _format_item_for_prompt(self, item: Dict[str, Any]) -> str:
         """
@@ -359,6 +356,7 @@ class AIEvaluationService:
         self,
         item: Dict[str, Any],
         criteria: str,
+        id_field: str,
         include_reasoning: bool = True
     ) -> EvaluationResult:
         """
@@ -367,12 +365,13 @@ class AIEvaluationService:
         Args:
             item: Source data to evaluate (as dict)
             criteria: Natural language criteria to evaluate against
+            id_field: Name of the field containing the item's unique identifier
             include_reasoning: Whether to include explanation in result
 
         Returns:
             EvaluationResult with boolean value
         """
-        item_id = self._get_item_id(item)
+        item_id = self._get_item_id(item, id_field)
 
         try:
             # Get appropriate system message and schema
@@ -407,6 +406,7 @@ class AIEvaluationService:
         self,
         items: List[Dict[str, Any]],
         criteria: str,
+        id_field: str,
         include_reasoning: bool = True,
         max_concurrent: int = 50
     ) -> List[EvaluationResult]:
@@ -416,6 +416,7 @@ class AIEvaluationService:
         Args:
             items: List of source data items to evaluate
             criteria: Natural language criteria (same for all items)
+            id_field: Name of the field containing each item's unique identifier
             include_reasoning: Whether to include explanation in results
             max_concurrent: Maximum concurrent LLM calls (default: 50)
 
@@ -430,7 +431,7 @@ class AIEvaluationService:
 
         async def filter_one(item: Dict[str, Any]) -> EvaluationResult:
             async with semaphore:
-                return await self.filter(item, criteria, include_reasoning)
+                return await self.filter(item, criteria, id_field, include_reasoning)
 
         # Execute all filters in parallel
         results = await asyncio.gather(
@@ -442,7 +443,7 @@ class AIEvaluationService:
         final_results = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                item_id = self._get_item_id(items[i])
+                item_id = self._get_item_id(items[i], id_field)
                 final_results.append(EvaluationResult(
                     item_id=item_id,
                     value=None,
@@ -463,6 +464,7 @@ class AIEvaluationService:
         self,
         item: Dict[str, Any],
         criteria: str,
+        id_field: str,
         min_value: float = 0,
         max_value: float = 1,
         interval: Optional[float] = None,
@@ -474,6 +476,7 @@ class AIEvaluationService:
         Args:
             item: Source data to evaluate (as dict)
             criteria: Natural language scoring criteria
+            id_field: Name of the field containing the item's unique identifier
             min_value: Lower bound of score range (default: 0)
             max_value: Upper bound of score range (default: 1)
             interval: Optional step size (e.g., 0.5 for discrete steps)
@@ -482,7 +485,7 @@ class AIEvaluationService:
         Returns:
             EvaluationResult with float value in specified range
         """
-        item_id = self._get_item_id(item)
+        item_id = self._get_item_id(item, id_field)
 
         try:
             # Get appropriate system message and schema
@@ -523,6 +526,7 @@ class AIEvaluationService:
         self,
         items: List[Dict[str, Any]],
         criteria: str,
+        id_field: str,
         min_value: float = 0,
         max_value: float = 1,
         interval: Optional[float] = None,
@@ -535,6 +539,7 @@ class AIEvaluationService:
         Args:
             items: List of source data items to score
             criteria: Natural language scoring criteria (same for all items)
+            id_field: Name of the field containing each item's unique identifier
             min_value: Lower bound of score range (default: 0)
             max_value: Upper bound of score range (default: 1)
             interval: Optional step size (e.g., 0.5 for discrete steps)
@@ -552,7 +557,7 @@ class AIEvaluationService:
 
         async def score_one(item: Dict[str, Any]) -> EvaluationResult:
             async with semaphore:
-                return await self.score(item, criteria, min_value, max_value, interval, include_reasoning)
+                return await self.score(item, criteria, id_field, min_value, max_value, interval, include_reasoning)
 
         # Execute all scores in parallel
         results = await asyncio.gather(
@@ -564,7 +569,7 @@ class AIEvaluationService:
         final_results = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                item_id = self._get_item_id(items[i])
+                item_id = self._get_item_id(items[i], id_field)
                 final_results.append(EvaluationResult(
                     item_id=item_id,
                     value=None,
@@ -585,6 +590,7 @@ class AIEvaluationService:
         self,
         item: Dict[str, Any],
         instruction: str,
+        id_field: str,
         output_type: ExtractOutputType = "text",
         enum_values: Optional[List[str]] = None,
         include_reasoning: bool = True
@@ -595,6 +601,7 @@ class AIEvaluationService:
         Args:
             item: Source data to extract from (as dict)
             instruction: Natural language instruction describing what to extract
+            id_field: Name of the field containing the item's unique identifier
             output_type: Expected type - "text", "number", "boolean", or "enum"
             enum_values: Required list of valid values if output_type is "enum"
             include_reasoning: Whether to include explanation in result
@@ -602,7 +609,7 @@ class AIEvaluationService:
         Returns:
             EvaluationResult with value of specified type (or None if not present)
         """
-        item_id = self._get_item_id(item)
+        item_id = self._get_item_id(item, id_field)
 
         try:
             # Validate enum_values if needed
@@ -651,6 +658,7 @@ class AIEvaluationService:
         self,
         items: List[Dict[str, Any]],
         instruction: str,
+        id_field: str,
         output_type: ExtractOutputType = "text",
         enum_values: Optional[List[str]] = None,
         include_reasoning: bool = True,
@@ -662,6 +670,7 @@ class AIEvaluationService:
         Args:
             items: List of source data items to extract from
             instruction: Natural language instruction (same for all items)
+            id_field: Name of the field containing each item's unique identifier
             output_type: Expected type - "text", "number", "boolean", or "enum"
             enum_values: Required list of valid values if output_type is "enum"
             include_reasoning: Whether to include explanation in results
@@ -678,7 +687,7 @@ class AIEvaluationService:
 
         async def extract_one(item: Dict[str, Any]) -> EvaluationResult:
             async with semaphore:
-                return await self.extract(item, instruction, output_type, enum_values, include_reasoning)
+                return await self.extract(item, instruction, id_field, output_type, enum_values, include_reasoning)
 
         # Execute all extractions in parallel
         results = await asyncio.gather(
@@ -690,7 +699,7 @@ class AIEvaluationService:
         final_results = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                item_id = self._get_item_id(items[i])
+                item_id = self._get_item_id(items[i], id_field)
                 final_results.append(EvaluationResult(
                     item_id=item_id,
                     value=None,
@@ -712,6 +721,7 @@ class AIEvaluationService:
         item: Dict[str, Any],
         schema: Dict[str, Any],
         instructions: str,
+        id_field: str,
         field_instructions: Optional[Dict[str, str]] = None,
         include_reasoning: bool = True
     ) -> FieldsResult:
@@ -722,6 +732,7 @@ class AIEvaluationService:
             item: Source data to extract from (as dict)
             schema: JSON schema defining the output structure
             instructions: Overall context/instructions for the extraction
+            id_field: Name of the field containing the item's unique identifier
             field_instructions: Optional per-field instructions
                                e.g., {"study_type": "Classify as RCT, cohort, etc."}
             include_reasoning: Whether to include overall reasoning about the extraction
@@ -729,7 +740,7 @@ class AIEvaluationService:
         Returns:
             FieldsResult with extracted fields matching the schema
         """
-        item_id = self._get_item_id(item)
+        item_id = self._get_item_id(item, id_field)
 
         try:
             # Get appropriate system message and schema
@@ -771,6 +782,7 @@ class AIEvaluationService:
         items: List[Dict[str, Any]],
         schema: Dict[str, Any],
         instructions: str,
+        id_field: str,
         field_instructions: Optional[Dict[str, str]] = None,
         include_reasoning: bool = True,
         max_concurrent: int = 50
@@ -782,6 +794,7 @@ class AIEvaluationService:
             items: List of source data items to extract from
             schema: JSON schema defining the output structure
             instructions: Overall context/instructions (same for all items)
+            id_field: Name of the field containing each item's unique identifier
             field_instructions: Optional per-field instructions
             include_reasoning: Whether to include overall reasoning
             max_concurrent: Maximum concurrent LLM calls (default: 50)
@@ -797,7 +810,7 @@ class AIEvaluationService:
 
         async def extract_one(item: Dict[str, Any]) -> FieldsResult:
             async with semaphore:
-                return await self.extract_fields(item, schema, instructions, field_instructions, include_reasoning)
+                return await self.extract_fields(item, schema, instructions, id_field, field_instructions, include_reasoning)
 
         # Execute all extractions in parallel
         results = await asyncio.gather(
@@ -809,7 +822,7 @@ class AIEvaluationService:
         final_results = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                item_id = self._get_item_id(items[i])
+                item_id = self._get_item_id(items[i], id_field)
                 final_results.append(FieldsResult(
                     item_id=item_id,
                     fields=None,
