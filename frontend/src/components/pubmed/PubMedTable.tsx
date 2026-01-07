@@ -1,8 +1,7 @@
-import { useCallback, forwardRef } from 'react';
-import { Tablizer, TableColumn, AIColumnResult, RowViewerProps, TablizerRef, ScoreConfig } from '../tools/Tablizer';
+import { forwardRef } from 'react';
+import { Tablizer, TableColumn, RowViewerProps, TablizerRef } from '../tools/Tablizer';
 import ArticleViewerModal from '../articles/ArticleViewerModal';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
-import { tablizerApi } from '../../lib/api/tablizerApi';
 
 // ============================================================================
 // Types
@@ -56,23 +55,6 @@ const PubMedTable = forwardRef<TablizerRef, PubMedTableProps>(function PubMedTab
     onFetchMoreForAI,
     onColumnsChange
 }, ref) {
-    // Handle AI column processing via tablizer API
-    const handleProcessAIColumn = useCallback(async (
-        data: CanonicalResearchArticle[],
-        promptTemplate: string,
-        outputType: 'text' | 'number' | 'boolean',
-        scoreConfig?: ScoreConfig
-    ): Promise<AIColumnResult[]> => {
-        return await tablizerApi.processAIColumn({
-            items: data as unknown as Record<string, unknown>[],
-            itemType: 'article',
-            criteria: promptTemplate,
-            outputType: outputType,
-            threshold: 0.5,
-            scoreConfig: scoreConfig
-        });
-    }, []);
-
     return (
         <Tablizer<CanonicalResearchArticle>
             ref={ref}
@@ -81,7 +63,7 @@ const PubMedTable = forwardRef<TablizerRef, PubMedTableProps>(function PubMedTab
             columns={PUBMED_COLUMNS}
             rowLabel="articles"
             RowViewer={ArticleRowViewer}
-            onProcessAIColumn={handleProcessAIColumn}
+            itemType="article"
             onSaveToHistory={onSaveToHistory}
             onFetchMoreForAI={onFetchMoreForAI}
             onColumnsChange={onColumnsChange}

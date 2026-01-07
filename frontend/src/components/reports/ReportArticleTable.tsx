@@ -1,7 +1,6 @@
 import { useCallback, useMemo, forwardRef } from 'react';
-import { Tablizer, TableColumn, AIColumnResult, TablizerRef, AIColumnInfo, ScoreConfig } from '../tools/Tablizer';
+import { Tablizer, TableColumn, TablizerRef, AIColumnInfo } from '../tools/Tablizer';
 import { ReportArticle } from '../../types';
-import { tablizerApi } from '../../lib/api/tablizerApi';
 
 // ============================================================================
 // Types
@@ -62,23 +61,6 @@ const ReportArticleTable = forwardRef<TablizerRef, ReportArticleTableProps>(func
         }
     }, [onAbstractVisibilityChange]);
 
-    // Handle AI column processing via tablizer API
-    const handleProcessAIColumn = useCallback(async (
-        data: ReportArticle[],
-        promptTemplate: string,
-        outputType: 'text' | 'number' | 'boolean',
-        scoreConfig?: ScoreConfig
-    ): Promise<AIColumnResult[]> => {
-        return await tablizerApi.processAIColumn({
-            items: data as unknown as Record<string, unknown>[],
-            itemType: 'article',
-            criteria: promptTemplate,
-            outputType: outputType,
-            threshold: 0.5,
-            scoreConfig: scoreConfig
-        });
-    }, []);
-
     return (
         <Tablizer<ReportArticle>
             ref={ref}
@@ -87,7 +69,7 @@ const ReportArticleTable = forwardRef<TablizerRef, ReportArticleTableProps>(func
             columns={columns}
             title={title}
             rowLabel="articles"
-            onProcessAIColumn={handleProcessAIColumn}
+            itemType="article"
             onColumnsChange={onColumnsChange}
             onColumnVisibilityChange={handleColumnVisibilityChange}
             onRowClick={onRowClick}

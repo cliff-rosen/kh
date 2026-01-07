@@ -1,7 +1,6 @@
 import { useMemo, useCallback } from 'react';
-import { Tablizer, TableColumn, TableRow, AIColumnResult, RowViewerProps, ScoreConfig } from '../tools/Tablizer';
+import { Tablizer, TableColumn, TableRow, RowViewerProps } from '../tools/Tablizer';
 import TrialViewerModal from './TrialViewerModal';
-import { tablizerApi } from '../../lib/api/tablizerApi';
 import { CanonicalClinicalTrial } from '../../types/canonical_types';
 
 // ============================================================================
@@ -164,30 +163,6 @@ export default function TrialScoutTable({
         [trials]
     );
 
-    // Handle AI column processing via tablizer API
-    const handleProcessAIColumn = useCallback(async (
-        data: TrialRowData[],
-        promptTemplate: string,
-        outputType: 'text' | 'number' | 'boolean',
-        scoreConfig?: ScoreConfig
-    ): Promise<AIColumnResult[]> => {
-        // Get the original trials for the API call
-        const trialMap = new Map(trials.map(t => [t.nct_id, t]));
-        const trialsForApi = data
-            .map(d => trialMap.get(d.nct_id))
-            .filter((t): t is CanonicalClinicalTrial => !!t);
-
-        // Use unified processAIColumn which routes to filter or extract
-        return await tablizerApi.processAIColumn({
-            items: trialsForApi as unknown as Record<string, unknown>[],
-            itemType: 'trial',
-            criteria: promptTemplate,
-            outputType: outputType,
-            threshold: 0.5,
-            scoreConfig: scoreConfig
-        });
-    }, [trials]);
-
     // Custom cell renderer for status/phase formatting
     const renderCell = useCallback((row: TableRow, column: TableColumn) => {
         if (column.id === 'status') {
@@ -239,7 +214,8 @@ export default function TrialScoutTable({
             columns={TRIAL_COLUMNS}
             rowLabel="trials"
             RowViewer={TrialViewer}
-            onProcessAIColumn={handleProcessAIColumn}
+            itemType="trial"
+            originalData={trials as unknown as Record<string, unknown>[]}
             onFetchMoreForAI={onFetchMoreForAI ? async () => {
                 const moreTrials = await onFetchMoreForAI();
                 // Convert to row data format

@@ -1,10 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { TableCellsIcon } from '@heroicons/react/24/outline';
-import Tablizer, { TableColumn, AIColumnResult } from './Tablizer';
+import Tablizer, { TableColumn } from './Tablizer';
 import ArticleViewerModal from '../../articles/ArticleViewerModal';
 import { CanonicalResearchArticle } from '../../../types/canonical_types';
 import { ReportArticle } from '../../../types/report';
-import { tablizerApi } from '../../../lib/api/tablizerApi';
 import { RowViewerProps } from './Tablizer';
 
 // Union type for articles from different sources
@@ -49,21 +48,6 @@ export default function TablizeButton({
 }: TablizeButtonProps) {
     const [isOpen, setIsOpen] = useState(false);
 
-    // Handle AI column processing via tablizer API
-    const handleProcessAIColumn = useCallback(async (
-        data: TablizableArticle[],
-        promptTemplate: string,
-        outputType: 'text' | 'number' | 'boolean'
-    ): Promise<AIColumnResult[]> => {
-        return await tablizerApi.processAIColumn({
-            items: data as unknown as Record<string, unknown>[],
-            itemType: 'article',
-            criteria: promptTemplate,
-            outputType: outputType,
-            threshold: 0.5
-        });
-    }, []);
-
     if (isOpen) {
         return (
             <Tablizer<TablizableArticle>
@@ -75,7 +59,7 @@ export default function TablizeButton({
                 isFullScreen={true}
                 onClose={() => setIsOpen(false)}
                 RowViewer={ArticleRowViewer}
-                onProcessAIColumn={handleProcessAIColumn}
+                itemType="article"
             />
         );
     }

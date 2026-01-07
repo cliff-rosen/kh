@@ -20,6 +20,7 @@ import {
 import AddColumnModal, { ScoreConfig } from './AddColumnModal';
 import { trackEvent } from '../../../lib/api/trackingApi';
 import { copyToClipboard } from '../../../lib/utils/clipboard';
+import { tablizerApi } from '../../../lib/api/tablizerApi';
 
 // Types
 export interface TableColumn {
@@ -101,13 +102,13 @@ export interface TablizerProps<T extends object = Record<string, any>> {
     // Returns the expanded data array (parent updates its state too)
     onFetchMoreForAI?: () => Promise<T[]>;
 
-    // REQUIRED for AI columns: Process AI column on data
-    onProcessAIColumn?: (
-        data: T[],
-        promptTemplate: string,
-        outputType: 'text' | 'number' | 'boolean',
-        scoreConfig?: ScoreConfig
-    ) => Promise<AIColumnResult[]>;
+    // REQUIRED for AI columns: Type of items being displayed (determines API endpoint)
+    itemType?: 'article' | 'trial';
+
+    // Optional: Original data for AI processing when display data is transformed
+    // Use this when the displayed data (T) differs from the API data structure
+    // (e.g., TrialScoutTable shows flattened TrialRowData but API needs CanonicalClinicalTrial)
+    originalData?: Record<string, unknown>[];
 
     // Optional: Report AI column state changes to parent
     onColumnsChange?: (aiColumns: AIColumnInfo[]) => void;
@@ -162,7 +163,8 @@ function TablizerInner<T extends object>(
         isFullScreen = false,
         onSaveToHistory,
         onFetchMoreForAI,
-        onProcessAIColumn,
+        itemType,
+        originalData,
         onColumnsChange,
         onColumnVisibilityChange,
         RowViewer,
@@ -449,8 +451,8 @@ function TablizerInner<T extends object>(
         outputType: 'text' | 'number' | 'boolean',
         scoreConfig?: ScoreConfig
     ) => {
-        if (!onProcessAIColumn) {
-            console.error('Tablizer: onProcessAIColumn callback is required for AI columns');
+        if (!itemType) {
+            console.error('Tablizer: itemType prop is required for AI columns');
             return;
         }
 
@@ -481,13 +483,23 @@ function TablizerInner<T extends object>(
             aiData = await onFetchMoreForAI();
         }
 
-        // Process using callback
+        // Process using API directly
         setProcessingColumn(columnId);
         setProcessingProgress({ current: 0, total: aiData.length });
 
         try {
-            // Call the parent's AI processing callback
-            const results = await onProcessAIColumn(aiData, promptTemplate, outputType, scoreConfig);
+            // Use originalData if provided (for cases where display data differs from API data)
+            // Otherwise use the display data directly
+            const apiData = originalData || (aiData as unknown as Record<string, unknown>[]);
+
+            const results = await tablizerApi.processAIColumn({
+                items: apiData,
+                itemType,
+                criteria: promptTemplate,
+                outputType,
+                threshold: 0.5,
+                scoreConfig
+            });
 
             // Convert results to columnValues, columnReasoning, and columnConfidence maps
             const columnValues: Record<string, unknown> = {};
@@ -548,7 +560,7 @@ function TablizerInner<T extends object>(
             setProcessingColumn(null);
             setProcessingProgress({ current: 0, total: 0 });
         }
-    }, [inputData, idField, onFetchMoreForAI, onProcessAIColumn]);
+    }, [inputData, idField, onFetchMoreForAI, itemType, originalData]);
 
     // Export to CSV
     const handleExport = useCallback(() => {
@@ -717,8 +729,8 @@ function TablizerInner<T extends object>(
                         </button>
                     )}
 
-                    {/* Add AI Column - only show if callback is provided */}
-                    {onProcessAIColumn && (
+                    {/* Add AI Column - only show if itemType is provided */}
+                    {itemType && (
                         <button
                             onClick={() => {
                                 setShowAddColumnModal(true);
