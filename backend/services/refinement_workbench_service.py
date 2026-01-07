@@ -356,7 +356,7 @@ class RefinementWorkbenchService:
         for article, assigned_category in batch_results:
             results.append({
                 "article": article,
-                "assigned_category": assigned_category  # Now returns single category ID instead of list
+                "assigned_categories": [assigned_category] if assigned_category else []
             })
 
         return results
