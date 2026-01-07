@@ -596,10 +596,12 @@ function TablizerInner<T extends object>(
 
                     {/* Processing indicator */}
                     {processingColumn && (
-                        <span className="text-sm text-purple-600 dark:text-purple-400 flex items-center gap-2 whitespace-nowrap">
-                            <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                            Processing {processingProgress.current}/{processingProgress.total}...
-                        </span>
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-600 dark:bg-purple-500 shadow-md animate-pulse">
+                            <SparklesIcon className="h-4 w-4 text-white" />
+                            <span className="text-sm font-medium text-white whitespace-nowrap">
+                                AI Processing {processingProgress.current}/{processingProgress.total}
+                            </span>
+                        </div>
                     )}
 
                     {/* Quick Boolean Filters */}
@@ -872,7 +874,10 @@ function TablizerInner<T extends object>(
                                             title={!showReasoning && column.type === 'ai' ? aiColumnReasoning[column.id]?.[itemId] : undefined}
                                         >
                                             {processingColumn === column.id && cellValue === undefined ? (
-                                                <span className="text-gray-400 italic">Processing...</span>
+                                                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 animate-pulse">
+                                                    <SparklesIcon className="h-3 w-3 text-purple-500" />
+                                                    <span className="text-xs text-purple-600 dark:text-purple-400">analyzing...</span>
+                                                </div>
                                             ) : isBoolean ? (
                                                 <div>
                                                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
