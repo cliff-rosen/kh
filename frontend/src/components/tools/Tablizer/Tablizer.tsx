@@ -13,10 +13,13 @@ import {
     XCircleIcon,
     AdjustmentsHorizontalIcon,
     PlusCircleIcon,
-    ChatBubbleLeftIcon
+    ChatBubbleLeftIcon,
+    ClipboardDocumentIcon,
+    CheckIcon
 } from '@heroicons/react/24/outline';
 import AddColumnModal, { ScoreConfig } from './AddColumnModal';
 import { trackEvent } from '../../../lib/api/trackingApi';
+import { copyToClipboard } from '../../../lib/utils/clipboard';
 
 // Types
 export interface TableColumn {
@@ -209,6 +212,7 @@ function TablizerInner<T extends object>(
     const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0 });
     const [booleanFilters, setBooleanFilters] = useState<Record<string, BooleanFilterState>>({});
     const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
+    const [copiedIds, setCopiedIds] = useState(false);
 
     // Track dataset identity for reset detection
     const prevDatasetIdRef = useRef<string>('');
@@ -363,6 +367,19 @@ function TablizerInner<T extends object>(
             filtered_count: filteredIds.length
         });
     }, [onSaveToHistory, filteredItems, idField, getFilterDescription]);
+
+    // Handle copy IDs to clipboard
+    const handleCopyIds = useCallback(async () => {
+        const ids = filteredItems.map(item => getItemId(item, idField));
+        const result = await copyToClipboard(ids.join('\n'));
+        if (result.success) {
+            setCopiedIds(true);
+            setTimeout(() => setCopiedIds(false), 2000);
+        }
+        trackEvent('tablizer_copy_ids', {
+            count: ids.length
+        });
+    }, [filteredItems, idField]);
 
     // Handle sort
     const handleSort = useCallback((columnId: string) => {
@@ -666,16 +683,37 @@ function TablizerInner<T extends object>(
                 </div>
 
                 {/* Right: Actions */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                    {/* Copy IDs - always available */}
+                    {filteredItems.length > 0 && (
+                        <button
+                            onClick={handleCopyIds}
+                            className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                            title={`Copy ${filteredItems.length} IDs to clipboard`}
+                        >
+                            {copiedIds ? (
+                                <>
+                                    <CheckIcon className="h-4 w-4 text-green-500" />
+                                    <span className="text-green-600 dark:text-green-400">Copied!</span>
+                                </>
+                            ) : (
+                                <>
+                                    <ClipboardDocumentIcon className="h-4 w-4" />
+                                    Copy {filteredItems.length} IDs
+                                </>
+                            )}
+                        </button>
+                    )}
+
                     {/* Save to History - shown when filters are active */}
                     {onSaveToHistory && hasActiveFilters && filteredItems.length > 0 && filteredItems.length < inputData.length && (
                         <button
                             onClick={handleSaveToHistory}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+                            className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
                             title={`Save ${filteredItems.length} filtered items to history`}
                         >
                             <PlusCircleIcon className="h-4 w-4" />
-                            Save to History ({filteredItems.length})
+                            Save to History
                         </button>
                     )}
 

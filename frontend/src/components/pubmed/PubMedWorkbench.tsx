@@ -142,6 +142,7 @@ const PubMedWorkbench = forwardRef<PubMedWorkbenchRef, PubMedWorkbenchProps>(fun
 
     // Clipboard feedback state
     const [copiedQuery, setCopiedQuery] = useState(false);
+    const [copiedSnapshotPmids, setCopiedSnapshotPmids] = useState(false);
 
     // Add search snapshot to history
     const addSearchSnapshot = useCallback((articles: CanonicalResearchArticle[], total: number, pmids: string[]) => {
@@ -583,6 +584,31 @@ const PubMedWorkbench = forwardRef<PubMedWorkbenchRef, PubMedWorkbenchProps>(fun
                                         Viewing: {selectedSnapshot.label || `Snapshot #${getVersionNumber(selectedSnapshot.id)}`}
                                     </div>
                                     <div className="flex items-center gap-3">
+                                        {/* Copy PMIDs */}
+                                        <button
+                                            onClick={async () => {
+                                                const result = await copyToClipboard(selectedSnapshot.allPmids.join('\n'));
+                                                if (result.success) {
+                                                    setCopiedSnapshotPmids(true);
+                                                    setTimeout(() => setCopiedSnapshotPmids(false), 2000);
+                                                }
+                                                trackEvent('pubmed_copy_pmids', { count: selectedSnapshot.allPmids.length });
+                                            }}
+                                            className="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-1 transition-colors"
+                                        >
+                                            {copiedSnapshotPmids ? (
+                                                <>
+                                                    <CheckIcon className="h-3.5 w-3.5 text-green-500" />
+                                                    <span className="text-green-600 dark:text-green-400">Copied!</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <ClipboardDocumentIcon className="h-3.5 w-3.5" />
+                                                    Copy {selectedSnapshot.allPmids.length} PMIDs
+                                                </>
+                                            )}
+                                        </button>
+                                        {/* Copy Query (for search snapshots) */}
                                         {selectedSnapshot.source.type === 'search' && (
                                             <button
                                                 onClick={async () => {
@@ -595,7 +621,7 @@ const PubMedWorkbench = forwardRef<PubMedWorkbenchRef, PubMedWorkbenchProps>(fun
                                                     }
                                                     trackEvent('pubmed_copy_query', {});
                                                 }}
-                                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                                                className="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-1 transition-colors"
                                             >
                                                 {copiedQuery ? (
                                                     <>
