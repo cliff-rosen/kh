@@ -564,18 +564,49 @@ function TablizerInner<T extends object>(
 
     // Export to CSV
     const handleExport = useCallback(() => {
-        const headers = visibleColumns.map(c => c.label);
-        const rows = filteredItems.map(item =>
-            visibleColumns.map(c => {
+        // Helper to escape CSV values
+        const escapeCSV = (val: unknown): string => {
+            const strVal = String(val ?? '');
+            if (strVal.includes(',') || strVal.includes('"') || strVal.includes('\n')) {
+                return `"${strVal.replace(/"/g, '""')}"`;
+            }
+            return strVal;
+        };
+
+        // Build headers - for AI columns, add Confidence and Reasoning columns
+        const headers: string[] = [];
+        for (const c of visibleColumns) {
+            headers.push(c.label);
+            if (c.type === 'ai') {
+                headers.push(`${c.label} (Confidence)`);
+                headers.push(`${c.label} (Reasoning)`);
+            }
+        }
+
+        // Build rows - for AI columns, include confidence and reasoning
+        const rows = filteredItems.map(item => {
+            const rowValues: string[] = [];
+            const itemId = getItemId(item, idField);
+
+            for (const c of visibleColumns) {
                 const val = getCellValue(item, c);
-                // Escape quotes and wrap in quotes if contains comma
-                const strVal = String(val ?? '');
-                if (strVal.includes(',') || strVal.includes('"') || strVal.includes('\n')) {
-                    return `"${strVal.replace(/"/g, '""')}"`;
+                rowValues.push(escapeCSV(val));
+
+                if (c.type === 'ai') {
+                    // Add confidence (as percentage)
+                    const confidence = aiColumnConfidence[c.id]?.[itemId];
+                    const confidenceStr = confidence !== undefined
+                        ? `${Math.round(confidence * 100)}%`
+                        : '';
+                    rowValues.push(escapeCSV(confidenceStr));
+
+                    // Add reasoning
+                    const reasoning = aiColumnReasoning[c.id]?.[itemId] || '';
+                    rowValues.push(escapeCSV(reasoning));
                 }
-                return strVal;
-            })
-        );
+            }
+            return rowValues;
+        });
 
         const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
         const blob = new Blob([csv], { type: 'text/csv' });
@@ -587,9 +618,9 @@ function TablizerInner<T extends object>(
         URL.revokeObjectURL(url);
         trackEvent('tablizer_export', {
             row_count: filteredItems.length,
-            column_count: visibleColumns.length
+            column_count: headers.length
         });
-    }, [filteredItems, getCellValue, visibleColumns, title]);
+    }, [filteredItems, getCellValue, visibleColumns, title, idField, aiColumnConfidence, aiColumnReasoning]);
 
     // Expose addAIColumn method via ref for parent component
     useImperativeHandle(ref, () => ({
