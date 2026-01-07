@@ -1,8 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
-import { XMarkIcon, SparklesIcon, ClockIcon, ChevronDownIcon, InformationCircleIcon, EyeIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, SparklesIcon, ClockIcon, ChevronDownIcon, ChevronRightIcon, InformationCircleIcon, EyeIcon } from '@heroicons/react/24/outline';
 
 const RECENT_TEMPLATES_KEY = 'tablizer_recent_templates';
 const MAX_RECENT_TEMPLATES = 10;
+const INSTRUCTIONS_COLLAPSED_KEY = 'tablizer_instructions_collapsed';
+
+// Example template shown when history has fewer than 5 items
+const EXAMPLE_TEMPLATE: RecentTemplate = {
+    name: 'Is Clinical Trial?',
+    prompt: 'Based on the title and abstract, is this article describing a clinical trial study?\n\nTitle: {title}\n\nAbstract: {abstract}',
+    outputType: 'boolean',
+    timestamp: 0
+};
 
 interface RecentTemplate {
     name: string;
@@ -65,14 +74,38 @@ export default function AddColumnModal({ availableColumns, onAdd, onClose, sampl
     const [recentTemplates, setRecentTemplates] = useState<RecentTemplate[]>([]);
     const [showRecentDropdown, setShowRecentDropdown] = useState(false);
     const [showPreview, setShowPreview] = useState(false);
+    const [instructionsCollapsed, setInstructionsCollapsed] = useState(() => {
+        try {
+            return localStorage.getItem(INSTRUCTIONS_COLLAPSED_KEY) === 'true';
+        } catch {
+            return false;
+        }
+    });
     // Score config (only used when outputType === 'number')
     const [scoreMin, setScoreMin] = useState(1);
     const [scoreMax, setScoreMax] = useState(10);
     const [scoreInterval, setScoreInterval] = useState<number | undefined>(1);
 
     useEffect(() => {
-        setRecentTemplates(loadRecentTemplates());
+        const saved = loadRecentTemplates();
+        // Add example template if fewer than 5 saved templates
+        if (saved.length < 5) {
+            setRecentTemplates([...saved, { ...EXAMPLE_TEMPLATE, name: '📋 Example: ' + EXAMPLE_TEMPLATE.name }]);
+        } else {
+            setRecentTemplates(saved);
+        }
     }, []);
+
+    // Save instructions collapsed preference
+    const toggleInstructions = () => {
+        const newValue = !instructionsCollapsed;
+        setInstructionsCollapsed(newValue);
+        try {
+            localStorage.setItem(INSTRUCTIONS_COLLAPSED_KEY, String(newValue));
+        } catch {
+            // Ignore storage errors
+        }
+    };
 
     // Populate template with sample row data
     const populatedPrompt = useMemo(() => {
@@ -156,23 +189,37 @@ export default function AddColumnModal({ availableColumns, onAdd, onClose, sampl
                 <div className="flex-1 overflow-hidden flex">
                     {/* Left Column - Main Form */}
                     <div className="flex-1 overflow-y-auto p-6 space-y-5">
-                        {/* Instructions Box */}
-                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                            <div className="flex gap-3">
-                                <InformationCircleIcon className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
-                                <div className="text-sm text-blue-800 dark:text-blue-200 space-y-2">
-                                    <p className="font-medium">Create an AI-Powered Column</p>
-                                    <ol className="list-decimal list-inside text-blue-700 dark:text-blue-300 space-y-1">
+                        {/* Instructions Box - Collapsible */}
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg overflow-hidden">
+                            <button
+                                type="button"
+                                onClick={toggleInstructions}
+                                className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                            >
+                                {instructionsCollapsed ? (
+                                    <ChevronRightIcon className="h-4 w-4 text-blue-500" />
+                                ) : (
+                                    <ChevronDownIcon className="h-4 w-4 text-blue-500" />
+                                )}
+                                <InformationCircleIcon className="h-5 w-5 text-blue-500" />
+                                <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                                    How to Create an AI Column
+                                </span>
+                            </button>
+                            {!instructionsCollapsed && (
+                                <div className="px-4 pb-4 pt-1">
+                                    <ol className="list-decimal list-inside text-sm text-blue-700 dark:text-blue-300 space-y-1.5 ml-6">
                                         <li>Enter a brief <strong>column name</strong></li>
                                         <li>Choose the <strong>answer type</strong> — this determines how results are displayed and filtered</li>
                                         <li>Write your <strong>prompt</strong> and insert fields from the right panel as inputs</li>
                                         <li>Click <strong>Add Column</strong> — AI will analyze each row and populate values</li>
                                     </ol>
-                                    <p className="text-blue-600 dark:text-blue-400 text-xs mt-2">
-                                        💡 Yes/No columns automatically get quick filter buttons in the toolbar
-                                    </p>
+                                    <div className="mt-3 ml-6 space-y-1 text-xs text-blue-600 dark:text-blue-400">
+                                        <p>💡 Yes/No columns automatically get quick filter buttons in the toolbar</p>
+                                        <p>💡 Use the <strong>recent templates</strong> dropdown below to reuse a previous prompt</p>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
 
                         {/* Recent Templates Dropdown */}
