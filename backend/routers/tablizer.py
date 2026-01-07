@@ -298,10 +298,7 @@ async def filter_items(
     try:
         service = get_ai_evaluation_service()
 
-        # Determine ID field based on item type
-        id_field = "nct_id" if request.item_type == "trial" else "pmid"
-
-        # Prepare items as dicts
+        # Prepare items - normalizes to use "id" field
         prepared_items = [_prepare_item_for_evaluation(item, request.item_type) for item in request.items]
 
         # Run evaluation based on output type
@@ -309,7 +306,7 @@ async def filter_items(
             eval_results = await service.filter_batch(
                 items=prepared_items,
                 criteria=request.criteria,
-                id_field="id",  # _prepare_item_for_evaluation normalizes to "id"
+                id_field="id",
                 include_reasoning=True,
                 max_concurrent=50
             )
@@ -317,7 +314,7 @@ async def filter_items(
             eval_results = await service.score_batch(
                 items=prepared_items,
                 criteria=request.criteria,
-                id_field="id",  # _prepare_item_for_evaluation normalizes to "id"
+                id_field="id",
                 include_reasoning=True,
                 max_concurrent=50
             )
