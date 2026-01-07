@@ -31,6 +31,8 @@ export interface TableColumn {
         showReasoning?: boolean;  // Whether to display reasoning in cells
     };
     visible?: boolean;
+    /** If true, this column won't be available as a template field in Add AI Column */
+    excludeFromAITemplate?: boolean;
 }
 
 // Row type that allows dynamic AI column access
@@ -912,10 +914,12 @@ function TablizerInner<T extends object>(
             {/* Add Column Modal */}
             {showAddColumnModal && (
                 <AddColumnModal
-                    availableColumns={columns.filter(c => c.type !== 'ai').map(c => ({
-                        id: c.accessor,
-                        label: c.label
-                    }))}
+                    availableColumns={columns
+                        .filter(c => c.type !== 'ai' && !c.excludeFromAITemplate)
+                        .map(c => ({
+                            id: c.accessor,
+                            label: c.label
+                        }))}
                     onAdd={handleAddColumn}
                     onClose={() => setShowAddColumnModal(false)}
                     sampleRow={inputData[0] as Record<string, unknown> | undefined}
