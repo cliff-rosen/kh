@@ -54,16 +54,30 @@ function loadRecentTemplates(): RecentTemplate[] {
     }
 }
 
-function saveRecentTemplate(template: RecentTemplate): void {
+function saveRecentTemplate(template: RecentTemplate): boolean {
     try {
         const existing = loadRecentTemplates();
-        // Remove duplicates (same prompt)
-        const filtered = existing.filter(t => t.prompt !== template.prompt);
+        // Check if this exact prompt already exists (skip if duplicate)
+        if (existing.some(t => t.prompt.trim() === template.prompt.trim())) {
+            return false; // Don't save duplicate
+        }
         // Add new at front, limit to max
-        const updated = [template, ...filtered].slice(0, MAX_RECENT_TEMPLATES);
+        const updated = [template, ...existing].slice(0, MAX_RECENT_TEMPLATES);
         localStorage.setItem(RECENT_TEMPLATES_KEY, JSON.stringify(updated));
+        return true;
     } catch {
-        // Ignore storage errors
+        return false;
+    }
+}
+
+function deleteRecentTemplate(prompt: string): RecentTemplate[] {
+    try {
+        const existing = loadRecentTemplates();
+        const updated = existing.filter(t => t.prompt !== prompt);
+        localStorage.setItem(RECENT_TEMPLATES_KEY, JSON.stringify(updated));
+        return updated;
+    } catch {
+        return [];
     }
 }
 
@@ -104,6 +118,18 @@ export default function AddColumnModal({ availableColumns, onAdd, onClose, sampl
             localStorage.setItem(INSTRUCTIONS_COLLAPSED_KEY, String(newValue));
         } catch {
             // Ignore storage errors
+        }
+    };
+
+    // Delete a template from history
+    const handleDeleteTemplate = (e: React.MouseEvent, prompt: string) => {
+        e.stopPropagation(); // Don't trigger the select
+        const updated = deleteRecentTemplate(prompt);
+        // Re-add example if fewer than 5 saved templates
+        if (updated.length < 5) {
+            setRecentTemplates([...updated, { ...EXAMPLE_TEMPLATE, name: '📋 Example: ' + EXAMPLE_TEMPLATE.name }]);
+        } else {
+            setRecentTemplates(updated);
         }
     };
 
@@ -236,33 +262,50 @@ export default function AddColumnModal({ availableColumns, onAdd, onClose, sampl
                                 </button>
 
                                 {showRecentDropdown && (
-                                    <div className="absolute top-full left-0 mt-1 w-80 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-10 max-h-64 overflow-y-auto">
-                                        {recentTemplates.map((template, idx) => (
-                                            <button
-                                                key={idx}
-                                                type="button"
-                                                onClick={() => handleSelectRecentTemplate(template)}
-                                                className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-600 border-b border-gray-100 dark:border-gray-600 last:border-0"
-                                            >
-                                                <div className="font-medium text-sm text-gray-900 dark:text-white truncate">
-                                                    {template.name}
+                                    <div className="absolute top-full left-0 mt-1 w-[28rem] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-10 max-h-64 overflow-y-auto">
+                                        {recentTemplates.map((template, idx) => {
+                                            const isExample = template.timestamp === 0;
+                                            return (
+                                                <div
+                                                    key={idx}
+                                                    className="flex items-start border-b border-gray-100 dark:border-gray-600 last:border-0"
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleSelectRecentTemplate(template)}
+                                                        className="flex-1 text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-600"
+                                                    >
+                                                        <div className="font-medium text-sm text-gray-900 dark:text-white truncate">
+                                                            {template.name}
+                                                        </div>
+                                                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                                                            {template.prompt.substring(0, 60)}...
+                                                        </div>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                                                template.outputType === 'boolean'
+                                                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                                                    : template.outputType === 'number'
+                                                                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                                                    : 'bg-gray-100 text-gray-700 dark:bg-gray-600 dark:text-gray-300'
+                                                            }`}>
+                                                                {template.outputType === 'number' ? 'score' : template.outputType}
+                                                            </span>
+                                                        </div>
+                                                    </button>
+                                                    {!isExample && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => handleDeleteTemplate(e, template.prompt)}
+                                                            className="p-3 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                                                            title="Remove from history"
+                                                        >
+                                                            <XMarkIcon className="h-4 w-4" />
+                                                        </button>
+                                                    )}
                                                 </div>
-                                                <div className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
-                                                    {template.prompt.substring(0, 60)}...
-                                                </div>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                                        template.outputType === 'boolean'
-                                                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                                            : template.outputType === 'number'
-                                                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                                            : 'bg-gray-100 text-gray-700 dark:bg-gray-600 dark:text-gray-300'
-                                                    }`}>
-                                                        {template.outputType}
-                                                    </span>
-                                                </div>
-                                            </button>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
