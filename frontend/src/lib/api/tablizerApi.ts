@@ -61,7 +61,8 @@ export interface FilterRequest {
 export interface FilterResultItem {
     id: string;
     passed: boolean;
-    score: number;
+    value: number;
+    confidence: number;
     reasoning: string;
 }
 
@@ -103,7 +104,8 @@ export interface ExtractResponse {
 export interface AIColumnResult {
     id: string;
     passed: boolean;
-    score: number;
+    value: number;
+    confidence: number;
     reasoning: string;
     text_value?: string;  // Only present for text output type
 }
@@ -211,7 +213,8 @@ export const tablizerApi = {
             return response.results.map(r => ({
                 id: r.id,
                 passed: r.confidence >= (params.threshold || 0.5),
-                score: r.confidence,
+                value: 0, // Text outputs don't have a numeric value
+                confidence: r.confidence,
                 reasoning: r.reasoning,
                 text_value: r.text_value
             }));
@@ -229,7 +232,8 @@ export const tablizerApi = {
             return response.results.map(r => ({
                 id: r.id,
                 passed: r.passed,
-                score: r.score,
+                value: r.value,
+                confidence: r.confidence,
                 reasoning: r.reasoning
             }));
         }

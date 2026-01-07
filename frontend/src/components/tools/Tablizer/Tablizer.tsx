@@ -53,7 +53,8 @@ export interface AIColumnInfo {
 export interface AIColumnResult {
     id: string;        // Row ID
     passed: boolean;   // For boolean output
-    score: number;     // For number output
+    value: number;     // The evaluated value (for number output type)
+    confidence: number; // Confidence score (0.0-1.0)
     reasoning: string; // Explanation
     text_value?: string; // For text output - the actual extracted answer
 }
@@ -194,6 +195,9 @@ function TablizerInner<T extends object>(
 
     // AI column reasoning stored separately: { columnId: { rowId: reasoning } }
     const [aiColumnReasoning, setAiColumnReasoning] = useState<Record<string, Record<string, string>>>({});
+
+    // AI column confidence stored separately: { columnId: { rowId: confidence } }
+    const [aiColumnConfidence, setAiColumnConfidence] = useState<Record<string, Record<string, number>>>({});
 
     // Column definitions (base columns + AI columns)
     const [columns, setColumns] = useState<TableColumn[]>(
@@ -472,26 +476,27 @@ function TablizerInner<T extends object>(
             // Call the parent's AI processing callback
             const results = await onProcessAIColumn(aiData, promptTemplate, outputType);
 
-            // Convert results to columnValues and columnReasoning maps: { rowId: value/reasoning }
+            // Convert results to columnValues, columnReasoning, and columnConfidence maps
             const columnValues: Record<string, unknown> = {};
             const columnReasoning: Record<string, string> = {};
+            const columnConfidence: Record<string, number> = {};
             for (const result of results) {
                 let value: unknown;
                 if (outputType === 'boolean') {
                     value = result.passed ? 'Yes' : 'No';
                 } else if (outputType === 'number') {
-                    value = result.score;
+                    value = result.value;
                 } else {
                     // For text type, use text_value (the actual extracted answer)
                     // Fall back to reasoning if text_value is not present
                     value = result.text_value || result.reasoning;
                 }
                 columnValues[result.id] = value;
-                // Store reasoning for all types (useful for boolean and number)
                 columnReasoning[result.id] = result.reasoning || '';
+                columnConfidence[result.id] = result.confidence;
             }
 
-            // Store AI values and reasoning
+            // Store AI values, reasoning, and confidence
             // When inputData prop updates (from parent's fetchMore), baseRows will
             // automatically include the new rows, and displayRows will merge the AI values
             setAiColumnValues(prev => ({
@@ -501,6 +506,10 @@ function TablizerInner<T extends object>(
             setAiColumnReasoning(prev => ({
                 ...prev,
                 [columnId]: columnReasoning
+            }));
+            setAiColumnConfidence(prev => ({
+                ...prev,
+                [columnId]: columnConfidence
             }));
 
             setProcessingProgress({ current: aiData.length, total: aiData.length });
@@ -851,11 +860,15 @@ function TablizerInner<T extends object>(
                                     const isBooleanYes = isBoolean && (cellValue === true || cellValue === 'Yes' || cellValue === 'yes' || cellValue === 'YES');
                                     const isBooleanNo = isBoolean && (cellValue === false || cellValue === 'No' || cellValue === 'no' || cellValue === 'NO');
 
-                                    // Get reasoning if available and showReasoning is enabled
+                                    // Get reasoning and confidence if available and showReasoning is enabled
                                     const showReasoning = column.aiConfig?.showReasoning;
                                     const reasoning = showReasoning && column.type === 'ai'
                                         ? aiColumnReasoning[column.id]?.[row.id]
                                         : null;
+                                    const confidence = showReasoning && column.type === 'ai'
+                                        ? aiColumnConfidence[column.id]?.[row.id]
+                                        : null;
+                                    const confidencePercent = confidence != null ? Math.round(confidence * 100) : null;
 
                                     return (
                                         <td
@@ -880,6 +893,11 @@ function TablizerInner<T extends object>(
                                                     </span>
                                                     {reasoning && (
                                                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 whitespace-normal">
+                                                            {confidencePercent != null && (
+                                                                <span className="font-medium text-purple-600 dark:text-purple-400 mr-1">
+                                                                    {confidencePercent}%
+                                                                </span>
+                                                            )}
                                                             {reasoning}
                                                         </p>
                                                     )}
@@ -891,6 +909,11 @@ function TablizerInner<T extends object>(
                                                     </span>
                                                     {reasoning && (
                                                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 whitespace-normal">
+                                                            {confidencePercent != null && (
+                                                                <span className="font-medium text-purple-600 dark:text-purple-400 mr-1">
+                                                                    {confidencePercent}%
+                                                                </span>
+                                                            )}
                                                             {reasoning}
                                                         </p>
                                                     )}

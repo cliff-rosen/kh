@@ -267,8 +267,9 @@ class FilterResultItem(BaseModel):
     """Result for a single filtered item"""
     id: str = Field(..., description="Item identifier (pmid or nct_id)")
     passed: bool = Field(..., description="Whether item passed the filter")
-    score: float = Field(..., description="Relevance score (0.0-1.0)")
-    reasoning: str = Field(..., description="Explanation of the score")
+    value: float = Field(..., description="The evaluated value (for number output type)")
+    confidence: float = Field(..., description="Confidence score (0.0-1.0)")
+    reasoning: str = Field(..., description="Explanation of the result")
 
 
 class FilterResponse(BaseModel):
@@ -326,15 +327,18 @@ async def filter_items(
         for result in eval_results:
             if request.output_type == "boolean":
                 passed = result.value is True
-                score = result.confidence
+                value = 1.0 if passed else 0.0
+                confidence = result.confidence
             else:  # "number"
-                passed = (result.value or 0) >= request.threshold
-                score = result.value if result.value is not None else 0.0
+                value = result.value if result.value is not None else 0.0
+                passed = value >= request.threshold
+                confidence = result.confidence
 
             results.append(FilterResultItem(
                 id=result.item_id,
                 passed=passed,
-                score=score,
+                value=value,
+                confidence=confidence,
                 reasoning=result.reasoning or result.error or ""
             ))
 
