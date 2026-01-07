@@ -56,6 +56,10 @@ export interface FilterRequest {
     criteria: string;
     threshold?: number;
     output_type: 'boolean' | 'number';
+    // Score-specific options (only used when output_type="number")
+    min_value?: number;
+    max_value?: number;
+    interval?: number;
 }
 
 export interface FilterResultItem {
@@ -191,7 +195,7 @@ export const tablizerApi = {
      * Returns a unified AIColumnResult format regardless of output type.
      *
      * - boolean: Uses filter endpoint (returns Yes/No based on criteria match)
-     * - number: Uses filter endpoint (returns 0-1 relevance score)
+     * - number: Uses filter endpoint (returns score within min/max range)
      * - text: Uses extract endpoint (returns text answer/classification)
      */
     async processAIColumn(params: {
@@ -200,6 +204,12 @@ export const tablizerApi = {
         criteria: string;
         outputType: 'boolean' | 'number' | 'text';
         threshold?: number;
+        // Score-specific options (only used when outputType="number")
+        scoreConfig?: {
+            minValue: number;
+            maxValue: number;
+            interval?: number;
+        };
     }): Promise<AIColumnResult[]> {
         if (params.outputType === 'text') {
             // Use extract endpoint for text output
@@ -225,7 +235,13 @@ export const tablizerApi = {
                 item_type: params.itemType,
                 criteria: params.criteria,
                 threshold: params.threshold,
-                output_type: params.outputType
+                output_type: params.outputType,
+                // Pass score config if provided (for number/score type)
+                ...(params.scoreConfig && {
+                    min_value: params.scoreConfig.minValue,
+                    max_value: params.scoreConfig.maxValue,
+                    interval: params.scoreConfig.interval
+                })
             });
 
             // Convert to unified format

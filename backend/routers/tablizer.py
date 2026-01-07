@@ -255,12 +255,16 @@ async def get_trial_detail(
 # ============================================================================
 
 class FilterRequest(BaseModel):
-    """Request to filter items using AI (for boolean/number AI columns)"""
+    """Request to filter items using AI (for boolean/score AI columns)"""
     items: List[Dict[str, Any]] = Field(..., description="Items to filter (articles or trials)")
     item_type: Literal["article", "trial"] = Field("article", description="Type of items")
     criteria: str = Field(..., description="Natural language filter criteria")
     threshold: float = Field(0.5, ge=0.0, le=1.0, description="Minimum score to pass")
-    output_type: Literal["boolean", "number"] = Field("boolean", description="Output type")
+    output_type: Literal["boolean", "number"] = Field("boolean", description="Output type (number = score)")
+    # Score-specific options (only used when output_type="number")
+    min_value: float = Field(0.0, description="Minimum score value (for score output)")
+    max_value: float = Field(10.0, description="Maximum score value (for score output)")
+    interval: Optional[float] = Field(None, description="Score interval/step size (e.g., 0.5, 1)")
 
 
 class FilterResultItem(BaseModel):
@@ -310,11 +314,14 @@ async def filter_items(
                 include_reasoning=True,
                 max_concurrent=50
             )
-        else:  # "number"
+        else:  # "number" (score)
             eval_results = await service.score_batch(
                 items=prepared_items,
                 criteria=request.criteria,
                 id_field="id",
+                min_value=request.min_value,
+                max_value=request.max_value,
+                interval=request.interval,
                 include_reasoning=True,
                 max_concurrent=50
             )

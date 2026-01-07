@@ -15,7 +15,7 @@ import {
     PlusCircleIcon,
     ChatBubbleLeftIcon
 } from '@heroicons/react/24/outline';
-import AddColumnModal from './AddColumnModal';
+import AddColumnModal, { ScoreConfig } from './AddColumnModal';
 import { trackEvent } from '../../../lib/api/trackingApi';
 
 // Types
@@ -102,7 +102,8 @@ export interface TablizerProps<T extends object = Record<string, any>> {
     onProcessAIColumn?: (
         data: T[],
         promptTemplate: string,
-        outputType: 'text' | 'number' | 'boolean'
+        outputType: 'text' | 'number' | 'boolean',
+        scoreConfig?: ScoreConfig
     ) => Promise<AIColumnResult[]>;
 
     // Optional: Report AI column state changes to parent
@@ -428,7 +429,8 @@ function TablizerInner<T extends object>(
         columnName: string,
         promptTemplate: string,
         inputCols: string[],
-        outputType: 'text' | 'number' | 'boolean'
+        outputType: 'text' | 'number' | 'boolean',
+        scoreConfig?: ScoreConfig
     ) => {
         if (!onProcessAIColumn) {
             console.error('Tablizer: onProcessAIColumn callback is required for AI columns');
@@ -468,7 +470,7 @@ function TablizerInner<T extends object>(
 
         try {
             // Call the parent's AI processing callback
-            const results = await onProcessAIColumn(aiData, promptTemplate, outputType);
+            const results = await onProcessAIColumn(aiData, promptTemplate, outputType, scoreConfig);
 
             // Convert results to columnValues, columnReasoning, and columnConfidence maps
             const columnValues: Record<string, unknown> = {};

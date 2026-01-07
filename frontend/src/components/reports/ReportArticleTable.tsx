@@ -1,5 +1,5 @@
 import { useCallback, useMemo, forwardRef } from 'react';
-import { Tablizer, TableColumn, AIColumnResult, TablizerRef, AIColumnInfo } from '../tools/Tablizer';
+import { Tablizer, TableColumn, AIColumnResult, TablizerRef, AIColumnInfo, ScoreConfig } from '../tools/Tablizer';
 import { ReportArticle } from '../../types';
 import { tablizerApi } from '../../lib/api/tablizerApi';
 
@@ -66,14 +66,16 @@ const ReportArticleTable = forwardRef<TablizerRef, ReportArticleTableProps>(func
     const handleProcessAIColumn = useCallback(async (
         data: ReportArticle[],
         promptTemplate: string,
-        outputType: 'text' | 'number' | 'boolean'
+        outputType: 'text' | 'number' | 'boolean',
+        scoreConfig?: ScoreConfig
     ): Promise<AIColumnResult[]> => {
         return await tablizerApi.processAIColumn({
             items: data as unknown as Record<string, unknown>[],
             itemType: 'article',
             criteria: promptTemplate,
             outputType: outputType,
-            threshold: 0.5
+            threshold: 0.5,
+            scoreConfig: scoreConfig
         });
     }, []);
 
