@@ -12,41 +12,39 @@ This document illustrates how data flows through the Tablizer component, from in
                                       │
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              baseRows                                       │
-│              (derived from inputData, no state)                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-              ┌───────────────────────┼───────────────────────┐
-              │                       │                       │
-              ▼                       ▼                       ▼
-┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
-│   aiColumnValues    │  │  aiColumnReasoning  │  │  aiColumnConfidence │
-│      (state)        │  │      (state)        │  │      (state)        │
-└─────────────────────┘  └─────────────────────┘  └─────────────────────┘
-              │                       │                       │
-              └───────────────────────┼───────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                             displayRows                                     │
-│              (merges baseRows + aiColumnValues)                             │
+│                             sortedItems (T[])                               │
+│                       (applies sortConfig to inputData)                     │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              sortedData                                     │
-│                    (applies sortConfig to displayRows)                      │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                             filteredData                                    │
-│          (applies filterText + booleanFilters to sortedData)                │
+│                            filteredItems (T[])                              │
+│            (applies filterText + booleanFilters to sortedItems)             │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
                               [ Rendered Table ]
+                                      │
+                    ┌─────────────────┼─────────────────┐
+                    ▼                 ▼                 ▼
+           ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+           │aiColumnValues│  │aiColumnReason│  │aiColumnConfid│
+           │   (state)    │  │   (state)    │  │   (state)    │
+           └──────────────┘  └──────────────┘  └──────────────┘
+                    │                 │                 │
+                    └─────────────────┼─────────────────┘
+                                      ▼
+                           getCellValue(item, column)
+                           (lookups at render time)
 ```
+
+The data flow is now much simpler:
+1. **inputData** (T[]) - original items from props
+2. **sortedItems** (T[]) - sorted by sortConfig
+3. **filteredItems** (T[]) - filtered by text search and boolean filters
+4. **getCellValue()** - looks up values at render time:
+   - Regular columns: `item[column.accessor]`
+   - AI columns: `aiColumnValues[column.id][itemId]`
 
 ---
 
@@ -96,45 +94,9 @@ This document illustrates how data flows through the Tablizer component, from in
 
 ---
 
-### 2. baseRows (Derived)
+### 2. AI Column State
 
-Transforms each input item into a `TableRow` with `id` field and accessible column values:
-
-```typescript
-// TableRow[] - keyed by column accessor
-[
-  {
-    id: "12345678",           // from idField (pmid)
-    pmid: "12345678",
-    title: "Effects of aspirin on cardiovascular outcomes",
-    abstract: "Background: Aspirin is widely used...",
-    journal: "NEJM",
-    publication_date: "2024-01-15"
-  },
-  {
-    id: "23456789",
-    pmid: "23456789",
-    title: "Novel cancer immunotherapy approaches",
-    abstract: "Recent advances in immunotherapy...",
-    journal: "Nature Medicine",
-    publication_date: "2024-02-20"
-  },
-  {
-    id: "34567890",
-    pmid: "34567890",
-    title: "Machine learning in drug discovery",
-    abstract: "This review examines how ML...",
-    journal: "Science",
-    publication_date: "2024-03-10"
-  }
-]
-```
-
----
-
-### 3. AI Column State
-
-When user adds an AI column (e.g., "Is Clinical Trial?" with boolean output), results are stored in three parallel structures:
+When user adds an AI column (e.g., "Is Clinical Trial?" with boolean output), results are stored in three parallel structures keyed by item ID:
 
 **`columns` (updated with AI column):**
 ```typescript
@@ -156,7 +118,7 @@ When user adds an AI column (e.g., "Is Clinical Trial?" with boolean output), re
 ]
 ```
 
-**`aiColumnValues`:** `{ columnId: { rowId: value } }`
+**`aiColumnValues`:** `{ columnId: { itemId: value } }`
 ```typescript
 {
   "ai_is_clinical_trial": {
@@ -167,7 +129,7 @@ When user adds an AI column (e.g., "Is Clinical Trial?" with boolean output), re
 }
 ```
 
-**`aiColumnReasoning`:** `{ columnId: { rowId: reasoning } }`
+**`aiColumnReasoning`:** `{ columnId: { itemId: reasoning } }`
 ```typescript
 {
   "ai_is_clinical_trial": {
@@ -178,7 +140,7 @@ When user adds an AI column (e.g., "Is Clinical Trial?" with boolean output), re
 }
 ```
 
-**`aiColumnConfidence`:** `{ columnId: { rowId: confidence } }`
+**`aiColumnConfidence`:** `{ columnId: { itemId: confidence } }`
 ```typescript
 {
   "ai_is_clinical_trial": {
@@ -191,68 +153,48 @@ When user adds an AI column (e.g., "Is Clinical Trial?" with boolean output), re
 
 ---
 
-### 4. displayRows (Merged)
-
-Merges `baseRows` with `aiColumnValues`:
-
-```typescript
-[
-  {
-    id: "12345678",
-    pmid: "12345678",
-    title: "Effects of aspirin on cardiovascular outcomes",
-    abstract: "Background: Aspirin is widely used...",
-    journal: "NEJM",
-    publication_date: "2024-01-15",
-    ai_is_clinical_trial: "Yes"              // <-- merged from aiColumnValues
-  },
-  {
-    id: "23456789",
-    pmid: "23456789",
-    title: "Novel cancer immunotherapy approaches",
-    abstract: "Recent advances in immunotherapy...",
-    journal: "Nature Medicine",
-    publication_date: "2024-02-20",
-    ai_is_clinical_trial: "No"               // <-- merged
-  },
-  {
-    id: "34567890",
-    pmid: "34567890",
-    title: "Machine learning in drug discovery",
-    abstract: "This review examines how ML...",
-    journal: "Science",
-    publication_date: "2024-03-10",
-    ai_is_clinical_trial: "No"               // <-- merged
-  }
-]
-```
-
----
-
-### 5. sortedData
+### 3. sortedItems
 
 If `sortConfig = { columnId: "publication_date", direction: "desc" }`:
 
 ```typescript
+// T[] - original items, just reordered
 [
-  { id: "34567890", ..., publication_date: "2024-03-10", ai_is_clinical_trial: "No" },
-  { id: "23456789", ..., publication_date: "2024-02-20", ai_is_clinical_trial: "No" },
-  { id: "12345678", ..., publication_date: "2024-01-15", ai_is_clinical_trial: "Yes" }
+  { pmid: "34567890", title: "Machine learning...", publication_date: "2024-03-10", ... },
+  { pmid: "23456789", title: "Novel cancer...", publication_date: "2024-02-20", ... },
+  { pmid: "12345678", title: "Effects of aspirin...", publication_date: "2024-01-15", ... }
 ]
 ```
 
 ---
 
-### 6. filteredData
+### 4. filteredItems
 
 If `booleanFilters = { "ai_is_clinical_trial": "yes" }`:
 
 ```typescript
+// T[] - original items, filtered
 [
-  { id: "12345678", ..., publication_date: "2024-01-15", ai_is_clinical_trial: "Yes" }
+  { pmid: "12345678", title: "Effects of aspirin...", publication_date: "2024-01-15", ... }
 ]
-// Only rows where ai_is_clinical_trial === "Yes"
+// Only items where aiColumnValues["ai_is_clinical_trial"]["12345678"] === "Yes"
 ```
+
+---
+
+### 5. Rendering with getCellValue()
+
+At render time, `getCellValue(item, column)` looks up values:
+
+```typescript
+// For regular columns:
+getCellValue(item, titleColumn)  // returns item.title
+
+// For AI columns:
+getCellValue(item, aiColumn)     // returns aiColumnValues[aiColumn.id][getItemId(item)]
+```
+
+This avoids creating intermediate merged objects - values are looked up on-demand.
 
 ---
 
