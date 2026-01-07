@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { XMarkIcon, SparklesIcon, ClockIcon, ChevronDownIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { useState, useEffect, useMemo } from 'react';
+import { XMarkIcon, SparklesIcon, ClockIcon, ChevronDownIcon, InformationCircleIcon, EyeIcon } from '@heroicons/react/24/outline';
 
 const RECENT_TEMPLATES_KEY = 'tablizer_recent_templates';
 const MAX_RECENT_TEMPLATES = 10;
@@ -20,6 +20,8 @@ interface AddColumnModalProps {
     availableColumns: AvailableColumn[];
     onAdd: (columnName: string, promptTemplate: string, inputColumns: string[], outputType: 'text' | 'number' | 'boolean') => void;
     onClose: () => void;
+    /** Optional sample row data for preview - when provided, shows hover preview of populated prompt */
+    sampleRow?: Record<string, unknown>;
 }
 
 function loadRecentTemplates(): RecentTemplate[] {
@@ -44,16 +46,37 @@ function saveRecentTemplate(template: RecentTemplate): void {
     }
 }
 
-export default function AddColumnModal({ availableColumns, onAdd, onClose }: AddColumnModalProps) {
+export default function AddColumnModal({ availableColumns, onAdd, onClose, sampleRow }: AddColumnModalProps) {
     const [columnName, setColumnName] = useState('');
     const [promptTemplate, setPromptTemplate] = useState('');
     const [outputType, setOutputType] = useState<'text' | 'number' | 'boolean'>('boolean');
     const [recentTemplates, setRecentTemplates] = useState<RecentTemplate[]>([]);
     const [showRecentDropdown, setShowRecentDropdown] = useState(false);
+    const [showPreview, setShowPreview] = useState(false);
 
     useEffect(() => {
         setRecentTemplates(loadRecentTemplates());
     }, []);
+
+    // Populate template with sample row data
+    const populatedPrompt = useMemo(() => {
+        if (!sampleRow || !promptTemplate) return promptTemplate;
+
+        let result = promptTemplate;
+        for (const [key, value] of Object.entries(sampleRow)) {
+            if (value != null) {
+                const stringValue = Array.isArray(value)
+                    ? value.join(', ')
+                    : String(value);
+                // Truncate long values for preview
+                const truncated = stringValue.length > 200
+                    ? stringValue.substring(0, 200) + '...'
+                    : stringValue;
+                result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), truncated);
+            }
+        }
+        return result;
+    }, [promptTemplate, sampleRow]);
 
     // Extract which columns are used in the template
     const usedColumns = availableColumns
@@ -246,9 +269,37 @@ export default function AddColumnModal({ availableColumns, onAdd, onClose }: Add
                                 rows={4}
                                 className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                             />
-                            <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                                Click fields on the right to insert them into your prompt →
-                            </p>
+                            <div className="mt-1.5 flex items-center justify-between">
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    Click fields on the right to insert them into your prompt →
+                                </p>
+
+                                {/* Preview on hover - only show if we have sample data and a prompt */}
+                                {sampleRow && promptTemplate && (
+                                    <div
+                                        className="relative"
+                                        onMouseEnter={() => setShowPreview(true)}
+                                        onMouseLeave={() => setShowPreview(false)}
+                                    >
+                                        <div className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 cursor-default">
+                                            <EyeIcon className="h-3.5 w-3.5" />
+                                            <span>Preview</span>
+                                        </div>
+
+                                        {/* Preview tooltip */}
+                                        {showPreview && (
+                                            <div className="absolute bottom-full right-0 mb-2 w-96 max-h-64 overflow-y-auto p-3 bg-gray-900 dark:bg-gray-950 text-white text-xs rounded-lg shadow-xl border border-gray-700 z-20">
+                                                <div className="text-gray-400 text-[10px] uppercase tracking-wide mb-1.5">
+                                                    Prompt with sample data
+                                                </div>
+                                                <div className="whitespace-pre-wrap font-mono leading-relaxed">
+                                                    {populatedPrompt}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Validation message */}

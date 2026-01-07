@@ -918,6 +918,7 @@ function TablizerInner<T extends object>(
                     }))}
                     onAdd={handleAddColumn}
                     onClose={() => setShowAddColumnModal(false)}
+                    sampleRow={inputData[0] as Record<string, unknown> | undefined}
                 />
             )}
 
