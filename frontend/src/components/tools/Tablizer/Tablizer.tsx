@@ -108,6 +108,9 @@ export interface TablizerProps<T extends object = Record<string, any>> {
     // Optional: Report AI column state changes to parent
     onColumnsChange?: (aiColumns: AIColumnInfo[]) => void;
 
+    // Optional: Called when a column's visibility is toggled
+    onColumnVisibilityChange?: (columnId: string, visible: boolean) => void;
+
     // Optional: Custom component to render when a row is clicked
     // If RowViewer is provided, Tablizer manages the modal internally
     RowViewer?: React.ComponentType<RowViewerProps<T>>;
@@ -157,6 +160,7 @@ function TablizerInner<T extends object>(
         onFetchMoreForAI,
         onProcessAIColumn,
         onColumnsChange,
+        onColumnVisibilityChange,
         RowViewer,
         onRowClick,
         renderCell
@@ -374,10 +378,18 @@ function TablizerInner<T extends object>(
 
     // Toggle column visibility
     const toggleColumnVisibility = useCallback((columnId: string) => {
-        setColumns(cols => cols.map(c =>
-            c.id === columnId ? { ...c, visible: !c.visible } : c
-        ));
-    }, []);
+        setColumns(cols => {
+            const updated = cols.map(c =>
+                c.id === columnId ? { ...c, visible: c.visible === false } : c
+            );
+            // Notify parent of visibility change
+            const col = updated.find(c => c.id === columnId);
+            if (col && onColumnVisibilityChange) {
+                onColumnVisibilityChange(columnId, col.visible !== false);
+            }
+            return updated;
+        });
+    }, [onColumnVisibilityChange]);
 
     // Delete AI column
     const deleteColumn = useCallback((columnId: string) => {

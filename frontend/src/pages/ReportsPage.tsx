@@ -381,6 +381,8 @@ export default function ReportsPage() {
                 <ReportArticleTable
                     articles={selectedReport.articles}
                     title={selectedReport.report_name}
+                    showAbstract={cardFormat === 'expanded'}
+                    onAbstractVisibilityChange={(visible) => setCardFormat(visible ? 'expanded' : 'compact')}
                     onRowClick={(articles, index, isFiltered) => openArticleViewer(articles, index, isFiltered)}
                 />
             );

@@ -1,4 +1,4 @@
-import { useCallback, forwardRef } from 'react';
+import { useCallback, useMemo, forwardRef } from 'react';
 import { Tablizer, TableColumn, AIColumnResult, TablizerRef, AIColumnInfo } from '../tools/Tablizer';
 import { ReportArticle } from '../../types';
 import { tablizerApi } from '../../lib/api/tablizerApi';
@@ -10,6 +10,10 @@ import { tablizerApi } from '../../lib/api/tablizerApi';
 export interface ReportArticleTableProps {
     articles: ReportArticle[];
     title?: string;
+    /** Controls abstract column visibility - syncs with report-level compact/expanded toggle */
+    showAbstract?: boolean;
+    /** Called when abstract column visibility is toggled in Tablizer's column selector */
+    onAbstractVisibilityChange?: (visible: boolean) => void;
     onColumnsChange?: (aiColumns: AIColumnInfo[]) => void;
     onRowClick?: (articles: ReportArticle[], index: number, isFiltered: boolean) => void;
 }
@@ -38,9 +42,26 @@ const REPORT_COLUMNS: TableColumn[] = [
 const ReportArticleTable = forwardRef<TablizerRef, ReportArticleTableProps>(function ReportArticleTable({
     articles,
     title,
+    showAbstract = false,
+    onAbstractVisibilityChange,
     onColumnsChange,
     onRowClick
 }, ref) {
+    // Sync abstract column visibility with showAbstract prop
+    const columns = useMemo(() =>
+        REPORT_COLUMNS.map(col =>
+            col.id === 'abstract' ? { ...col, visible: showAbstract } : col
+        ),
+        [showAbstract]
+    );
+
+    // Handle column visibility changes from Tablizer
+    const handleColumnVisibilityChange = useCallback((columnId: string, visible: boolean) => {
+        if (columnId === 'abstract' && onAbstractVisibilityChange) {
+            onAbstractVisibilityChange(visible);
+        }
+    }, [onAbstractVisibilityChange]);
+
     // Handle AI column processing via tablizer API
     const handleProcessAIColumn = useCallback(async (
         data: ReportArticle[],
@@ -61,11 +82,12 @@ const ReportArticleTable = forwardRef<TablizerRef, ReportArticleTableProps>(func
             ref={ref}
             data={articles}
             idField="pmid"
-            columns={REPORT_COLUMNS}
+            columns={columns}
             title={title}
             rowLabel="articles"
             onProcessAIColumn={handleProcessAIColumn}
             onColumnsChange={onColumnsChange}
+            onColumnVisibilityChange={handleColumnVisibilityChange}
             onRowClick={onRowClick}
         />
     );
