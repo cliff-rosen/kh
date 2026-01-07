@@ -31,7 +31,7 @@ const REPORT_COLUMNS: TableColumn[] = [
     { id: 'abstract', label: 'Abstract', accessor: 'abstract', type: 'text', visible: false },
     { id: 'journal', label: 'Journal', accessor: 'journal', type: 'text', visible: true },
     { id: 'publication_date', label: 'Date', accessor: 'publication_date', type: 'date', visible: true },
-    { id: 'relevance_score', label: 'Relevance', accessor: 'relevance_score', type: 'number', visible: true, excludeFromAITemplate: true },
+    { id: 'relevance_score', label: 'Relevance', accessor: 'relevance_score', type: 'number', visible: false, excludeFromAITemplate: true },
     { id: 'categories', label: 'Categories', accessor: 'presentation_categories', type: 'text', visible: true, excludeFromAITemplate: true },
 ];
 

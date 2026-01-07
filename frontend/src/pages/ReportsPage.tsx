@@ -372,12 +372,12 @@ export default function ReportsPage() {
         return null;
     };
 
-    // Render report content based on view mode
-    const renderReportContent = () => {
+    // Render Tablizer (always mounted to preserve state, hidden when not active)
+    const renderTablizer = () => {
         if (!selectedReport?.articles || selectedReport.articles.length === 0) return null;
 
-        if (reportView === 'tablizer') {
-            return (
+        return (
+            <div className={reportView !== 'tablizer' ? 'hidden' : ''}>
                 <ReportArticleTable
                     articles={selectedReport.articles}
                     title={selectedReport.report_name}
@@ -385,7 +385,17 @@ export default function ReportsPage() {
                     onAbstractVisibilityChange={(visible) => setCardFormat(visible ? 'expanded' : 'compact')}
                     onRowClick={(articles, index, isFiltered) => openArticleViewer(articles, index, isFiltered)}
                 />
-            );
+            </div>
+        );
+    };
+
+    // Render other report views (conditionally rendered - state not preserved)
+    const renderReportContent = () => {
+        if (!selectedReport?.articles || selectedReport.articles.length === 0) return null;
+
+        // Tablizer is rendered separately to preserve state
+        if (reportView === 'tablizer') {
+            return null;
         }
 
         if (reportView === 'by-category') {
@@ -635,6 +645,7 @@ export default function ReportsPage() {
                                         )}
 
                                         {/* Articles */}
+                                        {renderTablizer()}
                                         {renderReportContent()}
                                     </div>
                                 </div>
