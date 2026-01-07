@@ -254,52 +254,57 @@ export default function AddColumnModal({ availableColumns, onAdd, onClose, sampl
 
                         {/* Prompt Template */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                                Your Prompt
-                            </label>
-                            <textarea
-                                value={promptTemplate}
-                                onChange={(e) => setPromptTemplate(e.target.value)}
-                                placeholder={outputType === 'boolean'
-                                    ? "Example: Is this article about a randomized controlled trial (RCT)?"
-                                    : outputType === 'number'
-                                    ? "Example: What is the sample size of this study? Return just the number, or 0 if not mentioned."
-                                    : "Example: What is the study design? Classify as: RCT, Cohort, Case-Control, Cross-sectional, Review, or Other."
-                                }
-                                rows={4}
-                                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-                            />
-                            <div className="mt-1.5 flex items-center justify-between">
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    Click fields on the right to insert them into your prompt →
-                                </p>
+                            <div className="flex items-center justify-between mb-1.5">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Your Prompt
+                                </label>
 
-                                {/* Preview on hover - only show if we have sample data and a prompt */}
+                                {/* Preview toggle - only show if we have sample data and a prompt */}
                                 {sampleRow && promptTemplate && (
                                     <div
-                                        className="relative"
                                         onMouseEnter={() => setShowPreview(true)}
                                         onMouseLeave={() => setShowPreview(false)}
+                                        className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 cursor-default select-none"
                                     >
-                                        <div className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 cursor-default">
-                                            <EyeIcon className="h-3.5 w-3.5" />
-                                            <span>Preview</span>
-                                        </div>
-
-                                        {/* Preview tooltip */}
-                                        {showPreview && (
-                                            <div className="absolute bottom-full right-0 mb-2 w-96 max-h-64 overflow-y-auto p-3 bg-gray-900 dark:bg-gray-950 text-white text-xs rounded-lg shadow-xl border border-gray-700 z-20">
-                                                <div className="text-gray-400 text-[10px] uppercase tracking-wide mb-1.5">
-                                                    Prompt with sample data
-                                                </div>
-                                                <div className="whitespace-pre-wrap font-mono leading-relaxed">
-                                                    {populatedPrompt}
-                                                </div>
-                                            </div>
-                                        )}
+                                        <EyeIcon className="h-3.5 w-3.5" />
+                                        <span>Hover to preview</span>
                                     </div>
                                 )}
                             </div>
+
+                            {/* Textarea with preview overlay */}
+                            <div className="relative">
+                                <textarea
+                                    value={promptTemplate}
+                                    onChange={(e) => setPromptTemplate(e.target.value)}
+                                    placeholder={outputType === 'boolean'
+                                        ? "Example: Is this article about a randomized controlled trial (RCT)?"
+                                        : outputType === 'number'
+                                        ? "Example: What is the sample size of this study? Return just the number, or 0 if not mentioned."
+                                        : "Example: What is the study design? Classify as: RCT, Cohort, Case-Control, Cross-sectional, Review, or Other."
+                                    }
+                                    rows={4}
+                                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                                />
+
+                                {/* Preview overlay - shows populated prompt with dimmed effect */}
+                                {showPreview && sampleRow && populatedPrompt && (
+                                    <div className="absolute inset-0 rounded-lg bg-purple-950/90 dark:bg-purple-950/95 border border-purple-500 overflow-auto pointer-events-none">
+                                        <div className="px-4 py-3">
+                                            <div className="text-purple-300 text-[10px] uppercase tracking-wide mb-2 font-medium">
+                                                Preview with sample data
+                                            </div>
+                                            <div className="text-purple-100 text-sm whitespace-pre-wrap leading-relaxed">
+                                                {populatedPrompt}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                                Click fields on the right to insert them into your prompt →
+                            </p>
                         </div>
 
                         {/* Validation message */}
