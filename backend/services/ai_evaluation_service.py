@@ -16,7 +16,10 @@ All operations have batch variants for parallel processing.
 from typing import Dict, Any, List, Optional, Union, Literal
 from datetime import datetime
 import asyncio
+import logging
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 from agents.prompts.base_prompt_caller import BasePromptCaller
 from config.llm_models import get_task_config, supports_reasoning_effort
@@ -372,6 +375,7 @@ class AIEvaluationService:
             EvaluationResult with boolean value
         """
         item_id = self._get_item_id(item, id_field)
+        logger.debug(f"filter - item_id={item_id}")
 
         try:
             # Get appropriate system message and schema
@@ -386,6 +390,7 @@ class AIEvaluationService:
             # Call LLM
             result = await self._call_llm(prompt_caller, user_message)
 
+            logger.debug(f"filter complete - item_id={item_id}, value={result.get('value')}, confidence={result.get('confidence', 0.0):.2f}")
             return EvaluationResult(
                 item_id=item_id,
                 value=result.get("value"),
@@ -394,6 +399,7 @@ class AIEvaluationService:
             )
 
         except Exception as e:
+            logger.error(f"filter failed - item_id={item_id}: {e}", exc_info=True)
             return EvaluationResult(
                 item_id=item_id,
                 value=None,
@@ -426,6 +432,8 @@ class AIEvaluationService:
         if not items:
             return []
 
+        logger.info(f"filter_batch - items={len(items)}, max_concurrent={max_concurrent}")
+
         # Create semaphore to limit concurrent LLM calls
         semaphore = asyncio.Semaphore(max_concurrent)
 
@@ -441,9 +449,12 @@ class AIEvaluationService:
 
         # Handle any exceptions that were returned
         final_results = []
+        errors = 0
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 item_id = self._get_item_id(items[i], id_field)
+                logger.error(f"filter_batch item failed - item_id={item_id}: {result}", exc_info=False)
+                errors += 1
                 final_results.append(EvaluationResult(
                     item_id=item_id,
                     value=None,
@@ -454,6 +465,8 @@ class AIEvaluationService:
             else:
                 final_results.append(result)
 
+        passed = sum(1 for r in final_results if r.value is True)
+        logger.info(f"filter_batch complete - items={len(items)}, passed={passed}, errors={errors}")
         return final_results
 
     # =========================================================================
@@ -486,6 +499,7 @@ class AIEvaluationService:
             EvaluationResult with float value in specified range
         """
         item_id = self._get_item_id(item, id_field)
+        logger.debug(f"score - item_id={item_id}, range=[{min_value}, {max_value}]")
 
         try:
             # Get appropriate system message and schema
@@ -506,6 +520,7 @@ class AIEvaluationService:
             # Call LLM
             result = await self._call_llm(prompt_caller, user_message)
 
+            logger.debug(f"score complete - item_id={item_id}, value={result.get('value')}, confidence={result.get('confidence', 0.0):.2f}")
             return EvaluationResult(
                 item_id=item_id,
                 value=result.get("value"),
@@ -514,6 +529,7 @@ class AIEvaluationService:
             )
 
         except Exception as e:
+            logger.error(f"score failed - item_id={item_id}: {e}", exc_info=True)
             return EvaluationResult(
                 item_id=item_id,
                 value=None,
@@ -552,6 +568,8 @@ class AIEvaluationService:
         if not items:
             return []
 
+        logger.info(f"score_batch - items={len(items)}, range=[{min_value}, {max_value}], max_concurrent={max_concurrent}")
+
         # Create semaphore to limit concurrent LLM calls
         semaphore = asyncio.Semaphore(max_concurrent)
 
@@ -567,9 +585,12 @@ class AIEvaluationService:
 
         # Handle any exceptions that were returned
         final_results = []
+        errors = 0
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 item_id = self._get_item_id(items[i], id_field)
+                logger.error(f"score_batch item failed - item_id={item_id}: {result}", exc_info=False)
+                errors += 1
                 final_results.append(EvaluationResult(
                     item_id=item_id,
                     value=None,
@@ -580,6 +601,8 @@ class AIEvaluationService:
             else:
                 final_results.append(result)
 
+        avg_score = sum(r.value for r in final_results if r.value is not None) / max(1, len(final_results) - errors)
+        logger.info(f"score_batch complete - items={len(items)}, avg_score={avg_score:.2f}, errors={errors}")
         return final_results
 
     # =========================================================================
@@ -610,6 +633,7 @@ class AIEvaluationService:
             EvaluationResult with value of specified type (or None if not present)
         """
         item_id = self._get_item_id(item, id_field)
+        logger.debug(f"extract - item_id={item_id}, output_type={output_type}")
 
         try:
             # Validate enum_values if needed
@@ -638,6 +662,7 @@ class AIEvaluationService:
             # Call LLM
             result = await self._call_llm(prompt_caller, user_message)
 
+            logger.debug(f"extract complete - item_id={item_id}, has_value={result.get('value') is not None}, confidence={result.get('confidence', 0.0):.2f}")
             return EvaluationResult(
                 item_id=item_id,
                 value=result.get("value"),
@@ -646,6 +671,7 @@ class AIEvaluationService:
             )
 
         except Exception as e:
+            logger.error(f"extract failed - item_id={item_id}: {e}", exc_info=True)
             return EvaluationResult(
                 item_id=item_id,
                 value=None,
@@ -682,6 +708,8 @@ class AIEvaluationService:
         if not items:
             return []
 
+        logger.info(f"extract_batch - items={len(items)}, output_type={output_type}, max_concurrent={max_concurrent}")
+
         # Create semaphore to limit concurrent LLM calls
         semaphore = asyncio.Semaphore(max_concurrent)
 
@@ -697,9 +725,12 @@ class AIEvaluationService:
 
         # Handle any exceptions that were returned
         final_results = []
+        errors = 0
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 item_id = self._get_item_id(items[i], id_field)
+                logger.error(f"extract_batch item failed - item_id={item_id}: {result}", exc_info=False)
+                errors += 1
                 final_results.append(EvaluationResult(
                     item_id=item_id,
                     value=None,
@@ -710,6 +741,8 @@ class AIEvaluationService:
             else:
                 final_results.append(result)
 
+        extracted = sum(1 for r in final_results if r.value is not None)
+        logger.info(f"extract_batch complete - items={len(items)}, extracted={extracted}, errors={errors}")
         return final_results
 
     # =========================================================================
@@ -741,6 +774,7 @@ class AIEvaluationService:
             FieldsResult with extracted fields matching the schema
         """
         item_id = self._get_item_id(item, id_field)
+        logger.debug(f"extract_fields - item_id={item_id}")
 
         try:
             # Get appropriate system message and schema
@@ -761,14 +795,18 @@ class AIEvaluationService:
             # Call LLM
             result = await self._call_llm(prompt_caller, user_message)
 
+            fields = result.get("fields")
+            fields_count = len(fields) if fields else 0
+            logger.debug(f"extract_fields complete - item_id={item_id}, fields_extracted={fields_count}, confidence={result.get('confidence', 0.0):.2f}")
             return FieldsResult(
                 item_id=item_id,
-                fields=result.get("fields"),
+                fields=fields,
                 confidence=result.get("confidence", 0.0),
                 reasoning=result.get("reasoning") if include_reasoning else None
             )
 
         except Exception as e:
+            logger.error(f"extract_fields failed - item_id={item_id}: {e}", exc_info=True)
             return FieldsResult(
                 item_id=item_id,
                 fields=None,
@@ -805,6 +843,8 @@ class AIEvaluationService:
         if not items:
             return []
 
+        logger.info(f"extract_fields_batch - items={len(items)}, max_concurrent={max_concurrent}")
+
         # Create semaphore to limit concurrent LLM calls
         semaphore = asyncio.Semaphore(max_concurrent)
 
@@ -820,9 +860,12 @@ class AIEvaluationService:
 
         # Handle any exceptions that were returned
         final_results = []
+        errors = 0
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 item_id = self._get_item_id(items[i], id_field)
+                logger.error(f"extract_fields_batch item failed - item_id={item_id}: {result}", exc_info=False)
+                errors += 1
                 final_results.append(FieldsResult(
                     item_id=item_id,
                     fields=None,
@@ -833,6 +876,8 @@ class AIEvaluationService:
             else:
                 final_results.append(result)
 
+        extracted = sum(1 for r in final_results if r.fields is not None)
+        logger.info(f"extract_fields_batch complete - items={len(items)}, extracted={extracted}, errors={errors}")
         return final_results
 
 
