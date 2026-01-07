@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { XMarkIcon, SparklesIcon, ClockIcon, ChevronDownIcon, ChevronRightIcon, InformationCircleIcon, EyeIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, SparklesIcon, ClockIcon, ChevronDownIcon, ChevronRightIcon, InformationCircleIcon, EyeIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon } from '@heroicons/react/24/outline';
 
 const RECENT_TEMPLATES_KEY = 'tablizer_recent_templates';
 const MAX_RECENT_TEMPLATES = 10;
@@ -95,6 +95,7 @@ export default function AddColumnModal({ availableColumns, onAdd, onClose, sampl
             return false;
         }
     });
+    const [isMaximized, setIsMaximized] = useState(false);
     // Score config (only used when outputType === 'number')
     const [scoreMin, setScoreMin] = useState(1);
     const [scoreMax, setScoreMax] = useState(10);
@@ -194,7 +195,11 @@ export default function AddColumnModal({ availableColumns, onAdd, onClose, sampl
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+            <div className={`bg-white dark:bg-gray-800 shadow-2xl overflow-hidden flex flex-col transition-all duration-200 ${
+                isMaximized
+                    ? 'w-full h-full rounded-none'
+                    : 'w-full max-w-4xl mx-4 max-h-[90vh] rounded-xl'
+            }`}>
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center gap-2">
@@ -203,20 +208,34 @@ export default function AddColumnModal({ availableColumns, onAdd, onClose, sampl
                             Add AI Column
                         </h3>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                    >
-                        <XMarkIcon className="h-5 w-5" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => setIsMaximized(!isMaximized)}
+                            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            title={isMaximized ? 'Restore' : 'Maximize'}
+                        >
+                            {isMaximized ? (
+                                <ArrowsPointingInIcon className="h-5 w-5" />
+                            ) : (
+                                <ArrowsPointingOutIcon className="h-5 w-5" />
+                            )}
+                        </button>
+                        <button
+                            onClick={onClose}
+                            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            title="Close"
+                        >
+                            <XMarkIcon className="h-5 w-5" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Body - Two Column Layout */}
                 <div className="flex-1 overflow-hidden flex">
                     {/* Left Column - Main Form */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                    <div className={`flex-1 overflow-y-auto p-6 ${isMaximized ? 'flex flex-col' : 'space-y-5'}`}>
                         {/* Instructions Box - Collapsible */}
-                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg overflow-hidden">
+                        <div className={`bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg overflow-hidden ${isMaximized ? 'flex-shrink-0 mb-5' : ''}`}>
                             <button
                                 type="button"
                                 onClick={toggleInstructions}
@@ -250,7 +269,7 @@ export default function AddColumnModal({ availableColumns, onAdd, onClose, sampl
 
                         {/* Recent Templates Dropdown */}
                         {recentTemplates.length > 0 && (
-                            <div className="relative">
+                            <div className={`relative ${isMaximized ? 'flex-shrink-0 mb-5' : ''}`}>
                                 <button
                                     type="button"
                                     onClick={() => setShowRecentDropdown(!showRecentDropdown)}
@@ -312,7 +331,7 @@ export default function AddColumnModal({ availableColumns, onAdd, onClose, sampl
                         )}
 
                         {/* Column Name */}
-                        <div>
+                        <div className={isMaximized ? 'flex-shrink-0 mb-5' : ''}>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                                 Column Name
                             </label>
@@ -326,7 +345,7 @@ export default function AddColumnModal({ availableColumns, onAdd, onClose, sampl
                         </div>
 
                         {/* Output Type */}
-                        <div>
+                        <div className={isMaximized ? 'flex-shrink-0 mb-5' : ''}>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                                 What type of answer do you want?
                             </label>
@@ -421,8 +440,8 @@ export default function AddColumnModal({ availableColumns, onAdd, onClose, sampl
                         </div>
 
                         {/* Prompt Template */}
-                        <div>
-                            <div className="flex items-center justify-between mb-1.5">
+                        <div className={isMaximized ? 'flex-1 flex flex-col min-h-0' : ''}>
+                            <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                     Your Prompt
                                 </label>
@@ -441,7 +460,7 @@ export default function AddColumnModal({ availableColumns, onAdd, onClose, sampl
                             </div>
 
                             {/* Textarea with preview overlay */}
-                            <div className="relative">
+                            <div className={`relative ${isMaximized ? 'flex-1 min-h-0' : ''}`}>
                                 <textarea
                                     value={promptTemplate}
                                     onChange={(e) => setPromptTemplate(e.target.value)}
@@ -451,8 +470,8 @@ export default function AddColumnModal({ availableColumns, onAdd, onClose, sampl
                                         ? "Example: How relevant is this article to cardiovascular disease research? Consider methodology, findings, and clinical applicability."
                                         : "Example: What is the study design? Classify as: RCT, Cohort, Case-Control, Cross-sectional, Review, or Other."
                                     }
-                                    rows={10}
-                                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                                    rows={isMaximized ? undefined : 10}
+                                    className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm ${isMaximized ? 'h-full resize-none' : ''}`}
                                 />
 
                                 {/* Preview overlay - shows populated prompt with dimmed effect */}
@@ -470,14 +489,14 @@ export default function AddColumnModal({ availableColumns, onAdd, onClose, sampl
                                 )}
                             </div>
 
-                            <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                            <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
                                 Click fields on the right to insert them into your prompt →
                             </p>
                         </div>
 
                         {/* Validation message */}
                         {promptTemplate && usedColumns.length === 0 && (
-                            <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg">
+                            <p className={`text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg ${isMaximized ? 'flex-shrink-0 mt-3' : ''}`}>
                                 💡 Tip: Insert at least one field (like title or abstract) so the AI has data to analyze.
                             </p>
                         )}
