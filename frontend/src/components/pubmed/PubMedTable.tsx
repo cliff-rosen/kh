@@ -1,5 +1,5 @@
 import { useCallback, forwardRef } from 'react';
-import { Tablizer, TableColumn, AIColumnResult, RowViewerProps, TablizerRef } from '../tools/Tablizer';
+import { Tablizer, TableColumn, AIColumnResult, RowViewerProps, TablizerRef, ScoreConfig } from '../tools/Tablizer';
 import ArticleViewerModal from '../articles/ArticleViewerModal';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
 import { tablizerApi } from '../../lib/api/tablizerApi';
@@ -60,14 +60,16 @@ const PubMedTable = forwardRef<TablizerRef, PubMedTableProps>(function PubMedTab
     const handleProcessAIColumn = useCallback(async (
         data: CanonicalResearchArticle[],
         promptTemplate: string,
-        outputType: 'text' | 'number' | 'boolean'
+        outputType: 'text' | 'number' | 'boolean',
+        scoreConfig?: ScoreConfig
     ): Promise<AIColumnResult[]> => {
         return await tablizerApi.processAIColumn({
             items: data as unknown as Record<string, unknown>[],
             itemType: 'article',
             criteria: promptTemplate,
             outputType: outputType,
-            threshold: 0.5
+            threshold: 0.5,
+            scoreConfig: scoreConfig
         });
     }, []);
 

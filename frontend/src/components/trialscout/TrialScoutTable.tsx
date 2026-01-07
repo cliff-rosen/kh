@@ -1,5 +1,5 @@
 import { useMemo, useCallback } from 'react';
-import { Tablizer, TableColumn, TableRow, AIColumnResult, RowViewerProps } from '../tools/Tablizer';
+import { Tablizer, TableColumn, TableRow, AIColumnResult, RowViewerProps, ScoreConfig } from '../tools/Tablizer';
 import TrialViewerModal from './TrialViewerModal';
 import { tablizerApi } from '../../lib/api/tablizerApi';
 import { CanonicalClinicalTrial } from '../../types/canonical_types';
@@ -168,7 +168,8 @@ export default function TrialScoutTable({
     const handleProcessAIColumn = useCallback(async (
         data: TrialRowData[],
         promptTemplate: string,
-        outputType: 'text' | 'number' | 'boolean'
+        outputType: 'text' | 'number' | 'boolean',
+        scoreConfig?: ScoreConfig
     ): Promise<AIColumnResult[]> => {
         // Get the original trials for the API call
         const trialMap = new Map(trials.map(t => [t.nct_id, t]));
@@ -182,7 +183,8 @@ export default function TrialScoutTable({
             itemType: 'trial',
             criteria: promptTemplate,
             outputType: outputType,
-            threshold: 0.5
+            threshold: 0.5,
+            scoreConfig: scoreConfig
         });
     }, [trials]);
 
