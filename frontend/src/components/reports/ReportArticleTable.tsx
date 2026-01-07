@@ -11,7 +11,7 @@ export interface ReportArticleTableProps {
     articles: ReportArticle[];
     title?: string;
     onColumnsChange?: (aiColumns: AIColumnInfo[]) => void;
-    onRowClick?: (articles: ReportArticle[], index: number) => void;
+    onRowClick?: (articles: ReportArticle[], index: number, isFiltered: boolean) => void;
 }
 
 // Re-export types for consumers

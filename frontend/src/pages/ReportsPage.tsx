@@ -65,6 +65,7 @@ export default function ReportsPage() {
     const [articleViewerOpen, setArticleViewerOpen] = useState(false);
     const [articleViewerArticles, setArticleViewerArticles] = useState<ReportArticle[]>([]);
     const [articleViewerInitialIndex, setArticleViewerInitialIndex] = useState(0);
+    const [articleViewerIsFiltered, setArticleViewerIsFiltered] = useState(false);
 
     const hasStreams = researchStreams.length > 0;
     const hasPipelineData = selectedReport?.pipeline_execution_id != null;
@@ -235,15 +236,17 @@ export default function ReportsPage() {
         }
     };
 
-    const openArticleViewer = (articles: ReportArticle[], clickedIndex: number) => {
+    const openArticleViewer = (articles: ReportArticle[], clickedIndex: number, isFiltered = false) => {
         const article = articles[clickedIndex];
         track('article_open', {
             pmid: article.pmid || undefined,
             article_id: article.article_id,
-            report_id: selectedReport?.report_id
+            report_id: selectedReport?.report_id,
+            is_filtered: isFiltered
         });
         setArticleViewerArticles(articles);
         setArticleViewerInitialIndex(clickedIndex);
+        setArticleViewerIsFiltered(isFiltered);
         setArticleViewerOpen(true);
     };
 
@@ -378,7 +381,7 @@ export default function ReportsPage() {
                 <ReportArticleTable
                     articles={selectedReport.articles}
                     title={selectedReport.report_name}
-                    onRowClick={(articles, index) => openArticleViewer(articles, index)}
+                    onRowClick={(articles, index, isFiltered) => openArticleViewer(articles, index, isFiltered)}
                 />
             );
         }
@@ -671,6 +674,7 @@ export default function ReportsPage() {
                         chatContext={chatContext}
                         chatPayloadHandlers={payloadHandlers}
                         onArticleUpdate={handleArticleUpdate}
+                        isFiltered={articleViewerIsFiltered}
                     />
                 )}
             </div>

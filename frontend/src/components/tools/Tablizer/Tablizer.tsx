@@ -61,9 +61,11 @@ export interface AIColumnResult {
 
 // Props passed to RowViewer component
 export interface RowViewerProps<T> {
-    data: T[];           // Full dataset
+    data: T[];           // Dataset (may be filtered)
     initialIndex: number; // Which item was clicked
     onClose: () => void;
+    /** If true, data represents a filtered subset of the full dataset */
+    isFiltered?: boolean;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -112,7 +114,8 @@ export interface TablizerProps<T extends object = Record<string, any>> {
 
     // Optional: Callback when a row is clicked (alternative to RowViewer)
     // If provided, parent component manages the viewer - RowViewer is ignored
-    onRowClick?: (data: T[], index: number) => void;
+    // isFiltered indicates if data is a filtered subset (for showing indicator in viewer)
+    onRowClick?: (data: T[], index: number, isFiltered: boolean) => void;
 
     // Optional: Custom cell renderer for special columns
     renderCell?: (row: TableRow, column: TableColumn) => React.ReactNode | null;
@@ -350,6 +353,13 @@ function TablizerInner<T extends object>(
         }
         return false;
     }, [filterText, booleanFilters]);
+
+    // Map filtered rows back to original items (for RowViewer)
+    const filteredItems = useMemo((): T[] => {
+        return filteredData
+            .map(row => inputData.find(item => getItemId(item, idField) === row.id))
+            .filter((item): item is T => item !== undefined);
+    }, [filteredData, inputData, idField]);
 
     // Build filter description for history
     const getFilterDescription = useCallback(() => {
@@ -825,15 +835,15 @@ function TablizerInner<T extends object>(
                                 key={row.id || rowIdx}
                                 className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 ${(RowViewer || onRowClick) ? 'cursor-pointer' : ''}`}
                                 onClick={() => {
-                                    // Find the index in the original data array
-                                    const itemIndex = inputData.findIndex(item => getItemId(item, idField) === row.id);
+                                    // Find the index in the filtered items array
+                                    const itemIndex = filteredItems.findIndex(item => getItemId(item, idField) === row.id);
                                     if (itemIndex === -1) return;
 
-                                    trackEvent('tablizer_row_click', { id: row.id });
+                                    trackEvent('tablizer_row_click', { id: row.id, filtered: hasActiveFilters });
 
                                     // If onRowClick is provided, let parent handle the viewer
                                     if (onRowClick) {
-                                        onRowClick(inputData, itemIndex);
+                                        onRowClick(filteredItems, itemIndex, hasActiveFilters);
                                         return;
                                     }
 
@@ -953,9 +963,10 @@ function TablizerInner<T extends object>(
             {/* Row Viewer Modal - only render if RowViewer is provided and onRowClick is not */}
             {RowViewer && !onRowClick && selectedItemIndex !== null && (
                 <RowViewer
-                    data={inputData}
+                    data={filteredItems}
                     initialIndex={selectedItemIndex}
                     onClose={() => setSelectedItemIndex(null)}
+                    isFiltered={hasActiveFilters}
                 />
             )}
         </div>

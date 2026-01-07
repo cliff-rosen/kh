@@ -9,7 +9,8 @@ import {
     LinkIcon,
     ShieldCheckIcon,
     ScaleIcon,
-    ExclamationTriangleIcon
+    ExclamationTriangleIcon,
+    FunnelIcon
 } from '@heroicons/react/24/outline';
 import { CheckBadgeIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid';
 import { documentAnalysisApi } from '../../lib/api/documentAnalysisApi';
@@ -81,6 +82,8 @@ interface ArticleViewerModalProps {
     chatPayloadHandlers?: Record<string, PayloadHandler>;
     /** Callback when article data is updated (notes, enrichments) */
     onArticleUpdate?: (articleId: number, updates: { notes?: string; ai_enrichments?: any }) => void;
+    /** If true, articles list is a filtered subset */
+    isFiltered?: boolean;
 }
 
 export default function ArticleViewerModal({
@@ -89,7 +92,8 @@ export default function ArticleViewerModal({
     onClose,
     chatContext,
     chatPayloadHandlers,
-    onArticleUpdate
+    onArticleUpdate,
+    isFiltered = false
 }: ArticleViewerModalProps) {
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
     const rawArticle = articles[currentIndex];
@@ -432,9 +436,17 @@ export default function ArticleViewerModal({
                         <div className="w-64 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-col overflow-hidden">
                             <div className="flex-1 overflow-y-auto">
                                 <div className="p-2">
-                                    <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide px-2 py-1">
-                                        Articles ({articles.length})
-                                    </h3>
+                                    <div className="flex items-center justify-between px-2 py-1">
+                                        <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                            Articles ({articles.length})
+                                        </h3>
+                                        {isFiltered && (
+                                            <span className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400" title="Showing filtered results">
+                                                <FunnelIcon className="h-3 w-3" />
+                                                Filtered
+                                            </span>
+                                        )}
+                                    </div>
                                     <div className="space-y-1">
                                         {articles.map((art, idx) => {
                                             const normalized = normalizeArticle(art);
