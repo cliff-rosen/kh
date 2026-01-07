@@ -2,6 +2,10 @@
 
 This document illustrates how data flows through the Tablizer component, from input props to final rendered output.
 
+> **Note:** Tablizer handles AI processing internally via `tablizerApi.processAIColumn()`.
+> The `itemType` prop determines which API endpoint to use ('article' or 'trial').
+> If display data differs from API data (e.g., TrialScoutTable), pass `originalData`.
+
 ## Overview
 
 ```

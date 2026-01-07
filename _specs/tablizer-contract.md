@@ -12,7 +12,7 @@ Tablizer handles **presentation, sorting, filtering, and AI enrichment**. It doe
 
 1. **Configurable columns** - passed in, not hardcoded
 2. **Pluggable RowViewer** - any modal/viewer component
-3. **Callback-based AI processing** - parent handles API calls
+3. **Direct AI processing** - Tablizer calls the API internally based on `itemType`
 4. **Generic data type** - works with any record type
 
 ---
@@ -30,10 +30,6 @@ interface TablizerProps<T extends Record<string, unknown> = Record<string, unkno
     // REQUIRED: Column definitions
     columns: TableColumn[];
 
-    // Optional: Larger set for AI processing
-    // Use case: Display 100 items but process 500 with AI columns
-    filterData?: T[];
-
     // Optional: Title shown in toolbar (default: "Tablizer")
     title?: string;
 
@@ -50,34 +46,45 @@ interface TablizerProps<T extends Record<string, unknown> = Record<string, unkno
     onSaveToHistory?: (filteredIds: string[], filterDescription: string) => void;
 
     // Optional: Lazy-load more data before AI processing
+    // Returns the expanded data array (parent updates its state too)
     onFetchMoreForAI?: () => Promise<T[]>;
 
-    // REQUIRED for AI columns: Process AI column on data
-    // Returns results in same order as input data
-    onProcessAIColumn?: (
-        data: T[],
-        promptTemplate: string,
-        outputType: 'text' | 'number' | 'boolean'
-    ) => Promise<AIColumnResult[]>;
+    // REQUIRED for AI columns: Type of items being displayed
+    // Determines which API endpoint to use for AI processing
+    itemType?: 'article' | 'trial';
+
+    // Optional: Original data for AI processing when display data is transformed
+    // Use this when displayed data (T) differs from the API data structure
+    // Example: TrialScoutTable flattens CanonicalClinicalTrial to TrialRowData
+    originalData?: Record<string, unknown>[];
 
     // Optional: Report AI column state changes to parent
     onColumnsChange?: (aiColumns: AIColumnInfo[]) => void;
 
+    // Optional: Called when a column's visibility is toggled
+    onColumnVisibilityChange?: (columnId: string, visible: boolean) => void;
+
     // Optional: Custom component to render when a row is clicked
     // If not provided, row click is a no-op
     RowViewer?: React.ComponentType<RowViewerProps<T>>;
+
+    // Optional: Callback when a row is clicked (alternative to RowViewer)
+    // If provided, parent component manages the viewer - RowViewer is ignored
+    onRowClick?: (data: T[], index: number, isFiltered: boolean) => void;
 
     // Optional: Custom cell renderer for special columns
     // Return null to use default rendering
     renderCell?: (row: TableRow, column: TableColumn) => React.ReactNode | null;
 }
 
-// Result from AI processing
+// Result from AI processing (returned by tablizerApi)
 interface AIColumnResult {
     id: string;        // Row ID
     passed: boolean;   // For boolean output
-    score: number;     // For number output
-    reasoning: string; // For text output
+    value: number;     // For number/score output
+    confidence: number; // Confidence score (0.0-1.0)
+    reasoning: string; // Explanation
+    text_value?: string; // For text output
 }
 
 // Props passed to RowViewer component
@@ -85,6 +92,7 @@ interface RowViewerProps<T> {
     data: T[];           // Full dataset
     initialIndex: number; // Which item was clicked
     onClose: () => void;
+    isFiltered?: boolean; // True if data is a filtered subset
 }
 ```
 
@@ -114,7 +122,7 @@ const handleAIColumnSuggestion = (suggestion) => {
     );
 };
 
-return <Tablizer ref={tablizerRef} data={articles} ... />;
+return <Tablizer ref={tablizerRef} data={articles} itemType="article" ... />;
 ```
 
 ---
@@ -131,8 +139,10 @@ interface TableColumn {
         promptTemplate: string;    // Template with {slugs}
         inputColumns: string[];    // Which columns are used (metadata)
         outputType?: 'text' | 'number' | 'boolean';
+        showReasoning?: boolean;   // Display reasoning in cells
     };
     visible?: boolean;    // Show/hide in table (default: true)
+    excludeFromAITemplate?: boolean; // Hide from AI column field picker
 }
 ```
 
@@ -149,9 +159,11 @@ interface TableColumn {
 | **Sorting** | Click column header to sort asc/desc |
 | **Text Filtering** | Global search across all visible columns |
 | **AI Columns** | Add custom AI-powered columns via modal |
+| **AI API Calls** | Calls tablizerApi directly based on `itemType` |
 | **Boolean Filters** | Quick Yes/No/All filters for boolean AI columns |
 | **Row Viewer** | Click row to open pluggable viewer component |
-| **CSV Export** | Download visible columns as CSV |
+| **CSV Export** | Download visible columns (including AI) as CSV |
+| **Copy IDs** | Copy filtered item IDs to clipboard |
 | **Progress Indicator** | Shows AI processing progress |
 | **Error Handling** | Displays "Error" for failed AI evaluations |
 
@@ -166,7 +178,6 @@ interface TableColumn {
 | Snapshot/history management | Parent component |
 | Compare mode | Parent component |
 | Chat integration | Parent component |
-| **AI API calls** | Parent via `onProcessAIColumn` |
 | **Column definitions** | Parent via `columns` prop |
 | **Row viewing** | Parent via `RowViewer` prop |
 
@@ -176,15 +187,15 @@ interface TableColumn {
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Parent App (e.g., PubMedTableView)                         │
+│  Parent App (e.g., PubMedTable, TrialScoutTable)            │
 │                                                             │
 │  Provides:                                                  │
 │  ├── data (items to display)                                │
 │  ├── columns (column definitions)                           │
 │  ├── idField ('pmid' or 'nct_id')                          │
-│  ├── filterData (larger set for AI processing)              │
+│  ├── itemType ('article' or 'trial')                        │
+│  ├── originalData (optional, if display data is flattened)  │
 │  ├── RowViewer (ArticleViewerModal or TrialViewerModal)    │
-│  ├── onProcessAIColumn (calls appropriate API)              │
 │  ├── onFetchMoreForAI (lazy load callback)                  │
 │  ├── onSaveToHistory (save filtered set)                    │
 │  └── onColumnsChange (sync AI column state)                 │
@@ -198,11 +209,11 @@ interface TableColumn {
 │  - Column visibility & AI columns                           │
 │  - Sort state                                               │
 │  - Filter text & boolean filters                            │
-│  - AI column processing orchestration                       │
-│  - Row data with AI values                                  │
+│  - AI column processing (calls tablizerApi directly)        │
+│  - AI column values, reasoning, and confidence              │
 │                                                             │
-│  Delegates:                                                 │
-│  └── AI processing to parent via onProcessAIColumn          │
+│  API Call:                                                  │
+│  └── tablizerApi.processAIColumn({ items, itemType, ... })  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -212,18 +223,28 @@ interface TableColumn {
 
 ### Flow
 
-1. User clicks "Add AI Column" button
+1. User clicks "Add AI Column" button (only visible if `itemType` is set)
 2. `AddColumnModal` opens with:
    - Column name input
+   - Output type selection (Yes/No, Score, Text)
    - Available field slugs (derived from columns)
-   - Prompt template textarea
-   - Output type selection (text/number/boolean)
+   - Prompt template textarea with live preview
+   - Score range config (if Score type selected)
 3. On submit, Tablizer:
    - Calls `onFetchMoreForAI()` if provided (lazy load)
    - Adds column definition to internal state
-   - Calls `onProcessAIColumn(data, template, outputType)`
-   - Updates rows with AI values as results come in
+   - Calls `tablizerApi.processAIColumn()` directly with `itemType`
+   - Uses `originalData` if provided, otherwise uses display data
+   - Updates AI column values, reasoning, and confidence
    - Reports column changes via `onColumnsChange()`
+
+### itemType vs originalData
+
+| Scenario | itemType | originalData | Notes |
+|----------|----------|--------------|-------|
+| PubMedTable | `"article"` | not needed | Display data is same as API data |
+| ReportArticleTable | `"article"` | not needed | Display data is same as API data |
+| TrialScoutTable | `"trial"` | `trials` | Display data is flattened; API needs full trial objects |
 
 ### Template Slugs
 
@@ -250,12 +271,11 @@ The prompt template can include slugs that are replaced with data fields. Availa
 
 ## Usage Examples
 
-### PubMed App
+### PubMed App (Simple Case)
 
 ```tsx
-import Tablizer from '../tools/Tablizer/Tablizer';
+import { Tablizer, TableColumn, RowViewerProps } from '../tools/Tablizer';
 import ArticleViewerModal from '../articles/ArticleViewerModal';
-import { researchStreamApi } from '../../lib/api';
 
 const PUBMED_COLUMNS: TableColumn[] = [
     { id: 'pmid', label: 'PMID', accessor: 'pmid', type: 'text', visible: true },
@@ -265,81 +285,71 @@ const PUBMED_COLUMNS: TableColumn[] = [
     { id: 'publication_date', label: 'Date', accessor: 'publication_date', type: 'date', visible: true },
 ];
 
-function PubMedTableView() {
-    const handleProcessAIColumn = async (articles, template, outputType) => {
-        const response = await researchStreamApi.filterArticles({
-            articles,
-            filter_criteria: template,
-            threshold: 0.5
-        });
-        return response.results.map(r => ({
-            id: r.pmid,
-            passed: r.passed,
-            score: r.score,
-            reasoning: r.reasoning
-        }));
-    };
+function ArticleRowViewer({ data, initialIndex, onClose }: RowViewerProps<Article>) {
+    return <ArticleViewerModal articles={data} initialIndex={initialIndex} onClose={onClose} />;
+}
 
+function PubMedTable({ articles }) {
     return (
         <Tablizer
             data={articles}
             idField="pmid"
             columns={PUBMED_COLUMNS}
             rowLabel="articles"
-            RowViewer={ArticleViewerModal}
-            onProcessAIColumn={handleProcessAIColumn}
+            RowViewer={ArticleRowViewer}
+            itemType="article"
         />
     );
 }
 ```
 
-### TrialScout App
+### TrialScout App (With originalData)
+
+When display data is transformed/flattened, pass `originalData` so the API gets the full objects:
 
 ```tsx
-import Tablizer from '../tools/Tablizer/Tablizer';
+import { Tablizer, TableColumn } from '../tools/Tablizer';
 import TrialViewerModal from './TrialViewerModal';
-import { toolsApi } from '../../lib/api/toolsApi';
 
 const TRIAL_COLUMNS: TableColumn[] = [
     { id: 'nct_id', label: 'NCT ID', accessor: 'nct_id', type: 'text', visible: true },
     { id: 'title', label: 'Title', accessor: 'title', type: 'text', visible: true },
     { id: 'status', label: 'Status', accessor: 'status', type: 'text', visible: true },
     { id: 'phase', label: 'Phase', accessor: 'phase', type: 'text', visible: true },
-    { id: 'enrollment', label: 'Enrollment', accessor: 'enrollment', type: 'number', visible: true },
     // ... more columns
 ];
 
-function TrialScoutSearch() {
-    const handleProcessAIColumn = async (trials, template, outputType) => {
-        const response = await toolsApi.filterTrials({
-            trials,
-            filter_criteria: template,
-            threshold: 0.5
-        });
-        return response.results.map(r => ({
-            id: r.nct_id,
-            passed: r.passed,
-            score: r.score,
-            reasoning: r.reasoning
-        }));
-    };
+function TrialScoutTable({ trials }) {
+    // Flatten trials for display
+    const trialData = useMemo(() =>
+        trials.map(trial => ({
+            nct_id: trial.nct_id,
+            title: trial.brief_title || trial.title,
+            status: trial.status,
+            phase: trial.phase || 'N/A',
+            sponsor: trial.lead_sponsor?.name || 'Unknown',
+            // ... flatten other fields
+        })),
+        [trials]
+    );
 
-    // Custom cell renderer for status/phase formatting
+    // Custom cell renderer for status badges
     const renderCell = (row, column) => {
         if (column.id === 'status') {
             return <StatusBadge status={row.status} />;
         }
-        return null; // Use default rendering
+        return null;
     };
 
     return (
         <Tablizer
-            data={trials}
+            data={trialData}
             idField="nct_id"
             columns={TRIAL_COLUMNS}
             rowLabel="trials"
-            RowViewer={TrialViewerModal}
-            onProcessAIColumn={handleProcessAIColumn}
+            RowViewer={TrialViewer}
+            itemType="trial"
+            originalData={trials}  // Pass full objects for AI processing
             renderCell={renderCell}
         />
     );
@@ -353,11 +363,17 @@ function TrialScoutSearch() {
 ### Internal State
 
 ```typescript
-// Row data (base + AI values)
-const [data, setData] = useState<TableRow[]>([]);
-
-// Merged column definitions (base + AI columns)
+// Column definitions (base + AI columns)
 const [columns, setColumns] = useState<TableColumn[]>(props.columns);
+
+// AI column values: { columnId: { rowId: value } }
+const [aiColumnValues, setAiColumnValues] = useState<Record<string, Record<string, unknown>>>({});
+
+// AI column reasoning: { columnId: { rowId: reasoning } }
+const [aiColumnReasoning, setAiColumnReasoning] = useState<Record<string, Record<string, string>>>({});
+
+// AI column confidence: { columnId: { rowId: confidence } }
+const [aiColumnConfidence, setAiColumnConfidence] = useState<Record<string, Record<string, number>>>({});
 
 // Sort configuration
 const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
@@ -394,39 +410,20 @@ frontend/src/components/tools/Tablizer/
 
 ---
 
-## Migration Path
+## Wrapper Components
 
-### Converting TrialScoutTable to use Tablizer
+Tablizer is wrapped by domain-specific components that provide the appropriate configuration:
 
-Before (TrialScoutTable - ~700 lines of duplicated code):
-```tsx
-function TrialScoutTable({ trials }) {
-    // Duplicated table logic, sorting, filtering, AI columns...
-}
-```
+| Wrapper | Location | itemType | originalData |
+|---------|----------|----------|--------------|
+| `PubMedTable` | `components/pubmed/` | `"article"` | not needed |
+| `ReportArticleTable` | `components/reports/` | `"article"` | not needed |
+| `TrialScoutTable` | `components/trialscout/` | `"trial"` | `trials` (full objects) |
+| `TablizeButton` | `components/tools/Tablizer/` | `"article"` | not needed |
 
-After (wrapper around Tablizer - ~50 lines):
-```tsx
-function TrialScoutTable({ trials }) {
-    const data = useMemo(() => convertTrialsToRows(trials), [trials]);
-
-    const handleProcessAI = async (data, template, outputType) => {
-        const response = await toolsApi.filterTrials({ trials, filter_criteria: template });
-        return response.results.map(r => ({ id: r.nct_id, ... }));
-    };
-
-    return (
-        <Tablizer
-            data={data}
-            idField="nct_id"
-            columns={TRIAL_COLUMNS}
-            rowLabel="trials"
-            RowViewer={TrialViewerModal}
-            onProcessAIColumn={handleProcessAI}
-            renderCell={trialCellRenderer}
-        />
-    );
-}
-```
-
-This eliminates ~650 lines of duplicated code while maintaining identical functionality.
+These wrappers are thin (~50-80 lines) and primarily:
+1. Define column configurations
+2. Provide the appropriate `itemType`
+3. Handle data transformation if needed (TrialScoutTable)
+4. Provide custom `renderCell` for domain-specific formatting
+5. Wire up the `RowViewer` component
