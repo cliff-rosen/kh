@@ -24,6 +24,9 @@ from datetime import date, datetime
 import asyncio
 import json
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 from models import (
     ResearchStream, Report, ReportArticleAssociation, Article,
@@ -111,6 +114,8 @@ class PipelineService:
             ValueError: If the research stream uses concept-based retrieval (not supported)
         """
         try:
+            logger.info(f"Starting pipeline for research_stream_id={research_stream_id}, user_id={user_id}, run_type={run_type}")
+
             # === STAGE 1: Load Configuration ===
             yield PipelineStatus("init", "Loading research stream configuration...")
 
@@ -233,12 +238,52 @@ class PipelineService:
                     )
                     continue
 
-                passed, rejected = await self._apply_semantic_filter(
-                    execution_id=execution_id,
-                    retrieval_unit_id=broad_query.query_id,
-                    filter_criteria=broad_query.semantic_filter.criteria,
-                    threshold=broad_query.semantic_filter.threshold
+                # Use asyncio.Queue to stream progress from callback
+                progress_queue = asyncio.Queue()
+
+                async def progress_with_queue(completed: int, total: int):
+                    # Only report every 5 items or at boundaries to avoid overwhelming
+                    if completed == 1 or completed == total or completed % 5 == 0:
+                        await progress_queue.put((completed, total))
+
+                # Start the filter in background and drain queue for progress
+                filter_task = asyncio.create_task(
+                    self._apply_semantic_filter(
+                        execution_id=execution_id,
+                        retrieval_unit_id=broad_query.query_id,
+                        filter_criteria=broad_query.semantic_filter.criteria,
+                        threshold=broad_query.semantic_filter.threshold,
+                        on_progress=progress_with_queue
+                    )
                 )
+
+                # Yield progress updates as they come in
+                while not filter_task.done():
+                    try:
+                        # Wait for progress with timeout (acts as heartbeat)
+                        completed, total = await asyncio.wait_for(progress_queue.get(), timeout=3.0)
+                        yield PipelineStatus(
+                            "filter",
+                            f"Filtering articles: {completed}/{total}",
+                            {"query_id": broad_query.query_id, "completed": completed, "total": total}
+                        )
+                    except asyncio.TimeoutError:
+                        # No progress yet, yield heartbeat to keep connection alive
+                        yield PipelineStatus(
+                            "filter",
+                            "Processing...",
+                            {"query_id": broad_query.query_id, "heartbeat": True}
+                        )
+
+                # Get final result
+                passed, rejected = await filter_task
+
+                # Drain any remaining progress updates
+                while not progress_queue.empty():
+                    try:
+                        progress_queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
 
                 filter_stats[broad_query.query_id] = {"passed": passed, "rejected": rejected}
 
@@ -275,11 +320,50 @@ class PipelineService:
             # === STAGE 6: Categorize Articles ===
             yield PipelineStatus("categorize", "Categorizing articles into presentation categories...")
 
-            categorized_count = await self._categorize_articles(
-                research_stream_id=research_stream_id,
-                execution_id=execution_id,
-                presentation_config=presentation_config
+            # Use asyncio.Queue to stream progress from callback
+            categorize_progress_queue = asyncio.Queue()
+
+            async def categorize_progress_callback(completed: int, total: int):
+                # Report every 5 items or at boundaries
+                if completed == 1 or completed == total or completed % 5 == 0:
+                    await categorize_progress_queue.put((completed, total))
+
+            # Start categorization in background
+            categorize_task = asyncio.create_task(
+                self._categorize_articles(
+                    research_stream_id=research_stream_id,
+                    execution_id=execution_id,
+                    presentation_config=presentation_config,
+                    on_progress=categorize_progress_callback
+                )
             )
+
+            # Yield progress updates as they come in
+            while not categorize_task.done():
+                try:
+                    completed, total = await asyncio.wait_for(categorize_progress_queue.get(), timeout=3.0)
+                    yield PipelineStatus(
+                        "categorize",
+                        f"Categorizing articles: {completed}/{total}",
+                        {"completed": completed, "total": total}
+                    )
+                except asyncio.TimeoutError:
+                    # Heartbeat to keep connection alive
+                    yield PipelineStatus(
+                        "categorize",
+                        "Processing...",
+                        {"heartbeat": True}
+                    )
+
+            # Get final result
+            categorized_count = await categorize_task
+
+            # Drain any remaining progress updates
+            while not categorize_progress_queue.empty():
+                try:
+                    categorize_progress_queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
 
             yield PipelineStatus(
                 "categorize",
@@ -290,12 +374,31 @@ class PipelineService:
             # === STAGE 7: Generate Summaries ===
             yield PipelineStatus("summary", "Generating executive summaries...")
 
-            executive_summary, category_summaries = await self._generate_summaries(
-                research_stream_id=research_stream_id,
-                execution_id=execution_id,
-                stream=stream,
-                presentation_config=presentation_config
+            # Run summary generation in background with heartbeat
+            summary_task = asyncio.create_task(
+                self._generate_summaries(
+                    research_stream_id=research_stream_id,
+                    execution_id=execution_id,
+                    stream=stream,
+                    presentation_config=presentation_config
+                )
             )
+
+            # Emit heartbeat while waiting for summaries
+            num_categories = len(presentation_config.categories)
+            while not summary_task.done():
+                try:
+                    # Wait up to 5 seconds for task to complete
+                    await asyncio.wait_for(asyncio.shield(summary_task), timeout=5.0)
+                except asyncio.TimeoutError:
+                    # Task still running, emit heartbeat
+                    yield PipelineStatus(
+                        "summary",
+                        f"Generating summaries for {num_categories} categories...",
+                        {"heartbeat": True, "num_categories": num_categories}
+                    )
+
+            executive_summary, category_summaries = await summary_task
 
             yield PipelineStatus(
                 "summary",
@@ -346,6 +449,7 @@ class PipelineService:
             )
 
         except Exception as e:
+            logger.error(f"Pipeline failed for research_stream_id={research_stream_id}: {type(e).__name__}: {str(e)}", exc_info=True)
             yield PipelineStatus(
                 "error",
                 f"Pipeline failed: {str(e)}",
@@ -442,7 +546,8 @@ class PipelineService:
         execution_id: str,
         retrieval_unit_id: str,
         filter_criteria: str,
-        threshold: float
+        threshold: float,
+        on_progress: Optional[callable] = None
     ) -> Tuple[int, int]:
         """
         Apply semantic filter to articles in a retrieval unit (concept or broad query) using LLM in parallel batches.
@@ -452,6 +557,7 @@ class PipelineService:
             retrieval_unit_id: Retrieval unit ID (query_id)
             filter_criteria: Natural language filter criteria
             threshold: Minimum score (0-1) for article to pass
+            on_progress: Optional async callback(completed, total) for progress updates
 
         Returns:
             Tuple of (passed_count, rejected_count)
@@ -460,7 +566,10 @@ class PipelineService:
         articles = self.wip_article_service.get_for_filtering(execution_id, retrieval_unit_id)
 
         if not articles:
+            logger.info(f"No articles to filter for execution_id={execution_id}, retrieval_unit_id={retrieval_unit_id}")
             return 0, 0
+
+        logger.info(f"Filtering {len(articles)} articles for retrieval_unit_id={retrieval_unit_id}, threshold={threshold}")
 
         # Convert WipArticle objects to dicts for evaluation
         items = []
@@ -486,7 +595,8 @@ class PipelineService:
             max_value=1.0,
             include_reasoning=True,
             include_source_data=True,  # Include full article data for LLM context
-            max_concurrent=50
+            max_concurrent=50,
+            on_progress=on_progress
         )
 
         # Update database with results using WipArticleService
@@ -514,6 +624,7 @@ class PipelineService:
                 rejected += 1
 
         self.wip_article_service.commit()
+        logger.info(f"Filtering complete: {passed} passed, {rejected} rejected out of {len(articles)} total")
         return passed, rejected
 
     async def _deduplicate_globally(self, research_stream_id: int, execution_id: str) -> int:
@@ -580,7 +691,8 @@ class PipelineService:
         self,
         research_stream_id: int,
         execution_id: str,
-        presentation_config: PresentationConfig
+        presentation_config: PresentationConfig,
+        on_progress: Optional[callable] = None
     ) -> int:
         """
         Use LLM to categorize each unique article into presentation categories in parallel batches.
@@ -589,6 +701,7 @@ class PipelineService:
             research_stream_id: Stream ID
             execution_id: Current pipeline execution ID
             presentation_config: Presentation configuration with categories
+            on_progress: Optional async callback(completed, total) for progress updates
 
         Returns:
             Number of articles categorized
@@ -597,7 +710,10 @@ class PipelineService:
         articles = self.wip_article_service.get_included_articles(execution_id)
 
         if not articles:
+            logger.info(f"No articles to categorize for execution_id={execution_id}")
             return 0
+
+        logger.info(f"Categorizing {len(articles)} articles into {len(presentation_config.categories)} categories")
 
         # Prepare category descriptions for LLM
         categories_desc = self.categorization_service.prepare_category_definitions(
@@ -608,12 +724,14 @@ class PipelineService:
         results = await self.categorization_service.categorize_wip_articles_batch(
             articles=articles,
             categories=categories_desc,
-            max_concurrent=50
+            max_concurrent=50,
+            on_progress=on_progress
         )
 
         # Update database with results using WipArticleService
         categorized = self.wip_article_service.bulk_update_categories(results)
         self.wip_article_service.commit()
+        logger.info(f"Categorization complete: {categorized} articles categorized")
         return categorized
 
     async def _generate_summaries(
@@ -646,50 +764,72 @@ class PipelineService:
         if hasattr(stream, 'enrichment_config') and stream.enrichment_config:
             enrichment_config = stream.enrichment_config.dict() if hasattr(stream.enrichment_config, 'dict') else stream.enrichment_config
 
+        logger.info(f"Generating summaries for {len(wip_articles)} articles across {len(presentation_config.categories)} categories")
+
         # Generate category summaries in parallel
         async def generate_single_category_summary(category):
             """Generate summary for a single category"""
-            # Get articles in this category
-            category_articles = [
-                article for article in wip_articles
-                if article.presentation_categories and category.id in article.presentation_categories
-            ]
+            try:
+                # Get articles in this category
+                category_articles = [
+                    article for article in wip_articles
+                    if article.presentation_categories and category.id in article.presentation_categories
+                ]
 
-            if not category_articles:
-                return category.id, "No articles in this category."
+                if not category_articles:
+                    return category.id, "No articles in this category."
 
-            # Build category description
-            category_description = f"{category.name}. "
-            if category.specific_inclusions:
-                category_description += "Includes: " + ", ".join(category.specific_inclusions)
+                # Build category description
+                category_description = f"{category.name}. "
+                if category.specific_inclusions:
+                    category_description += "Includes: " + ", ".join(category.specific_inclusions)
 
-            # Generate summary for this category
-            summary = await self.summary_service.generate_category_summary(
-                category_name=category.name,
-                category_description=category_description,
-                wip_articles=category_articles,
-                stream_purpose=stream.purpose,
-                stream_name=stream.stream_name,
-                category_topics=category.topics,
-                enrichment_config=enrichment_config
-            )
-            return category.id, summary
+                # Generate summary for this category
+                summary = await self.summary_service.generate_category_summary(
+                    category_name=category.name,
+                    category_description=category_description,
+                    wip_articles=category_articles,
+                    stream_purpose=stream.purpose,
+                    stream_name=stream.stream_name,
+                    category_topics=category.topics,
+                    enrichment_config=enrichment_config
+                )
+                return category.id, summary
+            except Exception as e:
+                logger.error(f"Failed to generate summary for category {category.id}: {type(e).__name__}: {e}")
+                return category.id, f"Error generating summary: {str(e)}"
 
-        # Run all category summaries in parallel
+        # Run all category summaries in parallel with exception handling
         category_results = await asyncio.gather(
-            *[generate_single_category_summary(cat) for cat in presentation_config.categories]
+            *[generate_single_category_summary(cat) for cat in presentation_config.categories],
+            return_exceptions=True
         )
-        category_summaries = dict(category_results)
+
+        # Process results, handling any exceptions
+        category_summaries = {}
+        for i, result in enumerate(category_results):
+            if isinstance(result, Exception):
+                cat_id = presentation_config.categories[i].id
+                logger.error(f"Category summary task failed for {cat_id}: {type(result).__name__}: {result}")
+                category_summaries[cat_id] = f"Error generating summary: {str(result)}"
+            else:
+                cat_id, summary = result
+                category_summaries[cat_id] = summary
 
         # Generate executive summary using category summaries
-        executive_summary = await self.summary_service.generate_executive_summary(
-            wip_articles=wip_articles,
-            stream_purpose=stream.purpose,
-            category_summaries=category_summaries,
-            stream_name=stream.stream_name,
-            enrichment_config=enrichment_config
-        )
+        try:
+            executive_summary = await self.summary_service.generate_executive_summary(
+                wip_articles=wip_articles,
+                stream_purpose=stream.purpose,
+                category_summaries=category_summaries,
+                stream_name=stream.stream_name,
+                enrichment_config=enrichment_config
+            )
+        except Exception as e:
+            logger.error(f"Failed to generate executive summary: {type(e).__name__}: {e}", exc_info=True)
+            executive_summary = f"Error generating executive summary: {str(e)}"
 
+        logger.info(f"Summary generation complete: executive summary + {len(category_summaries)} category summaries")
         return executive_summary, category_summaries
 
     async def _generate_report(

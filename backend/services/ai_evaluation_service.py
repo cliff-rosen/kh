@@ -467,7 +467,8 @@ class AIEvaluationService:
         id_field: str,
         include_reasoning: bool = True,
         include_source_data: bool = False,
-        max_concurrent: int = 50
+        max_concurrent: int = 50,
+        on_progress: Optional[callable] = None
     ) -> List[EvaluationResult]:
         """
         Filter multiple items in parallel.
@@ -479,6 +480,7 @@ class AIEvaluationService:
             include_reasoning: Whether to include explanation in results
             include_source_data: If True, include all item fields in prompt context
             max_concurrent: Maximum concurrent LLM calls (default: 50)
+            on_progress: Optional callback(completed, total) called after each item completes
 
         Returns:
             List of EvaluationResult objects in same order as input items
@@ -491,33 +493,47 @@ class AIEvaluationService:
         # Create semaphore to limit concurrent LLM calls
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def filter_one(item: Dict[str, Any]) -> EvaluationResult:
+        async def filter_one(idx: int, item: Dict[str, Any]) -> tuple:
             async with semaphore:
-                return await self.filter(item, criteria, id_field, include_reasoning, include_source_data)
+                result = await self.filter(item, criteria, id_field, include_reasoning, include_source_data)
+                return idx, result
 
-        # Execute all filters in parallel
-        results = await asyncio.gather(
-            *[filter_one(item) for item in items],
-            return_exceptions=True
-        )
-
-        # Handle any exceptions that were returned
-        final_results = []
+        # Execute with as_completed for progress reporting
+        tasks = [filter_one(i, item) for i, item in enumerate(items)]
+        results_by_idx = {}
+        completed = 0
         errors = 0
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                item_id = self._get_item_id(items[i], id_field)
-                logger.error(f"filter_batch item failed - item_id={item_id}: {result}", exc_info=False)
+
+        for coro in asyncio.as_completed(tasks):
+            try:
+                idx, result = await coro
+                results_by_idx[idx] = result
+            except Exception as e:
+                # Find which task failed (we can't know for sure, but log it)
+                logger.error(f"filter_batch item failed: {e}", exc_info=False)
                 errors += 1
+
+            completed += 1
+            if on_progress:
+                try:
+                    await on_progress(completed, len(items))
+                except Exception as cb_err:
+                    logger.warning(f"Progress callback failed: {cb_err}")
+
+        # Build final results in original order
+        final_results = []
+        for i in range(len(items)):
+            if i in results_by_idx:
+                final_results.append(results_by_idx[i])
+            else:
+                item_id = self._get_item_id(items[i], id_field)
                 final_results.append(EvaluationResult(
                     item_id=item_id,
                     value=None,
                     confidence=0.0,
                     reasoning=None,
-                    error=str(result)
+                    error="Processing failed"
                 ))
-            else:
-                final_results.append(result)
 
         passed = sum(1 for r in final_results if r.value is True)
         logger.info(f"filter_batch complete - items={len(items)}, passed={passed}, errors={errors}")
@@ -603,7 +619,8 @@ class AIEvaluationService:
         interval: Optional[float] = None,
         include_reasoning: bool = True,
         include_source_data: bool = False,
-        max_concurrent: int = 50
+        max_concurrent: int = 50,
+        on_progress: Optional[callable] = None
     ) -> List[EvaluationResult]:
         """
         Score multiple items in parallel.
@@ -618,6 +635,7 @@ class AIEvaluationService:
             include_reasoning: Whether to include explanation in results
             include_source_data: If True, include all item fields in prompt context
             max_concurrent: Maximum concurrent LLM calls (default: 50)
+            on_progress: Optional callback(completed, total) called after each item completes
 
         Returns:
             List of EvaluationResult objects in same order as input items
@@ -630,35 +648,49 @@ class AIEvaluationService:
         # Create semaphore to limit concurrent LLM calls
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def score_one(item: Dict[str, Any]) -> EvaluationResult:
+        async def score_one(idx: int, item: Dict[str, Any]) -> tuple:
             async with semaphore:
-                return await self.score(item, criteria, id_field, min_value, max_value, interval, include_reasoning, include_source_data)
+                result = await self.score(item, criteria, id_field, min_value, max_value, interval, include_reasoning, include_source_data)
+                return idx, result
 
-        # Execute all scores in parallel
-        results = await asyncio.gather(
-            *[score_one(item) for item in items],
-            return_exceptions=True
-        )
-
-        # Handle any exceptions that were returned
-        final_results = []
+        # Execute with as_completed for progress reporting
+        tasks = [score_one(i, item) for i, item in enumerate(items)]
+        results_by_idx = {}
+        completed = 0
         errors = 0
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                item_id = self._get_item_id(items[i], id_field)
-                logger.error(f"score_batch item failed - item_id={item_id}: {result}", exc_info=False)
+
+        for coro in asyncio.as_completed(tasks):
+            try:
+                idx, result = await coro
+                results_by_idx[idx] = result
+            except Exception as e:
+                logger.error(f"score_batch item failed: {e}", exc_info=False)
                 errors += 1
+
+            completed += 1
+            if on_progress:
+                try:
+                    await on_progress(completed, len(items))
+                except Exception as cb_err:
+                    logger.warning(f"Progress callback failed: {cb_err}")
+
+        # Build final results in original order
+        final_results = []
+        for i in range(len(items)):
+            if i in results_by_idx:
+                final_results.append(results_by_idx[i])
+            else:
+                item_id = self._get_item_id(items[i], id_field)
                 final_results.append(EvaluationResult(
                     item_id=item_id,
                     value=None,
                     confidence=0.0,
                     reasoning=None,
-                    error=str(result)
+                    error="Processing failed"
                 ))
-            else:
-                final_results.append(result)
 
-        avg_score = sum(r.value for r in final_results if r.value is not None) / max(1, len(final_results) - errors)
+        scored = [r.value for r in final_results if r.value is not None]
+        avg_score = sum(scored) / max(1, len(scored)) if scored else 0
         logger.info(f"score_batch complete - items={len(items)}, avg_score={avg_score:.2f}, errors={errors}")
         return final_results
 

@@ -6,13 +6,16 @@ articles to presentation categories. Used by pipeline execution and can be used
 standalone for ad-hoc categorization tasks.
 """
 
-from typing import List, Dict, Any, Tuple, TYPE_CHECKING
+from typing import List, Dict, Any, Tuple, Optional, TYPE_CHECKING
 from datetime import datetime
 import json
 import asyncio
+import logging
 
 from models import WipArticle, Article
 from schemas.research_stream import Category
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from schemas.canonical_types import CanonicalResearchArticle
@@ -201,7 +204,8 @@ class ArticleCategorizationService:
         self,
         articles: List[Any],
         categories: List[Dict],
-        max_concurrent: int = 10
+        max_concurrent: int = 10,
+        on_progress: Optional[callable] = None
     ) -> List[Tuple[Any, str]]:
         """
         Categorize multiple articles in parallel with rate limiting.
@@ -213,6 +217,7 @@ class ArticleCategorizationService:
             articles: List of article objects (WipArticle, Article, CanonicalResearchArticle, or dict-like)
             categories: List of category definitions with id, name, topics, specific_inclusions
             max_concurrent: Maximum number of concurrent LLM categorizations (default: 10)
+            on_progress: Optional callback(completed, total) called after each item completes
 
         Returns:
             List of tuples: (article, assigned_category_id)
@@ -220,13 +225,18 @@ class ArticleCategorizationService:
             Results are in the same order as input articles.
         """
         if not articles or not categories:
+            logger.info("categorize_articles_batch called with empty articles or categories")
             return [(article, None) for article in articles]
+
+        logger.info(f"Starting batch categorization of {len(articles)} articles into {len(categories)} categories")
 
         # Create semaphore to limit concurrent LLM calls (avoid rate limits)
         semaphore = asyncio.Semaphore(max_concurrent)
+        errors = 0
 
-        async def categorize_single(article: Any) -> Tuple[Any, str]:
+        async def categorize_single(idx: int, article: Any) -> Tuple[int, Any, str]:
             """Categorize a single article with rate limiting"""
+            nonlocal errors
             async with semaphore:
                 try:
                     # Extract article attributes (works with WipArticle, Article, CanonicalResearchArticle, or dict)
@@ -250,24 +260,40 @@ class ArticleCategorizationService:
                         article_year=str(year) if year else None,
                         categories=categories
                     )
-                    return article, assigned_category
+                    return idx, article, assigned_category
                 except Exception as e:
-                    # On error, return None
-                    return article, None
+                    errors += 1
+                    article_id = getattr(article, 'id', getattr(article, 'pmid', idx))
+                    logger.error(f"Failed to categorize article {article_id}: {type(e).__name__}: {e}")
+                    return idx, article, None
 
-        # Execute all categorizations in parallel
-        results = await asyncio.gather(
-            *[categorize_single(article) for article in articles],
-            return_exceptions=False
-        )
+        # Execute with as_completed for progress reporting
+        tasks = [categorize_single(i, article) for i, article in enumerate(articles)]
+        results_by_idx = {}
+        completed = 0
 
-        return results
+        for coro in asyncio.as_completed(tasks):
+            idx, article, category = await coro
+            results_by_idx[idx] = (article, category)
+
+            completed += 1
+            if on_progress:
+                try:
+                    await on_progress(completed, len(articles))
+                except Exception as cb_err:
+                    logger.warning(f"Progress callback failed: {cb_err}")
+
+        logger.info(f"Batch categorization complete: {len(articles)} articles, {errors} errors")
+
+        # Build final results in original order
+        return [results_by_idx[i] for i in range(len(articles))]
 
     async def categorize_wip_articles_batch(
         self,
         articles: List[WipArticle],
         categories: List[Dict],
-        max_concurrent: int = 10
+        max_concurrent: int = 10,
+        on_progress: Optional[callable] = None
     ) -> List[Tuple[WipArticle, str]]:
         """
         Categorize multiple WipArticles in parallel.
@@ -276,6 +302,7 @@ class ArticleCategorizationService:
             articles: List of WipArticle instances
             categories: List of category definitions
             max_concurrent: Maximum number of concurrent categorizations
+            on_progress: Optional callback(completed, total) called after each item completes
 
         Returns:
             List of tuples: (article, assigned_category_id)
@@ -284,7 +311,8 @@ class ArticleCategorizationService:
         return await self.categorize_articles_batch(
             articles=articles,
             categories=categories,
-            max_concurrent=max_concurrent
+            max_concurrent=max_concurrent,
+            on_progress=on_progress
         )
 
     async def categorize_canonical_articles_batch(
