@@ -1,5 +1,7 @@
 import { StanceAnalysisResult } from './document_analysis';
 
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+
 export interface ArticleEnrichments {
     stance_analysis?: StanceAnalysisResult;
     // Add other enrichment types here as needed
@@ -46,6 +48,11 @@ export interface Report {
     enrichments?: Record<string, any>;  // LLM-generated content: executive_summary, category_summaries
     pipeline_metrics?: Record<string, any>;  // Execution metadata: counts, timing, etc.
     pipeline_execution_id?: string | null;  // UUID linking to WIP data
+    // Approval workflow
+    approval_status: ApprovalStatus;
+    approved_by?: number | null;
+    approved_at?: string | null;
+    rejection_reason?: string | null;
 }
 
 export interface ReportWithArticles extends Report {

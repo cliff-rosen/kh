@@ -20,7 +20,7 @@ class WorkflowStep(str, Enum):
     GLOBAL_INCLUSION = "global_inclusion"  # Stream-wide inclusion criteria
     GLOBAL_EXCLUSION = "global_exclusion"  # Stream-wide exclusion criteria
     CATEGORIES = "categories"  # Collect research categories
-    REPORT_FREQUENCY = "report_frequency"  # How often to generate reports
+    FREQUENCY = "frequency"  # How often to generate reports (stored in schedule_config.frequency)
     REVIEW = "review"  # Review all configuration
     COMPLETE = "complete"  # Stream created
 
@@ -55,9 +55,9 @@ class ResearchStreamCreationWorkflow:
         WorkflowStep.GLOBAL_INCLUSION: ["global_inclusion"],
         WorkflowStep.GLOBAL_EXCLUSION: ["global_exclusion"],
         WorkflowStep.CATEGORIES: ["categories"],  # At least one complete category
-        WorkflowStep.REPORT_FREQUENCY: ["report_frequency"],
-        WorkflowStep.REVIEW: ["stream_name", "purpose", "categories", "report_frequency"],
-        WorkflowStep.COMPLETE: ["stream_name", "purpose", "categories", "report_frequency"]
+        WorkflowStep.FREQUENCY: ["frequency"],
+        WorkflowStep.REVIEW: ["stream_name", "purpose", "categories", "frequency"],
+        WorkflowStep.COMPLETE: ["stream_name", "purpose", "categories", "frequency"]
     }
 
     # Mapping of steps to field names (for data steps only)
@@ -69,7 +69,7 @@ class ResearchStreamCreationWorkflow:
         WorkflowStep.GLOBAL_INCLUSION: "global_inclusion",
         WorkflowStep.GLOBAL_EXCLUSION: "global_exclusion",
         WorkflowStep.CATEGORIES: "categories",
-        WorkflowStep.REPORT_FREQUENCY: "report_frequency"
+        WorkflowStep.FREQUENCY: "frequency"
     }
 
     # Data steps (have associated fields)
@@ -81,7 +81,7 @@ class ResearchStreamCreationWorkflow:
         WorkflowStep.GLOBAL_INCLUSION,
         WorkflowStep.GLOBAL_EXCLUSION,
         WorkflowStep.CATEGORIES,
-        WorkflowStep.REPORT_FREQUENCY
+        WorkflowStep.FREQUENCY
     ]
 
     # Simplified dependency graph
@@ -94,12 +94,12 @@ class ResearchStreamCreationWorkflow:
         WorkflowStep.GLOBAL_INCLUSION: [WorkflowStep.INTENDED_GUIDANCE],
         WorkflowStep.GLOBAL_EXCLUSION: [WorkflowStep.GLOBAL_INCLUSION],
         WorkflowStep.CATEGORIES: [WorkflowStep.GLOBAL_EXCLUSION],
-        WorkflowStep.REPORT_FREQUENCY: [WorkflowStep.CATEGORIES],
+        WorkflowStep.FREQUENCY: [WorkflowStep.CATEGORIES],
         WorkflowStep.REVIEW: [
             WorkflowStep.STREAM_NAME,
             WorkflowStep.PURPOSE,
             WorkflowStep.CATEGORIES,
-            WorkflowStep.REPORT_FREQUENCY
+            WorkflowStep.FREQUENCY
         ],
         WorkflowStep.COMPLETE: [WorkflowStep.REVIEW]
     }
@@ -114,7 +114,7 @@ class ResearchStreamCreationWorkflow:
         WorkflowStep.GLOBAL_INCLUSION,
         WorkflowStep.GLOBAL_EXCLUSION,
         WorkflowStep.CATEGORIES,
-        WorkflowStep.REPORT_FREQUENCY,
+        WorkflowStep.FREQUENCY,
         WorkflowStep.REVIEW,
         WorkflowStep.COMPLETE
     ]
@@ -188,7 +188,7 @@ class ResearchStreamCreationWorkflow:
 
     def _all_required_fields_complete(self) -> bool:
         """Check if all required fields are complete (ready for review)"""
-        required_fields = ["stream_name", "purpose", "report_frequency"]
+        required_fields = ["stream_name", "purpose", "frequency"]
         config_dict = self.config.model_dump() if hasattr(self.config, 'model_dump') else self.config
 
         # Check basic fields
@@ -378,9 +378,9 @@ class ResearchStreamCreationWorkflow:
                 ],
                 "provide_suggestions": True
             },
-            WorkflowStep.REPORT_FREQUENCY: {
+            WorkflowStep.FREQUENCY: {
                 "objective": "Determine how often to generate reports",
-                "collect": "report_frequency",
+                "collect": "frequency",
                 "options": ["daily", "weekly", "biweekly", "monthly"],
                 "example_questions": [
                     "How often would you like to receive reports?",

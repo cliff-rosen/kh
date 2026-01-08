@@ -2,9 +2,17 @@
 Report-related schemas for Knowledge Horizon
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date
+from enum import Enum
+
+
+class ApprovalStatus(str, Enum):
+    """Approval status for reports"""
+    PENDING = "pending"       # Awaiting admin review
+    APPROVED = "approved"     # Approved and visible to subscribers
+    REJECTED = "rejected"     # Rejected by admin
 
 
 class ReportArticle(BaseModel):
@@ -50,6 +58,11 @@ class Report(BaseModel):
     retrieval_params: Dict[str, Any] = {}  # Input parameters: start_date, end_date, etc.
     enrichments: Dict[str, Any] = {}  # LLM-generated content: executive_summary, category_summaries
     pipeline_metrics: Dict[str, Any] = {}  # Execution metadata: counts, timing, etc.
+    # Approval workflow
+    approval_status: ApprovalStatus = Field(default=ApprovalStatus.PENDING, description="Approval status of the report")
+    approved_by: Optional[int] = Field(None, description="User ID of admin who approved/rejected")
+    approved_at: Optional[datetime] = Field(None, description="When the report was approved/rejected")
+    rejection_reason: Optional[str] = Field(None, description="Reason if report was rejected")
 
     class Config:
         from_attributes = True

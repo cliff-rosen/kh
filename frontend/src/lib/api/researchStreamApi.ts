@@ -1,5 +1,5 @@
 import { api } from './index';
-import { ResearchStream, ReportFrequency, InformationSource, Concept, RetrievalConfig, SemanticSpace, PresentationConfig, BroadQuery } from '../../types';
+import { ResearchStream, InformationSource, Concept, RetrievalConfig, SemanticSpace, PresentationConfig, BroadQuery, ScheduleConfig } from '../../types';
 import { makeStreamRequest } from './streamUtils';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
 
@@ -93,7 +93,7 @@ export interface ComparisonResult {
 export interface ResearchStreamCreateRequest {
     stream_name: string;
     purpose: string;
-    report_frequency: ReportFrequency;
+    schedule_config?: ScheduleConfig;
     semantic_space: SemanticSpace;
     retrieval_config: RetrievalConfig;
     presentation_config: PresentationConfig;
@@ -102,7 +102,7 @@ export interface ResearchStreamCreateRequest {
 export interface ResearchStreamUpdateRequest {
     stream_name?: string;
     purpose?: string;
-    report_frequency?: ReportFrequency;
+    schedule_config?: ScheduleConfig;
     is_active?: boolean;
     semantic_space?: SemanticSpace;
     retrieval_config?: RetrievalConfig;

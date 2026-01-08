@@ -62,6 +62,22 @@ class RunType(str, PyEnum):
     MANUAL = "manual"     # Manual run triggered by user
 
 
+class ApprovalStatus(str, PyEnum):
+    """Approval status for reports"""
+    PENDING = "pending"       # Awaiting admin review
+    APPROVED = "approved"     # Approved and visible to subscribers
+    REJECTED = "rejected"     # Rejected by admin
+
+
+class ScheduleStatus(str, PyEnum):
+    """Status of a stream's scheduled run"""
+    IDLE = "idle"             # No run in progress, waiting for next scheduled time
+    QUEUED = "queued"         # Due to run, waiting in queue
+    RUNNING = "running"       # Currently executing
+    COMPLETED = "completed"   # Last run completed successfully
+    FAILED = "failed"         # Last run failed
+
+
 # Organization table (multi-tenancy)
 class Organization(Base):
     """Organization/tenant that users belong to"""
@@ -177,10 +193,25 @@ class ResearchStream(Base):
     chat_instructions = Column(Text, nullable=True)
 
     # === METADATA ===
-    report_frequency = Column(Enum(ReportFrequency), default=ReportFrequency.WEEKLY)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # === SCHEDULING ===
+    # Schedule configuration stored as JSON:
+    # {
+    #   "enabled": true,
+    #   "frequency": "weekly",       # daily, weekly, biweekly, monthly
+    #   "anchor_day": "monday",      # day of week (mon-sun) or day of month (1-31)
+    #   "preferred_time": "08:00",   # HH:MM in user's timezone
+    #   "timezone": "America/New_York",
+    #   "lookback_days": 7           # how many days of articles to fetch
+    # }
+    schedule_config = Column(JSON, nullable=True)
+    schedule_status = Column(Enum(ScheduleStatus, values_callable=lambda x: [e.value for e in x], name='schedulestatus'), default=ScheduleStatus.IDLE, nullable=True)
+    next_scheduled_run = Column(DateTime, nullable=True, index=True)  # When this stream should run next
+    last_scheduled_run = Column(DateTime, nullable=True)  # When this stream last ran (scheduled)
+    last_schedule_error = Column(Text, nullable=True)  # Error message if last scheduled run failed
 
     # Relationships
     organization = relationship("Organization", back_populates="research_streams", foreign_keys=[org_id])
@@ -269,8 +300,15 @@ class Report(Base):
     pipeline_metrics = Column(JSON, default=dict)  # Execution metadata: counts, timing, etc.
     pipeline_execution_id = Column(String(36), index=True)  # UUID linking to WIP data
 
+    # Approval workflow - all reports require admin approval before being visible to subscribers
+    approval_status = Column(Enum(ApprovalStatus, values_callable=lambda x: [e.value for e in x], name='approvalstatus'), default=ApprovalStatus.PENDING, nullable=False, index=True)
+    approved_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)  # Admin who approved/rejected
+    approved_at = Column(DateTime, nullable=True)
+    rejection_reason = Column(Text, nullable=True)  # Reason if rejected
+
     # Relationships
-    user = relationship("User", back_populates="reports")
+    user = relationship("User", back_populates="reports", foreign_keys=[user_id])
+    approver = relationship("User", foreign_keys=[approved_by])
     research_stream = relationship("ResearchStream", back_populates="reports")
     article_associations = relationship("ReportArticleAssociation", back_populates="report")
     feedback = relationship("UserFeedback", back_populates="report")

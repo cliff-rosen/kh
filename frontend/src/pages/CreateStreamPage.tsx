@@ -8,7 +8,8 @@ import {
     RetrievalConfig,
     PresentationConfig,
     Topic,
-    Entity
+    Entity,
+    ScheduleConfig
 } from '../types';
 import { useNavigate } from 'react-router-dom';
 import SemanticSpaceForm from '../components/stream/SemanticSpaceForm';
@@ -46,7 +47,14 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
     const [form, setForm] = useState({
         stream_name: '',
         scope: 'personal' as StreamScope,
-        report_frequency: ReportFrequency.WEEKLY,
+        schedule_config: {
+            enabled: false,
+            frequency: ReportFrequency.WEEKLY,
+            anchor_day: null,
+            preferred_time: '08:00',
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+            lookback_days: null
+        } as ScheduleConfig,
         chat_instructions: '',
 
         // === LAYER 1: SEMANTIC SPACE ===
@@ -146,7 +154,7 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
         const cleanedForm = {
             stream_name: form.stream_name,
             purpose: purpose,
-            report_frequency: form.report_frequency,
+            schedule_config: form.schedule_config,
             chat_instructions: form.chat_instructions || null,
             scope: form.scope,  // Stream visibility scope
             // Three-layer architecture
@@ -253,8 +261,11 @@ export default function CreateStreamPage({ onCancel }: CreateStreamPageProps) {
                         Report Frequency *
                     </label>
                     <select
-                        value={form.report_frequency}
-                        onChange={(e) => setForm({ ...form, report_frequency: e.target.value as ReportFrequency })}
+                        value={form.schedule_config.frequency}
+                        onChange={(e) => setForm({
+                            ...form,
+                            schedule_config: { ...form.schedule_config, frequency: e.target.value as ReportFrequency }
+                        })}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     >
                         <option value={ReportFrequency.DAILY}>Daily</option>

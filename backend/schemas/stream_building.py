@@ -29,7 +29,7 @@ class StreamInProgress(BaseModel):
     global_inclusion: Optional[List[str]] = None
     global_exclusion: Optional[List[str]] = None
     categories: Optional[List[CategoryInProgress]] = None
-    report_frequency: Optional[str] = None  # string during building, validated on submission
+    frequency: Optional[str] = None  # string during building, validated on submission (stored in schedule_config.frequency)
     scoring_config: Optional[dict] = None
 
 
@@ -47,7 +47,7 @@ class StreamBuildStep(str, Enum):
     GLOBAL_INCLUSION = "global_inclusion"
     GLOBAL_EXCLUSION = "global_exclusion"
     CATEGORIES = "categories"  # Collect all categories
-    REPORT_FREQUENCY = "report_frequency"
+    FREQUENCY = "frequency"
     REVIEW = "review"
     COMPLETE = "complete"
 

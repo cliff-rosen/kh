@@ -262,7 +262,7 @@ export default function DashboardPage() {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <span className="text-sm text-gray-900 dark:text-white capitalize">
-                                                        {stream.report_frequency}
+                                                        {stream.schedule_config?.frequency || 'weekly'}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">

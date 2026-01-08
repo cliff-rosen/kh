@@ -24,7 +24,8 @@ from schemas.research_stream import (
     PresentationConfig,
     Concept,
     BroadQuery,
-    BroadSearchStrategy
+    BroadSearchStrategy,
+    ScheduleConfig
 )
 from schemas.semantic_space import SemanticSpace
 from schemas.sources import INFORMATION_SOURCES, InformationSource
@@ -92,7 +93,7 @@ class ResearchStreamCreateRequest(BaseModel):
     """Request schema for creating a research stream - three-layer architecture"""
     stream_name: str = Field(..., min_length=1, max_length=255)
     purpose: str = Field(..., min_length=1, description="Why this stream exists")
-    report_frequency: ReportFrequency
+    schedule_config: Optional[ScheduleConfig] = Field(None, description="Scheduling configuration (frequency, timing, etc.)")
     chat_instructions: Optional[str] = Field(None, description="Stream-specific instructions for the chat assistant")
     # Scope determines visibility (personal, organization, or global)
     # - personal: Only creator can see (default)
@@ -108,7 +109,7 @@ class ResearchStreamUpdateRequest(BaseModel):
     """Request schema for updating a research stream - three-layer architecture"""
     stream_name: Optional[str] = Field(None, min_length=1, max_length=255)
     purpose: Optional[str] = None
-    report_frequency: Optional[ReportFrequency] = None
+    schedule_config: Optional[ScheduleConfig] = None
     is_active: Optional[bool] = None
     chat_instructions: Optional[str] = Field(None, description="Stream-specific instructions for the chat assistant")
     # Three-layer architecture
@@ -225,12 +226,13 @@ async def create_research_stream(
         semantic_space_dict = request.semantic_space.dict() if hasattr(request.semantic_space, 'dict') else request.semantic_space
         retrieval_config_dict = request.retrieval_config.dict() if hasattr(request.retrieval_config, 'dict') else request.retrieval_config
         presentation_config_dict = request.presentation_config.dict() if hasattr(request.presentation_config, 'dict') else request.presentation_config
+        schedule_config_dict = request.schedule_config.dict() if request.schedule_config and hasattr(request.schedule_config, 'dict') else request.schedule_config
 
         stream = service.create_research_stream(
             user_id=current_user.user_id,
             stream_name=request.stream_name,
             purpose=request.purpose,
-            report_frequency=request.report_frequency,
+            schedule_config=schedule_config_dict,
             chat_instructions=request.chat_instructions,
             semantic_space=semantic_space_dict,
             retrieval_config=retrieval_config_dict,

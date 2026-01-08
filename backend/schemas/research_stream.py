@@ -33,6 +33,45 @@ class ReportFrequency(str, Enum):
     MONTHLY = "monthly"
 
 
+class ScheduleStatus(str, Enum):
+    """Status of a stream's scheduled run"""
+    IDLE = "idle"             # No run in progress, waiting for next scheduled time
+    QUEUED = "queued"         # Due to run, waiting in queue
+    RUNNING = "running"       # Currently executing
+    COMPLETED = "completed"   # Last run completed successfully
+    FAILED = "failed"         # Last run failed
+
+
+class ScheduleConfig(BaseModel):
+    """
+    Complete scheduling configuration for a research stream.
+    This is the single source of truth for all scheduling settings.
+    """
+    enabled: bool = Field(default=False, description="Whether automated scheduling is enabled")
+    frequency: ReportFrequency = Field(default=ReportFrequency.WEEKLY, description="How often to run")
+    anchor_day: Optional[str] = Field(
+        default=None,
+        description="Day to run on: 'monday'-'sunday' for weekly, or '1'-'31' for monthly"
+    )
+    preferred_time: str = Field(default="08:00", description="Time of day to run (HH:MM in user's timezone)")
+    timezone: str = Field(default="UTC", description="User's timezone (e.g., 'America/New_York')")
+    lookback_days: Optional[int] = Field(
+        default=None,
+        description="Days of articles to fetch. If not set, derived from frequency"
+    )
+
+    def get_lookback_days(self) -> int:
+        """Get lookback days, defaulting based on frequency if not set"""
+        if self.lookback_days is not None:
+            return self.lookback_days
+        return {
+            ReportFrequency.DAILY: 1,
+            ReportFrequency.WEEKLY: 7,
+            ReportFrequency.BIWEEKLY: 14,
+            ReportFrequency.MONTHLY: 30
+        }.get(self.frequency, 7)
+
+
 class Category(BaseModel):
     """A category within a research stream - structured topic organization for presentation"""
     id: str = Field(description="Unique identifier for this category (e.g., 'medical_health')")
@@ -342,10 +381,18 @@ class ResearchStream(BaseModel):
     )
 
     # === METADATA ===
-    report_frequency: ReportFrequency
     is_active: bool = True
     created_at: datetime = Field(description="ISO 8601 datetime")
     updated_at: datetime = Field(description="ISO 8601 datetime")
+
+    # === SCHEDULING ===
+    # schedule_config is the single source of truth for scheduling (including frequency)
+    schedule_config: Optional[ScheduleConfig] = Field(None, description="Scheduling configuration (frequency, timing, etc.)")
+    schedule_status: Optional[ScheduleStatus] = Field(None, description="Current status of scheduled runs")
+    next_scheduled_run: Optional[datetime] = Field(None, description="When this stream will run next")
+    last_scheduled_run: Optional[datetime] = Field(None, description="When this stream last ran (scheduled)")
+    last_schedule_error: Optional[str] = Field(None, description="Error message if last scheduled run failed")
+
 
     # === AGGREGATED DATA ===
     report_count: Optional[int] = Field(0, description="Number of reports generated")

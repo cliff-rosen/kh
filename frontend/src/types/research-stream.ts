@@ -18,6 +18,21 @@ export enum ReportFrequency {
     MONTHLY = 'monthly'
 }
 
+export type ScheduleStatus = 'idle' | 'queued' | 'running' | 'completed' | 'failed';
+
+/**
+ * Complete scheduling configuration for a research stream.
+ * This is the single source of truth for all scheduling settings.
+ */
+export interface ScheduleConfig {
+    enabled: boolean;
+    frequency: ReportFrequency;  // How often to run
+    anchor_day?: string | null;  // 'monday'-'sunday' for weekly, or '1'-'31' for monthly
+    preferred_time: string;  // HH:MM in user's timezone
+    timezone: string;  // e.g., 'America/New_York'
+    lookback_days?: number | null;  // Days of articles to fetch, derived from frequency if not set
+}
+
 
 // ============================================================================
 // Retrieval Configuration - Concept-Based
@@ -157,7 +172,6 @@ export interface ResearchStream {
     chat_instructions?: string | null;  // Stream-specific instructions for the AI chat assistant
 
     // === METADATA ===
-    report_frequency: ReportFrequency;
     is_active: boolean;
     created_at: string;  // ISO 8601 datetime string
     updated_at: string;  // ISO 8601 datetime string
@@ -165,6 +179,13 @@ export interface ResearchStream {
     // === SCOPE & ORGANIZATION ===
     scope?: 'personal' | 'organization' | 'global';  // Stream visibility scope
     org_id?: number | null;  // Organization ID for organization-scoped streams
+
+    // === SCHEDULING ===
+    schedule_config?: ScheduleConfig | null;  // Automated scheduling configuration
+    schedule_status?: ScheduleStatus | null;  // Current status of scheduled runs
+    next_scheduled_run?: string | null;  // ISO 8601 datetime when this stream will run next
+    last_scheduled_run?: string | null;  // ISO 8601 datetime when this stream last ran (scheduled)
+    last_schedule_error?: string | null;  // Error message if last scheduled run failed
 
     // === AGGREGATED DATA ===
     report_count?: number;

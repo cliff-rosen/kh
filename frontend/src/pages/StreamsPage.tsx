@@ -159,7 +159,7 @@ export default function StreamsPage() {
                                 <div className="space-y-2">
                                     <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                         <span className="font-medium mr-2">Frequency:</span>
-                                        <span className="capitalize">{stream.report_frequency}</span>
+                                        <span className="capitalize">{stream.schedule_config?.frequency || 'weekly'}</span>
                                     </div>
                                     {stream.presentation_config.categories && stream.presentation_config.categories.length > 0 && (
                                         <div className="flex flex-wrap gap-1 mt-3">

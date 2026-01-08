@@ -10,7 +10,8 @@ import {
     Entity,
     RetrievalConfig,
     Concept,
-    ResearchStream
+    ResearchStream,
+    ScheduleConfig
 } from '../types';
 
 import { useResearchStream } from '../context/ResearchStreamContext';
@@ -134,7 +135,14 @@ export default function EditStreamPage() {
     const [activeTab, setActiveTab] = useState<TabType>(initialTab);
     const [form, setForm] = useState({
         stream_name: '',
-        report_frequency: ReportFrequency.WEEKLY,
+        schedule_config: {
+            enabled: false,
+            frequency: ReportFrequency.WEEKLY,
+            anchor_day: null,
+            preferred_time: '08:00',
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+            lookback_days: null
+        } as ScheduleConfig,
         is_active: true,
         chat_instructions: '',
 
@@ -217,7 +225,14 @@ export default function EditStreamPage() {
                 // Use current three-layer architecture
                 setForm({
                     stream_name: foundStream.stream_name,
-                    report_frequency: foundStream.report_frequency,
+                    schedule_config: foundStream.schedule_config || {
+                        enabled: false,
+                        frequency: ReportFrequency.WEEKLY,
+                        anchor_day: null,
+                        preferred_time: '08:00',
+                        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+                        lookback_days: null
+                    },
                     is_active: foundStream.is_active,
                     chat_instructions: foundStream.chat_instructions || '',
                     semantic_space: foundStream.semantic_space,
@@ -288,7 +303,7 @@ export default function EditStreamPage() {
 
         const updates = {
             stream_name: form.stream_name,
-            report_frequency: form.report_frequency,
+            schedule_config: form.schedule_config,
             is_active: form.is_active,
             chat_instructions: form.chat_instructions || null,
             // Layer 1: Semantic space (ground truth)
@@ -826,8 +841,11 @@ export default function EditStreamPage() {
                                     Report Frequency *
                                 </label>
                                 <select
-                                    value={form.report_frequency}
-                                    onChange={(e) => setForm({ ...form, report_frequency: e.target.value as ReportFrequency })}
+                                    value={form.schedule_config.frequency}
+                                    onChange={(e) => setForm({
+                                        ...form,
+                                        schedule_config: { ...form.schedule_config, frequency: e.target.value as ReportFrequency }
+                                    })}
                                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                 >
                                     <option value={ReportFrequency.DAILY}>Daily</option>

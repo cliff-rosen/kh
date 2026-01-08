@@ -261,7 +261,7 @@ class ResearchStreamChatService:
             CRITICAL - YOU ARE IN REVIEW MODE:
             - Use MODE: REVIEW (not QUESTION or SUGGESTION)
             - Present a comprehensive summary of the stream configuration
-            - Format the summary clearly showing: stream_name, purpose, channels (each with name/focus/type/keywords), report_frequency
+            - Format the summary clearly showing: stream_name, purpose, channels (each with name/focus/type/keywords), frequency
             - Tell the user: "Your stream is ready to create. Review the configuration above and click 'Accept & Create Stream' to proceed, or type any changes you'd like to make."
             - DO NOT provide SUGGESTIONS or OPTIONS
             - If user requests changes, use EXTRACTED_DATA to capture them and stay in REVIEW mode
@@ -281,7 +281,7 @@ class ResearchStreamChatService:
               * focus: What this channel monitors (e.g., "Track competitor drug development")
               * type: competitive/regulatory/clinical/market/scientific
               * keywords: Array of search keywords
-            - report_frequency: daily/weekly/biweekly/monthly
+            - frequency: daily/weekly/biweekly/monthly
 
             Your role is to have a natural, conversational interaction with the user to collect information.
             The workflow system will handle state management and determine what step comes next.
@@ -300,7 +300,7 @@ class ResearchStreamChatService:
             **MODE 2: SUGGESTION** - You have enough information to present concrete options
             - You can suggest specific values for a configuration field
             - User can select from your suggestions to populate the field
-            - Must specify which field (stream_name, purpose, channels, report_frequency)
+            - Must specify which field (stream_name, purpose, channels, frequency)
 
             **MODE 3: REVIEW** - Present final summary and await user confirmation
             - Show comprehensive summary of all collected configuration
@@ -309,7 +309,7 @@ class ResearchStreamChatService:
             - Stay in REVIEW mode after processing changes
 
             CRITICAL - Field Type Formatting:
-            - Use SUGGESTIONS for single-select/text fields: stream_name, purpose, report_frequency
+            - Use SUGGESTIONS for single-select/text fields: stream_name, purpose, frequency
               * These show as clickable suggestion chips
               * User clicks ONE to select it
               * Format: SUGGESTIONS: option1, option2, option3
@@ -327,7 +327,7 @@ class ResearchStreamChatService:
             - CRITICAL - USER AGENCY: If the user explicitly requests to set/change ANY field at ANY time, honor it with EXTRACTED_DATA
               * Example: While asking about purpose, user says "actually call it 'XYZ Monitor'" → EXTRACTED_DATA: stream_name=XYZ Monitor
               * Example: User says "change purpose to monitor competitive landscape" → EXTRACTED_DATA: purpose=monitor competitive landscape
-              * For single-value fields (purpose, stream_name, report_frequency), values are REPLACED
+              * For single-value fields (purpose, stream_name, frequency), values are REPLACED
               * Acknowledge the change and continue with current step
               * User can edit any field at any time, regardless of current workflow step
             - LEVERAGE YOUR KNOWLEDGE: If user mentions a company, research area, or therapeutic focus:
@@ -355,10 +355,10 @@ class ResearchStreamChatService:
             PROPOSED_MESSAGE: [short message user can click to continue] (only for SUGGESTION mode with OPTIONS - e.g., "Continue with these selections")
 
             IMPORTANT FORMATTING RULES:
-            - For single values (purpose, stream_name, report_frequency): Just the value, no quotes
+            - For single values (purpose, stream_name, frequency): Just the value, no quotes
               Example: EXTRACTED_DATA: stream_name=Palatin Research Stream
               Example: EXTRACTED_DATA: purpose=Monitor melanocortin pathways for competitive intelligence
-              Example: EXTRACTED_DATA: report_frequency=weekly
+              Example: EXTRACTED_DATA: frequency=weekly
               NOT: EXTRACTED_DATA: stream_name="Palatin Research Stream"
             - For channels: Use JSON array format
               Example: EXTRACTED_DATA: channels=[{{"name": "Melanocortin Pathways", "focus": "Track scientific research", "type": "scientific", "keywords": ["melanocortin", "MCR1", "MCR4"]}}]
@@ -413,9 +413,9 @@ class ResearchStreamChatService:
 
             (User can click button or type feedback. When they accept, you extract the channels as JSON)
 
-            REPORT_FREQUENCY mode:
+            FREQUENCY mode:
             MODE: SUGGESTION
-            TARGET_FIELD: report_frequency
+            TARGET_FIELD: frequency
             MESSAGE: How often would you like to receive reports?
             SUGGESTIONS: daily, weekly, biweekly, monthly
 
@@ -444,7 +444,7 @@ class ResearchStreamChatService:
             [... same summary with updated frequency ...]
 
             Review the configuration and click "Accept & Create Stream" when ready, or type any other changes.
-            EXTRACTED_DATA: report_frequency=monthly
+            EXTRACTED_DATA: frequency=monthly
 
             Note: You do NOT need to determine the next step - the workflow system handles that.
             Just focus on categorizing your response correctly and providing clear, knowledge-driven value."""

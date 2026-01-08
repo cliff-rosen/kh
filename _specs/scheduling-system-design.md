@@ -16,14 +16,16 @@ This document describes the architecture for automated research stream schedulin
 
 When a user configures a stream's schedule, we need:
 
-| Field | Description | Example |
-|-------|-------------|---------|
-| `frequency` | How often to run | `weekly`, `biweekly`, `monthly` |
-| `anchor_day` | Day to run on | `monday`, `1` (1st of month) |
-| `preferred_time` | Time of day (user's timezone) | `08:00` |
-| `timezone` | User's timezone | `America/New_York` |
-| `lookback_days` | How many days of articles to fetch | `7` for weekly |
-| `schedule_enabled` | Is scheduling active | `true`/`false` |
+| Field | Location | Description | Example |
+|-------|----------|-------------|---------|
+| `schedule_config.enabled` | schedule_config JSON | Is scheduling active | `true`/`false` |
+| `schedule_config.frequency` | schedule_config JSON | How often to run | `weekly`, `biweekly`, `monthly` |
+| `schedule_config.anchor_day` | schedule_config JSON | Day to run on | `monday`, `1` (1st of month) |
+| `schedule_config.preferred_time` | schedule_config JSON | Time of day (user's timezone) | `08:00` |
+| `schedule_config.timezone` | schedule_config JSON | User's timezone | `America/New_York` |
+| `schedule_config.lookback_days` | schedule_config JSON | Days of articles to fetch (optional) | `7` for weekly |
+
+> **Note:** `schedule_config` is the **single source of truth** for all scheduling settings, including frequency.
 
 ### 1.2 Database Schema Changes
 
@@ -31,45 +33,50 @@ Add to `research_streams` table:
 
 ```sql
 ALTER TABLE research_streams ADD COLUMN schedule_config JSON DEFAULT NULL;
--- Structure:
+-- Structure (schedule_config is the single source of truth for scheduling):
 -- {
 --   "enabled": true,
---   "frequency": "weekly",
+--   "frequency": "weekly",       -- daily, weekly, biweekly, monthly (SOURCE OF TRUTH)
 --   "anchor_day": "monday",      -- or 1-31 for monthly
 --   "preferred_time": "08:00",
 --   "timezone": "America/New_York",
---   "lookback_days": 7
+--   "lookback_days": 7           -- optional, defaults based on frequency
 -- }
 
 ALTER TABLE research_streams ADD COLUMN next_scheduled_run DATETIME DEFAULT NULL;
 ALTER TABLE research_streams ADD COLUMN last_scheduled_run DATETIME DEFAULT NULL;
 ALTER TABLE research_streams ADD COLUMN schedule_status VARCHAR(50) DEFAULT NULL;
--- schedule_status: 'pending', 'running', 'completed', 'failed', 'disabled'
+-- schedule_status: 'idle', 'queued', 'running', 'completed', 'failed'
+
+-- Drop the old column (frequency now lives in schedule_config)
+ALTER TABLE research_streams DROP COLUMN report_frequency;
 ```
 
 ### 1.3 Pydantic Schema
 
 ```python
 class ScheduleConfig(BaseModel):
-    """Configuration for automated stream scheduling"""
+    """
+    Complete scheduling configuration for a research stream.
+    This is the single source of truth for all scheduling settings.
+    """
     enabled: bool = False
-    frequency: Literal["daily", "weekly", "biweekly", "monthly"]
-    anchor_day: Optional[Union[str, int]] = None  # "monday"-"sunday" or 1-31
-    preferred_time: str = "08:00"  # HH:MM
+    frequency: ReportFrequency = ReportFrequency.WEEKLY  # How often to run
+    anchor_day: Optional[str] = None  # "monday"-"sunday" or "1"-"31"
+    preferred_time: str = "08:00"  # HH:MM in user's timezone
     timezone: str = "UTC"
-    lookback_days: Optional[int] = None  # Auto-calculated from frequency if not set
+    lookback_days: Optional[int] = None  # Defaults based on frequency if not set
 
-    @validator('lookback_days', pre=True, always=True)
-    def set_default_lookback(cls, v, values):
-        if v is None:
-            freq = values.get('frequency')
-            return {
-                'daily': 1,
-                'weekly': 7,
-                'biweekly': 14,
-                'monthly': 30
-            }.get(freq, 7)
-        return v
+    def get_lookback_days(self) -> int:
+        """Get lookback days, defaulting based on frequency if not set"""
+        if self.lookback_days is not None:
+            return self.lookback_days
+        return {
+            ReportFrequency.DAILY: 1,
+            ReportFrequency.WEEKLY: 7,
+            ReportFrequency.BIWEEKLY: 14,
+            ReportFrequency.MONTHLY: 30
+        }.get(self.frequency, 7)
 ```
 
 ---

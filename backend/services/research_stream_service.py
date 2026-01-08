@@ -213,10 +213,10 @@ class ResearchStreamService:
         user_id: int,
         stream_name: str,
         purpose: str,
-        report_frequency: ReportFrequency,
         semantic_space: Dict[str, Any],
         retrieval_config: Dict[str, Any],
         presentation_config: Dict[str, Any],
+        schedule_config: Optional[Dict[str, Any]] = None,
         chat_instructions: Optional[str] = None,
         scope: StreamScope = StreamScope.PERSONAL,
         org_id: Optional[int] = None
@@ -274,7 +274,7 @@ class ResearchStreamService:
             created_by=user_id,  # Always track who created it
             stream_name=stream_name,
             purpose=purpose,
-            report_frequency=report_frequency,
+            schedule_config=schedule_config,
             chat_instructions=chat_instructions,
             semantic_space=semantic_space,
             retrieval_config=retrieval_config,
