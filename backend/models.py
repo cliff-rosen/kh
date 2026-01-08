@@ -530,7 +530,8 @@ class UserEvent(Base):
 # Add relationships to User model
 User.research_streams = relationship("ResearchStream", back_populates="user", foreign_keys="ResearchStream.user_id")
 User.created_streams = relationship("ResearchStream", foreign_keys="ResearchStream.created_by")
-User.reports = relationship("Report", back_populates="user")
+User.reports = relationship("Report", back_populates="user", foreign_keys="Report.user_id")
+User.approved_reports = relationship("Report", foreign_keys="Report.approved_by")
 User.report_schedule = relationship("ReportSchedule", back_populates="user", uselist=False)
 User.feedback = relationship("UserFeedback", back_populates="user")
 User.conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
