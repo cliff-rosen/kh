@@ -404,20 +404,24 @@ CREATE INDEX idx_reports_approval ON reports(approval_status, created_at);
 
 ### 3.4 When to Require Approval
 
+**ALL reports require approval** regardless of run type. The AI makes decisions about:
+- Which articles pass semantic filtering
+- Which category each article belongs to
+- Generated summaries
+
+These decisions need human confirmation before the report is published to subscribers.
+
 | Run Type | Approval Required | Rationale |
 |----------|-------------------|-----------|
-| `MANUAL` | No (auto-approve) | User triggered it, they own it |
-| `SCHEDULED` | Yes (pending) | Automated, needs human review |
-| `TEST` | No (auto-approve) | Testing, not for production |
+| `MANUAL` | Yes | AI categorization needs human review |
+| `SCHEDULED` | Yes | AI categorization needs human review |
+| `TEST` | Yes | Even test runs should be reviewable |
 
 ```python
 # In pipeline_service.py, when creating report
+# ALL reports start as pending
 
-if run_type == RunType.SCHEDULED:
-    report.approval_status = 'pending_approval'
-else:
-    report.approval_status = 'approved'
-    report.approved_at = datetime.utcnow()
+report.approval_status = 'pending_approval'
 ```
 
 ### 3.5 Admin API Endpoints
@@ -492,15 +496,260 @@ def get_visible_reports(user_id: int, stream_id: int):
 
 ## 4. Run Type Summary
 
-| `run_type` | Triggered By | Approval | Visible To |
-|------------|--------------|----------|------------|
-| `MANUAL` | User clicks "Execute" | Auto-approved | Owner immediately |
-| `SCHEDULED` | Scheduler daemon | Pending admin review | Subscribers after approval |
-| `TEST` | Legacy/testing | Auto-approved | Owner only |
+| `run_type` | Triggered By | Approval | Notes |
+|------------|--------------|----------|-------|
+| `MANUAL` | User clicks "Execute" | Pending | User can see their own pending report |
+| `SCHEDULED` | Scheduler daemon | Pending | Automated run |
+| `TEST` | Legacy/testing | Pending | For backward compatibility |
+
+All reports require admin approval before being visible to org/user subscribers.
 
 ---
 
-## 5. File Structure
+## 5. Admin Web Interface
+
+### 5.1 Platform Admin Navigation
+
+Platform admins see an additional top-level nav item. This is role-based:
+
+```typescript
+// In TopBar.tsx or main navigation
+
+const navItems = [
+  { label: 'Home', path: '/', roles: ['all'] },
+  { label: 'Streams', path: '/streams', roles: ['all'] },
+  { label: 'Reports', path: '/reports', roles: ['all'] },
+  // ... existing items
+
+  // Platform Admin only
+  { label: 'Admin', path: '/admin', roles: ['platform_admin'] },
+];
+
+// Render based on user role
+{navItems
+  .filter(item => item.roles.includes('all') || item.roles.includes(user.role))
+  .map(item => <NavLink key={item.path} to={item.path}>{item.label}</NavLink>)
+}
+```
+
+### 5.2 Admin Dashboard Routes
+
+```
+/admin                    → Dashboard overview
+/admin/reports            → Report approval queue
+/admin/reports/:id        → Review single report
+/admin/scheduler          → Scheduler status & management
+/admin/streams            → All streams across all users
+/admin/users              → User management (future)
+```
+
+### 5.3 Report Approval Queue (`/admin/reports`)
+
+A table showing all pending reports:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Report Approval Queue                                    [Filter ▼] [Search]│
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │ Status │ Stream          │ Run Type  │ Articles │ Created    │ Actions │ │
+│  ├────────┼─────────────────┼───────────┼──────────┼────────────┼─────────┤ │
+│  │ 🟡     │ Oncology Weekly │ scheduled │ 47       │ 2 hrs ago  │ Review  │ │
+│  │ 🟡     │ Cardio Monthly  │ manual    │ 123      │ 5 hrs ago  │ Review  │ │
+│  │ 🟢     │ Neuro Updates   │ scheduled │ 31       │ 1 day ago  │ View    │ │
+│  │ 🔴     │ Rare Disease    │ manual    │ 8        │ 2 days ago │ View    │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+│  Legend: 🟡 Pending  🟢 Approved  🔴 Rejected                                │
+│                                                                              │
+│  Showing 1-20 of 45 reports                              [← Prev] [Next →]  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 5.4 Report Review Page (`/admin/reports/:id`)
+
+Detailed view for reviewing a single report:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Review Report: Oncology Weekly - 2024.01.15                                │
+│  Stream: Oncology Research Monitor | Run Type: scheduled | Status: 🟡 Pending│
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────────┐│
+│  │ Executive Summary                                              [Edit ▼] ││
+│  │                                                                          ││
+│  │ This week's literature review identified 47 articles across 4           ││
+│  │ categories. Key findings include a Phase 3 trial result for...          ││
+│  └─────────────────────────────────────────────────────────────────────────┘│
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────────┐│
+│  │ Articles by Category                                                    ││
+│  │                                                                          ││
+│  │ ▼ Clinical Trials (12 articles)                                         ││
+│  │   ┌──────────────────────────────────────────────────────────────────┐  ││
+│  │   │ ☑ Phase 3 Results of Drug X in NSCLC          [Keep] [Remove]   │  ││
+│  │   │   PMID: 12345678 | Journal of Oncology | 2024                    │  ││
+│  │   │   Category: Clinical Trials ✓                                    │  ││
+│  │   ├──────────────────────────────────────────────────────────────────┤  ││
+│  │   │ ☑ Biomarker Study for Treatment Selection     [Keep] [Remove]   │  ││
+│  │   │   PMID: 12345679 | Cancer Research | 2024                        │  ││
+│  │   │   Category: Clinical Trials → [Change to: Biomarkers ▼]          │  ││
+│  │   └──────────────────────────────────────────────────────────────────┘  ││
+│  │                                                                          ││
+│  │ ▶ Treatment Updates (15 articles)                                       ││
+│  │ ▶ Biomarkers (10 articles)                                              ││
+│  │ ▶ Guidelines (10 articles)                                              ││
+│  └─────────────────────────────────────────────────────────────────────────┘│
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────────┐│
+│  │ Review Actions                                                          ││
+│  │                                                                          ││
+│  │ [ Approve Report ]  [ Reject Report ]  [ Save Changes ]                 ││
+│  │                                                                          ││
+│  │ Rejection reason (if rejecting):                                        ││
+│  │ ┌─────────────────────────────────────────────────────────────────────┐ ││
+│  │ │                                                                     │ ││
+│  │ └─────────────────────────────────────────────────────────────────────┘ ││
+│  └─────────────────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 5.5 Admin Actions on Articles
+
+During review, admin can:
+1. **Remove article** - Exclude from report entirely
+2. **Change category** - Reassign to different category
+3. **Edit summary** - Modify AI-generated text (future)
+
+These changes are saved to the report before approval.
+
+### 5.6 Scheduler Management Page (`/admin/scheduler`)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Scheduler Management                                                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Status: 🟢 Running | Uptime: 3 days, 4 hours | Next poll: 2 min            │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────────┐│
+│  │ Currently Running Jobs                                                  ││
+│  │                                                                          ││
+│  │   Stream 42: Oncology Weekly                                            ││
+│  │   Stage: categorize | Progress: 35/47 articles | Started: 5 min ago     ││
+│  │   [Cancel Job]                                                          ││
+│  └─────────────────────────────────────────────────────────────────────────┘│
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────────┐│
+│  │ Pending Scheduled Runs                                         [Run All]││
+│  │                                                                          ││
+│  │   Stream 15: Cardio Monthly     | Due: 2 hours ago    | [Run Now]       ││
+│  │   Stream 23: Regulatory Updates | Due: in 30 min      | [Run Now]       ││
+│  └─────────────────────────────────────────────────────────────────────────┘│
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────────┐│
+│  │ Recent History                                              [View All →]││
+│  │                                                                          ││
+│  │   ✓ Stream 42: Oncology Weekly    | completed | 47 articles | 12 min    ││
+│  │   ✓ Stream 15: Cardio Monthly     | completed | 123 articles| 45 min    ││
+│  │   ✗ Stream 8: Rare Disease        | failed    | API timeout | 2 hrs ago ││
+│  └─────────────────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 5.7 Frontend File Structure
+
+```
+frontend/src/
+├── pages/
+│   └── admin/
+│       ├── AdminDashboard.tsx       # /admin
+│       ├── ReportApprovalQueue.tsx  # /admin/reports
+│       ├── ReportReview.tsx         # /admin/reports/:id
+│       ├── SchedulerManagement.tsx  # /admin/scheduler
+│       └── index.tsx                # Admin routes
+├── components/
+│   └── admin/
+│       ├── AdminLayout.tsx          # Layout with admin nav
+│       ├── ArticleReviewCard.tsx    # Single article in review
+│       ├── CategorySection.tsx      # Collapsible category
+│       ├── ApprovalActions.tsx      # Approve/Reject buttons
+│       └── SchedulerStatus.tsx      # Status widget
+└── lib/
+    └── api/
+        └── adminApi.ts              # Admin API calls
+```
+
+### 5.8 Role Check
+
+```typescript
+// hooks/useIsAdmin.ts
+
+export function useIsAdmin(): boolean {
+  const { user } = useAuth();
+  return user?.role === 'platform_admin';
+}
+
+// components/AdminRoute.tsx
+
+export function AdminRoute({ children }: { children: React.ReactNode }) {
+  const isAdmin = useIsAdmin();
+
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+```
+
+### 5.9 User Role Field
+
+Ensure users table has role field:
+
+```sql
+ALTER TABLE users ADD COLUMN role VARCHAR(50) DEFAULT 'user';
+-- Values: 'user', 'org_admin', 'platform_admin'
+```
+
+### 5.10 Report Visibility Rules
+
+| User Type | Pending Reports | Approved Reports | Rejected Reports |
+|-----------|-----------------|------------------|------------------|
+| **Stream Owner** | Can see (read-only) | Full access | Can see with reason |
+| **Org Subscriber** | Hidden | Full access | Hidden |
+| **User Subscriber** | Hidden | Full access | Hidden |
+| **Platform Admin** | Full access + approve/reject | Full access | Full access |
+
+Stream owners can see their pending reports to know they're waiting for approval, but cannot approve them.
+
+```python
+# Query logic for report visibility
+
+def get_reports_for_user(user_id: int, stream_id: int, db: Session):
+    """Get reports visible to a specific user"""
+    stream = db.query(ResearchStream).get(stream_id)
+
+    if user.role == 'platform_admin':
+        # Admins see everything
+        return db.query(Report).filter(Report.research_stream_id == stream_id).all()
+
+    if stream.user_id == user_id:
+        # Stream owner sees all their reports (pending, approved, rejected)
+        return db.query(Report).filter(Report.research_stream_id == stream_id).all()
+
+    # Subscribers only see approved reports
+    return db.query(Report).filter(
+        Report.research_stream_id == stream_id,
+        Report.approval_status == 'approved'
+    ).all()
+```
+
+---
+
+## 6. File Structure
 
 ```
 backend/
@@ -519,9 +768,9 @@ backend/
 
 ---
 
-## 6. Deployment
+## 7. Deployment
 
-### 6.1 Systemd Service
+### 7.1 Systemd Service
 
 ```ini
 # /etc/systemd/system/kh-scheduler.service
@@ -542,7 +791,7 @@ RestartSec=10
 WantedBy=multi-user.target
 ```
 
-### 6.2 Docker Compose Addition
+### 7.2 Docker Compose Addition
 
 ```yaml
 scheduler:
@@ -558,21 +807,22 @@ scheduler:
 
 ---
 
-## 7. Implementation Order
+## 8. Implementation Order
 
-1. **Database migrations** - Add scheduling fields to research_streams, approval fields to reports
-2. **Pydantic schemas** - ScheduleConfig schema
-3. **API endpoints** - CRUD for schedule config on streams
-4. **Pipeline changes** - Set approval_status based on run_type
-5. **Admin endpoints** - Pending reports, approve/reject
-6. **Scheduler daemon** - Core polling loop and execution
-7. **Management CLI** - Status, run, cancel commands
-8. **Frontend** - Schedule config UI, admin approval dashboard
-9. **Deployment** - Systemd service or Docker container
+1. **Database migrations** - Add scheduling fields to research_streams, approval fields to reports, role field to users
+2. **Pydantic schemas** - ScheduleConfig schema, approval status enums
+3. **Pipeline changes** - ALL reports start as `pending_approval`
+4. **Admin API endpoints** - Pending reports list, approve/reject, article modifications
+5. **Admin frontend** - Report approval queue, review page, nav item for platform_admin
+6. **Schedule config API** - CRUD for schedule config on streams
+7. **Scheduler daemon** - Core polling loop and execution
+8. **Management CLI** - Status, run, cancel commands
+9. **Scheduler frontend** - Management page in admin section
+10. **Deployment** - Systemd service or Docker container
 
 ---
 
-## 8. Open Questions
+## 9. Open Questions
 
 1. **Notifications** - Email/Slack when reports need approval? When approved?
 2. **Auto-approval rules** - Auto-approve if < N articles? If stream has been running reliably?
