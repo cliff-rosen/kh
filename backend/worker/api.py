@@ -8,8 +8,10 @@ External control interface for the worker:
 - Health checks
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+import logging
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
@@ -17,6 +19,8 @@ import uuid
 
 from database import get_db
 from models import PipelineExecution, ResearchStream, ExecutionStatus, RunType
+
+logger = logging.getLogger('worker.api')
 
 router = APIRouter(prefix="/worker", tags=["worker"])
 
@@ -68,36 +72,58 @@ async def trigger_run(
     Creates a PipelineExecution with status='pending'.
     The worker loop will pick it up and execute.
     """
-    # Verify stream exists
-    stream = db.query(ResearchStream).filter(
-        ResearchStream.stream_id == request.stream_id
-    ).first()
+    logger.info(f"trigger_run called - stream_id={request.stream_id}, run_type={request.run_type}")
 
-    if not stream:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Stream {request.stream_id} not found"
+    try:
+        # Verify stream exists
+        stream = db.query(ResearchStream).filter(
+            ResearchStream.stream_id == request.stream_id
+        ).first()
+
+        if not stream:
+            logger.warning(f"trigger_run failed - stream {request.stream_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Stream {request.stream_id} not found"
+            )
+
+        # Create pending execution
+        execution_id = str(uuid.uuid4())
+        run_type = RunType.TEST if request.run_type == "test" else RunType.MANUAL
+
+        execution = PipelineExecution(
+            id=execution_id,
+            stream_id=request.stream_id,
+            status=ExecutionStatus.PENDING,
+            run_type=run_type
+        )
+        db.add(execution)
+        db.commit()
+
+        logger.info(f"trigger_run success - execution_id={execution_id}, stream={stream.stream_name}")
+
+        return TriggerRunResponse(
+            execution_id=execution_id,
+            stream_id=request.stream_id,
+            status="pending",
+            message=f"Pipeline run queued for stream {stream.stream_name}"
         )
 
-    # Create pending execution
-    execution_id = str(uuid.uuid4())
-    run_type = RunType.TEST if request.run_type == "test" else RunType.MANUAL
-
-    execution = PipelineExecution(
-        id=execution_id,
-        stream_id=request.stream_id,
-        status=ExecutionStatus.PENDING,
-        run_type=run_type
-    )
-    db.add(execution)
-    db.commit()
-
-    return TriggerRunResponse(
-        execution_id=execution_id,
-        stream_id=request.stream_id,
-        status="pending",
-        message=f"Pipeline run queued for stream {stream.stream_name}"
-    )
+    except HTTPException:
+        raise
+    except SQLAlchemyError as e:
+        logger.error(f"trigger_run database error - stream_id={request.stream_id}: {e}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error while creating execution"
+        )
+    except Exception as e:
+        logger.error(f"trigger_run unexpected error - stream_id={request.stream_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to trigger run"
+        )
 
 
 @router.get("/runs", response_model=List[JobStatusResponse])
@@ -107,34 +133,55 @@ async def list_runs(
     db: Session = Depends(get_db)
 ):
     """List recent pipeline executions"""
-    query = db.query(PipelineExecution).order_by(
-        PipelineExecution.created_at.desc()
-    )
+    logger.debug(f"list_runs called - status_filter={status_filter}, limit={limit}")
 
-    if status_filter:
-        try:
-            exec_status = ExecutionStatus(status_filter)
-            query = query.filter(PipelineExecution.status == exec_status)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid status: {status_filter}"
-            )
-
-    executions = query.limit(limit).all()
-
-    return [
-        JobStatusResponse(
-            execution_id=e.id,
-            stream_id=e.stream_id,
-            status=e.status.value,
-            run_type=e.run_type.value,
-            started_at=e.started_at,
-            completed_at=e.completed_at,
-            error=e.error
+    try:
+        query = db.query(PipelineExecution).order_by(
+            PipelineExecution.created_at.desc()
         )
-        for e in executions
-    ]
+
+        if status_filter:
+            try:
+                exec_status = ExecutionStatus(status_filter)
+                query = query.filter(PipelineExecution.status == exec_status)
+            except ValueError:
+                logger.warning(f"list_runs invalid status filter: {status_filter}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid status: {status_filter}. Valid values: pending, running, completed, failed"
+                )
+
+        executions = query.limit(limit).all()
+
+        logger.debug(f"list_runs returning {len(executions)} executions")
+
+        return [
+            JobStatusResponse(
+                execution_id=e.id,
+                stream_id=e.stream_id,
+                status=e.status.value,
+                run_type=e.run_type.value,
+                started_at=e.started_at,
+                completed_at=e.completed_at,
+                error=e.error
+            )
+            for e in executions
+        ]
+
+    except HTTPException:
+        raise
+    except SQLAlchemyError as e:
+        logger.error(f"list_runs database error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error while fetching executions"
+        )
+    except Exception as e:
+        logger.error(f"list_runs unexpected error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list runs"
+        )
 
 
 @router.get("/runs/{execution_id}", response_model=JobStatusResponse)
@@ -143,25 +190,44 @@ async def get_run_status(
     db: Session = Depends(get_db)
 ):
     """Get status of a specific execution"""
-    execution = db.query(PipelineExecution).filter(
-        PipelineExecution.id == execution_id
-    ).first()
+    logger.debug(f"get_run_status called - execution_id={execution_id}")
 
-    if not execution:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Execution {execution_id} not found"
+    try:
+        execution = db.query(PipelineExecution).filter(
+            PipelineExecution.id == execution_id
+        ).first()
+
+        if not execution:
+            logger.warning(f"get_run_status - execution {execution_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Execution {execution_id} not found"
+            )
+
+        return JobStatusResponse(
+            execution_id=execution.id,
+            stream_id=execution.stream_id,
+            status=execution.status.value,
+            run_type=execution.run_type.value,
+            started_at=execution.started_at,
+            completed_at=execution.completed_at,
+            error=execution.error
         )
 
-    return JobStatusResponse(
-        execution_id=execution.id,
-        stream_id=execution.stream_id,
-        status=execution.status.value,
-        run_type=execution.run_type.value,
-        started_at=execution.started_at,
-        completed_at=execution.completed_at,
-        error=execution.error
-    )
+    except HTTPException:
+        raise
+    except SQLAlchemyError as e:
+        logger.error(f"get_run_status database error - execution_id={execution_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error while fetching execution"
+        )
+    except Exception as e:
+        logger.error(f"get_run_status unexpected error - execution_id={execution_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get run status"
+        )
 
 
 @router.delete("/runs/{execution_id}")
@@ -174,41 +240,65 @@ async def cancel_run(
 
     Note: Actual cancellation depends on the worker's ability to interrupt.
     """
-    execution = db.query(PipelineExecution).filter(
-        PipelineExecution.id == execution_id
-    ).first()
+    logger.info(f"cancel_run called - execution_id={execution_id}")
 
-    if not execution:
+    try:
+        execution = db.query(PipelineExecution).filter(
+            PipelineExecution.id == execution_id
+        ).first()
+
+        if not execution:
+            logger.warning(f"cancel_run - execution {execution_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Execution {execution_id} not found"
+            )
+
+        if execution.status not in [ExecutionStatus.PENDING, ExecutionStatus.RUNNING]:
+            logger.warning(f"cancel_run - cannot cancel execution {execution_id} with status {execution.status.value}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot cancel execution with status: {execution.status.value}"
+            )
+
+        # For pending jobs, we can just mark as failed
+        if execution.status == ExecutionStatus.PENDING:
+            execution.status = ExecutionStatus.FAILED
+            execution.error = "Cancelled by user"
+            execution.completed_at = datetime.utcnow()
+            db.commit()
+            logger.info(f"cancel_run - cancelled pending execution {execution_id}")
+            return {"message": "Execution cancelled", "execution_id": execution_id}
+
+        # For running jobs, we'd need to signal the worker
+        # This is a placeholder - actual implementation depends on worker architecture
+        logger.info(f"cancel_run - cancellation requested for running execution {execution_id}")
+        return {
+            "message": "Cancellation requested (running jobs may not stop immediately)",
+            "execution_id": execution_id
+        }
+
+    except HTTPException:
+        raise
+    except SQLAlchemyError as e:
+        logger.error(f"cancel_run database error - execution_id={execution_id}: {e}", exc_info=True)
+        db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Execution {execution_id} not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error while cancelling execution"
         )
-
-    if execution.status not in [ExecutionStatus.PENDING, ExecutionStatus.RUNNING]:
+    except Exception as e:
+        logger.error(f"cancel_run unexpected error - execution_id={execution_id}: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot cancel execution with status: {execution.status.value}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to cancel run"
         )
-
-    # For pending jobs, we can just mark as failed
-    if execution.status == ExecutionStatus.PENDING:
-        execution.status = ExecutionStatus.FAILED
-        execution.error = "Cancelled by user"
-        execution.completed_at = datetime.utcnow()
-        db.commit()
-        return {"message": "Execution cancelled", "execution_id": execution_id}
-
-    # For running jobs, we'd need to signal the worker
-    # This is a placeholder - actual implementation depends on worker architecture
-    return {
-        "message": "Cancellation requested (running jobs may not stop immediately)",
-        "execution_id": execution_id
-    }
 
 
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
     """Health check endpoint"""
+    logger.debug("health_check called")
     return HealthResponse(
         status="healthy",
         timestamp=datetime.utcnow()
