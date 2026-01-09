@@ -36,7 +36,7 @@ class JobDispatcher:
         execution_id = execution.id
         stream_id = execution.stream_id
         logger.info(f"Dispatching pending execution: {execution_id} for stream {stream_id}")
-        logger.debug(f"[DEBUG] Received execution object with id={execution_id}, type={type(execution_id)}")
+        logger.info(f"[DEBUG] Received execution object with id={execution_id!r}, type={type(execution_id).__name__}, len={len(execution_id) if execution_id else 0}")
 
         try:
             # Re-query execution from our session (the passed object is from a different session)
