@@ -23,6 +23,7 @@ import uuid
 from database import get_db
 from models import PipelineExecution, ResearchStream, ExecutionStatus, RunType
 from worker.status_broker import broker
+from worker.state import worker_state
 
 logger = logging.getLogger('worker.api')
 
@@ -103,6 +104,9 @@ async def trigger_run(
         )
         db.add(execution)
         db.commit()
+
+        # Wake up the scheduler immediately so it picks up this job
+        worker_state.wake_scheduler()
 
         logger.info(f"trigger_run success - execution_id={execution_id}, stream={stream.stream_name}")
 

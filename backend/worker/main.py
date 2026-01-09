@@ -26,6 +26,7 @@ from database import SessionLocal
 from worker.scheduler import JobDiscovery
 from worker.dispatcher import JobDispatcher
 from worker.api import router as api_router
+from worker.state import worker_state
 
 # Configure logging
 LOG_FILE = 'logs/worker.log'
@@ -77,18 +78,6 @@ POLL_INTERVAL_SECONDS = 30  # How often to check for ready jobs
 MAX_CONCURRENT_JOBS = 2     # Maximum simultaneous pipeline runs
 
 
-# ==================== Worker State ====================
-
-class WorkerState:
-    """Global worker state"""
-    def __init__(self):
-        self.running = False
-        self.scheduler_task: Optional[asyncio.Task] = None
-        self.active_jobs: dict = {}
-
-worker_state = WorkerState()
-
-
 # ==================== Scheduler Loop ====================
 
 async def scheduler_loop():
@@ -120,8 +109,18 @@ async def scheduler_loop():
                 logger.critical(f"Too many consecutive errors ({consecutive_errors}), scheduler unhealthy")
                 # Could implement alerting here
 
+        # Wait for either the poll interval or a wake signal (whichever comes first)
         try:
-            await asyncio.sleep(POLL_INTERVAL_SECONDS)
+            await asyncio.wait_for(
+                worker_state.wake_event.wait(),
+                timeout=POLL_INTERVAL_SECONDS
+            )
+            # Event was set - clear it for next time
+            worker_state.wake_event.clear()
+            logger.debug("Scheduler woken by signal")
+        except asyncio.TimeoutError:
+            # Normal timeout - just continue to next poll
+            pass
         except asyncio.CancelledError:
             logger.info("Scheduler loop cancelled")
             break
