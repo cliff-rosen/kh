@@ -1,52 +1,112 @@
 /**
- * Operations API - Admin endpoints for report queue and scheduler management
+ * Operations API - Pipeline execution queue and scheduler management
  */
 
 import { api } from './index';
 
 // === Types ===
 
-export type ApprovalStatus = 'awaiting_approval' | 'approved' | 'rejected';
 export type ExecutionStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type ApprovalStatus = 'awaiting_approval' | 'approved' | 'rejected';
 export type RunType = 'scheduled' | 'manual' | 'test';
-
-export interface ReportQueueItem {
-    report_id: number;
-    report_name: string;
-    stream_id: number;
-    stream_name: string;
-    article_count: number;
-    run_type: RunType;
-    approval_status: ApprovalStatus;
-    created_at: string;
-    approved_by?: string | null;
-    approved_at?: string | null;
-    rejection_reason?: string | null;
-    pipeline_execution_id?: string | null;
-}
 
 export interface StreamOption {
     stream_id: number;
     stream_name: string;
 }
 
-export interface ReportQueueResponse {
-    reports: ReportQueueItem[];
-    total: number;
-    streams: StreamOption[];
-}
-
-export interface PipelineExecution {
-    id: string;
+export interface ExecutionQueueItem {
+    execution_id: string;
     stream_id: number;
-    status: ExecutionStatus;
+    stream_name: string;
+    execution_status: ExecutionStatus;
     run_type: RunType;
     started_at: string | null;
     completed_at: string | null;
     error: string | null;
+    created_at: string;
+    // Report info (only for completed executions)
     report_id: number | null;
-    report_approval_status?: ApprovalStatus | null;
-    article_count?: number | null;
+    report_name: string | null;
+    approval_status: ApprovalStatus | null;
+    article_count: number | null;
+    approved_by: string | null;
+    approved_at: string | null;
+    rejection_reason: string | null;
+}
+
+export interface ExecutionQueueResponse {
+    executions: ExecutionQueueItem[];
+    total: number;
+    streams: StreamOption[];
+}
+
+export interface ReportArticle {
+    article_id: number;
+    title: string;
+    authors: string[];
+    journal: string | null;
+    year: string | null;
+    pmid: string | null;
+    abstract: string | null;
+    category_id: string | null;
+    relevance_score: number;
+    filter_passed: boolean;
+}
+
+export interface ReportCategory {
+    id: string;
+    name: string;
+    article_count: number;
+}
+
+export interface ExecutionMetrics {
+    articles_retrieved: number | null;
+    articles_after_dedup: number | null;
+    articles_after_filter: number | null;
+    filter_config: string | null;
+}
+
+export interface WipArticle {
+    id: number;
+    title: string;
+    authors: string[];
+    journal: string | null;
+    year: string | null;
+    pmid: string | null;
+    abstract: string | null;
+    is_duplicate: boolean;
+    duplicate_of_id: number | null;
+    passed_semantic_filter: boolean | null;
+    filter_rejection_reason: string | null;
+    included_in_report: boolean;
+    presentation_categories: string[];
+}
+
+export interface ExecutionDetail {
+    // Execution info
+    execution_id: string;
+    stream_id: number;
+    stream_name: string;
+    execution_status: ExecutionStatus;
+    run_type: RunType;
+    started_at: string | null;
+    completed_at: string | null;
+    error: string | null;
+    created_at: string;
+    metrics: ExecutionMetrics | null;
+    wip_articles: WipArticle[];
+    // Report info (only for completed executions)
+    report_id: number | null;
+    report_name: string | null;
+    approval_status: ApprovalStatus | null;
+    article_count: number;
+    executive_summary: string | null;
+    categories: ReportCategory[];
+    articles: ReportArticle[];
+    approved_by: string | null;
+    approved_at: string | null;
+    rejection_reason: string | null;
 }
 
 export interface ScheduleConfig {
@@ -55,7 +115,20 @@ export interface ScheduleConfig {
     anchor_day: string | null;
     preferred_time: string;
     timezone: string;
-    lookback_days?: number | null;
+    lookback_days: number | null;
+}
+
+export interface LastExecution {
+    id: string;
+    stream_id: number;
+    status: ExecutionStatus;
+    run_type: RunType;
+    started_at: string | null;
+    completed_at: string | null;
+    error: string | null;
+    report_id: number | null;
+    report_approval_status: ApprovalStatus | null;
+    article_count: number | null;
 }
 
 export interface ScheduledStream {
@@ -63,7 +136,7 @@ export interface ScheduledStream {
     stream_name: string;
     schedule_config: ScheduleConfig;
     next_scheduled_run: string | null;
-    last_execution: PipelineExecution | null;
+    last_execution: LastExecution | null;
 }
 
 export interface UpdateScheduleRequest {
@@ -75,17 +148,21 @@ export interface UpdateScheduleRequest {
     lookback_days?: number;
 }
 
-// === Report Queue API ===
+// === Execution Queue API ===
 
-export async function getReportQueue(params?: {
-    status?: ApprovalStatus | 'all';
+export async function getExecutionQueue(params?: {
+    execution_status?: ExecutionStatus;
+    approval_status?: ApprovalStatus;
     stream_id?: number;
     limit?: number;
     offset?: number;
-}): Promise<ReportQueueResponse> {
+}): Promise<ExecutionQueueResponse> {
     const searchParams = new URLSearchParams();
-    if (params?.status && params.status !== 'all') {
-        searchParams.append('status_filter', params.status);
+    if (params?.execution_status) {
+        searchParams.append('execution_status', params.execution_status);
+    }
+    if (params?.approval_status) {
+        searchParams.append('approval_status', params.approval_status);
     }
     if (params?.stream_id) {
         searchParams.append('stream_id', params.stream_id.toString());
@@ -97,8 +174,13 @@ export async function getReportQueue(params?: {
         searchParams.append('offset', params.offset.toString());
     }
 
-    const url = `/api/operations/reports/queue${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
-    const response = await api.get<ReportQueueResponse>(url);
+    const url = `/api/operations/executions${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+    const response = await api.get<ExecutionQueueResponse>(url);
+    return response.data;
+}
+
+export async function getExecutionDetail(executionId: string): Promise<ExecutionDetail> {
+    const response = await api.get<ExecutionDetail>(`/api/operations/executions/${executionId}`);
     return response.data;
 }
 
@@ -125,83 +207,5 @@ export async function updateStreamSchedule(
         `/api/operations/streams/${streamId}/schedule`,
         updates
     );
-    return response.data;
-}
-
-// === Report Detail API ===
-
-export interface ReportArticle {
-    article_id: number;
-    title: string;
-    authors: string[];
-    journal: string;
-    year: string;
-    pmid: string;
-    abstract?: string;
-    category_id: string | null;
-    relevance_score: number;
-    filter_passed: boolean;
-}
-
-export interface ReportCategory {
-    id: string;
-    name: string;
-    article_count: number;
-}
-
-export interface ReportExecution {
-    id: string;
-    stream_id: number;
-    status: ExecutionStatus;
-    run_type: RunType;
-    started_at: string | null;
-    completed_at: string | null;
-    error: string | null;
-    report_id: number | null;
-    articles_retrieved?: number;
-    articles_after_dedup?: number;
-    articles_after_filter?: number;
-    filter_config?: string;
-}
-
-export interface WipArticle {
-    id: number;
-    title: string;
-    authors: string[];
-    journal: string;
-    year: string;
-    pmid: string;
-    abstract?: string;
-    is_duplicate: boolean;
-    duplicate_of_id?: number;
-    passed_semantic_filter: boolean | null;
-    filter_rejection_reason?: string;
-    included_in_report: boolean;
-    presentation_categories: string[];
-    relevance_score?: number;
-}
-
-export interface ReportDetail {
-    report_id: number;
-    report_name: string;
-    stream_id: number;
-    stream_name: string;
-    run_type: RunType;
-    approval_status: ApprovalStatus;
-    created_at: string;
-    article_count: number;
-    pipeline_execution_id: string | null;
-    executive_summary: string | null;
-    categories: ReportCategory[];
-    articles: ReportArticle[];
-    execution: ReportExecution | null;
-    wip_articles: WipArticle[];
-    approved_by: string | null;
-    approved_at: string | null;
-    rejection_reason: string | null;
-}
-
-export async function getReportDetail(reportId: number): Promise<ReportDetail> {
-    const response = await api.get<ReportDetail>(`/api/operations/reports/${reportId}`);
     return response.data;
 }

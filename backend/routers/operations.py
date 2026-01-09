@@ -1,5 +1,5 @@
 """
-Operations router - Report queue and scheduler management
+Operations router - Pipeline execution queue and scheduler management
 
 For platform operations, not platform admin.
 """
@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 import logging
+from dataclasses import asdict
 
 from database import get_db
 from models import User
@@ -28,55 +29,131 @@ def get_current_user(
     return current_user
 
 
-# ==================== Request/Response Schemas ====================
+# ==================== Pydantic Response Models ====================
 
-class ReportQueueItem(BaseModel):
-    """Report item in the queue."""
-    report_id: int
-    report_name: str
+class StreamOptionResponse(BaseModel):
+    """Stream info for filter dropdown."""
     stream_id: int
     stream_name: str
-    article_count: int
-    run_type: str
-    approval_status: str
-    created_at: datetime
-    approved_by: Optional[str] = None
-    approved_at: Optional[datetime] = None
-    rejection_reason: Optional[str] = None
-    pipeline_execution_id: Optional[str] = None
 
     class Config:
         from_attributes = True
 
 
-class ReportQueueResponse(BaseModel):
-    """Response for report queue."""
-    reports: List[ReportQueueItem]
-    total: int
-    streams: List[dict]
-
-
-class RejectReportRequest(BaseModel):
-    """Request to reject a report."""
-    reason: str = Field(..., min_length=1, description="Reason for rejection")
-
-
-class ReportDetailResponse(BaseModel):
-    """Full report details for review."""
-    report_id: int
-    report_name: str
+class ExecutionQueueItemResponse(BaseModel):
+    """Pipeline execution item in the queue."""
+    execution_id: str
     stream_id: int
     stream_name: str
+    execution_status: str
     run_type: str
-    approval_status: str
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    error: Optional[str] = None
     created_at: datetime
+    # Report info (only for completed executions)
+    report_id: Optional[int] = None
+    report_name: Optional[str] = None
+    approval_status: Optional[str] = None
+    article_count: Optional[int] = None
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    rejection_reason: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ExecutionQueueResponse(BaseModel):
+    """Response for execution queue."""
+    executions: List[ExecutionQueueItemResponse]
+    total: int
+    streams: List[StreamOptionResponse]
+
+    class Config:
+        from_attributes = True
+
+
+class ReportArticleResponse(BaseModel):
+    """Article info within a report."""
+    article_id: int
+    title: str
+    authors: List[str]
+    journal: Optional[str] = None
+    year: Optional[str] = None
+    pmid: Optional[str] = None
+    abstract: Optional[str] = None
+    category_id: Optional[str] = None
+    relevance_score: float
+    filter_passed: bool
+
+    class Config:
+        from_attributes = True
+
+
+class ReportCategoryResponse(BaseModel):
+    """Category info within a report."""
+    id: str
+    name: str
     article_count: int
-    pipeline_execution_id: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ExecutionMetricsResponse(BaseModel):
+    """Pipeline execution metrics."""
+    articles_retrieved: Optional[int] = None
+    articles_after_dedup: Optional[int] = None
+    articles_after_filter: Optional[int] = None
+    filter_config: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class WipArticleResponse(BaseModel):
+    """WIP article info for pipeline audit."""
+    id: int
+    title: str
+    authors: List[str]
+    journal: Optional[str] = None
+    year: Optional[str] = None
+    pmid: Optional[str] = None
+    abstract: Optional[str] = None
+    is_duplicate: bool
+    duplicate_of_id: Optional[int] = None
+    passed_semantic_filter: Optional[bool] = None
+    filter_rejection_reason: Optional[str] = None
+    included_in_report: bool
+    presentation_categories: List[str]
+
+    class Config:
+        from_attributes = True
+
+
+class ExecutionDetailResponse(BaseModel):
+    """Full execution details for review."""
+    # Execution info
+    execution_id: str
+    stream_id: int
+    stream_name: str
+    execution_status: str
+    run_type: str
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    error: Optional[str] = None
+    created_at: datetime
+    metrics: Optional[ExecutionMetricsResponse] = None
+    wip_articles: List[WipArticleResponse] = []
+    # Report info (only for completed executions)
+    report_id: Optional[int] = None
+    report_name: Optional[str] = None
+    approval_status: Optional[str] = None
+    article_count: int = 0
     executive_summary: Optional[str] = None
-    categories: List[dict] = []
-    articles: List[dict] = []
-    execution: Optional[dict] = None
-    wip_articles: List[dict] = []
+    categories: List[ReportCategoryResponse] = []
+    articles: List[ReportArticleResponse] = []
     approved_by: Optional[str] = None
     approved_at: Optional[datetime] = None
     rejection_reason: Optional[str] = None
@@ -91,9 +168,25 @@ class ApproveRejectResponse(BaseModel):
     report_id: int
     reason: Optional[str] = None
 
+    class Config:
+        from_attributes = True
 
-class PipelineExecutionInfo(BaseModel):
-    """Pipeline execution info for scheduler display."""
+
+class ScheduleConfigResponse(BaseModel):
+    """Schedule configuration."""
+    enabled: bool
+    frequency: str
+    anchor_day: Optional[str] = None
+    preferred_time: str
+    timezone: str
+    lookback_days: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class LastExecutionResponse(BaseModel):
+    """Last execution info for scheduler display."""
     id: str
     stream_id: int
     status: str
@@ -109,26 +202,23 @@ class PipelineExecutionInfo(BaseModel):
         from_attributes = True
 
 
-class ScheduleConfigInfo(BaseModel):
-    """Schedule configuration."""
-    enabled: bool
-    frequency: str
-    anchor_day: Optional[str] = None
-    preferred_time: str
-    timezone: str
-    lookback_days: Optional[int] = None
-
-
-class ScheduledStreamInfo(BaseModel):
+class ScheduledStreamResponse(BaseModel):
     """Scheduled stream info."""
     stream_id: int
     stream_name: str
-    schedule_config: ScheduleConfigInfo
+    schedule_config: ScheduleConfigResponse
     next_scheduled_run: Optional[str] = None
-    last_execution: Optional[PipelineExecutionInfo] = None
+    last_execution: Optional[LastExecutionResponse] = None
 
     class Config:
         from_attributes = True
+
+
+# ==================== Request Models ====================
+
+class RejectReportRequest(BaseModel):
+    """Request to reject a report."""
+    reason: str = Field(..., min_length=1, description="Reason for rejection")
 
 
 class UpdateScheduleRequest(BaseModel):
@@ -141,74 +231,84 @@ class UpdateScheduleRequest(BaseModel):
     lookback_days: Optional[int] = None
 
 
-# ==================== Report Queue Endpoints ====================
+# ==================== Execution Queue Endpoints ====================
 
 @router.get(
-    "/reports/queue",
-    response_model=ReportQueueResponse,
-    summary="Get report queue for approval"
+    "/executions",
+    response_model=ExecutionQueueResponse,
+    summary="Get pipeline execution queue"
 )
-async def get_report_queue(
-    status_filter: Optional[str] = None,
+async def get_execution_queue(
+    execution_status: Optional[str] = None,
+    approval_status: Optional[str] = None,
     stream_id: Optional[int] = None,
     limit: int = 50,
     offset: int = 0,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all reports awaiting approval or with other statuses."""
-    logger.info(f"get_report_queue - user_id={current_user.user_id}, status={status_filter}, stream_id={stream_id}")
+    """
+    Get pipeline executions with optional filters.
+
+    - execution_status: pending, running, completed, failed
+    - approval_status: awaiting_approval, approved, rejected (only for completed)
+    """
+    logger.info(
+        f"get_execution_queue - user_id={current_user.user_id}, "
+        f"execution_status={execution_status}, approval_status={approval_status}"
+    )
 
     try:
         service = OperationsService(db)
-        result = service.get_report_queue(
+        result = service.get_execution_queue(
             user_id=current_user.user_id,
-            status_filter=status_filter,
+            execution_status=execution_status,
+            approval_status=approval_status,
             stream_id=stream_id,
             limit=limit,
             offset=offset
         )
 
-        logger.info(f"get_report_queue complete - user_id={current_user.user_id}, count={len(result['reports'])}")
-        return result
+        logger.info(f"get_execution_queue complete - user_id={current_user.user_id}, count={len(result.executions)}")
+        return asdict(result)
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"get_report_queue failed - user_id={current_user.user_id}: {e}", exc_info=True)
+        logger.error(f"get_execution_queue failed - user_id={current_user.user_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get report queue: {str(e)}"
+            detail=f"Failed to get execution queue: {str(e)}"
         )
 
 
 @router.get(
-    "/reports/{report_id}",
-    response_model=ReportDetailResponse,
-    summary="Get report details for review"
+    "/executions/{execution_id}",
+    response_model=ExecutionDetailResponse,
+    summary="Get execution details"
 )
-async def get_report_detail(
-    report_id: int,
+async def get_execution_detail(
+    execution_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get full report details for review."""
-    logger.info(f"get_report_detail - user_id={current_user.user_id}, report_id={report_id}")
+    """Get full execution details including report and WIP articles."""
+    logger.info(f"get_execution_detail - user_id={current_user.user_id}, execution_id={execution_id}")
 
     try:
         service = OperationsService(db)
-        result = service.get_report_detail(report_id, current_user.user_id)
+        result = service.get_execution_detail(execution_id, current_user.user_id)
 
-        logger.info(f"get_report_detail complete - user_id={current_user.user_id}, report_id={report_id}")
-        return result
+        logger.info(f"get_execution_detail complete - user_id={current_user.user_id}, execution_id={execution_id}")
+        return asdict(result)
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"get_report_detail failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        logger.error(f"get_execution_detail failed - user_id={current_user.user_id}, execution_id={execution_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get report detail: {str(e)}"
+            detail=f"Failed to get execution detail: {str(e)}"
         )
 
 
@@ -230,7 +330,7 @@ async def approve_report(
         result = service.approve_report(report_id, current_user.user_id)
 
         logger.info(f"approve_report complete - user_id={current_user.user_id}, report_id={report_id}")
-        return result
+        return asdict(result)
 
     except HTTPException:
         raise
@@ -261,7 +361,7 @@ async def reject_report(
         result = service.reject_report(report_id, current_user.user_id, request.reason)
 
         logger.info(f"reject_report complete - user_id={current_user.user_id}, report_id={report_id}")
-        return result
+        return asdict(result)
 
     except HTTPException:
         raise
@@ -277,7 +377,7 @@ async def reject_report(
 
 @router.get(
     "/streams/scheduled",
-    response_model=List[ScheduledStreamInfo],
+    response_model=List[ScheduledStreamResponse],
     summary="Get all scheduled streams"
 )
 async def get_scheduled_streams(
@@ -292,7 +392,7 @@ async def get_scheduled_streams(
         result = service.get_scheduled_streams(current_user.user_id)
 
         logger.info(f"get_scheduled_streams complete - user_id={current_user.user_id}, count={len(result)}")
-        return result
+        return [asdict(item) for item in result]
 
     except HTTPException:
         raise
@@ -306,7 +406,7 @@ async def get_scheduled_streams(
 
 @router.patch(
     "/streams/{stream_id}/schedule",
-    response_model=ScheduledStreamInfo,
+    response_model=ScheduledStreamResponse,
     summary="Update stream schedule"
 )
 async def update_stream_schedule(
@@ -327,7 +427,7 @@ async def update_stream_schedule(
         )
 
         logger.info(f"update_stream_schedule complete - user_id={current_user.user_id}, stream_id={stream_id}")
-        return result
+        return asdict(result)
 
     except HTTPException:
         raise

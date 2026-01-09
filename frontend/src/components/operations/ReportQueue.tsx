@@ -1,9 +1,10 @@
 /**
- * Report Queue - View and manage report approvals
+ * Execution Queue - View and manage pipeline executions and report approvals
  *
- * Route: /operations/reports
+ * Route: /operations
  * Features:
- * - Filter by status (awaiting_approval/approved/rejected/all)
+ * - Filter by execution status (pending/running/completed/failed)
+ * - Filter by approval status (awaiting_approval/approved/rejected)
  * - Filter by stream
  * - Search
  */
@@ -18,58 +19,61 @@ import {
     ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import {
-    getReportQueue,
-    type ReportQueueItem,
+    getExecutionQueue,
+    type ExecutionQueueItem,
     type StreamOption,
+    type ExecutionStatus,
     type ApprovalStatus,
 } from '../../lib/api/operationsApi';
 
 export default function ReportQueue() {
     const [searchParams, setSearchParams] = useSearchParams();
-    const statusFilter = (searchParams.get('status') as ApprovalStatus | 'all') || 'all';
+    const executionStatusFilter = (searchParams.get('execution_status') as ExecutionStatus | null) || null;
+    const approvalStatusFilter = (searchParams.get('approval_status') as ApprovalStatus | null) || null;
     const streamFilter = searchParams.get('stream') || 'all';
     const [searchQuery, setSearchQuery] = useState('');
 
-    const [reports, setReports] = useState<ReportQueueItem[]>([]);
+    const [executions, setExecutions] = useState<ExecutionQueueItem[]>([]);
     const [streams, setStreams] = useState<StreamOption[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Fetch reports
+    // Fetch executions
     useEffect(() => {
-        async function fetchReports() {
+        async function fetchExecutions() {
             setLoading(true);
             setError(null);
             try {
-                const response = await getReportQueue({
-                    status: statusFilter,
+                const response = await getExecutionQueue({
+                    execution_status: executionStatusFilter || undefined,
+                    approval_status: approvalStatusFilter || undefined,
                     stream_id: streamFilter !== 'all' ? parseInt(streamFilter) : undefined,
                 });
-                setReports(response.reports);
+                setExecutions(response.executions);
                 setStreams(response.streams);
                 setTotal(response.total);
             } catch (err) {
-                setError('Failed to load reports');
+                setError('Failed to load executions');
                 console.error(err);
             } finally {
                 setLoading(false);
             }
         }
-        fetchReports();
-    }, [statusFilter, streamFilter]);
+        fetchExecutions();
+    }, [executionStatusFilter, approvalStatusFilter, streamFilter]);
 
-    // Filter reports by search query (client-side)
-    const filteredReports = reports.filter((report) => {
-        if (searchQuery && !report.stream_name.toLowerCase().includes(searchQuery.toLowerCase())) {
+    // Filter by search query (client-side)
+    const filteredExecutions = executions.filter((exec) => {
+        if (searchQuery && !exec.stream_name.toLowerCase().includes(searchQuery.toLowerCase())) {
             return false;
         }
         return true;
     });
 
-    const setFilter = (key: string, value: string) => {
+    const setFilter = (key: string, value: string | null) => {
         const newParams = new URLSearchParams(searchParams);
-        if (value === 'all') {
+        if (!value || value === 'all') {
             newParams.delete(key);
         } else {
             newParams.set(key, value);
@@ -77,17 +81,23 @@ export default function ReportQueue() {
         setSearchParams(newParams);
     };
 
-    const awaitingCount = reports.filter((r) => r.approval_status === 'awaiting_approval').length;
+    const awaitingCount = executions.filter(
+        (e) => e.execution_status === 'completed' && e.approval_status === 'awaiting_approval'
+    ).length;
+    const runningCount = executions.filter((e) => e.execution_status === 'running').length;
+    const pendingCount = executions.filter((e) => e.execution_status === 'pending').length;
 
     return (
         <div className="space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Report Queue</h1>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Execution Queue</h1>
                     <p className="text-gray-600 dark:text-gray-400 mt-1">
-                        Review and approve reports before distribution
+                        Monitor pipeline executions and approve reports
                         {awaitingCount > 0 && ` · ${awaitingCount} awaiting approval`}
+                        {runningCount > 0 && ` · ${runningCount} running`}
+                        {pendingCount > 0 && ` · ${pendingCount} pending`}
                     </p>
                 </div>
             </div>
@@ -95,22 +105,47 @@ export default function ReportQueue() {
             {/* Filters */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
                 <div className="flex flex-wrap items-center gap-4">
-                    {/* Status Filter */}
+                    {/* Execution Status Filter */}
                     <div className="flex items-center gap-2">
                         <FunnelIcon className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm text-gray-600 dark:text-gray-400">Status:</span>
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Execution:</span>
                         <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
-                            {(['all', 'awaiting_approval', 'approved', 'rejected'] as const).map((status) => (
+                            {([null, 'pending', 'running', 'completed', 'failed'] as const).map((status) => (
                                 <button
-                                    key={status}
-                                    onClick={() => setFilter('status', status)}
+                                    key={status || 'all'}
+                                    onClick={() => setFilter('execution_status', status)}
                                     className={`px-3 py-1.5 text-sm ${
-                                        statusFilter === status
+                                        executionStatusFilter === status
                                             ? 'bg-blue-600 text-white'
                                             : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
                                     }`}
                                 >
-                                    {status === 'awaiting_approval' ? 'Awaiting' : status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
+                                    {status ? status.charAt(0).toUpperCase() + status.slice(1) : 'All'}
+                                    {status === 'running' && runningCount > 0 && (
+                                        <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-purple-500 text-white">
+                                            {runningCount}
+                                        </span>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Approval Status Filter (only relevant for completed) */}
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Approval:</span>
+                        <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+                            {([null, 'awaiting_approval', 'approved', 'rejected'] as const).map((status) => (
+                                <button
+                                    key={status || 'all'}
+                                    onClick={() => setFilter('approval_status', status)}
+                                    className={`px-3 py-1.5 text-sm ${
+                                        approvalStatusFilter === status
+                                            ? 'bg-blue-600 text-white'
+                                            : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+                                    }`}
+                                >
+                                    {status === 'awaiting_approval' ? 'Awaiting' : status ? status.charAt(0).toUpperCase() + status.slice(1) : 'All'}
                                     {status === 'awaiting_approval' && awaitingCount > 0 && (
                                         <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-yellow-500 text-white">
                                             {awaitingCount}
@@ -136,14 +171,6 @@ export default function ReportQueue() {
                                 </option>
                             ))}
                         </select>
-                        {streamFilter !== 'all' && (
-                            <button
-                                onClick={() => setFilter('stream', 'all')}
-                                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                            >
-                                Clear
-                            </button>
-                        )}
                     </div>
 
                     {/* Search */}
@@ -175,12 +202,12 @@ export default function ReportQueue() {
                 </div>
             )}
 
-            {/* Reports Table */}
+            {/* Executions Table */}
             {!loading && !error && (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                    {filteredReports.length === 0 ? (
+                    {filteredExecutions.length === 0 ? (
                         <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-                            No reports found
+                            No executions found
                         </div>
                     ) : (
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -205,40 +232,56 @@ export default function ReportQueue() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                {filteredReports.map((report) => (
-                                    <tr key={report.report_id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                {filteredExecutions.map((exec) => (
+                                    <tr key={exec.execution_id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                                         <td className="px-4 py-4">
-                                            <StatusBadge status={report.approval_status} />
+                                            <div className="flex flex-col gap-1">
+                                                <ExecutionStatusBadge status={exec.execution_status} />
+                                                {exec.execution_status === 'completed' && exec.approval_status && (
+                                                    <ApprovalStatusBadge status={exec.approval_status} />
+                                                )}
+                                                {exec.execution_status === 'failed' && exec.error && (
+                                                    <span className="text-xs text-red-600 dark:text-red-400 truncate max-w-[150px]" title={exec.error}>
+                                                        {exec.error}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="px-4 py-4">
                                             <div>
                                                 <button
-                                                    onClick={() => setFilter('stream', String(report.stream_id))}
+                                                    onClick={() => setFilter('stream', String(exec.stream_id))}
                                                     className="font-medium text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 hover:underline text-left"
-                                                    title={`Filter by ${report.stream_name}`}
+                                                    title={`Filter by ${exec.stream_name}`}
                                                 >
-                                                    {report.stream_name}
+                                                    {exec.stream_name}
                                                 </button>
-                                                <p className="text-sm text-gray-500 dark:text-gray-400">{report.report_name}</p>
+                                                {exec.report_name && (
+                                                    <p className="text-sm text-gray-500 dark:text-gray-400">{exec.report_name}</p>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="px-4 py-4">
-                                            <span className="capitalize text-sm text-gray-700 dark:text-gray-300">{report.run_type}</span>
+                                            <span className="capitalize text-sm text-gray-700 dark:text-gray-300">{exec.run_type}</span>
                                         </td>
                                         <td className="px-4 py-4">
-                                            <span className="text-sm text-gray-900 dark:text-white">{report.article_count}</span>
+                                            <span className="text-sm text-gray-900 dark:text-white">
+                                                {exec.article_count ?? '-'}
+                                            </span>
                                         </td>
                                         <td className="px-4 py-4">
                                             <span className="text-sm text-gray-500 dark:text-gray-400">
-                                                {new Date(report.created_at).toLocaleDateString()}
+                                                {new Date(exec.created_at).toLocaleDateString()}
                                             </span>
                                         </td>
                                         <td className="px-4 py-4">
                                             <Link
-                                                to={`/operations/reports/${report.report_id}`}
+                                                to={`/operations/executions/${exec.execution_id}`}
                                                 className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
                                             >
-                                                Review →
+                                                {exec.execution_status === 'completed' && exec.approval_status === 'awaiting_approval'
+                                                    ? 'Review →'
+                                                    : 'Details →'}
                                             </Link>
                                         </td>
                                     </tr>
@@ -250,7 +293,7 @@ export default function ReportQueue() {
                     {/* Pagination */}
                     <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Showing {filteredReports.length} of {total} reports
+                            Showing {filteredExecutions.length} of {total} executions
                         </p>
                         <div className="flex items-center gap-2">
                             <button className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50" disabled>
@@ -268,11 +311,22 @@ export default function ReportQueue() {
     );
 }
 
-function StatusBadge({ status }: { status: ApprovalStatus }) {
-    const config = {
-        awaiting_approval: { bg: 'bg-yellow-100 dark:bg-yellow-900', text: 'text-yellow-800 dark:text-yellow-200', label: 'Awaiting Approval' },
-        approved: { bg: 'bg-green-100 dark:bg-green-900', text: 'text-green-800 dark:text-green-200', label: 'Approved' },
-        rejected: { bg: 'bg-red-100 dark:bg-red-900', text: 'text-red-800 dark:text-red-200', label: 'Rejected' },
+function ExecutionStatusBadge({ status }: { status: ExecutionStatus }) {
+    const config: Record<ExecutionStatus, { bg: string; text: string; label: string }> = {
+        pending: { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-700 dark:text-gray-300', label: 'Pending' },
+        running: { bg: 'bg-purple-100 dark:bg-purple-900', text: 'text-purple-700 dark:text-purple-300', label: 'Running' },
+        completed: { bg: 'bg-blue-100 dark:bg-blue-900', text: 'text-blue-700 dark:text-blue-300', label: 'Completed' },
+        failed: { bg: 'bg-red-100 dark:bg-red-900', text: 'text-red-700 dark:text-red-300', label: 'Failed' },
+    };
+    const { bg, text, label } = config[status];
+    return <span className={`px-2 py-1 text-xs font-medium rounded-full ${bg} ${text}`}>{label}</span>;
+}
+
+function ApprovalStatusBadge({ status }: { status: ApprovalStatus }) {
+    const config: Record<ApprovalStatus, { bg: string; text: string; label: string }> = {
+        awaiting_approval: { bg: 'bg-yellow-100 dark:bg-yellow-900', text: 'text-yellow-700 dark:text-yellow-300', label: 'Awaiting Approval' },
+        approved: { bg: 'bg-green-100 dark:bg-green-900', text: 'text-green-700 dark:text-green-300', label: 'Approved' },
+        rejected: { bg: 'bg-red-100 dark:bg-red-900', text: 'text-red-700 dark:text-red-300', label: 'Rejected' },
     };
     const { bg, text, label } = config[status];
     return <span className={`px-2 py-1 text-xs font-medium rounded-full ${bg} ${text}`}>{label}</span>;

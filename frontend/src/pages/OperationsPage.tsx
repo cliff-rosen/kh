@@ -63,7 +63,7 @@ export default function OperationsPage() {
         <Routes>
             <Route element={<OperationsLayout />}>
                 <Route index element={<ReportQueue />} />
-                <Route path="reports/:reportId" element={<ReportReview />} />
+                <Route path="executions/:executionId" element={<ReportReview />} />
                 <Route path="scheduler" element={<SchedulerManagement />} />
             </Route>
             <Route path="*" element={<Navigate to="/operations" replace />} />
