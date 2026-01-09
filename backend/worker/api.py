@@ -137,7 +137,7 @@ async def list_runs(
     db: Session = Depends(get_db)
 ):
     """List recent pipeline executions"""
-    logger.debug(f"list_runs called - status_filter={status_filter}, limit={limit}")
+    logger.info(f"list_runs called - status_filter={status_filter}, limit={limit}")
 
     try:
         query = db.query(PipelineExecution).order_by(
@@ -157,7 +157,7 @@ async def list_runs(
 
         executions = query.limit(limit).all()
 
-        logger.debug(f"list_runs returning {len(executions)} executions")
+        logger.info(f"list_runs returning {len(executions)} executions")
 
         return [
             JobStatusResponse(
