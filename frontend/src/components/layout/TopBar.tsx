@@ -1,6 +1,6 @@
 import { useTheme } from '../../context/ThemeContext';
 import { NavLink, useLocation } from 'react-router-dom';
-import { MoonIcon, SunIcon, UserCircleIcon, HomeIcon, DocumentTextIcon, BeakerIcon, WrenchScrewdriverIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
+import { MoonIcon, SunIcon, UserCircleIcon, HomeIcon, DocumentTextIcon, BeakerIcon, WrenchScrewdriverIcon, ShieldCheckIcon, Cog8ToothIcon } from '@heroicons/react/24/outline';
 import settings from '../../config/settings';
 import { HelpGuide } from '@/components/help';
 import { useAuth } from '../../context/AuthContext';
@@ -12,8 +12,8 @@ export default function TopBar() {
     const location = useLocation();
     const { logout, isPlatformAdmin, isOrgAdmin } = useAuth();
 
-    const getLinkClass = (path: string) => {
-        const isActive = location.pathname === path;
+    const getLinkClass = (path: string, matchPrefix = false) => {
+        const isActive = matchPrefix ? location.pathname.startsWith(path) : location.pathname === path;
         return `flex items-center px-3 py-2 text-sm font-medium rounded-md ${isActive
             ? 'bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white'
             : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white'
@@ -52,10 +52,16 @@ export default function TopBar() {
                         </NavLink>
                     )}
                     {isPlatformAdmin && (
-                        <NavLink to="/admin" className={getLinkClass('/admin')} onClick={() => trackEvent('nav_click', { destination: 'admin' })}>
-                            <ShieldCheckIcon className="h-5 w-5 mr-2" />
-                            Admin
-                        </NavLink>
+                        <>
+                            <NavLink to="/operations" className={getLinkClass('/operations', true)} onClick={() => trackEvent('nav_click', { destination: 'operations' })}>
+                                <Cog8ToothIcon className="h-5 w-5 mr-2" />
+                                Operations
+                            </NavLink>
+                            <NavLink to="/admin" className={getLinkClass('/admin')} onClick={() => trackEvent('nav_click', { destination: 'admin' })}>
+                                <ShieldCheckIcon className="h-5 w-5 mr-2" />
+                                Admin
+                            </NavLink>
+                        </>
                     )}
                 </nav>
             </div>

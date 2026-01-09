@@ -59,7 +59,7 @@ class Report(BaseModel):
     enrichments: Dict[str, Any] = {}  # LLM-generated content: executive_summary, category_summaries
     pipeline_metrics: Dict[str, Any] = {}  # Execution metadata: counts, timing, etc.
     # Approval workflow
-    approval_status: ApprovalStatus = Field(default=ApprovalStatus.PENDING, description="Approval status of the report")
+    approval_status: ApprovalStatus = Field(default=ApprovalStatus.AWAITING_APPROVAL, description="Approval status of the report")
     approved_by: Optional[int] = Field(None, description="User ID of admin who approved/rejected")
     approved_at: Optional[datetime] = Field(None, description="When the report was approved/rejected")
     rejection_reason: Optional[str] = Field(None, description="Reason if report was rejected")

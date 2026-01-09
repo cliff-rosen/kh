@@ -1,6 +1,6 @@
 import { StanceAnalysisResult } from './document_analysis';
 
-export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+export type ApprovalStatus = 'awaiting_approval' | 'approved' | 'rejected';
 
 export interface ArticleEnrichments {
     stance_analysis?: StanceAnalysisResult;

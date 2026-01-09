@@ -64,18 +64,17 @@ class RunType(str, PyEnum):
 
 class ApprovalStatus(str, PyEnum):
     """Approval status for reports"""
-    PENDING = "pending"       # Awaiting admin review
-    APPROVED = "approved"     # Approved and visible to subscribers
-    REJECTED = "rejected"     # Rejected by admin
+    AWAITING_APPROVAL = "awaiting_approval"  # Report complete, awaiting admin review
+    APPROVED = "approved"                     # Approved and visible to subscribers
+    REJECTED = "rejected"                     # Rejected by admin
 
 
-class ScheduleStatus(str, PyEnum):
-    """Status of a stream's scheduled run"""
-    IDLE = "idle"             # No run in progress, waiting for next scheduled time
-    QUEUED = "queued"         # Due to run, waiting in queue
+class ExecutionStatus(str, PyEnum):
+    """Status of a pipeline execution"""
+    PENDING = "pending"       # Queued, waiting to start
     RUNNING = "running"       # Currently executing
-    COMPLETED = "completed"   # Last run completed successfully
-    FAILED = "failed"         # Last run failed
+    COMPLETED = "completed"   # Finished successfully, report created
+    FAILED = "failed"         # Execution failed, no report
 
 
 # Organization table (multi-tenancy)
@@ -143,6 +142,26 @@ class User(Base):
     # Additional relationships added at end of file
 
 
+class PipelineExecution(Base):
+    """Tracks each pipeline run attempt - the single source of truth for execution state"""
+    __tablename__ = "pipeline_executions"
+
+    id = Column(String(36), primary_key=True)  # UUID
+    stream_id = Column(Integer, ForeignKey("research_streams.stream_id"), nullable=False)
+    status = Column(Enum(ExecutionStatus, values_callable=lambda x: [e.value for e in x], name='executionstatus'), default=ExecutionStatus.PENDING, nullable=False)
+    run_type = Column(Enum(RunType, values_callable=lambda x: [e.value for e in x], name='runtype'), default=RunType.MANUAL, nullable=False)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    error = Column(Text, nullable=True)
+    report_id = Column(Integer, ForeignKey("reports.report_id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    stream = relationship("ResearchStream", back_populates="executions", foreign_keys=[stream_id])
+    report = relationship("Report", back_populates="execution", foreign_keys=[report_id])
+    wip_articles = relationship("WipArticle", back_populates="execution", foreign_keys="WipArticle.pipeline_execution_id")
+
+
 class ResearchStream(Base):
     """Research stream with clean three-layer architecture"""
     __tablename__ = "research_streams"
@@ -208,10 +227,8 @@ class ResearchStream(Base):
     #   "lookback_days": 7           # how many days of articles to fetch
     # }
     schedule_config = Column(JSON, nullable=True)
-    schedule_status = Column(Enum(ScheduleStatus, values_callable=lambda x: [e.value for e in x], name='schedulestatus'), default=ScheduleStatus.IDLE, nullable=True)
-    next_scheduled_run = Column(DateTime, nullable=True, index=True)  # When this stream should run next
-    last_scheduled_run = Column(DateTime, nullable=True)  # When this stream last ran (scheduled)
-    last_schedule_error = Column(Text, nullable=True)  # Error message if last scheduled run failed
+    next_scheduled_run = Column(DateTime, nullable=True, index=True)  # When this stream should run next (pre-calculated)
+    last_execution_id = Column(String(36), ForeignKey("pipeline_executions.id"), nullable=True)  # Most recent execution
 
     # Relationships
     organization = relationship("Organization", back_populates="research_streams", foreign_keys=[org_id])
@@ -220,6 +237,8 @@ class ResearchStream(Base):
     reports = relationship("Report", back_populates="research_stream")
     org_subscriptions = relationship("OrgStreamSubscription", back_populates="stream")
     user_subscriptions = relationship("UserStreamSubscription", back_populates="stream")
+    executions = relationship("PipelineExecution", back_populates="stream", foreign_keys="PipelineExecution.stream_id")
+    last_execution = relationship("PipelineExecution", foreign_keys=[last_execution_id], uselist=False)
 
 
 class InformationSource(Base):
@@ -298,10 +317,10 @@ class Report(Base):
     retrieval_params = Column(JSON, default=dict)  # Input parameters: start_date, end_date, etc.
     enrichments = Column(JSON, default=dict)  # LLM-generated content: executive_summary, category_summaries
     pipeline_metrics = Column(JSON, default=dict)  # Execution metadata: counts, timing, etc.
-    pipeline_execution_id = Column(String(36), index=True)  # UUID linking to WIP data
+    pipeline_execution_id = Column(String(36), ForeignKey("pipeline_executions.id"), index=True)  # UUID linking to execution
 
     # Approval workflow - all reports require admin approval before being visible to subscribers
-    approval_status = Column(Enum(ApprovalStatus, values_callable=lambda x: [e.value for e in x], name='approvalstatus'), default=ApprovalStatus.PENDING, nullable=False, index=True)
+    approval_status = Column(Enum(ApprovalStatus, values_callable=lambda x: [e.value for e in x], name='approvalstatus'), default=ApprovalStatus.AWAITING_APPROVAL, nullable=False, index=True)
     approved_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)  # Admin who approved/rejected
     approved_at = Column(DateTime, nullable=True)
     rejection_reason = Column(Text, nullable=True)  # Reason if rejected
@@ -312,6 +331,7 @@ class Report(Base):
     research_stream = relationship("ResearchStream", back_populates="reports")
     article_associations = relationship("ReportArticleAssociation", back_populates="report")
     feedback = relationship("UserFeedback", back_populates="report")
+    execution = relationship("PipelineExecution", back_populates="report", foreign_keys="PipelineExecution.report_id", uselist=False)
 
 
 class ReportArticleAssociation(Base):
@@ -398,7 +418,7 @@ class WipArticle(Base):
     research_stream_id = Column(Integer, ForeignKey("research_streams.stream_id"), nullable=False)
     retrieval_group_id = Column(String(255), nullable=False, index=True)
     source_id = Column(Integer, ForeignKey("information_sources.source_id"), nullable=False)
-    pipeline_execution_id = Column(String(36), nullable=False, index=True)  # UUID of pipeline run
+    pipeline_execution_id = Column(String(36), ForeignKey("pipeline_executions.id"), nullable=False, index=True)  # UUID of pipeline run
 
     # Article data (mirroring articles table structure)
     title = Column(String(500), nullable=False)
@@ -439,6 +459,7 @@ class WipArticle(Base):
     # Relationships
     research_stream = relationship("ResearchStream")
     source = relationship("InformationSource")
+    execution = relationship("PipelineExecution", back_populates="wip_articles")
 
 
 # Subscription tables for stream access control

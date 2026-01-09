@@ -18,7 +18,27 @@ export enum ReportFrequency {
     MONTHLY = 'monthly'
 }
 
-export type ScheduleStatus = 'idle' | 'queued' | 'running' | 'completed' | 'failed';
+// Execution status for pipeline runs
+export type ExecutionStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+// Run type for pipeline executions
+export type RunType = 'scheduled' | 'manual' | 'test';
+
+/**
+ * Pipeline execution record - tracks each run attempt.
+ * This is the single source of truth for execution state.
+ */
+export interface PipelineExecution {
+    id: string;                    // UUID
+    stream_id: number;
+    status: ExecutionStatus;
+    run_type: RunType;
+    started_at: string | null;
+    completed_at: string | null;
+    error: string | null;
+    report_id: number | null;
+    created_at: string;
+}
 
 /**
  * Complete scheduling configuration for a research stream.
@@ -182,10 +202,9 @@ export interface ResearchStream {
 
     // === SCHEDULING ===
     schedule_config?: ScheduleConfig | null;  // Automated scheduling configuration
-    schedule_status?: ScheduleStatus | null;  // Current status of scheduled runs
-    next_scheduled_run?: string | null;  // ISO 8601 datetime when this stream will run next
-    last_scheduled_run?: string | null;  // ISO 8601 datetime when this stream last ran (scheduled)
-    last_schedule_error?: string | null;  // Error message if last scheduled run failed
+    next_scheduled_run?: string | null;  // ISO 8601 datetime when this stream will run next (pre-calculated)
+    last_execution_id?: string | null;  // UUID of most recent pipeline execution
+    last_execution?: PipelineExecution | null;  // Denormalized last execution (when included)
 
     // === AGGREGATED DATA ===
     report_count?: number;

@@ -33,13 +33,19 @@ class ReportFrequency(str, Enum):
     MONTHLY = "monthly"
 
 
-class ScheduleStatus(str, Enum):
-    """Status of a stream's scheduled run"""
-    IDLE = "idle"             # No run in progress, waiting for next scheduled time
-    QUEUED = "queued"         # Due to run, waiting in queue
+class ExecutionStatus(str, Enum):
+    """Status of a pipeline execution"""
+    PENDING = "pending"       # Queued, waiting to start
     RUNNING = "running"       # Currently executing
-    COMPLETED = "completed"   # Last run completed successfully
-    FAILED = "failed"         # Last run failed
+    COMPLETED = "completed"   # Finished successfully, report created
+    FAILED = "failed"         # Execution failed, no report
+
+
+class RunType(str, Enum):
+    """Type of pipeline run"""
+    TEST = "test"             # Legacy: kept for backward compatibility
+    SCHEDULED = "scheduled"   # Automated scheduled run
+    MANUAL = "manual"         # Manual run triggered by user
 
 
 class ScheduleConfig(BaseModel):
@@ -346,6 +352,25 @@ class EnrichmentConfig(BaseModel):
     )
 
 
+class PipelineExecution(BaseModel):
+    """
+    Pipeline execution record - tracks each run attempt.
+    This is the single source of truth for execution state.
+    """
+    id: str = Field(description="UUID primary key")
+    stream_id: int
+    status: ExecutionStatus = Field(default=ExecutionStatus.PENDING)
+    run_type: RunType = Field(default=RunType.MANUAL)
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    error: Optional[str] = None
+    report_id: Optional[int] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        from_attributes = True
+
+
 class ResearchStream(BaseModel):
     """Research stream with clean three-layer architecture"""
     # === CORE IDENTITY ===
@@ -386,12 +411,10 @@ class ResearchStream(BaseModel):
     updated_at: datetime = Field(description="ISO 8601 datetime")
 
     # === SCHEDULING ===
-    # schedule_config is the single source of truth for scheduling (including frequency)
     schedule_config: Optional[ScheduleConfig] = Field(None, description="Scheduling configuration (frequency, timing, etc.)")
-    schedule_status: Optional[ScheduleStatus] = Field(None, description="Current status of scheduled runs")
-    next_scheduled_run: Optional[datetime] = Field(None, description="When this stream will run next")
-    last_scheduled_run: Optional[datetime] = Field(None, description="When this stream last ran (scheduled)")
-    last_schedule_error: Optional[str] = Field(None, description="Error message if last scheduled run failed")
+    next_scheduled_run: Optional[datetime] = Field(None, description="Pre-calculated next run time")
+    last_execution_id: Optional[str] = Field(None, description="UUID of most recent pipeline execution")
+    last_execution: Optional[PipelineExecution] = Field(None, description="Denormalized last execution (when included)")
 
 
     # === AGGREGATED DATA ===
