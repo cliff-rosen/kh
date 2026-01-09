@@ -1,30 +1,10 @@
 import settings from '../../config/settings';
 import type { TokenPayload } from './index';
-import { getAuthToken } from './index';
-
-/**
- * Get the appropriate token storage key for the current app context.
- */
-function getTokenStorageKey(): string {
-    const isPubMed = window.location.pathname.startsWith('/pubmed');
-    const isTrialScout = window.location.pathname.startsWith('/trialscout');
-
-    if (isPubMed) return 'pubmed_token';
-    if (isTrialScout) return 'trialscout_token';
-    return 'authToken';
-}
-
-/**
- * Get the appropriate user storage key for the current app context.
- */
-function getUserStorageKey(): string {
-    const isPubMed = window.location.pathname.startsWith('/pubmed');
-    const isTrialScout = window.location.pathname.startsWith('/trialscout');
-
-    if (isPubMed) return 'pubmed_user';
-    if (isTrialScout) return 'trialscout_user';
-    return 'user';
-}
+import {
+    getAuthToken,
+    setAuthToken,
+    clearAuthData,
+} from './index';
 
 export interface StreamUpdate {
     data: string;
@@ -117,8 +97,7 @@ export async function* makeStreamRequest(
     if (!response.ok) {
         // Handle authentication/authorization errors
         if (response.status === 401 || response.status === 403) {
-            localStorage.removeItem(getTokenStorageKey());
-            localStorage.removeItem(getUserStorageKey());
+            clearAuthData();
             if (sessionExpiredHandler) {
                 sessionExpiredHandler();
             }
@@ -130,7 +109,7 @@ export async function* makeStreamRequest(
     // Check for refreshed token in response header
     const newToken = response.headers.get('x-new-token');
     if (newToken) {
-        localStorage.setItem(getTokenStorageKey(), newToken);
+        setAuthToken(newToken);
         console.debug('Token refreshed silently (stream)');
 
         // Notify AuthContext of the refreshed token so it can update user state
@@ -210,8 +189,7 @@ export function subscribeToSSE<T>(
             if (!response.ok) {
                 // Handle authentication/authorization errors
                 if (response.status === 401 || response.status === 403) {
-                    localStorage.removeItem(getTokenStorageKey());
-                    localStorage.removeItem(getUserStorageKey());
+                    clearAuthData();
                     if (sessionExpiredHandler) {
                         sessionExpiredHandler();
                     }
@@ -223,7 +201,7 @@ export function subscribeToSSE<T>(
             // Check for refreshed token in response header
             const newToken = response.headers.get('x-new-token');
             if (newToken) {
-                localStorage.setItem(getTokenStorageKey(), newToken);
+                setAuthToken(newToken);
                 console.debug('Token refreshed silently (SSE)');
                 if (tokenRefreshedHandler) {
                     const payload = decodeTokenPayload(newToken);

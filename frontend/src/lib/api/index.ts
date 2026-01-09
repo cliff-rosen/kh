@@ -49,20 +49,71 @@ export const api = axios.create({
 });
 
 /**
+ * Determine the current app context based on URL path.
+ */
+function getAppContext(): 'pubmed' | 'trialscout' | 'main' {
+  if (window.location.pathname.startsWith('/pubmed')) return 'pubmed';
+  if (window.location.pathname.startsWith('/trialscout')) return 'trialscout';
+  return 'main';
+}
+
+/**
+ * Get the localStorage key for the auth token in the current app context.
+ */
+export function getTokenStorageKey(): string {
+  const context = getAppContext();
+  if (context === 'pubmed') return 'pubmed_token';
+  if (context === 'trialscout') return 'trialscout_token';
+  return 'authToken';
+}
+
+/**
+ * Get the localStorage key for user data in the current app context.
+ */
+export function getUserStorageKey(): string {
+  const context = getAppContext();
+  if (context === 'pubmed') return 'pubmed_user';
+  if (context === 'trialscout') return 'trialscout_user';
+  return 'user';
+}
+
+/**
+ * Get the login path for the current app context.
+ */
+export function getLoginPath(): string {
+  const context = getAppContext();
+  if (context === 'pubmed') return '/pubmed/login';
+  if (context === 'trialscout') return '/trialscout/login';
+  return '/login';
+}
+
+/**
  * Get the auth token for the current app context.
- * Use this for SSE/streaming endpoints that can't use the axios api instance.
  */
 export function getAuthToken(): string | null {
-  const isPubMed = window.location.pathname.startsWith('/pubmed');
-  const isTrialScout = window.location.pathname.startsWith('/trialscout');
+  return localStorage.getItem(getTokenStorageKey());
+}
 
-  if (isPubMed) {
-    return localStorage.getItem('pubmed_token');
-  } else if (isTrialScout) {
-    return localStorage.getItem('trialscout_token');
-  } else {
-    return localStorage.getItem('authToken');
-  }
+/**
+ * Store the auth token for the current app context.
+ */
+export function setAuthToken(token: string): void {
+  localStorage.setItem(getTokenStorageKey(), token);
+}
+
+/**
+ * Clear auth data (token and user) for the current app context.
+ */
+export function clearAuthData(): void {
+  localStorage.removeItem(getTokenStorageKey());
+  localStorage.removeItem(getUserStorageKey());
+}
+
+/**
+ * Check if current context is a standalone app (not main app).
+ */
+export function isStandaloneApp(): boolean {
+  return getAppContext() !== 'main';
 }
 
 // Keep track of if we're already redirecting to avoid infinite loops
@@ -81,26 +132,16 @@ api.interceptors.response.use(
     // Check for refreshed token in response header
     const newToken = response.headers['x-new-token'];
     if (newToken) {
-      // Determine which token storage to update based on current path
-      const isPubMed = window.location.pathname.startsWith('/pubmed');
-      const isTrialScout = window.location.pathname.startsWith('/trialscout');
+      setAuthToken(newToken);
+      console.debug('Token refreshed silently');
 
-      if (isPubMed) {
-        localStorage.setItem('pubmed_token', newToken);
-      } else if (isTrialScout) {
-        localStorage.setItem('trialscout_token', newToken);
-      } else {
-        localStorage.setItem('authToken', newToken);
-
-        // Notify AuthContext of the refreshed token so it can update user state
-        if (tokenRefreshedHandler) {
-          const payload = decodeTokenPayload(newToken);
-          if (payload) {
-            tokenRefreshedHandler(payload);
-          }
+      // Notify AuthContext of the refreshed token (main app only)
+      if (!isStandaloneApp() && tokenRefreshedHandler) {
+        const payload = decodeTokenPayload(newToken);
+        if (payload) {
+          tokenRefreshedHandler(payload);
         }
       }
-      console.debug('Token refreshed silently');
     }
     return response;
   },
@@ -111,34 +152,15 @@ api.interceptors.response.use(
       !error.config.url?.includes('/login') &&
       !isRedirectingToLogin) {
 
-      const isPubMed = window.location.pathname.startsWith('/pubmed');
-      const isTrialScout = window.location.pathname.startsWith('/trialscout');
-      const isStandaloneApp = isPubMed || isTrialScout;
-
-      // Clear appropriate auth data
-      if (isPubMed) {
-        localStorage.removeItem('pubmed_token');
-        localStorage.removeItem('pubmed_user');
-      } else if (isTrialScout) {
-        localStorage.removeItem('trialscout_token');
-        localStorage.removeItem('trialscout_user');
-      } else {
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('user');
-      }
-
-      // Set redirecting flag
+      clearAuthData();
       isRedirectingToLogin = true;
 
       // Call the session expired handler if it exists (main app only)
-      if (!isStandaloneApp && sessionExpiredHandler) {
+      if (!isStandaloneApp() && sessionExpiredHandler) {
         sessionExpiredHandler();
       } else {
         // Default behavior: redirect to appropriate login
-        let loginPath = '/login';
-        if (isPubMed) loginPath = '/pubmed/login';
-        else if (isTrialScout) loginPath = '/trialscout/login';
-        window.location.href = loginPath;
+        window.location.href = getLoginPath();
       }
 
       // Throw a user-friendly error
