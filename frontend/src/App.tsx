@@ -32,7 +32,7 @@ import ReportsPage from './pages/ReportsPage';
 import ToolsPage from './pages/ToolsPage';
 import AdminPage from './pages/AdminPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
-import OperationsRoutes from './pages/operations';
+import OperationsPage from './pages/OperationsPage';
 
 // Inner component that uses auth context
 function AppContent() {
@@ -65,7 +65,7 @@ function AppContent() {
             <Route path="/profile" element={<Profile />} />
             <Route path="/settings" element={<Navigate to="/profile" replace />} />
             <Route path="/admin" element={<AdminPage />} />
-            <Route path="/operations/*" element={<OperationsRoutes />} />
+            <Route path="/operations/*" element={<OperationsPage />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

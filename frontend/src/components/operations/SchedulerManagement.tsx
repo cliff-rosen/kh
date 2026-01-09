@@ -7,161 +7,95 @@
  * - Enable/disable schedules
  * - Edit schedule config (frequency, time, timezone)
  * - Monitor running jobs
- * - Trigger manual runs
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     PlayIcon,
     PauseIcon,
     Cog6ToothIcon,
     CheckCircleIcon,
     XCircleIcon,
+    ArrowPathIcon,
 } from '@heroicons/react/24/outline';
+import {
+    getScheduledStreams,
+    updateStreamSchedule,
+    type ScheduledStream,
+    type PipelineExecution,
+    type ScheduleConfig,
+    type ApprovalStatus,
+} from '../../lib/api/operationsApi';
 
-// === Types matching new schema ===
-
-type ExecutionStatus = 'pending' | 'running' | 'completed' | 'failed';
-type RunType = 'scheduled' | 'manual' | 'test';
 type Frequency = 'daily' | 'weekly' | 'biweekly' | 'monthly';
-type ApprovalStatus = 'awaiting_approval' | 'approved' | 'rejected';
-
-interface PipelineExecution {
-    id: string;  // UUID
-    stream_id: number;
-    status: ExecutionStatus;
-    run_type: RunType;
-    started_at: string | null;
-    completed_at: string | null;
-    error: string | null;
-    report_id: number | null;
-    // Denormalized for convenience in UI
-    report_approval_status?: ApprovalStatus;
-    article_count?: number;
-}
-
-interface ScheduleConfig {
-    enabled: boolean;
-    frequency: Frequency;
-    anchor_day: string | null;
-    preferred_time: string;
-    timezone: string;
-    lookback_days?: number;
-}
-
-interface ScheduledStream {
-    stream_id: number;
-    stream_name: string;
-    schedule_config: ScheduleConfig;
-    next_scheduled_run: string | null;
-    last_execution: PipelineExecution | null;  // The key change: execution state comes from here
-}
-
-// === Mock data matching new schema ===
-
-const mockStreams: ScheduledStream[] = [
-    {
-        stream_id: 1,
-        stream_name: 'Oncology Weekly',
-        schedule_config: { enabled: true, frequency: 'weekly', anchor_day: 'monday', preferred_time: '08:00', timezone: 'America/New_York' },
-        next_scheduled_run: '2024-01-22T08:00:00-05:00',
-        last_execution: {
-            id: 'exec-001',
-            stream_id: 1,
-            status: 'completed',
-            run_type: 'scheduled',
-            started_at: '2024-01-15T08:00:00-05:00',
-            completed_at: '2024-01-15T08:45:00-05:00',
-            error: null,
-            report_id: 101,
-            report_approval_status: 'awaiting_approval',
-            article_count: 52
-        }
-    },
-    {
-        stream_id: 2,
-        stream_name: 'Cardio Monthly',
-        schedule_config: { enabled: true, frequency: 'monthly', anchor_day: '1', preferred_time: '09:00', timezone: 'America/Chicago' },
-        next_scheduled_run: '2024-02-01T09:00:00-06:00',
-        last_execution: {
-            id: 'exec-002',
-            stream_id: 2,
-            status: 'completed',
-            run_type: 'scheduled',
-            started_at: '2024-01-01T09:00:00-06:00',
-            completed_at: '2024-01-01T10:23:00-06:00',
-            error: null,
-            report_id: 98,
-            report_approval_status: 'approved',
-            article_count: 187
-        }
-    },
-    {
-        stream_id: 3,
-        stream_name: 'Regulatory Updates',
-        schedule_config: { enabled: true, frequency: 'daily', anchor_day: null, preferred_time: '06:00', timezone: 'UTC' },
-        next_scheduled_run: null,  // null because currently running
-        last_execution: {
-            id: 'exec-003',
-            stream_id: 3,
-            status: 'running',
-            run_type: 'scheduled',
-            started_at: '2024-01-16T06:00:00Z',
-            completed_at: null,
-            error: null,
-            report_id: null
-        }
-    },
-    {
-        stream_id: 4,
-        stream_name: 'Neuro Research',
-        schedule_config: { enabled: false, frequency: 'weekly', anchor_day: 'wednesday', preferred_time: '10:00', timezone: 'America/Los_Angeles' },
-        next_scheduled_run: null,  // null because paused
-        last_execution: {
-            id: 'exec-004',
-            stream_id: 4,
-            status: 'completed',
-            run_type: 'scheduled',
-            started_at: '2024-01-10T10:00:00-08:00',
-            completed_at: '2024-01-10T10:35:00-08:00',
-            error: null,
-            report_id: 95,
-            report_approval_status: 'approved',
-            article_count: 28
-        }
-    },
-    {
-        stream_id: 5,
-        stream_name: 'Rare Disease Monitor',
-        schedule_config: { enabled: true, frequency: 'biweekly', anchor_day: 'friday', preferred_time: '07:00', timezone: 'Europe/London' },
-        next_scheduled_run: '2024-01-26T07:00:00Z',
-        last_execution: {
-            id: 'exec-005',
-            stream_id: 5,
-            status: 'failed',
-            run_type: 'scheduled',
-            started_at: '2024-01-12T07:00:00Z',
-            completed_at: '2024-01-12T07:15:00Z',
-            error: 'PubMed API timeout after 3 retries',
-            report_id: null
-        }
-    },
-    {
-        stream_id: 6,
-        stream_name: 'New Stream (Never Run)',
-        schedule_config: { enabled: true, frequency: 'weekly', anchor_day: 'tuesday', preferred_time: '09:00', timezone: 'UTC' },
-        next_scheduled_run: '2024-01-23T09:00:00Z',
-        last_execution: null  // Never run
-    },
-];
 
 export default function SchedulerManagement() {
+    const [streams, setStreams] = useState<ScheduledStream[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [editingStream, setEditingStream] = useState<number | null>(null);
+    const [saving, setSaving] = useState(false);
 
-    const enabledCount = mockStreams.filter(s => s.schedule_config.enabled).length;
-    // Running streams are those with last_execution.status === 'running'
-    const runningStreams = mockStreams.filter(s => s.last_execution?.status === 'running');
+    // Fetch scheduled streams
+    useEffect(() => {
+        async function fetchStreams() {
+            setLoading(true);
+            setError(null);
+            try {
+                const data = await getScheduledStreams();
+                setStreams(data);
+            } catch (err) {
+                setError('Failed to load scheduled streams');
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        }
+        fetchStreams();
+    }, []);
+
+    const enabledCount = streams.filter(s => s.schedule_config?.enabled).length;
+    const runningStreams = streams.filter(s => s.last_execution?.status === 'running');
     const runningCount = runningStreams.length;
+
+    const handleSaveSchedule = async (streamId: number, updates: Partial<ScheduleConfig>) => {
+        setSaving(true);
+        try {
+            const updated = await updateStreamSchedule(streamId, updates);
+            setStreams(prev => prev.map(s => s.stream_id === streamId ? updated : s));
+            setEditingStream(null);
+        } catch (err) {
+            console.error('Failed to update schedule:', err);
+            setError('Failed to update schedule');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleToggleEnabled = async (streamId: number, enabled: boolean) => {
+        try {
+            const updated = await updateStreamSchedule(streamId, { enabled });
+            setStreams(prev => prev.map(s => s.stream_id === streamId ? updated : s));
+        } catch (err) {
+            console.error('Failed to toggle schedule:', err);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center py-12">
+                <ArrowPathIcon className="h-8 w-8 text-gray-400 animate-spin" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-700 dark:text-red-300">
+                {error}
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">
@@ -180,12 +114,24 @@ export default function SchedulerManagement() {
                 <RunningJobsAlert streams={runningStreams} />
             )}
 
+            {/* Empty State */}
+            {streams.length === 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center text-gray-500 dark:text-gray-400">
+                    No scheduled streams found. Configure scheduling in stream settings.
+                </div>
+            )}
+
             {/* Schedules Table */}
-            <SchedulesTab
-                streams={mockStreams}
-                editingStream={editingStream}
-                setEditingStream={setEditingStream}
-            />
+            {streams.length > 0 && (
+                <SchedulesTab
+                    streams={streams}
+                    editingStream={editingStream}
+                    setEditingStream={setEditingStream}
+                    onSaveSchedule={handleSaveSchedule}
+                    onToggleEnabled={handleToggleEnabled}
+                    saving={saving}
+                />
+            )}
         </div>
     );
 }
@@ -213,7 +159,6 @@ function RunningJobsAlert({ streams }: { streams: ScheduledStream[] }) {
                                     ? formatRelativeTime(stream.last_execution.started_at)
                                     : 'recently'}
                             </span>
-                            <button className="text-red-600 dark:text-red-400 hover:underline">Cancel</button>
                         </div>
                     </div>
                 ))}
@@ -226,10 +171,16 @@ function SchedulesTab({
     streams,
     editingStream,
     setEditingStream,
+    onSaveSchedule,
+    onToggleEnabled,
+    saving,
 }: {
     streams: ScheduledStream[];
     editingStream: number | null;
     setEditingStream: (id: number | null) => void;
+    onSaveSchedule: (streamId: number, updates: Partial<ScheduleConfig>) => Promise<void>;
+    onToggleEnabled: (streamId: number, enabled: boolean) => Promise<void>;
+    saving: boolean;
 }) {
     return (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
@@ -248,9 +199,9 @@ function SchedulesTab({
                         <tr key={stream.stream_id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                             <td className="px-4 py-4">
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-2 h-2 rounded-full ${stream.schedule_config.enabled ? 'bg-green-500' : 'bg-gray-400'}`} />
+                                    <div className={`w-2 h-2 rounded-full ${stream.schedule_config?.enabled ? 'bg-green-500' : 'bg-gray-400'}`} />
                                     <a
-                                        href={`/operations?stream=${stream.stream_id}`}
+                                        href={`/operations/reports?stream=${stream.stream_id}`}
                                         className="font-medium text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
                                         title="View reports for this stream"
                                     >
@@ -262,15 +213,16 @@ function SchedulesTab({
                                 {editingStream === stream.stream_id ? (
                                     <ScheduleEditor
                                         config={stream.schedule_config}
-                                        onSave={() => setEditingStream(null)}
+                                        onSave={(updates) => onSaveSchedule(stream.stream_id, updates)}
                                         onCancel={() => setEditingStream(null)}
+                                        saving={saving}
                                     />
                                 ) : (
                                     <div className="text-sm">
-                                        <p className="text-gray-900 dark:text-white capitalize">{stream.schedule_config.frequency}</p>
+                                        <p className="text-gray-900 dark:text-white capitalize">{stream.schedule_config?.frequency || 'weekly'}</p>
                                         <p className="text-gray-500 dark:text-gray-400">
-                                            {stream.schedule_config.anchor_day && `${stream.schedule_config.anchor_day}, `}
-                                            {stream.schedule_config.preferred_time} ({stream.schedule_config.timezone})
+                                            {stream.schedule_config?.anchor_day && `${stream.schedule_config.anchor_day}, `}
+                                            {stream.schedule_config?.preferred_time || '08:00'} ({stream.schedule_config?.timezone || 'UTC'})
                                         </p>
                                     </div>
                                 )}
@@ -278,7 +230,7 @@ function SchedulesTab({
                             <td className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">
                                 {stream.last_execution?.status === 'running'
                                     ? <span className="text-purple-600 dark:text-purple-400">Running now...</span>
-                                    : stream.schedule_config.enabled
+                                    : stream.schedule_config?.enabled
                                         ? (stream.next_scheduled_run ? formatRelativeTime(stream.next_scheduled_run) : 'Calculating...')
                                         : <span className="text-gray-400">Paused</span>
                                 }
@@ -303,10 +255,11 @@ function SchedulesTab({
                                         <PlayIcon className="h-5 w-5" />
                                     </button>
                                     <button
-                                        className={`p-1.5 ${stream.schedule_config.enabled ? 'text-gray-400 hover:text-yellow-600' : 'text-yellow-600'}`}
-                                        title={stream.schedule_config.enabled ? 'Pause Schedule' : 'Resume Schedule'}
+                                        onClick={() => onToggleEnabled(stream.stream_id, !stream.schedule_config?.enabled)}
+                                        className={`p-1.5 ${stream.schedule_config?.enabled ? 'text-gray-400 hover:text-yellow-600' : 'text-yellow-600'}`}
+                                        title={stream.schedule_config?.enabled ? 'Pause Schedule' : 'Resume Schedule'}
                                     >
-                                        {stream.schedule_config.enabled ? <PauseIcon className="h-5 w-5" /> : <PlayIcon className="h-5 w-5" />}
+                                        {stream.schedule_config?.enabled ? <PauseIcon className="h-5 w-5" /> : <PlayIcon className="h-5 w-5" />}
                                     </button>
                                 </div>
                             </td>
@@ -394,13 +347,19 @@ function LastExecutionCell({ execution }: { execution: PipelineExecution | null 
     );
 }
 
-function ApprovalBadge({ status }: { status: ApprovalStatus }) {
-    const config = {
+function ApprovalBadge({ status }: { status: ApprovalStatus | null | undefined }) {
+    if (!status) return null;
+
+    const config: Record<ApprovalStatus, { bg: string; text: string; label: string }> = {
         awaiting_approval: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-300', label: 'Awaiting Approval' },
         approved: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300', label: 'Approved' },
         rejected: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-300', label: 'Rejected' },
     };
-    const { bg, text, label } = config[status];
+
+    const style = config[status];
+    if (!style) return null;
+
+    const { bg, text, label } = style;
     return (
         <span className={`px-1.5 py-0.5 text-xs rounded ${bg} ${text}`}>
             {label}
@@ -412,15 +371,26 @@ function ScheduleEditor({
     config,
     onSave,
     onCancel,
+    saving,
 }: {
-    config: ScheduledStream['schedule_config'];
-    onSave: () => void;
+    config: ScheduleConfig | null;
+    onSave: (updates: Partial<ScheduleConfig>) => Promise<void>;
     onCancel: () => void;
+    saving: boolean;
 }) {
-    const [frequency, setFrequency] = useState(config.frequency);
-    const [anchorDay, setAnchorDay] = useState(config.anchor_day || '');
-    const [time, setTime] = useState(config.preferred_time);
-    const [timezone, setTimezone] = useState(config.timezone);
+    const [frequency, setFrequency] = useState<Frequency>((config?.frequency as Frequency) || 'weekly');
+    const [anchorDay, setAnchorDay] = useState(config?.anchor_day || '');
+    const [time, setTime] = useState(config?.preferred_time || '08:00');
+    const [timezone, setTimezone] = useState(config?.timezone || 'UTC');
+
+    const handleSave = () => {
+        onSave({
+            frequency,
+            anchor_day: anchorDay || undefined,
+            preferred_time: time,
+            timezone,
+        });
+    };
 
     return (
         <div className="space-y-2 p-2 bg-gray-50 dark:bg-gray-900 rounded-lg">
@@ -479,8 +449,10 @@ function ScheduleEditor({
                 </select>
             </div>
             <div className="flex justify-end gap-2 pt-2">
-                <button onClick={onCancel} className="px-2 py-1 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
-                <button onClick={onSave} className="px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
+                <button onClick={onCancel} className="px-2 py-1 text-sm text-gray-600 hover:text-gray-900" disabled={saving}>Cancel</button>
+                <button onClick={handleSave} className="px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50" disabled={saving}>
+                    {saving ? 'Saving...' : 'Save'}
+                </button>
             </div>
         </div>
     );
