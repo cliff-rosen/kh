@@ -10,9 +10,9 @@ from enum import Enum
 
 class ApprovalStatus(str, Enum):
     """Approval status for reports"""
-    PENDING = "pending"       # Awaiting admin review
-    APPROVED = "approved"     # Approved and visible to subscribers
-    REJECTED = "rejected"     # Rejected by admin
+    AWAITING_APPROVAL = "awaiting_approval"  # Report complete, awaiting admin review
+    APPROVED = "approved"                     # Approved and visible to subscribers
+    REJECTED = "rejected"                     # Rejected by admin
 
 
 class ReportArticle(BaseModel):

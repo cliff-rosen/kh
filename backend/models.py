@@ -159,7 +159,7 @@ class PipelineExecution(Base):
     # Relationships
     stream = relationship("ResearchStream", back_populates="executions", foreign_keys=[stream_id])
     report = relationship("Report", back_populates="execution", foreign_keys=[report_id])
-    wip_articles = relationship("WipArticle", back_populates="execution", foreign_keys="WipArticle.pipeline_execution_id")
+    wip_articles = relationship("WipArticle", back_populates="execution", primaryjoin="PipelineExecution.id == foreign(WipArticle.pipeline_execution_id)")
 
 
 class ResearchStream(Base):
