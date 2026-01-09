@@ -12,7 +12,14 @@ import logging
 
 from database import get_db
 from models import User
-from auth import get_current_user
+from services import auth_service
+
+
+def get_current_user(
+    current_user: User = Depends(auth_service.validate_token)
+) -> User:
+    """Dependency to get the current authenticated user."""
+    return current_user
 
 logger = logging.getLogger(__name__)
 
