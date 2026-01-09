@@ -34,10 +34,73 @@
 ## Frontend
 
 ### `lib/api/` - API Client Layer
-- API client functions (`fetch`, axios calls)
+- API client functions
 - **Import and use domain types from `types/`** - do NOT duplicate them
 - Only define NEW types when the API shape is genuinely different (e.g., paginated wrapper, combined response)
 - Do NOT create duplicates of domain types - import them
+
+#### API Request Methods
+
+**Standard requests** - Use the `api` instance from `index.ts`:
+```typescript
+import { api } from './index';
+
+// GET request
+const response = await api.get<MyType>('/api/endpoint');
+return response.data;
+
+// POST request
+const response = await api.post<MyType>('/api/endpoint', requestBody);
+return response.data;
+```
+
+**Streaming responses (async generator)** - Use `makeStreamRequest` from `streamUtils.ts`:
+```typescript
+import { makeStreamRequest } from './streamUtils';
+
+// For endpoints that stream chunks of data (e.g., LLM responses)
+for await (const chunk of makeStreamRequest('/api/chat/stream', params, 'POST')) {
+    // chunk.data contains the raw streamed data
+    processChunk(chunk.data);
+}
+```
+
+**Server-Sent Events (SSE)** - Use `subscribeToSSE` from `streamUtils.ts`:
+```typescript
+import { subscribeToSSE } from './streamUtils';
+
+// For endpoints that push discrete events (e.g., job status updates)
+const cleanup = subscribeToSSE<MyEventType>(
+    '/api/events/stream',
+    (event) => handleEvent(event),      // Called for each parsed event
+    (error) => handleError(error),      // Called on error
+    () => handleComplete()              // Called when stream ends
+);
+
+// Call cleanup() to close the connection
+```
+
+#### When to Use Each Method
+
+| Method | Use Case | Data Format |
+|--------|----------|-------------|
+| `api.get/post/etc` | Standard request-response | JSON |
+| `makeStreamRequest` | Continuous data stream (LLM output) | Raw chunks |
+| `subscribeToSSE` | Discrete event notifications (status updates) | Parsed JSON events |
+
+#### Token Handling
+
+**NEVER access localStorage directly for tokens.** All methods above handle auth automatically:
+
+- `api` instance: Token injected via axios interceptor
+- `makeStreamRequest`: Uses `getAuthToken()` internally
+- `subscribeToSSE`: Uses `getAuthToken()` internally
+
+If you need the token for a special case (rare), use:
+```typescript
+import { getAuthToken } from './index';
+const token = getAuthToken(); // Handles main app + standalone apps (pubmed, trialscout)
+```
 
 ### `types/` - Domain Types
 - TypeScript types representing **business/domain concepts**

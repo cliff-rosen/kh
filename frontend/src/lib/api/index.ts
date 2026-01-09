@@ -48,6 +48,23 @@ export const api = axios.create({
   },
 });
 
+/**
+ * Get the auth token for the current app context.
+ * Use this for SSE/streaming endpoints that can't use the axios api instance.
+ */
+export function getAuthToken(): string | null {
+  const isPubMed = window.location.pathname.startsWith('/pubmed');
+  const isTrialScout = window.location.pathname.startsWith('/trialscout');
+
+  if (isPubMed) {
+    return localStorage.getItem('pubmed_token');
+  } else if (isTrialScout) {
+    return localStorage.getItem('trialscout_token');
+  } else {
+    return localStorage.getItem('authToken');
+  }
+}
+
 // Keep track of if we're already redirecting to avoid infinite loops
 let isRedirectingToLogin = false;
 

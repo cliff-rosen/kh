@@ -3,7 +3,7 @@
  */
 
 import { api } from './index';
-import settings from '../../config/settings';
+import { subscribeToSSE } from './streamUtils';
 
 // Import domain types from types/
 import type {
@@ -164,77 +164,21 @@ export function subscribeToRunStatus(
     onError?: (error: Event) => void,
     onComplete?: () => void
 ): () => void {
-    const token = localStorage.getItem('authToken');
-    const url = `${settings.apiUrl}/api/operations/runs/${executionId}/stream`;
+    let cleanup: (() => void) | null = null;
 
-    // EventSource doesn't support headers, so we need to use fetch with ReadableStream
-    const controller = new AbortController();
-
-    (async () => {
-        try {
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'text/event-stream',
-                    'Authorization': `Bearer ${token}`,
-                },
-                signal: controller.signal,
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+    cleanup = subscribeToSSE<RunStatusEvent>(
+        `/api/operations/runs/${executionId}/stream`,
+        (event) => {
+            onMessage(event);
+            // Check for completion stages
+            if (event.stage === 'completed' || event.stage === 'failed') {
+                onComplete?.();
+                cleanup?.();
             }
+        },
+        (error) => onError?.(error as unknown as Event),
+        onComplete
+    );
 
-            const reader = response.body?.getReader();
-            if (!reader) {
-                throw new Error('No response body');
-            }
-
-            const decoder = new TextDecoder();
-            let buffer = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-
-                if (done) {
-                    onComplete?.();
-                    break;
-                }
-
-                buffer += decoder.decode(value, { stream: true });
-
-                // Process complete SSE messages
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const data = line.slice(6);
-                        try {
-                            const event = JSON.parse(data) as RunStatusEvent;
-                            onMessage(event);
-
-                            // Check for completion
-                            if (event.stage === 'completed' || event.stage === 'failed') {
-                                onComplete?.();
-                                controller.abort();
-                                return;
-                            }
-                        } catch {
-                            // Ignore parse errors (might be keepalive)
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            if ((error as Error).name !== 'AbortError') {
-                onError?.(error as Event);
-            }
-        }
-    })();
-
-    // Return cleanup function
-    return () => {
-        controller.abort();
-    };
+    return () => cleanup?.();
 }

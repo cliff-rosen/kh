@@ -35,7 +35,8 @@ class JobDispatcher:
         """
         execution_id = execution.id
         stream_id = execution.stream_id
-        logger.info(f"Dispatching pending execution: {execution_id}")
+        logger.info(f"Dispatching pending execution: {execution_id} for stream {stream_id}")
+        logger.debug(f"[DEBUG] Received execution object with id={execution_id}, type={type(execution_id)}")
 
         try:
             # Re-query execution from our session (the passed object is from a different session)
@@ -50,6 +51,16 @@ class JobDispatcher:
             execution.status = ExecutionStatus.RUNNING
             execution.started_at = datetime.utcnow()
             self.db.commit()
+            logger.info(f"[DEBUG] Execution {execution_id} marked as RUNNING and committed")
+
+            # Verify the execution exists in DB after commit
+            verify_exec = self.db.query(PipelineExecution).filter(
+                PipelineExecution.id == execution_id
+            ).first()
+            if verify_exec:
+                logger.info(f"[DEBUG] Verified execution {execution_id} exists in DB after commit, status={verify_exec.status}")
+            else:
+                logger.error(f"[DEBUG] CRITICAL: Execution {execution_id} NOT FOUND after commit!")
 
             # Get stream info for user_id
             stream = self.db.query(ResearchStream).filter(

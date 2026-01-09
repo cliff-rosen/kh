@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 from models import (
     ResearchStream, Report, ReportArticleAssociation, Article,
-    WipArticle, InformationSource, RunType
+    WipArticle, InformationSource, RunType, PipelineExecution
 )
 from schemas.research_stream import RetrievalConfig, PresentationConfig
 from services.pubmed_service import PubMedService
@@ -165,12 +165,24 @@ class PipelineService:
                     f"Generated execution ID: {execution_id}",
                     {"execution_id": execution_id}
                 )
+                logger.warning(f"[DEBUG] Pipeline generated its own execution_id={execution_id} - this may cause FK issues!")
             else:
                 yield PipelineStatus(
                     "init",
                     f"Using execution ID: {execution_id}",
                     {"execution_id": execution_id}
                 )
+                logger.info(f"[DEBUG] Pipeline using provided execution_id={execution_id}")
+
+                # Verify the execution exists in the database
+                existing_exec = self.db.query(PipelineExecution).filter(
+                    PipelineExecution.id == execution_id
+                ).first()
+                if existing_exec:
+                    logger.info(f"[DEBUG] Verified: execution {execution_id} exists in DB, status={existing_exec.status}")
+                else:
+                    logger.error(f"[DEBUG] CRITICAL: execution {execution_id} NOT FOUND in pipeline_executions table!")
+                    raise ValueError(f"Pipeline execution {execution_id} not found in database")
 
             yield PipelineStatus("cleanup", "Ready to begin retrieval (keeping historical WIP data)")
 
@@ -519,6 +531,18 @@ class PipelineService:
 
         # Store results in wip_articles using WipArticleService
         # Articles are CanonicalResearchArticle objects (Pydantic models)
+        logger.info(f"[DEBUG] Storing {len(articles)} articles with execution_id={execution_id}")
+
+        # Verify execution exists before creating articles (debug)
+        exec_check = self.db.query(PipelineExecution).filter(
+            PipelineExecution.id == execution_id
+        ).first()
+        if exec_check:
+            logger.info(f"[DEBUG] Pre-insert check: execution {execution_id} exists, status={exec_check.status}")
+        else:
+            logger.error(f"[DEBUG] Pre-insert check FAILED: execution {execution_id} NOT FOUND!")
+            raise ValueError(f"Cannot store articles: execution {execution_id} not found in database")
+
         for article in articles:
             # Parse publication_date string to date object if present
             pub_date = None
@@ -546,7 +570,12 @@ class PipelineService:
                 source_specific_id=article.id
             )
 
-        self.wip_article_service.commit()
+        try:
+            self.wip_article_service.commit()
+        except Exception as e:
+            logger.error(f"[DEBUG] Failed to commit wip_articles with execution_id={execution_id}: {e}")
+            logger.error(f"[DEBUG] Attempted to insert {len(articles)} articles for stream_id={research_stream_id}")
+            raise
         return len(articles)
 
     async def _apply_semantic_filter(

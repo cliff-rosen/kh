@@ -1,5 +1,30 @@
 import settings from '../../config/settings';
 import type { TokenPayload } from './index';
+import { getAuthToken } from './index';
+
+/**
+ * Get the appropriate token storage key for the current app context.
+ */
+function getTokenStorageKey(): string {
+    const isPubMed = window.location.pathname.startsWith('/pubmed');
+    const isTrialScout = window.location.pathname.startsWith('/trialscout');
+
+    if (isPubMed) return 'pubmed_token';
+    if (isTrialScout) return 'trialscout_token';
+    return 'authToken';
+}
+
+/**
+ * Get the appropriate user storage key for the current app context.
+ */
+function getUserStorageKey(): string {
+    const isPubMed = window.location.pathname.startsWith('/pubmed');
+    const isTrialScout = window.location.pathname.startsWith('/trialscout');
+
+    if (isPubMed) return 'pubmed_user';
+    if (isTrialScout) return 'trialscout_user';
+    return 'user';
+}
 
 export interface StreamUpdate {
     data: string;
@@ -59,7 +84,7 @@ export async function* makeStreamRequest(
         .filter(Boolean)
         .join('&');
 
-    const token = localStorage.getItem('authToken');
+    const token = getAuthToken();
     const hasComplexParams = Object.values(params).some(value => Array.isArray(value) || typeof value !== 'string');
     const usePost = method === 'POST' || hasComplexParams;
 
@@ -92,8 +117,8 @@ export async function* makeStreamRequest(
     if (!response.ok) {
         // Handle authentication/authorization errors
         if (response.status === 401 || response.status === 403) {
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('user');
+            localStorage.removeItem(getTokenStorageKey());
+            localStorage.removeItem(getUserStorageKey());
             if (sessionExpiredHandler) {
                 sessionExpiredHandler();
             }
@@ -105,7 +130,7 @@ export async function* makeStreamRequest(
     // Check for refreshed token in response header
     const newToken = response.headers.get('x-new-token');
     if (newToken) {
-        localStorage.setItem('authToken', newToken);
+        localStorage.setItem(getTokenStorageKey(), newToken);
         console.debug('Token refreshed silently (stream)');
 
         // Notify AuthContext of the refreshed token so it can update user state
@@ -148,4 +173,109 @@ export async function* makeStreamRequest(
     } finally {
         reader.releaseLock();
     }
+}
+
+/**
+ * Subscribe to Server-Sent Events (SSE) from an endpoint.
+ * Handles SSE protocol parsing, auth, and cleanup.
+ *
+ * @param endpoint - API endpoint path (e.g., '/api/operations/runs/123/stream')
+ * @param onMessage - Callback for each parsed SSE data event
+ * @param onError - Callback for errors
+ * @param onComplete - Callback when stream ends
+ * @returns Cleanup function to close the connection
+ */
+export function subscribeToSSE<T>(
+    endpoint: string,
+    onMessage: (data: T) => void,
+    onError?: (error: Error) => void,
+    onComplete?: () => void
+): () => void {
+    const token = getAuthToken();
+    const url = `${settings.apiUrl}${endpoint}`;
+    const controller = new AbortController();
+
+    (async () => {
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'text/event-stream',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                },
+                signal: controller.signal,
+                cache: 'no-cache',
+            });
+
+            if (!response.ok) {
+                // Handle authentication/authorization errors
+                if (response.status === 401 || response.status === 403) {
+                    localStorage.removeItem(getTokenStorageKey());
+                    localStorage.removeItem(getUserStorageKey());
+                    if (sessionExpiredHandler) {
+                        sessionExpiredHandler();
+                    }
+                    throw new Error('Authentication required');
+                }
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            // Check for refreshed token in response header
+            const newToken = response.headers.get('x-new-token');
+            if (newToken) {
+                localStorage.setItem(getTokenStorageKey(), newToken);
+                console.debug('Token refreshed silently (SSE)');
+                if (tokenRefreshedHandler) {
+                    const payload = decodeTokenPayload(newToken);
+                    if (payload) {
+                        tokenRefreshedHandler(payload);
+                    }
+                }
+            }
+
+            const reader = response.body?.getReader();
+            if (!reader) {
+                throw new Error('No response body');
+            }
+
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+
+                if (done) {
+                    onComplete?.();
+                    break;
+                }
+
+                buffer += decoder.decode(value, { stream: true });
+
+                // Process complete SSE messages
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        try {
+                            const parsed = JSON.parse(data) as T;
+                            onMessage(parsed);
+                        } catch {
+                            // Ignore parse errors (might be keepalive or malformed)
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            if ((error as Error).name !== 'AbortError') {
+                onError?.(error as Error);
+            }
+        }
+    })();
+
+    // Return cleanup function
+    return () => {
+        controller.abort();
+    };
 } 
