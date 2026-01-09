@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 import logging
-from dataclasses import asdict
 
 from database import get_db
 from models import User
@@ -50,7 +49,7 @@ class ExecutionQueueItemResponse(BaseModel):
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     error: Optional[str] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
     # Report info (only for completed executions)
     report_id: Optional[int] = None
     report_name: Optional[str] = None
@@ -143,7 +142,7 @@ class ExecutionDetailResponse(BaseModel):
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     error: Optional[str] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
     metrics: Optional[ExecutionMetricsResponse] = None
     wip_articles: List[WipArticleResponse] = []
     # Report info (only for completed executions)
@@ -269,8 +268,8 @@ async def get_execution_queue(
             offset=offset
         )
 
-        logger.info(f"get_execution_queue complete - user_id={current_user.user_id}, count={len(result.executions)}")
-        return asdict(result)
+        logger.info(f"get_execution_queue complete - user_id={current_user.user_id}, count={len(result['executions'])}")
+        return result
 
     except HTTPException:
         raise
@@ -300,7 +299,7 @@ async def get_execution_detail(
         result = service.get_execution_detail(execution_id, current_user.user_id)
 
         logger.info(f"get_execution_detail complete - user_id={current_user.user_id}, execution_id={execution_id}")
-        return asdict(result)
+        return result
 
     except HTTPException:
         raise
@@ -330,7 +329,7 @@ async def approve_report(
         result = service.approve_report(report_id, current_user.user_id)
 
         logger.info(f"approve_report complete - user_id={current_user.user_id}, report_id={report_id}")
-        return asdict(result)
+        return result
 
     except HTTPException:
         raise
@@ -361,7 +360,7 @@ async def reject_report(
         result = service.reject_report(report_id, current_user.user_id, request.reason)
 
         logger.info(f"reject_report complete - user_id={current_user.user_id}, report_id={report_id}")
-        return asdict(result)
+        return result
 
     except HTTPException:
         raise
@@ -392,7 +391,7 @@ async def get_scheduled_streams(
         result = service.get_scheduled_streams(current_user.user_id)
 
         logger.info(f"get_scheduled_streams complete - user_id={current_user.user_id}, count={len(result)}")
-        return [asdict(item) for item in result]
+        return result
 
     except HTTPException:
         raise
@@ -427,7 +426,7 @@ async def update_stream_schedule(
         )
 
         logger.info(f"update_stream_schedule complete - user_id={current_user.user_id}, stream_id={stream_id}")
-        return asdict(result)
+        return result
 
     except HTTPException:
         raise
