@@ -22,10 +22,10 @@ import {
     getScheduledStreams,
     updateStreamSchedule,
     type ScheduledStream,
-    type PipelineExecution,
-    type ScheduleConfig,
-    type ApprovalStatus,
+    type UpdateScheduleRequest,
 } from '../../lib/api/operationsApi';
+import type { ScheduleConfig, LastExecution } from '../../types/research-stream';
+import type { ApprovalStatus } from '../../types/report';
 
 type Frequency = 'daily' | 'weekly' | 'biweekly' | 'monthly';
 
@@ -58,7 +58,7 @@ export default function SchedulerManagement() {
     const runningStreams = streams.filter(s => s.last_execution?.status === 'running');
     const runningCount = runningStreams.length;
 
-    const handleSaveSchedule = async (streamId: number, updates: Partial<ScheduleConfig>) => {
+    const handleSaveSchedule = async (streamId: number, updates: UpdateScheduleRequest) => {
         setSaving(true);
         try {
             const updated = await updateStreamSchedule(streamId, updates);
@@ -178,7 +178,7 @@ function SchedulesTab({
     streams: ScheduledStream[];
     editingStream: number | null;
     setEditingStream: (id: number | null) => void;
-    onSaveSchedule: (streamId: number, updates: Partial<ScheduleConfig>) => Promise<void>;
+    onSaveSchedule: (streamId: number, updates: UpdateScheduleRequest) => Promise<void>;
     onToggleEnabled: (streamId: number, enabled: boolean) => Promise<void>;
     saving: boolean;
 }) {
@@ -271,7 +271,7 @@ function SchedulesTab({
     );
 }
 
-function LastExecutionCell({ execution }: { execution: PipelineExecution | null }) {
+function LastExecutionCell({ execution }: { execution: LastExecution | null }) {
     if (!execution) {
         return <span className="text-sm text-gray-400">Never run</span>;
     }
@@ -319,7 +319,7 @@ function LastExecutionCell({ execution }: { execution: PipelineExecution | null 
                     <CheckCircleIcon className="h-4 w-4 text-green-500" />
                     <span className="text-gray-900 dark:text-white">{execution.article_count ?? '?'} articles</span>
                     {execution.report_approval_status && (
-                        <ApprovalBadge status={execution.report_approval_status} />
+                        <ApprovalBadge status={execution.report_approval_status as ApprovalStatus} />
                     )}
                 </a>
                 {execution.completed_at && (
@@ -374,7 +374,7 @@ function ScheduleEditor({
     saving,
 }: {
     config: ScheduleConfig | null;
-    onSave: (updates: Partial<ScheduleConfig>) => Promise<void>;
+    onSave: (updates: UpdateScheduleRequest) => Promise<void>;
     onCancel: () => void;
     saving: boolean;
 }) {

@@ -8,6 +8,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
 from schemas.semantic_space import SemanticSpace
+from schemas.report import ReportArticle
 
 
 class StreamScope(str, Enum):
@@ -420,6 +421,158 @@ class ResearchStream(BaseModel):
     # === AGGREGATED DATA ===
     report_count: Optional[int] = Field(0, description="Number of reports generated")
     latest_report_date: Optional[str] = Field(None, description="ISO 8601 date string of latest report")
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
+# WIP Article (Pipeline Work-in-Progress)
+# ============================================================================
+
+class WipArticle(BaseModel):
+    """Work-in-progress article during pipeline execution"""
+    id: int
+    title: str
+    authors: List[str] = []
+    journal: Optional[str] = None
+    year: Optional[str] = None
+    pmid: Optional[str] = None
+    abstract: Optional[str] = None
+    is_duplicate: bool = False
+    duplicate_of_id: Optional[int] = None
+    passed_semantic_filter: Optional[bool] = None
+    filter_rejection_reason: Optional[str] = None
+    included_in_report: bool = False
+    presentation_categories: List[str] = []
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
+# Operations Domain Objects (Execution Queue & Scheduler)
+# ============================================================================
+
+class ExecutionMetrics(BaseModel):
+    """Pipeline execution metrics extracted from report"""
+    articles_retrieved: Optional[int] = None
+    articles_after_dedup: Optional[int] = None
+    articles_after_filter: Optional[int] = None
+    filter_config: Optional[str] = None
+
+
+class ExecutionQueueItem(BaseModel):
+    """
+    Pipeline execution with associated report info.
+    Domain object representing an item in the execution queue.
+    """
+    execution_id: str
+    stream_id: int
+    stream_name: str
+    execution_status: ExecutionStatus
+    run_type: RunType
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    error: Optional[str] = None
+    created_at: Optional[datetime] = None
+    # Report info (only for completed executions)
+    report_id: Optional[int] = None
+    report_name: Optional[str] = None
+    approval_status: Optional[str] = None
+    article_count: Optional[int] = None
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    rejection_reason: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class StreamOption(BaseModel):
+    """Stream info for filter dropdowns"""
+    stream_id: int
+    stream_name: str
+
+
+class ExecutionQueueResult(BaseModel):
+    """Result of execution queue query"""
+    executions: List[ExecutionQueueItem]
+    total: int
+    streams: List[StreamOption]
+
+
+class CategoryCount(BaseModel):
+    """Category with article count"""
+    id: str
+    name: str
+    article_count: int
+
+
+class ExecutionDetail(BaseModel):
+    """
+    Full execution details for review.
+    Domain object representing everything needed to review an execution.
+    """
+    # Execution info
+    execution_id: str
+    stream_id: int
+    stream_name: str
+    execution_status: ExecutionStatus
+    run_type: RunType
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    error: Optional[str] = None
+    created_at: Optional[datetime] = None
+    metrics: Optional[ExecutionMetrics] = None
+    wip_articles: List[WipArticle] = []
+    # Report info
+    report_id: Optional[int] = None
+    report_name: Optional[str] = None
+    approval_status: Optional[str] = None
+    article_count: int = 0
+    executive_summary: Optional[str] = None
+    categories: List[CategoryCount] = []
+    articles: List["ReportArticle"] = []  # Forward ref to schemas.report
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    rejection_reason: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ApprovalResult(BaseModel):
+    """Result of approve/reject operation"""
+    status: str
+    report_id: int
+    reason: Optional[str] = None
+
+
+class LastExecution(BaseModel):
+    """Last execution summary for scheduler display"""
+    id: str
+    stream_id: int
+    status: ExecutionStatus
+    run_type: RunType
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    error: Optional[str] = None
+    report_id: Optional[int] = None
+    report_approval_status: Optional[str] = None
+    article_count: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ScheduledStreamSummary(BaseModel):
+    """Stream with schedule config and last execution for scheduler view"""
+    stream_id: int
+    stream_name: str
+    schedule_config: ScheduleConfig
+    next_scheduled_run: Optional[datetime] = None
+    last_execution: Optional[LastExecution] = None
 
     class Config:
         from_attributes = True

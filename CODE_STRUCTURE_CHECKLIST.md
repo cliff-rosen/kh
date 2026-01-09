@@ -4,8 +4,10 @@
 
 ### `routers/` - API Layer
 - Endpoint definitions (`@router.get`, `@router.post`, etc.)
-- Pydantic request/response models for API serialization
-- Input validation
+- **Import and use domain types from `schemas/`** for response models when returning domain objects
+- Only define NEW Pydantic models when the API shape is genuinely different (e.g., paginated wrapper, combined response)
+- Do NOT duplicate domain types with "Response" suffix - use the actual domain type
+- Input validation via Pydantic request models
 - Calls services, does NOT contain business logic
 - Does NOT make direct database queries
 
@@ -33,8 +35,9 @@
 
 ### `lib/api/` - API Client Layer
 - API client functions (`fetch`, axios calls)
-- TypeScript types for API requests/responses
-- API-specific type transformations
+- **Import and use domain types from `types/`** - do NOT duplicate them
+- Only define NEW types when the API shape is genuinely different (e.g., paginated wrapper, combined response)
+- Do NOT create duplicates of domain types - import them
 
 ### `types/` - Domain Types
 - TypeScript types representing **business/domain concepts**

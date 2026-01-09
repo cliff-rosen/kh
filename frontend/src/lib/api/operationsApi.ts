@@ -4,16 +4,21 @@
 
 import { api } from './index';
 
-// === Types ===
+// Import domain types from types/
+import {
+    ExecutionStatus,
+    RunType,
+    ScheduleConfig,
+    StreamOption,
+    CategoryCount,
+    ExecutionMetrics,
+    WipArticle,
+    LastExecution,
+} from '../../types/research-stream';
+import { ApprovalStatus, ReportArticle } from '../../types/report';
 
-export type ExecutionStatus = 'pending' | 'running' | 'completed' | 'failed';
-export type ApprovalStatus = 'awaiting_approval' | 'approved' | 'rejected';
-export type RunType = 'scheduled' | 'manual' | 'test';
 
-export interface StreamOption {
-    stream_id: number;
-    stream_name: string;
-}
+// === API-Specific Types (response shapes that combine domain objects) ===
 
 export interface ExecutionQueueItem {
     execution_id: string;
@@ -41,48 +46,6 @@ export interface ExecutionQueueResponse {
     streams: StreamOption[];
 }
 
-export interface ReportArticle {
-    article_id: number;
-    title: string;
-    authors: string[];
-    journal: string | null;
-    year: string | null;
-    pmid: string | null;
-    abstract: string | null;
-    category_id: string | null;
-    relevance_score: number;
-    filter_passed: boolean;
-}
-
-export interface ReportCategory {
-    id: string;
-    name: string;
-    article_count: number;
-}
-
-export interface ExecutionMetrics {
-    articles_retrieved: number | null;
-    articles_after_dedup: number | null;
-    articles_after_filter: number | null;
-    filter_config: string | null;
-}
-
-export interface WipArticle {
-    id: number;
-    title: string;
-    authors: string[];
-    journal: string | null;
-    year: string | null;
-    pmid: string | null;
-    abstract: string | null;
-    is_duplicate: boolean;
-    duplicate_of_id: number | null;
-    passed_semantic_filter: boolean | null;
-    filter_rejection_reason: string | null;
-    included_in_report: boolean;
-    presentation_categories: string[];
-}
-
 export interface ExecutionDetail {
     // Execution info
     execution_id: string;
@@ -102,33 +65,11 @@ export interface ExecutionDetail {
     approval_status: ApprovalStatus | null;
     article_count: number;
     executive_summary: string | null;
-    categories: ReportCategory[];
+    categories: CategoryCount[];
     articles: ReportArticle[];
     approved_by: string | null;
     approved_at: string | null;
     rejection_reason: string | null;
-}
-
-export interface ScheduleConfig {
-    enabled: boolean;
-    frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly';
-    anchor_day: string | null;
-    preferred_time: string;
-    timezone: string;
-    lookback_days: number | null;
-}
-
-export interface LastExecution {
-    id: string;
-    stream_id: number;
-    status: ExecutionStatus;
-    run_type: RunType;
-    started_at: string | null;
-    completed_at: string | null;
-    error: string | null;
-    report_id: number | null;
-    report_approval_status: ApprovalStatus | null;
-    article_count: number | null;
 }
 
 export interface ScheduledStream {
@@ -147,6 +88,8 @@ export interface UpdateScheduleRequest {
     timezone?: string;
     lookback_days?: number;
 }
+
+
 
 // === Execution Queue API ===
 

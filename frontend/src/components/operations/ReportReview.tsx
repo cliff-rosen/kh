@@ -33,12 +33,9 @@ import {
     approveReport,
     rejectReport,
     type ExecutionDetail,
-    type ReportArticle,
-    type ReportCategory,
-    type WipArticle,
-    type ApprovalStatus,
-    type ExecutionStatus,
 } from '../../lib/api/operationsApi';
+import type { ExecutionStatus, WipArticle, CategoryCount } from '../../types/research-stream';
+import type { ApprovalStatus, ReportArticle } from '../../types/report';
 
 type PipelineTab = 'included' | 'duplicates' | 'filtered_out';
 
@@ -105,7 +102,7 @@ export default function ReportReview() {
     const getArticlesForCategory = (categoryId: string) => {
         if (!execution) return [];
         return execution.articles.filter((a) => {
-            const effectiveCategory = categoryChanges[a.article_id] || a.category_id;
+            const effectiveCategory = categoryChanges[a.article_id] || a.presentation_categories?.[0];
             return effectiveCategory === categoryId && !removedArticles.includes(a.article_id);
         });
     };
@@ -429,10 +426,10 @@ export default function ReportReview() {
                                                             key={article.article_id}
                                                             article={article}
                                                             categories={execution.categories}
-                                                            currentCategory={categoryChanges[article.article_id] || article.category_id || ''}
+                                                            currentCategory={categoryChanges[article.article_id] || article.presentation_categories?.[0] || ''}
                                                             onRemove={() => removeArticle(article.article_id)}
                                                             onChangeCategory={(newCat) => changeCategory(article.article_id, newCat)}
-                                                            canEdit={canApproveReject ?? false}
+                                                            canEdit={canApproveReject === true}
                                                         />
                                                     ))}
                                                     {articles.length === 0 && (
@@ -454,10 +451,10 @@ export default function ReportReview() {
                                                 key={article.article_id}
                                                 article={article}
                                                 categories={execution.categories}
-                                                currentCategory={categoryChanges[article.article_id] || article.category_id || ''}
+                                                currentCategory={categoryChanges[article.article_id] || article.presentation_categories?.[0] || ''}
                                                 onRemove={() => removeArticle(article.article_id)}
                                                 onChangeCategory={(newCat) => changeCategory(article.article_id, newCat)}
-                                                canEdit={canApproveReject ?? false}
+                                                canEdit={canApproveReject === true}
                                             />
                                         ))}
                                     </div>
@@ -580,7 +577,7 @@ function ArticleCard({
     canEdit,
 }: {
     article: ReportArticle;
-    categories: ReportCategory[];
+    categories: CategoryCount[];
     currentCategory: string;
     onRemove: () => void;
     onChangeCategory: (categoryId: string) => void;
@@ -622,13 +619,9 @@ function ArticleCard({
                                 {article.journal} · {article.year} · PMID: {article.pmid}
                             </p>
                             <div className="flex items-center gap-2 mt-1">
-                                <span className="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
-                                    {(article.relevance_score * 100).toFixed(0)}% relevant
-                                </span>
-                                {article.filter_passed && (
-                                    <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-0.5">
-                                        <CheckCircleIcon className="h-3 w-3" />
-                                        Passed filter
+                                {article.relevance_score != null && (
+                                    <span className="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
+                                        {(article.relevance_score * 100).toFixed(0)}% relevant
                                     </span>
                                 )}
                             </div>

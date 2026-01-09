@@ -10,15 +10,31 @@ This service handles:
 import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from datetime import datetime
 from fastapi import HTTPException, status
 
 from models import (
     Report, ResearchStream, PipelineExecution, User,
-    ReportArticleAssociation, Article, WipArticle,
+    ReportArticleAssociation, Article, WipArticle as WipArticleModel,
     ApprovalStatus, ExecutionStatus
 )
+from schemas.research_stream import (
+    ExecutionQueueItem,
+    ExecutionQueueResult,
+    ExecutionMetrics,
+    ExecutionDetail,
+    ApprovalResult,
+    ScheduledStreamSummary,
+    LastExecution,
+    StreamOption,
+    CategoryCount,
+    WipArticle,
+    ScheduleConfig,
+    ExecutionStatus as ExecutionStatusEnum,
+    RunType as RunTypeEnum,
+)
+from schemas.report import ReportArticle
 
 logger = logging.getLogger(__name__)
 
@@ -43,12 +59,8 @@ class OperationsService:
         stream_id: Optional[int] = None,
         limit: int = 50,
         offset: int = 0
-    ) -> Dict[str, Any]:
-        """
-        Get pipeline executions queue with optional filters.
-
-        Returns dict with: executions, total, streams
-        """
+    ) -> ExecutionQueueResult:
+        """Get pipeline executions queue with optional filters."""
         logger.info(
             f"get_execution_queue - user_id={user_id}, "
             f"execution_status={execution_status}, approval_status={approval_status}, stream_id={stream_id}"
@@ -87,7 +99,7 @@ class OperationsService:
         executions_db = query.order_by(desc(PipelineExecution.created_at)).offset(offset).limit(limit).all()
 
         # Build response
-        executions = []
+        executions: List[ExecutionQueueItem] = []
         for execution in executions_db:
             stream = self.db.query(ResearchStream).filter(
                 ResearchStream.stream_id == execution.stream_id
@@ -127,38 +139,34 @@ class OperationsService:
                         approver = self.db.query(User).filter(User.user_id == report.approved_by).first()
                         approved_by_email = approver.email if approver else None
 
-            executions.append({
-                "execution_id": execution.id,
-                "stream_id": execution.stream_id,
-                "stream_name": stream.stream_name if stream else "Unknown",
-                "execution_status": execution.status.value if execution.status else "pending",
-                "run_type": execution.run_type.value if execution.run_type else "manual",
-                "started_at": execution.started_at,
-                "completed_at": execution.completed_at,
-                "error": execution.error,
-                "created_at": execution.created_at,
-                "report_id": report_id,
-                "report_name": report_name,
-                "approval_status": report_approval_status,
-                "article_count": article_count,
-                "approved_by": approved_by_email,
-                "approved_at": approved_at,
-                "rejection_reason": rejection_reason,
-            })
+            executions.append(ExecutionQueueItem(
+                execution_id=execution.id,
+                stream_id=execution.stream_id,
+                stream_name=stream.stream_name if stream else "Unknown",
+                execution_status=execution.status if execution.status else ExecutionStatusEnum.PENDING,
+                run_type=execution.run_type if execution.run_type else RunTypeEnum.MANUAL,
+                started_at=execution.started_at,
+                completed_at=execution.completed_at,
+                error=execution.error,
+                created_at=execution.created_at,
+                report_id=report_id,
+                report_name=report_name,
+                approval_status=report_approval_status,
+                article_count=article_count,
+                approved_by=approved_by_email,
+                approved_at=approved_at,
+                rejection_reason=rejection_reason,
+            ))
 
         # Get streams for filter dropdown
         streams_query = self.db.query(ResearchStream.stream_id, ResearchStream.stream_name).distinct().all()
-        streams_list = [{"stream_id": s.stream_id, "stream_name": s.stream_name} for s in streams_query]
+        streams_list = [StreamOption(stream_id=s.stream_id, stream_name=s.stream_name) for s in streams_query]
 
         logger.info(f"get_execution_queue complete - user_id={user_id}, count={len(executions)}, total={total}")
-        return {"executions": executions, "total": total, "streams": streams_list}
+        return ExecutionQueueResult(executions=executions, total=total, streams=streams_list)
 
-    def get_execution_detail(self, execution_id: str, user_id: int) -> Dict[str, Any]:
-        """
-        Get full execution details for review.
-
-        Returns dict with execution info, report info, WIP articles, etc.
-        """
+    def get_execution_detail(self, execution_id: str, user_id: int) -> ExecutionDetail:
+        """Get full execution details for review."""
         logger.info(f"get_execution_detail - user_id={user_id}, execution_id={execution_id}")
 
         execution = self.db.query(PipelineExecution).filter(
@@ -177,27 +185,27 @@ class OperationsService:
         ).first()
 
         # Get WIP articles for this execution
-        wip_articles = self.db.query(WipArticle).filter(
-            WipArticle.pipeline_execution_id == execution.id
+        wip_articles_db = self.db.query(WipArticleModel).filter(
+            WipArticleModel.pipeline_execution_id == execution.id
         ).all()
 
-        wip_articles_list = []
-        for wip in wip_articles:
-            wip_articles_list.append({
-                "id": wip.id,
-                "title": wip.title,
-                "authors": wip.authors or [],
-                "journal": wip.journal,
-                "year": wip.year,
-                "pmid": wip.pmid,
-                "abstract": wip.abstract,
-                "is_duplicate": wip.is_duplicate or False,
-                "duplicate_of_id": wip.duplicate_of_id,
-                "passed_semantic_filter": wip.passed_semantic_filter,
-                "filter_rejection_reason": wip.filter_rejection_reason,
-                "included_in_report": wip.included_in_report or False,
-                "presentation_categories": wip.presentation_categories or [],
-            })
+        wip_articles_list: List[WipArticle] = []
+        for wip in wip_articles_db:
+            wip_articles_list.append(WipArticle(
+                id=wip.id,
+                title=wip.title,
+                authors=wip.authors or [],
+                journal=wip.journal,
+                year=wip.year,
+                pmid=wip.pmid,
+                abstract=wip.abstract,
+                is_duplicate=wip.is_duplicate or False,
+                duplicate_of_id=wip.duplicate_of_id,
+                passed_semantic_filter=wip.passed_semantic_filter,
+                filter_rejection_reason=wip.filter_rejection_reason,
+                included_in_report=wip.included_in_report or False,
+                presentation_categories=wip.presentation_categories or [],
+            ))
 
         # Initialize report-related fields
         report_id = None
@@ -205,8 +213,8 @@ class OperationsService:
         report_approval_status = None
         article_count = 0
         executive_summary = None
-        categories_list = []
-        articles_list = []
+        categories_list: List[CategoryCount] = []
+        articles_list: List[ReportArticle] = []
         approved_by_email = None
         approved_at = None
         rejection_reason = None
@@ -236,76 +244,76 @@ class OperationsService:
 
                 # Get metrics from report
                 if report.pipeline_metrics:
-                    metrics = {
-                        "articles_retrieved": report.pipeline_metrics.get("articles_retrieved"),
-                        "articles_after_dedup": report.pipeline_metrics.get("articles_after_dedup"),
-                        "articles_after_filter": report.pipeline_metrics.get("articles_after_filter"),
-                        "filter_config": report.pipeline_metrics.get("filter_config"),
-                    }
+                    metrics = ExecutionMetrics(
+                        articles_retrieved=report.pipeline_metrics.get("articles_retrieved"),
+                        articles_after_dedup=report.pipeline_metrics.get("articles_after_dedup"),
+                        articles_after_filter=report.pipeline_metrics.get("articles_after_filter"),
+                        filter_config=report.pipeline_metrics.get("filter_config"),
+                    )
 
                 # Get report articles
                 report_articles = self.db.query(ReportArticleAssociation).filter(
                     ReportArticleAssociation.report_id == report.report_id
                 ).all()
 
-                categories_dict: Dict[str, Dict[str, Any]] = {}
+                categories_dict: dict[str, CategoryCount] = {}
 
                 for ra in report_articles:
                     article = self.db.query(Article).filter(Article.article_id == ra.article_id).first()
                     if article:
                         presentation_categories = getattr(ra, 'presentation_categories', None) or []
 
-                        articles_list.append({
-                            "article_id": article.article_id,
-                            "title": article.title,
-                            "authors": article.authors or [],
-                            "journal": article.journal,
-                            "year": article.year,
-                            "pmid": article.pmid,
-                            "abstract": article.abstract,
-                            "relevance_score": ra.relevance_score,
-                            "presentation_categories": presentation_categories,
-                        })
+                        articles_list.append(ReportArticle(
+                            article_id=article.article_id,
+                            title=article.title,
+                            authors=article.authors or [],
+                            journal=article.journal,
+                            year=article.year,
+                            pmid=article.pmid,
+                            abstract=article.abstract,
+                            relevance_score=ra.relevance_score,
+                            presentation_categories=presentation_categories,
+                        ))
 
                         # Track categories
                         for cat_id in presentation_categories:
                             if cat_id not in categories_dict:
-                                categories_dict[cat_id] = {
-                                    "id": cat_id,
-                                    "name": cat_id.replace("_", " ").title(),
-                                    "article_count": 0
-                                }
-                            categories_dict[cat_id]["article_count"] += 1
+                                categories_dict[cat_id] = CategoryCount(
+                                    id=cat_id,
+                                    name=cat_id.replace("_", " ").title(),
+                                    article_count=0
+                                )
+                            categories_dict[cat_id].article_count += 1
 
                 categories_list = list(categories_dict.values())
                 article_count = len(articles_list)
 
         logger.info(f"get_execution_detail complete - user_id={user_id}, execution_id={execution_id}")
-        return {
-            "execution_id": execution.id,
-            "stream_id": execution.stream_id,
-            "stream_name": stream.stream_name if stream else "Unknown",
-            "execution_status": execution.status.value if execution.status else "pending",
-            "run_type": execution.run_type.value if execution.run_type else "manual",
-            "started_at": execution.started_at,
-            "completed_at": execution.completed_at,
-            "error": execution.error,
-            "created_at": execution.created_at,
-            "metrics": metrics,
-            "wip_articles": wip_articles_list,
-            "report_id": report_id,
-            "report_name": report_name,
-            "approval_status": report_approval_status,
-            "article_count": article_count,
-            "executive_summary": executive_summary,
-            "categories": categories_list,
-            "articles": articles_list,
-            "approved_by": approved_by_email,
-            "approved_at": approved_at,
-            "rejection_reason": rejection_reason,
-        }
+        return ExecutionDetail(
+            execution_id=execution.id,
+            stream_id=execution.stream_id,
+            stream_name=stream.stream_name if stream else "Unknown",
+            execution_status=execution.status if execution.status else ExecutionStatusEnum.PENDING,
+            run_type=execution.run_type if execution.run_type else RunTypeEnum.MANUAL,
+            started_at=execution.started_at,
+            completed_at=execution.completed_at,
+            error=execution.error,
+            created_at=execution.created_at,
+            metrics=metrics,
+            wip_articles=wip_articles_list,
+            report_id=report_id,
+            report_name=report_name,
+            approval_status=report_approval_status,
+            article_count=article_count,
+            executive_summary=executive_summary,
+            categories=categories_list,
+            articles=articles_list,
+            approved_by=approved_by_email,
+            approved_at=approved_at,
+            rejection_reason=rejection_reason,
+        )
 
-    def approve_report(self, report_id: int, user_id: int) -> Dict[str, Any]:
+    def approve_report(self, report_id: int, user_id: int) -> ApprovalResult:
         """Approve a report for distribution."""
         logger.info(f"approve_report - user_id={user_id}, report_id={report_id}")
 
@@ -325,9 +333,9 @@ class OperationsService:
         self.db.commit()
 
         logger.info(f"approve_report complete - user_id={user_id}, report_id={report_id}")
-        return {"status": "approved", "report_id": report_id}
+        return ApprovalResult(status="approved", report_id=report_id)
 
-    def reject_report(self, report_id: int, user_id: int, reason: str) -> Dict[str, Any]:
+    def reject_report(self, report_id: int, user_id: int, reason: str) -> ApprovalResult:
         """Reject a report with a reason."""
         logger.info(f"reject_report - user_id={user_id}, report_id={report_id}")
 
@@ -347,11 +355,11 @@ class OperationsService:
         self.db.commit()
 
         logger.info(f"reject_report complete - user_id={user_id}, report_id={report_id}")
-        return {"status": "rejected", "report_id": report_id, "reason": reason}
+        return ApprovalResult(status="rejected", report_id=report_id, reason=reason)
 
     # ==================== Scheduler Management ====================
 
-    def get_scheduled_streams(self, user_id: int) -> List[Dict[str, Any]]:
+    def get_scheduled_streams(self, user_id: int) -> List[ScheduledStreamSummary]:
         """Get all streams with scheduling configuration and their last execution status."""
         logger.info(f"get_scheduled_streams - user_id={user_id}")
 
@@ -360,18 +368,18 @@ class OperationsService:
             ResearchStream.schedule_config.isnot(None)
         ).all()
 
-        result = []
+        result: List[ScheduledStreamSummary] = []
         for stream in streams:
             # Parse schedule_config
             schedule_config_data = stream.schedule_config or {}
-            config_info = {
-                "enabled": schedule_config_data.get('enabled', False),
-                "frequency": schedule_config_data.get('frequency', 'weekly'),
-                "anchor_day": schedule_config_data.get('anchor_day'),
-                "preferred_time": schedule_config_data.get('preferred_time', '08:00'),
-                "timezone": schedule_config_data.get('timezone', 'UTC'),
-                "lookback_days": schedule_config_data.get('lookback_days')
-            }
+            config = ScheduleConfig(
+                enabled=schedule_config_data.get('enabled', False),
+                frequency=schedule_config_data.get('frequency', 'weekly'),
+                anchor_day=schedule_config_data.get('anchor_day'),
+                preferred_time=schedule_config_data.get('preferred_time', '08:00'),
+                timezone=schedule_config_data.get('timezone', 'UTC'),
+                lookback_days=schedule_config_data.get('lookback_days')
+            )
 
             # Get last execution
             last_exec = None
@@ -397,26 +405,26 @@ class OperationsService:
                             if not article_count:
                                 article_count = len(report.article_associations) if report.article_associations else 0
 
-                    last_exec = {
-                        "id": exec_db.id,
-                        "stream_id": exec_db.stream_id,
-                        "status": exec_db.status.value if exec_db.status else 'pending',
-                        "run_type": exec_db.run_type.value if exec_db.run_type else 'manual',
-                        "started_at": exec_db.started_at.isoformat() if exec_db.started_at else None,
-                        "completed_at": exec_db.completed_at.isoformat() if exec_db.completed_at else None,
-                        "error": exec_db.error,
-                        "report_id": exec_db.report_id,
-                        "report_approval_status": report_approval_status,
-                        "article_count": article_count
-                    }
+                    last_exec = LastExecution(
+                        id=exec_db.id,
+                        stream_id=exec_db.stream_id,
+                        status=exec_db.status if exec_db.status else ExecutionStatusEnum.PENDING,
+                        run_type=exec_db.run_type if exec_db.run_type else RunTypeEnum.MANUAL,
+                        started_at=exec_db.started_at,
+                        completed_at=exec_db.completed_at,
+                        error=exec_db.error,
+                        report_id=exec_db.report_id,
+                        report_approval_status=report_approval_status,
+                        article_count=article_count
+                    )
 
-            result.append({
-                "stream_id": stream.stream_id,
-                "stream_name": stream.stream_name,
-                "schedule_config": config_info,
-                "next_scheduled_run": stream.next_scheduled_run.isoformat() if stream.next_scheduled_run else None,
-                "last_execution": last_exec
-            })
+            result.append(ScheduledStreamSummary(
+                stream_id=stream.stream_id,
+                stream_name=stream.stream_name,
+                schedule_config=config,
+                next_scheduled_run=stream.next_scheduled_run,
+                last_execution=last_exec
+            ))
 
         logger.info(f"get_scheduled_streams complete - user_id={user_id}, count={len(result)}")
         return result
@@ -426,7 +434,7 @@ class OperationsService:
         stream_id: int,
         user_id: int,
         updates: dict
-    ) -> Dict[str, Any]:
+    ) -> ScheduledStreamSummary:
         """Update scheduling configuration for a stream."""
         logger.info(f"update_stream_schedule - user_id={user_id}, stream_id={stream_id}")
 
@@ -462,20 +470,20 @@ class OperationsService:
         self.db.refresh(stream)
 
         # Build response
-        config_info = {
-            "enabled": current_config.get('enabled', False),
-            "frequency": current_config.get('frequency', 'weekly'),
-            "anchor_day": current_config.get('anchor_day'),
-            "preferred_time": current_config.get('preferred_time', '08:00'),
-            "timezone": current_config.get('timezone', 'UTC'),
-            "lookback_days": current_config.get('lookback_days')
-        }
+        config = ScheduleConfig(
+            enabled=current_config.get('enabled', False),
+            frequency=current_config.get('frequency', 'weekly'),
+            anchor_day=current_config.get('anchor_day'),
+            preferred_time=current_config.get('preferred_time', '08:00'),
+            timezone=current_config.get('timezone', 'UTC'),
+            lookback_days=current_config.get('lookback_days')
+        )
 
         logger.info(f"update_stream_schedule complete - user_id={user_id}, stream_id={stream_id}")
-        return {
-            "stream_id": stream.stream_id,
-            "stream_name": stream.stream_name,
-            "schedule_config": config_info,
-            "next_scheduled_run": stream.next_scheduled_run.isoformat() if stream.next_scheduled_run else None,
-            "last_execution": None
-        }
+        return ScheduledStreamSummary(
+            stream_id=stream.stream_id,
+            stream_name=stream.stream_name,
+            schedule_config=config,
+            next_scheduled_run=stream.next_scheduled_run,
+            last_execution=None
+        )

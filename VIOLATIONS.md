@@ -4,117 +4,73 @@
 
 | Layer | Location | Contains |
 |-------|----------|----------|
-| **Backend Router** | `routers/` | Endpoint definitions, Pydantic request/response models, input validation |
+| **Backend Router** | `routers/` | Endpoints, **imports domain types from schemas/**, only NEW types for genuinely different API shapes |
 | **Backend Service** | `services/` | Business logic, DB queries, returns **typed domain objects from schemas/** |
-| **Backend Schemas** | `schemas/` | Domain/business Pydantic models (NOT API response shapes) |
-| **Frontend API** | `lib/api/` | API client functions, API-specific TypeScript types |
-| **Frontend Types** | `types/` | Domain TypeScript types (NOT API response shapes) |
+| **Backend Schemas** | `schemas/` | Domain/business Pydantic models |
+| **Frontend API** | `lib/api/` | API client functions, **imports domain types from types/**, only NEW types for genuinely different API shapes |
+| **Frontend Types** | `types/` | Domain TypeScript types |
 
 ---
 
-## Backend Router: `routers/operations.py`
+## Status: ALL FIXED
+
+All violations in the operations files have been resolved.
+
+### Backend Router: `routers/operations.py`
 
 | Rule | Status | Notes |
 |------|--------|-------|
-| Endpoint definitions | ✅ PASS | Has @router.get, @router.post, etc. |
-| Pydantic response models | ✅ PASS | 15 response models defined |
-| Input validation | ✅ PASS | Uses Pydantic request models |
-| Calls services (no business logic) | ✅ PASS | Delegates to OperationsService |
-| No direct DB queries | ✅ PASS | No db.query() calls |
+| Endpoint definitions | PASS | Has endpoints |
+| Imports domain types from schemas/ | PASS | Now imports from `schemas.research_stream` |
+| Only new types for different shapes | PASS | Only keeps request models (RejectReportRequest, UpdateScheduleRequest) |
+| No direct DB queries | PASS | No db.query() calls |
 
-**Router is CORRECT.**
-
----
-
-## Backend Service: `services/operations_service.py`
+### Backend Service: `services/operations_service.py`
 
 | Rule | Status | Notes |
 |------|--------|-------|
-| Contains business logic | ✅ PASS | All logic here |
-| Database queries | ✅ PASS | Uses SQLAlchemy |
-| Returns typed domain objects | ❌ **FAIL** | Returns `Dict[str, Any]` everywhere |
-| No API-specific types | ✅ PASS | No response models |
+| Contains business logic | PASS | All logic here |
+| Database queries | PASS | Uses SQLAlchemy |
+| Returns typed domain objects | PASS | Now returns typed objects from `schemas/` |
 
-### VIOLATIONS:
-
-**Every method returns `Dict[str, Any]` instead of typed domain objects:**
-
-```python
-# Line 46 - VIOLATION
-def get_execution_queue(...) -> Dict[str, Any]:
-
-# Line 156 - VIOLATION
-def get_execution_detail(...) -> Dict[str, Any]:
-
-# Line 308 - VIOLATION
-def approve_report(...) -> Dict[str, Any]:
-
-# Line 330 - VIOLATION
-def reject_report(...) -> Dict[str, Any]:
-
-# Line 354 - VIOLATION
-def get_scheduled_streams(...) -> List[Dict[str, Any]]:
-
-# Line 429 - VIOLATION
-def update_stream_schedule(...) -> Dict[str, Any]:
-```
-
-**Should return domain objects from `schemas/`** like:
-- `schemas.research_stream.PipelineExecution`
-- `schemas.report.Report`
-- `schemas.research_stream.ScheduleConfig`
-
----
-
-## Frontend API: `lib/api/operationsApi.ts`
+### Frontend API: `lib/api/operationsApi.ts`
 
 | Rule | Status | Notes |
 |------|--------|-------|
-| API client functions | ✅ PASS | Has all fetch functions |
-| API-specific response types | ✅ PASS | `ExecutionQueueResponse`, `ExecutionDetail` |
-| Domain types imported from `types/` | ❌ **FAIL** | Duplicates domain types |
-
-### VIOLATIONS:
-
-**Duplicates domain types that already exist in `types/`:**
-
-| Type in `operationsApi.ts` | Already exists in |
-|----------------------------|-------------------|
-| `ExecutionStatus` (line 9) | `types/research-stream.ts:22` |
-| `ApprovalStatus` (line 10) | `types/report.ts:3` |
-| `RunType` (line 11) | `types/research-stream.ts:25` |
-| `ScheduleConfig` (line 112) | `types/research-stream.ts:47` |
-| `ReportArticle` (line 44) | `types/report.ts:10` (DIFFERENT SHAPE!) |
-
-**Should import from `types/` and only define API-specific response shapes.**
+| API client functions | PASS | Has all fetch functions |
+| Imports domain types from types/ | PASS | Now imports from `types/research-stream` and `types/report` |
+| Only new types for different shapes | PASS | Only keeps response wrappers (ExecutionQueueItem, ExecutionDetail, etc.) |
 
 ---
 
-## Summary
+## Summary of Fixes Applied
 
-| File | Violations |
-|------|------------|
-| `routers/operations.py` | 0 |
-| `services/operations_service.py` | **6** (all methods return dicts) |
-| `lib/api/operationsApi.ts` | **5** (duplicated domain types) |
+### 1. Backend Service (`services/operations_service.py`)
+- Changed all methods to return typed domain objects
+- Imports: `ExecutionQueueItem`, `ExecutionQueueResult`, `ExecutionDetail`, `ApprovalResult`, `ScheduledStreamSummary`, etc. from `schemas.research_stream`
+- Returns proper typed objects instead of `Dict[str, Any]`
 
----
+### 2. Backend Router (`routers/operations.py`)
+- Removed duplicate "Response" types
+- Now imports domain types from `schemas.research_stream`:
+  - `ExecutionQueueResult`
+  - `ExecutionDetail`
+  - `ApprovalResult`
+  - `ScheduledStreamSummary`
+- Only keeps API-specific request models
 
-## Fixes Required
+### 3. Frontend Types (`types/research-stream.ts`)
+- Added missing domain types:
+  - `WipArticle`
+  - `ExecutionMetrics`
+  - `StreamOption`
+  - `CategoryCount`
+  - `LastExecution`
 
-### 1. Backend Service (HIGH PRIORITY)
-Create or use domain objects in `schemas/` and return them instead of dicts:
-- Need: `ExecutionQueueResult`, `ExecutionDetail`, `ApprovalResult`, `ScheduledStreamInfo`
-- These are domain concepts, not API shapes
-
-### 2. Frontend API (MEDIUM PRIORITY)
-Import domain types from `types/`:
-```typescript
-import { ExecutionStatus, RunType, ScheduleConfig, PipelineExecution } from '../../types/research-stream';
-import { ApprovalStatus, ReportArticle } from '../../types/report';
-```
-
-Keep only API-specific response shapes in `operationsApi.ts`:
-- `ExecutionQueueResponse`
-- `ExecutionDetail` (extends domain types)
-- `ScheduledStream` (API response wrapper)
+### 4. Frontend API (`lib/api/operationsApi.ts`)
+- Removed duplicate type definitions
+- Now imports from `types/research-stream`:
+  - `ExecutionStatus`, `RunType`, `ScheduleConfig`, `StreamOption`, `CategoryCount`, `ExecutionMetrics`, `WipArticle`, `LastExecution`
+- Now imports from `types/report`:
+  - `ApprovalStatus`, `ReportArticle`
+- Only keeps API-specific response wrappers

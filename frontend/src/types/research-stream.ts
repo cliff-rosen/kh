@@ -41,6 +41,69 @@ export interface PipelineExecution {
 }
 
 /**
+ * Work-in-progress article during pipeline execution.
+ * Represents an article before it's finalized into a report.
+ */
+export interface WipArticle {
+    id: number;
+    title: string;
+    authors: string[];
+    journal: string | null;
+    year: string | null;
+    pmid: string | null;
+    abstract: string | null;
+    is_duplicate: boolean;
+    duplicate_of_id: number | null;
+    passed_semantic_filter: boolean | null;
+    filter_rejection_reason: string | null;
+    included_in_report: boolean;
+    presentation_categories: string[];
+}
+
+/**
+ * Metrics from a pipeline execution run.
+ */
+export interface ExecutionMetrics {
+    articles_retrieved: number | null;
+    articles_after_dedup: number | null;
+    articles_after_filter: number | null;
+    filter_config: string | null;
+}
+
+/**
+ * Simplified stream option for dropdowns/filters.
+ */
+export interface StreamOption {
+    stream_id: number;
+    stream_name: string;
+}
+
+/**
+ * Category summary with article count (for report views).
+ */
+export interface CategoryCount {
+    id: string;
+    name: string;
+    article_count: number;
+}
+
+/**
+ * Last execution summary for scheduler views.
+ */
+export interface LastExecution {
+    id: string;
+    stream_id: number;
+    status: ExecutionStatus;
+    run_type: RunType;
+    started_at: string | null;
+    completed_at: string | null;
+    error: string | null;
+    report_id: number | null;
+    report_approval_status: string | null;
+    article_count: number | null;
+}
+
+/**
  * Complete scheduling configuration for a research stream.
  * This is the single source of truth for all scheduling settings.
  */

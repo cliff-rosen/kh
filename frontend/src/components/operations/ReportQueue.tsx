@@ -21,10 +21,9 @@ import {
 import {
     getExecutionQueue,
     type ExecutionQueueItem,
-    type StreamOption,
-    type ExecutionStatus,
-    type ApprovalStatus,
 } from '../../lib/api/operationsApi';
+import type { ExecutionStatus, StreamOption } from '../../types/research-stream';
+import type { ApprovalStatus } from '../../types/report';
 
 export default function ReportQueue() {
     const [searchParams, setSearchParams] = useSearchParams();
