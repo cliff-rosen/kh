@@ -17,9 +17,9 @@ from services.operations_service import OperationsService
 
 # Import domain types from schemas
 from schemas.research_stream import (
-    ExecutionQueueResult,
+    ExecutionQueueItem,
+    StreamOption,
     ExecutionDetail,
-    ApprovalResult,
     ScheduledStreamSummary,
 )
 
@@ -35,11 +35,25 @@ def get_current_user(
     return current_user
 
 
-# ==================== Request Models (API-specific) ====================
+# ==================== API-Specific Models (request/response wrappers) ====================
 
 class RejectReportRequest(BaseModel):
     """Request to reject a report."""
     reason: str = Field(..., min_length=1, description="Reason for rejection")
+
+
+class ExecutionQueueResponse(BaseModel):
+    """Response wrapper for execution queue with pagination info."""
+    executions: List[ExecutionQueueItem]
+    total: int
+    streams: List[StreamOption]
+
+
+class ApprovalResponse(BaseModel):
+    """Response for approve/reject operations."""
+    status: str
+    report_id: int
+    reason: Optional[str] = None
 
 
 class UpdateScheduleRequest(BaseModel):
@@ -56,7 +70,7 @@ class UpdateScheduleRequest(BaseModel):
 
 @router.get(
     "/executions",
-    response_model=ExecutionQueueResult,
+    response_model=ExecutionQueueResponse,
     summary="Get pipeline execution queue"
 )
 async def get_execution_queue(
@@ -81,7 +95,7 @@ async def get_execution_queue(
 
     try:
         service = OperationsService(db)
-        result = service.get_execution_queue(
+        executions, total, streams = service.get_execution_queue(
             user_id=current_user.user_id,
             execution_status=execution_status,
             approval_status=approval_status,
@@ -90,8 +104,8 @@ async def get_execution_queue(
             offset=offset
         )
 
-        logger.info(f"get_execution_queue complete - user_id={current_user.user_id}, count={len(result.executions)}")
-        return result
+        logger.info(f"get_execution_queue complete - user_id={current_user.user_id}, count={len(executions)}")
+        return ExecutionQueueResponse(executions=executions, total=total, streams=streams)
 
     except HTTPException:
         raise
@@ -135,7 +149,7 @@ async def get_execution_detail(
 
 @router.post(
     "/reports/{report_id}/approve",
-    response_model=ApprovalResult,
+    response_model=ApprovalResponse,
     summary="Approve a report"
 )
 async def approve_report(
@@ -151,7 +165,7 @@ async def approve_report(
         result = service.approve_report(report_id, current_user.user_id)
 
         logger.info(f"approve_report complete - user_id={current_user.user_id}, report_id={report_id}")
-        return result
+        return ApprovalResponse(**result)
 
     except HTTPException:
         raise
@@ -165,7 +179,7 @@ async def approve_report(
 
 @router.post(
     "/reports/{report_id}/reject",
-    response_model=ApprovalResult,
+    response_model=ApprovalResponse,
     summary="Reject a report"
 )
 async def reject_report(
@@ -182,7 +196,7 @@ async def reject_report(
         result = service.reject_report(report_id, current_user.user_id, request.reason)
 
         logger.info(f"reject_report complete - user_id={current_user.user_id}, report_id={report_id}")
-        return result
+        return ApprovalResponse(**result)
 
     except HTTPException:
         raise

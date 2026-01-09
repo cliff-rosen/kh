@@ -495,13 +495,6 @@ class StreamOption(BaseModel):
     stream_name: str
 
 
-class ExecutionQueueResult(BaseModel):
-    """Result of execution queue query"""
-    executions: List[ExecutionQueueItem]
-    total: int
-    streams: List[StreamOption]
-
-
 class CategoryCount(BaseModel):
     """Category with article count"""
     id: str
@@ -540,13 +533,6 @@ class ExecutionDetail(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-class ApprovalResult(BaseModel):
-    """Result of approve/reject operation"""
-    status: str
-    report_id: int
-    reason: Optional[str] = None
 
 
 class LastExecution(BaseModel):

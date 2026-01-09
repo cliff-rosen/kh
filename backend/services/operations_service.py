@@ -21,10 +21,8 @@ from models import (
 )
 from schemas.research_stream import (
     ExecutionQueueItem,
-    ExecutionQueueResult,
     ExecutionMetrics,
     ExecutionDetail,
-    ApprovalResult,
     ScheduledStreamSummary,
     LastExecution,
     StreamOption,
@@ -34,6 +32,7 @@ from schemas.research_stream import (
     ExecutionStatus as ExecutionStatusEnum,
     RunType as RunTypeEnum,
 )
+from typing import Tuple, Dict, Any
 from schemas.report import ReportArticle
 
 logger = logging.getLogger(__name__)
@@ -59,7 +58,7 @@ class OperationsService:
         stream_id: Optional[int] = None,
         limit: int = 50,
         offset: int = 0
-    ) -> ExecutionQueueResult:
+    ) -> Tuple[List[ExecutionQueueItem], int, List[StreamOption]]:
         """Get pipeline executions queue with optional filters."""
         logger.info(
             f"get_execution_queue - user_id={user_id}, "
@@ -163,7 +162,7 @@ class OperationsService:
         streams_list = [StreamOption(stream_id=s.stream_id, stream_name=s.stream_name) for s in streams_query]
 
         logger.info(f"get_execution_queue complete - user_id={user_id}, count={len(executions)}, total={total}")
-        return ExecutionQueueResult(executions=executions, total=total, streams=streams_list)
+        return (executions, total, streams_list)
 
     def get_execution_detail(self, execution_id: str, user_id: int) -> ExecutionDetail:
         """Get full execution details for review."""
@@ -313,7 +312,7 @@ class OperationsService:
             rejection_reason=rejection_reason,
         )
 
-    def approve_report(self, report_id: int, user_id: int) -> ApprovalResult:
+    def approve_report(self, report_id: int, user_id: int) -> Dict[str, Any]:
         """Approve a report for distribution."""
         logger.info(f"approve_report - user_id={user_id}, report_id={report_id}")
 
@@ -333,9 +332,9 @@ class OperationsService:
         self.db.commit()
 
         logger.info(f"approve_report complete - user_id={user_id}, report_id={report_id}")
-        return ApprovalResult(status="approved", report_id=report_id)
+        return {"status": "approved", "report_id": report_id}
 
-    def reject_report(self, report_id: int, user_id: int, reason: str) -> ApprovalResult:
+    def reject_report(self, report_id: int, user_id: int, reason: str) -> Dict[str, Any]:
         """Reject a report with a reason."""
         logger.info(f"reject_report - user_id={user_id}, report_id={report_id}")
 
@@ -355,7 +354,7 @@ class OperationsService:
         self.db.commit()
 
         logger.info(f"reject_report complete - user_id={user_id}, report_id={report_id}")
-        return ApprovalResult(status="rejected", report_id=report_id, reason=reason)
+        return {"status": "rejected", "report_id": report_id, "reason": reason}
 
     # ==================== Scheduler Management ====================
 
