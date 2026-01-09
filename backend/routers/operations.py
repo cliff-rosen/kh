@@ -5,21 +5,19 @@ For platform operations, not platform admin.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import StreamingResponse
+from sse_starlette.sse import EventSourceResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
-from typing import List, Optional, AsyncGenerator
+from typing import List, Optional
 import logging
 import httpx
-import os
+import json
 
 from database import get_db
 from models import User
 from services import auth_service
 from services.operations_service import OperationsService
-
-# Worker URL - can be configured via environment variable
-WORKER_URL = os.getenv("WORKER_URL", "http://localhost:8001")
+from config.settings import settings
 
 # Import domain types from schemas
 from schemas.research_stream import (
@@ -330,7 +328,7 @@ async def trigger_run(
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{WORKER_URL}/worker/runs",
+                f"{settings.WORKER_URL}/worker/runs",
                 json={
                     "stream_id": request.stream_id,
                     "run_type": request.run_type,
@@ -380,7 +378,7 @@ async def get_run_status(
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{WORKER_URL}/worker/runs/{execution_id}",
+                f"{settings.WORKER_URL}/worker/runs/{execution_id}",
                 timeout=10.0
             )
 
@@ -410,12 +408,13 @@ async def get_run_status(
 
 @router.get(
     "/runs/{execution_id}/stream",
+    response_class=EventSourceResponse,
     summary="Stream run status updates"
 )
 async def stream_run_status(
     execution_id: str,
     current_user: User = Depends(get_current_user),
-):
+) -> EventSourceResponse:
     """
     Stream status updates for a running execution via SSE.
 
@@ -423,41 +422,45 @@ async def stream_run_status(
     """
     logger.info(f"stream_run_status - user_id={current_user.user_id}, execution_id={execution_id}")
 
-    async def proxy_stream() -> AsyncGenerator[str, None]:
+    async def event_generator():
         try:
             async with httpx.AsyncClient() as client:
                 async with client.stream(
                     "GET",
-                    f"{WORKER_URL}/worker/runs/{execution_id}/stream",
-                    timeout=httpx.Timeout(connect=10.0, read=60.0, write=10.0, pool=10.0)
+                    f"{settings.WORKER_URL}/worker/runs/{execution_id}/stream",
+                    timeout=httpx.Timeout(connect=10.0, read=300.0, write=10.0, pool=10.0)
                 ) as response:
                     if response.status_code != 200:
-                        error_body = await response.aread()
                         logger.error(f"stream_run_status worker error - status={response.status_code}")
-                        yield f"data: {{\"error\": \"Worker returned {response.status_code}\"}}\n\n"
+                        yield {
+                            "event": "message",
+                            "data": json.dumps({"error": f"Worker returned {response.status_code}"})
+                        }
                         return
 
                     async for line in response.aiter_lines():
-                        if line:
-                            yield f"{line}\n"
-                        else:
-                            yield "\n"
+                        # Parse SSE format from worker: "data: {...}"
+                        if line.startswith("data: "):
+                            data = line[6:]  # Strip "data: " prefix
+                            yield {
+                                "event": "message",
+                                "data": data
+                            }
 
         except httpx.RequestError as e:
             logger.error(f"stream_run_status connection error - {e}")
-            yield f"data: {{\"error\": \"Worker connection failed\"}}\n\n"
+            yield {
+                "event": "message",
+                "data": json.dumps({"error": "Worker connection failed"})
+            }
         except Exception as e:
             logger.error(f"stream_run_status unexpected error - {e}", exc_info=True)
-            yield f"data: {{\"error\": \"Stream error\"}}\n\n"
+            yield {
+                "event": "message",
+                "data": json.dumps({"error": "Stream error"})
+            }
 
-    return StreamingResponse(
-        proxy_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        }
-    )
+    return EventSourceResponse(event_generator(), ping=1)
 
 
 @router.delete(
@@ -478,7 +481,7 @@ async def cancel_run(
     try:
         async with httpx.AsyncClient() as client:
             response = await client.delete(
-                f"{WORKER_URL}/worker/runs/{execution_id}",
+                f"{settings.WORKER_URL}/worker/runs/{execution_id}",
                 timeout=10.0
             )
 

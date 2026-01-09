@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     # Smart Search Filtering Limits
     MAX_ARTICLES_TO_FILTER: int = int(os.getenv("MAX_ARTICLES_TO_FILTER", "500"))
 
+    # Worker Service URL (for pipeline execution)
+    WORKER_URL: str = os.getenv("WORKER_URL", "http://localhost:8001")
+
     # Email/SMTP settings
     SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.gmail.com")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
