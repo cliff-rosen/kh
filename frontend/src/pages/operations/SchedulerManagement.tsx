@@ -396,14 +396,14 @@ function LastExecutionCell({ execution }: { execution: PipelineExecution | null 
 
 function ApprovalBadge({ status }: { status: ApprovalStatus }) {
     const config = {
-        pending: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-300' },
-        approved: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300' },
-        rejected: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-300' },
+        awaiting_approval: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-300', label: 'Awaiting Approval' },
+        approved: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300', label: 'Approved' },
+        rejected: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-300', label: 'Rejected' },
     };
-    const { bg, text } = config[status];
+    const { bg, text, label } = config[status];
     return (
         <span className={`px-1.5 py-0.5 text-xs rounded ${bg} ${text}`}>
-            {status}
+            {label}
         </span>
     );
 }
