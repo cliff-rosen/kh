@@ -69,19 +69,7 @@ export function getAuthToken(): string | null {
 let isRedirectingToLogin = false;
 
 api.interceptors.request.use((config) => {
-  // Each standalone app has its own token
-  const isPubMed = window.location.pathname.startsWith('/pubmed');
-  const isTrialScout = window.location.pathname.startsWith('/trialscout');
-
-  let token: string | null = null;
-  if (isPubMed) {
-    token = localStorage.getItem('pubmed_token');
-  } else if (isTrialScout) {
-    token = localStorage.getItem('trialscout_token');
-  } else {
-    token = localStorage.getItem('authToken');
-  }
-
+  const token = getAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
