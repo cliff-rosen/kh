@@ -5,79 +5,22 @@
 import { api } from './index';
 
 // Import domain types from types/
-import {
+import type {
     ExecutionStatus,
-    RunType,
-    ScheduleConfig,
     StreamOption,
-    CategoryCount,
-    ExecutionMetrics,
-    WipArticle,
-    LastExecution,
+    ExecutionQueueItem,
+    ExecutionDetail,
+    ScheduledStream,
 } from '../../types/research-stream';
-import { ApprovalStatus, ReportArticle } from '../../types/report';
+import type { ApprovalStatus } from '../../types/report';
 
 
-// === API-Specific Types (response shapes that combine domain objects) ===
-
-export interface ExecutionQueueItem {
-    execution_id: string;
-    stream_id: number;
-    stream_name: string;
-    execution_status: ExecutionStatus;
-    run_type: RunType;
-    started_at: string | null;
-    completed_at: string | null;
-    error: string | null;
-    created_at: string;
-    // Report info (only for completed executions)
-    report_id: number | null;
-    report_name: string | null;
-    approval_status: ApprovalStatus | null;
-    article_count: number | null;
-    approved_by: string | null;
-    approved_at: string | null;
-    rejection_reason: string | null;
-}
+// === API-Specific Types (response wrappers and request shapes) ===
 
 export interface ExecutionQueueResponse {
     executions: ExecutionQueueItem[];
     total: number;
     streams: StreamOption[];
-}
-
-export interface ExecutionDetail {
-    // Execution info
-    execution_id: string;
-    stream_id: number;
-    stream_name: string;
-    execution_status: ExecutionStatus;
-    run_type: RunType;
-    started_at: string | null;
-    completed_at: string | null;
-    error: string | null;
-    created_at: string;
-    metrics: ExecutionMetrics | null;
-    wip_articles: WipArticle[];
-    // Report info (only for completed executions)
-    report_id: number | null;
-    report_name: string | null;
-    approval_status: ApprovalStatus | null;
-    article_count: number;
-    executive_summary: string | null;
-    categories: CategoryCount[];
-    articles: ReportArticle[];
-    approved_by: string | null;
-    approved_at: string | null;
-    rejection_reason: string | null;
-}
-
-export interface ScheduledStream {
-    stream_id: number;
-    stream_name: string;
-    schedule_config: ScheduleConfig;
-    next_scheduled_run: string | null;
-    last_execution: LastExecution | null;
 }
 
 export interface UpdateScheduleRequest {
@@ -88,7 +31,6 @@ export interface UpdateScheduleRequest {
     timezone?: string;
     lookback_days?: number;
 }
-
 
 
 // === Execution Queue API ===

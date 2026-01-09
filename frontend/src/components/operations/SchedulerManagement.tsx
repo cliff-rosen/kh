@@ -21,10 +21,9 @@ import {
 import {
     getScheduledStreams,
     updateStreamSchedule,
-    type ScheduledStream,
     type UpdateScheduleRequest,
 } from '../../lib/api/operationsApi';
-import type { ScheduleConfig, LastExecution } from '../../types/research-stream';
+import type { ScheduleConfig, LastExecution, ScheduledStream } from '../../types/research-stream';
 import type { ApprovalStatus } from '../../types/report';
 
 type Frequency = 'daily' | 'weekly' | 'biweekly' | 'monthly';

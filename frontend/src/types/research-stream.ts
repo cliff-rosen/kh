@@ -1,6 +1,7 @@
 // Research Stream domain types - Channel-based structure
 
 import { SemanticSpace } from './semantic-space';
+import type { ReportArticle } from './report';
 
 export enum StreamType {
     COMPETITIVE = 'competitive',
@@ -101,6 +102,68 @@ export interface LastExecution {
     report_id: number | null;
     report_approval_status: string | null;
     article_count: number | null;
+}
+
+/**
+ * Execution queue item - pipeline execution with associated report info.
+ */
+export interface ExecutionQueueItem {
+    execution_id: string;
+    stream_id: number;
+    stream_name: string;
+    execution_status: ExecutionStatus;
+    run_type: RunType;
+    started_at: string | null;
+    completed_at: string | null;
+    error: string | null;
+    created_at: string;
+    // Report info (only for completed executions)
+    report_id: number | null;
+    report_name: string | null;
+    approval_status: string | null;
+    article_count: number | null;
+    approved_by: string | null;
+    approved_at: string | null;
+    rejection_reason: string | null;
+}
+
+/**
+ * Full execution details for review.
+ */
+export interface ExecutionDetail {
+    execution_id: string;
+    stream_id: number;
+    stream_name: string;
+    execution_status: ExecutionStatus;
+    run_type: RunType;
+    started_at: string | null;
+    completed_at: string | null;
+    error: string | null;
+    created_at: string;
+    metrics: ExecutionMetrics | null;
+    wip_articles: WipArticle[];
+    // Report info (only for completed executions)
+    report_id: number | null;
+    report_name: string | null;
+    approval_status: string | null;
+    article_count: number;
+    executive_summary: string | null;
+    categories: CategoryCount[];
+    articles: ReportArticle[];
+    approved_by: string | null;
+    approved_at: string | null;
+    rejection_reason: string | null;
+}
+
+/**
+ * Scheduled stream with configuration and last execution.
+ */
+export interface ScheduledStream {
+    stream_id: number;
+    stream_name: string;
+    schedule_config: ScheduleConfig;
+    next_scheduled_run: string | null;
+    last_execution: LastExecution | null;
 }
 
 /**

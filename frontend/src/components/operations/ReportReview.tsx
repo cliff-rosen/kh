@@ -32,9 +32,8 @@ import {
     getExecutionDetail,
     approveReport,
     rejectReport,
-    type ExecutionDetail,
 } from '../../lib/api/operationsApi';
-import type { ExecutionStatus, WipArticle, CategoryCount } from '../../types/research-stream';
+import type { ExecutionStatus, WipArticle, CategoryCount, ExecutionDetail } from '../../types/research-stream';
 import type { ApprovalStatus, ReportArticle } from '../../types/report';
 
 type PipelineTab = 'included' | 'duplicates' | 'filtered_out';

@@ -18,11 +18,8 @@ import {
     ChevronRightIcon,
     ArrowPathIcon,
 } from '@heroicons/react/24/outline';
-import {
-    getExecutionQueue,
-    type ExecutionQueueItem,
-} from '../../lib/api/operationsApi';
-import type { ExecutionStatus, StreamOption } from '../../types/research-stream';
+import { getExecutionQueue } from '../../lib/api/operationsApi';
+import type { ExecutionStatus, StreamOption, ExecutionQueueItem } from '../../types/research-stream';
 import type { ApprovalStatus } from '../../types/report';
 
 export default function ReportQueue() {
