@@ -9,16 +9,20 @@ External control interface for the worker:
 """
 
 import logging
+import asyncio
+import json
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, AsyncGenerator
 from datetime import datetime
 import uuid
 
 from database import get_db
 from models import PipelineExecution, ResearchStream, ExecutionStatus, RunType
+from worker.status_broker import broker
 
 logger = logging.getLogger('worker.api')
 
@@ -228,6 +232,105 @@ async def get_run_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get run status"
         )
+
+
+@router.get("/runs/{execution_id}/stream")
+async def stream_run_status(
+    execution_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Stream status updates for a running execution via SSE.
+
+    Connect to this endpoint to receive real-time status updates.
+    The stream ends when the job completes or fails.
+    """
+    logger.info(f"stream_run_status called - execution_id={execution_id}")
+
+    # Verify execution exists
+    try:
+        execution = db.query(PipelineExecution).filter(
+            PipelineExecution.id == execution_id
+        ).first()
+
+        if not execution:
+            logger.warning(f"stream_run_status - execution {execution_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Execution {execution_id} not found"
+            )
+
+        # If already completed, return immediately with final status
+        if execution.status in [ExecutionStatus.COMPLETED, ExecutionStatus.FAILED]:
+            logger.info(f"stream_run_status - execution {execution_id} already {execution.status.value}")
+
+            async def completed_stream() -> AsyncGenerator[str, None]:
+                data = {
+                    "execution_id": execution_id,
+                    "stage": execution.status.value,
+                    "message": execution.error if execution.error else "Completed",
+                    "timestamp": execution.completed_at.isoformat() if execution.completed_at else None
+                }
+                yield f"data: {json.dumps(data)}\n\n"
+
+            return StreamingResponse(
+                completed_stream(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                }
+            )
+
+    except HTTPException:
+        raise
+    except SQLAlchemyError as e:
+        logger.error(f"stream_run_status database error - execution_id={execution_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error"
+        )
+
+    # Subscribe to status updates
+    async def event_stream() -> AsyncGenerator[str, None]:
+        queue = await broker.subscribe(execution_id)
+        try:
+            logger.debug(f"Client subscribed to execution {execution_id}")
+            while True:
+                try:
+                    # Wait for status update with timeout
+                    update = await asyncio.wait_for(queue.get(), timeout=30.0)
+
+                    if update is None:
+                        # Sentinel value - stream complete
+                        logger.debug(f"Stream complete for execution {execution_id}")
+                        break
+
+                    data = update.to_dict()
+                    yield f"data: {json.dumps(data)}\n\n"
+
+                    # If this was a completion message, we're done
+                    if update.stage in ["completed", "failed"]:
+                        break
+
+                except asyncio.TimeoutError:
+                    # Send keepalive
+                    yield f": keepalive\n\n"
+
+        except asyncio.CancelledError:
+            logger.debug(f"Stream cancelled for execution {execution_id}")
+        finally:
+            await broker.unsubscribe(execution_id, queue)
+            logger.debug(f"Client unsubscribed from execution {execution_id}")
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
+    )
 
 
 @router.delete("/runs/{execution_id}")

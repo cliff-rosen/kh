@@ -14,6 +14,7 @@ import uuid
 
 from models import ResearchStream, PipelineExecution, ExecutionStatus, RunType
 from services.pipeline_service import PipelineService
+from worker.status_broker import broker
 
 logger = logging.getLogger('worker.dispatcher')
 
@@ -49,6 +50,9 @@ class JobDispatcher:
             if not stream:
                 raise ValueError(f"Stream {execution.stream_id} not found")
 
+            # Publish starting status
+            await broker.publish(execution_id, "starting", f"Starting pipeline for stream {execution.stream_id}")
+
             # Run pipeline and consume status updates
             async for status in self.pipeline_service.run_pipeline(
                 research_stream_id=execution.stream_id,
@@ -56,7 +60,7 @@ class JobDispatcher:
                 run_type=execution.run_type
             ):
                 logger.debug(f"[{execution_id}] {status.stage}: {status.message}")
-                # Could emit these status updates somewhere (websocket, etc.)
+                await broker.publish(execution_id, status.stage, status.message)
 
             # Mark as completed
             execution.status = ExecutionStatus.COMPLETED
@@ -64,6 +68,7 @@ class JobDispatcher:
             self.db.commit()
 
             logger.info(f"Execution {execution_id} completed successfully")
+            await broker.publish_complete(execution_id, success=True)
 
         except Exception as e:
             logger.error(f"Execution {execution_id} failed: {e}", exc_info=True)
@@ -71,6 +76,7 @@ class JobDispatcher:
             execution.completed_at = datetime.utcnow()
             execution.error = str(e)
             self.db.commit()
+            await broker.publish_complete(execution_id, success=False, error=str(e))
 
     async def execute_scheduled(self, stream: ResearchStream) -> str:
         """
@@ -94,6 +100,9 @@ class JobDispatcher:
         self.db.commit()
 
         try:
+            # Publish starting status
+            await broker.publish(execution_id, "starting", f"Starting scheduled pipeline for stream {stream.stream_id}")
+
             # Run pipeline and consume status updates
             async for status in self.pipeline_service.run_pipeline(
                 research_stream_id=stream.stream_id,
@@ -101,6 +110,7 @@ class JobDispatcher:
                 run_type=RunType.SCHEDULED
             ):
                 logger.debug(f"[{execution_id}] {status.stage}: {status.message}")
+                await broker.publish(execution_id, status.stage, status.message)
 
             # Mark as completed
             execution.status = ExecutionStatus.COMPLETED
@@ -111,6 +121,7 @@ class JobDispatcher:
 
             self.db.commit()
             logger.info(f"Scheduled execution {execution_id} completed successfully")
+            await broker.publish_complete(execution_id, success=True)
 
         except Exception as e:
             logger.error(f"Scheduled execution {execution_id} failed: {e}", exc_info=True)
@@ -122,6 +133,7 @@ class JobDispatcher:
             self._update_next_scheduled_run(stream)
 
             self.db.commit()
+            await broker.publish_complete(execution_id, success=False, error=str(e))
 
         return execution_id
 

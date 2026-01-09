@@ -35,8 +35,6 @@ class JobDiscovery:
                 PipelineExecution.status == ExecutionStatus.PENDING
             ).all()
 
-            if pending:
-                logger.debug(f"Found {len(pending)} pending executions")
             return pending
 
         except SQLAlchemyError as e:
@@ -76,8 +74,6 @@ class JobDiscovery:
                     logger.warning(f"Error checking schedule_config for stream {s.stream_id}: {e}")
                     continue
 
-            if enabled_streams:
-                logger.debug(f"Found {len(enabled_streams)} scheduled streams due to run")
             return enabled_streams
 
         except SQLAlchemyError as e:
@@ -97,8 +93,6 @@ class JobDiscovery:
                 'scheduled_streams': [...]
             }
         """
-        logger.debug("Scanning for ready jobs...")
-
         result = {
             'pending_executions': [],
             'scheduled_streams': []
@@ -106,12 +100,14 @@ class JobDiscovery:
 
         try:
             result['pending_executions'] = self.find_pending_executions()
+            logger.debug(f"Found {len(result['pending_executions'])} pending executions")
         except Exception as e:
             logger.error(f"Failed to find pending executions: {e}")
             # Continue to check scheduled streams even if pending check fails
 
         try:
             result['scheduled_streams'] = self.find_scheduled_streams()
+            logger.debug(f"Found {len(result['scheduled_streams'])} scheduled streams due")
         except Exception as e:
             logger.error(f"Failed to find scheduled streams: {e}")
 

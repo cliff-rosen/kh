@@ -131,6 +131,8 @@ async def scheduler_loop():
 
 async def process_ready_jobs():
     """Check for and dispatch ready jobs"""
+    logger.info("Polling for ready jobs...")
+
     db = SessionLocal()
     try:
         discovery = JobDiscovery(db)
@@ -144,14 +146,22 @@ async def process_ready_jobs():
         for key in completed:
             task = worker_state.active_jobs.pop(key)
             # Log any exceptions from completed tasks
-            if task.exception():
-                logger.error(f"Job {key} failed with exception: {task.exception()}")
+            try:
+                exc = task.exception()
+                if exc:
+                    logger.error(f"Job {key} failed with exception: {exc}")
+                else:
+                    logger.info(f"Job {key} finished and cleaned up")
+            except asyncio.CancelledError:
+                logger.info(f"Job {key} was cancelled")
 
         active_count = len(worker_state.active_jobs)
 
-        # Log status periodically (only if there's something to report)
-        if pending_count > 0 or scheduled_count > 0 or active_count > 0:
-            logger.info(f"Jobs: {active_count} active, {pending_count} pending, {scheduled_count} scheduled due")
+        # Always log what we found
+        if pending_count == 0 and scheduled_count == 0 and active_count == 0:
+            logger.info("No jobs found, nothing running")
+        else:
+            logger.info(f"Status: {active_count} active, {pending_count} pending, {scheduled_count} scheduled due")
 
         # Process pending executions (manual triggers)
         for execution in ready_jobs['pending_executions']:

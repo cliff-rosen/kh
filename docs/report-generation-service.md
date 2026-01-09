@@ -63,12 +63,31 @@ All business logic lives in `pipeline_service`. The worker just invokes it.
 | Endpoint | Purpose |
 |----------|---------|
 | `POST /runs` | Trigger a run for a stream |
+| `GET /runs` | List recent executions |
 | `GET /runs/{id}` | Get status of a run |
+| `GET /runs/{id}/stream` | SSE stream of real-time status updates |
 | `DELETE /runs/{id}` | Cancel a running job |
 | `GET /health` | Health check |
 
+**Status Streaming:**
+
+Clients can subscribe to real-time status updates via SSE:
+```
+GET /worker/runs/{execution_id}/stream
+```
+
+Returns a stream of events:
+```
+data: {"execution_id": "abc-123", "stage": "starting", "message": "Starting pipeline...", "timestamp": "..."}
+data: {"execution_id": "abc-123", "stage": "fetching", "message": "Fetching articles...", "timestamp": "..."}
+data: {"execution_id": "abc-123", "stage": "completed", "message": "Job completed successfully", "timestamp": "..."}
+```
+
+If the job is already complete when you connect, you get the final status immediately.
+
 **Who calls this:**
 - Main API (to trigger manual runs)
+- Frontend (to stream status updates)
 - Ops tooling (health checks, monitoring)
 
 ---
