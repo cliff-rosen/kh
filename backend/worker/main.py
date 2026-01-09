@@ -28,19 +28,34 @@ from worker.dispatcher import JobDispatcher
 from worker.api import router as api_router
 
 # Configure logging
+LOG_FILE = 'logs/worker.log'
+
 def setup_logging():
     """Configure logging for the worker process"""
+    import os
+
     log_format = '%(asctime)s | %(levelname)-8s | %(name)s | %(message)s'
     date_format = '%Y-%m-%d %H:%M:%S'
+
+    handlers = [
+        logging.StreamHandler(sys.stdout)
+    ]
+
+    # Add file handler if log directory exists or can be created
+    try:
+        os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+        file_handler = logging.FileHandler(LOG_FILE)
+        file_handler.setFormatter(logging.Formatter(log_format, date_format))
+        handlers.append(file_handler)
+    except Exception as e:
+        print(f"Warning: Could not set up file logging: {e}")
 
     # Root logger
     logging.basicConfig(
         level=logging.INFO,
         format=log_format,
         datefmt=date_format,
-        handlers=[
-            logging.StreamHandler(sys.stdout)
-        ]
+        handlers=handlers
     )
 
     # Reduce noise from libraries
