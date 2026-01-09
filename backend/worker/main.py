@@ -13,12 +13,14 @@ Usage:
 
 import asyncio
 import logging
+import sys
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional
 
 from fastapi import FastAPI
 import uvicorn
+from sqlalchemy.orm import Session
 
 from database import SessionLocal
 from worker.scheduler import JobDiscovery
@@ -26,11 +28,28 @@ from worker.dispatcher import JobDispatcher
 from worker.api import router as api_router
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+def setup_logging():
+    """Configure logging for the worker process"""
+    log_format = '%(asctime)s | %(levelname)-8s | %(name)s | %(message)s'
+    date_format = '%Y-%m-%d %H:%M:%S'
+
+    # Root logger
+    logging.basicConfig(
+        level=logging.INFO,
+        format=log_format,
+        datefmt=date_format,
+        handlers=[
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+
+    # Reduce noise from libraries
+    logging.getLogger('httpx').setLevel(logging.WARNING)
+    logging.getLogger('httpcore').setLevel(logging.WARNING)
+    logging.getLogger('uvicorn.access').setLevel(logging.WARNING)
+
+setup_logging()
+logger = logging.getLogger('worker')
 
 
 # ==================== Configuration ====================
@@ -58,16 +77,35 @@ async def scheduler_loop():
     Main scheduler loop.
 
     Periodically checks for ready jobs and dispatches them.
+    Never crashes - all exceptions are caught and logged.
     """
-    logger.info("Scheduler loop starting...")
+    logger.info("=" * 60)
+    logger.info("Scheduler loop starting")
+    logger.info(f"  Poll interval: {POLL_INTERVAL_SECONDS}s")
+    logger.info(f"  Max concurrent jobs: {MAX_CONCURRENT_JOBS}")
+    logger.info("=" * 60)
+
+    consecutive_errors = 0
+    max_consecutive_errors = 10
 
     while worker_state.running:
         try:
             await process_ready_jobs()
-        except Exception as e:
-            logger.error(f"Error in scheduler loop: {e}", exc_info=True)
+            consecutive_errors = 0  # Reset on success
 
-        await asyncio.sleep(POLL_INTERVAL_SECONDS)
+        except Exception as e:
+            consecutive_errors += 1
+            logger.error(f"Error in scheduler loop (attempt {consecutive_errors}): {e}", exc_info=True)
+
+            if consecutive_errors >= max_consecutive_errors:
+                logger.critical(f"Too many consecutive errors ({consecutive_errors}), scheduler unhealthy")
+                # Could implement alerting here
+
+        try:
+            await asyncio.sleep(POLL_INTERVAL_SECONDS)
+        except asyncio.CancelledError:
+            logger.info("Scheduler loop cancelled")
+            break
 
     logger.info("Scheduler loop stopped")
 
@@ -77,43 +115,85 @@ async def process_ready_jobs():
     db = SessionLocal()
     try:
         discovery = JobDiscovery(db)
-        dispatcher = JobDispatcher(db)
 
         ready_jobs = discovery.find_all_ready_jobs()
+        pending_count = len(ready_jobs['pending_executions'])
+        scheduled_count = len(ready_jobs['scheduled_streams'])
 
-        # Count active jobs
-        active_count = len([j for j in worker_state.active_jobs.values() if not j.done()])
+        # Count active jobs and clean up completed ones
+        completed = [k for k, v in worker_state.active_jobs.items() if v.done()]
+        for key in completed:
+            task = worker_state.active_jobs.pop(key)
+            # Log any exceptions from completed tasks
+            if task.exception():
+                logger.error(f"Job {key} failed with exception: {task.exception()}")
+
+        active_count = len(worker_state.active_jobs)
+
+        # Log status periodically (only if there's something to report)
+        if pending_count > 0 or scheduled_count > 0 or active_count > 0:
+            logger.info(f"Jobs: {active_count} active, {pending_count} pending, {scheduled_count} scheduled due")
 
         # Process pending executions (manual triggers)
         for execution in ready_jobs['pending_executions']:
             if active_count >= MAX_CONCURRENT_JOBS:
-                logger.warning(f"Max concurrent jobs ({MAX_CONCURRENT_JOBS}) reached, skipping")
+                logger.warning(f"Max concurrent jobs ({MAX_CONCURRENT_JOBS}) reached, deferring remaining")
                 break
 
-            logger.info(f"Dispatching pending execution: {execution.id}")
-            task = asyncio.create_task(dispatcher.execute_pending(execution))
+            logger.info(f"Dispatching pending execution: {execution.id} for stream {execution.stream_id}")
+            # Create a new DB session for the job (each job gets its own session)
+            job_db = SessionLocal()
+            dispatcher = JobDispatcher(job_db)
+            task = asyncio.create_task(
+                run_job_safely(dispatcher.execute_pending, execution, execution.id, job_db)
+            )
             worker_state.active_jobs[execution.id] = task
             active_count += 1
 
         # Process scheduled streams
         for stream in ready_jobs['scheduled_streams']:
             if active_count >= MAX_CONCURRENT_JOBS:
-                logger.warning(f"Max concurrent jobs ({MAX_CONCURRENT_JOBS}) reached, skipping")
+                logger.warning(f"Max concurrent jobs ({MAX_CONCURRENT_JOBS}) reached, deferring remaining")
                 break
 
-            logger.info(f"Dispatching scheduled run for stream: {stream.stream_id}")
-            task = asyncio.create_task(dispatcher.execute_scheduled(stream))
-            # We'll get the execution_id from the task result
-            worker_state.active_jobs[f"stream_{stream.stream_id}_{datetime.utcnow().timestamp()}"] = task
-            active_count += 1
+            job_key = f"scheduled_{stream.stream_id}"
+            # Skip if this stream already has a running job
+            if job_key in worker_state.active_jobs:
+                logger.debug(f"Stream {stream.stream_id} already has a running job, skipping")
+                continue
 
-        # Clean up completed jobs
-        completed = [k for k, v in worker_state.active_jobs.items() if v.done()]
-        for key in completed:
-            del worker_state.active_jobs[key]
+            logger.info(f"Dispatching scheduled run for stream: {stream.stream_id} ({stream.stream_name})")
+            job_db = SessionLocal()
+            dispatcher = JobDispatcher(job_db)
+            task = asyncio.create_task(
+                run_job_safely(dispatcher.execute_scheduled, stream, job_key, job_db)
+            )
+            worker_state.active_jobs[job_key] = task
+            active_count += 1
 
     finally:
         db.close()
+
+
+async def run_job_safely(job_func, job_arg, job_id: str, db: Session):
+    """
+    Wrapper to run a job with proper exception handling and cleanup.
+    """
+    try:
+        logger.info(f"[{job_id}] Starting job")
+        await job_func(job_arg)
+        logger.info(f"[{job_id}] Job completed successfully")
+    except asyncio.CancelledError:
+        logger.warning(f"[{job_id}] Job was cancelled")
+        raise
+    except Exception as e:
+        logger.error(f"[{job_id}] Job failed: {e}", exc_info=True)
+        raise
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass  # Ignore errors closing the session
 
 
 # ==================== FastAPI App ====================

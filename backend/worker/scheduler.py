@@ -8,13 +8,13 @@ Finds jobs that are ready to run:
 
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
 from models import ResearchStream, PipelineExecution, ExecutionStatus
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('worker.scheduler')
 
 
 class JobDiscovery:

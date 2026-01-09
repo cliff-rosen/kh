@@ -15,7 +15,7 @@ import uuid
 from models import ResearchStream, PipelineExecution, ExecutionStatus, RunType
 from services.pipeline_service import PipelineService
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('worker.dispatcher')
 
 
 class JobDispatcher:
