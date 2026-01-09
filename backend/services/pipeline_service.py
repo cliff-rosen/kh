@@ -83,14 +83,15 @@ class PipelineService:
         run_type: RunType = RunType.MANUAL,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        report_name: Optional[str] = None
+        report_name: Optional[str] = None,
+        execution_id: Optional[str] = None
     ) -> AsyncGenerator[PipelineStatus, None]:
         """
         Execute the full pipeline for a research stream and yield status updates.
 
         Pipeline stages:
         1. Load configuration and validate broad search strategy
-        2. Generate execution ID for tracking
+        2. Generate execution ID for tracking (or use provided one)
         3. Execute retrieval for each broad search query
         4. Deduplicate within queries
         5. Apply semantic filters per query
@@ -106,6 +107,7 @@ class PipelineService:
             start_date: Start date for retrieval (YYYY/MM/DD format)
             end_date: End date for retrieval (YYYY/MM/DD format)
             report_name: Custom name for the generated report (defaults to YYYY.MM.DD)
+            execution_id: Optional execution ID to use (from PipelineExecution record)
 
         Yields:
             PipelineStatus: Status updates at each stage
@@ -155,14 +157,20 @@ class PipelineService:
                 }
             )
 
-            # === STAGE 2: Generate Pipeline Execution ID ===
-            execution_id = str(uuid.uuid4())
-
-            yield PipelineStatus(
-                "init",
-                f"Generated execution ID: {execution_id}",
-                {"execution_id": execution_id}
-            )
+            # === STAGE 2: Use or Generate Pipeline Execution ID ===
+            if execution_id is None:
+                execution_id = str(uuid.uuid4())
+                yield PipelineStatus(
+                    "init",
+                    f"Generated execution ID: {execution_id}",
+                    {"execution_id": execution_id}
+                )
+            else:
+                yield PipelineStatus(
+                    "init",
+                    f"Using execution ID: {execution_id}",
+                    {"execution_id": execution_id}
+                )
 
             yield PipelineStatus("cleanup", "Ready to begin retrieval (keeping historical WIP data)")
 

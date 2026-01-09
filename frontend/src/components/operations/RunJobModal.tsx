@@ -14,6 +14,8 @@ import {
     CheckCircleIcon,
     XCircleIcon,
     ArrowPathIcon,
+    ArrowsPointingOutIcon,
+    ArrowsPointingInIcon,
 } from '@heroicons/react/24/outline';
 import {
     triggerRun,
@@ -64,6 +66,7 @@ export default function RunJobModal({
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isCancelling, setIsCancelling] = useState(false);
+    const [isMaximized, setIsMaximized] = useState(false);
 
     // Cleanup ref for SSE subscription
     const cleanupRef = useRef<(() => void) | null>(null);
@@ -207,23 +210,40 @@ export default function RunJobModal({
             />
 
             {/* Modal */}
-            <div className="flex min-h-full items-center justify-center p-4">
-                <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg">
+            <div className={`flex min-h-full items-center justify-center ${isMaximized ? 'p-0' : 'p-4'}`}>
+                <div className={`relative bg-white dark:bg-gray-800 shadow-xl transition-all duration-200 flex flex-col ${
+                    isMaximized
+                        ? 'w-full h-full rounded-none'
+                        : 'w-full max-w-2xl max-h-[85vh] rounded-lg'
+                }`}>
                     {/* Header */}
                     <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                             {modalState === 'config' ? 'Run Pipeline' : 'Pipeline Progress'}
                         </h2>
-                        <button
-                            onClick={handleClose}
-                            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                        >
-                            <XMarkIcon className="h-5 w-5" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setIsMaximized(!isMaximized)}
+                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                title={isMaximized ? 'Restore' : 'Maximize'}
+                            >
+                                {isMaximized ? (
+                                    <ArrowsPointingInIcon className="h-5 w-5" />
+                                ) : (
+                                    <ArrowsPointingOutIcon className="h-5 w-5" />
+                                )}
+                            </button>
+                            <button
+                                onClick={handleClose}
+                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            >
+                                <XMarkIcon className="h-5 w-5" />
+                            </button>
+                        </div>
                     </div>
 
                     {/* Content */}
-                    <div className="px-6 py-4">
+                    <div className={`px-6 py-4 ${isMaximized ? 'flex-1 overflow-y-auto' : ''}`}>
                         {/* Stream info */}
                         <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
                             <p className="text-sm text-gray-500 dark:text-gray-400">Stream</p>
@@ -314,7 +334,9 @@ export default function RunJobModal({
                                 </div>
 
                                 {/* Status log */}
-                                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 max-h-64 overflow-y-auto font-mono text-xs">
+                                <div className={`bg-gray-50 dark:bg-gray-900 rounded-lg p-3 overflow-y-auto font-mono text-xs ${
+                                    isMaximized ? 'flex-1 min-h-[400px]' : 'max-h-80'
+                                }`}>
                                     {statusLog.length === 0 ? (
                                         <div className="text-gray-400 flex items-center gap-2">
                                             <ArrowPathIcon className="h-4 w-4 animate-spin" />

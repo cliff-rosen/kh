@@ -66,7 +66,8 @@ class JobDispatcher:
             async for status in self.pipeline_service.run_pipeline(
                 research_stream_id=execution.stream_id,
                 user_id=stream.user_id,
-                run_type=execution.run_type
+                run_type=execution.run_type,
+                execution_id=execution_id
             ):
                 logger.debug(f"[{execution_id}] {status.stage}: {status.message}")
                 await broker.publish(execution_id, status.stage, status.message)
@@ -125,7 +126,8 @@ class JobDispatcher:
             async for status in self.pipeline_service.run_pipeline(
                 research_stream_id=stream.stream_id,
                 user_id=stream.user_id,
-                run_type=RunType.SCHEDULED
+                run_type=RunType.SCHEDULED,
+                execution_id=execution_id
             ):
                 logger.debug(f"[{execution_id}] {status.stage}: {status.message}")
                 await broker.publish(execution_id, status.stage, status.message)
