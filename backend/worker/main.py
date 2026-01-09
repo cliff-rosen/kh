@@ -36,27 +36,31 @@ def setup_logging():
 
     log_format = '%(asctime)s | %(levelname)-8s | %(name)s | %(message)s'
     date_format = '%Y-%m-%d %H:%M:%S'
+    formatter = logging.Formatter(log_format, date_format)
 
-    handlers = [
-        logging.StreamHandler(sys.stdout)
-    ]
+    # Get the worker logger (not root - avoids uvicorn conflicts)
+    worker_logger = logging.getLogger('worker')
+    worker_logger.setLevel(logging.DEBUG)
+    worker_logger.handlers.clear()  # Remove any existing handlers
 
-    # Add file handler if log directory exists or can be created
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    worker_logger.addHandler(console_handler)
+
+    # File handler
     try:
         os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
         file_handler = logging.FileHandler(LOG_FILE)
-        file_handler.setFormatter(logging.Formatter(log_format, date_format))
-        handlers.append(file_handler)
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(formatter)
+        worker_logger.addHandler(file_handler)
     except Exception as e:
         print(f"Warning: Could not set up file logging: {e}")
 
-    # Root logger
-    logging.basicConfig(
-        level=logging.INFO,
-        format=log_format,
-        datefmt=date_format,
-        handlers=handlers
-    )
+    # Don't propagate to root logger (avoids duplicate logs)
+    worker_logger.propagate = False
 
     # Reduce noise from libraries
     logging.getLogger('httpx').setLevel(logging.WARNING)
