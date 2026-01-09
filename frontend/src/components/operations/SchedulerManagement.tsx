@@ -9,7 +9,7 @@
  * - Monitor running jobs
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
     PlayIcon,
     PauseIcon,
@@ -17,14 +17,18 @@ import {
     CheckCircleIcon,
     XCircleIcon,
     ArrowPathIcon,
+    StopIcon,
+    EyeIcon,
 } from '@heroicons/react/24/outline';
 import {
     getScheduledStreams,
     updateStreamSchedule,
+    cancelRun,
     type UpdateScheduleRequest,
 } from '../../lib/api/operationsApi';
 import type { ScheduleConfig, LastExecution, ScheduledStream } from '../../types/research-stream';
 import type { ApprovalStatus } from '../../types/report';
+import RunJobModal from './RunJobModal';
 
 type Frequency = 'daily' | 'weekly' | 'biweekly' | 'monthly';
 
@@ -35,23 +39,41 @@ export default function SchedulerManagement() {
     const [editingStream, setEditingStream] = useState<number | null>(null);
     const [saving, setSaving] = useState(false);
 
+    // Run modal state
+    const [runModalOpen, setRunModalOpen] = useState(false);
+    const [runModalStream, setRunModalStream] = useState<{ stream_id: number; stream_name: string } | null>(null);
+    const [runModalExecutionId, setRunModalExecutionId] = useState<string | undefined>(undefined);
+
+    // Track running jobs: stream_id -> execution_id
+    const [runningJobs, setRunningJobs] = useState<Record<number, string>>({});
+
+    const fetchStreams = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await getScheduledStreams();
+            setStreams(data);
+
+            // Update running jobs from stream data
+            const running: Record<number, string> = {};
+            for (const stream of data) {
+                if (stream.last_execution?.status === 'running' && stream.last_execution.id) {
+                    running[stream.stream_id] = stream.last_execution.id;
+                }
+            }
+            setRunningJobs(running);
+        } catch (err) {
+            setError('Failed to load scheduled streams');
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     // Fetch scheduled streams
     useEffect(() => {
-        async function fetchStreams() {
-            setLoading(true);
-            setError(null);
-            try {
-                const data = await getScheduledStreams();
-                setStreams(data);
-            } catch (err) {
-                setError('Failed to load scheduled streams');
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
-        }
         fetchStreams();
-    }, []);
+    }, [fetchStreams]);
 
     const enabledCount = streams.filter(s => s.schedule_config?.enabled).length;
     const runningStreams = streams.filter(s => s.last_execution?.status === 'running');
@@ -78,6 +100,43 @@ export default function SchedulerManagement() {
         } catch (err) {
             console.error('Failed to toggle schedule:', err);
         }
+    };
+
+    const handleRunNow = (stream: ScheduledStream) => {
+        setRunModalStream({ stream_id: stream.stream_id, stream_name: stream.stream_name });
+        setRunModalExecutionId(undefined);
+        setRunModalOpen(true);
+    };
+
+    const handleViewProgress = (stream: ScheduledStream) => {
+        const executionId = runningJobs[stream.stream_id] || stream.last_execution?.id;
+        setRunModalStream({ stream_id: stream.stream_id, stream_name: stream.stream_name });
+        setRunModalExecutionId(executionId);
+        setRunModalOpen(true);
+    };
+
+    const handleCancelJob = async (streamId: number) => {
+        const executionId = runningJobs[streamId];
+        if (!executionId) return;
+
+        try {
+            await cancelRun(executionId);
+            // Refresh to get updated status
+            await fetchStreams();
+        } catch (err) {
+            console.error('Failed to cancel job:', err);
+        }
+    };
+
+    const handleJobComplete = () => {
+        // Refresh stream list when job completes
+        fetchStreams();
+    };
+
+    const handleCloseModal = () => {
+        setRunModalOpen(false);
+        setRunModalStream(null);
+        setRunModalExecutionId(undefined);
     };
 
     if (loading) {
@@ -128,7 +187,22 @@ export default function SchedulerManagement() {
                     setEditingStream={setEditingStream}
                     onSaveSchedule={handleSaveSchedule}
                     onToggleEnabled={handleToggleEnabled}
+                    onRunNow={handleRunNow}
+                    onViewProgress={handleViewProgress}
+                    onCancelJob={handleCancelJob}
+                    runningJobs={runningJobs}
                     saving={saving}
+                />
+            )}
+
+            {/* Run Job Modal */}
+            {runModalStream && (
+                <RunJobModal
+                    isOpen={runModalOpen}
+                    onClose={handleCloseModal}
+                    stream={runModalStream}
+                    existingExecutionId={runModalExecutionId}
+                    onJobComplete={handleJobComplete}
                 />
             )}
         </div>
@@ -172,6 +246,10 @@ function SchedulesTab({
     setEditingStream,
     onSaveSchedule,
     onToggleEnabled,
+    onRunNow,
+    onViewProgress,
+    onCancelJob,
+    runningJobs,
     saving,
 }: {
     streams: ScheduledStream[];
@@ -179,6 +257,10 @@ function SchedulesTab({
     setEditingStream: (id: number | null) => void;
     onSaveSchedule: (streamId: number, updates: UpdateScheduleRequest) => Promise<void>;
     onToggleEnabled: (streamId: number, enabled: boolean) => Promise<void>;
+    onRunNow: (stream: ScheduledStream) => void;
+    onViewProgress: (stream: ScheduledStream) => void;
+    onCancelJob: (streamId: number) => void;
+    runningJobs: Record<number, string>;
     saving: boolean;
 }) {
     return (
@@ -246,13 +328,35 @@ function SchedulesTab({
                                     >
                                         <Cog6ToothIcon className="h-5 w-5" />
                                     </button>
-                                    <button
-                                        className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400"
-                                        title="Run Now"
-                                        disabled={stream.last_execution?.status === 'running'}
-                                    >
-                                        <PlayIcon className="h-5 w-5" />
-                                    </button>
+
+                                    {/* Show different buttons based on running state */}
+                                    {runningJobs[stream.stream_id] || stream.last_execution?.status === 'running' ? (
+                                        <>
+                                            <button
+                                                onClick={() => onViewProgress(stream)}
+                                                className="p-1.5 text-purple-500 hover:text-purple-700 dark:hover:text-purple-300"
+                                                title="View Progress"
+                                            >
+                                                <EyeIcon className="h-5 w-5" />
+                                            </button>
+                                            <button
+                                                onClick={() => onCancelJob(stream.stream_id)}
+                                                className="p-1.5 text-red-400 hover:text-red-600 dark:hover:text-red-300"
+                                                title="Cancel Job"
+                                            >
+                                                <StopIcon className="h-5 w-5" />
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <button
+                                            onClick={() => onRunNow(stream)}
+                                            className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400"
+                                            title="Run Now"
+                                        >
+                                            <PlayIcon className="h-5 w-5" />
+                                        </button>
+                                    )}
+
                                     <button
                                         onClick={() => onToggleEnabled(stream.stream_id, !stream.schedule_config?.enabled)}
                                         className={`p-1.5 ${stream.schedule_config?.enabled ? 'text-gray-400 hover:text-yellow-600' : 'text-yellow-600'}`}

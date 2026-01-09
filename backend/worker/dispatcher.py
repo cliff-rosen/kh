@@ -34,9 +34,18 @@ class JobDispatcher:
         Updates execution status throughout lifecycle.
         """
         execution_id = execution.id
+        stream_id = execution.stream_id
         logger.info(f"Dispatching pending execution: {execution_id}")
 
         try:
+            # Re-query execution from our session (the passed object is from a different session)
+            execution = self.db.query(PipelineExecution).filter(
+                PipelineExecution.id == execution_id
+            ).first()
+
+            if not execution:
+                raise ValueError(f"Execution {execution_id} not found")
+
             # Mark as running
             execution.status = ExecutionStatus.RUNNING
             execution.started_at = datetime.utcnow()
@@ -44,11 +53,11 @@ class JobDispatcher:
 
             # Get stream info for user_id
             stream = self.db.query(ResearchStream).filter(
-                ResearchStream.stream_id == execution.stream_id
+                ResearchStream.stream_id == stream_id
             ).first()
 
             if not stream:
-                raise ValueError(f"Stream {execution.stream_id} not found")
+                raise ValueError(f"Stream {stream_id} not found")
 
             # Publish starting status
             await broker.publish(execution_id, "starting", f"Starting pipeline for stream {execution.stream_id}")
@@ -85,13 +94,22 @@ class JobDispatcher:
         Creates a new PipelineExecution record and runs the pipeline.
         Returns the execution_id.
         """
+        stream_id = stream.stream_id
         execution_id = str(uuid.uuid4())
-        logger.info(f"Dispatching scheduled run for stream {stream.stream_id}, execution_id={execution_id}")
+        logger.info(f"Dispatching scheduled run for stream {stream_id}, execution_id={execution_id}")
+
+        # Re-query stream from our session (the passed object is from a different session)
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == stream_id
+        ).first()
+
+        if not stream:
+            raise ValueError(f"Stream {stream_id} not found")
 
         # Create execution record
         execution = PipelineExecution(
             id=execution_id,
-            stream_id=stream.stream_id,
+            stream_id=stream_id,
             status=ExecutionStatus.RUNNING,
             run_type=RunType.SCHEDULED,
             started_at=datetime.utcnow()

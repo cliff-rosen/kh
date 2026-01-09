@@ -5,15 +5,21 @@ For platform operations, not platform admin.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, AsyncGenerator
 import logging
+import httpx
+import os
 
 from database import get_db
 from models import User
 from services import auth_service
 from services.operations_service import OperationsService
+
+# Worker URL - can be configured via environment variable
+WORKER_URL = os.getenv("WORKER_URL", "http://localhost:8001")
 
 # Import domain types from schemas
 from schemas.research_stream import (
@@ -64,6 +70,35 @@ class UpdateScheduleRequest(BaseModel):
     preferred_time: Optional[str] = None
     timezone: Optional[str] = None
     lookback_days: Optional[int] = None
+
+
+class TriggerRunRequest(BaseModel):
+    """Request to trigger a pipeline run."""
+    stream_id: int
+    run_type: str = "manual"  # manual, test
+    # Job config options
+    report_name: Optional[str] = None
+    start_date: Optional[str] = None  # ISO date string
+    end_date: Optional[str] = None    # ISO date string
+
+
+class TriggerRunResponse(BaseModel):
+    """Response after triggering a run."""
+    execution_id: str
+    stream_id: int
+    status: str
+    message: str
+
+
+class RunStatusResponse(BaseModel):
+    """Status of a pipeline execution."""
+    execution_id: str
+    stream_id: int
+    status: str
+    run_type: str
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    error: Optional[str] = None
 
 
 # ==================== Execution Queue Endpoints ====================
@@ -271,4 +306,203 @@ async def update_stream_schedule(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update schedule: {str(e)}"
+        )
+
+
+# ==================== Run Management (Proxy to Worker) ====================
+
+@router.post(
+    "/runs",
+    response_model=TriggerRunResponse,
+    summary="Trigger a pipeline run"
+)
+async def trigger_run(
+    request: TriggerRunRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Trigger a pipeline run for a stream.
+
+    Proxies to the worker service which creates a pending execution.
+    """
+    logger.info(f"trigger_run - user_id={current_user.user_id}, stream_id={request.stream_id}")
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{WORKER_URL}/worker/runs",
+                json={
+                    "stream_id": request.stream_id,
+                    "run_type": request.run_type,
+                },
+                timeout=10.0
+            )
+
+            if response.status_code != 200:
+                logger.error(f"trigger_run worker error - status={response.status_code}, body={response.text}")
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=response.json().get("detail", "Worker error")
+                )
+
+            result = response.json()
+            logger.info(f"trigger_run success - execution_id={result.get('execution_id')}")
+            return TriggerRunResponse(**result)
+
+    except httpx.RequestError as e:
+        logger.error(f"trigger_run connection error - {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Worker service unavailable"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"trigger_run unexpected error - {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to trigger run: {str(e)}"
+        )
+
+
+@router.get(
+    "/runs/{execution_id}",
+    response_model=RunStatusResponse,
+    summary="Get run status"
+)
+async def get_run_status(
+    execution_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Get the status of a pipeline execution."""
+    logger.info(f"get_run_status - user_id={current_user.user_id}, execution_id={execution_id}")
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{WORKER_URL}/worker/runs/{execution_id}",
+                timeout=10.0
+            )
+
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=response.json().get("detail", "Worker error")
+                )
+
+            return RunStatusResponse(**response.json())
+
+    except httpx.RequestError as e:
+        logger.error(f"get_run_status connection error - {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Worker service unavailable"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_run_status unexpected error - {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get run status: {str(e)}"
+        )
+
+
+@router.get(
+    "/runs/{execution_id}/stream",
+    summary="Stream run status updates"
+)
+async def stream_run_status(
+    execution_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Stream status updates for a running execution via SSE.
+
+    Proxies the SSE stream from the worker service.
+    """
+    logger.info(f"stream_run_status - user_id={current_user.user_id}, execution_id={execution_id}")
+
+    async def proxy_stream() -> AsyncGenerator[str, None]:
+        try:
+            async with httpx.AsyncClient() as client:
+                async with client.stream(
+                    "GET",
+                    f"{WORKER_URL}/worker/runs/{execution_id}/stream",
+                    timeout=httpx.Timeout(connect=10.0, read=60.0, write=10.0, pool=10.0)
+                ) as response:
+                    if response.status_code != 200:
+                        error_body = await response.aread()
+                        logger.error(f"stream_run_status worker error - status={response.status_code}")
+                        yield f"data: {{\"error\": \"Worker returned {response.status_code}\"}}\n\n"
+                        return
+
+                    async for line in response.aiter_lines():
+                        if line:
+                            yield f"{line}\n"
+                        else:
+                            yield "\n"
+
+        except httpx.RequestError as e:
+            logger.error(f"stream_run_status connection error - {e}")
+            yield f"data: {{\"error\": \"Worker connection failed\"}}\n\n"
+        except Exception as e:
+            logger.error(f"stream_run_status unexpected error - {e}", exc_info=True)
+            yield f"data: {{\"error\": \"Stream error\"}}\n\n"
+
+    return StreamingResponse(
+        proxy_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
+    )
+
+
+@router.delete(
+    "/runs/{execution_id}",
+    summary="Cancel a run"
+)
+async def cancel_run(
+    execution_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Request cancellation of a running job.
+
+    Proxies to the worker service.
+    """
+    logger.info(f"cancel_run - user_id={current_user.user_id}, execution_id={execution_id}")
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.delete(
+                f"{WORKER_URL}/worker/runs/{execution_id}",
+                timeout=10.0
+            )
+
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=response.json().get("detail", "Worker error")
+                )
+
+            result = response.json()
+            logger.info(f"cancel_run success - execution_id={execution_id}")
+            return result
+
+    except httpx.RequestError as e:
+        logger.error(f"cancel_run connection error - {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Worker service unavailable"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"cancel_run unexpected error - {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to cancel run: {str(e)}"
         )
