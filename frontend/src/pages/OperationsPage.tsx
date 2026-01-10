@@ -1,9 +1,10 @@
 /**
- * Operations Page - Report queue and scheduler management
+ * Operations Page - Report queue, approvals, and scheduler management
  *
  * Routes handled:
- * - /operations              → Report Queue (default)
- * - /operations/reports/:id  → Report Review
+ * - /operations              → Report Queue (pipeline monitoring)
+ * - /operations/approvals    → Report Approval Queue (approval workflow)
+ * - /operations/executions/:id → Report Review (detail + curation)
  * - /operations/scheduler    → Scheduler Management
  */
 
@@ -11,8 +12,9 @@ import { Routes, Route, NavLink, Navigate, Outlet } from 'react-router-dom';
 import {
     DocumentTextIcon,
     ClockIcon,
+    ClipboardDocumentCheckIcon,
 } from '@heroicons/react/24/outline';
-import { ReportQueue, ReportReview, SchedulerManagement } from '../components/operations';
+import { ReportQueue, ReportReview, SchedulerManagement, ReportApprovalQueue } from '../components/operations';
 
 function OperationsLayout() {
     return (
@@ -32,7 +34,20 @@ function OperationsLayout() {
                         }
                     >
                         <DocumentTextIcon className="h-4 w-4" />
-                        Report Queue
+                        Pipeline Runs
+                    </NavLink>
+                    <NavLink
+                        to="/operations/approvals"
+                        className={({ isActive }) =>
+                            `flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                                isActive
+                                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:border-gray-300'
+                            }`
+                        }
+                    >
+                        <ClipboardDocumentCheckIcon className="h-4 w-4" />
+                        Approvals
                     </NavLink>
                     <NavLink
                         to="/operations/scheduler"
@@ -63,6 +78,7 @@ export default function OperationsPage() {
         <Routes>
             <Route element={<OperationsLayout />}>
                 <Route index element={<ReportQueue />} />
+                <Route path="approvals" element={<ReportApprovalQueue />} />
                 <Route path="executions/:executionId" element={<ReportReview />} />
                 <Route path="scheduler" element={<SchedulerManagement />} />
             </Route>
