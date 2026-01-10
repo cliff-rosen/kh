@@ -599,9 +599,12 @@ class PipelineService:
         report.pipeline_metrics = metrics
         report.is_read = False
 
-        # CRITICAL: Link report to execution using the ctx.execution object
-        # This ensures we're updating the same object that's in the session
-        ctx.execution.report_id = report.report_id
+        # Update PipelineExecution record with report_id
+        execution = self.db.query(PipelineExecution).filter(
+            PipelineExecution.id == ctx.execution_id
+        ).first()
+        if execution:
+            execution.report_id = report.report_id
 
         # Get articles for report
         wip_articles = self.wip_article_service.get_included_articles(ctx.execution_id)
