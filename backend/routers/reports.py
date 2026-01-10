@@ -12,6 +12,8 @@ from database import get_db
 from models import User
 from schemas.report import Report, ReportWithArticles
 from services.report_service import ReportService
+from services.email_template_service import EmailTemplateService
+from services.email_service import EmailService
 from services.user_tracking_service import track_endpoint
 from routers.auth import get_current_user
 
@@ -32,6 +34,23 @@ class ArticleMetadataResponse(BaseModel):
     """Response for article metadata (notes and enrichments)"""
     notes: Optional[str] = None
     ai_enrichments: Optional[Dict[str, Any]] = None
+
+
+class SendReportEmailRequest(BaseModel):
+    """Request to send report email"""
+    recipients: List[str]
+
+
+class SendReportEmailResponse(BaseModel):
+    """Response from sending report email"""
+    success: List[str]
+    failed: List[str]
+
+
+class EmailPreviewResponse(BaseModel):
+    """Response containing email HTML preview"""
+    html: str
+    report_name: str
 
 
 class UpdateSuccessResponse(BaseModel):
@@ -342,4 +361,92 @@ async def get_article_metadata(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get article metadata: {str(e)}"
+        )
+
+
+@router.get("/{report_id}/email", response_model=EmailPreviewResponse)
+async def get_report_email_preview(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate email HTML preview for a report.
+    Returns the HTML content that would be sent in an email.
+    """
+    logger.info(f"get_report_email_preview - user_id={current_user.user_id}, report_id={report_id}")
+
+    try:
+        # First verify user has access to this report
+        report_service = ReportService(db)
+        report = report_service.get_report_with_articles(report_id, current_user.user_id)
+
+        if not report:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+
+        # Generate email HTML
+        email_template_service = EmailTemplateService(db)
+        html = email_template_service.generate_report_email(report_id)
+
+        logger.info(f"get_report_email_preview complete - user_id={current_user.user_id}, report_id={report_id}")
+        return EmailPreviewResponse(html=html, report_name=report.report_name)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_report_email_preview failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate email preview: {str(e)}"
+        )
+
+
+@router.post("/{report_id}/email/send", response_model=SendReportEmailResponse)
+async def send_report_email(
+    report_id: int,
+    request: SendReportEmailRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Send report email to specified recipients.
+    """
+    logger.info(f"send_report_email - user_id={current_user.user_id}, report_id={report_id}, recipients={request.recipients}")
+
+    try:
+        # First verify user has access to this report
+        report_service = ReportService(db)
+        report = report_service.get_report_with_articles(report_id, current_user.user_id)
+
+        if not report:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+
+        # Generate email HTML
+        email_template_service = EmailTemplateService(db)
+        html = email_template_service.generate_report_email(report_id)
+
+        # Send emails
+        email_service = EmailService()
+        results = await email_service.send_bulk_report_emails(
+            recipients=request.recipients,
+            report_name=report.report_name,
+            html_content=html
+        )
+
+        logger.info(f"send_report_email complete - user_id={current_user.user_id}, report_id={report_id}, success={len(results['success'])}, failed={len(results['failed'])}")
+        return SendReportEmailResponse(**results)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"send_report_email failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send report email: {str(e)}"
         )
