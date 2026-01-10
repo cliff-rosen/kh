@@ -237,9 +237,9 @@ export default function RunJobModal({
             />
 
             {/* Modal */}
-            <div className={`flex min-h-full items-center justify-center ${isMaximized ? 'p-0' : 'p-4'}`}>
+            <div className={`flex min-h-full ${isMaximized ? 'p-0' : 'p-4 items-center justify-center'}`}>
                 <div className={`relative bg-white dark:bg-gray-800 shadow-xl transition-all duration-200 flex flex-col ${isMaximized
-                        ? 'w-full h-full rounded-none'
+                        ? 'w-full h-screen rounded-none'
                         : 'w-full max-w-2xl max-h-[85vh] rounded-lg'
                     }`}>
                     {/* Header */}
