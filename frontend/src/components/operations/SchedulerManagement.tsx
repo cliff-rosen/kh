@@ -305,13 +305,28 @@ function SchedulesTab({
                             <td className="px-4 py-4">
                                 <div className="flex items-center gap-3">
                                     <div className={`w-2 h-2 rounded-full ${stream.schedule_config?.enabled ? 'bg-green-500' : 'bg-gray-400'}`} />
-                                    <a
-                                        href={`/operations/reports?stream=${stream.stream_id}`}
-                                        className="font-medium text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
-                                        title="View reports for this stream"
-                                    >
-                                        {stream.stream_name}
-                                    </a>
+                                    <div>
+                                        <a
+                                            href={`/operations/reports?stream=${stream.stream_id}`}
+                                            className="font-medium text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
+                                            title="View reports for this stream"
+                                        >
+                                            {stream.stream_name}
+                                        </a>
+                                        <div className="text-xs mt-0.5">
+                                            {runningJobs[stream.stream_id] || stream.last_execution?.status === 'running' ? (
+                                                <span className="text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                                                    <span className="relative flex h-2 w-2">
+                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                                                    </span>
+                                                    Running
+                                                </span>
+                                            ) : (
+                                                <span className="text-gray-400">Idle</span>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
                             <td className="px-4 py-4">
