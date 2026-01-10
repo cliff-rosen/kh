@@ -932,6 +932,7 @@ class PipelineService:
         ).first()
         if execution:
             execution.report_id = report.report_id
+            self.db.flush()  # Persist the link immediately
 
         # Get all articles marked for report inclusion
         wip_articles = self.wip_article_service.get_included_articles(execution_id)

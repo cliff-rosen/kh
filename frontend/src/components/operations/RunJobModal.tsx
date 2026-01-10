@@ -81,8 +81,10 @@ export default function RunJobModal({
     }, [existingExecutionId, isOpen]);
 
     // Subscribe to status updates when we have an execution ID
+    // Note: We intentionally only depend on executionId to avoid re-subscribing
+    // when modalState changes (which would happen on completion, causing issues)
     useEffect(() => {
-        if (!executionId || modalState === 'config') return;
+        if (!executionId) return;
 
         const cleanup = subscribeToRunStatus(
             executionId,
@@ -109,7 +111,7 @@ export default function RunJobModal({
                 setModalState('failed');
             },
             () => {
-                // Stream ended
+                // Stream ended normally
             }
         );
 
@@ -118,7 +120,8 @@ export default function RunJobModal({
         return () => {
             cleanup();
         };
-    }, [executionId, modalState, onJobComplete]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [executionId]);
 
     // Auto-scroll log to bottom
     useEffect(() => {
