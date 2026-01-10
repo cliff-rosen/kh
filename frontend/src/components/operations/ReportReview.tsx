@@ -18,8 +18,6 @@ import {
     XMarkIcon,
     ChevronDownIcon,
     ChevronRightIcon,
-    TrashIcon,
-    PencilIcon,
     ClockIcon,
     FunnelIcon,
     DocumentTextIcon,
@@ -36,7 +34,7 @@ import {
 import type { ExecutionStatus, WipArticle, CategoryCount, ExecutionDetail } from '../../types/research-stream';
 import type { ReportArticle } from '../../types/report';
 
-type PipelineTab = 'included' | 'duplicates' | 'filtered_out';
+type PipelineTab = 'report_preview' | 'included' | 'duplicates' | 'filtered_out';
 
 export default function ReportReview() {
     const { executionId } = useParams<{ executionId: string }>();
@@ -45,11 +43,9 @@ export default function ReportReview() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
-    const [removedArticles, setRemovedArticles] = useState<number[]>([]);
-    const [categoryChanges, setCategoryChanges] = useState<Record<number, string>>({});
     const [rejectionReason, setRejectionReason] = useState('');
     const [showRejectModal, setShowRejectModal] = useState(false);
-    const [pipelineTab, setPipelineTab] = useState<PipelineTab>('included');
+    const [pipelineTab, setPipelineTab] = useState<PipelineTab>('report_preview');
     const [submitting, setSubmitting] = useState(false);
 
     // Fetch execution data
@@ -86,27 +82,13 @@ export default function ReportReview() {
         );
     };
 
-    const removeArticle = (articleId: number) => {
-        setRemovedArticles((prev) => [...prev, articleId]);
-    };
-
-    const restoreArticle = (articleId: number) => {
-        setRemovedArticles((prev) => prev.filter((id) => id !== articleId));
-    };
-
-    const changeCategory = (articleId: number, newCategoryId: string) => {
-        setCategoryChanges((prev) => ({ ...prev, [articleId]: newCategoryId }));
-    };
-
     const getArticlesForCategory = (categoryId: string) => {
         if (!execution) return [];
         return execution.articles.filter((a) => {
-            const effectiveCategory = categoryChanges[a.article_id] || a.presentation_categories?.[0];
-            return effectiveCategory === categoryId && !removedArticles.includes(a.article_id);
+            const category = a.presentation_categories?.[0];
+            return category === categoryId;
         });
     };
-
-    const hasChanges = removedArticles.length > 0 || Object.keys(categoryChanges).length > 0;
 
     const canApproveReject = execution?.execution_status === 'completed' &&
                              execution?.report_id &&
@@ -182,26 +164,21 @@ export default function ReportReview() {
                 </div>
                 {canApproveReject && (
                     <div className="flex items-center gap-3">
-                        {hasChanges && (
-                            <span className="text-sm text-yellow-600 dark:text-yellow-400">
-                                Unsaved changes
-                            </span>
-                        )}
                         <button
                             onClick={() => setShowRejectModal(true)}
-                            className="px-4 py-2 border border-red-600 text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                            className="px-5 py-2.5 border-2 border-red-600 text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 font-medium"
                             disabled={submitting}
                         >
-                            <XMarkIcon className="h-4 w-4" />
-                            Reject
+                            <XMarkIcon className="h-5 w-5" />
+                            Reject Report
                         </button>
                         <button
                             onClick={handleApprove}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
+                            className="px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 font-medium disabled:opacity-50"
                             disabled={submitting}
                         >
-                            <CheckIcon className="h-4 w-4" />
-                            {submitting ? 'Processing...' : 'Approve'}
+                            <CheckIcon className="h-5 w-5" />
+                            {submitting ? 'Processing...' : 'Approve Report'}
                         </button>
                     </div>
                 )}
@@ -319,125 +296,195 @@ export default function ReportReview() {
                 )}
             </div>
 
-            {/* Executive Summary - only for completed with report */}
-            {execution.executive_summary && (
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                            <DocumentTextIcon className="h-5 w-5 text-gray-400" />
-                            Executive Summary
-                        </h2>
-                        <button className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
-                            <PencilIcon className="h-4 w-4" />
-                            Edit
+            {/* Main Content Tabs */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                    {/* Tabs */}
+                    <div className="flex gap-1 bg-gray-100 dark:bg-gray-900 rounded-lg p-1">
+                        <button
+                            onClick={() => setPipelineTab('report_preview')}
+                            className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                                pipelineTab === 'report_preview'
+                                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
+                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                            }`}
+                        >
+                            Report Preview
+                        </button>
+                        <button
+                            onClick={() => setPipelineTab('included')}
+                            className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                                pipelineTab === 'included'
+                                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
+                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                            }`}
+                        >
+                            Included
+                            <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+                                {includedArticles.length}
+                            </span>
+                        </button>
+                        <button
+                            onClick={() => setPipelineTab('duplicates')}
+                            className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                                pipelineTab === 'duplicates'
+                                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
+                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                            }`}
+                        >
+                            Duplicates
+                            <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                                {duplicateArticles.length}
+                            </span>
+                        </button>
+                        <button
+                            onClick={() => setPipelineTab('filtered_out')}
+                            className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                                pipelineTab === 'filtered_out'
+                                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
+                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                            }`}
+                        >
+                            Filtered Out
+                            <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
+                                {filteredOutArticles.length}
+                            </span>
                         </button>
                     </div>
-                    <div className="prose prose-sm dark:prose-invert max-w-none">
-                        <pre className="whitespace-pre-wrap font-sans text-gray-700 dark:text-gray-300">
-                            {execution.executive_summary}
-                        </pre>
-                    </div>
                 </div>
-            )}
 
-            {/* Pipeline Articles - Browse all stages */}
-            {execution.wip_articles.length > 0 && (
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-                    <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Pipeline Articles</h2>
+                {/* Tab content */}
+                <div className="p-4">
+                    {/* Report Preview Tab */}
+                    {pipelineTab === 'report_preview' && (
+                        <div className="space-y-6">
+                            {/* Executive Summary */}
+                            {execution.executive_summary && (
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                                        <DocumentTextIcon className="h-5 w-5 text-gray-400" />
+                                        Executive Summary
+                                    </h3>
+                                    <div className="prose prose-sm dark:prose-invert max-w-none bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                                        <pre className="whitespace-pre-wrap font-sans text-gray-700 dark:text-gray-300 m-0">
+                                            {execution.executive_summary}
+                                        </pre>
+                                    </div>
+                                </div>
+                            )}
 
-                        {/* Pipeline tabs */}
-                        <div className="flex gap-1 bg-gray-100 dark:bg-gray-900 rounded-lg p-1">
-                            <button
-                                onClick={() => setPipelineTab('included')}
-                                className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                                    pipelineTab === 'included'
-                                        ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
-                                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                                }`}
-                            >
-                                Included in Report
-                                <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
-                                    {includedArticles.length}
-                                </span>
-                            </button>
-                            <button
-                                onClick={() => setPipelineTab('duplicates')}
-                                className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                                    pipelineTab === 'duplicates'
-                                        ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
-                                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                                }`}
-                            >
-                                Duplicates
-                                <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-                                    {duplicateArticles.length}
-                                </span>
-                            </button>
-                            <button
-                                onClick={() => setPipelineTab('filtered_out')}
-                                className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                                    pipelineTab === 'filtered_out'
-                                        ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
-                                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                                }`}
-                            >
-                                Filtered Out
-                                <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
-                                    {filteredOutArticles.length}
-                                </span>
-                            </button>
+                            {/* Categories with Articles */}
+                            {execution.categories.length > 0 ? (
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                                        Articles by Category
+                                    </h3>
+                                    {execution.categories.map((category) => {
+                                        const articles = getArticlesForCategory(category.id);
+                                        const isExpanded = expandedCategories.includes(category.id);
+
+                                        return (
+                                            <div key={category.id} className="border border-gray-200 dark:border-gray-700 rounded-lg mb-3">
+                                                <button
+                                                    onClick={() => toggleCategory(category.id)}
+                                                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 rounded-t-lg"
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        {isExpanded ? (
+                                                            <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                                                        ) : (
+                                                            <ChevronRightIcon className="h-4 w-4 text-gray-400" />
+                                                        )}
+                                                        <span className="font-medium text-gray-900 dark:text-white">{category.name}</span>
+                                                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                                                            ({articles.length} articles)
+                                                        </span>
+                                                    </div>
+                                                </button>
+
+                                                {isExpanded && (
+                                                    <div className="px-4 pb-4 space-y-3 border-t border-gray-200 dark:border-gray-700 pt-3">
+                                                        {articles.map((article) => (
+                                                            <ReportArticleCard key={article.article_id} article={article} />
+                                                        ))}
+                                                        {articles.length === 0 && (
+                                                            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
+                                                                No articles in this category
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : execution.articles.length > 0 ? (
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                                        Articles ({execution.articles.length})
+                                    </h3>
+                                    <div className="space-y-3">
+                                        {execution.articles.map((article) => (
+                                            <ReportArticleCard key={article.article_id} article={article} />
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                    No report content available
+                                </p>
+                            )}
                         </div>
-                    </div>
+                    )}
 
-                    {/* Tab content */}
-                    <div className="p-4">
-                        {pipelineTab === 'included' && (
-                            <div className="space-y-3">
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                                    Articles marked for inclusion in the report.
+                    {/* Included Tab */}
+                    {pipelineTab === 'included' && (
+                        <div className="space-y-3">
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                Articles marked for inclusion in the report.
+                            </p>
+                            {includedArticles.map((article) => (
+                                <WipArticleCard key={article.id} article={article} type="included" />
+                            ))}
+                            {includedArticles.length === 0 && (
+                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                    No articles included in report
                                 </p>
-                                {includedArticles.map((article) => (
-                                    <WipArticleCard key={article.id} article={article} type="included" />
-                                ))}
-                                {includedArticles.length === 0 && (
-                                    <p className="text-center text-gray-500 dark:text-gray-400 py-8">
-                                        No articles included in report
-                                    </p>
-                                )}
-                            </div>
-                        )}
+                            )}
+                        </div>
+                    )}
 
-                        {pipelineTab === 'duplicates' && (
-                            <div className="space-y-3">
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                                    These articles were detected as duplicates of existing articles and excluded from processing.
-                                </p>
-                                {duplicateArticles.map((article) => (
-                                    <WipArticleCard key={article.id} article={article} type="duplicate" />
-                                ))}
-                                {duplicateArticles.length === 0 && (
-                                    <p className="text-center text-gray-500 dark:text-gray-400 py-8">No duplicates detected</p>
-                                )}
-                            </div>
-                        )}
+                    {/* Duplicates Tab */}
+                    {pipelineTab === 'duplicates' && (
+                        <div className="space-y-3">
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                These articles were detected as duplicates of existing articles and excluded from processing.
+                            </p>
+                            {duplicateArticles.map((article) => (
+                                <WipArticleCard key={article.id} article={article} type="duplicate" />
+                            ))}
+                            {duplicateArticles.length === 0 && (
+                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">No duplicates detected</p>
+                            )}
+                        </div>
+                    )}
 
-                        {pipelineTab === 'filtered_out' && (
-                            <div className="space-y-3">
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                                    These articles did not pass the semantic filter and were excluded from the report.
-                                </p>
-                                {filteredOutArticles.map((article) => (
-                                    <WipArticleCard key={article.id} article={article} type="filtered" />
-                                ))}
-                                {filteredOutArticles.length === 0 && (
-                                    <p className="text-center text-gray-500 dark:text-gray-400 py-8">No articles filtered out</p>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                    {/* Filtered Out Tab */}
+                    {pipelineTab === 'filtered_out' && (
+                        <div className="space-y-3">
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                These articles did not pass the semantic filter and were excluded from the report.
+                            </p>
+                            {filteredOutArticles.map((article) => (
+                                <WipArticleCard key={article.id} article={article} type="filtered" />
+                            ))}
+                            {filteredOutArticles.length === 0 && (
+                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">No articles filtered out</p>
+                            )}
+                        </div>
+                    )}
                 </div>
-            )}
+            </div>
 
             {/* Reject Modal */}
             {showRejectModal && (
@@ -479,117 +526,55 @@ export default function ReportReview() {
     );
 }
 
-function ArticleCard({
-    article,
-    categories,
-    currentCategory,
-    onRemove,
-    onChangeCategory,
-    canEdit,
-}: {
-    article: ReportArticle;
-    categories: CategoryCount[];
-    currentCategory: string;
-    onRemove: () => void;
-    onChangeCategory: (categoryId: string) => void;
-    canEdit: boolean;
-}) {
-    const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+// Card for displaying articles in report preview
+function ReportArticleCard({ article }: { article: ReportArticle }) {
     const [expanded, setExpanded] = useState(false);
 
     return (
         <div className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-2">
+                <button
+                    onClick={() => setExpanded(!expanded)}
+                    className="mt-0.5 text-gray-400 hover:text-gray-600"
+                >
+                    {expanded ? (
+                        <ChevronDownIcon className="h-4 w-4" />
+                    ) : (
+                        <ChevronRightIcon className="h-4 w-4" />
+                    )}
+                </button>
                 <div className="flex-1 min-w-0">
-                    <div className="flex items-start gap-2">
-                        <button
-                            onClick={() => setExpanded(!expanded)}
-                            className="mt-0.5 text-gray-400 hover:text-gray-600"
+                    <h4 className="font-medium text-gray-900 dark:text-white text-sm">
+                        <a
+                            href={`https://pubmed.ncbi.nlm.nih.gov/${article.pmid}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
                         >
-                            {expanded ? (
-                                <ChevronDownIcon className="h-4 w-4" />
-                            ) : (
-                                <ChevronRightIcon className="h-4 w-4" />
-                            )}
-                        </button>
-                        <div>
-                            <h4 className="font-medium text-gray-900 dark:text-white text-sm">
-                                <a
-                                    href={`https://pubmed.ncbi.nlm.nih.gov/${article.pmid}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
-                                >
-                                    {article.title}
-                                </a>
-                            </h4>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                {article.authors.join(', ')}
-                            </p>
-                            <p className="text-xs text-gray-400 mt-0.5">
-                                {article.journal} · {article.year} · PMID: {article.pmid}
-                            </p>
-                            <div className="flex items-center gap-2 mt-1">
-                                {article.relevance_score != null && (
-                                    <span className="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
-                                        {(article.relevance_score * 100).toFixed(0)}% relevant
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Expanded content - abstract */}
-                    {expanded && article.abstract && (
-                        <div className="mt-3 ml-6 p-3 bg-gray-50 dark:bg-gray-900 rounded text-sm text-gray-600 dark:text-gray-400">
-                            <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">Abstract</p>
-                            {article.abstract}
-                        </div>
+                            {article.title}
+                        </a>
+                    </h4>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {article.authors.join(', ')}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                        {article.journal} · {article.year} · PMID: {article.pmid}
+                    </p>
+                    {article.relevance_score != null && (
+                        <span className="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded mt-1 inline-block">
+                            {(article.relevance_score * 100).toFixed(0)}% relevant
+                        </span>
                     )}
                 </div>
-                {canEdit && (
-                    <div className="flex items-center gap-2">
-                        {/* Category Selector */}
-                        {categories.length > 0 && (
-                            <div className="relative">
-                                <button
-                                    onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-                                    className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
-                                >
-                                    {categories.find((c) => c.id === currentCategory)?.name || 'Category'}
-                                    <ChevronDownIcon className="h-3 w-3 inline ml-1" />
-                                </button>
-                                {showCategoryDropdown && (
-                                    <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
-                                        {categories.map((cat) => (
-                                            <button
-                                                key={cat.id}
-                                                onClick={() => {
-                                                    onChangeCategory(cat.id);
-                                                    setShowCategoryDropdown(false);
-                                                }}
-                                                className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 ${
-                                                    cat.id === currentCategory ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600' : ''
-                                                }`}
-                                            >
-                                                {cat.name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                        {/* Remove Button */}
-                        <button
-                            onClick={onRemove}
-                            className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                            title="Remove from report"
-                        >
-                            <TrashIcon className="h-4 w-4" />
-                        </button>
-                    </div>
-                )}
             </div>
+
+            {/* Expanded content - abstract */}
+            {expanded && article.abstract && (
+                <div className="mt-3 ml-6 p-3 bg-gray-50 dark:bg-gray-900 rounded text-sm text-gray-600 dark:text-gray-400">
+                    <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">Abstract</p>
+                    {article.abstract}
+                </div>
+            )}
         </div>
     );
 }
