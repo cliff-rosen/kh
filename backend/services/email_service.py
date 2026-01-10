@@ -1,8 +1,13 @@
 """
 Email Service
 
-General service for sending emails, including HTML emails for reports.
-Uses SMTP settings from config.
+Centralized service for sending all emails.
+All email sending in the application should go through this service.
+
+Features:
+- HTML emails (reports)
+- Plain text emails (login tokens, password reset)
+- Dev mode logging when SMTP not configured
 """
 
 import smtplib
@@ -16,6 +21,18 @@ from config.settings import settings
 logger = logging.getLogger(__name__)
 
 
+# Singleton instance for easy access
+_email_service_instance: Optional['EmailService'] = None
+
+
+def get_email_service() -> 'EmailService':
+    """Get the singleton EmailService instance"""
+    global _email_service_instance
+    if _email_service_instance is None:
+        _email_service_instance = EmailService()
+    return _email_service_instance
+
+
 class EmailService:
     """General email sending service"""
 
@@ -26,6 +43,51 @@ class EmailService:
         self.smtp_password = settings.SMTP_PASSWORD
         self.from_email = settings.FROM_EMAIL or 'noreply@knowledgehorizon.com'
         self.app_name = settings.APP_NAME
+
+    async def send_text_email(
+        self,
+        to_email: str,
+        subject: str,
+        body: str
+    ) -> bool:
+        """
+        Send a plain text email.
+
+        Args:
+            to_email: Recipient email address
+            subject: Email subject
+            body: Plain text body content
+
+        Returns:
+            bool: True if email sent successfully, False otherwise
+        """
+        try:
+            # For development, log instead of sending
+            if not self.smtp_username or not self.smtp_password:
+                logger.info(f"DEV MODE: Would send email to {to_email}")
+                logger.info(f"DEV MODE: Subject: {subject}")
+                logger.info(f"DEV MODE: Body:\n{body}")
+                return True
+
+            # Create message
+            msg = MIMEText(body, 'plain')
+            msg['Subject'] = subject
+            msg['From'] = self.from_email
+            msg['To'] = to_email
+
+            # Send email
+            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                server.starttls()
+                server.login(self.smtp_username, self.smtp_password)
+                server.sendmail(self.from_email, [to_email], msg.as_string())
+
+            logger.info(f"Text email sent successfully to {to_email}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send email to {to_email}: {str(e)}")
+            self._log_smtp_error(e)
+            return False
 
     async def send_html_email(
         self,
@@ -97,8 +159,7 @@ class EmailService:
 
         except Exception as e:
             logger.error(f"Failed to send email to {to_email}: {str(e)}")
-            if "Application-specific password required" in str(e):
-                logger.error("Gmail requires an App Password, not your regular password!")
+            self._log_smtp_error(e)
             return False
 
     async def send_report_email(
@@ -192,3 +253,10 @@ class EmailService:
         text = text.strip()
 
         return text
+
+    def _log_smtp_error(self, e: Exception) -> None:
+        """Log helpful SMTP error messages"""
+        if "Application-specific password required" in str(e):
+            logger.error("Gmail requires an App Password, not your regular password!")
+            logger.error("To fix: Go to Google Account → Security → 2-Step Verification → App passwords")
+            logger.error("Generate a 16-character app password and use that in SMTP_PASSWORD")
