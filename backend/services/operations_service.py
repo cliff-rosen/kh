@@ -21,7 +21,6 @@ from models import (
 )
 from schemas.research_stream import (
     ExecutionQueueItem,
-    ExecutionMetrics,
     ExecutionDetail,
     ScheduledStreamSummary,
     LastExecution,
@@ -217,7 +216,6 @@ class OperationsService:
         approved_by_email = None
         approved_at = None
         rejection_reason = None
-        metrics = None
 
         # Get report info if execution completed
         if execution.report_id:
@@ -240,15 +238,6 @@ class OperationsService:
                 # Get executive summary
                 if report.enrichments:
                     executive_summary = report.enrichments.get("executive_summary")
-
-                # Get metrics from report
-                if report.pipeline_metrics:
-                    metrics = ExecutionMetrics(
-                        articles_retrieved=report.pipeline_metrics.get("articles_retrieved"),
-                        articles_after_dedup=report.pipeline_metrics.get("articles_after_dedup"),
-                        articles_after_filter=report.pipeline_metrics.get("articles_after_filter"),
-                        filter_config=report.pipeline_metrics.get("filter_config"),
-                    )
 
                 # Get report articles
                 report_articles = self.db.query(ReportArticleAssociation).filter(
@@ -298,7 +287,6 @@ class OperationsService:
             completed_at=execution.completed_at,
             error=execution.error,
             created_at=execution.created_at,
-            metrics=metrics,
             wip_articles=wip_articles_list,
             # Retrieval configuration
             start_date=execution.start_date,
