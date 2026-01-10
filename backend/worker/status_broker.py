@@ -3,15 +3,22 @@ Status Broker
 
 Pub/sub mechanism for job status updates.
 Allows management API clients to subscribe to real-time status streams.
+
+Includes message buffering to handle race conditions where the job starts
+publishing before clients subscribe.
 """
 
 import asyncio
 import logging
-from typing import Dict, Set
+from typing import Dict, Set, List
+from collections import deque
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
 logger = logging.getLogger('worker.status_broker')
+
+# Buffer size for replaying messages to late subscribers
+MESSAGE_BUFFER_SIZE = 50
 
 
 @dataclass
@@ -36,17 +43,24 @@ class StatusBroker:
 
     Publishers call: broker.publish(execution_id, status)
     Subscribers call: async for status in broker.subscribe(execution_id)
+
+    Buffers recent messages per execution so late subscribers can catch up.
     """
 
     def __init__(self):
         # execution_id -> set of asyncio.Queue
         self._subscribers: Dict[str, Set[asyncio.Queue]] = {}
+        # execution_id -> deque of recent StatusUpdate (for replay to late subscribers)
+        self._message_buffer: Dict[str, deque] = {}
         self._lock = asyncio.Lock()
 
     async def subscribe(self, execution_id: str) -> asyncio.Queue:
         """
         Subscribe to status updates for an execution.
         Returns a queue that will receive StatusUpdate objects.
+
+        Replays any buffered messages to the new subscriber so they don't miss
+        messages that were published before they subscribed.
         """
         queue = asyncio.Queue()
 
@@ -54,6 +68,12 @@ class StatusBroker:
             if execution_id not in self._subscribers:
                 self._subscribers[execution_id] = set()
             self._subscribers[execution_id].add(queue)
+
+            # Replay buffered messages to this new subscriber
+            if execution_id in self._message_buffer:
+                for update in self._message_buffer[execution_id]:
+                    queue.put_nowait(update)
+                logger.debug(f"Replayed {len(self._message_buffer[execution_id])} buffered messages to new subscriber")
 
         logger.debug(f"New subscriber for execution {execution_id}, total: {len(self._subscribers.get(execution_id, set()))}")
         return queue
@@ -69,7 +89,7 @@ class StatusBroker:
         logger.debug(f"Unsubscribed from execution {execution_id}")
 
     async def publish(self, execution_id: str, stage: str, message: str):
-        """Publish a status update to all subscribers"""
+        """Publish a status update to all subscribers and buffer for late subscribers"""
         update = StatusUpdate(
             execution_id=execution_id,
             stage=stage,
@@ -77,6 +97,11 @@ class StatusBroker:
         )
 
         async with self._lock:
+            # Buffer the message for late subscribers
+            if execution_id not in self._message_buffer:
+                self._message_buffer[execution_id] = deque(maxlen=MESSAGE_BUFFER_SIZE)
+            self._message_buffer[execution_id].append(update)
+
             subscribers = self._subscribers.get(execution_id, set()).copy()
 
         for queue in subscribers:
@@ -102,10 +127,12 @@ class StatusBroker:
             except asyncio.QueueFull:
                 pass
 
-        # Clean up subscribers
+        # Clean up subscribers and buffer
         async with self._lock:
             if execution_id in self._subscribers:
                 del self._subscribers[execution_id]
+            if execution_id in self._message_buffer:
+                del self._message_buffer[execution_id]
 
         logger.debug(f"Completed and cleaned up execution {execution_id}")
 
