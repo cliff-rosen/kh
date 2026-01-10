@@ -528,6 +528,15 @@ class ReportService:
         )
         self.db.add(report)
         self.db.flush()  # Get the report_id
+
+        # Update PipelineExecution with the report_id (bidirectional link)
+        if pipeline_execution_id:
+            execution = self.db.query(PipelineExecution).filter(
+                PipelineExecution.id == pipeline_execution_id
+            ).first()
+            if execution:
+                execution.report_id = report.report_id
+
         return report
 
     def create_article_association(

@@ -63,6 +63,11 @@ class JobDispatcher:
                 logger.debug(f"[{execution_id}] {status.stage}: {status.message}")
                 await broker.publish(execution_id, status.stage, status.message)
 
+            # Re-query execution to get fresh state (pipeline may have set report_id)
+            execution = self.db.query(PipelineExecution).filter(
+                PipelineExecution.id == execution_id
+            ).first()
+
             # Mark as completed
             execution.status = ExecutionStatus.COMPLETED
             execution.completed_at = datetime.utcnow()
@@ -145,6 +150,11 @@ class JobDispatcher:
                 logger.debug(f"[{execution_id}] {status.stage}: {status.message}")
                 await broker.publish(execution_id, status.stage, status.message)
 
+            # Re-query execution to get fresh state (pipeline may have set report_id)
+            execution = self.db.query(PipelineExecution).filter(
+                PipelineExecution.id == execution_id
+            ).first()
+
             # Mark as completed
             execution.status = ExecutionStatus.COMPLETED
             execution.completed_at = datetime.utcnow()
@@ -158,9 +168,14 @@ class JobDispatcher:
 
         except Exception as e:
             logger.error(f"Scheduled execution {execution_id} failed: {e}", exc_info=True)
-            execution.status = ExecutionStatus.FAILED
-            execution.completed_at = datetime.utcnow()
-            execution.error = str(e)
+            # Re-query to get fresh state
+            execution = self.db.query(PipelineExecution).filter(
+                PipelineExecution.id == execution_id
+            ).first()
+            if execution:
+                execution.status = ExecutionStatus.FAILED
+                execution.completed_at = datetime.utcnow()
+                execution.error = str(e)
 
             # Still update next_scheduled_run even on failure
             self._update_next_scheduled_run(stream)

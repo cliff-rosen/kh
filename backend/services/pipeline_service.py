@@ -599,13 +599,6 @@ class PipelineService:
         report.pipeline_metrics = metrics
         report.is_read = False
 
-        # Update PipelineExecution record with report_id
-        execution = self.db.query(PipelineExecution).filter(
-            PipelineExecution.id == ctx.execution_id
-        ).first()
-        if execution:
-            execution.report_id = report.report_id
-
         # Get articles for report
         wip_articles = self.wip_article_service.get_included_articles(ctx.execution_id)
 
@@ -659,7 +652,8 @@ class PipelineService:
             )
             self.db.add(association)
 
-        # Single commit for everything: Report, execution.report_id, Articles, Associations
+        # Commit everything: Report, Articles, Associations
+        # Note: report_service.create_report already set execution.report_id
         self.db.commit()
 
         return report
