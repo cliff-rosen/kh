@@ -306,11 +306,13 @@ export default function ReportReview() {
                 )}
 
                 {/* Retrieval Configuration - Collapsible */}
-                {execution.retrieval_config && (
-                    <div className="p-4">
+                <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                    {execution.retrieval_config ? (
                         <RetrievalConfigDisplay config={execution.retrieval_config} />
-                    </div>
-                )}
+                    ) : (
+                        <p className="text-sm text-gray-400 italic">No retrieval configuration stored for this execution</p>
+                    )}
+                </div>
             </div>
 
             {/* Main Content Tabs */}
@@ -729,7 +731,24 @@ function RetrievalConfigDisplay({ config }: RetrievalConfigProps) {
     }
 
     if (queries.length === 0) {
-        return null;
+        // Debug: show what we received
+        const configKeys = Object.keys(config);
+        return (
+            <div className="text-sm text-gray-500">
+                <p className="font-medium">Retrieval config exists but no queries extracted</p>
+                <p className="text-xs text-gray-400 mt-1">
+                    Config keys: {configKeys.join(', ') || 'none'}
+                    {concepts && ` | concepts: ${concepts.length}`}
+                    {broadSearch && ` | broad_search queries: ${broadSearch.queries?.length ?? 0}`}
+                </p>
+                <details className="mt-2">
+                    <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">Show raw config</summary>
+                    <pre className="mt-1 text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded overflow-auto max-h-40">
+                        {JSON.stringify(config, null, 2)}
+                    </pre>
+                </details>
+            </div>
+        );
     }
 
     const hasFilters = queries.some(q => q.filter);
