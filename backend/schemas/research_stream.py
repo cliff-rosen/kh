@@ -454,14 +454,6 @@ class WipArticle(BaseModel):
 # Operations Domain Objects (Execution Queue & Scheduler)
 # ============================================================================
 
-class ExecutionMetrics(BaseModel):
-    """Pipeline execution metrics extracted from report"""
-    articles_retrieved: Optional[int] = None
-    articles_after_dedup: Optional[int] = None
-    articles_after_filter: Optional[int] = None
-    filter_config: Optional[str] = None
-
-
 class ExecutionQueueItem(BaseModel):
     """
     Pipeline execution with associated report info.
@@ -517,7 +509,6 @@ class ExecutionDetail(BaseModel):
     completed_at: Optional[datetime] = None
     error: Optional[str] = None
     created_at: Optional[datetime] = None
-    metrics: Optional[ExecutionMetrics] = None
     wip_articles: List[WipArticle] = []
     # Retrieval configuration (from execution record)
     start_date: Optional[str] = None

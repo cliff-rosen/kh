@@ -318,12 +318,14 @@ function ExecutionStatusBadge({ status }: { status: ExecutionStatus }) {
     return <span className={`px-2 py-1 text-xs font-medium rounded-full ${bg} ${text}`}>{label}</span>;
 }
 
-function ApprovalStatusBadge({ status }: { status: ApprovalStatus }) {
-    const config: Record<ApprovalStatus, { bg: string; text: string; label: string }> = {
+function ApprovalStatusBadge({ status }: { status: string }) {
+    const config: Record<string, { bg: string; text: string; label: string }> = {
         awaiting_approval: { bg: 'bg-yellow-100 dark:bg-yellow-900', text: 'text-yellow-700 dark:text-yellow-300', label: 'Awaiting Approval' },
         approved: { bg: 'bg-green-100 dark:bg-green-900', text: 'text-green-700 dark:text-green-300', label: 'Approved' },
         rejected: { bg: 'bg-red-100 dark:bg-red-900', text: 'text-red-700 dark:text-red-300', label: 'Rejected' },
     };
-    const { bg, text, label } = config[status];
+    const entry = config[status];
+    if (!entry) return null;
+    const { bg, text, label } = entry;
     return <span className={`px-2 py-1 text-xs font-medium rounded-full ${bg} ${text}`}>{label}</span>;
 }

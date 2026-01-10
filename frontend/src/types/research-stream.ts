@@ -62,16 +62,6 @@ export interface WipArticle {
 }
 
 /**
- * Metrics from a pipeline execution run.
- */
-export interface ExecutionMetrics {
-    articles_retrieved: number | null;
-    articles_after_dedup: number | null;
-    articles_after_filter: number | null;
-    filter_config: string | null;
-}
-
-/**
  * Simplified stream option for dropdowns/filters.
  */
 export interface StreamOption {
@@ -140,7 +130,6 @@ export interface ExecutionDetail {
     completed_at: string | null;
     error: string | null;
     created_at: string;
-    metrics: ExecutionMetrics | null;
     wip_articles: WipArticle[];
     // Retrieval configuration
     start_date: string | null;
