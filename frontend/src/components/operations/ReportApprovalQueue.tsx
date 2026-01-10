@@ -168,10 +168,11 @@ export default function ReportApprovalQueue() {
     };
 
     const handleQuickApprove = async (report: PendingReport) => {
-        // TODO: Implement quick approve
+        // TODO: Implement quick approve API call
         console.log('Quick approve:', report.report_id);
         alert(`Quick approve not yet implemented for: ${report.report_name}`);
     };
+
 
     if (loading) {
         return (
@@ -360,14 +361,27 @@ export default function ReportApprovalQueue() {
                                         <CheckCircleIcon className="h-4 w-4" />
                                         Quick Approve
                                     </button>
-                                    <Link
-                                        to={`/operations/executions/${report.execution_id}`}
-                                        className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
-                                    >
-                                        <PencilSquareIcon className="h-4 w-4" />
-                                        Review & Curate
-                                        <ChevronRightIcon className="h-4 w-4" />
-                                    </Link>
+                                    {report.execution_id.startsWith('exec-') ? (
+                                        // Mock data - link to curation mockup
+                                        <Link
+                                            to="/operations/curate-mockup"
+                                            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                                        >
+                                            <PencilSquareIcon className="h-4 w-4" />
+                                            Review & Curate
+                                            <ChevronRightIcon className="h-4 w-4" />
+                                        </Link>
+                                    ) : (
+                                        // Real data - link to actual execution
+                                        <Link
+                                            to={`/operations/executions/${report.execution_id}`}
+                                            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                                        >
+                                            <PencilSquareIcon className="h-4 w-4" />
+                                            Review & Curate
+                                            <ChevronRightIcon className="h-4 w-4" />
+                                        </Link>
+                                    )}
                                 </div>
                             </div>
                         </div>

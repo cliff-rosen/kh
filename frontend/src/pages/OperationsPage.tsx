@@ -14,7 +14,7 @@ import {
     ClockIcon,
     ClipboardDocumentCheckIcon,
 } from '@heroicons/react/24/outline';
-import { ReportQueue, ReportReview, SchedulerManagement, ReportApprovalQueue } from '../components/operations';
+import { ReportQueue, ReportReview, SchedulerManagement, ReportApprovalQueue, ReportCurationMockup } from '../components/operations';
 
 function OperationsLayout() {
     return (
@@ -76,6 +76,10 @@ function OperationsLayout() {
 export default function OperationsPage() {
     return (
         <Routes>
+            {/* Full-screen curation view (no tabs) */}
+            <Route path="curate-mockup" element={<ReportCurationMockup />} />
+
+            {/* Standard operations layout with tabs */}
             <Route element={<OperationsLayout />}>
                 <Route index element={<ReportQueue />} />
                 <Route path="approvals" element={<ReportApprovalQueue />} />
