@@ -139,19 +139,36 @@ export default function SchedulerManagement() {
         setRunModalExecutionId(undefined);
     };
 
+    // Render modal outside of loading/error states to prevent unmounting during refresh
+    const modal = runModalStream && (
+        <RunJobModal
+            isOpen={runModalOpen}
+            onClose={handleCloseModal}
+            stream={runModalStream}
+            existingExecutionId={runModalExecutionId}
+            onJobComplete={handleJobComplete}
+        />
+    );
+
     if (loading) {
         return (
-            <div className="flex items-center justify-center py-12">
-                <ArrowPathIcon className="h-8 w-8 text-gray-400 animate-spin" />
-            </div>
+            <>
+                <div className="flex items-center justify-center py-12">
+                    <ArrowPathIcon className="h-8 w-8 text-gray-400 animate-spin" />
+                </div>
+                {modal}
+            </>
         );
     }
 
     if (error) {
         return (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-700 dark:text-red-300">
-                {error}
-            </div>
+            <>
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-700 dark:text-red-300">
+                    {error}
+                </div>
+                {modal}
+            </>
         );
     }
 
@@ -196,15 +213,7 @@ export default function SchedulerManagement() {
             )}
 
             {/* Run Job Modal */}
-            {runModalStream && (
-                <RunJobModal
-                    isOpen={runModalOpen}
-                    onClose={handleCloseModal}
-                    stream={runModalStream}
-                    existingExecutionId={runModalExecutionId}
-                    onJobComplete={handleJobComplete}
-                />
-            )}
+            {modal}
         </div>
     );
 }
