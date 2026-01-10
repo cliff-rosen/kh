@@ -31,8 +31,9 @@ import {
     approveReport,
     rejectReport,
 } from '../../lib/api/operationsApi';
-import type { ExecutionStatus, WipArticle, CategoryCount, ExecutionDetail } from '../../types/research-stream';
-import type { ReportArticle } from '../../types/report';
+import { reportApi } from '../../lib/api/reportApi';
+import type { ExecutionStatus, WipArticle, ExecutionDetail } from '../../types/research-stream';
+import type { ReportWithArticles, ReportArticle } from '../../types/report';
 
 type PipelineTab = 'report_preview' | 'included' | 'duplicates' | 'filtered_out';
 
@@ -40,7 +41,9 @@ export default function ReportReview() {
     const { executionId } = useParams<{ executionId: string }>();
     const navigate = useNavigate();
     const [execution, setExecution] = useState<ExecutionDetail | null>(null);
+    const [report, setReport] = useState<ReportWithArticles | null>(null);
     const [loading, setLoading] = useState(true);
+    const [loadingReport, setLoadingReport] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
     const [rejectionReason, setRejectionReason] = useState('');
@@ -57,10 +60,6 @@ export default function ReportReview() {
             try {
                 const data = await getExecutionDetail(executionId);
                 setExecution(data);
-                // Expand first category by default
-                if (data.categories.length > 0) {
-                    setExpandedCategories([data.categories[0].id]);
-                }
             } catch (err) {
                 setError('Failed to load execution details');
                 console.error(err);
@@ -70,6 +69,27 @@ export default function ReportReview() {
         }
         fetchExecution();
     }, [executionId]);
+
+    // Fetch report data when execution has a report_id
+    useEffect(() => {
+        async function fetchReport() {
+            if (!execution?.report_id) {
+                setReport(null);
+                return;
+            }
+            setLoadingReport(true);
+            try {
+                const reportData = await reportApi.getReportWithArticles(execution.report_id);
+                setReport(reportData);
+            } catch (err) {
+                console.error('Failed to load report:', err);
+                setReport(null);
+            } finally {
+                setLoadingReport(false);
+            }
+        }
+        fetchReport();
+    }, [execution?.report_id]);
 
     // Compute article counts for pipeline tabs from WIP articles
     const includedArticles = execution?.wip_articles.filter(a => a.included_in_report) || [];
@@ -82,12 +102,21 @@ export default function ReportReview() {
         );
     };
 
-    const getArticlesForCategory = (categoryId: string) => {
-        if (!execution) return [];
-        return execution.articles.filter((a) => {
-            const category = a.presentation_categories?.[0];
-            return category === categoryId;
+    // Group report articles by category
+    const getArticlesByCategory = () => {
+        if (!report?.articles) return {};
+
+        const categoryMap: Record<string, ReportArticle[]> = {};
+
+        report.articles.forEach(article => {
+            const catId = article.presentation_categories?.[0] || 'uncategorized';
+            if (!categoryMap[catId]) {
+                categoryMap[catId] = [];
+            }
+            categoryMap[catId].push(article);
         });
+
+        return categoryMap;
     };
 
     const canApproveReject = execution?.execution_status === 'completed' &&
@@ -358,81 +387,97 @@ export default function ReportReview() {
                     {/* Report Preview Tab */}
                     {pipelineTab === 'report_preview' && (
                         <div className="space-y-6">
-                            {/* Executive Summary */}
-                            {execution.executive_summary && (
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                                        <DocumentTextIcon className="h-5 w-5 text-gray-400" />
-                                        Executive Summary
-                                    </h3>
-                                    <div className="prose prose-sm dark:prose-invert max-w-none bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
-                                        <pre className="whitespace-pre-wrap font-sans text-gray-700 dark:text-gray-300 m-0">
-                                            {execution.executive_summary}
-                                        </pre>
-                                    </div>
+                            {loadingReport ? (
+                                <div className="flex items-center justify-center py-12">
+                                    <ArrowPathIcon className="h-8 w-8 text-gray-400 animate-spin" />
+                                    <span className="ml-2 text-gray-500">Loading report...</span>
                                 </div>
-                            )}
-
-                            {/* Categories with Articles */}
-                            {execution.categories.length > 0 ? (
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                        Articles by Category
-                                    </h3>
-                                    {execution.categories.map((category) => {
-                                        const articles = getArticlesForCategory(category.id);
-                                        const isExpanded = expandedCategories.includes(category.id);
-
-                                        return (
-                                            <div key={category.id} className="border border-gray-200 dark:border-gray-700 rounded-lg mb-3">
-                                                <button
-                                                    onClick={() => toggleCategory(category.id)}
-                                                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 rounded-t-lg"
-                                                >
-                                                    <div className="flex items-center gap-2">
-                                                        {isExpanded ? (
-                                                            <ChevronDownIcon className="h-4 w-4 text-gray-400" />
-                                                        ) : (
-                                                            <ChevronRightIcon className="h-4 w-4 text-gray-400" />
-                                                        )}
-                                                        <span className="font-medium text-gray-900 dark:text-white">{category.name}</span>
-                                                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                                                            ({articles.length} articles)
-                                                        </span>
-                                                    </div>
-                                                </button>
-
-                                                {isExpanded && (
-                                                    <div className="px-4 pb-4 space-y-3 border-t border-gray-200 dark:border-gray-700 pt-3">
-                                                        {articles.map((article) => (
-                                                            <ReportArticleCard key={article.article_id} article={article} />
-                                                        ))}
-                                                        {articles.length === 0 && (
-                                                            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
-                                                                No articles in this category
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            ) : execution.articles.length > 0 ? (
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                        Articles ({execution.articles.length})
-                                    </h3>
-                                    <div className="space-y-3">
-                                        {execution.articles.map((article) => (
-                                            <ReportArticleCard key={article.article_id} article={article} />
-                                        ))}
-                                    </div>
-                                </div>
-                            ) : (
+                            ) : !report ? (
                                 <p className="text-center text-gray-500 dark:text-gray-400 py-8">
-                                    No report content available
+                                    No report available for this execution
                                 </p>
+                            ) : (
+                                <>
+                                    {/* Executive Summary */}
+                                    {report.enrichments?.executive_summary && (
+                                        <div>
+                                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                                                <DocumentTextIcon className="h-5 w-5 text-gray-400" />
+                                                Executive Summary
+                                            </h3>
+                                            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                                                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                                                    {report.enrichments.executive_summary}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Articles by Category */}
+                                    {report.articles && report.articles.length > 0 ? (
+                                        <div>
+                                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                                                Articles ({report.articles.length})
+                                            </h3>
+                                            {Object.entries(getArticlesByCategory()).map(([categoryId, articles]) => {
+                                                const isExpanded = expandedCategories.includes(categoryId);
+                                                const categoryName = categoryId === 'uncategorized'
+                                                    ? 'Uncategorized'
+                                                    : categoryId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                                                const categorySummary = report.enrichments?.category_summaries?.[categoryId];
+
+                                                return (
+                                                    <div key={categoryId} className="border border-gray-200 dark:border-gray-700 rounded-lg mb-3 overflow-hidden">
+                                                        <button
+                                                            onClick={() => toggleCategory(categoryId)}
+                                                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 bg-gray-50 dark:bg-gray-800"
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                {isExpanded ? (
+                                                                    <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                                                                ) : (
+                                                                    <ChevronRightIcon className="h-4 w-4 text-gray-400" />
+                                                                )}
+                                                                <span className="font-medium text-gray-900 dark:text-white">{categoryName}</span>
+                                                                <span className="text-sm text-gray-500 dark:text-gray-400">
+                                                                    ({articles.length} article{articles.length !== 1 ? 's' : ''})
+                                                                </span>
+                                                            </div>
+                                                        </button>
+
+                                                        {isExpanded && (
+                                                            <div className="bg-white dark:bg-gray-900">
+                                                                {/* Category Summary */}
+                                                                {categorySummary && (
+                                                                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                                                                        <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                                                            Category Summary
+                                                                        </h5>
+                                                                        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                                                                            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                                                                                {categorySummary}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                                {/* Articles */}
+                                                                <div className="p-4 space-y-3">
+                                                                    {articles.map((article) => (
+                                                                        <ReportArticleCard key={article.article_id} article={article} />
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                            No articles in this report
+                                        </p>
+                                    )}
+                                </>
                             )}
                         </div>
                     )}
