@@ -517,7 +517,9 @@ class PipelineService:
         articles = []
         if source_id.lower() == "pubmed":
             # Use PubMed service to execute query (returns tuple of articles and metadata)
-            articles, metadata = self.pubmed_service.search_articles(
+            # Run in thread pool to avoid blocking the event loop (requests is synchronous)
+            articles, metadata = await asyncio.to_thread(
+                self.pubmed_service.search_articles,
                 query=query_expression,
                 max_results=self.MAX_ARTICLES_PER_SOURCE,
                 start_date=start_date,
