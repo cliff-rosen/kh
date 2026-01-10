@@ -102,12 +102,10 @@ export default function RunJobModal({
                 if (event.stage === 'completed') {
                     console.log('[RunJobModal] Setting modalState to completed');
                     setModalState('completed');
-                    onJobComplete?.();
                 } else if (event.stage === 'failed') {
                     console.log('[RunJobModal] Setting modalState to failed');
                     setModalState('failed');
                     setError(event.message);
-                    onJobComplete?.();
                 }
             },
             (err) => {
@@ -126,7 +124,7 @@ export default function RunJobModal({
             console.log('[RunJobModal] Cleaning up SSE subscription');
             cleanup();
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [executionId]);
 
     // Auto-scroll log to bottom
@@ -219,6 +217,10 @@ export default function RunJobModal({
     };
 
     const handleClose = () => {
+        // If job completed or failed, notify parent before closing
+        if (modalState === 'completed' || modalState === 'failed') {
+            onJobComplete?.();
+        }
         // If running, just close modal (job continues in background)
         // Subscription cleanup happens in useEffect
         onClose();
@@ -236,11 +238,10 @@ export default function RunJobModal({
 
             {/* Modal */}
             <div className={`flex min-h-full items-center justify-center ${isMaximized ? 'p-0' : 'p-4'}`}>
-                <div className={`relative bg-white dark:bg-gray-800 shadow-xl transition-all duration-200 flex flex-col ${
-                    isMaximized
+                <div className={`relative bg-white dark:bg-gray-800 shadow-xl transition-all duration-200 flex flex-col ${isMaximized
                         ? 'w-full h-full rounded-none'
                         : 'w-full max-w-2xl max-h-[85vh] rounded-lg'
-                }`}>
+                    }`}>
                     {/* Header */}
                     <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -268,7 +269,7 @@ export default function RunJobModal({
                     </div>
 
                     {/* Content */}
-                    <div className={`px-6 py-4 ${isMaximized ? 'flex-1 overflow-y-auto' : ''}`}>
+                    <div className={`px-6 py-4 ${isMaximized ? 'flex-1 overflow-y-auto flex flex-col min-h-0' : ''}`}>
                         {/* Stream info */}
                         <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
                             <p className="text-sm text-gray-500 dark:text-gray-400">Stream</p>
@@ -326,7 +327,7 @@ export default function RunJobModal({
 
                         {/* Progress State */}
                         {(modalState === 'running' || modalState === 'completed' || modalState === 'failed') && (
-                            <div className="space-y-4">
+                            <div className={`space-y-4 ${isMaximized ? 'flex-1 flex flex-col min-h-0' : ''}`}>
                                 {/* Status indicator */}
                                 <div className="flex items-center gap-3">
                                     {modalState === 'running' && (
@@ -359,9 +360,8 @@ export default function RunJobModal({
                                 </div>
 
                                 {/* Status log */}
-                                <div className={`bg-gray-50 dark:bg-gray-900 rounded-lg p-3 overflow-y-auto font-mono text-xs ${
-                                    isMaximized ? 'flex-1 min-h-[400px]' : 'max-h-80'
-                                }`}>
+                                <div className={`bg-gray-50 dark:bg-gray-900 rounded-lg p-3 overflow-y-auto font-mono text-xs ${isMaximized ? 'flex-1 min-h-0' : 'max-h-80'
+                                    }`}>
                                     {statusLog.length === 0 ? (
                                         <div className="text-gray-400 flex items-center gap-2">
                                             <ArrowPathIcon className="h-4 w-4 animate-spin" />
@@ -374,11 +374,10 @@ export default function RunJobModal({
                                                     <span className="text-gray-400 whitespace-nowrap">
                                                         {new Date(entry.timestamp).toLocaleTimeString()}
                                                     </span>
-                                                    <span className={`font-medium ${
-                                                        entry.stage === 'completed' ? 'text-green-600 dark:text-green-400' :
-                                                        entry.stage === 'failed' ? 'text-red-600 dark:text-red-400' :
-                                                        'text-purple-600 dark:text-purple-400'
-                                                    }`}>
+                                                    <span className={`font-medium ${entry.stage === 'completed' ? 'text-green-600 dark:text-green-400' :
+                                                            entry.stage === 'failed' ? 'text-red-600 dark:text-red-400' :
+                                                                'text-purple-600 dark:text-purple-400'
+                                                        }`}>
                                                         [{entry.stage}]
                                                     </span>
                                                     <span className="text-gray-700 dark:text-gray-300">
