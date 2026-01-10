@@ -373,42 +373,44 @@ class OperationsService:
                 lookback_days=schedule_config_data.get('lookback_days')
             )
 
-            # Get last execution
+            # Get last execution - query for most recent execution for this stream
             last_exec = None
-            if stream.last_execution_id:
-                exec_db = self.db.query(PipelineExecution).filter(
-                    PipelineExecution.id == stream.last_execution_id
-                ).first()
-                if exec_db:
-                    # Get report info if completed
-                    report_approval_status = None
-                    article_count = None
-                    if exec_db.report_id:
-                        report = self.db.query(Report).filter(
-                            Report.report_id == exec_db.report_id
-                        ).first()
-                        if report:
-                            report_approval_status = report.approval_status.value if report.approval_status else None
-                            if report.pipeline_metrics:
-                                article_count = (
-                                    report.pipeline_metrics.get('articles_after_filter', 0) or
-                                    report.pipeline_metrics.get('article_count', 0)
-                                )
-                            if not article_count:
-                                article_count = len(report.article_associations) if report.article_associations else 0
+            exec_db = self.db.query(PipelineExecution).filter(
+                PipelineExecution.stream_id == stream.stream_id
+            ).order_by(
+                PipelineExecution.started_at.is_(None),  # NULLs last
+                PipelineExecution.started_at.desc()
+            ).first()
+            if exec_db:
+                # Get report info if completed
+                report_approval_status = None
+                article_count = None
+                if exec_db.report_id:
+                    report = self.db.query(Report).filter(
+                        Report.report_id == exec_db.report_id
+                    ).first()
+                    if report:
+                        report_approval_status = report.approval_status.value if report.approval_status else None
+                        if report.pipeline_metrics:
+                            article_count = (
+                                report.pipeline_metrics.get('articles_after_filter', 0) or
+                                report.pipeline_metrics.get('article_count', 0)
+                            )
+                        if not article_count:
+                            article_count = len(report.article_associations) if report.article_associations else 0
 
-                    last_exec = LastExecution(
-                        id=exec_db.id,
-                        stream_id=exec_db.stream_id,
-                        status=exec_db.status if exec_db.status else ExecutionStatusEnum.PENDING,
-                        run_type=exec_db.run_type if exec_db.run_type else RunTypeEnum.MANUAL,
-                        started_at=exec_db.started_at,
-                        completed_at=exec_db.completed_at,
-                        error=exec_db.error,
-                        report_id=exec_db.report_id,
-                        report_approval_status=report_approval_status,
-                        article_count=article_count
-                    )
+                last_exec = LastExecution(
+                    id=exec_db.id,
+                    stream_id=exec_db.stream_id,
+                    status=exec_db.status if exec_db.status else ExecutionStatusEnum.PENDING,
+                    run_type=exec_db.run_type if exec_db.run_type else RunTypeEnum.MANUAL,
+                    started_at=exec_db.started_at,
+                    completed_at=exec_db.completed_at,
+                    error=exec_db.error,
+                    report_id=exec_db.report_id,
+                    report_approval_status=report_approval_status,
+                    article_count=article_count
+                )
 
             result.append(ScheduledStreamSummary(
                 stream_id=stream.stream_id,
