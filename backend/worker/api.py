@@ -119,8 +119,9 @@ async def trigger_run(
                 start_dt = today - timedelta(days=lookback_days)
                 start_date = start_dt.strftime('%Y-%m-%d')
 
-        # Snapshot retrieval_config from stream
+        # Snapshot ALL configuration from stream at trigger time
         retrieval_config = stream.retrieval_config if stream.retrieval_config else {}
+        presentation_config = stream.presentation_config if stream.presentation_config else {}
 
         # Create execution with ALL configuration
         execution_id = str(uuid.uuid4())
@@ -132,11 +133,12 @@ async def trigger_run(
             user_id=stream.user_id,
             status=ExecutionStatus.PENDING,
             run_type=run_type,
-            # Execution configuration (determined now, used by pipeline)
+            # Execution configuration (ALL determined now, pipeline reads from here)
             start_date=start_date,
             end_date=end_date,
             report_name=request.report_name,
-            retrieval_config=retrieval_config
+            retrieval_config=retrieval_config,
+            presentation_config=presentation_config
         )
         db.add(execution)
         db.commit()

@@ -146,13 +146,15 @@ class PipelineExecution(Base):
     """
     Tracks each pipeline run attempt - the single source of truth for execution state AND configuration.
 
-    All execution parameters are determined and stored at creation time:
+    All configuration is determined and stored at creation time (trigger time):
     - Who triggered it (user_id)
-    - What configuration was used (retrieval_config snapshot)
+    - What to retrieve (retrieval_config snapshot)
+    - How to categorize/present (presentation_config snapshot)
     - What date range to query (start_date, end_date)
     - What to name the report (report_name)
 
-    The pipeline service reads ALL configuration from this record.
+    The pipeline service reads ALL configuration from this record - it does NOT
+    go back to the stream for any configuration.
     """
     __tablename__ = "pipeline_executions"
 
@@ -169,11 +171,12 @@ class PipelineExecution(Base):
     error = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # === EXECUTION CONFIGURATION (determined at creation time) ===
+    # === EXECUTION CONFIGURATION (all determined at trigger time) ===
     start_date = Column(String(10), nullable=True)  # YYYY-MM-DD format for retrieval
     end_date = Column(String(10), nullable=True)    # YYYY-MM-DD format for retrieval
     report_name = Column(String(255), nullable=True)  # Custom report name (defaults to YYYY.MM.DD if null)
-    retrieval_config = Column(JSON, nullable=True)  # Snapshot of stream's retrieval config at execution time
+    retrieval_config = Column(JSON, nullable=True)  # Snapshot: queries, filters, sources
+    presentation_config = Column(JSON, nullable=True)  # Snapshot: categories for categorization
 
     # === OUTPUT REFERENCE ===
     report_id = Column(Integer, ForeignKey("reports.report_id"), nullable=True)

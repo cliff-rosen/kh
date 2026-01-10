@@ -114,8 +114,9 @@ class JobDispatcher:
         end_date = today.strftime('%Y-%m-%d')
         start_date = (today - timedelta(days=lookback_days)).strftime('%Y-%m-%d')
 
-        # Snapshot retrieval_config
+        # Snapshot ALL configuration from stream at trigger time
         retrieval_config = stream.retrieval_config if stream.retrieval_config else {}
+        presentation_config = stream.presentation_config if stream.presentation_config else {}
 
         # Create execution record with ALL configuration
         execution = PipelineExecution(
@@ -125,11 +126,12 @@ class JobDispatcher:
             status=ExecutionStatus.RUNNING,
             run_type=RunType.SCHEDULED,
             started_at=datetime.utcnow(),
-            # Execution configuration
+            # Execution configuration (ALL determined now, pipeline reads from here)
             start_date=start_date,
             end_date=end_date,
             report_name=None,  # Auto-generated for scheduled runs
-            retrieval_config=retrieval_config
+            retrieval_config=retrieval_config,
+            presentation_config=presentation_config
         )
         self.db.add(execution)
         self.db.commit()

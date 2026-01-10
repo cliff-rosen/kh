@@ -128,26 +128,31 @@ class PipelineService:
 
             logger.info(f"Starting pipeline for execution_id={execution_id}, stream_id={research_stream_id}, run_type={run_type}")
 
-            # Get stream for presentation_config (retrieval_config comes from execution snapshot)
-            stream = self.research_stream_service.get_research_stream(
-                stream_id=research_stream_id,
-                user_id=user_id
-            )
-
-            # Use retrieval_config from execution (snapshot), not current stream config
-            # This ensures we use the exact config that was set when the execution was created
+            # ALL configuration comes from the execution record (snapshot from when execution was created)
+            # We do NOT query the stream for any configuration
             retrieval_config_dict = execution.retrieval_config or {}
+            presentation_config_dict = execution.presentation_config or {}
 
             # Parse the retrieval config snapshot
-            from schemas.research_stream import RetrievalConfig
+            from schemas.research_stream import RetrievalConfig, PresentationConfig
             if retrieval_config_dict:
                 retrieval_config = RetrievalConfig.model_validate(retrieval_config_dict)
             else:
-                # Fallback to current stream config if no snapshot (shouldn't happen for new executions)
-                retrieval_config = stream.retrieval_config
-                logger.warning(f"No retrieval_config snapshot in execution {execution_id}, using current stream config")
+                raise ValueError(f"No retrieval_config in execution {execution_id}. All executions must have config set at trigger time.")
 
-            presentation_config = stream.presentation_config
+            # Parse the presentation config snapshot
+            if presentation_config_dict:
+                presentation_config = PresentationConfig.model_validate(presentation_config_dict)
+            else:
+                raise ValueError(f"No presentation_config in execution {execution_id}. All executions must have config set at trigger time.")
+
+            # Get stream for CONTEXT ONLY (name, purpose, enrichment_config) - NOT for any configuration
+            # The stream is used for summary generation context, not execution configuration
+            stream = self.db.query(ResearchStream).filter(
+                ResearchStream.stream_id == research_stream_id
+            ).first()
+            if not stream:
+                raise ValueError(f"Stream {research_stream_id} not found")
 
             # Check for unsupported concept-based retrieval strategy
             if retrieval_config.concepts and len(retrieval_config.concepts) > 0:
@@ -423,7 +428,8 @@ class PipelineService:
 
             report = await self._generate_report(
                 execution_id=execution_id,
-                stream=stream,
+                user_id=user_id,  # From execution, not stream
+                stream_id=research_stream_id,  # From execution, not stream
                 executive_summary=executive_summary,
                 category_summaries=category_summaries,
                 metrics={
@@ -862,7 +868,8 @@ class PipelineService:
     async def _generate_report(
         self,
         execution_id: str,
-        stream: ResearchStream,
+        user_id: int,
+        stream_id: int,
         executive_summary: str,
         category_summaries: Dict[str, str],
         metrics: Dict,
@@ -877,7 +884,8 @@ class PipelineService:
 
         Args:
             execution_id: UUID of pipeline execution (links to wip_articles and stores all config)
-            stream: ResearchStream object (for user_id and stream_id)
+            user_id: User ID (from execution record)
+            stream_id: Stream ID (from execution record)
             executive_summary: Overall executive summary
             category_summaries: Dict mapping category_id to summary text
             metrics: Pipeline execution metrics
@@ -898,8 +906,8 @@ class PipelineService:
         final_report_name = report_name if report_name else report_date_obj.strftime("%Y.%m.%d")
 
         report = self.report_service.create_report(
-            user_id=stream.user_id,
-            research_stream_id=stream.stream_id,
+            user_id=user_id,
+            research_stream_id=stream_id,
             report_date=report_date_obj,
             title=final_report_name,
             pipeline_execution_id=execution_id,
