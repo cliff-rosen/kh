@@ -1,127 +1,87 @@
 """
 Email Template Service
 
-Generates HTML email content from reports.
+Generates HTML email content from report data.
 Structure: Executive summary at top, then each category with its summary followed by articles.
+
+This is a pure template generator - it receives data, no DB access.
 """
 
 from typing import Dict, Any, List, Optional
-from sqlalchemy.orm import Session
 from datetime import datetime
+from dataclasses import dataclass
 
-from models import Report, ReportArticleAssociation, Article, ResearchStream
+
+@dataclass
+class EmailArticle:
+    """Article data for email template"""
+    title: str
+    url: Optional[str] = None
+    doi: Optional[str] = None
+    pmid: Optional[str] = None
+    authors: Optional[List[str]] = None
+    journal: Optional[str] = None
+    publication_date: Optional[str] = None
+    summary: Optional[str] = None
+
+
+@dataclass
+class EmailCategory:
+    """Category data for email template"""
+    id: str
+    name: str
+    summary: Optional[str] = None
+    articles: List[EmailArticle] = None
+
+    def __post_init__(self):
+        if self.articles is None:
+            self.articles = []
+
+
+@dataclass
+class EmailReportData:
+    """All data needed to generate a report email"""
+    report_name: str
+    stream_name: str
+    report_date: str
+    executive_summary: str
+    categories: List[EmailCategory]
+    uncategorized_articles: List[EmailArticle] = None
+
+    def __post_init__(self):
+        if self.uncategorized_articles is None:
+            self.uncategorized_articles = []
 
 
 class EmailTemplateService:
-    """Generates HTML email content from reports"""
+    """Generates HTML email content from report data"""
 
-    def __init__(self, db: Session):
-        self.db = db
-
-    def generate_report_email(self, report_id: int) -> str:
+    def generate_report_email(self, data: EmailReportData) -> str:
         """
-        Generate HTML email content for a report.
+        Generate HTML email content from report data.
 
-        Structure:
-        - Header with report name and date
-        - Executive summary
-        - Each category section:
-          - Category name and summary
-          - Articles in that category
+        Args:
+            data: EmailReportData containing all report information
+
+        Returns:
+            str: Complete HTML email content
         """
-        # Load report with associations
-        report = self.db.query(Report).filter(Report.report_id == report_id).first()
-        if not report:
-            raise ValueError(f"Report {report_id} not found")
-
-        # Load stream for presentation_config (category definitions)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == report.research_stream_id
-        ).first()
-
-        # Get categories from stream's presentation_config
-        categories = []
-        if stream and stream.presentation_config:
-            categories = stream.presentation_config.get('categories', [])
-
-        # Build category lookup by ID
-        category_lookup = {cat['id']: cat for cat in categories}
-
-        # Get enrichments
-        enrichments = report.enrichments or {}
-        executive_summary = enrichments.get('executive_summary', '')
-        category_summaries = enrichments.get('category_summaries', {})
-
-        # Load articles with their associations
-        associations = self.db.query(ReportArticleAssociation, Article).join(
-            Article, ReportArticleAssociation.article_id == Article.article_id
-        ).filter(
-            ReportArticleAssociation.report_id == report_id
-        ).all()
-
-        # Group articles by category
-        articles_by_category: Dict[str, List[tuple]] = {}
-        uncategorized: List[tuple] = []
-
-        for assoc, article in associations:
-            cat_ids = assoc.presentation_categories or []
-            if not cat_ids:
-                uncategorized.append((assoc, article))
-            else:
-                for cat_id in cat_ids:
-                    if cat_id not in articles_by_category:
-                        articles_by_category[cat_id] = []
-                    articles_by_category[cat_id].append((assoc, article))
-
-        # Generate HTML
-        html = self._generate_html(
-            report=report,
-            stream=stream,
-            executive_summary=executive_summary,
-            categories=categories,
-            category_summaries=category_summaries,
-            articles_by_category=articles_by_category,
-            uncategorized=uncategorized
-        )
-
-        return html
-
-    def _generate_html(
-        self,
-        report: Report,
-        stream: Optional[ResearchStream],
-        executive_summary: str,
-        categories: List[Dict],
-        category_summaries: Dict[str, str],
-        articles_by_category: Dict[str, List[tuple]],
-        uncategorized: List[tuple]
-    ) -> str:
-        """Generate the full HTML email content"""
-
-        stream_name = stream.stream_name if stream else "Research Report"
-        report_date = report.report_date.strftime('%B %d, %Y') if report.report_date else ''
-
         html_parts = [
-            self._html_header(report.report_name, stream_name, report_date),
-            self._executive_summary_section(executive_summary),
+            self._html_header(data.report_name, data.stream_name, data.report_date),
+            self._executive_summary_section(data.executive_summary),
         ]
 
         # Add each category section
-        for category in categories:
-            cat_id = category['id']
-            cat_name = category.get('name', cat_id)
-            cat_summary = category_summaries.get(cat_id, '')
-            cat_articles = articles_by_category.get(cat_id, [])
-
-            if cat_articles:  # Only include categories with articles
+        for category in data.categories:
+            if category.articles:  # Only include categories with articles
                 html_parts.append(
-                    self._category_section(cat_name, cat_summary, cat_articles)
+                    self._category_section(category.name, category.summary, category.articles)
                 )
 
         # Add uncategorized if any
-        if uncategorized:
+        if data.uncategorized_articles:
             html_parts.append(
-                self._category_section("Other Articles", "", uncategorized)
+                self._category_section("Other Articles", "", data.uncategorized_articles)
             )
 
         html_parts.append(self._html_footer())
@@ -277,8 +237,8 @@ class EmailTemplateService:
     def _category_section(
         self,
         category_name: str,
-        category_summary: str,
-        articles: List[tuple]
+        category_summary: Optional[str],
+        articles: List[EmailArticle]
     ) -> str:
         """Generate a category section with its articles"""
         html = f'''
@@ -296,8 +256,8 @@ class EmailTemplateService:
         html += '''
             <div class="articles-list">'''
 
-        for assoc, article in articles:
-            html += self._article_item(article, assoc)
+        for article in articles:
+            html += self._article_item(article)
 
         html += '''
             </div>
@@ -305,7 +265,7 @@ class EmailTemplateService:
 
         return html
 
-    def _article_item(self, article: Article, assoc: ReportArticleAssociation) -> str:
+    def _article_item(self, article: EmailArticle) -> str:
         """Generate HTML for a single article"""
         title = article.title or "Untitled"
 
@@ -318,28 +278,26 @@ class EmailTemplateService:
 
         # Format title with link if we have a URL
         if url:
-            title_html = f'<a href="{url}">{title}</a>'
+            title_html = f'<a href="{url}">{self._format_text(title)}</a>'
         else:
-            title_html = title
+            title_html = self._format_text(title)
 
         # Build meta line
         meta_parts = []
         if article.authors:
-            authors = article.authors
-            if isinstance(authors, list) and authors:
-                if len(authors) <= 3:
-                    meta_parts.append(', '.join(authors))
-                else:
-                    meta_parts.append(f"{authors[0]} et al.")
+            if len(article.authors) <= 3:
+                meta_parts.append(', '.join(article.authors))
+            else:
+                meta_parts.append(f"{article.authors[0]} et al.")
         if article.journal:
             meta_parts.append(article.journal)
         if article.publication_date:
-            meta_parts.append(article.publication_date.strftime('%Y-%m-%d'))
+            meta_parts.append(article.publication_date)
 
         meta_html = ' &bull; '.join(meta_parts) if meta_parts else ''
 
-        # Get summary - prefer AI summary, fall back to abstract
-        summary = article.ai_summary or article.abstract or article.summary or ''
+        # Get summary
+        summary = article.summary or ''
         if len(summary) > 300:
             summary = summary[:297] + '...'
 

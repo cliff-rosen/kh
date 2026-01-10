@@ -24,6 +24,8 @@ import {
     XCircleIcon,
     ArrowPathIcon,
     ExclamationTriangleIcon,
+    EnvelopeIcon,
+    PaperAirplaneIcon,
 } from '@heroicons/react/24/outline';
 import {
     getExecutionDetail,
@@ -49,6 +51,16 @@ export default function ReportReview() {
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [pipelineTab, setPipelineTab] = useState<PipelineTab>('report_preview');
     const [submitting, setSubmitting] = useState(false);
+
+    // Email state
+    const [showEmailModal, setShowEmailModal] = useState(false);
+    const [emailHtml, setEmailHtml] = useState<string | null>(null);
+    const [emailStored, setEmailStored] = useState(false);
+    const [emailLoading, setEmailLoading] = useState(false);
+    const [emailError, setEmailError] = useState<string | null>(null);
+    const [emailRecipient, setEmailRecipient] = useState('');
+    const [sendingEmail, setSendingEmail] = useState(false);
+    const [emailSendResult, setEmailSendResult] = useState<{ success: string[]; failed: string[] } | null>(null);
 
     // Fetch execution data
     useEffect(() => {
@@ -149,6 +161,76 @@ export default function ReportReview() {
             setError('Failed to reject report');
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    // Email handlers
+    const handleGenerateEmail = async () => {
+        if (!execution?.report_id) return;
+        setEmailLoading(true);
+        setEmailError(null);
+        try {
+            const result = await reportApi.generateReportEmail(execution.report_id);
+            setEmailHtml(result.html);
+            setEmailStored(false);
+        } catch (err) {
+            console.error('Failed to generate email:', err);
+            setEmailError('Failed to generate email');
+        } finally {
+            setEmailLoading(false);
+        }
+    };
+
+    const handleStoreEmail = async () => {
+        if (!execution?.report_id || !emailHtml) return;
+        setEmailLoading(true);
+        setEmailError(null);
+        try {
+            await reportApi.storeReportEmail(execution.report_id, emailHtml);
+            setEmailStored(true);
+        } catch (err) {
+            console.error('Failed to store email:', err);
+            setEmailError('Failed to store email');
+        } finally {
+            setEmailLoading(false);
+        }
+    };
+
+    const handleLoadStoredEmail = async () => {
+        if (!execution?.report_id) return;
+        setEmailLoading(true);
+        setEmailError(null);
+        try {
+            const result = await reportApi.getReportEmail(execution.report_id);
+            setEmailHtml(result.html);
+            setEmailStored(true);
+        } catch (err: any) {
+            if (err?.response?.status === 404) {
+                setEmailError('No stored email found. Generate one first.');
+            } else {
+                console.error('Failed to load email:', err);
+                setEmailError('Failed to load email');
+            }
+        } finally {
+            setEmailLoading(false);
+        }
+    };
+
+    const handleSendEmail = async () => {
+        if (!execution?.report_id || !emailRecipient.trim() || !emailStored) return;
+        setSendingEmail(true);
+        setEmailSendResult(null);
+        try {
+            const result = await reportApi.sendReportEmail(execution.report_id, [emailRecipient.trim()]);
+            setEmailSendResult(result);
+            if (result.success.length > 0) {
+                setEmailRecipient('');
+            }
+        } catch (err) {
+            console.error('Failed to send email:', err);
+            setEmailError('Failed to send email');
+        } finally {
+            setSendingEmail(false);
         }
     };
 
@@ -386,14 +468,29 @@ export default function ReportReview() {
                                 <>
                                     {/* Report Header */}
                                     <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
-                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                                            {report.report_name}
-                                        </h2>
-                                        <div className="flex items-center gap-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                            <span>{report.articles?.length || 0} articles</span>
-                                            {execution.start_date && execution.end_date && (
-                                                <span>Date range: {execution.start_date} to {execution.end_date}</span>
-                                            )}
+                                        <div className="flex items-start justify-between">
+                                            <div>
+                                                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                                                    {report.report_name}
+                                                </h2>
+                                                <div className="flex items-center gap-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                                    <span>{report.articles?.length || 0} articles</span>
+                                                    {execution.start_date && execution.end_date && (
+                                                        <span>Date range: {execution.start_date} to {execution.end_date}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => setShowEmailModal(true)}
+                                                className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition-colors flex items-center gap-2"
+                                                title="Email Report"
+                                            >
+                                                <EnvelopeIcon className="h-5 w-5" />
+                                                <span className="text-sm">Email</span>
+                                                {emailStored && (
+                                                    <CheckCircleIcon className="h-4 w-4 text-green-500" />
+                                                )}
+                                            </button>
                                         </div>
                                     </div>
 
@@ -527,6 +624,7 @@ export default function ReportReview() {
                             )}
                         </div>
                     )}
+
                 </div>
             </div>
 
@@ -562,6 +660,146 @@ export default function ReportReview() {
                             >
                                 {submitting ? 'Processing...' : 'Reject Report'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Email Modal */}
+            {showEmailModal && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex flex-col">
+                    <div className="bg-white dark:bg-gray-800 w-screen h-screen flex flex-col">
+                        {/* Modal Header with Controls */}
+                        <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                        <EnvelopeIcon className="h-5 w-5" />
+                                        Email Report
+                                    </h2>
+                                    {emailStored && (
+                                        <span className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+                                            <CheckCircleIcon className="h-4 w-4" />
+                                            Stored
+                                        </span>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={() => setShowEmailModal(false)}
+                                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                                >
+                                    <XMarkIcon className="h-5 w-5 text-gray-500" />
+                                </button>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex flex-wrap items-center gap-3 mt-4">
+                                <button
+                                    onClick={handleLoadStoredEmail}
+                                    disabled={emailLoading}
+                                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {emailLoading ? (
+                                        <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <EnvelopeIcon className="h-4 w-4" />
+                                    )}
+                                    Load Stored
+                                </button>
+                                <button
+                                    onClick={handleGenerateEmail}
+                                    disabled={emailLoading}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {emailLoading ? (
+                                        <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <ArrowPathIcon className="h-4 w-4" />
+                                    )}
+                                    Generate Email
+                                </button>
+                                {emailHtml && !emailStored && (
+                                    <button
+                                        onClick={handleStoreEmail}
+                                        disabled={emailLoading}
+                                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+                                    >
+                                        <CheckIcon className="h-4 w-4" />
+                                        Store Email
+                                    </button>
+                                )}
+
+                                {/* Divider */}
+                                {emailStored && <div className="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-2" />}
+
+                                {/* Send Email Form */}
+                                {emailStored && (
+                                    <>
+                                        <input
+                                            type="email"
+                                            value={emailRecipient}
+                                            onChange={(e) => setEmailRecipient(e.target.value)}
+                                            placeholder="recipient@example.com"
+                                            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-64"
+                                        />
+                                        <button
+                                            onClick={handleSendEmail}
+                                            disabled={sendingEmail || !emailRecipient.trim()}
+                                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+                                        >
+                                            {sendingEmail ? (
+                                                <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <PaperAirplaneIcon className="h-4 w-4" />
+                                            )}
+                                            Send
+                                        </button>
+                                    </>
+                                )}
+
+                                {/* Send Result */}
+                                {emailSendResult && (
+                                    <span className="text-sm">
+                                        {emailSendResult.success.length > 0 && (
+                                            <span className="text-green-600 dark:text-green-400">
+                                                Sent to {emailSendResult.success.join(', ')}
+                                            </span>
+                                        )}
+                                        {emailSendResult.failed.length > 0 && (
+                                            <span className="text-red-600 dark:text-red-400">
+                                                Failed: {emailSendResult.failed.join(', ')}
+                                            </span>
+                                        )}
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Error Display */}
+                            {emailError && (
+                                <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
+                                    {emailError}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Email Preview Area */}
+                        <div className="flex-1 overflow-hidden">
+                            {emailHtml ? (
+                                <iframe
+                                    srcDoc={emailHtml}
+                                    title="Email Preview"
+                                    className="w-full h-full bg-white"
+                                    sandbox="allow-same-origin"
+                                />
+                            ) : (
+                                <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                                    <div className="text-center">
+                                        <EnvelopeIcon className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                                        <p className="text-lg">No email preview</p>
+                                        <p className="text-sm mt-1">Click "Load Stored" to load existing email or "Generate Email" to create a new one</p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

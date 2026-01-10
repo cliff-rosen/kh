@@ -12,7 +12,6 @@ from database import get_db
 from models import User
 from schemas.report import Report, ReportWithArticles
 from services.report_service import ReportService
-from services.email_template_service import EmailTemplateService
 from services.email_service import EmailService
 from services.user_tracking_service import track_endpoint
 from routers.auth import get_current_user
@@ -39,6 +38,11 @@ class ArticleMetadataResponse(BaseModel):
 class SendReportEmailRequest(BaseModel):
     """Request to send report email"""
     recipients: List[str]
+
+
+class StoreReportEmailRequest(BaseModel):
+    """Request to store report email HTML"""
+    html: str
 
 
 class SendReportEmailResponse(BaseModel):
@@ -364,43 +368,126 @@ async def get_article_metadata(
         )
 
 
-@router.get("/{report_id}/email", response_model=EmailPreviewResponse)
-async def get_report_email_preview(
+@router.post("/{report_id}/email/generate", response_model=EmailPreviewResponse)
+async def generate_report_email(
     report_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Generate email HTML preview for a report.
-    Returns the HTML content that would be sent in an email.
+    Generate email HTML for a report (does not store).
+    Use POST /email/store to save the HTML after reviewing.
     """
-    logger.info(f"get_report_email_preview - user_id={current_user.user_id}, report_id={report_id}")
+    logger.info(f"generate_report_email - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        # First verify user has access to this report
         report_service = ReportService(db)
-        report = report_service.get_report_with_articles(report_id, current_user.user_id)
 
-        if not report:
+        # Generate email HTML (no storage)
+        html = report_service.generate_report_email_html(report_id, current_user.user_id)
+
+        if not html:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Report not found"
             )
 
-        # Generate email HTML
-        email_template_service = EmailTemplateService(db)
-        html = email_template_service.generate_report_email(report_id)
+        # Get report name for response
+        report = report_service.get_report_with_articles(report_id, current_user.user_id)
+        report_name = report['report_name'] if report else ''
 
-        logger.info(f"get_report_email_preview complete - user_id={current_user.user_id}, report_id={report_id}")
-        return EmailPreviewResponse(html=html, report_name=report.report_name)
+        logger.info(f"generate_report_email complete - user_id={current_user.user_id}, report_id={report_id}")
+        return EmailPreviewResponse(html=html, report_name=report_name)
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"get_report_email_preview failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        logger.error(f"generate_report_email failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate email preview: {str(e)}"
+            detail=f"Failed to generate email: {str(e)}"
+        )
+
+
+@router.post("/{report_id}/email/store", response_model=EmailPreviewResponse)
+async def store_report_email(
+    report_id: int,
+    request: StoreReportEmailRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Store email HTML for a report.
+    """
+    logger.info(f"store_report_email - user_id={current_user.user_id}, report_id={report_id}")
+
+    try:
+        report_service = ReportService(db)
+
+        # Store the email HTML
+        success = report_service.store_report_email_html(report_id, current_user.user_id, request.html)
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+
+        # Get report name for response
+        report = report_service.get_report_with_articles(report_id, current_user.user_id)
+        report_name = report['report_name'] if report else ''
+
+        logger.info(f"store_report_email complete - user_id={current_user.user_id}, report_id={report_id}")
+        return EmailPreviewResponse(html=request.html, report_name=report_name)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"store_report_email failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to store email: {str(e)}"
+        )
+
+
+@router.get("/{report_id}/email", response_model=EmailPreviewResponse)
+async def get_report_email(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get stored email HTML for a report.
+    Returns 404 if email hasn't been generated yet.
+    """
+    logger.info(f"get_report_email - user_id={current_user.user_id}, report_id={report_id}")
+
+    try:
+        report_service = ReportService(db)
+
+        # Get stored email HTML
+        html = report_service.get_report_email_html(report_id, current_user.user_id)
+
+        if not html:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Email not generated yet. Use POST /email/generate first."
+            )
+
+        # Get report name for response
+        report = report_service.get_report_with_articles(report_id, current_user.user_id)
+        report_name = report['report_name'] if report else ''
+
+        logger.info(f"get_report_email complete - user_id={current_user.user_id}, report_id={report_id}")
+        return EmailPreviewResponse(html=html, report_name=report_name)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_report_email failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get email: {str(e)}"
         )
 
 
@@ -412,30 +499,36 @@ async def send_report_email(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Send report email to specified recipients.
+    Send stored report email to specified recipients.
+    Email must be generated first using POST /email/generate.
     """
     logger.info(f"send_report_email - user_id={current_user.user_id}, report_id={report_id}, recipients={request.recipients}")
 
     try:
-        # First verify user has access to this report
         report_service = ReportService(db)
-        report = report_service.get_report_with_articles(report_id, current_user.user_id)
 
+        # Get stored email HTML
+        html = report_service.get_report_email_html(report_id, current_user.user_id)
+
+        if not html:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Email not generated yet. Use POST /email/generate first."
+            )
+
+        # Get report name
+        report = report_service.get_report_with_articles(report_id, current_user.user_id)
         if not report:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Report not found"
             )
 
-        # Generate email HTML
-        email_template_service = EmailTemplateService(db)
-        html = email_template_service.generate_report_email(report_id)
-
         # Send emails
         email_service = EmailService()
         results = await email_service.send_bulk_report_emails(
             recipients=request.recipients,
-            report_name=report.report_name,
+            report_name=report['report_name'],
             html_content=html
         )
 

@@ -21,6 +21,9 @@ from models import (
 )
 from schemas.report import Report as ReportSchema
 from services.user_service import UserService
+from services.email_template_service import (
+    EmailTemplateService, EmailReportData, EmailCategory, EmailArticle
+)
 
 logger = logging.getLogger(__name__)
 
@@ -939,6 +942,208 @@ class ReportService:
             'category_counts': category_counts,
             'wip_articles': wip_articles_data
         }
+
+    # =========================================================================
+    # Email Generation
+    # =========================================================================
+
+    def generate_report_email_html(self, report_id: int, user_id: int) -> Optional[str]:
+        """
+        Generate HTML email content for a report.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID (for access verification)
+
+        Returns:
+            HTML string, or None if report not found/no access
+        """
+        # Get report with access check
+        report = self.db.query(Report).filter(Report.report_id == report_id).first()
+        if not report:
+            return None
+
+        # Check stream access
+        user = self.user_service.get_user_by_id(user_id)
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == report.research_stream_id
+        ).first()
+
+        if not user or not self._user_has_stream_access(user, stream):
+            return None
+
+        # Build email data
+        email_data = self._build_email_report_data(report, stream)
+
+        # Generate HTML
+        template_service = EmailTemplateService()
+        return template_service.generate_report_email(email_data)
+
+    def generate_and_store_report_email(self, report_id: int, user_id: int) -> Optional[str]:
+        """
+        Generate HTML email for a report and store it in enrichments.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID (for access verification)
+
+        Returns:
+            HTML string, or None if report not found/no access
+        """
+        html = self.generate_report_email_html(report_id, user_id)
+        if html is None:
+            return None
+
+        # Store in enrichments
+        report = self.db.query(Report).filter(Report.report_id == report_id).first()
+        if report:
+            enrichments = report.enrichments or {}
+            enrichments['email_html'] = html
+            report.enrichments = enrichments
+            self.db.commit()
+
+        return html
+
+    def store_report_email_html(self, report_id: int, user_id: int, html: str) -> bool:
+        """
+        Store email HTML for a report.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID (for access verification)
+            html: The HTML content to store
+
+        Returns:
+            True if stored successfully, False if report not found/no access
+        """
+        report = self.db.query(Report).filter(Report.report_id == report_id).first()
+        if not report:
+            return False
+
+        # Check stream access
+        user = self.user_service.get_user_by_id(user_id)
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == report.research_stream_id
+        ).first()
+
+        if not user or not self._user_has_stream_access(user, stream):
+            return False
+
+        # Store in enrichments
+        enrichments = report.enrichments or {}
+        enrichments['email_html'] = html
+        report.enrichments = enrichments
+        self.db.commit()
+
+        return True
+
+    def get_report_email_html(self, report_id: int, user_id: int) -> Optional[str]:
+        """
+        Get stored email HTML for a report.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID (for access verification)
+
+        Returns:
+            Stored HTML string, or None if not found/no access/not generated
+        """
+        report = self.db.query(Report).filter(Report.report_id == report_id).first()
+        if not report:
+            return None
+
+        # Check stream access
+        user = self.user_service.get_user_by_id(user_id)
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == report.research_stream_id
+        ).first()
+
+        if not user or not self._user_has_stream_access(user, stream):
+            return None
+
+        # Get from enrichments
+        enrichments = report.enrichments or {}
+        return enrichments.get('email_html')
+
+    def _build_email_report_data(self, report: Report, stream: ResearchStream) -> EmailReportData:
+        """
+        Build EmailReportData from report and stream.
+
+        Args:
+            report: Report model instance
+            stream: ResearchStream model instance
+
+        Returns:
+            EmailReportData for template generation
+        """
+        # Get categories from stream's presentation_config
+        categories_config = []
+        category_lookup = {}
+        if stream and stream.presentation_config:
+            categories_config = stream.presentation_config.get('categories', [])
+            category_lookup = {cat['id']: cat for cat in categories_config}
+
+        # Get enrichments
+        enrichments = report.enrichments or {}
+        executive_summary = enrichments.get('executive_summary', '')
+        category_summaries = enrichments.get('category_summaries', {})
+
+        # Get articles with associations
+        associations = self.db.query(ReportArticleAssociation, Article).join(
+            Article, ReportArticleAssociation.article_id == Article.article_id
+        ).filter(
+            ReportArticleAssociation.report_id == report.report_id
+        ).order_by(
+            ReportArticleAssociation.ranking
+        ).all()
+
+        # Group articles by category
+        articles_by_category: Dict[str, List[EmailArticle]] = {}
+        uncategorized: List[EmailArticle] = []
+
+        for assoc, article in associations:
+            email_article = EmailArticle(
+                title=article.title,
+                url=article.url,
+                doi=article.doi,
+                pmid=article.pmid,
+                authors=article.authors if isinstance(article.authors, list) else [],
+                journal=article.journal,
+                publication_date=article.publication_date.strftime('%Y-%m-%d') if article.publication_date else article.year,
+                summary=article.ai_summary or article.abstract or article.summary
+            )
+
+            cat_ids = assoc.presentation_categories or []
+            if not cat_ids:
+                uncategorized.append(email_article)
+            else:
+                for cat_id in cat_ids:
+                    if cat_id not in articles_by_category:
+                        articles_by_category[cat_id] = []
+                    articles_by_category[cat_id].append(email_article)
+
+        # Build EmailCategory list (preserving order from config)
+        email_categories = []
+        for cat_config in categories_config:
+            cat_id = cat_config['id']
+            cat_articles = articles_by_category.get(cat_id, [])
+            if cat_articles:  # Only include categories with articles
+                email_categories.append(EmailCategory(
+                    id=cat_id,
+                    name=cat_config.get('name', cat_id),
+                    summary=category_summaries.get(cat_id, ''),
+                    articles=cat_articles
+                ))
+
+        # Build final data
+        return EmailReportData(
+            report_name=report.report_name,
+            stream_name=stream.stream_name if stream else "Research Report",
+            report_date=report.report_date.strftime('%B %d, %Y') if report.report_date else '',
+            executive_summary=executive_summary,
+            categories=email_categories,
+            uncategorized_articles=uncategorized
+        )
 
     # =========================================================================
     # COMMIT Operations

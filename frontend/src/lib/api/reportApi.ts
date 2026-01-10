@@ -85,5 +85,41 @@ export const reportApi = {
      */
     async updateArticleEnrichments(reportId: number, articleId: number, aiEnrichments: ArticleEnrichments): Promise<void> {
         await api.patch(`/api/reports/${reportId}/articles/${articleId}/enrichments`, { ai_enrichments: aiEnrichments });
+    },
+
+    // =========================================================================
+    // Email Operations
+    // =========================================================================
+
+    /**
+     * Generate email HTML for a report (does not store)
+     */
+    async generateReportEmail(reportId: number): Promise<{ html: string; report_name: string }> {
+        const response = await api.post(`/api/reports/${reportId}/email/generate`);
+        return response.data;
+    },
+
+    /**
+     * Store email HTML for a report
+     */
+    async storeReportEmail(reportId: number, html: string): Promise<{ html: string; report_name: string }> {
+        const response = await api.post(`/api/reports/${reportId}/email/store`, { html });
+        return response.data;
+    },
+
+    /**
+     * Get stored email HTML for a report
+     */
+    async getReportEmail(reportId: number): Promise<{ html: string; report_name: string }> {
+        const response = await api.get(`/api/reports/${reportId}/email`);
+        return response.data;
+    },
+
+    /**
+     * Send report email to recipients
+     */
+    async sendReportEmail(reportId: number, recipients: string[]): Promise<{ success: string[]; failed: string[] }> {
+        const response = await api.post(`/api/reports/${reportId}/email/send`, { recipients });
+        return response.data;
     }
 };
