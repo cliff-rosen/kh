@@ -245,20 +245,22 @@ export default function ReportReview() {
                         </div>
                     </div>
 
-                    {/* Pipeline Metrics */}
-                    {execution.metrics && (
+                    {/* Pipeline Metrics - from report.pipeline_metrics */}
+                    {report?.pipeline_metrics && (
                         <div className="flex items-center gap-1.5 text-xs">
                             <FunnelIcon className="h-3.5 w-3.5 text-gray-400" />
-                            <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded">
-                                {execution.metrics.articles_retrieved ?? '?'}
+                            <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded" title="Total Retrieved">
+                                {report.pipeline_metrics.total_retrieved ?? '?'}
                             </span>
                             <span className="text-gray-400">→</span>
-                            <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded">
-                                {execution.metrics.articles_after_dedup ?? '?'}
+                            <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded" title="After Deduplication">
+                                {report.pipeline_metrics.total_retrieved != null && report.pipeline_metrics.global_duplicates != null
+                                    ? report.pipeline_metrics.total_retrieved - report.pipeline_metrics.global_duplicates
+                                    : '?'}
                             </span>
                             <span className="text-gray-400">→</span>
-                            <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded font-medium">
-                                {execution.metrics.articles_after_filter ?? '?'}
+                            <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded font-medium" title="Included in Report">
+                                {report.pipeline_metrics.included_in_report ?? '?'}
                             </span>
                         </div>
                     )}
