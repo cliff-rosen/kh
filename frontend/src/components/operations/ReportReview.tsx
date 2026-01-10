@@ -18,7 +18,6 @@ import {
     XMarkIcon,
     ChevronDownIcon,
     ChevronRightIcon,
-    ClockIcon,
     FunnelIcon,
     DocumentTextIcon,
     CheckCircleIcon,
@@ -214,158 +213,90 @@ export default function ReportReview() {
                 )}
             </div>
 
-            {/* Execution Details */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                    <ClockIcon className="h-5 w-5 text-gray-400" />
-                    Execution Details
-                </h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Execution Status</p>
-                        <ExecutionStatusBadge status={execution.execution_status} />
+            {/* Execution Details - Compact Layout */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                {/* Row 1: Basic execution info + metrics + approval */}
+                <div className="flex flex-wrap items-start gap-6">
+                    {/* Execution Info */}
+                    <div className="flex items-center gap-4">
+                        <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Status</p>
+                            <ExecutionStatusBadge status={execution.execution_status} />
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Run Type</p>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white capitalize">{execution.run_type}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Date Range</p>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                {execution.start_date && execution.end_date
+                                    ? `${execution.start_date} → ${execution.end_date}`
+                                    : 'N/A'}
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Duration</p>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                {execution.started_at && execution.completed_at
+                                    ? `${Math.round((new Date(execution.completed_at).getTime() - new Date(execution.started_at).getTime()) / 60000)}m`
+                                    : 'N/A'}
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Started</p>
-                        <p className="font-medium text-gray-900 dark:text-white">
-                            {execution.started_at
-                                ? new Date(execution.started_at).toLocaleString()
-                                : 'N/A'}
-                        </p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Duration</p>
-                        <p className="font-medium text-gray-900 dark:text-white">
-                            {execution.started_at && execution.completed_at
-                                ? `${Math.round((new Date(execution.completed_at).getTime() - new Date(execution.started_at).getTime()) / 60000)} minutes`
-                                : 'N/A'}
-                        </p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Run Type</p>
-                        <p className="font-medium text-gray-900 dark:text-white capitalize">
-                            {execution.run_type}
-                        </p>
-                    </div>
+
+                    {/* Pipeline Metrics */}
+                    {execution.metrics && (
+                        <div className="flex items-center gap-1.5 text-xs">
+                            <FunnelIcon className="h-3.5 w-3.5 text-gray-400" />
+                            <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded">
+                                {execution.metrics.articles_retrieved ?? '?'}
+                            </span>
+                            <span className="text-gray-400">→</span>
+                            <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded">
+                                {execution.metrics.articles_after_dedup ?? '?'}
+                            </span>
+                            <span className="text-gray-400">→</span>
+                            <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded font-medium">
+                                {execution.metrics.articles_after_filter ?? '?'}
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Approval Status */}
+                    {execution.report_id && execution.approval_status && (
+                        <div className="flex items-center gap-3">
+                            <ApprovalStatusBadge status={execution.approval_status} />
+                            {execution.approved_by && (
+                                <span className="text-xs text-gray-500">by {execution.approved_by}</span>
+                            )}
+                        </div>
+                    )}
                 </div>
 
-                {/* Error display for failed executions */}
+                {/* Error display */}
                 {execution.execution_status === 'failed' && execution.error && (
-                    <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                         <div className="flex items-start gap-2">
-                            <ExclamationTriangleIcon className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5" />
-                            <div>
-                                <p className="font-medium text-red-800 dark:text-red-200">Execution Failed</p>
-                                <p className="text-sm text-red-700 dark:text-red-300 mt-1">{execution.error}</p>
-                            </div>
+                            <ExclamationTriangleIcon className="h-4 w-4 text-red-600 dark:text-red-400 mt-0.5" />
+                            <p className="text-sm text-red-700 dark:text-red-300">{execution.error}</p>
                         </div>
                     </div>
                 )}
 
-                {/* Report approval status */}
-                {execution.report_id && execution.approval_status && (
-                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center gap-4">
-                            <div>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">Report Approval</p>
-                                <ApprovalStatusBadge status={execution.approval_status} />
-                            </div>
-                            {execution.approved_by && (
-                                <div>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">Reviewed By</p>
-                                    <p className="font-medium text-gray-900 dark:text-white">{execution.approved_by}</p>
-                                </div>
-                            )}
-                            {execution.approved_at && (
-                                <div>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">Reviewed At</p>
-                                    <p className="font-medium text-gray-900 dark:text-white">
-                                        {new Date(execution.approved_at).toLocaleString()}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                        {execution.rejection_reason && (
-                            <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded">
-                                <p className="text-sm font-medium text-red-800 dark:text-red-200">Rejection Reason:</p>
-                                <p className="text-sm text-red-700 dark:text-red-300 mt-1">{execution.rejection_reason}</p>
-                            </div>
-                        )}
+                {/* Rejection reason */}
+                {execution.rejection_reason && (
+                    <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded">
+                        <p className="text-sm text-red-700 dark:text-red-300">
+                            <span className="font-medium">Rejected:</span> {execution.rejection_reason}
+                        </p>
                     </div>
                 )}
 
-                {/* Filter funnel */}
-                {execution.metrics && (
-                    <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center gap-2 mb-3">
-                            <FunnelIcon className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Article Filtering Pipeline</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                            <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded">
-                                <p className="text-gray-500 dark:text-gray-400">Retrieved</p>
-                                <p className="font-semibold text-gray-900 dark:text-white">{execution.metrics.articles_retrieved ?? '?'}</p>
-                            </div>
-                            <span className="text-gray-400">→</span>
-                            <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded">
-                                <p className="text-gray-500 dark:text-gray-400">After Dedup</p>
-                                <p className="font-semibold text-gray-900 dark:text-white">{execution.metrics.articles_after_dedup ?? '?'}</p>
-                            </div>
-                            <span className="text-gray-400">→</span>
-                            <div className="px-3 py-2 bg-blue-100 dark:bg-blue-900/30 rounded">
-                                <p className="text-blue-600 dark:text-blue-400">After Filter</p>
-                                <p className="font-semibold text-blue-700 dark:text-blue-300">{execution.metrics.articles_after_filter ?? '?'}</p>
-                            </div>
-                        </div>
-                        {execution.metrics.filter_config && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                                Filter: {execution.metrics.filter_config}
-                            </p>
-                        )}
-                    </div>
-                )}
-
-                {/* Retrieval Configuration */}
-                {(execution.start_date || execution.end_date || execution.retrieval_config) && (
-                    <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Retrieval Configuration</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            {execution.start_date && (
-                                <div>
-                                    <p className="text-gray-500 dark:text-gray-400">Start Date</p>
-                                    <p className="font-medium text-gray-900 dark:text-white">{execution.start_date}</p>
-                                </div>
-                            )}
-                            {execution.end_date && (
-                                <div>
-                                    <p className="text-gray-500 dark:text-gray-400">End Date</p>
-                                    <p className="font-medium text-gray-900 dark:text-white">{execution.end_date}</p>
-                                </div>
-                            )}
-                            {execution.retrieval_config?.max_results && (
-                                <div>
-                                    <p className="text-gray-500 dark:text-gray-400">Max Results</p>
-                                    <p className="font-medium text-gray-900 dark:text-white">{String(execution.retrieval_config.max_results)}</p>
-                                </div>
-                            )}
-                        </div>
-                        {execution.retrieval_config?.queries && Array.isArray(execution.retrieval_config.queries) && (
-                            <div className="mt-3">
-                                <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">Search Queries ({execution.retrieval_config.queries.length})</p>
-                                <div className="flex flex-wrap gap-2">
-                                    {(execution.retrieval_config.queries as string[]).slice(0, 5).map((query, idx) => (
-                                        <span key={idx} className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-700 dark:text-gray-300">
-                                            {query}
-                                        </span>
-                                    ))}
-                                    {execution.retrieval_config.queries.length > 5 && (
-                                        <span className="px-2 py-1 text-xs text-gray-500">
-                                            +{execution.retrieval_config.queries.length - 5} more
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                        )}
+                {/* Retrieval Configuration - Queries and Filters */}
+                {execution.retrieval_config && (
+                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                        <RetrievalConfigDisplay config={execution.retrieval_config} />
                     </div>
                 )}
             </div>
@@ -704,6 +635,86 @@ function ApprovalStatusBadge({ status }: { status: string | null }) {
             {Icon && <Icon className="h-4 w-4" />}
             {label}
         </span>
+    );
+}
+
+// Display retrieval configuration (concepts or broad search)
+interface RetrievalConfigProps {
+    config: Record<string, unknown>;
+}
+
+interface ConceptConfig {
+    concept_id: string;
+    name: string;
+    query_expression?: string;
+    semantic_filter?: {
+        enabled: boolean;
+        criteria: string;
+    };
+}
+
+interface BroadQueryConfig {
+    query_id: string;
+    query_expression: string;
+    semantic_filter?: {
+        enabled: boolean;
+        criteria: string;
+    };
+}
+
+function RetrievalConfigDisplay({ config }: RetrievalConfigProps) {
+    const concepts = config.concepts as ConceptConfig[] | undefined;
+    const broadSearch = config.broad_search as { queries: BroadQueryConfig[] } | undefined;
+
+    // Extract queries and filters
+    const queries: { id: string; expression: string; filter?: string }[] = [];
+
+    if (concepts && Array.isArray(concepts)) {
+        concepts.forEach(concept => {
+            if (concept.query_expression) {
+                queries.push({
+                    id: concept.concept_id || concept.name,
+                    expression: concept.query_expression,
+                    filter: concept.semantic_filter?.enabled ? concept.semantic_filter.criteria : undefined
+                });
+            }
+        });
+    } else if (broadSearch?.queries && Array.isArray(broadSearch.queries)) {
+        broadSearch.queries.forEach(query => {
+            queries.push({
+                id: query.query_id,
+                expression: query.query_expression,
+                filter: query.semantic_filter?.enabled ? query.semantic_filter.criteria : undefined
+            });
+        });
+    }
+
+    if (queries.length === 0) {
+        return <p className="text-xs text-gray-500">No retrieval configuration</p>;
+    }
+
+    return (
+        <div className="space-y-2">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                {concepts ? 'Concept Queries' : 'Broad Search Queries'} ({queries.length})
+            </p>
+            <div className="space-y-2">
+                {queries.map((q, idx) => (
+                    <div key={idx} className="text-xs bg-gray-50 dark:bg-gray-900 rounded p-2">
+                        <div className="flex items-start gap-2">
+                            <span className="font-medium text-gray-600 dark:text-gray-400 shrink-0">{q.id}:</span>
+                            <code className="text-gray-800 dark:text-gray-200 break-all">{q.expression}</code>
+                        </div>
+                        {q.filter && (
+                            <div className="mt-1 pl-4 border-l-2 border-blue-300 dark:border-blue-700">
+                                <span className="text-blue-600 dark:text-blue-400">Filter: </span>
+                                <span className="text-gray-600 dark:text-gray-400">{q.filter}</span>
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+        </div>
     );
 }
 
