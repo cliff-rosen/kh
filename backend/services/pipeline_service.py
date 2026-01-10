@@ -78,58 +78,75 @@ class PipelineService:
 
     async def run_pipeline(
         self,
-        research_stream_id: int,
-        user_id: int,
-        run_type: RunType = RunType.MANUAL,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        report_name: Optional[str] = None,
-        execution_id: Optional[str] = None
+        execution_id: str
     ) -> AsyncGenerator[PipelineStatus, None]:
         """
         Execute the full pipeline for a research stream and yield status updates.
 
+        ALL configuration is read from the PipelineExecution record:
+        - stream_id, user_id, run_type
+        - start_date, end_date, report_name
+        - retrieval_config (snapshot from when execution was created)
+
         Pipeline stages:
-        1. Load configuration and validate broad search strategy
-        2. Generate execution ID for tracking (or use provided one)
-        3. Execute retrieval for each broad search query
-        4. Deduplicate within queries
-        5. Apply semantic filters per query
-        6. Deduplicate globally
-        7. Categorize articles
-        8. Generate executive summaries (overall + per category)
-        9. Generate report
+        1. Load execution and configuration
+        2. Execute retrieval for each broad search query
+        3. Apply semantic filters per query
+        4. Deduplicate globally
+        5. Categorize articles
+        6. Generate executive summaries (overall + per category)
+        7. Generate report
 
         Args:
-            research_stream_id: ID of the research stream to execute
-            user_id: ID of the user executing the pipeline (for authorization)
-            run_type: Type of run (TEST, SCHEDULED, MANUAL)
-            start_date: Start date for retrieval (YYYY/MM/DD format)
-            end_date: End date for retrieval (YYYY/MM/DD format)
-            report_name: Custom name for the generated report (defaults to YYYY.MM.DD)
-            execution_id: Optional execution ID to use (from PipelineExecution record)
+            execution_id: The PipelineExecution ID - ALL config is read from this record
 
         Yields:
             PipelineStatus: Status updates at each stage
 
         Raises:
-            ValueError: If the research stream uses concept-based retrieval (not supported)
+            ValueError: If execution not found or invalid configuration
         """
         try:
-            logger.info(f"Starting pipeline for research_stream_id={research_stream_id}, user_id={user_id}, run_type={run_type}")
+            # === STAGE 1: Load Execution and Configuration ===
+            yield PipelineStatus("init", "Loading execution configuration...")
 
-            # === STAGE 1: Load Configuration ===
-            yield PipelineStatus("init", "Loading research stream configuration...")
+            # Load execution record - single source of truth for this run
+            execution = self.db.query(PipelineExecution).filter(
+                PipelineExecution.id == execution_id
+            ).first()
 
-            # Use research_stream_service to get stream (handles authorization)
-            # Returns Pydantic schema with all nested objects already parsed
+            if not execution:
+                raise ValueError(f"Pipeline execution {execution_id} not found")
+
+            # Extract configuration from execution
+            research_stream_id = execution.stream_id
+            user_id = execution.user_id
+            run_type = execution.run_type
+            start_date = execution.start_date
+            end_date = execution.end_date
+            report_name = execution.report_name
+
+            logger.info(f"Starting pipeline for execution_id={execution_id}, stream_id={research_stream_id}, run_type={run_type}")
+
+            # Get stream for presentation_config (retrieval_config comes from execution snapshot)
             stream = self.research_stream_service.get_research_stream(
                 stream_id=research_stream_id,
                 user_id=user_id
             )
 
-            # All configs are already parsed Pydantic objects
-            retrieval_config = stream.retrieval_config
+            # Use retrieval_config from execution (snapshot), not current stream config
+            # This ensures we use the exact config that was set when the execution was created
+            retrieval_config_dict = execution.retrieval_config or {}
+
+            # Parse the retrieval config snapshot
+            from schemas.research_stream import RetrievalConfig
+            if retrieval_config_dict:
+                retrieval_config = RetrievalConfig.model_validate(retrieval_config_dict)
+            else:
+                # Fallback to current stream config if no snapshot (shouldn't happen for new executions)
+                retrieval_config = stream.retrieval_config
+                logger.warning(f"No retrieval_config snapshot in execution {execution_id}, using current stream config")
+
             presentation_config = stream.presentation_config
 
             # Check for unsupported concept-based retrieval strategy
@@ -150,39 +167,14 @@ class PipelineService:
                 "init",
                 "Configuration loaded",
                 {
+                    "execution_id": execution_id,
                     "stream_name": stream.stream_name,
                     "retrieval_strategy": "broad_search",
                     "num_queries": query_count,
-                    "num_categories": len(presentation_config.categories)
+                    "num_categories": len(presentation_config.categories),
+                    "date_range": f"{start_date} to {end_date}"
                 }
             )
-
-            # === STAGE 2: Use or Generate Pipeline Execution ID ===
-            if execution_id is None:
-                execution_id = str(uuid.uuid4())
-                yield PipelineStatus(
-                    "init",
-                    f"Generated execution ID: {execution_id}",
-                    {"execution_id": execution_id}
-                )
-                logger.warning(f"[DEBUG] Pipeline generated its own execution_id={execution_id} - this may cause FK issues!")
-            else:
-                yield PipelineStatus(
-                    "init",
-                    f"Using execution ID: {execution_id}",
-                    {"execution_id": execution_id}
-                )
-                logger.info(f"[DEBUG] Pipeline using provided execution_id={execution_id}")
-
-                # Verify the execution exists in the database
-                existing_exec = self.db.query(PipelineExecution).filter(
-                    PipelineExecution.id == execution_id
-                ).first()
-                if existing_exec:
-                    logger.info(f"[DEBUG] Verified: execution {execution_id} exists in DB, status={existing_exec.status}")
-                else:
-                    logger.error(f"[DEBUG] CRITICAL: execution {execution_id} NOT FOUND in pipeline_executions table!")
-                    raise ValueError(f"Pipeline execution {execution_id} not found in database")
 
             yield PipelineStatus("cleanup", "Ready to begin retrieval (keeping historical WIP data)")
 
@@ -430,10 +422,8 @@ class PipelineService:
             yield PipelineStatus("report", "Generating report...")
 
             report = await self._generate_report(
-                research_stream_id=research_stream_id,
                 execution_id=execution_id,
                 stream=stream,
-                run_type=run_type,
                 executive_summary=executive_summary,
                 category_summaries=category_summaries,
                 metrics={
@@ -443,8 +433,6 @@ class PipelineService:
                     "included_in_report": included_count,
                     "categorized": categorized_count
                 },
-                start_date=start_date,
-                end_date=end_date,
                 report_name=report_name
             )
 
@@ -469,7 +457,7 @@ class PipelineService:
             )
 
         except Exception as e:
-            logger.error(f"Pipeline failed for research_stream_id={research_stream_id}: {type(e).__name__}: {str(e)}", exc_info=True)
+            logger.error(f"Pipeline failed for execution_id={execution_id}: {type(e).__name__}: {str(e)}", exc_info=True)
             yield PipelineStatus(
                 "error",
                 f"Pipeline failed: {str(e)}",
@@ -873,48 +861,31 @@ class PipelineService:
 
     async def _generate_report(
         self,
-        research_stream_id: int,
         execution_id: str,
         stream: ResearchStream,
-        run_type: RunType,
         executive_summary: str,
         category_summaries: Dict[str, str],
         metrics: Dict,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
         report_name: Optional[str] = None
     ) -> Report:
         """
         Generate a report from the pipeline results.
         Creates Report and ReportArticleAssociation records.
 
+        Input configuration (run_type, dates, retrieval_config) is stored in the
+        PipelineExecution record, not in the Report. Access via report.execution.
+
         Args:
-            research_stream_id: Stream ID
-            execution_id: UUID of pipeline execution (links to wip_articles)
-            stream: ResearchStream object
-            run_type: Type of run
+            execution_id: UUID of pipeline execution (links to wip_articles and stores all config)
+            stream: ResearchStream object (for user_id and stream_id)
             executive_summary: Overall executive summary
             category_summaries: Dict mapping category_id to summary text
             metrics: Pipeline execution metrics
-            start_date: Start date for retrieval (YYYY/MM/DD format)
-            end_date: End date for retrieval (YYYY/MM/DD format)
             report_name: Custom name for the report (defaults to YYYY.MM.DD)
 
         Returns:
             The created Report object
         """
-        # Build execution configuration snapshot (full config used for this report)
-        retrieval_params = {
-            # Date range
-            "start_date": start_date,
-            "end_date": end_date,
-
-            # Full configuration snapshot (mode='json' ensures datetime objects are serialized as strings)
-            "retrieval_config": stream.retrieval_config.model_dump(mode='json') if stream.retrieval_config else None,
-            "presentation_config": stream.presentation_config.model_dump(mode='json') if stream.presentation_config else None,
-            "semantic_space": stream.semantic_space.model_dump(mode='json') if stream.semantic_space else None,
-        }
-
         # Build enrichments (LLM-generated content)
         enrichments = {
             "executive_summary": executive_summary,
@@ -928,7 +899,7 @@ class PipelineService:
 
         report = self.report_service.create_report(
             user_id=stream.user_id,
-            research_stream_id=research_stream_id,
+            research_stream_id=stream.stream_id,
             report_date=report_date_obj,
             title=final_report_name,
             pipeline_execution_id=execution_id,
@@ -936,8 +907,6 @@ class PipelineService:
             enrichments=enrichments
         )
         # Set additional fields not in the service method
-        report.run_type = run_type
-        report.retrieval_params = retrieval_params
         report.pipeline_metrics = metrics
         report.is_read = False
 

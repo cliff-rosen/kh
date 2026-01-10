@@ -36,6 +36,10 @@ class TriggerRunRequest(BaseModel):
     """Request to trigger a pipeline run"""
     stream_id: int
     run_type: str = "manual"  # manual, test
+    # Job config options
+    report_name: Optional[str] = None
+    start_date: Optional[str] = None  # YYYY-MM-DD format
+    end_date: Optional[str] = None    # YYYY-MM-DD format
 
 
 class TriggerRunResponse(BaseModel):
@@ -74,13 +78,18 @@ async def trigger_run(
     """
     Trigger a pipeline run for a stream.
 
-    Creates a PipelineExecution with status='pending'.
-    The worker loop will pick it up and execute.
+    Creates a PipelineExecution with ALL configuration determined at creation time:
+    - user_id from stream
+    - retrieval_config snapshot from stream
+    - dates from request or calculated from lookback_days
+    - report_name from request
+
+    The worker loop picks up pending executions and runs them.
     """
     logger.info(f"trigger_run called - stream_id={request.stream_id}, run_type={request.run_type}")
 
     try:
-        # Verify stream exists
+        # Get stream with all its configuration
         stream = db.query(ResearchStream).filter(
             ResearchStream.stream_id == request.stream_id
         ).first()
@@ -92,15 +101,42 @@ async def trigger_run(
                 detail=f"Stream {request.stream_id} not found"
             )
 
-        # Create pending execution
+        # Determine dates: use request values or calculate from lookback_days
+        start_date = request.start_date
+        end_date = request.end_date
+
+        if not start_date or not end_date:
+            # Calculate from schedule_config.lookback_days if available
+            lookback_days = 7  # Default
+            if stream.schedule_config and stream.schedule_config.get('lookback_days'):
+                lookback_days = stream.schedule_config['lookback_days']
+
+            from datetime import date, timedelta
+            today = date.today()
+            if not end_date:
+                end_date = today.strftime('%Y-%m-%d')
+            if not start_date:
+                start_dt = today - timedelta(days=lookback_days)
+                start_date = start_dt.strftime('%Y-%m-%d')
+
+        # Snapshot retrieval_config from stream
+        retrieval_config = stream.retrieval_config if stream.retrieval_config else {}
+
+        # Create execution with ALL configuration
         execution_id = str(uuid.uuid4())
         run_type = RunType.TEST if request.run_type == "test" else RunType.MANUAL
 
         execution = PipelineExecution(
             id=execution_id,
             stream_id=request.stream_id,
+            user_id=stream.user_id,
             status=ExecutionStatus.PENDING,
-            run_type=run_type
+            run_type=run_type,
+            # Execution configuration (determined now, used by pipeline)
+            start_date=start_date,
+            end_date=end_date,
+            report_name=request.report_name,
+            retrieval_config=retrieval_config
         )
         db.add(execution)
         db.commit()
@@ -108,7 +144,7 @@ async def trigger_run(
         # Wake up the scheduler immediately so it picks up this job
         worker_state.wake_scheduler()
 
-        logger.info(f"trigger_run success - execution_id={execution_id}, stream={stream.stream_name}")
+        logger.info(f"trigger_run success - execution_id={execution_id}, stream={stream.stream_name}, dates={start_date} to {end_date}")
 
         return TriggerRunResponse(
             execution_id=execution_id,

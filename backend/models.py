@@ -143,21 +143,44 @@ class User(Base):
 
 
 class PipelineExecution(Base):
-    """Tracks each pipeline run attempt - the single source of truth for execution state"""
+    """
+    Tracks each pipeline run attempt - the single source of truth for execution state AND configuration.
+
+    All execution parameters are determined and stored at creation time:
+    - Who triggered it (user_id)
+    - What configuration was used (retrieval_config snapshot)
+    - What date range to query (start_date, end_date)
+    - What to name the report (report_name)
+
+    The pipeline service reads ALL configuration from this record.
+    """
     __tablename__ = "pipeline_executions"
 
+    # === IDENTITY ===
     id = Column(String(36), primary_key=True)  # UUID
     stream_id = Column(Integer, ForeignKey("research_streams.stream_id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)  # Who triggered/owns this execution
+
+    # === EXECUTION STATE ===
     status = Column(Enum(ExecutionStatus, values_callable=lambda x: [e.value for e in x], name='executionstatus'), default=ExecutionStatus.PENDING, nullable=False)
     run_type = Column(Enum(RunType, values_callable=lambda x: [e.value for e in x], name='runtype'), default=RunType.MANUAL, nullable=False)
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     error = Column(Text, nullable=True)
-    report_id = Column(Integer, ForeignKey("reports.report_id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # === EXECUTION CONFIGURATION (determined at creation time) ===
+    start_date = Column(String(10), nullable=True)  # YYYY-MM-DD format for retrieval
+    end_date = Column(String(10), nullable=True)    # YYYY-MM-DD format for retrieval
+    report_name = Column(String(255), nullable=True)  # Custom report name (defaults to YYYY.MM.DD if null)
+    retrieval_config = Column(JSON, nullable=True)  # Snapshot of stream's retrieval config at execution time
+
+    # === OUTPUT REFERENCE ===
+    report_id = Column(Integer, ForeignKey("reports.report_id"), nullable=True)
 
     # Relationships
     stream = relationship("ResearchStream", back_populates="executions", foreign_keys=[stream_id])
+    user = relationship("User", foreign_keys=[user_id])
     report = relationship("Report", back_populates="execution", foreign_keys=[report_id])
     wip_articles = relationship("WipArticle", back_populates="execution", primaryjoin="PipelineExecution.id == foreign(WipArticle.pipeline_execution_id)")
 
@@ -297,7 +320,12 @@ class Article(Base):
 
 
 class Report(Base):
-    """Generated intelligence reports"""
+    """
+    Generated intelligence reports - pure output from pipeline execution.
+
+    Input configuration (run_type, dates, retrieval_config) is stored in PipelineExecution.
+    Access via report.execution to get execution configuration.
+    """
     __tablename__ = "reports"
 
     report_id = Column(Integer, primary_key=True, index=True)
@@ -312,12 +340,10 @@ class Report(Base):
     read_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # Pipeline execution metadata
-    run_type = Column(Enum(RunType, values_callable=lambda x: [e.value for e in x], name='runtype'), default=RunType.SCHEDULED, nullable=False)
-    retrieval_params = Column(JSON, default=dict)  # Input parameters: start_date, end_date, etc.
+    # Pipeline output metadata
     enrichments = Column(JSON, default=dict)  # LLM-generated content: executive_summary, category_summaries
-    pipeline_metrics = Column(JSON, default=dict)  # Execution metadata: counts, timing, etc.
-    pipeline_execution_id = Column(String(36), ForeignKey("pipeline_executions.id"), index=True)  # UUID linking to execution
+    pipeline_metrics = Column(JSON, default=dict)  # Execution metrics: counts, timing, etc.
+    pipeline_execution_id = Column(String(36), ForeignKey("pipeline_executions.id"), index=True, nullable=False)
 
     # Approval workflow - all reports require admin approval before being visible to subscribers
     approval_status = Column(Enum(ApprovalStatus, values_callable=lambda x: [e.value for e in x], name='approvalstatus'), default=ApprovalStatus.AWAITING_APPROVAL, nullable=False, index=True)

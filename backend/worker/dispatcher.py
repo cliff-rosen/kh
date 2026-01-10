@@ -3,11 +3,14 @@ Job Dispatcher
 
 Executes jobs by calling pipeline_service.run_pipeline().
 Manages job lifecycle (status updates, error handling).
+
+The dispatcher reads ALL configuration from PipelineExecution.
+run_pipeline() only takes execution_id - it reads everything else from the execution record.
 """
 
 import logging
 import asyncio
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 import uuid
@@ -31,12 +34,11 @@ class JobDispatcher:
         """
         Execute a pending (manually triggered) pipeline execution.
 
+        All configuration is already stored in the execution record.
         Updates execution status throughout lifecycle.
         """
         execution_id = execution.id
-        stream_id = execution.stream_id
-        logger.info(f"Dispatching pending execution: {execution_id} for stream {stream_id}")
-        logger.info(f"[DEBUG] Received execution object with id={execution_id!r}, type={type(execution_id).__name__}, len={len(execution_id) if execution_id else 0}")
+        logger.info(f"Dispatching pending execution: {execution_id} for stream {execution.stream_id}")
 
         try:
             # Re-query execution from our session (the passed object is from a different session)
@@ -51,35 +53,13 @@ class JobDispatcher:
             execution.status = ExecutionStatus.RUNNING
             execution.started_at = datetime.utcnow()
             self.db.commit()
-            logger.info(f"[DEBUG] Execution {execution_id} marked as RUNNING and committed")
-
-            # Verify the execution exists in DB after commit
-            verify_exec = self.db.query(PipelineExecution).filter(
-                PipelineExecution.id == execution_id
-            ).first()
-            if verify_exec:
-                logger.info(f"[DEBUG] Verified execution {execution_id} exists in DB after commit, status={verify_exec.status}")
-            else:
-                logger.error(f"[DEBUG] CRITICAL: Execution {execution_id} NOT FOUND after commit!")
-
-            # Get stream info for user_id
-            stream = self.db.query(ResearchStream).filter(
-                ResearchStream.stream_id == stream_id
-            ).first()
-
-            if not stream:
-                raise ValueError(f"Stream {stream_id} not found")
+            logger.info(f"Execution {execution_id} marked as RUNNING")
 
             # Publish starting status
             await broker.publish(execution_id, "starting", f"Starting pipeline for stream {execution.stream_id}")
 
-            # Run pipeline and consume status updates
-            async for status in self.pipeline_service.run_pipeline(
-                research_stream_id=execution.stream_id,
-                user_id=stream.user_id,
-                run_type=execution.run_type,
-                execution_id=execution_id
-            ):
+            # Run pipeline - only pass execution_id, pipeline reads config from execution
+            async for status in self.pipeline_service.run_pipeline(execution_id):
                 logger.debug(f"[{execution_id}] {status.stage}: {status.message}")
                 await broker.publish(execution_id, status.stage, status.message)
 
@@ -93,17 +73,24 @@ class JobDispatcher:
 
         except Exception as e:
             logger.error(f"Execution {execution_id} failed: {e}", exc_info=True)
-            execution.status = ExecutionStatus.FAILED
-            execution.completed_at = datetime.utcnow()
-            execution.error = str(e)
-            self.db.commit()
+            # Re-query to ensure we have current state
+            execution = self.db.query(PipelineExecution).filter(
+                PipelineExecution.id == execution_id
+            ).first()
+            if execution:
+                execution.status = ExecutionStatus.FAILED
+                execution.completed_at = datetime.utcnow()
+                execution.error = str(e)
+                self.db.commit()
             await broker.publish_complete(execution_id, success=False, error=str(e))
 
     async def execute_scheduled(self, stream: ResearchStream) -> str:
         """
         Execute a scheduled pipeline run for a stream.
 
-        Creates a new PipelineExecution record and runs the pipeline.
+        Creates a PipelineExecution with ALL configuration determined at creation time,
+        then runs the pipeline using only the execution_id.
+
         Returns the execution_id.
         """
         stream_id = stream.stream_id
@@ -118,13 +105,31 @@ class JobDispatcher:
         if not stream:
             raise ValueError(f"Stream {stream_id} not found")
 
-        # Create execution record
+        # Calculate dates from schedule_config.lookback_days
+        lookback_days = 7  # Default
+        if stream.schedule_config and stream.schedule_config.get('lookback_days'):
+            lookback_days = stream.schedule_config['lookback_days']
+
+        today = date.today()
+        end_date = today.strftime('%Y-%m-%d')
+        start_date = (today - timedelta(days=lookback_days)).strftime('%Y-%m-%d')
+
+        # Snapshot retrieval_config
+        retrieval_config = stream.retrieval_config if stream.retrieval_config else {}
+
+        # Create execution record with ALL configuration
         execution = PipelineExecution(
             id=execution_id,
             stream_id=stream_id,
+            user_id=stream.user_id,
             status=ExecutionStatus.RUNNING,
             run_type=RunType.SCHEDULED,
-            started_at=datetime.utcnow()
+            started_at=datetime.utcnow(),
+            # Execution configuration
+            start_date=start_date,
+            end_date=end_date,
+            report_name=None,  # Auto-generated for scheduled runs
+            retrieval_config=retrieval_config
         )
         self.db.add(execution)
         self.db.commit()
@@ -133,13 +138,8 @@ class JobDispatcher:
             # Publish starting status
             await broker.publish(execution_id, "starting", f"Starting scheduled pipeline for stream {stream.stream_id}")
 
-            # Run pipeline and consume status updates
-            async for status in self.pipeline_service.run_pipeline(
-                research_stream_id=stream.stream_id,
-                user_id=stream.user_id,
-                run_type=RunType.SCHEDULED,
-                execution_id=execution_id
-            ):
+            # Run pipeline - only pass execution_id
+            async for status in self.pipeline_service.run_pipeline(execution_id):
                 logger.debug(f"[{execution_id}] {status.stage}: {status.message}")
                 await broker.publish(execution_id, status.stage, status.message)
 

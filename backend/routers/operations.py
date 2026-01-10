@@ -332,6 +332,9 @@ async def trigger_run(
                 json={
                     "stream_id": request.stream_id,
                     "run_type": request.run_type,
+                    "report_name": request.report_name,
+                    "start_date": request.start_date,
+                    "end_date": request.end_date,
                 },
                 timeout=10.0
             )
