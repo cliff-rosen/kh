@@ -303,8 +303,9 @@ class BasePromptCaller:
         }
         
         # Add reasoning effort if supported and valid (nested format per OpenAI API)
-        if use_reasoning_effort:
-            api_params["reasoning"] = {"effort": use_reasoning_effort}
+        # NOTE: Disabled until openai SDK is updated to support reasoning parameter
+        # if use_reasoning_effort:
+        #     api_params["reasoning"] = {"effort": use_reasoning_effort}
         
         # Add temperature only if the model supports it
         if supports_temperature(use_model):

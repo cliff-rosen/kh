@@ -304,6 +304,7 @@ async def stream_run_status(
                 try:
                     # Wait for status update with timeout
                     update = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    logger.debug(f"Update: {update}")
 
                     if update is None:
                         # Sentinel value - stream complete
