@@ -918,6 +918,13 @@ class PipelineService:
         report.pipeline_metrics = metrics
         report.is_read = False
 
+        # Link the report back to the execution
+        execution = self.db.query(PipelineExecution).filter(
+            PipelineExecution.id == execution_id
+        ).first()
+        if execution:
+            execution.report_id = report.report_id
+
         # Get all articles marked for report inclusion
         wip_articles = self.wip_article_service.get_included_articles(execution_id)
 
