@@ -86,9 +86,12 @@ export default function RunJobModal({
     useEffect(() => {
         if (!executionId) return;
 
+        console.log('[RunJobModal] Subscribing to SSE for execution:', executionId);
+
         const cleanup = subscribeToRunStatus(
             executionId,
             (event: RunStatusEvent) => {
+                console.log('[RunJobModal] SSE event received:', event.stage, event.message);
                 setCurrentStage(event.stage);
                 setStatusLog(prev => [...prev, {
                     stage: event.stage,
@@ -97,27 +100,30 @@ export default function RunJobModal({
                 }]);
 
                 if (event.stage === 'completed') {
+                    console.log('[RunJobModal] Setting modalState to completed');
                     setModalState('completed');
                     onJobComplete?.();
                 } else if (event.stage === 'failed') {
+                    console.log('[RunJobModal] Setting modalState to failed');
                     setModalState('failed');
                     setError(event.message);
                     onJobComplete?.();
                 }
             },
             (err) => {
-                console.error('SSE error:', err);
+                console.error('[RunJobModal] SSE error:', err);
                 setError('Connection lost');
                 setModalState('failed');
             },
             () => {
-                // Stream ended normally
+                console.log('[RunJobModal] SSE stream ended normally');
             }
         );
 
         cleanupRef.current = cleanup;
 
         return () => {
+            console.log('[RunJobModal] Cleaning up SSE subscription');
             cleanup();
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -128,15 +134,21 @@ export default function RunJobModal({
         logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [statusLog]);
 
+    // Track if we just completed - prevent premature resets
+    const justCompletedRef = useRef(false);
+
     // Reset state when modal closes
     useEffect(() => {
+        console.log('[RunJobModal] Reset effect - isOpen:', isOpen, 'modalState:', modalState, 'justCompleted:', justCompletedRef.current);
         if (!isOpen) {
             // Cleanup subscription
             cleanupRef.current?.();
             cleanupRef.current = null;
 
-            // Only reset if not tracking an ongoing job
-            if (modalState === 'completed' || modalState === 'failed' || modalState === 'config') {
+            // Only reset if not tracking an ongoing job and didn't just complete
+            // (gives time for user to see completion status)
+            if (!justCompletedRef.current && (modalState === 'completed' || modalState === 'failed' || modalState === 'config')) {
+                console.log('[RunJobModal] Resetting modal state to config');
                 setModalState('config');
                 setExecutionId(null);
                 setStatusLog([]);
@@ -145,9 +157,19 @@ export default function RunJobModal({
                 setStartDate('');
                 setEndDate('');
                 setReportName('');
+            } else {
+                console.log('[RunJobModal] Skipping reset - justCompleted or running');
             }
+            justCompletedRef.current = false;
         }
     }, [isOpen, modalState]);
+
+    // Mark when job completes to prevent immediate reset
+    useEffect(() => {
+        if (modalState === 'completed' || modalState === 'failed') {
+            justCompletedRef.current = true;
+        }
+    }, [modalState]);
 
     const handleStartRun = async () => {
         setIsSubmitting(true);
