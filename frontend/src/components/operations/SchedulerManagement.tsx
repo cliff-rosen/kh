@@ -75,6 +75,20 @@ export default function SchedulerManagement() {
         fetchStreams();
     }, [fetchStreams]);
 
+    // Poll for updates while there are running jobs
+    useEffect(() => {
+        const hasRunningJobs = Object.keys(runningJobs).length > 0 ||
+            streams.some(s => s.last_execution?.status === 'running');
+
+        if (!hasRunningJobs) return;
+
+        const interval = setInterval(() => {
+            fetchStreams();
+        }, 5000); // Poll every 5 seconds
+
+        return () => clearInterval(interval);
+    }, [runningJobs, streams, fetchStreams]);
+
     const enabledCount = streams.filter(s => s.schedule_config?.enabled).length;
     const runningStreams = streams.filter(s => s.last_execution?.status === 'running');
     const runningCount = runningStreams.length;
