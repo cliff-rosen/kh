@@ -17,7 +17,8 @@ Retrieval Strategy:
 - Note: Concept-based retrieval is not supported
 """
 
-from typing import AsyncGenerator, Dict, List, Optional, Tuple
+from typing import AsyncGenerator, Dict, List, Optional, Tuple, Any, Callable, Coroutine
+from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from datetime import date, datetime
@@ -27,6 +28,9 @@ import uuid
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Type alias for progress callbacks
+ProgressCallback = Callable[[int, int], Coroutine[Any, Any, None]]
 
 from models import (
     ResearchStream, Report, ReportArticleAssociation, Article,
@@ -40,6 +44,51 @@ from services.research_stream_service import ResearchStreamService
 from services.report_summary_service import ReportSummaryService
 from services.wip_article_service import WipArticleService
 from services.report_service import ReportService
+
+
+@dataclass
+class PipelineContext:
+    """
+    Context object passed between pipeline stages.
+
+    Immutable fields are set during config loading.
+    Mutable fields are updated as stages execute.
+    """
+    # === Immutable (set during config loading) ===
+    execution_id: str
+    execution: 'PipelineExecution'
+    stream: 'ResearchStream'
+    research_stream_id: int
+    user_id: int
+    start_date: Optional[str]
+    end_date: Optional[str]
+    report_name: Optional[str]
+    queries: List[Any]  # List of BroadSearchQuery from retrieval_config
+    categories: List[Dict]  # From presentation_config (for LLM prompts)
+    presentation_config: Any  # Full PresentationConfig object
+
+    # === Mutable (accumulated during execution) ===
+    total_retrieved: int = 0
+    filter_stats: Dict[str, Dict[str, int]] = field(default_factory=dict)
+    global_duplicates: int = 0
+    included_count: int = 0
+    categorized_count: int = 0
+    categorize_errors: int = 0
+    executive_summary: str = ""
+    category_summaries: Dict[str, str] = field(default_factory=dict)
+    report: Optional['Report'] = None
+
+    def final_metrics(self) -> Dict[str, Any]:
+        """Build metrics dict for completion status."""
+        return {
+            "report_id": self.report.report_id if self.report else None,
+            "total_retrieved": self.total_retrieved,
+            "final_article_count": len(self.report.article_associations) if self.report else 0,
+            "filter_stats": self.filter_stats,
+            "global_duplicates": self.global_duplicates,
+            "included_count": self.included_count,
+            "categorized_count": self.categorized_count,
+        }
 
 
 class PipelineStatus:
@@ -76,6 +125,136 @@ class PipelineService:
         self.categorization_service = ArticleCategorizationService()
         self.summary_service = ReportSummaryService()
 
+    # =========================================================================
+    # PIPELINE ORCHESTRATION
+    # =========================================================================
+
+    async def _stream_with_progress(
+        self,
+        task_coro: Coroutine,
+        stage: str,
+        progress_msg_template: str = "Processing: {completed}/{total}",
+        heartbeat_msg: str = "Processing...",
+        extra_data: Optional[Dict] = None,
+        progress_interval: int = 5,
+        heartbeat_timeout: float = 3.0
+    ) -> AsyncGenerator[Tuple[PipelineStatus, Any], None]:
+        """
+        Run a long-running task while yielding progress updates.
+
+        The task should accept an `on_progress` callback as a keyword argument.
+        Yields (status, None) during progress, then (final_status, result) at end.
+
+        Args:
+            task_coro: Coroutine that accepts on_progress callback
+            stage: Stage name for status messages
+            progress_msg_template: Message template with {completed} and {total}
+            heartbeat_msg: Message for heartbeat status
+            extra_data: Extra data to include in all status messages
+            progress_interval: Report progress every N items
+            heartbeat_timeout: Seconds to wait before yielding heartbeat
+        """
+        progress_queue: asyncio.Queue[Tuple[int, int]] = asyncio.Queue()
+        extra = extra_data or {}
+
+        async def progress_callback(completed: int, total: int):
+            if completed == 1 or completed == total or completed % progress_interval == 0:
+                await progress_queue.put((completed, total))
+
+        # Start the task - inject the progress callback
+        task = asyncio.create_task(task_coro(on_progress=progress_callback))
+
+        # Yield progress updates while task runs
+        while not task.done():
+            try:
+                completed, total = await asyncio.wait_for(
+                    progress_queue.get(), timeout=heartbeat_timeout
+                )
+                yield PipelineStatus(
+                    stage,
+                    progress_msg_template.format(completed=completed, total=total),
+                    {"completed": completed, "total": total, **extra}
+                ), None
+            except asyncio.TimeoutError:
+                yield PipelineStatus(
+                    stage,
+                    heartbeat_msg,
+                    {"heartbeat": True, **extra}
+                ), None
+
+        # Drain remaining progress
+        while not progress_queue.empty():
+            try:
+                progress_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+
+        # Get result and yield final status with it
+        result = await task
+        yield PipelineStatus(stage, "Complete", extra), result
+
+    async def _load_execution_context(self, execution_id: str) -> PipelineContext:
+        """
+        Load execution record and build PipelineContext.
+
+        Raises ValueError if execution not found or configuration invalid.
+        """
+        # Load execution record (single source of truth)
+        execution = self.db.query(PipelineExecution).filter(
+            PipelineExecution.id == execution_id
+        ).first()
+
+        if not execution:
+            raise ValueError(f"Execution {execution_id} not found")
+
+        # Load stream for context (name, purpose, etc.)
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == execution.stream_id
+        ).first()
+
+        if not stream:
+            raise ValueError(f"Stream {execution.stream_id} not found")
+
+        # Parse retrieval config from execution snapshot
+        retrieval_config = RetrievalConfig.model_validate(execution.retrieval_config)
+
+        # Validate retrieval strategy
+        if retrieval_config.concepts and len(retrieval_config.concepts) > 0:
+            raise ValueError("Concept-based retrieval is not supported in pipeline execution")
+
+        if not retrieval_config.broad_search or not retrieval_config.broad_search.queries:
+            raise ValueError("No broad search queries configured")
+
+        # Parse presentation config
+        presentation_config = PresentationConfig.model_validate(execution.presentation_config)
+
+        # Prepare categories for categorization
+        categories = []
+        if presentation_config.categories:
+            categories = [
+                {
+                    "id": cat.id,
+                    "name": cat.name,
+                    "topics": cat.topics,
+                    "specific_inclusions": cat.specific_inclusions
+                }
+                for cat in presentation_config.categories
+            ]
+
+        return PipelineContext(
+            execution_id=execution_id,
+            execution=execution,
+            stream=stream,
+            research_stream_id=execution.stream_id,
+            user_id=execution.user_id,
+            start_date=execution.start_date,
+            end_date=execution.end_date,
+            report_name=execution.report_name,
+            queries=retrieval_config.broad_search.queries,
+            categories=categories,
+            presentation_config=presentation_config,
+        )
+
     async def run_pipeline(
         self,
         execution_id: str
@@ -83,401 +262,408 @@ class PipelineService:
         """
         Execute the full pipeline for a research stream and yield status updates.
 
-        ALL configuration is read from the PipelineExecution record:
-        - stream_id, user_id, run_type
-        - start_date, end_date, report_name
-        - retrieval_config (snapshot from when execution was created)
-
-        Pipeline stages:
-        1. Load execution and configuration
-        2. Execute retrieval for each broad search query
-        3. Apply semantic filters per query
-        4. Deduplicate globally
-        5. Categorize articles
-        6. Generate executive summaries (overall + per category)
-        7. Generate report
+        ALL configuration is read from the PipelineExecution record.
+        Each stage is independently testable and owns its commit.
 
         Args:
             execution_id: The PipelineExecution ID - ALL config is read from this record
 
         Yields:
             PipelineStatus: Status updates at each stage
-
-        Raises:
-            ValueError: If execution not found or invalid configuration
         """
         try:
-            # === STAGE 1: Load Execution and Configuration ===
+            # Load configuration
             yield PipelineStatus("init", "Loading execution configuration...")
+            ctx = await self._load_execution_context(execution_id)
+            logger.info(f"Starting pipeline for execution_id={execution_id}, stream_id={ctx.research_stream_id}")
 
-            # Load execution record - single source of truth for this run
-            execution = self.db.query(PipelineExecution).filter(
-                PipelineExecution.id == execution_id
-            ).first()
+            yield PipelineStatus("init", "Configuration loaded", {
+                "execution_id": execution_id,
+                "stream_name": ctx.stream.stream_name,
+                "num_queries": len(ctx.queries),
+                "num_categories": len(ctx.categories),
+                "date_range": f"{ctx.start_date} to {ctx.end_date}"
+            })
 
-            if not execution:
-                raise ValueError(f"Pipeline execution {execution_id} not found")
+            # Execute pipeline stages
+            async for status in self._stage_retrieval(ctx): yield status
+            async for status in self._stage_semantic_filter(ctx): yield status
+            async for status in self._stage_deduplicate(ctx): yield status
+            async for status in self._stage_categorize(ctx): yield status
+            async for status in self._stage_generate_summaries(ctx): yield status
+            async for status in self._stage_generate_report(ctx): yield status
 
-            # Extract configuration from execution
-            research_stream_id = execution.stream_id
-            user_id = execution.user_id
-            run_type = execution.run_type
-            start_date = execution.start_date
-            end_date = execution.end_date
-            report_name = execution.report_name
-
-            logger.info(f"Starting pipeline for execution_id={execution_id}, stream_id={research_stream_id}, run_type={run_type}")
-
-            # ALL configuration comes from the execution record (snapshot from when execution was created)
-            # We do NOT query the stream for any configuration
-            retrieval_config_dict = execution.retrieval_config or {}
-            presentation_config_dict = execution.presentation_config or {}
-
-            # Parse the retrieval config snapshot
-            from schemas.research_stream import RetrievalConfig, PresentationConfig
-            if retrieval_config_dict:
-                retrieval_config = RetrievalConfig.model_validate(retrieval_config_dict)
-            else:
-                raise ValueError(f"No retrieval_config in execution {execution_id}. All executions must have config set at trigger time.")
-
-            # Parse the presentation config snapshot
-            if presentation_config_dict:
-                presentation_config = PresentationConfig.model_validate(presentation_config_dict)
-            else:
-                raise ValueError(f"No presentation_config in execution {execution_id}. All executions must have config set at trigger time.")
-
-            # Get stream for CONTEXT ONLY (name, purpose, enrichment_config) - NOT for any configuration
-            # The stream is used for summary generation context, not execution configuration
-            stream = self.db.query(ResearchStream).filter(
-                ResearchStream.stream_id == research_stream_id
-            ).first()
-            if not stream:
-                raise ValueError(f"Stream {research_stream_id} not found")
-
-            # Check for unsupported concept-based retrieval strategy
-            if retrieval_config.concepts and len(retrieval_config.concepts) > 0:
-                raise ValueError(
-                    "Concept-based retrieval is not supported. "
-                    "Please use broad search retrieval strategy instead."
-                )
-
-            # Validate broad search configuration exists
-            if not retrieval_config.broad_search or not retrieval_config.broad_search.queries:
-                raise ValueError("No broad search queries configured for this research stream")
-
-            queries = retrieval_config.broad_search.queries
-            query_count = len(queries)
-
-            yield PipelineStatus(
-                "init",
-                "Configuration loaded",
-                {
-                    "execution_id": execution_id,
-                    "stream_name": stream.stream_name,
-                    "retrieval_strategy": "broad_search",
-                    "num_queries": query_count,
-                    "num_categories": len(presentation_config.categories),
-                    "date_range": f"{start_date} to {end_date}"
-                }
-            )
-
-            yield PipelineStatus("cleanup", "Ready to begin retrieval (keeping historical WIP data)")
-
-            # === STAGE 3: Execute Retrieval ===
-            # Using broad search retrieval strategy
-            total_retrieved = 0
-
-            for broad_query in queries:
-                yield PipelineStatus(
-                    "retrieval",
-                    f"Starting retrieval for broad query: {broad_query.search_terms}",
-                    {"query_id": broad_query.query_id, "search_terms": broad_query.search_terms}
-                )
-
-                # Check if we've hit limits
-                if total_retrieved >= self.MAX_TOTAL_ARTICLES:
-                    yield PipelineStatus(
-                        "retrieval",
-                        f"Hit MAX_TOTAL_ARTICLES limit ({self.MAX_TOTAL_ARTICLES}), stopping retrieval",
-                        {"limit_reached": True}
-                    )
-                    break
-
-                yield PipelineStatus(
-                    "retrieval",
-                    f"Executing broad query on PubMed",
-                    {
-                        "query_id": broad_query.query_id,
-                        "query_expression": broad_query.query_expression
-                    }
-                )
-
-                # Execute retrieval on PubMed
-                articles_retrieved_count = await self._fetch_and_store_articles(
-                    research_stream_id=research_stream_id,
-                    execution_id=execution_id,
-                    retrieval_unit_id=broad_query.query_id,
-                    source_id="pubmed",
-                    query_expression=broad_query.query_expression,
-                    start_date=start_date,
-                    end_date=end_date
-                )
-
-                total_retrieved += articles_retrieved_count
-
-                yield PipelineStatus(
-                    "retrieval",
-                    f"Retrieved {articles_retrieved_count} articles",
-                    {
-                        "query_id": broad_query.query_id,
-                        "count": articles_retrieved_count,
-                        "total_retrieved": total_retrieved
-                    }
-                )
-
-            yield PipelineStatus(
-                "retrieval",
-                f"Retrieval complete: {total_retrieved} total articles",
-                {"total_retrieved": total_retrieved}
-            )
-
-            # === STAGE 4: Apply Semantic Filters ===
-            yield PipelineStatus("filter", "Applying semantic filters...")
-
-            filter_stats = {}
-
-            for broad_query in queries:
-                if not broad_query.semantic_filter.enabled:
-                    yield PipelineStatus(
-                        "filter",
-                        f"Semantic filter disabled for query, keeping all articles",
-                        {"query_id": broad_query.query_id, "filtered": False}
-                    )
-                    continue
-
-                # Use asyncio.Queue to stream progress from callback
-                progress_queue = asyncio.Queue()
-
-                async def progress_with_queue(completed: int, total: int):
-                    # Only report every 5 items or at boundaries to avoid overwhelming
-                    if completed == 1 or completed == total or completed % 5 == 0:
-                        await progress_queue.put((completed, total))
-
-                # Start the filter in background and drain queue for progress
-                filter_task = asyncio.create_task(
-                    self._apply_semantic_filter(
-                        execution_id=execution_id,
-                        retrieval_unit_id=broad_query.query_id,
-                        filter_criteria=broad_query.semantic_filter.criteria,
-                        threshold=broad_query.semantic_filter.threshold,
-                        on_progress=progress_with_queue
-                    )
-                )
-
-                # Yield progress updates as they come in
-                while not filter_task.done():
-                    try:
-                        # Wait for progress with timeout (acts as heartbeat)
-                        completed, total = await asyncio.wait_for(progress_queue.get(), timeout=3.0)
-                        yield PipelineStatus(
-                            "filter",
-                            f"Filtering articles: {completed}/{total}",
-                            {"query_id": broad_query.query_id, "completed": completed, "total": total}
-                        )
-                    except asyncio.TimeoutError:
-                        # No progress yet, yield heartbeat to keep connection alive
-                        yield PipelineStatus(
-                            "filter",
-                            "Processing...",
-                            {"query_id": broad_query.query_id, "heartbeat": True}
-                        )
-
-                # Get final result
-                passed, rejected = await filter_task
-
-                # Drain any remaining progress updates
-                while not progress_queue.empty():
-                    try:
-                        progress_queue.get_nowait()
-                    except asyncio.QueueEmpty:
-                        break
-
-                filter_stats[broad_query.query_id] = {"passed": passed, "rejected": rejected}
-
-                yield PipelineStatus(
-                    "filter",
-                    f"Filtered query: {passed} passed, {rejected} rejected",
-                    {
-                        "query_id": broad_query.query_id,
-                        "passed": passed,
-                        "rejected": rejected
-                    }
-                )
-
-            # === STAGE 5: Deduplicate Globally ===
-            yield PipelineStatus("dedup_global", "Deduplicating across all groups...")
-
-            global_dupes = await self._deduplicate_globally(research_stream_id, execution_id)
-
-            yield PipelineStatus(
-                "dedup_global",
-                f"Found {global_dupes} duplicates across groups",
-                {"duplicates": global_dupes}
-            )
-
-            # Mark articles for report inclusion (not duplicates, passed filter or no filter)
-            included_count = await self._mark_articles_for_report(execution_id)
-
-            yield PipelineStatus(
-                "dedup_global",
-                f"Marked {included_count} articles for report inclusion",
-                {"included": included_count}
-            )
-
-            # === STAGE 6: Categorize Articles ===
-            yield PipelineStatus("categorize", "Categorizing articles into presentation categories...")
-
-            # Use asyncio.Queue to stream progress from callback
-            categorize_progress_queue = asyncio.Queue()
-
-            async def categorize_progress_callback(completed: int, total: int):
-                # Report every 5 items or at boundaries
-                if completed == 1 or completed == total or completed % 5 == 0:
-                    await categorize_progress_queue.put((completed, total))
-
-            # Start categorization in background
-            categorize_task = asyncio.create_task(
-                self._categorize_articles(
-                    research_stream_id=research_stream_id,
-                    execution_id=execution_id,
-                    presentation_config=presentation_config,
-                    on_progress=categorize_progress_callback
-                )
-            )
-
-            # Yield progress updates as they come in
-            while not categorize_task.done():
-                try:
-                    completed, total = await asyncio.wait_for(categorize_progress_queue.get(), timeout=3.0)
-                    yield PipelineStatus(
-                        "categorize",
-                        f"Categorizing articles: {completed}/{total}",
-                        {"completed": completed, "total": total}
-                    )
-                except asyncio.TimeoutError:
-                    # Heartbeat to keep connection alive
-                    yield PipelineStatus(
-                        "categorize",
-                        "Processing...",
-                        {"heartbeat": True}
-                    )
-
-            # Get final result
-            categorized_count, categorize_errors = await categorize_task
-
-            # Drain any remaining progress updates
-            while not categorize_progress_queue.empty():
-                try:
-                    categorize_progress_queue.get_nowait()
-                except asyncio.QueueEmpty:
-                    break
-
-            # Report categorization result with any errors
-            if categorize_errors > 0:
-                yield PipelineStatus(
-                    "categorize",
-                    f"Categorized {categorized_count} articles ({categorize_errors} failed)",
-                    {"categorized": categorized_count, "errors": categorize_errors}
-                )
-            else:
-                yield PipelineStatus(
-                    "categorize",
-                    f"Categorized {categorized_count} articles",
-                    {"categorized": categorized_count}
-                )
-
-            # === STAGE 7: Generate Summaries ===
-            yield PipelineStatus("summary", "Generating executive summaries...")
-
-            # Run summary generation in background with heartbeat
-            summary_task = asyncio.create_task(
-                self._generate_summaries(
-                    research_stream_id=research_stream_id,
-                    execution_id=execution_id,
-                    stream=stream,
-                    presentation_config=presentation_config
-                )
-            )
-
-            # Emit heartbeat while waiting for summaries
-            num_categories = len(presentation_config.categories)
-            while not summary_task.done():
-                try:
-                    # Wait up to 5 seconds for task to complete
-                    await asyncio.wait_for(asyncio.shield(summary_task), timeout=5.0)
-                except asyncio.TimeoutError:
-                    # Task still running, emit heartbeat
-                    yield PipelineStatus(
-                        "summary",
-                        f"Generating summaries for {num_categories} categories...",
-                        {"heartbeat": True, "num_categories": num_categories}
-                    )
-
-            executive_summary, category_summaries = await summary_task
-
-            yield PipelineStatus(
-                "summary",
-                f"Generated executive summary and {len(category_summaries)} category summaries",
-                {"categories": len(category_summaries)}
-            )
-
-            # === STAGE 8: Generate Report ===
-            yield PipelineStatus("report", "Generating report...")
-
-            report = await self._generate_report(
-                execution_id=execution_id,
-                user_id=user_id,  # From execution, not stream
-                stream_id=research_stream_id,  # From execution, not stream
-                executive_summary=executive_summary,
-                category_summaries=category_summaries,
-                metrics={
-                    "total_retrieved": total_retrieved,
-                    "filter_stats": filter_stats,
-                    "global_duplicates": global_dupes,
-                    "included_in_report": included_count,
-                    "categorized": categorized_count
-                },
-                report_name=report_name
-            )
-
-            yield PipelineStatus(
-                "report",
-                f"Report created successfully",
-                {
-                    "report_id": report.report_id,
-                    "article_count": len(report.article_associations)
-                }
-            )
-
-            # === COMPLETE ===
-            yield PipelineStatus(
-                "complete",
-                "Pipeline execution complete",
-                {
-                    "report_id": report.report_id,
-                    "total_retrieved": total_retrieved,
-                    "final_article_count": len(report.article_associations)
-                }
-            )
+            # Complete
+            yield PipelineStatus("complete", "Pipeline execution complete", ctx.final_metrics())
 
         except Exception as e:
             logger.error(f"Pipeline failed for execution_id={execution_id}: {type(e).__name__}: {str(e)}", exc_info=True)
-            yield PipelineStatus(
-                "error",
-                f"Pipeline failed: {str(e)}",
-                {"error": str(e), "error_type": type(e).__name__}
-            )
+            yield PipelineStatus("error", f"Pipeline failed: {str(e)}", {"error": str(e), "error_type": type(e).__name__})
             raise
+
+    # =========================================================================
+    # PIPELINE STAGES
+    # =========================================================================
+
+    async def _stage_retrieval(
+        self,
+        ctx: PipelineContext
+    ) -> AsyncGenerator[PipelineStatus, None]:
+        """
+        Stage: Execute retrieval for each broad search query.
+        Commits: WipArticle records for all retrieved articles.
+        """
+        yield PipelineStatus(
+            "retrieval",
+            f"Starting retrieval for {len(ctx.queries)} queries",
+            {"num_queries": len(ctx.queries)}
+        )
+
+        for query in ctx.queries:
+            # Check limits
+            if ctx.total_retrieved >= self.MAX_TOTAL_ARTICLES:
+                yield PipelineStatus(
+                    "retrieval",
+                    f"Hit MAX_TOTAL_ARTICLES limit ({self.MAX_TOTAL_ARTICLES})",
+                    {"limit_reached": True}
+                )
+                break
+
+            yield PipelineStatus(
+                "retrieval",
+                f"Fetching: {query.search_terms}",
+                {"query_id": query.query_id, "query_expression": query.query_expression}
+            )
+
+            count = await self._fetch_and_store_articles(
+                research_stream_id=ctx.research_stream_id,
+                execution_id=ctx.execution_id,
+                retrieval_unit_id=query.query_id,
+                source_id="pubmed",
+                query_expression=query.query_expression,
+                start_date=ctx.start_date,
+                end_date=ctx.end_date
+            )
+
+            ctx.total_retrieved += count
+
+            yield PipelineStatus(
+                "retrieval",
+                f"Retrieved {count} articles",
+                {"query_id": query.query_id, "count": count, "total": ctx.total_retrieved}
+            )
+
+        # Stage commit
+        self.wip_article_service.commit()
+
+        yield PipelineStatus(
+            "retrieval",
+            f"Retrieval complete: {ctx.total_retrieved} articles",
+            {"total_retrieved": ctx.total_retrieved}
+        )
+
+    async def _stage_semantic_filter(
+        self,
+        ctx: PipelineContext
+    ) -> AsyncGenerator[PipelineStatus, None]:
+        """
+        Stage: Apply semantic filters to retrieved articles.
+        Commits: Filter scores and pass/fail decisions on WipArticles.
+        """
+        yield PipelineStatus("filter", "Applying semantic filters...")
+
+        for query in ctx.queries:
+            if not query.semantic_filter.enabled:
+                yield PipelineStatus(
+                    "filter",
+                    "Filter disabled for query",
+                    {"query_id": query.query_id, "filtered": False}
+                )
+                continue
+
+            # Stream progress while filtering
+            result = None
+            async for status, res in self._stream_with_progress(
+                task_coro=lambda on_progress: self._apply_semantic_filter(
+                    execution_id=ctx.execution_id,
+                    retrieval_unit_id=query.query_id,
+                    filter_criteria=query.semantic_filter.criteria,
+                    threshold=query.semantic_filter.threshold,
+                    on_progress=on_progress
+                ),
+                stage="filter",
+                progress_msg_template="Filtering: {completed}/{total}",
+                heartbeat_msg="Processing...",
+                extra_data={"query_id": query.query_id}
+            ):
+                if res is not None:
+                    result = res
+                else:
+                    yield status
+
+            passed, rejected = result
+            ctx.filter_stats[query.query_id] = {"passed": passed, "rejected": rejected}
+
+            yield PipelineStatus(
+                "filter",
+                f"Filtered: {passed} passed, {rejected} rejected",
+                {"query_id": query.query_id, "passed": passed, "rejected": rejected}
+            )
+
+        # Stage commit
+        self.wip_article_service.commit()
+
+        yield PipelineStatus("filter", "Semantic filtering complete", {"stats": ctx.filter_stats})
+
+    async def _stage_deduplicate(
+        self,
+        ctx: PipelineContext
+    ) -> AsyncGenerator[PipelineStatus, None]:
+        """
+        Stage: Deduplicate globally and mark articles for inclusion.
+        Commits: Duplicate flags and included_in_report flags.
+        """
+        yield PipelineStatus("dedup_global", "Deduplicating across all groups...")
+
+        ctx.global_duplicates = await self._deduplicate_globally(
+            ctx.research_stream_id,
+            ctx.execution_id
+        )
+
+        yield PipelineStatus(
+            "dedup_global",
+            f"Found {ctx.global_duplicates} cross-query duplicates",
+            {"duplicates": ctx.global_duplicates}
+        )
+
+        # Mark articles for inclusion
+        ctx.included_count = await self._mark_articles_for_report(ctx.execution_id)
+
+        # Stage commit
+        self.wip_article_service.commit()
+
+        yield PipelineStatus(
+            "dedup_global",
+            f"Marked {ctx.included_count} articles for report inclusion",
+            {"included": ctx.included_count}
+        )
+
+    async def _stage_categorize(
+        self,
+        ctx: PipelineContext
+    ) -> AsyncGenerator[PipelineStatus, None]:
+        """
+        Stage: Categorize articles into presentation categories.
+        Commits: presentation_categories on WipArticles.
+        """
+        yield PipelineStatus("categorize", "Categorizing articles...")
+
+        # Stream progress while categorizing
+        result = None
+        async for status, res in self._stream_with_progress(
+            task_coro=lambda on_progress: self._categorize_articles(
+                research_stream_id=ctx.research_stream_id,
+                execution_id=ctx.execution_id,
+                presentation_config=ctx.presentation_config,
+                on_progress=on_progress
+            ),
+            stage="categorize",
+            progress_msg_template="Categorizing: {completed}/{total}",
+            heartbeat_msg="Processing..."
+        ):
+            if res is not None:
+                result = res
+            else:
+                yield status
+
+        ctx.categorized_count, ctx.categorize_errors = result
+
+        # Stage commit
+        self.wip_article_service.commit()
+
+        if ctx.categorize_errors > 0:
+            yield PipelineStatus(
+                "categorize",
+                f"Categorized {ctx.categorized_count} articles ({ctx.categorize_errors} failed)",
+                {"categorized": ctx.categorized_count, "errors": ctx.categorize_errors}
+            )
+        else:
+            yield PipelineStatus(
+                "categorize",
+                f"Categorized {ctx.categorized_count} articles",
+                {"categorized": ctx.categorized_count}
+            )
+
+    async def _stage_generate_summaries(
+        self,
+        ctx: PipelineContext
+    ) -> AsyncGenerator[PipelineStatus, None]:
+        """
+        Stage: Generate executive summary and category summaries.
+        Commits: None (summaries stored in ctx only).
+        """
+        yield PipelineStatus("summary", "Generating summaries...")
+
+        # Run summary generation with heartbeat
+        summary_task = asyncio.create_task(
+            self._generate_summaries(
+                research_stream_id=ctx.research_stream_id,
+                execution_id=ctx.execution_id,
+                stream=ctx.stream,
+                presentation_config=ctx.presentation_config
+            )
+        )
+
+        while not summary_task.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(summary_task), timeout=5.0)
+            except asyncio.TimeoutError:
+                yield PipelineStatus(
+                    "summary",
+                    f"Generating summaries for {len(ctx.categories)} categories...",
+                    {"heartbeat": True, "num_categories": len(ctx.categories)}
+                )
+
+        ctx.executive_summary, ctx.category_summaries = await summary_task
+
+        yield PipelineStatus(
+            "summary",
+            f"Generated executive summary and {len(ctx.category_summaries)} category summaries",
+            {"categories": len(ctx.category_summaries)}
+        )
+
+    async def _stage_generate_report(
+        self,
+        ctx: PipelineContext
+    ) -> AsyncGenerator[PipelineStatus, None]:
+        """
+        Stage: Generate final report with article associations.
+        Commits: Report, execution.report_id, Articles, ReportArticleAssociations.
+
+        CRITICAL: This stage sets execution.report_id and commits it properly.
+        """
+        yield PipelineStatus("report", "Generating report...")
+
+        ctx.report = await self._create_report(
+            ctx=ctx,
+            executive_summary=ctx.executive_summary,
+            category_summaries=ctx.category_summaries,
+            metrics={
+                "total_retrieved": ctx.total_retrieved,
+                "filter_stats": ctx.filter_stats,
+                "global_duplicates": ctx.global_duplicates,
+                "included_in_report": ctx.included_count,
+                "categorized": ctx.categorized_count
+            }
+        )
+
+        yield PipelineStatus(
+            "report",
+            f"Report created successfully",
+            {"report_id": ctx.report.report_id, "article_count": len(ctx.report.article_associations)}
+        )
+
+    async def _create_report(
+        self,
+        ctx: PipelineContext,
+        executive_summary: str,
+        category_summaries: Dict[str, str],
+        metrics: Dict
+    ) -> Report:
+        """
+        Create report with proper execution.report_id linkage.
+
+        CRITICAL: This method sets ctx.execution.report_id and commits everything
+        in a single transaction to ensure the link is persisted.
+        """
+        # Build enrichments
+        enrichments = {
+            "executive_summary": executive_summary,
+            "category_summaries": category_summaries
+        }
+
+        # Create report
+        report_date_obj = date.today()
+        final_report_name = ctx.report_name if ctx.report_name else report_date_obj.strftime("%Y.%m.%d")
+
+        report = self.report_service.create_report(
+            user_id=ctx.user_id,
+            research_stream_id=ctx.research_stream_id,
+            report_date=report_date_obj,
+            title=final_report_name,
+            pipeline_execution_id=ctx.execution_id,
+            executive_summary=executive_summary,
+            enrichments=enrichments
+        )
+
+        report.pipeline_metrics = metrics
+        report.is_read = False
+
+        # CRITICAL: Link report to execution using the ctx.execution object
+        # This ensures we're updating the same object that's in the session
+        ctx.execution.report_id = report.report_id
+
+        # Get articles for report
+        wip_articles = self.wip_article_service.get_included_articles(ctx.execution_id)
+
+        # Create Article records and associations
+        for idx, wip_article in enumerate(wip_articles):
+            # Check for existing article
+            existing_article = None
+            if wip_article.doi:
+                existing_article = self.db.query(Article).filter(
+                    Article.doi == wip_article.doi
+                ).first()
+
+            if not existing_article and wip_article.pmid:
+                existing_article = self.db.query(Article).filter(
+                    Article.pmid == wip_article.pmid
+                ).first()
+
+            if existing_article:
+                article = existing_article
+            else:
+                article = Article(
+                    source_id=wip_article.source_id,
+                    title=wip_article.title,
+                    url=wip_article.url,
+                    authors=wip_article.authors,
+                    publication_date=wip_article.publication_date,
+                    summary=wip_article.summary,
+                    abstract=wip_article.abstract,
+                    full_text=wip_article.full_text,
+                    pmid=wip_article.pmid,
+                    doi=wip_article.doi,
+                    journal=wip_article.journal,
+                    volume=wip_article.volume,
+                    issue=wip_article.issue,
+                    pages=wip_article.pages,
+                    year=wip_article.year,
+                    article_metadata=wip_article.article_metadata,
+                    fetch_count=1
+                )
+                self.db.add(article)
+                self.db.flush()
+
+            # Create association
+            association = ReportArticleAssociation(
+                report_id=report.report_id,
+                article_id=article.article_id,
+                ranking=idx + 1,
+                presentation_categories=wip_article.presentation_categories,
+                is_read=False,
+                is_starred=False
+            )
+            self.db.add(association)
+
+        # Single commit for everything: Report, execution.report_id, Articles, Associations
+        self.db.commit()
+
+        return report
+
+    # =========================================================================
+    # STAGE HELPER METHODS
+    # =========================================================================
 
     async def _fetch_and_store_articles(
         self,
@@ -872,121 +1058,3 @@ class PipelineService:
 
         logger.info(f"Summary generation complete: executive summary + {len(category_summaries)} category summaries")
         return executive_summary, category_summaries
-
-    async def _generate_report(
-        self,
-        execution_id: str,
-        user_id: int,
-        stream_id: int,
-        executive_summary: str,
-        category_summaries: Dict[str, str],
-        metrics: Dict,
-        report_name: Optional[str] = None
-    ) -> Report:
-        """
-        Generate a report from the pipeline results.
-        Creates Report and ReportArticleAssociation records.
-
-        Input configuration (run_type, dates, retrieval_config) is stored in the
-        PipelineExecution record, not in the Report. Access via report.execution.
-
-        Args:
-            execution_id: UUID of pipeline execution (links to wip_articles and stores all config)
-            user_id: User ID (from execution record)
-            stream_id: Stream ID (from execution record)
-            executive_summary: Overall executive summary
-            category_summaries: Dict mapping category_id to summary text
-            metrics: Pipeline execution metrics
-            report_name: Custom name for the report (defaults to YYYY.MM.DD)
-
-        Returns:
-            The created Report object
-        """
-        # Build enrichments (LLM-generated content)
-        enrichments = {
-            "executive_summary": executive_summary,
-            "category_summaries": category_summaries
-        }
-
-        # Create report using ReportService
-        report_date_obj = date.today()
-        # Use provided report_name or default to YYYY.MM.DD format
-        final_report_name = report_name if report_name else report_date_obj.strftime("%Y.%m.%d")
-
-        report = self.report_service.create_report(
-            user_id=user_id,
-            research_stream_id=stream_id,
-            report_date=report_date_obj,
-            title=final_report_name,
-            pipeline_execution_id=execution_id,
-            executive_summary=executive_summary,
-            enrichments=enrichments
-        )
-        # Set additional fields not in the service method
-        report.pipeline_metrics = metrics
-        report.is_read = False
-
-        # Link the report back to the execution
-        execution = self.db.query(PipelineExecution).filter(
-            PipelineExecution.id == execution_id
-        ).first()
-        if execution:
-            execution.report_id = report.report_id
-            self.db.flush()  # Persist the link immediately
-
-        # Get all articles marked for report inclusion
-        wip_articles = self.wip_article_service.get_included_articles(execution_id)
-
-        # Create or get Article records, then create associations
-        for idx, wip_article in enumerate(wip_articles):
-            # Check if article already exists in articles table
-            existing_article = None
-            if wip_article.doi:
-                existing_article = self.db.query(Article).filter(
-                    Article.doi == wip_article.doi
-                ).first()
-
-            if not existing_article and wip_article.pmid:
-                existing_article = self.db.query(Article).filter(
-                    Article.pmid == wip_article.pmid
-                ).first()
-
-            if existing_article:
-                article = existing_article
-            else:
-                # Create new article
-                article = Article(
-                    source_id=wip_article.source_id,
-                    title=wip_article.title,
-                    url=wip_article.url,
-                    authors=wip_article.authors,
-                    publication_date=wip_article.publication_date,
-                    summary=wip_article.summary,
-                    abstract=wip_article.abstract,
-                    full_text=wip_article.full_text,
-                    pmid=wip_article.pmid,
-                    doi=wip_article.doi,
-                    journal=wip_article.journal,
-                    volume=wip_article.volume,
-                    issue=wip_article.issue,
-                    pages=wip_article.pages,
-                    year=wip_article.year,
-                    article_metadata=wip_article.article_metadata,
-                    fetch_count=1
-                )
-                self.db.add(article)
-                self.db.flush()  # Get article_id
-
-            # Create association
-            association = ReportArticleAssociation(
-                report_id=report.report_id,
-                article_id=article.article_id,
-                ranking=idx + 1,
-                presentation_categories=wip_article.presentation_categories,
-                is_read=False,
-                is_starred=False
-            )
-            self.db.add(association)
-
-        self.db.commit()
-        return report
