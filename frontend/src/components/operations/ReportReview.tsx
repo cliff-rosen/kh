@@ -71,15 +71,17 @@ export default function ReportReview() {
     }, [executionId]);
 
     // Fetch report data when execution has a report_id
+    const reportId = execution?.report_id;
     useEffect(() => {
+        console.log(execution)
         async function fetchReport() {
-            if (!execution?.report_id) {
+            if (!reportId) {
                 setReport(null);
                 return;
             }
             setLoadingReport(true);
             try {
-                const reportData = await reportApi.getReportWithArticles(execution.report_id);
+                const reportData = await reportApi.getReportWithArticles(reportId);
                 setReport(reportData);
             } catch (err) {
                 console.error('Failed to load report:', err);
@@ -89,7 +91,7 @@ export default function ReportReview() {
             }
         }
         fetchReport();
-    }, [execution?.report_id]);
+    }, [reportId]);
 
     // Compute article counts for pipeline tabs from WIP articles
     const includedArticles = execution?.wip_articles.filter(a => a.included_in_report) || [];
@@ -120,8 +122,8 @@ export default function ReportReview() {
     };
 
     const canApproveReject = execution?.execution_status === 'completed' &&
-                             execution?.report_id &&
-                             execution?.approval_status === 'awaiting_approval';
+        execution?.report_id &&
+        execution?.approval_status === 'awaiting_approval';
 
     const handleApprove = async () => {
         if (!execution?.report_id) return;
@@ -332,21 +334,19 @@ export default function ReportReview() {
                     <div className="flex gap-1 bg-gray-100 dark:bg-gray-900 rounded-lg p-1">
                         <button
                             onClick={() => setPipelineTab('report_preview')}
-                            className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                                pipelineTab === 'report_preview'
+                            className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pipelineTab === 'report_preview'
                                     ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
                                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                            }`}
+                                }`}
                         >
                             Report Preview
                         </button>
                         <button
                             onClick={() => setPipelineTab('included')}
-                            className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                                pipelineTab === 'included'
+                            className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pipelineTab === 'included'
                                     ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
                                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                            }`}
+                                }`}
                         >
                             Included
                             <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
@@ -355,11 +355,10 @@ export default function ReportReview() {
                         </button>
                         <button
                             onClick={() => setPipelineTab('duplicates')}
-                            className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                                pipelineTab === 'duplicates'
+                            className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pipelineTab === 'duplicates'
                                     ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
                                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                            }`}
+                                }`}
                         >
                             Duplicates
                             <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
@@ -368,11 +367,10 @@ export default function ReportReview() {
                         </button>
                         <button
                             onClick={() => setPipelineTab('filtered_out')}
-                            className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                                pipelineTab === 'filtered_out'
+                            className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pipelineTab === 'filtered_out'
                                     ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
                                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                            }`}
+                                }`}
                         >
                             Filtered Out
                             <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
