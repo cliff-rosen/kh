@@ -213,72 +213,82 @@ export default function ReportReview() {
                 )}
             </div>
 
-            {/* Execution Details - Compact Layout */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-                {/* Row 1: Basic execution info + metrics + approval */}
-                <div className="flex flex-wrap items-start gap-6">
-                    {/* Execution Info */}
-                    <div className="flex items-center gap-4">
-                        <div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Status</p>
+            {/* Execution Details - Organized Layout */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+                {/* Top Row: Status, Timing, Metrics, Approval */}
+                <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4 border-b border-gray-200 dark:border-gray-700">
+                    {/* Status & Type */}
+                    <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Status</p>
+                        <div className="flex items-center gap-2">
                             <ExecutionStatusBadge status={execution.execution_status} />
-                        </div>
-                        <div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Run Type</p>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white capitalize">{execution.run_type}</p>
-                        </div>
-                        <div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Date Range</p>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                {execution.start_date && execution.end_date
-                                    ? `${execution.start_date} → ${execution.end_date}`
-                                    : 'N/A'}
-                            </p>
-                        </div>
-                        <div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Duration</p>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                {execution.started_at && execution.completed_at
-                                    ? `${Math.round((new Date(execution.completed_at).getTime() - new Date(execution.started_at).getTime()) / 60000)}m`
-                                    : 'N/A'}
-                            </p>
+                            <span className="text-xs text-gray-500 capitalize">({execution.run_type})</span>
                         </div>
                     </div>
 
-                    {/* Pipeline Metrics - from report.pipeline_metrics */}
-                    {report?.pipeline_metrics && (
-                        <div className="flex items-center gap-1.5 text-xs">
-                            <FunnelIcon className="h-3.5 w-3.5 text-gray-400" />
-                            <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded" title="Total Retrieved">
-                                {report.pipeline_metrics.total_retrieved ?? '?'}
-                            </span>
-                            <span className="text-gray-400">→</span>
-                            <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded" title="After Deduplication">
-                                {report.pipeline_metrics.total_retrieved != null && report.pipeline_metrics.global_duplicates != null
-                                    ? report.pipeline_metrics.total_retrieved - report.pipeline_metrics.global_duplicates
-                                    : '?'}
-                            </span>
-                            <span className="text-gray-400">→</span>
-                            <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded font-medium" title="Included in Report">
-                                {report.pipeline_metrics.included_in_report ?? '?'}
-                            </span>
-                        </div>
-                    )}
+                    {/* Date Range */}
+                    <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Search Period</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {execution.start_date && execution.end_date
+                                ? `${execution.start_date} → ${execution.end_date}`
+                                : 'N/A'}
+                        </p>
+                    </div>
 
-                    {/* Approval Status */}
-                    {execution.report_id && execution.approval_status && (
-                        <div className="flex items-center gap-3">
-                            <ApprovalStatusBadge status={execution.approval_status} />
-                            {execution.approved_by && (
-                                <span className="text-xs text-gray-500">by {execution.approved_by}</span>
-                            )}
-                        </div>
-                    )}
+                    {/* Duration */}
+                    <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Duration</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {execution.started_at && execution.completed_at
+                                ? `${Math.round((new Date(execution.completed_at).getTime() - new Date(execution.started_at).getTime()) / 60000)} min`
+                                : execution.started_at ? 'In progress...' : 'N/A'}
+                        </p>
+                    </div>
+
+                    {/* Pipeline Metrics */}
+                    <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Article Funnel</p>
+                        {report?.pipeline_metrics ? (
+                            <div className="flex items-center gap-1 text-sm">
+                                <span className="font-medium text-gray-700 dark:text-gray-300" title="Total Retrieved">
+                                    {report.pipeline_metrics.total_retrieved ?? '?'}
+                                </span>
+                                <span className="text-gray-400">→</span>
+                                <span className="font-medium text-gray-700 dark:text-gray-300" title="After Dedup">
+                                    {report.pipeline_metrics.total_retrieved != null && report.pipeline_metrics.global_duplicates != null
+                                        ? report.pipeline_metrics.total_retrieved - report.pipeline_metrics.global_duplicates
+                                        : '?'}
+                                </span>
+                                <span className="text-gray-400">→</span>
+                                <span className="font-bold text-blue-600 dark:text-blue-400" title="Included">
+                                    {report.pipeline_metrics.included_in_report ?? '?'}
+                                </span>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-400">-</p>
+                        )}
+                    </div>
                 </div>
+
+                {/* Approval Status Row (if applicable) */}
+                {execution.report_id && execution.approval_status && (
+                    <div className="px-4 py-2 bg-gray-50 dark:bg-gray-900/50 flex items-center gap-3 border-b border-gray-200 dark:border-gray-700">
+                        <ApprovalStatusBadge status={execution.approval_status} />
+                        {execution.approved_by && (
+                            <span className="text-xs text-gray-500">by {execution.approved_by}</span>
+                        )}
+                        {execution.approved_at && (
+                            <span className="text-xs text-gray-400">
+                                on {new Date(execution.approved_at).toLocaleDateString()}
+                            </span>
+                        )}
+                    </div>
+                )}
 
                 {/* Error display */}
                 {execution.execution_status === 'failed' && execution.error && (
-                    <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="p-4 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800">
                         <div className="flex items-start gap-2">
                             <ExclamationTriangleIcon className="h-4 w-4 text-red-600 dark:text-red-400 mt-0.5" />
                             <p className="text-sm text-red-700 dark:text-red-300">{execution.error}</p>
@@ -288,16 +298,16 @@ export default function ReportReview() {
 
                 {/* Rejection reason */}
                 {execution.rejection_reason && (
-                    <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded">
+                    <div className="p-4 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800">
                         <p className="text-sm text-red-700 dark:text-red-300">
-                            <span className="font-medium">Rejected:</span> {execution.rejection_reason}
+                            <span className="font-medium">Rejection Reason:</span> {execution.rejection_reason}
                         </p>
                     </div>
                 )}
 
-                {/* Retrieval Configuration - Queries and Filters */}
+                {/* Retrieval Configuration - Collapsible */}
                 {execution.retrieval_config && (
-                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                    <div className="p-4">
                         <RetrievalConfigDisplay config={execution.retrieval_config} />
                     </div>
                 )}
@@ -645,39 +655,62 @@ interface RetrievalConfigProps {
     config: Record<string, unknown>;
 }
 
+interface SourceQuery {
+    query_expression: string;
+    enabled: boolean;
+}
+
+interface SemanticFilter {
+    enabled: boolean;
+    criteria: string;
+    threshold?: number;
+}
+
 interface ConceptConfig {
     concept_id: string;
     name: string;
-    query_expression?: string;
-    semantic_filter?: {
-        enabled: boolean;
-        criteria: string;
-    };
+    source_queries?: Record<string, SourceQuery>;
+    semantic_filter?: SemanticFilter;
 }
 
 interface BroadQueryConfig {
     query_id: string;
     query_expression: string;
-    semantic_filter?: {
-        enabled: boolean;
-        criteria: string;
-    };
+    semantic_filter?: SemanticFilter;
+}
+
+interface ExtractedQuery {
+    id: string;
+    name: string;
+    source: string;
+    expression: string;
+    filter?: { criteria: string; threshold?: number };
 }
 
 function RetrievalConfigDisplay({ config }: RetrievalConfigProps) {
+    const [expanded, setExpanded] = useState(false);
     const concepts = config.concepts as ConceptConfig[] | undefined;
     const broadSearch = config.broad_search as { queries: BroadQueryConfig[] } | undefined;
 
     // Extract queries and filters
-    const queries: { id: string; expression: string; filter?: string }[] = [];
+    const queries: ExtractedQuery[] = [];
 
     if (concepts && Array.isArray(concepts)) {
         concepts.forEach(concept => {
-            if (concept.query_expression) {
-                queries.push({
-                    id: concept.concept_id || concept.name,
-                    expression: concept.query_expression,
-                    filter: concept.semantic_filter?.enabled ? concept.semantic_filter.criteria : undefined
+            // Get queries from source_queries (e.g., pubmed)
+            if (concept.source_queries) {
+                Object.entries(concept.source_queries).forEach(([source, sq]) => {
+                    if (sq.enabled && sq.query_expression) {
+                        queries.push({
+                            id: concept.concept_id,
+                            name: concept.name,
+                            source,
+                            expression: sq.query_expression,
+                            filter: concept.semantic_filter?.enabled
+                                ? { criteria: concept.semantic_filter.criteria, threshold: concept.semantic_filter.threshold }
+                                : undefined
+                        });
+                    }
                 });
             }
         });
@@ -685,37 +718,72 @@ function RetrievalConfigDisplay({ config }: RetrievalConfigProps) {
         broadSearch.queries.forEach(query => {
             queries.push({
                 id: query.query_id,
+                name: query.query_id,
+                source: 'pubmed',
                 expression: query.query_expression,
-                filter: query.semantic_filter?.enabled ? query.semantic_filter.criteria : undefined
+                filter: query.semantic_filter?.enabled
+                    ? { criteria: query.semantic_filter.criteria, threshold: query.semantic_filter.threshold }
+                    : undefined
             });
         });
     }
 
     if (queries.length === 0) {
-        return <p className="text-xs text-gray-500">No retrieval configuration</p>;
+        return null;
     }
 
+    const hasFilters = queries.some(q => q.filter);
+    const mode = concepts ? 'Concept' : 'Broad Search';
+
     return (
-        <div className="space-y-2">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                {concepts ? 'Concept Queries' : 'Broad Search Queries'} ({queries.length})
-            </p>
-            <div className="space-y-2">
-                {queries.map((q, idx) => (
-                    <div key={idx} className="text-xs bg-gray-50 dark:bg-gray-900 rounded p-2">
-                        <div className="flex items-start gap-2">
-                            <span className="font-medium text-gray-600 dark:text-gray-400 shrink-0">{q.id}:</span>
-                            <code className="text-gray-800 dark:text-gray-200 break-all">{q.expression}</code>
-                        </div>
-                        {q.filter && (
-                            <div className="mt-1 pl-4 border-l-2 border-blue-300 dark:border-blue-700">
-                                <span className="text-blue-600 dark:text-blue-400">Filter: </span>
-                                <span className="text-gray-600 dark:text-gray-400">{q.filter}</span>
+        <div>
+            <button
+                onClick={() => setExpanded(!expanded)}
+                className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+            >
+                {expanded ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}
+                <span className="font-medium">{mode} Queries</span>
+                <span className="text-xs bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">{queries.length}</span>
+                {hasFilters && (
+                    <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">
+                        + Semantic Filter
+                    </span>
+                )}
+            </button>
+
+            {expanded && (
+                <div className="mt-2 space-y-2">
+                    {queries.map((q, idx) => (
+                        <div key={idx} className="text-xs bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="font-semibold text-gray-800 dark:text-gray-200">{q.name}</span>
+                                        <span className="text-gray-400 dark:text-gray-500 uppercase text-[10px]">{q.source}</span>
+                                    </div>
+                                    <code className="block text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 px-2 py-1 rounded border border-gray-200 dark:border-gray-600 break-all">
+                                        {q.expression}
+                                    </code>
+                                </div>
                             </div>
-                        )}
-                    </div>
-                ))}
-            </div>
+                            {q.filter && (
+                                <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                                    <div className="flex items-start gap-2">
+                                        <FunnelIcon className="h-3.5 w-3.5 text-blue-500 mt-0.5 shrink-0" />
+                                        <div>
+                                            <span className="text-blue-600 dark:text-blue-400 font-medium">Semantic Filter</span>
+                                            {q.filter.threshold && (
+                                                <span className="text-gray-400 ml-1">(threshold: {q.filter.threshold})</span>
+                                            )}
+                                            <p className="text-gray-600 dark:text-gray-400 mt-0.5">{q.filter.criteria}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
