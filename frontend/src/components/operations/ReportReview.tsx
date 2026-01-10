@@ -34,7 +34,7 @@ import {
     rejectReport,
 } from '../../lib/api/operationsApi';
 import type { ExecutionStatus, WipArticle, CategoryCount, ExecutionDetail } from '../../types/research-stream';
-import type { ApprovalStatus, ReportArticle } from '../../types/report';
+import type { ReportArticle } from '../../types/report';
 
 type PipelineTab = 'included' | 'duplicates' | 'filtered_out';
 
@@ -393,105 +393,17 @@ export default function ReportReview() {
                     {/* Tab content */}
                     <div className="p-4">
                         {pipelineTab === 'included' && (
-                            <div>
-                                {/* Category view for included articles */}
-                                {execution.categories.map((category) => {
-                                    const articles = getArticlesForCategory(category.id);
-                                    const isExpanded = expandedCategories.includes(category.id);
-
-                                    return (
-                                        <div key={category.id} className="border-b border-gray-200 dark:border-gray-700 last:border-b-0">
-                                            <button
-                                                onClick={() => toggleCategory(category.id)}
-                                                className="w-full px-2 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    {isExpanded ? (
-                                                        <ChevronDownIcon className="h-4 w-4 text-gray-400" />
-                                                    ) : (
-                                                        <ChevronRightIcon className="h-4 w-4 text-gray-400" />
-                                                    )}
-                                                    <span className="font-medium text-gray-900 dark:text-white">{category.name}</span>
-                                                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                                                        ({articles.length})
-                                                    </span>
-                                                </div>
-                                            </button>
-
-                                            {isExpanded && (
-                                                <div className="pl-6 pb-4 space-y-2">
-                                                    {articles.map((article) => (
-                                                        <ArticleCard
-                                                            key={article.article_id}
-                                                            article={article}
-                                                            categories={execution.categories}
-                                                            currentCategory={categoryChanges[article.article_id] || article.presentation_categories?.[0] || ''}
-                                                            onRemove={() => removeArticle(article.article_id)}
-                                                            onChangeCategory={(newCat) => changeCategory(article.article_id, newCat)}
-                                                            canEdit={canApproveReject === true}
-                                                        />
-                                                    ))}
-                                                    {articles.length === 0 && (
-                                                        <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                                                            No articles in this category
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-
-                                {/* Show all articles if no categories */}
-                                {execution.categories.length === 0 && execution.articles.length > 0 && (
-                                    <div className="space-y-2">
-                                        {execution.articles.filter(a => !removedArticles.includes(a.article_id)).map((article) => (
-                                            <ArticleCard
-                                                key={article.article_id}
-                                                article={article}
-                                                categories={execution.categories}
-                                                currentCategory={categoryChanges[article.article_id] || article.presentation_categories?.[0] || ''}
-                                                onRemove={() => removeArticle(article.article_id)}
-                                                onChangeCategory={(newCat) => changeCategory(article.article_id, newCat)}
-                                                canEdit={canApproveReject === true}
-                                            />
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* No articles state */}
-                                {execution.articles.length === 0 && (
+                            <div className="space-y-3">
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                    Articles marked for inclusion in the report.
+                                </p>
+                                {includedArticles.map((article) => (
+                                    <WipArticleCard key={article.id} article={article} type="included" />
+                                ))}
+                                {includedArticles.length === 0 && (
                                     <p className="text-center text-gray-500 dark:text-gray-400 py-8">
-                                        No articles in report
+                                        No articles included in report
                                     </p>
-                                )}
-
-                                {/* Removed Articles */}
-                                {removedArticles.length > 0 && (
-                                    <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                                        <h3 className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
-                                            Articles to be removed ({removedArticles.length})
-                                        </h3>
-                                        <div className="space-y-2">
-                                            {removedArticles.map((articleId) => {
-                                                const article = execution.articles.find((a) => a.article_id === articleId);
-                                                if (!article) return null;
-                                                return (
-                                                    <div key={articleId} className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded">
-                                                        <span className="text-sm text-gray-600 dark:text-gray-400 line-through">
-                                                            {article.title}
-                                                        </span>
-                                                        <button
-                                                            onClick={() => restoreArticle(articleId)}
-                                                            className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                                                        >
-                                                            Restore
-                                                        </button>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
                                 )}
                             </div>
                         )}
@@ -693,12 +605,15 @@ function ExecutionStatusBadge({ status }: { status: ExecutionStatus }) {
     return <span className={`inline-flex items-center px-2 py-1 text-sm font-medium rounded ${bg} ${text}`}>{label}</span>;
 }
 
-function ApprovalStatusBadge({ status }: { status: ApprovalStatus }) {
-    const config: Record<ApprovalStatus, { bg: string; text: string; icon: typeof CheckCircleIcon | null; label: string }> = {
+function ApprovalStatusBadge({ status }: { status: string | null }) {
+    const config: Record<string, { bg: string; text: string; icon: typeof CheckCircleIcon | null; label: string }> = {
         awaiting_approval: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-300', icon: null, label: 'Awaiting Approval' },
         approved: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300', icon: CheckCircleIcon, label: 'Approved' },
         rejected: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-300', icon: XCircleIcon, label: 'Rejected' },
     };
+    if (!status || !config[status]) {
+        return <span className="inline-flex items-center px-2 py-1 text-sm font-medium rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">Unknown</span>;
+    }
     const { bg, text, icon: Icon, label } = config[status];
     return (
         <span className={`inline-flex items-center gap-1 px-2 py-1 text-sm font-medium rounded ${bg} ${text}`}>
@@ -708,8 +623,8 @@ function ApprovalStatusBadge({ status }: { status: ApprovalStatus }) {
     );
 }
 
-// Card for displaying WIP articles in duplicates and filtered out tabs
-function WipArticleCard({ article, type }: { article: WipArticle; type: 'duplicate' | 'filtered' }) {
+// Card for displaying WIP articles in pipeline tabs
+function WipArticleCard({ article, type }: { article: WipArticle; type: 'included' | 'duplicate' | 'filtered' }) {
     const [expanded, setExpanded] = useState(false);
 
     return (

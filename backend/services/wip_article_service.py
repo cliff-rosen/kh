@@ -170,7 +170,7 @@ class WipArticleService:
                 WipArticle.is_duplicate == False,
                 or_(
                     WipArticle.passed_semantic_filter == True,
-                    WipArticle.passed_semantic_filter == None  # Groups without filters
+                    WipArticle.passed_semantic_filter == None
                 )
             )
         ).all()
