@@ -16,7 +16,8 @@ from fastapi import HTTPException, status
 from models import (
     Report, ReportArticleAssociation, Article, WipArticle,
     ResearchStream, User, UserRole, StreamScope,
-    OrgStreamSubscription, UserStreamSubscription
+    OrgStreamSubscription, UserStreamSubscription, PipelineExecution,
+    ApprovalStatus
 )
 from schemas.report import Report as ReportSchema
 from services.user_service import UserService
@@ -504,7 +505,8 @@ class ReportService:
             report_name=title,
             pipeline_execution_id=pipeline_execution_id,
             enrichments=final_enrichments,
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
+            approval_status=ApprovalStatus.AWAITING_APPROVAL  # Explicitly set pending approval
         )
         self.db.add(report)
         self.db.flush()  # Get the report_id
@@ -819,6 +821,11 @@ class ReportService:
         if not report.pipeline_execution_id:
             raise ValueError("This report does not have pipeline execution data (legacy report)")
 
+        # Get the pipeline execution record (source of truth for run_type and config)
+        execution = self.db.query(PipelineExecution).filter(
+            PipelineExecution.id == report.pipeline_execution_id
+        ).first()
+
         # Get all wip_articles for this execution
         wip_articles = self.db.query(WipArticle).filter(
             WipArticle.pipeline_execution_id == report.pipeline_execution_id
@@ -890,7 +897,7 @@ class ReportService:
 
         return {
             'report_id': report_id,
-            'run_type': report.run_type.value if report.run_type else None,
+            'run_type': execution.run_type.value if execution and execution.run_type else None,
             'report_date': report.report_date.isoformat(),
             'pipeline_metrics': report.pipeline_metrics,
             'summary': {

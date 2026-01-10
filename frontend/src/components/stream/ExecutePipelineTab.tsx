@@ -57,8 +57,15 @@ export default function ExecutePipelineTab({ streamId, canModify = true }: Execu
             });
 
             for await (const status of stream) {
+                // Add status to log first (so completion message is shown)
+                setStatusLog(prev => [...prev, status]);
+
                 // Check for completion or error
-                if (status.stage === 'done') {
+                if (status.stage === 'complete') {
+                    // Extract report_id if present
+                    if (status.data?.report_id) {
+                        setReportId(status.data.report_id);
+                    }
                     setIsExecuting(false);
                     break;
                 }
@@ -68,14 +75,6 @@ export default function ExecutePipelineTab({ streamId, canModify = true }: Execu
                     setIsExecuting(false);
                     break;
                 }
-
-                // Check if status contains report_id
-                if (status.stage === 'complete' && status.data?.report_id) {
-                    setReportId(status.data.report_id);
-                }
-
-                // Add status to log
-                setStatusLog(prev => [...prev, status]);
             }
         } catch (err: any) {
             setError(err.message || 'Failed to execute pipeline');

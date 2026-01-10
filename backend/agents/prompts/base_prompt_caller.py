@@ -2,13 +2,16 @@ from typing import Dict, Any, List, Optional, Union, Type
 from pydantic import BaseModel, create_model, Field
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import PydanticOutputParser
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, APIError, APIConnectionError, RateLimitError, APITimeoutError
 import httpx
+import logging
 from schemas.llm import ChatMessage
 from utils.message_formatter import format_langchain_messages, format_messages_for_openai
 from utils.prompt_logger import log_prompt_messages
 from config.llm_models import get_model_capabilities, supports_reasoning_effort, supports_temperature, get_valid_reasoning_efforts
 import json
+
+logger = logging.getLogger(__name__)
 
 # Available OpenAI models (as of January 2025)
 AVAILABLE_MODELS = {
@@ -114,7 +117,7 @@ class BasePromptCaller:
                 else:
                     raise ValueError(f"Invalid reasoning effort '{reasoning_effort}' for model {self.model}. Valid options: {valid_efforts}")
             else:
-                print(f"Warning: Model {self.model} does not support reasoning effort parameter. Ignoring.")
+                logger.warning(f"Model {self.model} does not support reasoning effort parameter. Ignoring.")
         
         # Use shared OpenAI client with higher connection limits
         self.client = get_shared_openai_client()
@@ -142,7 +145,16 @@ class BasePromptCaller:
         for prop_name, prop_schema in properties.items():
             prop_type = prop_schema.get("type", "string")
             description = prop_schema.get("description", "")
-            
+
+            # Handle nullable types: {"type": ["string", "null"]} means Optional[str]
+            is_nullable = False
+            if isinstance(prop_type, list):
+                # JSON Schema array type like ["string", "null"]
+                is_nullable = "null" in prop_type
+                # Get the non-null type
+                non_null_types = [t for t in prop_type if t != "null"]
+                prop_type = non_null_types[0] if non_null_types else "string"
+
             # Map JSON schema types to Python types
             if prop_type == "string":
                 if "enum" in prop_schema:
@@ -166,12 +178,12 @@ class BasePromptCaller:
                 python_type = Dict[str, Any]
             else:
                 python_type = str  # Default fallback
-            
-            # Handle required vs optional fields
-            if prop_name in required:
-                field_definitions[prop_name] = (python_type, Field(description=description))
-            else:
+
+            # Handle required vs optional fields, and nullable types
+            if is_nullable or prop_name not in required:
                 field_definitions[prop_name] = (Optional[python_type], Field(None, description=description))
+            else:
+                field_definitions[prop_name] = (python_type, Field(description=description))
         
         # Create the dynamic model with a unique name based on schema hash
         unique_name = f"{model_name}_{abs(hash(json.dumps(schema, sort_keys=True)))}"
@@ -261,9 +273,9 @@ class BasePromptCaller:
                     messages=formatted_messages,
                     prompt_type=self.__class__.__name__.lower()
                 )
-                print(f"Prompt messages logged to: {log_file_path}")
+                logger.debug(f"Prompt messages logged to: {log_file_path}")
             except Exception as log_error:
-                print(f"Warning: Failed to log prompt: {log_error}")
+                logger.warning(f"Failed to log prompt: {log_error}")
         
         # Get schema
         schema = self.get_schema()
@@ -287,7 +299,7 @@ class BasePromptCaller:
                 if effort_to_use in valid_efforts:
                     use_reasoning_effort = effort_to_use
                 else:
-                    print(f"Warning: Invalid reasoning effort '{effort_to_use}' for model {use_model}. Valid options: {valid_efforts}")
+                    logger.warning(f"Invalid reasoning effort '{effort_to_use}' for model {use_model}. Valid options: {valid_efforts}")
         
         # Build API call parameters
         api_params = {
@@ -312,22 +324,45 @@ class BasePromptCaller:
             api_params["temperature"] = use_temperature
         elif use_temperature != 0.0:
             # Only warn if user tried to set a non-zero temperature
-            print(f"Note: Temperature parameter not supported for model {use_model} with reasoning_effort")
-        
-        # Call OpenAI
-        response = await self.client.chat.completions.create(**api_params)
-        
-        # Parse response
-        response_text = response.choices[0].message.content
-        parsed_result = self.parser.parse(response_text)
-        
+            logger.debug(f"Temperature parameter not supported for model {use_model} with reasoning_effort")
+
+        # Call OpenAI with error handling
+        try:
+            logger.debug(f"Calling OpenAI API: model={use_model}, schema={self.get_response_model_name()}")
+            response = await self.client.chat.completions.create(**api_params)
+            logger.debug(f"OpenAI API response received: {response.usage.total_tokens if response.usage else 0} tokens")
+        except APITimeoutError as e:
+            logger.error(f"OpenAI API timeout: {e}")
+            raise RuntimeError(f"OpenAI API request timed out after {OPENAI_TIMEOUT}s") from e
+        except RateLimitError as e:
+            logger.error(f"OpenAI API rate limit exceeded: {e}")
+            raise RuntimeError("OpenAI API rate limit exceeded. Please try again later.") from e
+        except APIConnectionError as e:
+            logger.error(f"OpenAI API connection error: {e}")
+            raise RuntimeError("Failed to connect to OpenAI API. Check network connectivity.") from e
+        except APIError as e:
+            logger.error(f"OpenAI API error: {e.status_code} - {e.message}")
+            raise RuntimeError(f"OpenAI API error: {e.message}") from e
+
+        # Parse response with error handling
+        try:
+            response_text = response.choices[0].message.content
+            if not response_text:
+                logger.error("OpenAI returned empty response content")
+                raise ValueError("OpenAI returned empty response")
+            parsed_result = self.parser.parse(response_text)
+        except Exception as parse_error:
+            logger.error(f"Failed to parse LLM response: {parse_error}")
+            logger.debug(f"Raw response text: {response_text[:500] if response_text else 'None'}...")
+            raise
+
         # Extract usage information
         usage_info = LLMUsage(
             prompt_tokens=response.usage.prompt_tokens if response.usage else 0,
             completion_tokens=response.usage.completion_tokens if response.usage else 0,
             total_tokens=response.usage.total_tokens if response.usage else 0
         )
-        
+
         # Return based on return_usage flag
         if return_usage:
             return LLMResponse(result=parsed_result, usage=usage_info)
