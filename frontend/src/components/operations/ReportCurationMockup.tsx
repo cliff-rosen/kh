@@ -26,6 +26,9 @@ import {
     CheckCircleIcon,
     ExclamationTriangleIcon,
     ClockIcon,
+    EyeIcon,
+    EnvelopeIcon,
+    ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline';
 
 // Mock data for the curation view
@@ -73,11 +76,13 @@ const MOCK_ARTICLES = {
     included: [
         {
             id: 1,
+            pmid: '39847123',
             title: 'Metabolic reprogramming restores T-cell function in checkpoint inhibitor-resistant tumors',
             authors: ['Zhang Y', 'Smith J', 'Johnson M', 'et al.'],
             journal: 'Nature Medicine',
             date: '2025-01-04',
             category: 'immunotherapy',
+            original_category: 'immunotherapy',
             ranking: 1,
             ai_summary: 'This study demonstrates that targeting tumor metabolism can overcome resistance to PD-1 inhibitors by restoring T-cell infiltration and function in previously unresponsive solid tumors.',
             original_ai_summary: 'This study demonstrates that targeting tumor metabolism can overcome resistance to PD-1 inhibitors by restoring T-cell infiltration and function in previously unresponsive solid tumors.',
@@ -87,11 +92,13 @@ const MOCK_ARTICLES = {
         },
         {
             id: 2,
+            pmid: '39845891',
             title: 'Bispecific antibody targeting CD3 and TYRP1 shows efficacy in treatment-resistant melanoma',
             authors: ['Chen L', 'Williams R'],
             journal: 'Cancer Cell',
             date: '2025-01-03',
             category: 'immunotherapy',
+            original_category: 'immunotherapy',
             ranking: 2,
             ai_summary: 'A novel bispecific antibody construct demonstrates potent anti-tumor activity in melanoma models resistant to conventional checkpoint blockade.',
             original_ai_summary: 'A novel bispecific antibody construct demonstrates potent anti-tumor activity in melanoma models resistant to conventional checkpoint blockade.',
@@ -101,11 +108,13 @@ const MOCK_ARTICLES = {
         },
         {
             id: 3,
+            pmid: '39843456',
             title: 'Lipid nanoparticle-mediated delivery improves CAR-T persistence in solid tumors',
             authors: ['Park S', 'Lee K', 'Brown A'],
             journal: 'Science Translational Medicine',
             date: '2025-01-02',
             category: 'drug-delivery',
+            original_category: 'drug-delivery',
             ranking: 3,
             ai_summary: 'Novel lipid nanoparticle formulation enhances CAR-T cell persistence and tumor penetration, addressing key limitations in solid tumor therapy.',
             original_ai_summary: 'Novel lipid nanoparticle formulation enhances CAR-T cell persistence and tumor penetration, addressing key limitations in solid tumor therapy.',
@@ -117,6 +126,7 @@ const MOCK_ARTICLES = {
     filtered_out: [
         {
             id: 101,
+            pmid: '39841234',
             title: 'Agricultural applications of CRISPR-Cas9 in crop improvement',
             authors: ['Miller T', 'Davis P'],
             journal: 'Plant Biotechnology',
@@ -131,6 +141,7 @@ const MOCK_ARTICLES = {
         },
         {
             id: 102,
+            pmid: '39839876',
             title: 'Machine learning approaches for drug-drug interaction prediction',
             authors: ['Kumar R', 'Patel S'],
             journal: 'Journal of Computational Biology',
@@ -147,6 +158,7 @@ const MOCK_ARTICLES = {
     duplicates: [
         {
             id: 201,
+            pmid: '39835678',
             title: 'Metabolic reprogramming in cancer immunotherapy (preprint)',
             authors: ['Zhang Y', 'Smith J'],
             journal: 'bioRxiv',
@@ -168,6 +180,7 @@ export default function ReportCurationMockup() {
     const [editingTitle, setEditingTitle] = useState(false);
     const [editingSummary, setEditingSummary] = useState<string | null>(null);
     const [expandedArticle, setExpandedArticle] = useState<number | null>(null);
+    const [showPreview, setShowPreview] = useState(false);
 
     const categories = report.categories;
 
@@ -193,6 +206,22 @@ export default function ReportCurationMockup() {
             included: prev.included.filter(a => a.id !== article.id),
             filtered_out: [...prev.filtered_out, { ...article, manually_modified: true }],
             curated: [...prev.curated, { ...article, action: 'excluded' }],
+        }));
+    };
+
+    const handleCategoryChange = (articleId: number, newCategory: string) => {
+        setArticles(prev => ({
+            ...prev,
+            included: prev.included.map(a =>
+                a.id === articleId
+                    ? { ...a, category: newCategory, manually_modified: true }
+                    : a
+            ),
+            curated: prev.curated.some(a => a.id === articleId)
+                ? prev.curated.map(a =>
+                    a.id === articleId ? { ...a, category: newCategory } : a
+                )
+                : [...prev.curated, { ...prev.included.find(a => a.id === articleId), category: newCategory, action: 'recategorized' }],
         }));
     };
 
@@ -229,6 +258,13 @@ export default function ReportCurationMockup() {
                     </div>
 
                     <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setShowPreview(true)}
+                            className="px-4 py-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 border border-blue-300 dark:border-blue-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center gap-2"
+                        >
+                            <EyeIcon className="h-4 w-4" />
+                            Preview
+                        </button>
                         <button className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
                             Save Draft
                         </button>
@@ -463,6 +499,7 @@ export default function ReportCurationMockup() {
                                 expanded={expandedArticle === article.id}
                                 onToggleExpand={() => setExpandedArticle(expandedArticle === article.id ? null : article.id)}
                                 onExclude={() => handleExcludeArticle(article)}
+                                onCategoryChange={(newCategory) => handleCategoryChange(article.id, newCategory)}
                             />
                         ))}
 
@@ -521,6 +558,140 @@ export default function ReportCurationMockup() {
                     </div>
                 </div>
             </div>
+
+            {/* Preview Modal */}
+            {showPreview && (
+                <ReportPreviewModal
+                    report={report}
+                    articles={articles.included}
+                    categories={categories}
+                    onClose={() => setShowPreview(false)}
+                />
+            )}
+        </div>
+    );
+}
+
+// Report Preview Modal Component (Email-style preview)
+function ReportPreviewModal({
+    report,
+    articles,
+    categories,
+    onClose,
+}: {
+    report: typeof MOCK_REPORT;
+    articles: any[];
+    categories: any[];
+    onClose: () => void;
+}) {
+    // Group articles by category
+    const articlesByCategory = categories.map(cat => ({
+        ...cat,
+        articles: articles.filter(a => a.category === cat.id),
+    })).filter(cat => cat.articles.length > 0);
+
+    return (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+                {/* Modal Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center gap-3">
+                        <EnvelopeIcon className="h-5 w-5 text-gray-400" />
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            Report Preview (Email Format)
+                        </h2>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                    >
+                        <XMarkIcon className="h-5 w-5 text-gray-500" />
+                    </button>
+                </div>
+
+                {/* Modal Content - Scrollable email preview */}
+                <div className="flex-1 overflow-auto p-6 bg-gray-100 dark:bg-gray-900">
+                    {/* Email Container */}
+                    <div className="max-w-2xl mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                        {/* Email Header */}
+                        <div className="px-8 py-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-600 to-blue-700">
+                            <h1 className="text-2xl font-bold text-white">
+                                {report.report_name}
+                            </h1>
+                            <p className="text-blue-100 mt-1">
+                                {report.stream_name} &bull; {report.date_range}
+                            </p>
+                        </div>
+
+                        {/* Executive Summary */}
+                        <div className="px-8 py-6 border-b border-gray-200 dark:border-gray-700">
+                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                                Executive Summary
+                            </h2>
+                            <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                {report.executive_summary}
+                            </p>
+                        </div>
+
+                        {/* Categories with Articles */}
+                        {articlesByCategory.map((cat) => (
+                            <div key={cat.id} className="px-8 py-6 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
+                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                                    {cat.name}
+                                    <span className="ml-2 text-sm font-normal text-gray-500">
+                                        ({cat.articles.length} articles)
+                                    </span>
+                                </h2>
+                                <p className="text-gray-600 dark:text-gray-400 mb-4 text-sm">
+                                    {cat.summary}
+                                </p>
+
+                                {/* Articles in this category */}
+                                <div className="space-y-4">
+                                    {cat.articles.map((article: any, idx: number) => (
+                                        <div key={article.id} className="pl-4 border-l-2 border-blue-200 dark:border-blue-800">
+                                            <h3 className="font-medium text-gray-900 dark:text-white">
+                                                {idx + 1}. {article.title}
+                                            </h3>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.date}
+                                            </p>
+                                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                                                {article.ai_summary}
+                                            </p>
+                                            {article.pmid && (
+                                                <a
+                                                    href={`https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-xs text-blue-600 hover:underline mt-2 inline-block"
+                                                >
+                                                    View on PubMed →
+                                                </a>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+
+                        {/* Footer */}
+                        <div className="px-8 py-4 bg-gray-50 dark:bg-gray-900/50 text-center text-xs text-gray-500 dark:text-gray-400">
+                            Generated by Knowledge Horizon Research Platform
+                        </div>
+                    </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }
@@ -534,6 +705,7 @@ function ArticleCard({
     onToggleExpand,
     onInclude,
     onExclude,
+    onCategoryChange,
 }: {
     article: any;
     type: 'included' | 'filtered_out';
@@ -542,9 +714,11 @@ function ArticleCard({
     onToggleExpand: () => void;
     onInclude?: () => void;
     onExclude?: () => void;
+    onCategoryChange?: (category: string) => void;
 }) {
-    const [showNotes, setShowNotes] = useState(false);
     const [notes, setNotes] = useState(article.curation_notes || '');
+
+    const pubmedUrl = article.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/` : null;
 
     return (
         <div className={`border rounded-lg overflow-hidden ${
@@ -571,11 +745,26 @@ function ArticleCard({
                                 </div>
                             )}
                             <div className="flex-1 min-w-0">
-                                <h4 className="font-medium text-gray-900 dark:text-white">
-                                    {article.title}
-                                </h4>
+                                {pubmedUrl ? (
+                                    <a
+                                        href={pubmedUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline inline-flex items-center gap-1 group"
+                                    >
+                                        {article.title}
+                                        <ArrowTopRightOnSquareIcon className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                                    </a>
+                                ) : (
+                                    <h4 className="font-medium text-gray-900 dark:text-white">
+                                        {article.title}
+                                    </h4>
+                                )}
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                                     {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.date}
+                                    {article.pmid && (
+                                        <span className="ml-2 text-gray-400">PMID: {article.pmid}</span>
+                                    )}
                                 </p>
                             </div>
                         </div>
@@ -631,13 +820,20 @@ function ArticleCard({
                                 {type === 'included' && (
                                     <div className="flex items-center gap-3">
                                         <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Category:</span>
-                                        <select className="text-sm border border-gray-200 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
+                                        <select
+                                            value={article.category || ''}
+                                            onChange={(e) => onCategoryChange?.(e.target.value)}
+                                            className="text-sm border border-gray-200 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                                        >
                                             {categories.map(cat => (
-                                                <option key={cat.id} value={cat.id} selected={cat.id === article.category}>
+                                                <option key={cat.id} value={cat.id}>
                                                     {cat.name}
                                                 </option>
                                             ))}
                                         </select>
+                                        {article.category !== article.original_category && (
+                                            <span className="text-xs text-blue-600 dark:text-blue-400">Changed</span>
+                                        )}
                                     </div>
                                 )}
                             </div>
