@@ -169,10 +169,16 @@ class ReportService:
         if not user or not stream or not self._user_has_stream_access(user, stream):
             return []
 
-        # Get all reports for this stream (not filtered by user_id)
-        reports = self.db.query(Report).filter(
+        # Build query for reports
+        query = self.db.query(Report).filter(
             Report.research_stream_id == research_stream_id
-        ).order_by(Report.report_date.desc()).all()
+        )
+
+        # Non-admins can only see approved reports (hide awaiting_approval and rejected)
+        if user.role != UserRole.PLATFORM_ADMIN:
+            query = query.filter(Report.approval_status == ApprovalStatus.APPROVED)
+
+        reports = query.order_by(Report.report_date.desc()).all()
 
         # Add article count to each report
         result = []
@@ -197,10 +203,16 @@ class ReportService:
         if not user or not stream or not self._user_has_stream_access(user, stream):
             return None
 
-        # Get latest report for this stream (not filtered by user_id)
-        report = self.db.query(Report).filter(
+        # Build query for latest report
+        query = self.db.query(Report).filter(
             Report.research_stream_id == research_stream_id
-        ).order_by(Report.report_date.desc()).first()
+        )
+
+        # Non-admins can only see approved reports
+        if user.role != UserRole.PLATFORM_ADMIN:
+            query = query.filter(Report.approval_status == ApprovalStatus.APPROVED)
+
+        report = query.order_by(Report.report_date.desc()).first()
 
         if not report:
             return None
@@ -226,10 +238,16 @@ class ReportService:
         if not accessible_stream_ids:
             return []
 
-        # Get recent reports from accessible streams
-        reports = self.db.query(Report).filter(
+        # Build query for recent reports
+        query = self.db.query(Report).filter(
             Report.research_stream_id.in_(accessible_stream_ids)
-        ).order_by(Report.created_at.desc()).limit(limit).all()
+        )
+
+        # Non-admins can only see approved reports
+        if user.role != UserRole.PLATFORM_ADMIN:
+            query = query.filter(Report.approval_status == ApprovalStatus.APPROVED)
+
+        reports = query.order_by(Report.created_at.desc()).limit(limit).all()
 
         result = []
         for report in reports:

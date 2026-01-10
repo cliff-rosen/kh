@@ -519,6 +519,10 @@ class ExecutionDetail(BaseModel):
     created_at: Optional[datetime] = None
     metrics: Optional[ExecutionMetrics] = None
     wip_articles: List[WipArticle] = []
+    # Retrieval configuration (from execution record)
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    retrieval_config: Optional[Dict[str, Any]] = None
     # Report info
     report_id: Optional[int] = None
     report_name: Optional[str] = None

@@ -300,6 +300,11 @@ class OperationsService:
             created_at=execution.created_at,
             metrics=metrics,
             wip_articles=wip_articles_list,
+            # Retrieval configuration
+            start_date=execution.start_date,
+            end_date=execution.end_date,
+            retrieval_config=execution.retrieval_config,
+            # Report info
             report_id=report_id,
             report_name=report_name,
             approval_status=report_approval_status,

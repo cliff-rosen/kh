@@ -73,7 +73,6 @@ export default function ReportReview() {
     // Fetch report data when execution has a report_id
     const reportId = execution?.report_id;
     useEffect(() => {
-        console.log(execution)
         async function fetchReport() {
             if (!reportId) {
                 setReport(null);
@@ -325,6 +324,50 @@ export default function ReportReview() {
                         )}
                     </div>
                 )}
+
+                {/* Retrieval Configuration */}
+                {(execution.start_date || execution.end_date || execution.retrieval_config) && (
+                    <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Retrieval Configuration</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            {execution.start_date && (
+                                <div>
+                                    <p className="text-gray-500 dark:text-gray-400">Start Date</p>
+                                    <p className="font-medium text-gray-900 dark:text-white">{execution.start_date}</p>
+                                </div>
+                            )}
+                            {execution.end_date && (
+                                <div>
+                                    <p className="text-gray-500 dark:text-gray-400">End Date</p>
+                                    <p className="font-medium text-gray-900 dark:text-white">{execution.end_date}</p>
+                                </div>
+                            )}
+                            {execution.retrieval_config?.max_results && (
+                                <div>
+                                    <p className="text-gray-500 dark:text-gray-400">Max Results</p>
+                                    <p className="font-medium text-gray-900 dark:text-white">{String(execution.retrieval_config.max_results)}</p>
+                                </div>
+                            )}
+                        </div>
+                        {execution.retrieval_config?.queries && Array.isArray(execution.retrieval_config.queries) && (
+                            <div className="mt-3">
+                                <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">Search Queries ({execution.retrieval_config.queries.length})</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {(execution.retrieval_config.queries as string[]).slice(0, 5).map((query, idx) => (
+                                        <span key={idx} className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-700 dark:text-gray-300">
+                                            {query}
+                                        </span>
+                                    ))}
+                                    {execution.retrieval_config.queries.length > 5 && (
+                                        <span className="px-2 py-1 text-xs text-gray-500">
+                                            +{execution.retrieval_config.queries.length - 5} more
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Main Content Tabs */}
@@ -396,6 +439,19 @@ export default function ReportReview() {
                                 </p>
                             ) : (
                                 <>
+                                    {/* Report Header */}
+                                    <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
+                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                                            {report.report_name}
+                                        </h2>
+                                        <div className="flex items-center gap-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                            <span>{report.articles?.length || 0} articles</span>
+                                            {execution.start_date && execution.end_date && (
+                                                <span>Date range: {execution.start_date} to {execution.end_date}</span>
+                                            )}
+                                        </div>
+                                    </div>
+
                                     {/* Executive Summary */}
                                     {report.enrichments?.executive_summary && (
                                         <div>

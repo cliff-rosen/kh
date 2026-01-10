@@ -142,6 +142,10 @@ export interface ExecutionDetail {
     created_at: string;
     metrics: ExecutionMetrics | null;
     wip_articles: WipArticle[];
+    // Retrieval configuration
+    start_date: string | null;
+    end_date: string | null;
+    retrieval_config: Record<string, unknown> | null;
     // Report info (only for completed executions)
     report_id: number | null;
     report_name: string | null;
