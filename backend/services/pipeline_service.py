@@ -373,7 +373,7 @@ class PipelineService:
                     )
 
             # Get final result
-            categorized_count = await categorize_task
+            categorized_count, categorize_errors = await categorize_task
 
             # Drain any remaining progress updates
             while not categorize_progress_queue.empty():
@@ -382,11 +382,19 @@ class PipelineService:
                 except asyncio.QueueEmpty:
                     break
 
-            yield PipelineStatus(
-                "categorize",
-                f"Categorized {categorized_count} articles",
-                {"categorized": categorized_count}
-            )
+            # Report categorization result with any errors
+            if categorize_errors > 0:
+                yield PipelineStatus(
+                    "categorize",
+                    f"Categorized {categorized_count} articles ({categorize_errors} failed)",
+                    {"categorized": categorized_count, "errors": categorize_errors}
+                )
+            else:
+                yield PipelineStatus(
+                    "categorize",
+                    f"Categorized {categorized_count} articles",
+                    {"categorized": categorized_count}
+                )
 
             # === STAGE 7: Generate Summaries ===
             yield PipelineStatus("summary", "Generating executive summaries...")
@@ -726,7 +734,7 @@ class PipelineService:
         execution_id: str,
         presentation_config: PresentationConfig,
         on_progress: Optional[callable] = None
-    ) -> int:
+    ) -> Tuple[int, int]:
         """
         Use LLM to categorize each unique article into presentation categories in parallel batches.
 
@@ -737,14 +745,14 @@ class PipelineService:
             on_progress: Optional async callback(completed, total) for progress updates
 
         Returns:
-            Number of articles categorized
+            Tuple of (categorized_count, error_count)
         """
         # Get all articles marked for report inclusion (to categorize them)
         articles = self.wip_article_service.get_included_articles(execution_id)
 
         if not articles:
             logger.info(f"No articles to categorize for execution_id={execution_id}")
-            return 0
+            return 0, 0
 
         logger.info(f"Categorizing {len(articles)} articles into {len(presentation_config.categories)} categories")
 
@@ -754,7 +762,7 @@ class PipelineService:
         )
 
         # Use centralized batch categorization from ArticleCategorizationService
-        results = await self.categorization_service.categorize_wip_articles_batch(
+        results, error_count = await self.categorization_service.categorize_wip_articles_batch(
             articles=articles,
             categories=categories_desc,
             max_concurrent=50,
@@ -764,8 +772,8 @@ class PipelineService:
         # Update database with results using WipArticleService
         categorized = self.wip_article_service.bulk_update_categories(results)
         self.wip_article_service.commit()
-        logger.info(f"Categorization complete: {categorized} articles categorized")
-        return categorized
+        logger.info(f"Categorization complete: {categorized} articles categorized, {error_count} errors")
+        return categorized, error_count
 
     async def _generate_summaries(
         self,

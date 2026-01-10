@@ -7,6 +7,7 @@ Provides isolated testing capabilities for each pipeline component.
 
 from typing import List, Dict, Tuple
 from sqlalchemy.orm import Session
+import logging
 
 from models import ResearchStream
 from schemas.canonical_types import CanonicalResearchArticle
@@ -14,6 +15,8 @@ from schemas.research_article_converters import legacy_article_to_canonical_pubm
 from services.pubmed_service import PubMedService, fetch_articles_by_ids
 from services.ai_evaluation_service import get_ai_evaluation_service
 from services.article_categorization_service import ArticleCategorizationService
+
+logger = logging.getLogger(__name__)
 
 
 class RefinementWorkbenchService:
@@ -345,11 +348,14 @@ class RefinementWorkbenchService:
             return []
 
         # Use centralized batch categorization from ArticleCategorizationService
-        batch_results = await self.categorization_service.categorize_canonical_articles_batch(
+        batch_results, error_count = await self.categorization_service.categorize_canonical_articles_batch(
             articles=articles,
             categories=categories,
             max_concurrent=10
         )
+
+        if error_count > 0:
+            logger.warning(f"Categorization had {error_count} errors out of {len(articles)} articles")
 
         # Convert batch results to expected format
         results = []

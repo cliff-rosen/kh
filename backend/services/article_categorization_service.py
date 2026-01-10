@@ -286,7 +286,10 @@ class ArticleCategorizationService:
         logger.info(f"Batch categorization complete: {len(articles)} articles, {errors} errors")
 
         # Build final results in original order
-        return [results_by_idx[i] for i in range(len(articles))]
+        results = [results_by_idx[i] for i in range(len(articles))]
+
+        # Return tuple of (results, error_count) for pipeline to report
+        return results, errors
 
     async def categorize_wip_articles_batch(
         self,
@@ -294,7 +297,7 @@ class ArticleCategorizationService:
         categories: List[Dict],
         max_concurrent: int = 10,
         on_progress: Optional[callable] = None
-    ) -> List[Tuple[WipArticle, str]]:
+    ) -> Tuple[List[Tuple[WipArticle, str]], int]:
         """
         Categorize multiple WipArticles in parallel.
 
@@ -305,8 +308,8 @@ class ArticleCategorizationService:
             on_progress: Optional callback(completed, total) called after each item completes
 
         Returns:
-            List of tuples: (article, assigned_category_id)
-            Each article gets exactly one category ID (or None).
+            Tuple of (results, error_count) where results is a list of (article, category_id) tuples.
+            Each article gets exactly one category ID (or None if categorization failed).
         """
         return await self.categorize_articles_batch(
             articles=articles,
@@ -320,7 +323,7 @@ class ArticleCategorizationService:
         articles: List['CanonicalResearchArticle'],
         categories: List[Dict],
         max_concurrent: int = 10
-    ) -> List[Tuple['CanonicalResearchArticle', str]]:
+    ) -> Tuple[List[Tuple['CanonicalResearchArticle', str]], int]:
         """
         Categorize multiple CanonicalResearchArticles in parallel.
 
@@ -330,8 +333,8 @@ class ArticleCategorizationService:
             max_concurrent: Maximum number of concurrent categorizations
 
         Returns:
-            List of tuples: (article, assigned_category_id)
-            Each article gets exactly one category ID (or None).
+            Tuple of (results, error_count) where results is a list of (article, category_id) tuples.
+            Each article gets exactly one category ID (or None if categorization failed).
         """
         return await self.categorize_articles_batch(
             articles=articles,

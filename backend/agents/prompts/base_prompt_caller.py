@@ -180,8 +180,9 @@ class BasePromptCaller:
                 python_type = str  # Default fallback
 
             # Handle required vs optional fields, and nullable types
+            # Use Union[type, None] for Pydantic v2 compatibility with explicit default=None
             if is_nullable or prop_name not in required:
-                field_definitions[prop_name] = (Optional[python_type], Field(None, description=description))
+                field_definitions[prop_name] = (Union[python_type, None], Field(default=None, description=description))
             else:
                 field_definitions[prop_name] = (python_type, Field(description=description))
         
