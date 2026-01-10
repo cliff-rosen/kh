@@ -34,6 +34,8 @@ interface RunJobModalProps {
     };
     /** If provided, shows progress for an existing execution instead of config */
     existingExecutionId?: string;
+    /** Called when job starts, passes executionId so parent can track it */
+    onJobStart?: (executionId: string) => void;
     /** Called when job completes or fails */
     onJobComplete?: () => void;
 }
@@ -51,6 +53,7 @@ export default function RunJobModal({
     onClose,
     stream,
     existingExecutionId,
+    onJobStart,
     onJobComplete,
 }: RunJobModalProps) {
     // Config state
@@ -80,11 +83,9 @@ export default function RunJobModal({
         }
     }, [existingExecutionId, isOpen]);
 
-    // Subscribe to status updates when we have an execution ID
-    // Note: We intentionally only depend on executionId to avoid re-subscribing
-    // when modalState changes (which would happen on completion, causing issues)
+    // Subscribe to status updates when we have an execution ID and modal is open
     useEffect(() => {
-        if (!executionId) return;
+        if (!executionId || !isOpen) return;
 
         console.log('[RunJobModal] Subscribing to SSE for execution:', executionId);
 
@@ -124,8 +125,7 @@ export default function RunJobModal({
             console.log('[RunJobModal] Cleaning up SSE subscription');
             cleanup();
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [executionId]);
+    }, [executionId, isOpen]);
 
     // Auto-scroll log to bottom
     useEffect(() => {
@@ -190,6 +190,7 @@ export default function RunJobModal({
                 message: response.message,
                 timestamp: new Date().toISOString(),
             }]);
+            onJobStart?.(response.execution_id);
         } catch (err) {
             console.error('Failed to trigger run:', err);
             setError('Failed to start job. Please try again.');

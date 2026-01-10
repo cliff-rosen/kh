@@ -128,8 +128,22 @@ export default function SchedulerManagement() {
         }
     };
 
+    const handleJobStart = (executionId: string) => {
+        // Track the running job so we can reconnect if modal is closed and reopened
+        if (runModalStream) {
+            setRunningJobs(prev => ({ ...prev, [runModalStream.stream_id]: executionId }));
+        }
+    };
+
     const handleJobComplete = () => {
-        // Refresh stream list when job completes
+        // Clear running job and refresh stream list
+        if (runModalStream) {
+            setRunningJobs(prev => {
+                const updated = { ...prev };
+                delete updated[runModalStream.stream_id];
+                return updated;
+            });
+        }
         fetchStreams();
     };
 
@@ -146,6 +160,7 @@ export default function SchedulerManagement() {
             onClose={handleCloseModal}
             stream={runModalStream}
             existingExecutionId={runModalExecutionId}
+            onJobStart={handleJobStart}
             onJobComplete={handleJobComplete}
         />
     );
