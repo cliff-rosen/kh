@@ -652,155 +652,127 @@ function ApprovalStatusBadge({ status }: { status: string | null }) {
     );
 }
 
-// Display retrieval configuration (concepts or broad search)
+// Display retrieval configuration - PubMed query and semantic filter
 interface RetrievalConfigProps {
     config: Record<string, unknown>;
-}
-
-interface SourceQuery {
-    query_expression: string;
-    enabled: boolean;
-}
-
-interface SemanticFilter {
-    enabled: boolean;
-    criteria: string;
-    threshold?: number;
-}
-
-interface ConceptConfig {
-    concept_id: string;
-    name: string;
-    source_queries?: Record<string, SourceQuery>;
-    semantic_filter?: SemanticFilter;
 }
 
 interface BroadQueryConfig {
     query_id: string;
     query_expression: string;
-    semantic_filter?: SemanticFilter;
-}
-
-interface ExtractedQuery {
-    id: string;
-    name: string;
-    source: string;
-    expression: string;
-    filter?: { criteria: string; threshold?: number };
+    semantic_filter?: {
+        enabled: boolean;
+        criteria: string;
+        threshold?: number;
+    };
 }
 
 function RetrievalConfigDisplay({ config }: RetrievalConfigProps) {
-    const [expanded, setExpanded] = useState(false);
-    const concepts = config.concepts as ConceptConfig[] | undefined;
+    const [showQuery, setShowQuery] = useState(false);
+    const [showFilter, setShowFilter] = useState(false);
+    const [showRaw, setShowRaw] = useState(false);
+
+    // Extract from broad_search (the active retrieval method)
     const broadSearch = config.broad_search as { queries: BroadQueryConfig[] } | undefined;
+    const queries = broadSearch?.queries || [];
 
-    // Extract queries and filters
-    const queries: ExtractedQuery[] = [];
+    // Get the combined query expression and filter
+    const pubmedQuery = queries.map(q => q.query_expression).filter(Boolean).join('\n\nOR\n\n');
+    const semanticFilter = queries
+        .filter(q => q.semantic_filter?.enabled && q.semantic_filter?.criteria)
+        .map(q => q.semantic_filter!.criteria)
+        .join('\n\n---\n\n');
 
-    if (concepts && Array.isArray(concepts)) {
-        concepts.forEach(concept => {
-            // Get queries from source_queries (e.g., pubmed)
-            if (concept.source_queries) {
-                Object.entries(concept.source_queries).forEach(([source, sq]) => {
-                    if (sq.enabled && sq.query_expression) {
-                        queries.push({
-                            id: concept.concept_id,
-                            name: concept.name,
-                            source,
-                            expression: sq.query_expression,
-                            filter: concept.semantic_filter?.enabled
-                                ? { criteria: concept.semantic_filter.criteria, threshold: concept.semantic_filter.threshold }
-                                : undefined
-                        });
-                    }
-                });
-            }
-        });
-    } else if (broadSearch?.queries && Array.isArray(broadSearch.queries)) {
-        broadSearch.queries.forEach(query => {
-            queries.push({
-                id: query.query_id,
-                name: query.query_id,
-                source: 'pubmed',
-                expression: query.query_expression,
-                filter: query.semantic_filter?.enabled
-                    ? { criteria: query.semantic_filter.criteria, threshold: query.semantic_filter.threshold }
-                    : undefined
-            });
-        });
-    }
-
-    if (queries.length === 0) {
-        // Debug: show what we received
-        const configKeys = Object.keys(config);
+    if (!pubmedQuery && !semanticFilter) {
         return (
-            <div className="text-sm text-gray-500">
-                <p className="font-medium">Retrieval config exists but no queries extracted</p>
-                <p className="text-xs text-gray-400 mt-1">
-                    Config keys: {configKeys.join(', ') || 'none'}
-                    {concepts && ` | concepts: ${concepts.length}`}
-                    {broadSearch && ` | broad_search queries: ${broadSearch.queries?.length ?? 0}`}
-                </p>
-                <details className="mt-2">
-                    <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">Show raw config</summary>
-                    <pre className="mt-1 text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded overflow-auto max-h-40">
+            <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-400 italic">No query data available</span>
+                <button
+                    onClick={() => setShowRaw(!showRaw)}
+                    className="text-xs text-gray-400 hover:text-gray-600 underline"
+                >
+                    {showRaw ? 'Hide' : 'Show'} raw config
+                </button>
+                {showRaw && (
+                    <pre className="mt-2 text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded overflow-auto max-h-40 w-full">
                         {JSON.stringify(config, null, 2)}
                     </pre>
-                </details>
+                )}
             </div>
         );
     }
 
-    const hasFilters = queries.some(q => q.filter);
-    const mode = concepts ? 'Concept' : 'Broad Search';
-
     return (
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
+            {/* PubMed Query Button */}
+            {pubmedQuery && (
+                <button
+                    onClick={() => setShowQuery(!showQuery)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                        showQuery
+                            ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300'
+                            : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                >
+                    <DocumentTextIcon className="h-4 w-4" />
+                    PubMed Query
+                    {showQuery ? <ChevronDownIcon className="h-3 w-3" /> : <ChevronRightIcon className="h-3 w-3" />}
+                </button>
+            )}
+
+            {/* Semantic Filter Button */}
+            {semanticFilter && (
+                <button
+                    onClick={() => setShowFilter(!showFilter)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                        showFilter
+                            ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300'
+                            : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                >
+                    <FunnelIcon className="h-4 w-4" />
+                    Semantic Filter
+                    {showFilter ? <ChevronDownIcon className="h-3 w-3" /> : <ChevronRightIcon className="h-3 w-3" />}
+                </button>
+            )}
+
+            {/* Raw Config Link */}
             <button
-                onClick={() => setExpanded(!expanded)}
-                className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                onClick={() => setShowRaw(!showRaw)}
+                className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline ml-2"
             >
-                {expanded ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}
-                <span className="font-medium">{mode} Queries</span>
-                <span className="text-xs bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">{queries.length}</span>
-                {hasFilters && (
-                    <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">
-                        + Semantic Filter
-                    </span>
-                )}
+                {showRaw ? 'Hide' : 'Show'} raw
             </button>
 
-            {expanded && (
-                <div className="mt-2 space-y-2">
-                    {queries.map((q, idx) => (
-                        <div key={idx} className="text-xs bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                            <div className="flex items-start justify-between gap-3">
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="font-semibold text-gray-800 dark:text-gray-200">{q.name}</span>
-                                        <span className="text-gray-400 dark:text-gray-500 uppercase text-[10px]">{q.source}</span>
-                                    </div>
-                                    <code className="block text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 px-2 py-1 rounded border border-gray-200 dark:border-gray-600 break-all">
-                                        {q.expression}
-                                    </code>
-                                </div>
-                            </div>
-                            {q.filter && (
-                                <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-                                    <div className="flex items-start gap-2">
-                                        <FunnelIcon className="h-3.5 w-3.5 text-blue-500 mt-0.5 shrink-0" />
-                                        <div>
-                                            <span className="text-blue-600 dark:text-blue-400 font-medium">Semantic Filter</span>
-                                            {q.filter.threshold && (
-                                                <span className="text-gray-400 ml-1">(threshold: {q.filter.threshold})</span>
-                                            )}
-                                            <p className="text-gray-600 dark:text-gray-400 mt-0.5">{q.filter.criteria}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+            {/* Expanded Content */}
+            {(showQuery || showFilter || showRaw) && (
+                <div className="w-full mt-3 space-y-3">
+                    {showQuery && (
+                        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+                            <p className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-2">PubMed Query</p>
+                            <pre className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap font-mono">
+                                {pubmedQuery}
+                            </pre>
                         </div>
-                    ))}
+                    )}
+
+                    {showFilter && (
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                            <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-2">Semantic Filter Criteria</p>
+                            <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                                {semanticFilter}
+                            </p>
+                        </div>
+                    )}
+
+                    {showRaw && (
+                        <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Raw Configuration</p>
+                            <pre className="text-xs text-gray-700 dark:text-gray-300 overflow-auto max-h-60">
+                                {JSON.stringify(config, null, 2)}
+                            </pre>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
