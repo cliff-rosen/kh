@@ -27,6 +27,7 @@ import {
     EnvelopeIcon,
     ChatBubbleLeftIcon,
     CheckCircleIcon,
+    ArrowUturnLeftIcon,
 } from '@heroicons/react/24/outline';
 import {
     reportApi,
@@ -38,15 +39,6 @@ import {
 
 type ArticleTab = 'included' | 'filtered_out' | 'duplicates' | 'curated';
 
-// Track curated changes locally
-interface CuratedChange {
-    id: number;
-    title: string;
-    action: 'included' | 'excluded' | 'recategorized';
-    oldCategory?: string;
-    newCategory?: string;
-}
-
 export default function ReportCuration() {
     const { reportId } = useParams<{ reportId: string }>();
     const navigate = useNavigate();
@@ -55,12 +47,12 @@ export default function ReportCuration() {
     const [error, setError] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [approving, setApproving] = useState(false);
+    const [undoing, setUndoing] = useState<number | null>(null);
 
     const [curationData, setCurationData] = useState<CurationViewResponse | null>(null);
     const [editedName, setEditedName] = useState<string>('');
     const [editedSummary, setEditedSummary] = useState<string>('');
     const [editedCategorySummaries, setEditedCategorySummaries] = useState<Record<string, string>>({});
-    const [curatedChanges, setCuratedChanges] = useState<CuratedChange[]>([]);
 
     const [activeTab, setActiveTab] = useState<ArticleTab>('included');
     const [contentExpanded, setContentExpanded] = useState(true);
@@ -99,8 +91,7 @@ export default function ReportCuration() {
     const hasContentChanges = curationData && (
         editedName !== curationData.report.report_name ||
         editedSummary !== (curationData.report.executive_summary || '') ||
-        JSON.stringify(editedCategorySummaries) !== JSON.stringify(curationData.report.category_summaries || {}) ||
-        curatedChanges.length > 0
+        JSON.stringify(editedCategorySummaries) !== JSON.stringify(curationData.report.category_summaries || {})
     );
 
     // Save content changes
@@ -116,9 +107,8 @@ export default function ReportCuration() {
                     ? editedCategorySummaries
                     : undefined,
             });
-            // Refresh data and clear local changes
+            // Refresh data
             await fetchCurationData();
-            setCuratedChanges([]);
         } catch (err) {
             console.error('Failed to save content:', err);
             alert('Failed to save changes');
@@ -133,12 +123,6 @@ export default function ReportCuration() {
 
         try {
             await reportApi.excludeArticle(parseInt(reportId), article.article_id);
-            // Track change
-            setCuratedChanges(prev => [...prev, {
-                id: article.article_id,
-                title: article.title,
-                action: 'excluded',
-            }]);
             await fetchCurationData();
         } catch (err) {
             console.error('Failed to exclude article:', err);
@@ -152,12 +136,6 @@ export default function ReportCuration() {
 
         try {
             await reportApi.includeArticle(parseInt(reportId), article.wip_article_id, categoryId);
-            // Track change
-            setCuratedChanges(prev => [...prev, {
-                id: article.wip_article_id,
-                title: article.title,
-                action: 'included',
-            }]);
             await fetchCurationData();
         } catch (err) {
             console.error('Failed to include article:', err);
@@ -165,20 +143,70 @@ export default function ReportCuration() {
         }
     };
 
-    // Handle category change for an article
-    const handleCategoryChange = async (article: CurationIncludedArticle, newCategoryId: string) => {
-        // For now, track locally (backend update would need a new endpoint)
-        const oldCategory = article.presentation_categories[0] || 'none';
-        setCuratedChanges(prev => [
-            ...prev.filter(c => c.id !== article.article_id || c.action !== 'recategorized'),
-            {
-                id: article.article_id,
-                title: article.title,
-                action: 'recategorized',
-                oldCategory,
-                newCategory: newCategoryId,
+    // Undo a manual inclusion (exclude the article that was manually included)
+    const handleUndoInclude = async (curatedArticle: CurationFilteredArticle) => {
+        if (!reportId || !curationData) return;
+
+        // Find the corresponding article in included_articles by matching PMID, DOI, or title
+        const includedArticle = curationData.included_articles.find(a => {
+            // Try PMID first (if both have it)
+            if (curatedArticle.pmid && a.pmid && a.pmid === curatedArticle.pmid) {
+                return true;
             }
-        ]);
+            // Try DOI (if both have it)
+            if (curatedArticle.doi && a.doi && a.doi === curatedArticle.doi) {
+                return true;
+            }
+            // Fall back to title matching
+            if (a.title === curatedArticle.title) {
+                return true;
+            }
+            return false;
+        });
+
+        if (!includedArticle) {
+            console.error('Could not find included article to undo:', {
+                pmid: curatedArticle.pmid,
+                doi: curatedArticle.doi,
+                title: curatedArticle.title
+            });
+            alert('Could not find the article to undo. Please refresh and try again.');
+            return;
+        }
+
+        setUndoing(curatedArticle.wip_article_id);
+        try {
+            await reportApi.excludeArticle(parseInt(reportId), includedArticle.article_id);
+            await fetchCurationData();
+        } catch (err) {
+            console.error('Failed to undo inclusion:', err);
+            alert('Failed to undo inclusion');
+        } finally {
+            setUndoing(null);
+        }
+    };
+
+    // Undo a manual exclusion (re-include the article that was manually excluded)
+    const handleUndoExclude = async (curatedArticle: CurationFilteredArticle) => {
+        if (!reportId) return;
+
+        setUndoing(curatedArticle.wip_article_id);
+        try {
+            // Re-include using the wip_article_id
+            await reportApi.includeArticle(parseInt(reportId), curatedArticle.wip_article_id);
+            await fetchCurationData();
+        } catch (err) {
+            console.error('Failed to undo exclusion:', err);
+            alert('Failed to undo exclusion');
+        } finally {
+            setUndoing(null);
+        }
+    };
+
+    // Handle category change for an article
+    const handleCategoryChange = async (_article: CurationIncludedArticle, _newCategoryId: string) => {
+        // TODO: Implement category change endpoint
+        console.log('Category change not yet implemented');
     };
 
     // Approve report
@@ -561,7 +589,7 @@ export default function ReportCuration() {
                             >
                                 Curated
                                 <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200">
-                                    {curatedChanges.length}
+                                    {curationData.curated_articles.length}
                                 </span>
                             </button>
                         </div>
@@ -608,35 +636,70 @@ export default function ReportCuration() {
                         ))}
 
                         {activeTab === 'curated' && (
-                            curatedChanges.length === 0 ? (
+                            curationData.curated_articles.length === 0 ? (
                                 <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                                     <CheckCircleIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
                                     <p>No manual changes yet</p>
                                     <p className="text-sm mt-1">Articles you include or exclude will appear here</p>
                                 </div>
                             ) : (
-                                curatedChanges.map((change) => (
-                                    <div key={`${change.id}-${change.action}`} className="p-4 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                                        <div className="flex items-start justify-between">
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                                                        change.action === 'included'
-                                                            ? 'bg-green-100 text-green-700'
-                                                            : change.action === 'excluded'
-                                                            ? 'bg-red-100 text-red-700'
-                                                            : 'bg-blue-100 text-blue-700'
-                                                    }`}>
-                                                        {change.action === 'included' ? 'Manually Included' :
-                                                         change.action === 'excluded' ? 'Manually Excluded' :
-                                                         `Recategorized: ${change.oldCategory} → ${change.newCategory}`}
-                                                    </span>
+                                curationData.curated_articles.map((article) => {
+                                    const isIncluded = article.curator_included;
+                                    const isUndoing = undoing === article.wip_article_id;
+                                    const pubmedUrl = article.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/` : null;
+
+                                    return (
+                                        <div key={article.wip_article_id} className="p-4 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                                                            isIncluded
+                                                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                                                                : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                                                        }`}>
+                                                            {isIncluded ? 'Manually Included' : 'Manually Excluded'}
+                                                        </span>
+                                                    </div>
+                                                    {pubmedUrl ? (
+                                                        <a
+                                                            href={pubmedUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline inline-flex items-center gap-1 group"
+                                                        >
+                                                            {article.title}
+                                                            <ArrowTopRightOnSquareIcon className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                                                        </a>
+                                                    ) : (
+                                                        <h4 className="font-medium text-gray-900 dark:text-white">
+                                                            {article.title}
+                                                        </h4>
+                                                    )}
+                                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                                        {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
+                                                        {article.pmid && (
+                                                            <span className="ml-2 text-gray-400">PMID: {article.pmid}</span>
+                                                        )}
+                                                    </p>
                                                 </div>
-                                                <h4 className="font-medium text-gray-900 dark:text-white mt-2">{change.title}</h4>
+                                                <button
+                                                    onClick={() => isIncluded ? handleUndoInclude(article) : handleUndoExclude(article)}
+                                                    disabled={isUndoing}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-white dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    title="Undo this change"
+                                                >
+                                                    {isUndoing ? (
+                                                        <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <ArrowUturnLeftIcon className="h-4 w-4" />
+                                                    )}
+                                                    {isUndoing ? 'Undoing...' : 'Undo'}
+                                                </button>
                                             </div>
                                         </div>
-                                    </div>
-                                ))
+                                    );
+                                })
                             )
                         )}
 
