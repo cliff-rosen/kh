@@ -677,8 +677,11 @@ class PipelineService:
             )
             self.db.add(association)
 
-        # Commit everything: Report, Articles, Associations
-        # Note: report_service.create_report already set execution.report_id
+        # Set bidirectional link: execution -> report
+        # This MUST be set before commit to persist the link
+        ctx.execution.report_id = report.report_id
+
+        # Commit everything: Report, Articles, Associations, and execution.report_id
         self.db.commit()
 
         return report
@@ -743,17 +746,7 @@ class PipelineService:
 
         # Store results in wip_articles using WipArticleService
         # Articles are CanonicalResearchArticle objects (Pydantic models)
-        logger.info(f"[DEBUG] Storing {len(articles)} articles with execution_id={execution_id}")
-
-        # Verify execution exists before creating articles (debug)
-        exec_check = self.db.query(PipelineExecution).filter(
-            PipelineExecution.id == execution_id
-        ).first()
-        if exec_check:
-            logger.info(f"[DEBUG] Pre-insert check: execution {execution_id} exists, status={exec_check.status}")
-        else:
-            logger.error(f"[DEBUG] Pre-insert check FAILED: execution {execution_id} NOT FOUND!")
-            raise ValueError(f"Cannot store articles: execution {execution_id} not found in database")
+        logger.info(f"Storing {len(articles)} articles for execution_id={execution_id}")
 
         for article in articles:
             # Parse publication_date string to date object if present
@@ -782,12 +775,7 @@ class PipelineService:
                 source_specific_id=article.id
             )
 
-        try:
-            self.wip_article_service.commit()
-        except Exception as e:
-            logger.error(f"[DEBUG] Failed to commit wip_articles with execution_id={execution_id}: {e}")
-            logger.error(f"[DEBUG] Attempted to insert {len(articles)} articles for stream_id={research_stream_id}")
-            raise
+        self.wip_article_service.commit()
         return len(articles)
 
     async def _apply_semantic_filter(

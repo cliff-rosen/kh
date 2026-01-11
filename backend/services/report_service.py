@@ -573,13 +573,8 @@ class ReportService:
         self.db.add(report)
         self.db.flush()  # Get the report_id
 
-        # Update PipelineExecution with the report_id (bidirectional link)
-        if pipeline_execution_id:
-            execution = self.db.query(PipelineExecution).filter(
-                PipelineExecution.id == pipeline_execution_id
-            ).first()
-            if execution:
-                execution.report_id = report.report_id
+        # Note: The bidirectional link (execution.report_id = report.report_id)
+        # is set by PipelineService._create_report which has access to the execution context.
 
         return report
 
