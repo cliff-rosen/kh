@@ -111,6 +111,9 @@ class OperationsService:
             approved_by_email = None
             approved_at = None
             rejection_reason = None
+            filtered_out_count = None
+            has_curation_edits = None
+            last_curated_by_email = None
 
             if execution.report_id:
                 report = self.db.query(Report).filter(
@@ -122,6 +125,7 @@ class OperationsService:
                     report_approval_status = report.approval_status.value if report.approval_status else None
                     rejection_reason = report.rejection_reason
                     approved_at = report.approved_at
+                    has_curation_edits = report.has_curation_edits or False
 
                     # Get article count
                     if report.pipeline_metrics:
@@ -136,6 +140,18 @@ class OperationsService:
                     if report.approved_by:
                         approver = self.db.query(User).filter(User.user_id == report.approved_by).first()
                         approved_by_email = approver.email if approver else None
+
+                    # Get last curator email
+                    if report.last_curated_by:
+                        curator = self.db.query(User).filter(User.user_id == report.last_curated_by).first()
+                        last_curated_by_email = curator.email if curator else None
+
+            # Get filtered out count from WipArticles
+            if execution.id:
+                filtered_out_count = self.db.query(WipArticleModel).filter(
+                    WipArticleModel.pipeline_execution_id == execution.id,
+                    WipArticleModel.passed_semantic_filter == False
+                ).count()
 
             executions.append(ExecutionQueueItem(
                 execution_id=execution.id,
@@ -154,6 +170,9 @@ class OperationsService:
                 approved_by=approved_by_email,
                 approved_at=approved_at,
                 rejection_reason=rejection_reason,
+                filtered_out_count=filtered_out_count,
+                has_curation_edits=has_curation_edits,
+                last_curated_by=last_curated_by_email,
             ))
 
         # Get streams for filter dropdown

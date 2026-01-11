@@ -115,6 +115,10 @@ export interface ExecutionQueueItem {
     approved_by: string | null;
     approved_at: string | null;
     rejection_reason: string | null;
+    // Curation info (for approval queue)
+    filtered_out_count: number | null;
+    has_curation_edits: boolean | null;
+    last_curated_by: string | null;
 }
 
 /**

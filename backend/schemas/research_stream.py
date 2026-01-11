@@ -477,6 +477,10 @@ class ExecutionQueueItem(BaseModel):
     approved_by: Optional[str] = None
     approved_at: Optional[datetime] = None
     rejection_reason: Optional[str] = None
+    # Curation info (for approval queue)
+    filtered_out_count: Optional[int] = None
+    has_curation_edits: Optional[bool] = None
+    last_curated_by: Optional[str] = None
 
     class Config:
         from_attributes = True
