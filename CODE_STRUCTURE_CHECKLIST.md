@@ -4,12 +4,50 @@
 
 ### `routers/` - API Layer
 - Endpoint definitions (`@router.get`, `@router.post`, etc.)
-- **Import and use domain types from `schemas/`** for response models when returning domain objects
-- Only define NEW Pydantic models when the API shape is genuinely different (e.g., paginated wrapper, combined response)
-- Do NOT duplicate domain types with "Response" suffix - use the actual domain type
-- Input validation via Pydantic request models
 - Calls services, does NOT contain business logic
 - Does NOT make direct database queries
+
+#### Routers Always Return Pydantic Schemas
+
+Routers receive Models from services and convert them to Schemas before returning. These schemas come from one of two places:
+
+**1. Domain schemas** (from `schemas/{domain}.py`):
+- Represent business/domain concepts: `Report`, `Article`, `ResearchStream`
+- Shared across multiple endpoints
+- Import them, do NOT redefine them in the router
+
+**2. Router-specific schemas** (defined in the router file):
+- Named `{Action}Request` and `{Action}Response`
+- Used for endpoint-specific shapes (pagination, combined responses, etc.)
+- **Wrap domain objects** rather than duplicating their fields
+
+```python
+# ✅ CORRECT - Router-specific schema wraps domain object
+class ReportsListResponse(BaseModel):
+    reports: List[Report]  # Domain object from schemas/
+    total: int
+    page: int
+
+# ✅ CORRECT - Return domain object directly when no wrapper needed
+@router.get("/{report_id}", response_model=Report)
+async def get_report(...):
+    ...
+
+# ❌ WRONG - Duplicating domain fields in router-specific schema
+class ReportResponse(BaseModel):
+    report_id: int        # Don't copy fields from Report
+    report_name: str      # Just use Report directly
+    ...
+```
+
+#### Schema Source Decision
+
+| What you're returning | Schema source |
+|----------------------|---------------|
+| Single domain object | `schemas/{domain}.py` → use directly |
+| List of domain objects | Router: `List[DomainObject]` or wrapper |
+| Domain object + metadata | Router: wrapper that contains the domain object |
+| Request payload | Router: `{Action}Request` |
 
 ### `services/` - Business Logic Layer
 - All business logic lives here
