@@ -572,7 +572,122 @@ Before merging any new endpoint:
 
 ---
 
-## 10. Existing Code Violations
+## 10. Service Layer Patterns
+
+### Services Return Models, Routers Convert to Schemas
+
+**This is a hard rule.** Services work with SQLAlchemy models internally. Routers convert to Pydantic schemas at the API boundary.
+
+```python
+# CORRECT - Service returns Model
+class ReportService:
+    def get_report(self, report_id: int, user_id: int) -> Report:  # SQLAlchemy model
+        return self.db.query(Report).filter(...).first()
+
+# CORRECT - Router converts to Schema
+@router.get("/{report_id}", response_model=ReportSchema)
+async def get_report(report_id: int, ...):
+    report = service.get_report(report_id, user_id)  # Model
+    return ReportSchema.from_orm(report)             # Schema
+
+# WRONG - Service returns Schema (don't do this!)
+class ReportService:
+    def get_report(self, report_id: int, user_id: int) -> ReportSchema:  # NO!
+        report = self.db.query(Report).filter(...).first()
+        return ReportSchema.from_orm(report)  # Conversion belongs in router
+```
+
+### Computed Data Pattern
+
+When a service needs to return a model plus computed data, use a dataclass or tuple - NOT a schema:
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class ReportWithCount:
+    report: Report       # SQLAlchemy model
+    article_count: int   # Computed value
+
+class ReportService:
+    def get_report_with_count(self, report_id: int) -> ReportWithCount:
+        report = self.db.query(Report).filter(...).first()
+        count = self.association_service.count_visible(report_id)
+        return ReportWithCount(report=report, article_count=count)
+
+# Router converts to schema
+@router.get("/{report_id}", response_model=ReportResponse)
+async def get_report(report_id: int, ...):
+    result = service.get_report_with_count(report_id)
+    return ReportResponse(
+        **ReportSchema.from_orm(result.report).dict(),
+        article_count=result.article_count
+    )
+```
+
+### `find()` vs `get()` Pattern
+
+Services MUST use consistent naming for retrieval methods:
+
+| Method | Returns | Use Case |
+|--------|---------|----------|
+| `find(...)` | `Optional[Model]` | Existence checks, may not exist |
+| `get(...)` | `Model` (raises if not found) | Retrieval of known records |
+
+```python
+class ReportArticleAssociationService:
+    def find(self, report_id: int, article_id: int) -> Optional[ReportArticleAssociation]:
+        """Returns None if not found. Use for existence checks."""
+        return self.db.query(...).first()
+
+    def get(self, report_id: int, article_id: int) -> ReportArticleAssociation:
+        """Raises HTTPException 404 if not found. Use for known records."""
+        association = self.find(report_id, article_id)
+        if not association:
+            raise HTTPException(status_code=404, detail="Not found")
+        return association
+```
+
+Usage:
+```python
+# Checking if something exists
+existing = self.association_service.find(report_id, article_id)
+if existing:
+    # Already exists, handle accordingly
+    ...
+
+# Retrieving a record that must exist
+association = self.association_service.get(report_id, article_id)  # Raises if not found
+```
+
+### Service Boundaries - No Cross-Service Inline Queries
+
+Each domain entity should have a dedicated service. Services MUST use other services for tables they don't own.
+
+```python
+# WRONG - ReportService writing inline queries for WipArticle
+class ReportService:
+    def get_articles(self, execution_id: str):
+        return self.db.query(WipArticle).filter(...).all()  # NO!
+
+# CORRECT - ReportService uses WipArticleService
+class ReportService:
+    def get_articles(self, execution_id: str):
+        return self.wip_article_service.get_by_execution_id(execution_id)  # YES!
+```
+
+**Service ownership:**
+| Table | Owning Service |
+|-------|----------------|
+| `Report` | `ReportService` |
+| `WipArticle` | `WipArticleService` |
+| `ReportArticleAssociation` | `ReportArticleAssociationService` |
+| `Article` | `ArticleService` (if exists) |
+| `User` | `UserService` |
+
+---
+
+## 11. Existing Code Violations
 
 The following files need to be updated to comply with these practices:
 
