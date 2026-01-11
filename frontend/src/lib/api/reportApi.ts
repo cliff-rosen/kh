@@ -121,5 +121,117 @@ export const reportApi = {
     async sendReportEmail(reportId: number, recipients: string[]): Promise<{ success: string[]; failed: string[] }> {
         const response = await api.post(`/api/reports/${reportId}/email/send`, { recipients });
         return response.data;
+    },
+
+    // =========================================================================
+    // Curation Operations
+    // =========================================================================
+
+    /**
+     * Get curation view for a report
+     * Returns report content, included articles, filtered articles, and duplicates
+     */
+    async getCurationView(reportId: number): Promise<CurationView> {
+        const response = await api.get(`/api/reports/${reportId}/curation`);
+        return response.data;
+    },
+
+    /**
+     * Update report content (title, summaries)
+     */
+    async updateReportContent(reportId: number, updates: ReportContentUpdate): Promise<{ success: boolean; message: string }> {
+        const response = await api.patch(`/api/reports/${reportId}/content`, updates);
+        return response.data;
+    },
+
+    /**
+     * Exclude an article from the report
+     * @param articleId - The ReportArticleAssociation ID (not the Article ID)
+     */
+    async excludeArticle(reportId: number, articleId: number, reason?: string): Promise<{ success: boolean; message: string }> {
+        const response = await api.post(`/api/reports/${reportId}/articles/${articleId}/exclude`, { reason });
+        return response.data;
+    },
+
+    /**
+     * Include a filtered article into the report
+     * @param wipArticleId - The WipArticle ID
+     */
+    async includeArticle(reportId: number, wipArticleId: number, categoryId?: string): Promise<{ success: boolean; article_id: number; message: string }> {
+        const response = await api.post(`/api/reports/${reportId}/articles/include`, {
+            wip_article_id: wipArticleId,
+            category_id: categoryId
+        });
+        return response.data;
+    },
+
+    /**
+     * Approve a report for distribution
+     */
+    async approveReport(reportId: number): Promise<{ success: boolean; message: string }> {
+        const response = await api.post(`/api/reports/${reportId}/approve`);
+        return response.data;
+    },
+
+    /**
+     * Reject a report
+     */
+    async rejectReport(reportId: number, reason: string): Promise<{ success: boolean; message: string }> {
+        const response = await api.post(`/api/reports/${reportId}/reject`, { reason });
+        return response.data;
     }
 };
+
+// =========================================================================
+// Curation Types
+// =========================================================================
+
+export interface CurationView {
+    report_id: number;
+    report_name: string;
+    original_report_name: string | null;
+    stream_name: string;
+    approval_status: string;
+    has_curation_edits: boolean;
+    created_at: string;
+    date_range: string;
+    executive_summary: string | null;
+    original_enrichments: Record<string, unknown> | null;
+    categories: CurationCategory[];
+    included_articles: CurationArticle[];
+    filtered_articles: CurationArticle[];
+    duplicate_articles: CurationArticle[];
+}
+
+export interface CurationCategory {
+    id: string;
+    name: string;
+    summary: string | null;
+    article_count: number;
+}
+
+export interface CurationArticle {
+    id: number;  // WipArticle ID or Article ID depending on context
+    wip_article_id?: number;
+    article_id?: number;
+    pmid: string | null;
+    doi: string | null;
+    title: string;
+    authors: string[];
+    journal: string | null;
+    year: number | null;
+    abstract: string | null;
+    category_id: string | null;
+    filter_score: number | null;
+    filter_score_reason: string | null;
+    is_duplicate: boolean;
+    duplicate_of_pmid: string | null;
+    curator_included: boolean;
+    curator_excluded: boolean;
+}
+
+export interface ReportContentUpdate {
+    report_name?: string;
+    executive_summary?: string;
+    category_summaries?: Record<string, string>;
+}

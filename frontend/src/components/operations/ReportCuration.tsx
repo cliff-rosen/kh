@@ -1,0 +1,677 @@
+/**
+ * Report Curation View
+ *
+ * Real implementation of the curation experience for reviewing
+ * and approving reports. Features:
+ * - Report content editing (title, summaries)
+ * - Article curation (include/exclude, categorize)
+ * - Approval/rejection workflow
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
+import {
+    ArrowLeftIcon,
+    CheckIcon,
+    ChevronDownIcon,
+    ChevronUpIcon,
+    PencilIcon,
+    ArrowPathIcon,
+    DocumentTextIcon,
+    PlusIcon,
+    MinusIcon,
+    ArrowTopRightOnSquareIcon,
+    ExclamationCircleIcon,
+} from '@heroicons/react/24/outline';
+import { reportApi, CurationView, CurationArticle } from '../../lib/api/reportApi';
+
+type ArticleTab = 'included' | 'filtered_out' | 'duplicates';
+
+export default function ReportCuration() {
+    const { reportId } = useParams<{ reportId: string }>();
+    const navigate = useNavigate();
+
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [saving, setSaving] = useState(false);
+    const [approving, setApproving] = useState(false);
+
+    const [curationData, setCurationData] = useState<CurationView | null>(null);
+    const [editedName, setEditedName] = useState<string>('');
+    const [editedSummary, setEditedSummary] = useState<string>('');
+
+    const [activeTab, setActiveTab] = useState<ArticleTab>('included');
+    const [contentExpanded, setContentExpanded] = useState(true);
+    const [editingTitle, setEditingTitle] = useState(false);
+    const [editingSummary, setEditingSummary] = useState(false);
+    const [expandedArticle, setExpandedArticle] = useState<number | null>(null);
+    const [showRejectModal, setShowRejectModal] = useState(false);
+    const [rejectReason, setRejectReason] = useState('');
+
+    // Fetch curation data
+    const fetchCurationData = useCallback(async () => {
+        if (!reportId) return;
+
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await reportApi.getCurationView(parseInt(reportId));
+            setCurationData(data);
+            setEditedName(data.report_name);
+            setEditedSummary(data.executive_summary || '');
+        } catch (err) {
+            console.error('Failed to fetch curation data:', err);
+            setError('Failed to load report for curation');
+        } finally {
+            setLoading(false);
+        }
+    }, [reportId]);
+
+    useEffect(() => {
+        fetchCurationData();
+    }, [fetchCurationData]);
+
+    // Check if content has been modified
+    const hasContentChanges = curationData && (
+        editedName !== curationData.report_name ||
+        editedSummary !== (curationData.executive_summary || '')
+    );
+
+    // Save content changes
+    const handleSaveContent = async () => {
+        if (!reportId || !curationData) return;
+
+        setSaving(true);
+        try {
+            await reportApi.updateReportContent(parseInt(reportId), {
+                report_name: editedName !== curationData.report_name ? editedName : undefined,
+                executive_summary: editedSummary !== curationData.executive_summary ? editedSummary : undefined,
+            });
+            // Refresh data
+            await fetchCurationData();
+        } catch (err) {
+            console.error('Failed to save content:', err);
+            alert('Failed to save changes');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // Exclude an article
+    const handleExcludeArticle = async (article: CurationArticle) => {
+        if (!reportId || !article.article_id) return;
+
+        try {
+            await reportApi.excludeArticle(parseInt(reportId), article.article_id);
+            await fetchCurationData();
+        } catch (err) {
+            console.error('Failed to exclude article:', err);
+            alert('Failed to exclude article');
+        }
+    };
+
+    // Include a filtered article
+    const handleIncludeArticle = async (article: CurationArticle) => {
+        if (!reportId) return;
+
+        const wipArticleId = article.wip_article_id || article.id;
+        try {
+            await reportApi.includeArticle(parseInt(reportId), wipArticleId);
+            await fetchCurationData();
+        } catch (err) {
+            console.error('Failed to include article:', err);
+            alert('Failed to include article');
+        }
+    };
+
+    // Approve report
+    const handleApprove = async () => {
+        if (!reportId) return;
+
+        setApproving(true);
+        try {
+            await reportApi.approveReport(parseInt(reportId));
+            navigate('/operations/approvals');
+        } catch (err) {
+            console.error('Failed to approve report:', err);
+            alert('Failed to approve report');
+        } finally {
+            setApproving(false);
+        }
+    };
+
+    // Reject report
+    const handleReject = async () => {
+        if (!reportId || !rejectReason.trim()) return;
+
+        setApproving(true);
+        try {
+            await reportApi.rejectReport(parseInt(reportId), rejectReason);
+            navigate('/operations/approvals');
+        } catch (err) {
+            console.error('Failed to reject report:', err);
+            alert('Failed to reject report');
+        } finally {
+            setApproving(false);
+            setShowRejectModal(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-full">
+                <ArrowPathIcon className="h-8 w-8 text-gray-400 animate-spin" />
+                <span className="ml-2 text-gray-500">Loading curation view...</span>
+            </div>
+        );
+    }
+
+    if (error || !curationData) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full">
+                <ExclamationCircleIcon className="h-12 w-12 text-red-400 mb-4" />
+                <p className="text-red-600 dark:text-red-400">{error || 'Failed to load report'}</p>
+                <Link
+                    to="/operations/approvals"
+                    className="mt-4 text-blue-600 hover:underline"
+                >
+                    Back to Approvals
+                </Link>
+            </div>
+        );
+    }
+
+    const categories = curationData.categories;
+    const includedArticles = curationData.included_articles;
+    const filteredArticles = curationData.filtered_articles;
+    const duplicateArticles = curationData.duplicate_articles;
+
+    return (
+        <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
+            {/* Header */}
+            <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <Link
+                            to="/operations/approvals"
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                        >
+                            <ArrowLeftIcon className="h-5 w-5 text-gray-500" />
+                        </Link>
+                        <div>
+                            <div className="flex items-center gap-3">
+                                <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                                    Review & Curate Report
+                                </h1>
+                                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                    curationData.approval_status === 'awaiting_approval'
+                                        ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                                        : curationData.approval_status === 'approved'
+                                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                                }`}>
+                                    {curationData.approval_status === 'awaiting_approval' ? 'Awaiting Approval' :
+                                     curationData.approval_status === 'approved' ? 'Approved' : 'Rejected'}
+                                </span>
+                                {(hasContentChanges || curationData.has_curation_edits) && (
+                                    <span className="px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full">
+                                        {hasContentChanges ? 'Unsaved Changes' : 'Has Edits'}
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                {curationData.stream_name} &bull; {curationData.date_range}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        {hasContentChanges && (
+                            <button
+                                onClick={handleSaveContent}
+                                disabled={saving}
+                                className="px-4 py-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 border border-blue-300 dark:border-blue-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50"
+                            >
+                                {saving ? 'Saving...' : 'Save Changes'}
+                            </button>
+                        )}
+                        <button
+                            onClick={() => setShowRejectModal(true)}
+                            disabled={approving}
+                            className="px-4 py-2 text-red-600 hover:text-red-700 border border-red-300 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                        >
+                            Reject
+                        </button>
+                        <button
+                            onClick={handleApprove}
+                            disabled={approving}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
+                        >
+                            {approving ? (
+                                <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <CheckIcon className="h-4 w-4" />
+                            )}
+                            {approving ? 'Approving...' : 'Approve Report'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-auto p-6 space-y-6">
+                {/* Report Content Section */}
+                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <button
+                        onClick={() => setContentExpanded(!contentExpanded)}
+                        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                    >
+                        <div className="flex items-center gap-2">
+                            <DocumentTextIcon className="h-5 w-5 text-gray-400" />
+                            <span className="font-semibold text-gray-900 dark:text-white">Report Content</span>
+                            {hasContentChanges && (
+                                <span className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
+                                    Modified
+                                </span>
+                            )}
+                        </div>
+                        {contentExpanded ? (
+                            <ChevronUpIcon className="h-5 w-5 text-gray-400" />
+                        ) : (
+                            <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                        )}
+                    </button>
+
+                    {contentExpanded && (
+                        <div className="border-t border-gray-200 dark:border-gray-700 p-4 space-y-6">
+                            {/* Report Title */}
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        Report Title
+                                    </label>
+                                    {editedName !== curationData.report_name && (
+                                        <span className="text-xs text-blue-600 dark:text-blue-400">Modified</span>
+                                    )}
+                                </div>
+                                {editingTitle ? (
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={editedName}
+                                            onChange={(e) => setEditedName(e.target.value)}
+                                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            autoFocus
+                                        />
+                                        <button
+                                            onClick={() => setEditingTitle(false)}
+                                            className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                        >
+                                            <CheckIcon className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div
+                                        onClick={() => setEditingTitle(true)}
+                                        className="flex items-center justify-between px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:border-blue-300 dark:hover:border-blue-600"
+                                    >
+                                        <span className="text-gray-900 dark:text-white">{editedName}</span>
+                                        <PencilIcon className="h-4 w-4 text-gray-400" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Executive Summary */}
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        Executive Summary
+                                    </label>
+                                    {editedSummary !== (curationData.executive_summary || '') && (
+                                        <span className="text-xs text-blue-600 dark:text-blue-400">Modified</span>
+                                    )}
+                                </div>
+                                {editingSummary ? (
+                                    <div className="space-y-2">
+                                        <textarea
+                                            value={editedSummary}
+                                            onChange={(e) => setEditedSummary(e.target.value)}
+                                            rows={6}
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                        />
+                                        <button
+                                            onClick={() => setEditingSummary(false)}
+                                            className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+                                        >
+                                            Done
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div
+                                        onClick={() => setEditingSummary(true)}
+                                        className="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:border-blue-300 dark:hover:border-blue-600 group"
+                                    >
+                                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                            {editedSummary || 'No executive summary'}
+                                        </p>
+                                        <div className="mt-2 text-xs text-gray-400 group-hover:text-blue-500 flex items-center gap-1">
+                                            <PencilIcon className="h-3 w-3" />
+                                            Click to edit
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Category Summaries */}
+                            {categories.length > 0 && (
+                                <div>
+                                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 block">
+                                        Category Summaries
+                                    </label>
+                                    <div className="space-y-3">
+                                        {categories.map((cat) => (
+                                            <div key={cat.id} className="border border-gray-200 dark:border-gray-700 rounded-lg">
+                                                <div className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+                                                    <span className="font-medium text-gray-900 dark:text-white text-sm">
+                                                        {cat.name}
+                                                        <span className="ml-2 text-gray-500 font-normal">({cat.article_count} articles)</span>
+                                                    </span>
+                                                </div>
+                                                <div className="px-3 py-2">
+                                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                                        {cat.summary || 'No summary'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Articles Section */}
+                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center gap-4">
+                            <h2 className="font-semibold text-gray-900 dark:text-white">Articles</h2>
+                        </div>
+
+                        {/* Tabs */}
+                        <div className="flex gap-2 mt-4">
+                            <button
+                                onClick={() => setActiveTab('included')}
+                                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                    activeTab === 'included'
+                                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                }`}
+                            >
+                                Included
+                                <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200">
+                                    {includedArticles.length}
+                                </span>
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('filtered_out')}
+                                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                    activeTab === 'filtered_out'
+                                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                }`}
+                            >
+                                Filtered Out
+                                <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200">
+                                    {filteredArticles.length}
+                                </span>
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('duplicates')}
+                                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                    activeTab === 'duplicates'
+                                        ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                }`}
+                            >
+                                Duplicates
+                                <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300">
+                                    {duplicateArticles.length}
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Article List */}
+                    <div className="p-4 space-y-3">
+                        {activeTab === 'included' && includedArticles.map((article, idx) => (
+                            <ArticleCard
+                                key={article.id}
+                                article={article}
+                                type="included"
+                                ranking={idx + 1}
+                                expanded={expandedArticle === article.id}
+                                onToggleExpand={() => setExpandedArticle(expandedArticle === article.id ? null : article.id)}
+                                onExclude={() => handleExcludeArticle(article)}
+                            />
+                        ))}
+
+                        {activeTab === 'filtered_out' && filteredArticles.map((article) => (
+                            <ArticleCard
+                                key={article.id}
+                                article={article}
+                                type="filtered_out"
+                                expanded={expandedArticle === article.id}
+                                onToggleExpand={() => setExpandedArticle(expandedArticle === article.id ? null : article.id)}
+                                onInclude={() => handleIncludeArticle(article)}
+                            />
+                        ))}
+
+                        {activeTab === 'duplicates' && duplicateArticles.map((article) => (
+                            <div key={article.id} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50">
+                                <h4 className="font-medium text-gray-900 dark:text-white">{article.title}</h4>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                    {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
+                                </p>
+                                {article.duplicate_of_pmid && (
+                                    <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
+                                        Duplicate of PMID: {article.duplicate_of_pmid}
+                                    </p>
+                                )}
+                            </div>
+                        ))}
+
+                        {activeTab === 'included' && includedArticles.length === 0 && (
+                            <div className="text-center py-8 text-gray-500">
+                                No articles included in this report
+                            </div>
+                        )}
+
+                        {activeTab === 'filtered_out' && filteredArticles.length === 0 && (
+                            <div className="text-center py-8 text-gray-500">
+                                No filtered articles
+                            </div>
+                        )}
+
+                        {activeTab === 'duplicates' && duplicateArticles.length === 0 && (
+                            <div className="text-center py-8 text-gray-500">
+                                No duplicate articles detected
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Reject Modal */}
+            {showRejectModal && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
+                        <div className="p-6">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                                Reject Report
+                            </h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                Please provide a reason for rejecting this report.
+                            </p>
+                            <textarea
+                                value={rejectReason}
+                                onChange={(e) => setRejectReason(e.target.value)}
+                                placeholder="Enter rejection reason..."
+                                rows={4}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            />
+                        </div>
+                        <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+                            <button
+                                onClick={() => setShowRejectModal(false)}
+                                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleReject}
+                                disabled={!rejectReason.trim() || approving}
+                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                            >
+                                {approving ? 'Rejecting...' : 'Reject Report'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// Article Card Component
+function ArticleCard({
+    article,
+    type,
+    ranking,
+    expanded,
+    onToggleExpand,
+    onInclude,
+    onExclude,
+}: {
+    article: CurationArticle;
+    type: 'included' | 'filtered_out';
+    ranking?: number;
+    expanded: boolean;
+    onToggleExpand: () => void;
+    onInclude?: () => void;
+    onExclude?: () => void;
+}) {
+    const pubmedUrl = article.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/` : null;
+    const isCurated = article.curator_included || article.curator_excluded;
+
+    return (
+        <div className={`border rounded-lg overflow-hidden ${
+            isCurated
+                ? 'border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10'
+                : 'border-gray-200 dark:border-gray-700'
+        }`}>
+            {/* Main content */}
+            <div className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-start gap-3">
+                            {type === 'included' && ranking && (
+                                <div className="flex-shrink-0 text-gray-400">
+                                    <span className="text-sm font-medium">#{ranking}</span>
+                                </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                                {pubmedUrl ? (
+                                    <a
+                                        href={pubmedUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline inline-flex items-center gap-1 group"
+                                    >
+                                        {article.title}
+                                        <ArrowTopRightOnSquareIcon className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                                    </a>
+                                ) : (
+                                    <h4 className="font-medium text-gray-900 dark:text-white">
+                                        {article.title}
+                                    </h4>
+                                )}
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                    {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
+                                    {article.pmid && (
+                                        <span className="ml-2 text-gray-400">PMID: {article.pmid}</span>
+                                    )}
+                                </p>
+
+                                {/* Curator badge */}
+                                {isCurated && (
+                                    <span className={`inline-flex items-center gap-1 mt-2 px-2 py-0.5 text-xs font-medium rounded ${
+                                        article.curator_included
+                                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                                    }`}>
+                                        {article.curator_included ? 'Manually Included' : 'Manually Excluded'}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Pipeline info for filtered articles */}
+                        {type === 'filtered_out' && article.filter_score_reason && (
+                            <div className="mt-3 flex items-center gap-2 text-sm">
+                                <span className="text-red-600 dark:text-red-400">
+                                    Score: {article.filter_score?.toFixed(2)}
+                                </span>
+                                <span className="text-gray-400">&bull;</span>
+                                <span className="text-gray-500 dark:text-gray-400">
+                                    {article.filter_score_reason}
+                                </span>
+                            </div>
+                        )}
+
+                        {/* Expanded content */}
+                        {expanded && article.abstract && (
+                            <div className="mt-4">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Abstract</span>
+                                <p className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/50 p-3 rounded mt-1">
+                                    {article.abstract}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex-shrink-0 flex items-center gap-2">
+                        {type === 'included' ? (
+                            <button
+                                onClick={onExclude}
+                                className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                                title="Exclude from report"
+                            >
+                                <MinusIcon className="h-5 w-5" />
+                            </button>
+                        ) : (
+                            <button
+                                onClick={onInclude}
+                                className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg"
+                                title="Include in report"
+                            >
+                                <PlusIcon className="h-5 w-5" />
+                            </button>
+                        )}
+                        <button
+                            onClick={onToggleExpand}
+                            className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                        >
+                            {expanded ? (
+                                <ChevronUpIcon className="h-5 w-5" />
+                            ) : (
+                                <ChevronDownIcon className="h-5 w-5" />
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}

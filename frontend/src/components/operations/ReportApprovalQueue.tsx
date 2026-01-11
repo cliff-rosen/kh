@@ -339,7 +339,7 @@ export default function ReportApprovalQueue() {
                                         {approving === execution.report_id ? 'Approving...' : 'Quick Approve'}
                                     </button>
                                     <Link
-                                        to={`/operations/executions/${execution.execution_id}`}
+                                        to={execution.report_id ? `/operations/reports/${execution.report_id}/curate` : `/operations/executions/${execution.execution_id}`}
                                         className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
                                     >
                                         <PencilSquareIcon className="h-4 w-4" />
