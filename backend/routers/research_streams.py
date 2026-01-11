@@ -3,6 +3,7 @@ Research Streams API endpoints
 """
 
 import logging
+from dataclasses import asdict
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -131,7 +132,15 @@ async def get_research_streams(
 
     try:
         service = ResearchStreamService(db)
-        streams = service.get_user_research_streams(current_user.user_id)
+        results = service.get_user_research_streams(current_user.user_id)
+
+        # Convert dataclasses to schemas at API boundary
+        streams = [
+            ResearchStream.model_validate(r.stream, from_attributes=True).model_copy(
+                update={'report_count': r.report_count, 'latest_report_date': r.latest_report_date}
+            )
+            for r in results
+        ]
 
         logger.info(f"get_research_streams complete - user_id={current_user.user_id}, count={len(streams)}")
         return streams
@@ -614,7 +623,13 @@ async def propose_retrieval_concepts(
         # Propose concepts using parsed semantic_space
         result = await concept_service.propose_concepts(stream.semantic_space)
 
-        return ProposeConceptsResponse(**result)
+        # Convert dataclass to schema at API boundary
+        return ProposeConceptsResponse(
+            proposed_concepts=result.proposed_concepts,
+            analysis=result.analysis,
+            reasoning=result.reasoning,
+            coverage_check=asdict(result.coverage_check)
+        )
 
     except HTTPException:
         raise
@@ -655,7 +670,12 @@ async def propose_broad_search(
         # Propose broad search using parsed semantic_space
         result = await broad_search_service.propose_broad_search(stream.semantic_space)
 
-        return ProposeBroadSearchResponse(**result)
+        # Convert dataclass to schema at API boundary
+        return ProposeBroadSearchResponse(
+            queries=result.queries,
+            strategy_rationale=result.strategy_rationale,
+            coverage_analysis=asdict(result.coverage_analysis)
+        )
 
     except HTTPException:
         raise

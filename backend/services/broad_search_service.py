@@ -13,6 +13,7 @@ Philosophy:
 
 import logging
 from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
 from datetime import datetime
 from sqlalchemy.orm import Session
 
@@ -20,6 +21,23 @@ from schemas.semantic_space import SemanticSpace, Topic
 from schemas.research_stream import BroadQuery, BroadSearchStrategy
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CoverageAnalysis:
+    """Analysis of how queries cover topics."""
+    total_topics: int
+    covered_topics: List[str]
+    uncovered_topics: List[str]
+    expected_false_positive_rate: str
+
+
+@dataclass
+class BroadSearchProposalResult:
+    """Result of broad search proposal generation."""
+    queries: List[BroadQuery]
+    strategy_rationale: str
+    coverage_analysis: CoverageAnalysis
 
 
 class BroadSearchService:
@@ -33,7 +51,7 @@ class BroadSearchService:
         self,
         semantic_space: SemanticSpace,
         user_context: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> BroadSearchProposalResult:
         """
         Analyze semantic space and propose broad search strategy.
 
@@ -42,10 +60,7 @@ class BroadSearchService:
             user_context: Optional additional context from user
 
         Returns:
-            Dict containing:
-                - queries: List[BroadQuery]
-                - strategy_rationale: Overall explanation
-                - coverage_analysis: How queries cover topics
+            BroadSearchProposalResult containing queries, strategy rationale, and coverage analysis.
         """
         from schemas.llm import ChatMessage, MessageRole
         from agents.prompts.base_prompt_caller import BasePromptCaller
@@ -129,11 +144,20 @@ class BroadSearchService:
             # Parse queries
             queries = self._parse_broad_queries(response_data, semantic_space)
 
-            return {
-                "queries": queries,
-                "strategy_rationale": response_data.get("strategy_rationale", ""),
-                "coverage_analysis": response_data.get("coverage_analysis", {})
-            }
+            # Parse coverage analysis
+            coverage_data = response_data.get("coverage_analysis", {})
+            coverage_analysis = CoverageAnalysis(
+                total_topics=coverage_data.get("total_topics", 0),
+                covered_topics=coverage_data.get("covered_topics", []),
+                uncovered_topics=coverage_data.get("uncovered_topics", []),
+                expected_false_positive_rate=coverage_data.get("expected_false_positive_rate", "")
+            )
+
+            return BroadSearchProposalResult(
+                queries=queries,
+                strategy_rationale=response_data.get("strategy_rationale", ""),
+                coverage_analysis=coverage_analysis
+            )
 
         except Exception as e:
             logger.error(f"Broad search proposal failed: {e}", exc_info=True)

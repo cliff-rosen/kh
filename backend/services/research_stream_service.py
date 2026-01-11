@@ -3,6 +3,7 @@ Research Stream service for managing research streams
 """
 
 import logging
+from dataclasses import dataclass
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
 from typing import List, Optional, Dict, Any, Set
@@ -18,6 +19,25 @@ from services.user_service import UserService
 logger = logging.getLogger(__name__)
 from schemas.research_stream import ResearchStream as ResearchStreamSchema
 from schemas.research_stream import StreamType, ReportFrequency, StreamScope as StreamScopeSchema
+
+
+# --- Service Result Dataclasses ---
+
+@dataclass
+class StreamWithStats:
+    """Research stream with report statistics."""
+    stream: ResearchStream  # SQLAlchemy model
+    report_count: int
+    latest_report_date: Optional[datetime]
+
+
+@dataclass
+class StreamChatInstructionsInfo:
+    """Stream chat instructions status info."""
+    stream_id: int
+    stream_name: str
+    has_instructions: bool
+    instructions_preview: Optional[str]
 
 
 def serialize_json_data(data: Any) -> Any:
@@ -173,10 +193,13 @@ class ResearchStreamService:
                 detail="Research stream not found"
             )
 
-    def get_user_research_streams(self, user_id: int) -> List[Dict[str, Any]]:
+    def get_user_research_streams(self, user_id: int) -> List[StreamWithStats]:
         """
         Get all research streams accessible to a user with report counts and latest report date.
         This includes personal streams, subscribed org streams, and global streams (via org subscription).
+
+        Returns:
+            List of StreamWithStats dataclasses containing stream model and stats
         """
         # Get the user for access control
         user = self.user_service.get_user_by_id(user_id)
@@ -206,15 +229,15 @@ class ResearchStreamService:
             ResearchStream.stream_name
         ).all()
 
-        # Convert to list of dicts with report_count and latest_report_date included
-        result = []
-        for stream, report_count, latest_report_date in streams_with_stats:
-            stream_dict = ResearchStreamSchema.model_validate(stream).model_dump()
-            stream_dict['report_count'] = report_count
-            stream_dict['latest_report_date'] = latest_report_date.isoformat() if latest_report_date else None
-            result.append(stream_dict)
-
-        return result
+        # Return list of StreamWithStats dataclasses
+        return [
+            StreamWithStats(
+                stream=stream,
+                report_count=report_count,
+                latest_report_date=latest_report_date
+            )
+            for stream, report_count, latest_report_date in streams_with_stats
+        ]
 
     def get_research_stream(self, stream_id: int, user_id: int) -> ResearchStreamSchema:
         """
@@ -673,12 +696,12 @@ class ResearchStreamService:
         logger.info(f"Deleted global stream {stream_id}")
         return True
 
-    def get_all_streams_with_chat_instructions(self) -> List[Dict[str, Any]]:
+    def get_all_streams_with_chat_instructions(self) -> List[StreamChatInstructionsInfo]:
         """
         Get all streams with their chat instructions status. For admin chat config.
 
         Returns:
-            List of dicts with stream_id, stream_name, has_instructions, instructions_preview
+            List of StreamChatInstructionsInfo dataclasses
         """
         streams = self.db.query(ResearchStream).order_by(ResearchStream.stream_name).all()
 
@@ -689,12 +712,12 @@ class ResearchStreamService:
             if has_instr:
                 preview = stream.chat_instructions[:200] + "..." if len(stream.chat_instructions) > 200 else stream.chat_instructions
 
-            result.append({
-                "stream_id": stream.stream_id,
-                "stream_name": stream.stream_name,
-                "has_instructions": has_instr,
-                "instructions_preview": preview
-            })
+            result.append(StreamChatInstructionsInfo(
+                stream_id=stream.stream_id,
+                stream_name=stream.stream_name,
+                has_instructions=has_instr,
+                instructions_preview=preview
+            ))
 
         logger.info(f"Got chat instructions status for {len(result)} streams")
         return result

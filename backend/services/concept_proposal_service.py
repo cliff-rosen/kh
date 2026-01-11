@@ -10,6 +10,7 @@ Based on framework:
 
 import logging
 from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
 from datetime import datetime
 from sqlalchemy.orm import Session
 
@@ -17,6 +18,28 @@ from schemas.semantic_space import SemanticSpace, Topic, Entity
 from schemas.research_stream import Concept, VolumeStatus, SourceQuery, SemanticFilter, RelationshipEdge, ConceptEntity
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CoverageCheck:
+    """Validation result for topic coverage."""
+    is_complete: bool
+    covered_topics: List[str]
+    uncovered_topics: List[str]
+    coverage_percentage: float
+    topic_coverage_count: Dict[str, int]
+    concepts_per_topic_min: int
+    concepts_per_topic_max: int
+    concepts_per_topic_avg: float
+
+
+@dataclass
+class ConceptProposalResult:
+    """Result of concept proposal generation."""
+    proposed_concepts: List[Concept]
+    analysis: Dict[str, Any]  # Phase 1 analysis from LLM
+    reasoning: str
+    coverage_check: CoverageCheck
 
 
 class ConceptProposalService:
@@ -114,7 +137,7 @@ class ConceptProposalService:
         self,
         semantic_space: SemanticSpace,
         user_context: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> ConceptProposalResult:
         """
         Analyze semantic space and propose concepts for retrieval.
 
@@ -123,10 +146,7 @@ class ConceptProposalService:
             user_context: Optional additional context from user
 
         Returns:
-            Dict containing:
-                - proposed_concepts: List[Concept]
-                - analysis: Dict with entity/relationship extraction
-                - reasoning: Overall rationale
+            ConceptProposalResult containing proposed concepts, analysis, reasoning, and coverage check.
         """
         from schemas.llm import ChatMessage, MessageRole
         from agents.prompts.base_prompt_caller import BasePromptCaller
@@ -249,12 +269,12 @@ class ConceptProposalService:
             # Parse concepts
             concepts = self._parse_concept_proposals(response_data, semantic_space)
 
-            return {
-                "proposed_concepts": concepts,
-                "analysis": response_data.get("phase1_analysis", {}),
-                "reasoning": response_data.get("overall_reasoning", ""),
-                "coverage_check": self._validate_coverage(concepts, semantic_space)
-            }
+            return ConceptProposalResult(
+                proposed_concepts=concepts,
+                analysis=response_data.get("phase1_analysis", {}),
+                reasoning=response_data.get("overall_reasoning", ""),
+                coverage_check=self._validate_coverage(concepts, semantic_space)
+            )
 
         except Exception as e:
             logger.error(f"Concept proposal failed: {e}", exc_info=True)
@@ -518,7 +538,7 @@ class ConceptProposalService:
         self,
         concepts: List[Concept],
         semantic_space: SemanticSpace
-    ) -> Dict[str, Any]:
+    ) -> CoverageCheck:
         """Check if proposed concepts cover all topics"""
 
         covered_topics = set()
@@ -535,15 +555,13 @@ class ConceptProposalService:
                 if topic_id in topic_coverage_count:
                     topic_coverage_count[topic_id] += 1
 
-        return {
-            "is_complete": len(uncovered_topics) == 0,
-            "covered_topics": list(covered_topics),
-            "uncovered_topics": list(uncovered_topics),
-            "coverage_percentage": len(covered_topics) / len(all_topics) * 100 if all_topics else 100,
-            "topic_coverage_count": topic_coverage_count,
-            "concepts_per_topic": {
-                "min": min(topic_coverage_count.values()) if topic_coverage_count else 0,
-                "max": max(topic_coverage_count.values()) if topic_coverage_count else 0,
-                "avg": sum(topic_coverage_count.values()) / len(topic_coverage_count) if topic_coverage_count else 0
-            }
-        }
+        return CoverageCheck(
+            is_complete=len(uncovered_topics) == 0,
+            covered_topics=list(covered_topics),
+            uncovered_topics=list(uncovered_topics),
+            coverage_percentage=len(covered_topics) / len(all_topics) * 100 if all_topics else 100,
+            topic_coverage_count=topic_coverage_count,
+            concepts_per_topic_min=min(topic_coverage_count.values()) if topic_coverage_count else 0,
+            concepts_per_topic_max=max(topic_coverage_count.values()) if topic_coverage_count else 0,
+            concepts_per_topic_avg=sum(topic_coverage_count.values()) / len(topic_coverage_count) if topic_coverage_count else 0
+        )
