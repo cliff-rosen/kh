@@ -3,7 +3,6 @@ Service for managing article notes with JSON storage and visibility control.
 """
 
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
 from typing import List, Optional
 from datetime import datetime
 import uuid
@@ -44,6 +43,7 @@ class NotesService:
     def __init__(self, db: Session):
         self.db = db
         self._user_service: Optional[UserService] = None
+        self._association_service = None
 
     @property
     def user_service(self) -> UserService:
@@ -52,6 +52,14 @@ class NotesService:
             self._user_service = UserService(self.db)
         return self._user_service
 
+    @property
+    def association_service(self):
+        """Lazy-load ReportArticleAssociationService."""
+        if self._association_service is None:
+            from services.report_article_association_service import ReportArticleAssociationService
+            self._association_service = ReportArticleAssociationService(self.db)
+        return self._association_service
+
     def _get_article_association(
         self,
         report_id: int,
@@ -59,20 +67,13 @@ class NotesService:
         user: User
     ) -> Optional[ReportArticleAssociation]:
         """Get the report-article association, verifying user access."""
-        # Verify report belongs to a stream the user can access
+        # Verify report exists
         report = self.db.query(Report).filter(Report.report_id == report_id).first()
         if not report:
             return None
 
         # Get the association
-        association = self.db.query(ReportArticleAssociation).filter(
-            and_(
-                ReportArticleAssociation.report_id == report_id,
-                ReportArticleAssociation.article_id == article_id
-            )
-        ).first()
-
-        return association
+        return self.association_service.find(report_id, article_id)
 
     def get_notes(
         self,

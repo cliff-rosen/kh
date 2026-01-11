@@ -246,10 +246,7 @@ class ReportService:
         result = []
         for report in reports:
             report_dict = ReportSchema.from_orm(report).dict()
-            article_count = self.db.query(ReportArticleAssociation).filter(
-                ReportArticleAssociation.report_id == report.report_id
-            ).count()
-            report_dict['article_count'] = article_count
+            report_dict['article_count'] = self.association_service.count_visible(report.report_id)
             result.append(ReportSchema(**report_dict))
 
         return result
@@ -280,12 +277,8 @@ class ReportService:
             return None
 
         # Add article count
-        article_count = self.db.query(ReportArticleAssociation).filter(
-            ReportArticleAssociation.report_id == report.report_id
-        ).count()
-
         report_dict = ReportSchema.from_orm(report).dict()
-        report_dict['article_count'] = article_count
+        report_dict['article_count'] = self.association_service.count_visible(report.report_id)
         return ReportSchema(**report_dict)
 
     def get_recent_reports(self, user_id: int, limit: int = 5) -> List[ReportSchema]:
@@ -314,10 +307,7 @@ class ReportService:
         result = []
         for report in reports:
             report_dict = ReportSchema.from_orm(report).dict()
-            article_count = self.db.query(ReportArticleAssociation).filter(
-                ReportArticleAssociation.report_id == report.report_id
-            ).count()
-            report_dict['article_count'] = article_count
+            report_dict['article_count'] = self.association_service.count_visible(report.report_id)
             result.append(ReportSchema(**report_dict))
 
         return result
@@ -501,15 +491,10 @@ class ReportService:
         if not user or not self._user_has_stream_access(user, stream):
             return []
 
-        # Build query
-        query = self.db.query(WipArticle).filter(
-            WipArticle.pipeline_execution_id == report.pipeline_execution_id
+        return self.wip_article_service.get_by_execution_id(
+            report.pipeline_execution_id,
+            included_only=included_only
         )
-
-        if included_only:
-            query = query.filter(WipArticle.included_in_report == True)
-
-        return query.all()
 
     def delete_report(self, report_id: int, user_id: int) -> bool:
         """
@@ -529,14 +514,10 @@ class ReportService:
 
         # Delete wip_articles associated with this pipeline execution (if any)
         if report.pipeline_execution_id:
-            self.db.query(WipArticle).filter(
-                WipArticle.pipeline_execution_id == report.pipeline_execution_id
-            ).delete()
+            self.wip_article_service.delete_by_execution_id(report.pipeline_execution_id)
 
         # Delete article associations (due to foreign key constraints)
-        self.db.query(ReportArticleAssociation).filter(
-            ReportArticleAssociation.report_id == report_id
-        ).delete()
+        self.association_service.delete_all_for_report(report_id)
 
         # Delete the report
         self.db.delete(report)
@@ -690,9 +671,7 @@ class ReportService:
         # Get WIP articles if pipeline execution exists
         wip_articles = []
         if report.pipeline_execution_id:
-            wip_articles = self.db.query(WipArticle).filter(
-                WipArticle.pipeline_execution_id == report.pipeline_execution_id
-            ).all()
+            wip_articles = self.wip_article_service.get_by_execution_id(report.pipeline_execution_id)
 
         return {
             "report": report,
@@ -775,12 +754,7 @@ class ReportService:
             return None
 
         # Find the association
-        return self.db.query(ReportArticleAssociation).filter(
-            and_(
-                ReportArticleAssociation.report_id == report_id,
-                ReportArticleAssociation.article_id == article_id
-            )
-        ).first()
+        return self.association_service.find(report_id, article_id)
 
     def update_article_notes(
         self,
@@ -911,9 +885,7 @@ class ReportService:
         ).first()
 
         # Get all wip_articles for this execution
-        wip_articles = self.db.query(WipArticle).filter(
-            WipArticle.pipeline_execution_id == report.pipeline_execution_id
-        ).all()
+        wip_articles = self.wip_article_service.get_by_execution_id(report.pipeline_execution_id)
 
         # Calculate analytics
         total_retrieved = len(wip_articles)
@@ -1300,9 +1272,7 @@ class ReportService:
         curator_removed_count = 0  # curator manually excluded
 
         if report.pipeline_execution_id:
-            wip_articles = self.db.query(WipArticle).filter(
-                WipArticle.pipeline_execution_id == report.pipeline_execution_id
-            ).all()
+            wip_articles = self.wip_article_service.get_by_execution_id(report.pipeline_execution_id)
 
             for wip in wip_articles:
                 # Count pipeline decisions
@@ -1770,19 +1740,8 @@ class ReportService:
         """
         report, user, stream = self._get_report_for_curation(report_id, user_id)
 
-        # Find the association
-        association = self.db.query(ReportArticleAssociation).filter(
-            and_(
-                ReportArticleAssociation.report_id == report_id,
-                ReportArticleAssociation.article_id == article_id
-            )
-        ).first()
-
-        if not association:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Article not found in report"
-            )
+        # Get the association
+        association = self.association_service.get(report_id, article_id)
 
         # Import CurationEvent
         from models import CurationEvent
@@ -1862,10 +1821,8 @@ class ReportService:
         """
         report, user, stream = self._get_report_for_curation(report_id, user_id)
 
-        # Validate report has at least one article
-        article_count = self.db.query(ReportArticleAssociation).filter(
-            ReportArticleAssociation.report_id == report_id
-        ).count()
+        # Validate report has at least one visible article
+        article_count = self.association_service.count_visible(report_id)
 
         if article_count == 0:
             raise HTTPException(

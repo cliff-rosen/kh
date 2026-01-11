@@ -330,8 +330,22 @@ class ReportArticleAssociationService:
         Returns:
             True if deleted, False if not found
         """
-        association = self.get(report_id, article_id)
+        association = self.find(report_id, article_id)
         if association:
             self.db.delete(association)
             return True
         return False
+
+    def delete_all_for_report(self, report_id: int) -> int:
+        """
+        Delete all associations for a report.
+
+        Args:
+            report_id: The report ID
+
+        Returns:
+            Number of associations deleted
+        """
+        return self.db.query(ReportArticleAssociation).filter(
+            ReportArticleAssociation.report_id == report_id
+        ).delete()
