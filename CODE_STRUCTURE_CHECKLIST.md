@@ -80,11 +80,21 @@ class ReportService:
         return ReportSchema.from_orm(report)  # Conversion belongs in router
 ```
 
-#### Computed Data Pattern
+#### Service Return Types
 
-When a service needs to return a model plus computed data, use a dataclass - NOT a schema:
+| Data type | Service returns | Router conversion |
+|-----------|-----------------|-------------------|
+| Database entity | SQLAlchemy Model | `Schema.from_orm(model)` |
+| Model + computed data | Dataclass containing Model | Manual field mapping |
+| Computed/aggregated data (no Model) | Dataclass | `Schema(**asdict(dataclass))` |
+| Never return | `dict`, Pydantic schema | - |
+
+#### Computed Data Patterns
+
+**Case 1: Model + computed data**
 
 ```python
+# In service file
 from dataclasses import dataclass
 
 @dataclass
@@ -97,6 +107,61 @@ class ReportService:
         report = self.db.query(Report).filter(...).first()
         count = self.association_service.count_visible(report_id)
         return ReportWithCount(report=report, article_count=count)
+```
+
+```python
+# In router file
+@router.get("/{report_id}", response_model=ReportWithCountResponse)
+async def get_report(...):
+    result = service.get_report_with_count(report_id)
+    return ReportWithCountResponse(
+        **ReportSchema.from_orm(result.report).dict(),  # Spread model fields
+        article_count=result.article_count               # Add computed field
+    )
+```
+
+**Case 2: Computed/aggregated data with no Model equivalent**
+
+When the API needs a custom shape that doesn't map to any Model (e.g., analytics, aggregations, transformations), define dataclasses in the service file:
+
+```python
+# In service file
+from dataclasses import dataclass, asdict
+
+@dataclass
+class GroupAnalytics:
+    group_id: str
+    total: int
+    duplicates: int
+
+@dataclass
+class PipelineAnalytics:
+    report_id: int
+    summary: PipelineAnalyticsSummary
+    by_group: List[GroupAnalytics]
+
+class ReportService:
+    def get_pipeline_analytics(self, report_id: int) -> PipelineAnalytics:
+        # ... compute analytics ...
+        return PipelineAnalytics(report_id=report_id, summary=..., by_group=...)
+```
+
+```python
+# In router file - define matching response schemas
+class GroupAnalyticsResponse(BaseModel):
+    group_id: str
+    total: int
+    duplicates: int
+
+class PipelineAnalyticsResponse(BaseModel):
+    report_id: int
+    summary: PipelineAnalyticsSummaryResponse
+    by_group: List[GroupAnalyticsResponse]
+
+@router.get("/{report_id}/analytics", response_model=PipelineAnalyticsResponse)
+async def get_analytics(...):
+    analytics = service.get_pipeline_analytics(report_id)  # Returns dataclass
+    return PipelineAnalyticsResponse(**asdict(analytics))  # Convert to schema
 ```
 
 #### Entity Lookups: `find()` vs `get()`
@@ -170,6 +235,110 @@ class ReportService:
 - Shared across services
 - NOT for API-specific response shapes (those go in routers)
 - Examples: `Report`, `ReportArticle`, `ResearchStream`, `PipelineExecution`
+
+---
+
+## Logging
+
+### Every Router Must Have
+
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+```
+
+### Endpoint Logging Pattern
+
+Every endpoint MUST log:
+1. **Entry** - When the endpoint is called (INFO level)
+2. **Exit** - When returning successfully (INFO level)
+3. **Errors** - Any exceptions (ERROR level with exc_info)
+
+```python
+@router.post("/analyze")
+async def analyze_document(request: AnalyzeRequest, ...):
+    logger.info(f"analyze_document called - user_id={current_user.user_id}")
+
+    try:
+        result = service.analyze(request.document_id)
+        logger.info(f"analyze_document complete - user_id={current_user.user_id}")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"analyze_document failed - user_id={current_user.user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+```
+
+### Log Levels
+
+| Level | When | Example |
+|-------|------|---------|
+| DEBUG | Detailed diagnostic info | `logger.debug(f"Token expires in {seconds}s")` |
+| INFO | Normal operations | `logger.info(f"Report generated - report_id={id}")` |
+| WARNING | Recoverable issues | `logger.warning(f"Stream not found - user_id={user_id}")` |
+| ERROR | Failures with exc_info | `logger.error(f"Failed: {e}", exc_info=True)` |
+
+### Log Message Format
+
+Always include context: `user_id`, `resource_id`, `operation`
+
+```python
+# ✅ GOOD
+logger.info(f"delete_report - user_id={user_id}, report_id={report_id}")
+
+# ❌ BAD
+logger.info("Deleting report")
+```
+
+---
+
+## Exception Handling
+
+### Router Exception Pattern
+
+```python
+@router.post("/operation", response_model=ResponseSchema)
+async def operation(request: RequestSchema, ...):
+    logger.info(f"operation called - user_id={current_user.user_id}")
+
+    try:
+        result = service.do_operation(request, current_user.user_id)
+        logger.info(f"operation complete - user_id={current_user.user_id}")
+        return result
+    except HTTPException:
+        # Let HTTP exceptions pass through unchanged
+        raise
+    except ValueError as e:
+        # Known business logic errors → 400
+        logger.warning(f"operation validation failed: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        # Unexpected errors → 500
+        logger.error(f"operation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+```
+
+### Service Exceptions
+
+Services raise:
+- `HTTPException(404)` - Resource not found
+- `HTTPException(403)` - Access denied (but prefer 404 to avoid revealing existence)
+- `ValueError` - Invalid input/state (router converts to 400)
+- Regular exceptions for unexpected errors (router converts to 500)
+
+### Security: Use 404 for Unauthorized Access
+
+Don't reveal that a resource exists if user can't access it:
+
+```python
+# ✅ CORRECT - Don't reveal existence
+raise HTTPException(status_code=404, detail="Report not found")
+
+# ❌ WRONG - Reveals the report exists
+raise HTTPException(status_code=403, detail="Not authorized to access this report")
+```
 
 ---
 

@@ -3,6 +3,7 @@ Reports API endpoints
 """
 
 import logging
+from dataclasses import asdict
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
@@ -259,6 +260,60 @@ class RejectReportResponse(BaseModel):
     rejected_at: str
 
 
+# --- Pipeline Analytics Response Schemas ---
+
+class WipArticleAnalyticsResponse(BaseModel):
+    """WipArticle data for pipeline analytics response"""
+    id: int
+    title: str
+    retrieval_group_id: str
+    is_duplicate: bool
+    duplicate_of_id: Optional[int] = None
+    passed_semantic_filter: Optional[bool] = None
+    filter_score: Optional[float] = None
+    filter_score_reason: Optional[str] = None
+    included_in_report: bool
+    presentation_categories: List[str] = []
+    authors: List[str] = []
+    journal: Optional[str] = None
+    year: Optional[int] = None
+    pmid: Optional[str] = None
+    doi: Optional[str] = None
+    abstract: Optional[str] = None
+
+
+class GroupAnalyticsResponse(BaseModel):
+    """Analytics for a single retrieval group"""
+    group_id: str
+    total: int
+    duplicates: int
+    filtered_out: int
+    passed_filter: int
+    included: int
+
+
+class PipelineAnalyticsSummaryResponse(BaseModel):
+    """Summary counts for pipeline analytics"""
+    total_retrieved: int
+    duplicates: int
+    filtered_out: int
+    passed_filter: int
+    included_in_report: int
+
+
+class PipelineAnalyticsResponse(BaseModel):
+    """Complete pipeline analytics response"""
+    report_id: int
+    run_type: Optional[str] = None
+    report_date: str
+    pipeline_metrics: Optional[Dict[str, Any]] = None
+    summary: PipelineAnalyticsSummaryResponse
+    by_group: List[GroupAnalyticsResponse]
+    filter_reasons: Dict[str, int]
+    category_counts: Dict[str, int]
+    wip_articles: List[WipArticleAnalyticsResponse]
+
+
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 
@@ -413,7 +468,7 @@ async def delete_report(
         )
 
 
-@router.get("/{report_id}/pipeline-analytics", response_model=Dict[str, Any])
+@router.get("/{report_id}/pipeline-analytics", response_model=PipelineAnalyticsResponse)
 async def get_pipeline_analytics(
     report_id: int,
     db: Session = Depends(get_db),
@@ -437,7 +492,8 @@ async def get_pipeline_analytics(
             )
 
         logger.info(f"get_pipeline_analytics complete - user_id={current_user.user_id}, report_id={report_id}")
-        return analytics
+        # Convert dataclass to response schema
+        return PipelineAnalyticsResponse(**asdict(analytics))
 
     except ValueError as e:
         logger.warning(f"get_pipeline_analytics - validation error - user_id={current_user.user_id}, report_id={report_id}: {e}")

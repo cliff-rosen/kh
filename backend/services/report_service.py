@@ -7,6 +7,7 @@ service for report-related operations.
 """
 
 import logging
+from dataclasses import dataclass, field, asdict
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from typing import List, Optional, Dict, Any, Set
@@ -26,6 +27,66 @@ from services.email_template_service import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Service Dataclasses (for computed/aggregated data with no Model equivalent)
+# =============================================================================
+
+@dataclass
+class WipArticleAnalytics:
+    """WipArticle data for pipeline analytics."""
+    id: int
+    title: str
+    retrieval_group_id: str
+    is_duplicate: bool
+    duplicate_of_id: Optional[int]
+    passed_semantic_filter: Optional[bool]
+    filter_score: Optional[float]
+    filter_score_reason: Optional[str]
+    included_in_report: bool
+    presentation_categories: List[str]
+    authors: List[str]
+    journal: Optional[str]
+    year: Optional[int]
+    pmid: Optional[str]
+    doi: Optional[str]
+    abstract: Optional[str]
+
+
+@dataclass
+class GroupAnalytics:
+    """Analytics for a single retrieval group."""
+    group_id: str
+    total: int
+    duplicates: int
+    filtered_out: int
+    passed_filter: int
+    included: int
+
+
+@dataclass
+class PipelineAnalyticsSummary:
+    """Summary counts for pipeline analytics."""
+    total_retrieved: int
+    duplicates: int
+    filtered_out: int
+    passed_filter: int
+    included_in_report: int
+
+
+@dataclass
+class PipelineAnalytics:
+    """Complete pipeline analytics for a report."""
+    report_id: int
+    run_type: Optional[str]
+    report_date: str
+    pipeline_metrics: Optional[Dict[str, Any]]
+    summary: PipelineAnalyticsSummary
+    by_group: List[GroupAnalytics]
+    filter_reasons: Dict[str, int]
+    category_counts: Dict[str, int]
+    wip_articles: List[WipArticleAnalytics]
 
 
 class ReportService:
@@ -846,7 +907,7 @@ class ReportService:
         self,
         report_id: int,
         user_id: int
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[PipelineAnalytics]:
         """
         Get pipeline execution analytics for a report.
 
@@ -855,7 +916,7 @@ class ReportService:
             user_id: The user ID (for access verification)
 
         Returns:
-            Dict with analytics data, or None if report not found.
+            PipelineAnalytics dataclass, or None if report not found.
             Raises ValueError if report has no pipeline execution data.
         """
         # Verify report exists
@@ -892,29 +953,30 @@ class ReportService:
         duplicates = sum(1 for a in wip_articles if a.is_duplicate)
         filtered_out = sum(1 for a in wip_articles if a.passed_semantic_filter == False)
         passed_filter = sum(1 for a in wip_articles if a.passed_semantic_filter == True)
-        included_in_report = sum(1 for a in wip_articles if a.included_in_report)
+        included_count = sum(1 for a in wip_articles if a.included_in_report)
 
         # Group by retrieval group
-        groups: Dict[str, Dict[str, Any]] = {}
+        groups_dict: Dict[str, GroupAnalytics] = {}
         for article in wip_articles:
-            if article.retrieval_group_id not in groups:
-                groups[article.retrieval_group_id] = {
-                    'group_id': article.retrieval_group_id,
-                    'total': 0,
-                    'duplicates': 0,
-                    'filtered_out': 0,
-                    'passed_filter': 0,
-                    'included': 0
-                }
-            groups[article.retrieval_group_id]['total'] += 1
+            if article.retrieval_group_id not in groups_dict:
+                groups_dict[article.retrieval_group_id] = GroupAnalytics(
+                    group_id=article.retrieval_group_id,
+                    total=0,
+                    duplicates=0,
+                    filtered_out=0,
+                    passed_filter=0,
+                    included=0
+                )
+            g = groups_dict[article.retrieval_group_id]
+            g.total += 1
             if article.is_duplicate:
-                groups[article.retrieval_group_id]['duplicates'] += 1
+                g.duplicates += 1
             if article.passed_semantic_filter == False:
-                groups[article.retrieval_group_id]['filtered_out'] += 1
+                g.filtered_out += 1
             if article.passed_semantic_filter == True:
-                groups[article.retrieval_group_id]['passed_filter'] += 1
+                g.passed_filter += 1
             if article.included_in_report:
-                groups[article.retrieval_group_id]['included'] += 1
+                g.included += 1
 
         # Get filter score reasons (for articles that were filtered out)
         filter_reasons: Dict[str, int] = {}
@@ -930,45 +992,46 @@ class ReportService:
                 for cat_id in article.presentation_categories:
                     category_counts[cat_id] = category_counts.get(cat_id, 0) + 1
 
-        # Serialize wip_articles for client
-        wip_articles_data = []
-        for article in wip_articles:
-            wip_articles_data.append({
-                'id': article.id,
-                'title': article.title,
-                'retrieval_group_id': article.retrieval_group_id,
-                'is_duplicate': article.is_duplicate,
-                'duplicate_of_id': article.duplicate_of_id,
-                'passed_semantic_filter': article.passed_semantic_filter,
-                'filter_score': article.filter_score,
-                'filter_score_reason': article.filter_score_reason,
-                'included_in_report': article.included_in_report,
-                'presentation_categories': article.presentation_categories,
-                'authors': article.authors,
-                'journal': article.journal,
-                'year': article.year,
-                'pmid': article.pmid,
-                'doi': article.doi,
-                'abstract': article.abstract
-            })
+        # Build wip_articles list
+        wip_articles_data = [
+            WipArticleAnalytics(
+                id=article.id,
+                title=article.title,
+                retrieval_group_id=article.retrieval_group_id,
+                is_duplicate=article.is_duplicate,
+                duplicate_of_id=article.duplicate_of_id,
+                passed_semantic_filter=article.passed_semantic_filter,
+                filter_score=article.filter_score,
+                filter_score_reason=article.filter_score_reason,
+                included_in_report=article.included_in_report,
+                presentation_categories=article.presentation_categories or [],
+                authors=article.authors or [],
+                journal=article.journal,
+                year=article.year,
+                pmid=article.pmid,
+                doi=article.doi,
+                abstract=article.abstract
+            )
+            for article in wip_articles
+        ]
 
-        return {
-            'report_id': report_id,
-            'run_type': execution.run_type.value if execution and execution.run_type else None,
-            'report_date': report.report_date.isoformat(),
-            'pipeline_metrics': report.pipeline_metrics,
-            'summary': {
-                'total_retrieved': total_retrieved,
-                'duplicates': duplicates,
-                'filtered_out': filtered_out,
-                'passed_filter': passed_filter,
-                'included_in_report': included_in_report
-            },
-            'by_group': list(groups.values()),
-            'filter_reasons': filter_reasons,
-            'category_counts': category_counts,
-            'wip_articles': wip_articles_data
-        }
+        return PipelineAnalytics(
+            report_id=report_id,
+            run_type=execution.run_type.value if execution and execution.run_type else None,
+            report_date=report.report_date.isoformat(),
+            pipeline_metrics=report.pipeline_metrics,
+            summary=PipelineAnalyticsSummary(
+                total_retrieved=total_retrieved,
+                duplicates=duplicates,
+                filtered_out=filtered_out,
+                passed_filter=passed_filter,
+                included_in_report=included_count
+            ),
+            by_group=list(groups_dict.values()),
+            filter_reasons=filter_reasons,
+            category_counts=category_counts,
+            wip_articles=wip_articles_data
+        )
 
     # =========================================================================
     # Email Generation
