@@ -20,7 +20,6 @@ from models import (
     OrgStreamSubscription, UserStreamSubscription, PipelineExecution,
     ApprovalStatus
 )
-from schemas.report import Report as ReportSchema
 from services.user_service import UserService
 from services.email_template_service import (
     EmailTemplateService, EmailReportData, EmailCategory, EmailArticle
@@ -87,6 +86,147 @@ class PipelineAnalytics:
     filter_reasons: Dict[str, int]
     category_counts: Dict[str, int]
     wip_articles: List[WipArticleAnalytics]
+
+
+# --- Service Result Dataclasses ---
+
+@dataclass
+class ReportWithArticleCount:
+    """Report model with computed article count."""
+    report: Report  # SQLAlchemy model
+    article_count: int
+
+
+@dataclass
+class ArticleMetadataResult:
+    """Article metadata (notes and enrichments)."""
+    notes: Optional[str]
+    ai_enrichments: Optional[Dict[str, Any]]
+
+
+@dataclass
+class NotesUpdateResult:
+    """Result of updating notes."""
+    notes: Optional[str]
+
+
+@dataclass
+class EnrichmentsUpdateResult:
+    """Result of updating enrichments."""
+    ai_enrichments: Dict[str, Any]
+
+
+@dataclass
+class ReportArticleInfo:
+    """Article with association metadata."""
+    article: Article
+    association: ReportArticleAssociation
+
+
+@dataclass
+class ReportWithArticlesData:
+    """Report with full article details."""
+    report: Report
+    articles: List[ReportArticleInfo]
+    article_count: int
+
+
+@dataclass
+class CurationStats:
+    """Pipeline and curation statistics."""
+    pipeline_included: int
+    pipeline_filtered: int
+    pipeline_duplicates: int
+    current_included: int
+    curator_added: int
+    curator_removed: int
+
+
+@dataclass
+class IncludedArticleData:
+    """Article data for curation view."""
+    article: Article
+    association: ReportArticleAssociation
+
+
+@dataclass
+class CurationViewData:
+    """Full curation view data."""
+    report: Report
+    stream: ResearchStream
+    included_articles: List[IncludedArticleData]
+    filtered_articles: List[WipArticle]
+    curated_articles: List[WipArticle]
+    categories: List[Dict[str, Any]]
+    stats: CurationStats
+
+
+@dataclass
+class ReportContentUpdateResult:
+    """Result of updating report content."""
+    report_name: str
+    executive_summary: str
+    category_summaries: Dict[str, str]
+    has_curation_edits: bool
+
+
+@dataclass
+class ExcludeArticleResult:
+    """Result of excluding an article."""
+    article_id: int
+    excluded: bool
+    wip_article_updated: bool
+
+
+@dataclass
+class IncludeArticleResult:
+    """Result of including an article."""
+    article_id: int
+    wip_article_id: int
+    included: bool
+    ranking: int
+    category: Optional[str]
+
+
+@dataclass
+class ResetCurationResult:
+    """Result of resetting curation."""
+    wip_article_id: int
+    reset: bool
+    was_curator_included: Optional[bool] = None
+    was_curator_excluded: Optional[bool] = None
+    pipeline_decision: Optional[bool] = None
+    now_in_report: Optional[bool] = None
+    message: Optional[str] = None
+
+
+@dataclass
+class UpdateArticleResult:
+    """Result of updating article in report."""
+    article_id: int
+    ranking: Optional[int]
+    presentation_categories: List[str]
+    ai_summary: Optional[str]
+    curation_notes: Optional[str]
+
+
+@dataclass
+class ApproveReportResult:
+    """Result of approving a report."""
+    report_id: int
+    approval_status: str
+    approved_by: int
+    approved_at: str
+
+
+@dataclass
+class RejectReportResult:
+    """Result of rejecting a report."""
+    report_id: int
+    approval_status: str
+    rejection_reason: str
+    rejected_by: int
+    rejected_at: str
 
 
 class ReportService:
@@ -281,7 +421,7 @@ class ReportService:
 
         return report
 
-    def get_reports_for_stream(self, research_stream_id: int, user_id: int) -> List[ReportSchema]:
+    def get_reports_for_stream(self, research_stream_id: int, user_id: int) -> List[ReportWithArticleCount]:
         """Get all reports for a research stream that the user has access to."""
         # Check stream access
         user = self.user_service.get_user_by_id(user_id)
@@ -303,16 +443,15 @@ class ReportService:
 
         reports = query.order_by(Report.report_date.desc()).all()
 
-        # Add article count to each report
+        # Return dataclass with report model and article count
         result = []
         for report in reports:
-            report_dict = ReportSchema.from_orm(report).dict()
-            report_dict['article_count'] = self.association_service.count_visible(report.report_id)
-            result.append(ReportSchema(**report_dict))
+            article_count = self.association_service.count_visible(report.report_id)
+            result.append(ReportWithArticleCount(report=report, article_count=article_count))
 
         return result
 
-    def get_latest_report_for_stream(self, research_stream_id: int, user_id: int) -> Optional[ReportSchema]:
+    def get_latest_report_for_stream(self, research_stream_id: int, user_id: int) -> Optional[ReportWithArticleCount]:
         """Get the most recent report for a research stream that the user has access to."""
         # Check stream access
         user = self.user_service.get_user_by_id(user_id)
@@ -337,12 +476,11 @@ class ReportService:
         if not report:
             return None
 
-        # Add article count
-        report_dict = ReportSchema.from_orm(report).dict()
-        report_dict['article_count'] = self.association_service.count_visible(report.report_id)
-        return ReportSchema(**report_dict)
+        # Return dataclass with report model and article count
+        article_count = self.association_service.count_visible(report.report_id)
+        return ReportWithArticleCount(report=report, article_count=article_count)
 
-    def get_recent_reports(self, user_id: int, limit: int = 5) -> List[ReportSchema]:
+    def get_recent_reports(self, user_id: int, limit: int = 5) -> List[ReportWithArticleCount]:
         """Get the most recent reports across all accessible streams for a user."""
         user = self.user_service.get_user_by_id(user_id)
         if not user:
@@ -365,11 +503,11 @@ class ReportService:
 
         reports = query.order_by(Report.created_at.desc()).limit(limit).all()
 
+        # Return dataclass with report model and article count
         result = []
         for report in reports:
-            report_dict = ReportSchema.from_orm(report).dict()
-            report_dict['article_count'] = self.association_service.count_visible(report.report_id)
-            result.append(ReportSchema(**report_dict))
+            article_count = self.association_service.count_visible(report.report_id)
+            result.append(ReportWithArticleCount(report=report, article_count=article_count))
 
         return result
 
@@ -461,7 +599,7 @@ class ReportService:
             "articles": articles
         }
 
-    def get_report_with_articles(self, report_id: int, user_id: int) -> Optional[Dict[str, Any]]:
+    def get_report_with_articles(self, report_id: int, user_id: int) -> Optional[ReportWithArticlesData]:
         """Get a report with its associated articles for a user with stream access."""
         report = self.db.query(Report).filter(
             Report.report_id == report_id
@@ -490,38 +628,17 @@ class ReportService:
             ReportArticleAssociation.ranking
         ).all()
 
-        # Build article list with association metadata
-        articles = []
-        for assoc, article in article_associations:
-            article_dict = {
-                'article_id': article.article_id,
-                'title': article.title,
-                'authors': article.authors,
-                'journal': article.journal,
-                'publication_date': article.publication_date.isoformat() if article.publication_date else None,
-                'pmid': article.pmid,
-                'doi': article.doi,
-                'abstract': article.abstract,
-                'url': article.url,
-                'year': article.year,
-                # Association metadata
-                'relevance_score': assoc.relevance_score,
-                'relevance_rationale': assoc.relevance_rationale,
-                'ranking': assoc.ranking,
-                'is_starred': assoc.is_starred,
-                'is_read': assoc.is_read,
-                'notes': assoc.notes,
-                'presentation_categories': assoc.presentation_categories or [],
-                'ai_enrichments': assoc.ai_enrichments
-            }
-            articles.append(article_dict)
+        # Build list of ReportArticleInfo dataclasses
+        articles = [
+            ReportArticleInfo(article=article, association=assoc)
+            for assoc, article in article_associations
+        ]
 
-        # Build complete report dict
-        report_dict = ReportSchema.from_orm(report).dict()
-        report_dict['article_count'] = len(articles)
-        report_dict['articles'] = articles
-
-        return report_dict
+        return ReportWithArticlesData(
+            report=report,
+            articles=articles,
+            article_count=len(articles)
+        )
 
     def get_wip_articles_for_report(self, report_id: int, user_id: int, included_only: bool = True) -> List[WipArticle]:
         """
@@ -823,7 +940,7 @@ class ReportService:
         article_id: int,
         user_id: int,
         notes: Optional[str]
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[NotesUpdateResult]:
         """
         Update notes for an article within a report.
 
@@ -834,7 +951,7 @@ class ReportService:
             notes: The notes text (or None to clear)
 
         Returns:
-            Dict with updated notes, or None if association not found
+            NotesUpdateResult dataclass, or None if association not found
         """
         association = self.get_article_association(report_id, article_id, user_id)
         if not association:
@@ -843,7 +960,7 @@ class ReportService:
         association.notes = notes
         self.db.commit()
 
-        return {"notes": association.notes}
+        return NotesUpdateResult(notes=association.notes)
 
     def update_article_enrichments(
         self,
@@ -851,7 +968,7 @@ class ReportService:
         article_id: int,
         user_id: int,
         ai_enrichments: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[EnrichmentsUpdateResult]:
         """
         Update AI enrichments for an article within a report.
 
@@ -862,7 +979,7 @@ class ReportService:
             ai_enrichments: The enrichments dict
 
         Returns:
-            Dict with updated enrichments, or None if association not found
+            EnrichmentsUpdateResult dataclass, or None if association not found
         """
         association = self.get_article_association(report_id, article_id, user_id)
         if not association:
@@ -871,14 +988,14 @@ class ReportService:
         association.ai_enrichments = ai_enrichments
         self.db.commit()
 
-        return {"ai_enrichments": association.ai_enrichments}
+        return EnrichmentsUpdateResult(ai_enrichments=association.ai_enrichments)
 
     def get_article_metadata(
         self,
         report_id: int,
         article_id: int,
         user_id: int
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[ArticleMetadataResult]:
         """
         Get notes and AI enrichments for an article within a report.
 
@@ -888,16 +1005,16 @@ class ReportService:
             user_id: The user ID (for ownership verification)
 
         Returns:
-            Dict with notes and ai_enrichments, or None if not found
+            ArticleMetadataResult dataclass, or None if not found
         """
         association = self.get_article_association(report_id, article_id, user_id)
         if not association:
             return None
 
-        return {
-            "notes": association.notes,
-            "ai_enrichments": association.ai_enrichments
-        }
+        return ArticleMetadataResult(
+            notes=association.notes,
+            ai_enrichments=association.ai_enrichments
+        )
 
     # =========================================================================
     # Pipeline Analytics
@@ -1269,18 +1386,19 @@ class ReportService:
 
         return report, user, stream
 
-    def get_curation_view(self, report_id: int, user_id: int) -> Dict[str, Any]:
+    def get_curation_view(self, report_id: int, user_id: int) -> CurationViewData:
         """
         Get full curation view data for a report.
 
         Returns:
-            Dict with:
-            - report: Report content with originals for comparison
+            CurationViewData dataclass with:
+            - report: Report model
+            - stream: ResearchStream model
             - included_articles: Visible articles in the report (curator_excluded=False)
-            - filtered_articles: Articles available for inclusion (not in report, not duplicate)
-            - duplicate_articles: Stats only (not actionable)
-            - curated_articles: Articles with curator overrides
+            - filtered_articles: WipArticle models available for inclusion
+            - curated_articles: WipArticle models with curator overrides
             - categories: Stream's presentation categories
+            - stats: CurationStats dataclass
 
         Raises:
             HTTPException: 404 if report not found or user doesn't have access
@@ -1295,35 +1413,15 @@ class ReportService:
         # Get VISIBLE articles (curator_excluded=False)
         visible_associations = self.association_service.get_visible_for_report(report_id)
 
-        included_articles = []
-        for assoc in visible_associations:
-            article = assoc.article
-            included_articles.append({
-                'article_id': article.article_id,
-                'pmid': article.pmid,
-                'doi': article.doi,
-                'title': article.title,
-                'authors': article.authors,
-                'journal': article.journal,
-                'year': article.year,
-                'abstract': article.abstract,
-                'url': article.url,
-                # Association data
-                'ranking': assoc.ranking,
-                'original_ranking': assoc.original_ranking,
-                'presentation_categories': assoc.presentation_categories or [],
-                'original_presentation_categories': assoc.original_presentation_categories or [],
-                'ai_summary': assoc.ai_summary,
-                'original_ai_summary': assoc.original_ai_summary,
-                'relevance_score': assoc.relevance_score,
-                'curation_notes': assoc.curation_notes,
-                'curated_by': assoc.curated_by,
-                'curated_at': assoc.curated_at.isoformat() if assoc.curated_at else None,
-            })
+        # Build included articles as dataclasses with models
+        included_articles = [
+            IncludedArticleData(article=assoc.article, association=assoc)
+            for assoc in visible_associations
+        ]
 
         # Get WIP articles for this execution and compute stats
-        filtered_articles = []
-        curated_articles = []
+        filtered_articles: List[WipArticle] = []
+        curated_articles: List[WipArticle] = []
 
         # Pipeline stats (what pipeline originally decided)
         pipeline_included_count = 0  # passed_filter AND NOT duplicate
@@ -1353,76 +1451,35 @@ class ReportService:
                 if wip.curator_excluded:
                     curator_removed_count += 1
 
-                wip_data = {
-                    'wip_article_id': wip.id,
-                    'pmid': wip.pmid,
-                    'doi': wip.doi,
-                    'title': wip.title,
-                    'authors': wip.authors,
-                    'journal': wip.journal,
-                    'year': wip.year,
-                    'abstract': wip.abstract,
-                    'url': wip.url,
-                    'filter_score': wip.filter_score,
-                    'filter_score_reason': wip.filter_score_reason,
-                    'passed_semantic_filter': wip.passed_semantic_filter,
-                    'is_duplicate': wip.is_duplicate,
-                    'duplicate_of_pmid': wip.duplicate_of_pmid,
-                    'included_in_report': wip.included_in_report,
-                    'curator_included': wip.curator_included,
-                    'curator_excluded': wip.curator_excluded,
-                    'curation_notes': wip.curation_notes,
-                    'presentation_categories': wip.presentation_categories or [],
-                }
-
                 # Filtered = not currently visible in report
                 if not wip.included_in_report:
-                    filtered_articles.append(wip_data)
+                    filtered_articles.append(wip)
 
                 # Curated = has curator override
                 if wip.curator_included or wip.curator_excluded:
-                    curated_articles.append(wip_data)
+                    curated_articles.append(wip)
 
         # Current count = pipeline_included - curator_removed + curator_added
         current_included_count = len(included_articles)
 
-        # Build report data with originals
-        enrichments = report.enrichments or {}
-        original_enrichments = report.original_enrichments or {}
+        stats = CurationStats(
+            pipeline_included=pipeline_included_count,
+            pipeline_filtered=pipeline_filtered_count,
+            pipeline_duplicates=pipeline_duplicate_count,
+            current_included=current_included_count,
+            curator_added=curator_added_count,
+            curator_removed=curator_removed_count,
+        )
 
-        report_data = {
-            'report_id': report.report_id,
-            'report_name': report.report_name,
-            'original_report_name': report.original_report_name,
-            'report_date': report.report_date.isoformat() if report.report_date else None,
-            'approval_status': report.approval_status.value if report.approval_status else None,
-            'executive_summary': enrichments.get('executive_summary', ''),
-            'original_executive_summary': original_enrichments.get('executive_summary', ''),
-            'category_summaries': enrichments.get('category_summaries', {}),
-            'original_category_summaries': original_enrichments.get('category_summaries', {}),
-            'has_curation_edits': report.has_curation_edits,
-            'last_curated_by': report.last_curated_by,
-            'last_curated_at': report.last_curated_at.isoformat() if report.last_curated_at else None,
-        }
-
-        return {
-            'report': report_data,
-            'included_articles': included_articles,
-            'filtered_articles': filtered_articles,
-            'duplicate_articles': [],  # Not sent - duplicates not actionable
-            'curated_articles': curated_articles,
-            'categories': categories,
-            'stream_name': stream.stream_name if stream else None,
-            # Pipeline stats (what pipeline originally decided)
-            'stats': {
-                'pipeline_included': pipeline_included_count,
-                'pipeline_filtered': pipeline_filtered_count,
-                'pipeline_duplicates': pipeline_duplicate_count,
-                'current_included': current_included_count,
-                'curator_added': curator_added_count,
-                'curator_removed': curator_removed_count,
-            }
-        }
+        return CurationViewData(
+            report=report,
+            stream=stream,
+            included_articles=included_articles,
+            filtered_articles=filtered_articles,
+            curated_articles=curated_articles,
+            categories=categories,
+            stats=stats,
+        )
 
     def update_report_content(
         self,
@@ -1431,7 +1488,7 @@ class ReportService:
         title: Optional[str] = None,
         executive_summary: Optional[str] = None,
         category_summaries: Optional[Dict[str, str]] = None
-    ) -> Dict[str, Any]:
+    ) -> ReportContentUpdateResult:
         """
         Update report content (title, summaries) for curation.
 
@@ -1490,12 +1547,12 @@ class ReportService:
 
             self.db.commit()
 
-        return {
-            'report_name': report.report_name,
-            'executive_summary': enrichments.get('executive_summary', ''),
-            'category_summaries': enrichments.get('category_summaries', {}),
-            'has_curation_edits': report.has_curation_edits,
-        }
+        return ReportContentUpdateResult(
+            report_name=report.report_name,
+            executive_summary=enrichments.get('executive_summary', ''),
+            category_summaries=enrichments.get('category_summaries', {}),
+            has_curation_edits=report.has_curation_edits,
+        )
 
     def exclude_article(
         self,
@@ -1503,7 +1560,7 @@ class ReportService:
         article_id: int,
         user_id: int,
         notes: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> ExcludeArticleResult:
         """
         Curator excludes an article from the report.
 
@@ -1520,11 +1577,11 @@ class ReportService:
 
         # Already excluded?
         if association.curator_excluded:
-            return {
-                'article_id': article_id,
-                'excluded': True,
-                'wip_article_updated': False,
-            }
+            return ExcludeArticleResult(
+                article_id=article_id,
+                excluded=True,
+                wip_article_updated=False,
+            )
 
         # Set the excluded flag (preserves all association data)
         self.association_service.set_excluded(association, True, user_id, notes)
@@ -1559,11 +1616,11 @@ class ReportService:
 
         self.db.commit()
 
-        return {
-            'article_id': article_id,
-            'excluded': True,
-            'wip_article_updated': wip_article is not None,
-        }
+        return ExcludeArticleResult(
+            article_id=article_id,
+            excluded=True,
+            wip_article_updated=wip_article is not None,
+        )
 
     def include_article(
         self,
@@ -1572,7 +1629,7 @@ class ReportService:
         user_id: int,
         category: Optional[str] = None,
         notes: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> IncludeArticleResult:
         """
         Curator includes a filtered article into the report.
 
@@ -1646,13 +1703,13 @@ class ReportService:
 
         self.db.commit()
 
-        return {
-            'article_id': article.article_id,
-            'wip_article_id': wip_article_id,
-            'included': True,
-            'ranking': new_ranking,
-            'category': category,
-        }
+        return IncludeArticleResult(
+            article_id=article.article_id,
+            wip_article_id=wip_article_id,
+            included=True,
+            ranking=new_ranking,
+            category=category,
+        )
 
     def _find_or_create_article_from_wip(self, wip_article: WipArticle) -> Article:
         """
@@ -1698,7 +1755,7 @@ class ReportService:
         report_id: int,
         wip_article_id: int,
         user_id: int
-    ) -> Dict[str, Any]:
+    ) -> ResetCurationResult:
         """
         Reset curation for an article, restoring it to the pipeline's original decision.
 
@@ -1727,11 +1784,11 @@ class ReportService:
         was_curator_excluded = wip_article.curator_excluded
 
         if not was_curator_included and not was_curator_excluded:
-            return {
-                'wip_article_id': wip_article_id,
-                'reset': False,
-                'message': 'Article has no curation overrides to reset'
-            }
+            return ResetCurationResult(
+                wip_article_id=wip_article_id,
+                reset=False,
+                message='Article has no curation overrides to reset'
+            )
 
         # Find the Article record
         article = None
@@ -1774,14 +1831,14 @@ class ReportService:
 
         self.db.commit()
 
-        return {
-            'wip_article_id': wip_article_id,
-            'reset': True,
-            'was_curator_included': was_curator_included,
-            'was_curator_excluded': was_curator_excluded,
-            'pipeline_decision': pipeline_would_include,
-            'now_in_report': pipeline_would_include,
-        }
+        return ResetCurationResult(
+            wip_article_id=wip_article_id,
+            reset=True,
+            was_curator_included=was_curator_included,
+            was_curator_excluded=was_curator_excluded,
+            pipeline_decision=pipeline_would_include,
+            now_in_report=pipeline_would_include,
+        )
 
     def update_article_in_report(
         self,
@@ -1792,7 +1849,7 @@ class ReportService:
         category: Optional[str] = None,
         ai_summary: Optional[str] = None,
         curation_notes: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> UpdateArticleResult:
         """
         Edit an article within the report (ranking, category, AI summary).
 
@@ -1859,20 +1916,20 @@ class ReportService:
 
             self.db.commit()
 
-        return {
-            'article_id': article_id,
-            'ranking': association.ranking,
-            'presentation_categories': association.presentation_categories,
-            'ai_summary': association.ai_summary,
-            'curation_notes': association.curation_notes,
-        }
+        return UpdateArticleResult(
+            article_id=article_id,
+            ranking=association.ranking,
+            presentation_categories=association.presentation_categories or [],
+            ai_summary=association.ai_summary,
+            curation_notes=association.curation_notes,
+        )
 
     def approve_report(
         self,
         report_id: int,
         user_id: int,
         notes: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> ApproveReportResult:
         """
         Approve a report for publication.
 
@@ -1912,19 +1969,19 @@ class ReportService:
 
         self.db.commit()
 
-        return {
-            'report_id': report_id,
-            'approval_status': 'approved',
-            'approved_by': user_id,
-            'approved_at': report.approved_at.isoformat(),
-        }
+        return ApproveReportResult(
+            report_id=report_id,
+            approval_status='approved',
+            approved_by=user_id,
+            approved_at=report.approved_at.isoformat(),
+        )
 
     def reject_report(
         self,
         report_id: int,
         user_id: int,
         reason: str
-    ) -> Dict[str, Any]:
+    ) -> RejectReportResult:
         """
         Reject a report with a reason.
 
@@ -1953,13 +2010,13 @@ class ReportService:
 
         self.db.commit()
 
-        return {
-            'report_id': report_id,
-            'approval_status': 'rejected',
-            'rejection_reason': reason,
-            'rejected_by': user_id,
-            'rejected_at': report.approved_at.isoformat(),
-        }
+        return RejectReportResult(
+            report_id=report_id,
+            approval_status='rejected',
+            rejection_reason=reason,
+            rejected_by=user_id,
+            rejected_at=report.approved_at.isoformat(),
+        )
 
     # =========================================================================
     # COMMIT Operations

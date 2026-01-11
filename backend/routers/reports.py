@@ -328,7 +328,15 @@ async def get_recent_reports(
 
     try:
         service = ReportService(db)
-        reports = service.get_recent_reports(current_user.user_id, limit)
+        results = service.get_recent_reports(current_user.user_id, limit)
+
+        # Convert model + article_count to schema
+        reports = [
+            Report.model_validate(r.report, from_attributes=True).model_copy(
+                update={'article_count': r.article_count}
+            )
+            for r in results
+        ]
 
         logger.info(f"get_recent_reports complete - user_id={current_user.user_id}, count={len(reports)}")
         return reports
@@ -354,7 +362,15 @@ async def get_reports_for_stream(
 
     try:
         service = ReportService(db)
-        reports = service.get_reports_for_stream(stream_id, current_user.user_id)
+        results = service.get_reports_for_stream(stream_id, current_user.user_id)
+
+        # Convert model + article_count to schema
+        reports = [
+            Report.model_validate(r.report, from_attributes=True).model_copy(
+                update={'article_count': r.article_count}
+            )
+            for r in results
+        ]
 
         logger.info(f"get_reports_for_stream complete - user_id={current_user.user_id}, stream_id={stream_id}, count={len(reports)}")
         return reports
@@ -380,14 +396,19 @@ async def get_latest_report_for_stream(
 
     try:
         service = ReportService(db)
-        report = service.get_latest_report_for_stream(stream_id, current_user.user_id)
+        result = service.get_latest_report_for_stream(stream_id, current_user.user_id)
 
-        if not report:
+        if not result:
             logger.warning(f"get_latest_report_for_stream - no reports found - user_id={current_user.user_id}, stream_id={stream_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No reports found for this research stream"
             )
+
+        # Convert model + article_count to schema
+        report = Report.model_validate(result.report, from_attributes=True).model_copy(
+            update={'article_count': result.article_count}
+        )
 
         logger.info(f"get_latest_report_for_stream complete - user_id={current_user.user_id}, stream_id={stream_id}, report_id={report.report_id}")
         return report
@@ -413,18 +434,56 @@ async def get_report_with_articles(
     logger.info(f"get_report_with_articles - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        service = ReportService(db)
-        report = service.get_report_with_articles(report_id, current_user.user_id)
+        from schemas.report import ReportArticle as ReportArticleSchema
 
-        if not report:
+        service = ReportService(db)
+        result = service.get_report_with_articles(report_id, current_user.user_id)
+
+        if not result:
             logger.warning(f"get_report_with_articles - not found - user_id={current_user.user_id}, report_id={report_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Report not found"
             )
 
+        # Convert model to schema
+        report_schema = Report.model_validate(result.report, from_attributes=True).model_copy(
+            update={'article_count': result.article_count}
+        )
+
+        # Convert articles with association metadata
+        articles = [
+            ReportArticleSchema(
+                article_id=info.article.article_id,
+                title=info.article.title,
+                authors=info.article.authors or [],
+                journal=info.article.journal,
+                publication_date=info.article.publication_date.isoformat() if info.article.publication_date else None,
+                pmid=info.article.pmid,
+                doi=info.article.doi,
+                abstract=info.article.abstract,
+                url=info.article.url,
+                year=str(info.article.year) if info.article.year else None,
+                relevance_score=info.association.relevance_score,
+                relevance_rationale=info.association.relevance_rationale,
+                ranking=info.association.ranking,
+                is_starred=info.association.is_starred,
+                is_read=info.association.is_read,
+                notes=info.association.notes,
+                presentation_categories=info.association.presentation_categories or [],
+                ai_enrichments=info.association.ai_enrichments,
+            )
+            for info in result.articles
+        ]
+
+        # Build response with articles
+        response = ReportWithArticles(
+            **report_schema.model_dump(),
+            articles=articles
+        )
+
         logger.info(f"get_report_with_articles complete - user_id={current_user.user_id}, report_id={report_id}")
-        return report
+        return response
 
     except HTTPException:
         raise
@@ -536,7 +595,7 @@ async def update_article_notes(
             )
 
         logger.info(f"update_article_notes complete - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
-        return UpdateSuccessResponse(status="ok", **result)
+        return UpdateSuccessResponse(status="ok", **asdict(result))
 
     except HTTPException:
         raise
@@ -573,7 +632,7 @@ async def update_article_enrichments(
             )
 
         logger.info(f"update_article_enrichments complete - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
-        return UpdateSuccessResponse(status="ok", **result)
+        return UpdateSuccessResponse(status="ok", **asdict(result))
 
     except HTTPException:
         raise
@@ -607,7 +666,7 @@ async def get_article_metadata(
             )
 
         logger.info(f"get_article_metadata complete - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
-        return result
+        return ArticleMetadataResponse(**asdict(result))
 
     except HTTPException:
         raise
@@ -821,9 +880,113 @@ async def get_curation_view(
 
     try:
         service = ReportService(db)
-        result = service.get_curation_view(report_id, current_user.user_id)
+        data = service.get_curation_view(report_id, current_user.user_id)
+
+        # Convert Report model to CurationReportData
+        enrichments = data.report.enrichments or {}
+        original_enrichments = data.report.original_enrichments or {}
+        report_data = CurationReportData(
+            report_id=data.report.report_id,
+            report_name=data.report.report_name,
+            original_report_name=data.report.original_report_name,
+            report_date=data.report.report_date.isoformat() if data.report.report_date else None,
+            approval_status=data.report.approval_status.value if data.report.approval_status else None,
+            executive_summary=enrichments.get('executive_summary', ''),
+            original_executive_summary=original_enrichments.get('executive_summary', ''),
+            category_summaries=enrichments.get('category_summaries', {}),
+            original_category_summaries=original_enrichments.get('category_summaries', {}),
+            has_curation_edits=data.report.has_curation_edits or False,
+            last_curated_by=data.report.last_curated_by,
+            last_curated_at=data.report.last_curated_at.isoformat() if data.report.last_curated_at else None,
+        )
+
+        # Convert IncludedArticleData to CurationIncludedArticle
+        included_articles = [
+            CurationIncludedArticle(
+                article_id=item.article.article_id,
+                pmid=item.article.pmid,
+                doi=item.article.doi,
+                title=item.article.title,
+                authors=item.article.authors,
+                journal=item.article.journal,
+                year=item.article.year,
+                abstract=item.article.abstract,
+                url=item.article.url,
+                ranking=item.association.ranking,
+                original_ranking=item.association.original_ranking,
+                presentation_categories=item.association.presentation_categories or [],
+                original_presentation_categories=item.association.original_presentation_categories or [],
+                ai_summary=item.association.ai_summary,
+                original_ai_summary=item.association.original_ai_summary,
+                relevance_score=item.association.relevance_score,
+                curation_notes=item.association.curation_notes,
+                curated_by=item.association.curated_by,
+                curated_at=item.association.curated_at.isoformat() if item.association.curated_at else None,
+            )
+            for item in data.included_articles
+        ]
+
+        # Convert WipArticle models to CurationFilteredArticle
+        def wip_to_filtered(wip) -> CurationFilteredArticle:
+            return CurationFilteredArticle(
+                wip_article_id=wip.id,
+                pmid=wip.pmid,
+                doi=wip.doi,
+                title=wip.title,
+                authors=wip.authors,
+                journal=wip.journal,
+                year=wip.year,
+                abstract=wip.abstract,
+                url=wip.url,
+                filter_score=wip.filter_score,
+                filter_score_reason=wip.filter_score_reason,
+                passed_semantic_filter=wip.passed_semantic_filter,
+                is_duplicate=wip.is_duplicate or False,
+                duplicate_of_pmid=wip.duplicate_of_pmid,
+                included_in_report=wip.included_in_report or False,
+                curator_included=wip.curator_included or False,
+                curator_excluded=wip.curator_excluded or False,
+                curation_notes=wip.curation_notes,
+                presentation_categories=wip.presentation_categories or [],
+            )
+
+        filtered_articles = [wip_to_filtered(wip) for wip in data.filtered_articles]
+        curated_articles = [wip_to_filtered(wip) for wip in data.curated_articles]
+
+        # Convert categories
+        categories = [
+            CurationCategory(
+                id=cat.get('id', ''),
+                name=cat.get('name', ''),
+                color=cat.get('color'),
+                description=cat.get('description'),
+            )
+            for cat in data.categories
+        ]
+
+        # Convert stats dataclass
+        stats = CurationStats(
+            pipeline_included=data.stats.pipeline_included,
+            pipeline_filtered=data.stats.pipeline_filtered,
+            pipeline_duplicates=data.stats.pipeline_duplicates,
+            current_included=data.stats.current_included,
+            curator_added=data.stats.curator_added,
+            curator_removed=data.stats.curator_removed,
+        )
+
+        response = CurationViewResponse(
+            report=report_data,
+            included_articles=included_articles,
+            filtered_articles=filtered_articles,
+            duplicate_articles=[],
+            curated_articles=curated_articles,
+            categories=categories,
+            stream_name=data.stream.stream_name if data.stream else None,
+            stats=stats,
+        )
+
         logger.info(f"get_curation_view complete - user_id={current_user.user_id}, report_id={report_id}")
-        return result
+        return response
 
     except HTTPException:
         raise
@@ -857,7 +1020,7 @@ async def update_report_content(
             category_summaries=request.category_summaries
         )
         logger.info(f"update_report_content complete - user_id={current_user.user_id}, report_id={report_id}")
-        return result
+        return UpdateReportContentResponse(**asdict(result))
 
     except HTTPException:
         raise
@@ -894,7 +1057,7 @@ async def exclude_article(
             notes=request.notes
         )
         logger.info(f"exclude_article complete - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
-        return result
+        return ExcludeArticleResponse(**asdict(result))
 
     except HTTPException:
         raise
@@ -931,8 +1094,8 @@ async def include_article(
             category=request.category,
             notes=request.notes
         )
-        logger.info(f"include_article complete - user_id={current_user.user_id}, report_id={report_id}, article_id={result.get('article_id')}")
-        return result
+        logger.info(f"include_article complete - user_id={current_user.user_id}, report_id={report_id}, article_id={result.article_id}")
+        return IncludeArticleResponse(**asdict(result))
 
     except HTTPException:
         raise
@@ -967,8 +1130,8 @@ async def reset_curation(
             wip_article_id=wip_article_id,
             user_id=current_user.user_id
         )
-        logger.info(f"reset_curation complete - user_id={current_user.user_id}, report_id={report_id}, result={result}")
-        return result
+        logger.info(f"reset_curation complete - user_id={current_user.user_id}, report_id={report_id}")
+        return ResetCurationResponse(**asdict(result))
 
     except HTTPException:
         raise
@@ -1005,7 +1168,7 @@ async def update_article_in_report(
             curation_notes=request.curation_notes
         )
         logger.info(f"update_article_in_report complete - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
-        return result
+        return UpdateArticleResponse(**asdict(result))
 
     except HTTPException:
         raise
@@ -1037,7 +1200,7 @@ async def approve_report(
             notes=request.notes
         )
         logger.info(f"approve_report complete - user_id={current_user.user_id}, report_id={report_id}")
-        return result
+        return ApproveReportResponse(**asdict(result))
 
     except HTTPException:
         raise
@@ -1069,7 +1232,7 @@ async def reject_report(
             reason=request.reason
         )
         logger.info(f"reject_report complete - user_id={current_user.user_id}, report_id={report_id}")
-        return result
+        return RejectReportResponse(**asdict(result))
 
     except HTTPException:
         raise
