@@ -131,7 +131,7 @@ export const reportApi = {
      * Get curation view for a report
      * Returns report content, included articles, filtered articles, and duplicates
      */
-    async getCurationView(reportId: number): Promise<CurationView> {
+    async getCurationView(reportId: number): Promise<CurationViewResponse> {
         const response = await api.get(`/api/reports/${reportId}/curation`);
         return response.data;
     },
@@ -186,34 +186,46 @@ export const reportApi = {
 // Curation Types
 // =========================================================================
 
-export interface CurationView {
+/**
+ * Backend curation view response structure
+ */
+export interface CurationViewResponse {
+    report: CurationReportData;
+    included_articles: CurationIncludedArticle[];
+    filtered_articles: CurationFilteredArticle[];
+    duplicate_articles: CurationFilteredArticle[];
+    curated_articles: CurationFilteredArticle[];
+    categories: CurationCategory[];
+    stream_name: string | null;
+}
+
+export interface CurationReportData {
     report_id: number;
     report_name: string;
     original_report_name: string | null;
-    stream_name: string;
-    approval_status: string;
+    report_date: string | null;
+    approval_status: string | null;
+    executive_summary: string;
+    original_executive_summary: string;
+    category_summaries: Record<string, string>;
+    original_category_summaries: Record<string, string>;
     has_curation_edits: boolean;
-    created_at: string;
-    date_range: string;
-    executive_summary: string | null;
-    original_enrichments: Record<string, unknown> | null;
-    categories: CurationCategory[];
-    included_articles: CurationArticle[];
-    filtered_articles: CurationArticle[];
-    duplicate_articles: CurationArticle[];
+    last_curated_by: number | null;
+    last_curated_at: string | null;
 }
 
 export interface CurationCategory {
     id: string;
     name: string;
-    summary: string | null;
-    article_count: number;
+    color?: string;
+    description?: string;
 }
 
-export interface CurationArticle {
-    id: number;  // WipArticle ID or Article ID depending on context
-    wip_article_id?: number;
-    article_id?: number;
+/**
+ * Included article (from ReportArticleAssociation + Article)
+ */
+export interface CurationIncludedArticle {
+    article_id: number;
     pmid: string | null;
     doi: string | null;
     title: string;
@@ -221,13 +233,43 @@ export interface CurationArticle {
     journal: string | null;
     year: number | null;
     abstract: string | null;
-    category_id: string | null;
+    url: string | null;
+    // Association data
+    ranking: number | null;
+    original_ranking: number | null;
+    presentation_categories: string[];
+    original_presentation_categories: string[];
+    ai_summary: string | null;
+    original_ai_summary: string | null;
+    relevance_score: number | null;
+    curation_notes: string | null;
+    curated_by: number | null;
+    curated_at: string | null;
+}
+
+/**
+ * Filtered/duplicate article (from WipArticle)
+ */
+export interface CurationFilteredArticle {
+    wip_article_id: number;
+    pmid: string | null;
+    doi: string | null;
+    title: string;
+    authors: string[];
+    journal: string | null;
+    year: number | null;
+    abstract: string | null;
+    url: string | null;
     filter_score: number | null;
     filter_score_reason: string | null;
+    passed_semantic_filter: boolean | null;
     is_duplicate: boolean;
     duplicate_of_pmid: string | null;
+    included_in_report: boolean;
     curator_included: boolean;
     curator_excluded: boolean;
+    curation_notes: string | null;
+    presentation_categories: string[];
 }
 
 export interface ReportContentUpdate {
