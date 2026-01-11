@@ -610,13 +610,6 @@ async def get_curation_view(
     try:
         service = ReportService(db)
         result = service.get_curation_view(report_id, current_user.user_id)
-
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found"
-            )
-
         logger.info(f"get_curation_view complete - user_id={current_user.user_id}, report_id={report_id}")
         return result
 
@@ -651,13 +644,6 @@ async def update_report_content(
             executive_summary=request.executive_summary,
             category_summaries=request.category_summaries
         )
-
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found"
-            )
-
         logger.info(f"update_report_content complete - user_id={current_user.user_id}, report_id={report_id}")
         return result
 
@@ -695,13 +681,6 @@ async def exclude_article(
             user_id=current_user.user_id,
             notes=request.notes
         )
-
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report or article not found"
-            )
-
         logger.info(f"exclude_article complete - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
         return result
 
@@ -740,19 +719,6 @@ async def include_article(
             category=request.category,
             notes=request.notes
         )
-
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report or WIP article not found"
-            )
-
-        if 'error' in result:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=result['error']
-            )
-
         logger.info(f"include_article complete - user_id={current_user.user_id}, report_id={report_id}, article_id={result.get('article_id')}")
         return result
 
@@ -790,13 +756,6 @@ async def update_article_in_report(
             ai_summary=request.ai_summary,
             curation_notes=request.curation_notes
         )
-
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report or article not found"
-            )
-
         logger.info(f"update_article_in_report complete - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
         return result
 
@@ -829,19 +788,6 @@ async def approve_report(
             user_id=current_user.user_id,
             notes=request.notes
         )
-
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found"
-            )
-
-        if 'error' in result:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=result['error']
-            )
-
         logger.info(f"approve_report complete - user_id={current_user.user_id}, report_id={report_id}")
         return result
 
@@ -874,13 +820,6 @@ async def reject_report(
             user_id=current_user.user_id,
             reason=request.reason
         )
-
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found"
-            )
-
         logger.info(f"reject_report complete - user_id={current_user.user_id}, report_id={report_id}")
         return result
 

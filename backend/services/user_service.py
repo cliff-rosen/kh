@@ -94,8 +94,29 @@ class UserService:
     # ==================== Read Operations ====================
 
     def get_user_by_id(self, user_id: int) -> Optional[UserModel]:
-        """Get user by ID."""
+        """Get user by ID. Returns None if not found."""
         return self.db.query(UserModel).filter(UserModel.user_id == user_id).first()
+
+    def get_user_or_404(self, user_id: int) -> UserModel:
+        """
+        Get user by ID, raising 404 if not found.
+
+        Args:
+            user_id: The user ID to look up
+
+        Returns:
+            User model instance
+
+        Raises:
+            HTTPException: 404 if user not found
+        """
+        user = self.db.query(UserModel).filter(UserModel.user_id == user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        return user
 
     def get_user_by_email(self, email: str) -> Optional[UserModel]:
         """Get user by email."""

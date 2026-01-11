@@ -39,6 +39,7 @@ class ReportService:
     def __init__(self, db: Session):
         self.db = db
         self._user_service: Optional[UserService] = None
+        self._stream_service = None  # Lazy-loaded to avoid circular import
 
     @property
     def user_service(self) -> UserService:
@@ -46,6 +47,35 @@ class ReportService:
         if self._user_service is None:
             self._user_service = UserService(self.db)
         return self._user_service
+
+    @property
+    def stream_service(self):
+        """Lazy-load ResearchStreamService."""
+        if self._stream_service is None:
+            from services.research_stream_service import ResearchStreamService
+            self._stream_service = ResearchStreamService(self.db)
+        return self._stream_service
+
+    def get_report_or_404(self, report_id: int) -> Report:
+        """
+        Get a report by ID, raising 404 if not found.
+
+        Args:
+            report_id: The report ID to look up
+
+        Returns:
+            Report model instance
+
+        Raises:
+            HTTPException: 404 if report not found
+        """
+        report = self.db.query(Report).filter(Report.report_id == report_id).first()
+        if not report:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+        return report
 
     def _user_has_stream_access(self, user: User, stream: ResearchStream) -> bool:
         """
@@ -137,23 +167,11 @@ class ReportService:
         Raises:
             HTTPException: 404 if report not found or user doesn't have access
         """
-        report = self.db.query(Report).filter(
-            Report.report_id == report_id
-        ).first()
+        report = self.get_report_or_404(report_id)
+        user = self.user_service.get_user_or_404(user_id)
+        stream = self.stream_service.get_stream_or_404(report.research_stream_id)
 
-        if not report:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found"
-            )
-
-        # Check stream access
-        user = self.user_service.get_user_by_id(user_id)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == report.research_stream_id
-        ).first()
-
-        if not user or not self._user_has_stream_access(user, stream):
+        if not self._user_has_stream_access(user, stream):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Report not found"
@@ -1150,7 +1168,37 @@ class ReportService:
     # CURATION Operations
     # =========================================================================
 
-    def get_curation_view(self, report_id: int, user_id: int) -> Optional[Dict[str, Any]]:
+    def _get_report_for_curation(
+        self,
+        report_id: int,
+        user_id: int
+    ) -> tuple[Report, User, ResearchStream]:
+        """
+        Get report with access verification for curation operations.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID
+
+        Returns:
+            Tuple of (report, user, stream)
+
+        Raises:
+            HTTPException: 404 if report not found or user doesn't have access
+        """
+        report = self.get_report_or_404(report_id)
+        user = self.user_service.get_user_or_404(user_id)
+        stream = self.stream_service.get_stream_or_404(report.research_stream_id)
+
+        if not self._user_has_stream_access(user, stream):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+
+        return report, user, stream
+
+    def get_curation_view(self, report_id: int, user_id: int) -> Dict[str, Any]:
         """
         Get full curation view data for a report.
 
@@ -1162,19 +1210,11 @@ class ReportService:
             - duplicate_articles: Articles marked as duplicates
             - curated_articles: Articles with curator overrides
             - categories: Stream's presentation categories
+
+        Raises:
+            HTTPException: 404 if report not found or user doesn't have access
         """
-        report = self.db.query(Report).filter(Report.report_id == report_id).first()
-        if not report:
-            return None
-
-        # Check stream access
-        user = self.user_service.get_user_by_id(user_id)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == report.research_stream_id
-        ).first()
-
-        if not user or not self._user_has_stream_access(user, stream):
-            return None
+        report, user, stream = self._get_report_for_curation(report_id, user_id)
 
         # Get categories from stream config
         categories = []
@@ -1295,25 +1335,17 @@ class ReportService:
         title: Optional[str] = None,
         executive_summary: Optional[str] = None,
         category_summaries: Optional[Dict[str, str]] = None
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """
         Update report content (title, summaries) for curation.
 
         Sets has_curation_edits=True and records curator info.
         Creates CurationEvent for audit trail.
+
+        Raises:
+            HTTPException: 404 if report not found or user doesn't have access
         """
-        report = self.db.query(Report).filter(Report.report_id == report_id).first()
-        if not report:
-            return None
-
-        # Check stream access
-        user = self.user_service.get_user_by_id(user_id)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == report.research_stream_id
-        ).first()
-
-        if not user or not self._user_has_stream_access(user, stream):
-            return None
+        report, user, stream = self._get_report_for_curation(report_id, user_id)
 
         # Import CurationEvent here to avoid circular imports
         from models import CurationEvent
@@ -1375,26 +1407,18 @@ class ReportService:
         article_id: int,
         user_id: int,
         notes: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """
         Curator excludes an article from the report.
 
         - Deletes ReportArticleAssociation
         - Updates WipArticle: included_in_report=False, curator_excluded=True
         - Creates CurationEvent for audit trail
+
+        Raises:
+            HTTPException: 404 if report or article not found, or user doesn't have access
         """
-        report = self.db.query(Report).filter(Report.report_id == report_id).first()
-        if not report:
-            return None
-
-        # Check stream access
-        user = self.user_service.get_user_by_id(user_id)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == report.research_stream_id
-        ).first()
-
-        if not user or not self._user_has_stream_access(user, stream):
-            return None
+        report, user, stream = self._get_report_for_curation(report_id, user_id)
 
         # Find the association
         association = self.db.query(ReportArticleAssociation).filter(
@@ -1405,7 +1429,10 @@ class ReportService:
         ).first()
 
         if not association:
-            return None
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Article not found in report"
+            )
 
         # Get the article for PMID lookup
         article = self.db.query(Article).filter(Article.article_id == article_id).first()
@@ -1467,7 +1494,7 @@ class ReportService:
         user_id: int,
         category: Optional[str] = None,
         notes: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """
         Curator includes a filtered article into the report.
 
@@ -1475,19 +1502,12 @@ class ReportService:
         - Creates ReportArticleAssociation
         - Updates WipArticle: included_in_report=True, curator_included=True
         - Creates CurationEvent for audit trail
+
+        Raises:
+            HTTPException: 404 if report or WIP article not found
+            HTTPException: 400 if article is already in the report
         """
-        report = self.db.query(Report).filter(Report.report_id == report_id).first()
-        if not report:
-            return None
-
-        # Check stream access
-        user = self.user_service.get_user_by_id(user_id)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == report.research_stream_id
-        ).first()
-
-        if not user or not self._user_has_stream_access(user, stream):
-            return None
+        report, user, stream = self._get_report_for_curation(report_id, user_id)
 
         # Find the WipArticle
         wip_article = self.db.query(WipArticle).filter(
@@ -1498,11 +1518,17 @@ class ReportService:
         ).first()
 
         if not wip_article:
-            return None
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="WIP article not found for this report"
+            )
 
         # Check if already included
         if wip_article.included_in_report:
-            return {'error': 'Article is already in the report'}
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Article is already in the report"
+            )
 
         # Find or create Article record
         article = None
@@ -1600,24 +1626,16 @@ class ReportService:
         category: Optional[str] = None,
         ai_summary: Optional[str] = None,
         curation_notes: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """
         Edit an article within the report (ranking, category, AI summary).
 
         Updates ReportArticleAssociation and creates CurationEvent.
+
+        Raises:
+            HTTPException: 404 if report or article not found
         """
-        report = self.db.query(Report).filter(Report.report_id == report_id).first()
-        if not report:
-            return None
-
-        # Check stream access
-        user = self.user_service.get_user_by_id(user_id)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == report.research_stream_id
-        ).first()
-
-        if not user or not self._user_has_stream_access(user, stream):
-            return None
+        report, user, stream = self._get_report_for_curation(report_id, user_id)
 
         # Find the association
         association = self.db.query(ReportArticleAssociation).filter(
@@ -1628,7 +1646,10 @@ class ReportService:
         ).first()
 
         if not association:
-            return None
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Article not found in report"
+            )
 
         # Import CurationEvent
         from models import CurationEvent
@@ -1696,24 +1717,17 @@ class ReportService:
         report_id: int,
         user_id: int,
         notes: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """
         Approve a report for publication.
 
         Validates report has at least one article, then sets approval_status.
+
+        Raises:
+            HTTPException: 404 if report not found
+            HTTPException: 400 if report has no articles
         """
-        report = self.db.query(Report).filter(Report.report_id == report_id).first()
-        if not report:
-            return None
-
-        # Check stream access
-        user = self.user_service.get_user_by_id(user_id)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == report.research_stream_id
-        ).first()
-
-        if not user or not self._user_has_stream_access(user, stream):
-            return None
+        report, user, stream = self._get_report_for_curation(report_id, user_id)
 
         # Validate report has at least one article
         article_count = self.db.query(ReportArticleAssociation).filter(
@@ -1721,7 +1735,10 @@ class ReportService:
         ).count()
 
         if article_count == 0:
-            return {'error': 'Cannot approve report with no articles'}
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot approve report with no articles"
+            )
 
         # Update approval status
         report.approval_status = ApprovalStatus.APPROVED
@@ -1754,22 +1771,14 @@ class ReportService:
         report_id: int,
         user_id: int,
         reason: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """
         Reject a report with a reason.
+
+        Raises:
+            HTTPException: 404 if report not found
         """
-        report = self.db.query(Report).filter(Report.report_id == report_id).first()
-        if not report:
-            return None
-
-        # Check stream access
-        user = self.user_service.get_user_by_id(user_id)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == report.research_stream_id
-        ).first()
-
-        if not user or not self._user_has_stream_access(user, stream):
-            return None
+        report, user, stream = self._get_report_for_curation(report_id, user_id)
 
         # Update approval status
         report.approval_status = ApprovalStatus.REJECTED
