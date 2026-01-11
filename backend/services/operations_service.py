@@ -325,50 +325,6 @@ class OperationsService:
             rejection_reason=rejection_reason,
         )
 
-    def approve_report(self, report_id: int, user_id: int) -> Dict[str, Any]:
-        """Approve a report for distribution."""
-        logger.info(f"approve_report - user_id={user_id}, report_id={report_id}")
-
-        report = self.db.query(Report).filter(Report.report_id == report_id).first()
-        if not report:
-            logger.warning(f"Report not found for approval - report_id={report_id}, user_id={user_id}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found"
-            )
-
-        report.approval_status = ApprovalStatus.APPROVED
-        report.approved_by = user_id
-        report.approved_at = datetime.utcnow()
-        report.rejection_reason = None
-
-        self.db.commit()
-
-        logger.info(f"approve_report complete - user_id={user_id}, report_id={report_id}")
-        return {"status": "approved", "report_id": report_id}
-
-    def reject_report(self, report_id: int, user_id: int, reason: str) -> Dict[str, Any]:
-        """Reject a report with a reason."""
-        logger.info(f"reject_report - user_id={user_id}, report_id={report_id}")
-
-        report = self.db.query(Report).filter(Report.report_id == report_id).first()
-        if not report:
-            logger.warning(f"Report not found for rejection - report_id={report_id}, user_id={user_id}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found"
-            )
-
-        report.approval_status = ApprovalStatus.REJECTED
-        report.approved_by = user_id
-        report.approved_at = datetime.utcnow()
-        report.rejection_reason = reason
-
-        self.db.commit()
-
-        logger.info(f"reject_report complete - user_id={user_id}, report_id={report_id}")
-        return {"status": "rejected", "report_id": report_id, "reason": reason}
-
     # ==================== Scheduler Management ====================
 
     def get_scheduled_streams(self, user_id: int) -> List[ScheduledStreamSummary]:

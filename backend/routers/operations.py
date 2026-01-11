@@ -41,23 +41,11 @@ def get_current_user(
 
 # ==================== API-Specific Models (request/response wrappers) ====================
 
-class RejectReportRequest(BaseModel):
-    """Request to reject a report."""
-    reason: str = Field(..., min_length=1, description="Reason for rejection")
-
-
 class ExecutionQueueResponse(BaseModel):
     """Response wrapper for execution queue with pagination info."""
     executions: List[ExecutionQueueItem]
     total: int
     streams: List[StreamOption]
-
-
-class ApprovalResponse(BaseModel):
-    """Response for approve/reject operations."""
-    status: str
-    report_id: int
-    reason: Optional[str] = None
 
 
 class UpdateScheduleRequest(BaseModel):
@@ -177,67 +165,6 @@ async def get_execution_detail(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get execution detail: {str(e)}"
-        )
-
-
-@router.post(
-    "/reports/{report_id}/approve",
-    response_model=ApprovalResponse,
-    summary="Approve a report"
-)
-async def approve_report(
-    report_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Approve a report for distribution."""
-    logger.info(f"approve_report - user_id={current_user.user_id}, report_id={report_id}")
-
-    try:
-        service = OperationsService(db)
-        result = service.approve_report(report_id, current_user.user_id)
-
-        logger.info(f"approve_report complete - user_id={current_user.user_id}, report_id={report_id}")
-        return ApprovalResponse(**result)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"approve_report failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to approve report: {str(e)}"
-        )
-
-
-@router.post(
-    "/reports/{report_id}/reject",
-    response_model=ApprovalResponse,
-    summary="Reject a report"
-)
-async def reject_report(
-    report_id: int,
-    request: RejectReportRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Reject a report with a reason."""
-    logger.info(f"reject_report - user_id={current_user.user_id}, report_id={report_id}")
-
-    try:
-        service = OperationsService(db)
-        result = service.reject_report(report_id, current_user.user_id, request.reason)
-
-        logger.info(f"reject_report complete - user_id={current_user.user_id}, report_id={report_id}")
-        return ApprovalResponse(**result)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"reject_report failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to reject report: {str(e)}"
         )
 
 
