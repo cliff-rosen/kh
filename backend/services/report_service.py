@@ -890,12 +890,12 @@ class ReportService:
             if article.included_in_report:
                 groups[article.retrieval_group_id]['included'] += 1
 
-        # Get filter rejection reasons
-        rejection_reasons: Dict[str, int] = {}
+        # Get filter score reasons (for articles that were filtered out)
+        filter_reasons: Dict[str, int] = {}
         for article in wip_articles:
-            if article.filter_rejection_reason:
-                reason = article.filter_rejection_reason[:100]  # Truncate for grouping
-                rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
+            if article.filter_score_reason and article.passed_semantic_filter == False:
+                reason = article.filter_score_reason[:100]  # Truncate for grouping
+                filter_reasons[reason] = filter_reasons.get(reason, 0) + 1
 
         # Categorization stats
         category_counts: Dict[str, int] = {}
@@ -914,7 +914,8 @@ class ReportService:
                 'is_duplicate': article.is_duplicate,
                 'duplicate_of_id': article.duplicate_of_id,
                 'passed_semantic_filter': article.passed_semantic_filter,
-                'filter_rejection_reason': article.filter_rejection_reason,
+                'filter_score': article.filter_score,
+                'filter_score_reason': article.filter_score_reason,
                 'included_in_report': article.included_in_report,
                 'presentation_categories': article.presentation_categories,
                 'authors': article.authors,
@@ -938,7 +939,7 @@ class ReportService:
                 'included_in_report': included_in_report
             },
             'by_group': list(groups.values()),
-            'rejection_reasons': rejection_reasons,
+            'filter_reasons': filter_reasons,
             'category_counts': category_counts,
             'wip_articles': wip_articles_data
         }
@@ -1144,6 +1145,659 @@ class ReportService:
             categories=email_categories,
             uncategorized_articles=uncategorized
         )
+
+    # =========================================================================
+    # CURATION Operations
+    # =========================================================================
+
+    def get_curation_view(self, report_id: int, user_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get full curation view data for a report.
+
+        Returns:
+            Dict with:
+            - report: Report content with originals for comparison
+            - included_articles: Articles currently in the report
+            - filtered_articles: Articles pipeline rejected (available for inclusion)
+            - duplicate_articles: Articles marked as duplicates
+            - curated_articles: Articles with curator overrides
+            - categories: Stream's presentation categories
+        """
+        report = self.db.query(Report).filter(Report.report_id == report_id).first()
+        if not report:
+            return None
+
+        # Check stream access
+        user = self.user_service.get_user_by_id(user_id)
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == report.research_stream_id
+        ).first()
+
+        if not user or not self._user_has_stream_access(user, stream):
+            return None
+
+        # Get categories from stream config
+        categories = []
+        if stream and stream.presentation_config:
+            categories = stream.presentation_config.get('categories', [])
+
+        # Get included articles (from ReportArticleAssociation)
+        included_results = self.db.query(
+            ReportArticleAssociation, Article
+        ).join(
+            Article, Article.article_id == ReportArticleAssociation.article_id
+        ).filter(
+            ReportArticleAssociation.report_id == report_id
+        ).order_by(
+            ReportArticleAssociation.ranking
+        ).all()
+
+        included_articles = []
+        for assoc, article in included_results:
+            included_articles.append({
+                'article_id': article.article_id,
+                'pmid': article.pmid,
+                'doi': article.doi,
+                'title': article.title,
+                'authors': article.authors,
+                'journal': article.journal,
+                'year': article.year,
+                'abstract': article.abstract,
+                'url': article.url,
+                # Association data
+                'ranking': assoc.ranking,
+                'original_ranking': assoc.original_ranking,
+                'presentation_categories': assoc.presentation_categories or [],
+                'original_presentation_categories': assoc.original_presentation_categories or [],
+                'ai_summary': assoc.ai_summary,
+                'original_ai_summary': assoc.original_ai_summary,
+                'relevance_score': assoc.relevance_score,
+                'curation_notes': assoc.curation_notes,
+                'curated_by': assoc.curated_by,
+                'curated_at': assoc.curated_at.isoformat() if assoc.curated_at else None,
+            })
+
+        # Get WIP articles for this execution
+        filtered_articles = []
+        duplicate_articles = []
+        curated_articles = []
+
+        if report.pipeline_execution_id:
+            wip_articles = self.db.query(WipArticle).filter(
+                WipArticle.pipeline_execution_id == report.pipeline_execution_id
+            ).all()
+
+            for wip in wip_articles:
+                wip_data = {
+                    'wip_article_id': wip.id,
+                    'pmid': wip.pmid,
+                    'doi': wip.doi,
+                    'title': wip.title,
+                    'authors': wip.authors,
+                    'journal': wip.journal,
+                    'year': wip.year,
+                    'abstract': wip.abstract,
+                    'url': wip.url,
+                    'filter_score': wip.filter_score,
+                    'filter_score_reason': wip.filter_score_reason,
+                    'passed_semantic_filter': wip.passed_semantic_filter,
+                    'is_duplicate': wip.is_duplicate,
+                    'duplicate_of_pmid': wip.duplicate_of_pmid,
+                    'included_in_report': wip.included_in_report,
+                    'curator_included': wip.curator_included,
+                    'curator_excluded': wip.curator_excluded,
+                    'curation_notes': wip.curation_notes,
+                    'presentation_categories': wip.presentation_categories or [],
+                }
+
+                if wip.is_duplicate:
+                    duplicate_articles.append(wip_data)
+                elif not wip.included_in_report and not wip.is_duplicate:
+                    filtered_articles.append(wip_data)
+
+                # Track curated articles (curator override)
+                if wip.curator_included or wip.curator_excluded:
+                    curated_articles.append(wip_data)
+
+        # Build report data with originals
+        enrichments = report.enrichments or {}
+        original_enrichments = report.original_enrichments or {}
+
+        report_data = {
+            'report_id': report.report_id,
+            'report_name': report.report_name,
+            'original_report_name': report.original_report_name,
+            'report_date': report.report_date.isoformat() if report.report_date else None,
+            'approval_status': report.approval_status.value if report.approval_status else None,
+            'executive_summary': enrichments.get('executive_summary', ''),
+            'original_executive_summary': original_enrichments.get('executive_summary', ''),
+            'category_summaries': enrichments.get('category_summaries', {}),
+            'original_category_summaries': original_enrichments.get('category_summaries', {}),
+            'has_curation_edits': report.has_curation_edits,
+            'last_curated_by': report.last_curated_by,
+            'last_curated_at': report.last_curated_at.isoformat() if report.last_curated_at else None,
+        }
+
+        return {
+            'report': report_data,
+            'included_articles': included_articles,
+            'filtered_articles': filtered_articles,
+            'duplicate_articles': duplicate_articles,
+            'curated_articles': curated_articles,
+            'categories': categories,
+            'stream_name': stream.stream_name if stream else None,
+        }
+
+    def update_report_content(
+        self,
+        report_id: int,
+        user_id: int,
+        title: Optional[str] = None,
+        executive_summary: Optional[str] = None,
+        category_summaries: Optional[Dict[str, str]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Update report content (title, summaries) for curation.
+
+        Sets has_curation_edits=True and records curator info.
+        Creates CurationEvent for audit trail.
+        """
+        report = self.db.query(Report).filter(Report.report_id == report_id).first()
+        if not report:
+            return None
+
+        # Check stream access
+        user = self.user_service.get_user_by_id(user_id)
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == report.research_stream_id
+        ).first()
+
+        if not user or not self._user_has_stream_access(user, stream):
+            return None
+
+        # Import CurationEvent here to avoid circular imports
+        from models import CurationEvent
+        import json
+
+        changes_made = []
+
+        # Update title if provided
+        if title is not None and title != report.report_name:
+            old_value = report.report_name
+            report.report_name = title
+            changes_made.append(('report_name', old_value, title))
+
+        # Update enrichments
+        enrichments = report.enrichments or {}
+
+        if executive_summary is not None:
+            old_value = enrichments.get('executive_summary', '')
+            if executive_summary != old_value:
+                enrichments['executive_summary'] = executive_summary
+                changes_made.append(('executive_summary', old_value, executive_summary))
+
+        if category_summaries is not None:
+            old_value = enrichments.get('category_summaries', {})
+            if category_summaries != old_value:
+                enrichments['category_summaries'] = category_summaries
+                changes_made.append(('category_summaries', json.dumps(old_value), json.dumps(category_summaries)))
+
+        if changes_made:
+            report.enrichments = enrichments
+            report.has_curation_edits = True
+            report.last_curated_by = user_id
+            report.last_curated_at = datetime.utcnow()
+
+            # Create audit events
+            for field_name, old_val, new_val in changes_made:
+                event = CurationEvent(
+                    report_id=report_id,
+                    event_type='edit_report',
+                    field_name=field_name,
+                    old_value=str(old_val) if old_val else None,
+                    new_value=str(new_val) if new_val else None,
+                    curator_id=user_id
+                )
+                self.db.add(event)
+
+            self.db.commit()
+
+        return {
+            'report_name': report.report_name,
+            'executive_summary': enrichments.get('executive_summary', ''),
+            'category_summaries': enrichments.get('category_summaries', {}),
+            'has_curation_edits': report.has_curation_edits,
+        }
+
+    def exclude_article(
+        self,
+        report_id: int,
+        article_id: int,
+        user_id: int,
+        notes: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Curator excludes an article from the report.
+
+        - Deletes ReportArticleAssociation
+        - Updates WipArticle: included_in_report=False, curator_excluded=True
+        - Creates CurationEvent for audit trail
+        """
+        report = self.db.query(Report).filter(Report.report_id == report_id).first()
+        if not report:
+            return None
+
+        # Check stream access
+        user = self.user_service.get_user_by_id(user_id)
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == report.research_stream_id
+        ).first()
+
+        if not user or not self._user_has_stream_access(user, stream):
+            return None
+
+        # Find the association
+        association = self.db.query(ReportArticleAssociation).filter(
+            and_(
+                ReportArticleAssociation.report_id == report_id,
+                ReportArticleAssociation.article_id == article_id
+            )
+        ).first()
+
+        if not association:
+            return None
+
+        # Get the article for PMID lookup
+        article = self.db.query(Article).filter(Article.article_id == article_id).first()
+
+        # Find corresponding WipArticle
+        wip_article = None
+        if report.pipeline_execution_id and article:
+            wip_article = self.db.query(WipArticle).filter(
+                and_(
+                    WipArticle.pipeline_execution_id == report.pipeline_execution_id,
+                    or_(
+                        WipArticle.pmid == article.pmid,
+                        WipArticle.doi == article.doi
+                    )
+                )
+            ).first()
+
+        # Import CurationEvent
+        from models import CurationEvent
+
+        # Delete the association
+        self.db.delete(association)
+
+        # Update WipArticle
+        if wip_article:
+            wip_article.included_in_report = False
+            wip_article.curator_excluded = True
+            wip_article.curation_notes = notes
+            wip_article.curated_by = user_id
+            wip_article.curated_at = datetime.utcnow()
+
+        # Update report curation tracking
+        report.has_curation_edits = True
+        report.last_curated_by = user_id
+        report.last_curated_at = datetime.utcnow()
+
+        # Create audit event
+        event = CurationEvent(
+            report_id=report_id,
+            article_id=article_id,
+            event_type='exclude_article',
+            notes=notes,
+            curator_id=user_id
+        )
+        self.db.add(event)
+
+        self.db.commit()
+
+        return {
+            'article_id': article_id,
+            'excluded': True,
+            'wip_article_updated': wip_article is not None,
+        }
+
+    def include_article(
+        self,
+        report_id: int,
+        wip_article_id: int,
+        user_id: int,
+        category: Optional[str] = None,
+        notes: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Curator includes a filtered article into the report.
+
+        - Creates/finds Article record
+        - Creates ReportArticleAssociation
+        - Updates WipArticle: included_in_report=True, curator_included=True
+        - Creates CurationEvent for audit trail
+        """
+        report = self.db.query(Report).filter(Report.report_id == report_id).first()
+        if not report:
+            return None
+
+        # Check stream access
+        user = self.user_service.get_user_by_id(user_id)
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == report.research_stream_id
+        ).first()
+
+        if not user or not self._user_has_stream_access(user, stream):
+            return None
+
+        # Find the WipArticle
+        wip_article = self.db.query(WipArticle).filter(
+            and_(
+                WipArticle.id == wip_article_id,
+                WipArticle.pipeline_execution_id == report.pipeline_execution_id
+            )
+        ).first()
+
+        if not wip_article:
+            return None
+
+        # Check if already included
+        if wip_article.included_in_report:
+            return {'error': 'Article is already in the report'}
+
+        # Find or create Article record
+        article = None
+        if wip_article.pmid:
+            article = self.db.query(Article).filter(Article.pmid == wip_article.pmid).first()
+        if not article and wip_article.doi:
+            article = self.db.query(Article).filter(Article.doi == wip_article.doi).first()
+
+        if not article:
+            # Create new Article from WipArticle
+            article = Article(
+                source_id=wip_article.source_id,
+                title=wip_article.title,
+                url=wip_article.url,
+                authors=wip_article.authors,
+                publication_date=wip_article.publication_date,
+                summary=wip_article.summary,
+                abstract=wip_article.abstract,
+                article_metadata=wip_article.article_metadata,
+                pmid=wip_article.pmid,
+                doi=wip_article.doi,
+                journal=wip_article.journal,
+                volume=wip_article.volume,
+                issue=wip_article.issue,
+                pages=wip_article.pages,
+                year=wip_article.year,
+            )
+            self.db.add(article)
+            self.db.flush()  # Get article_id
+
+        # Get current max ranking
+        max_ranking = self.db.query(ReportArticleAssociation.ranking).filter(
+            ReportArticleAssociation.report_id == report_id
+        ).order_by(ReportArticleAssociation.ranking.desc()).first()
+
+        new_ranking = (max_ranking[0] + 1) if max_ranking and max_ranking[0] else 1
+
+        # Create association
+        categories = [category] if category else []
+        association = ReportArticleAssociation(
+            report_id=report_id,
+            article_id=article.article_id,
+            ranking=new_ranking,
+            presentation_categories=categories,
+            original_ranking=None,  # Curator-added, no pipeline original
+            original_presentation_categories=[],
+            is_starred=False,
+            is_read=False
+        )
+        self.db.add(association)
+
+        # Update WipArticle
+        wip_article.included_in_report = True
+        wip_article.curator_included = True
+        wip_article.curation_notes = notes
+        wip_article.curated_by = user_id
+        wip_article.curated_at = datetime.utcnow()
+        if category:
+            wip_article.presentation_categories = categories
+
+        # Update report curation tracking
+        report.has_curation_edits = True
+        report.last_curated_by = user_id
+        report.last_curated_at = datetime.utcnow()
+
+        # Import CurationEvent
+        from models import CurationEvent
+
+        # Create audit event
+        event = CurationEvent(
+            report_id=report_id,
+            article_id=article.article_id,
+            event_type='include_article',
+            notes=notes,
+            curator_id=user_id
+        )
+        self.db.add(event)
+
+        self.db.commit()
+
+        return {
+            'article_id': article.article_id,
+            'wip_article_id': wip_article_id,
+            'included': True,
+            'ranking': new_ranking,
+            'category': category,
+        }
+
+    def update_article_in_report(
+        self,
+        report_id: int,
+        article_id: int,
+        user_id: int,
+        ranking: Optional[int] = None,
+        category: Optional[str] = None,
+        ai_summary: Optional[str] = None,
+        curation_notes: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Edit an article within the report (ranking, category, AI summary).
+
+        Updates ReportArticleAssociation and creates CurationEvent.
+        """
+        report = self.db.query(Report).filter(Report.report_id == report_id).first()
+        if not report:
+            return None
+
+        # Check stream access
+        user = self.user_service.get_user_by_id(user_id)
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == report.research_stream_id
+        ).first()
+
+        if not user or not self._user_has_stream_access(user, stream):
+            return None
+
+        # Find the association
+        association = self.db.query(ReportArticleAssociation).filter(
+            and_(
+                ReportArticleAssociation.report_id == report_id,
+                ReportArticleAssociation.article_id == article_id
+            )
+        ).first()
+
+        if not association:
+            return None
+
+        # Import CurationEvent
+        from models import CurationEvent
+        import json
+
+        changes_made = []
+
+        if ranking is not None and ranking != association.ranking:
+            old_val = association.ranking
+            association.ranking = ranking
+            changes_made.append(('ranking', str(old_val), str(ranking)))
+
+        if category is not None:
+            categories = [category] if category else []
+            old_val = association.presentation_categories
+            if categories != old_val:
+                association.presentation_categories = categories
+                changes_made.append(('presentation_categories', json.dumps(old_val), json.dumps(categories)))
+
+        if ai_summary is not None and ai_summary != association.ai_summary:
+            old_val = association.ai_summary
+            # Preserve original if first edit
+            if association.original_ai_summary is None and old_val:
+                association.original_ai_summary = old_val
+            association.ai_summary = ai_summary
+            changes_made.append(('ai_summary', old_val[:100] if old_val else None, ai_summary[:100]))
+
+        if curation_notes is not None:
+            association.curation_notes = curation_notes
+
+        if changes_made or curation_notes:
+            association.curated_by = user_id
+            association.curated_at = datetime.utcnow()
+
+            # Update report curation tracking
+            report.has_curation_edits = True
+            report.last_curated_by = user_id
+            report.last_curated_at = datetime.utcnow()
+
+            # Create audit events
+            for field_name, old_val, new_val in changes_made:
+                event = CurationEvent(
+                    report_id=report_id,
+                    article_id=article_id,
+                    event_type='edit_article',
+                    field_name=field_name,
+                    old_value=old_val,
+                    new_value=new_val,
+                    curator_id=user_id
+                )
+                self.db.add(event)
+
+            self.db.commit()
+
+        return {
+            'article_id': article_id,
+            'ranking': association.ranking,
+            'presentation_categories': association.presentation_categories,
+            'ai_summary': association.ai_summary,
+            'curation_notes': association.curation_notes,
+        }
+
+    def approve_report(
+        self,
+        report_id: int,
+        user_id: int,
+        notes: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Approve a report for publication.
+
+        Validates report has at least one article, then sets approval_status.
+        """
+        report = self.db.query(Report).filter(Report.report_id == report_id).first()
+        if not report:
+            return None
+
+        # Check stream access
+        user = self.user_service.get_user_by_id(user_id)
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == report.research_stream_id
+        ).first()
+
+        if not user or not self._user_has_stream_access(user, stream):
+            return None
+
+        # Validate report has at least one article
+        article_count = self.db.query(ReportArticleAssociation).filter(
+            ReportArticleAssociation.report_id == report_id
+        ).count()
+
+        if article_count == 0:
+            return {'error': 'Cannot approve report with no articles'}
+
+        # Update approval status
+        report.approval_status = ApprovalStatus.APPROVED
+        report.approved_by = user_id
+        report.approved_at = datetime.utcnow()
+
+        # Import CurationEvent
+        from models import CurationEvent
+
+        # Create audit event
+        event = CurationEvent(
+            report_id=report_id,
+            event_type='approve_report',
+            notes=notes,
+            curator_id=user_id
+        )
+        self.db.add(event)
+
+        self.db.commit()
+
+        return {
+            'report_id': report_id,
+            'approval_status': 'approved',
+            'approved_by': user_id,
+            'approved_at': report.approved_at.isoformat(),
+        }
+
+    def reject_report(
+        self,
+        report_id: int,
+        user_id: int,
+        reason: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Reject a report with a reason.
+        """
+        report = self.db.query(Report).filter(Report.report_id == report_id).first()
+        if not report:
+            return None
+
+        # Check stream access
+        user = self.user_service.get_user_by_id(user_id)
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == report.research_stream_id
+        ).first()
+
+        if not user or not self._user_has_stream_access(user, stream):
+            return None
+
+        # Update approval status
+        report.approval_status = ApprovalStatus.REJECTED
+        report.rejection_reason = reason
+        report.approved_by = user_id  # Track who rejected
+        report.approved_at = datetime.utcnow()
+
+        # Import CurationEvent
+        from models import CurationEvent
+
+        # Create audit event
+        event = CurationEvent(
+            report_id=report_id,
+            event_type='reject_report',
+            notes=reason,
+            curator_id=user_id
+        )
+        self.db.add(event)
+
+        self.db.commit()
+
+        return {
+            'report_id': report_id,
+            'approval_status': 'rejected',
+            'rejection_reason': reason,
+            'rejected_by': user_id,
+            'rejected_at': report.approved_at.isoformat(),
+        }
 
     # =========================================================================
     # COMMIT Operations

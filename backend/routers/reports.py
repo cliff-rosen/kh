@@ -51,6 +51,45 @@ class SendReportEmailResponse(BaseModel):
     failed: List[str]
 
 
+# --- Curation Request/Response Schemas ---
+
+class UpdateReportContentRequest(BaseModel):
+    """Request to update report content (title, summaries)"""
+    title: Optional[str] = None
+    executive_summary: Optional[str] = None
+    category_summaries: Optional[Dict[str, str]] = None
+
+
+class ExcludeArticleRequest(BaseModel):
+    """Request to exclude an article from the report"""
+    notes: Optional[str] = None
+
+
+class IncludeArticleRequest(BaseModel):
+    """Request to include a filtered article in the report"""
+    wip_article_id: int
+    category: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class UpdateArticleRequest(BaseModel):
+    """Request to update an article within the report"""
+    ranking: Optional[int] = None
+    category: Optional[str] = None
+    ai_summary: Optional[str] = None
+    curation_notes: Optional[str] = None
+
+
+class ApproveReportRequest(BaseModel):
+    """Request to approve a report"""
+    notes: Optional[str] = None
+
+
+class RejectReportRequest(BaseModel):
+    """Request to reject a report"""
+    reason: str
+
+
 class EmailPreviewResponse(BaseModel):
     """Response containing email HTML preview"""
     html: str
@@ -542,4 +581,314 @@ async def send_report_email(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send report email: {str(e)}"
+        )
+
+
+# =============================================================================
+# CURATION ENDPOINTS
+# =============================================================================
+
+@router.get("/{report_id}/curation", response_model=Dict[str, Any])
+async def get_curation_view(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get full curation view data for a report.
+
+    Returns:
+    - report: Report content with originals for comparison
+    - included_articles: Articles currently in the report
+    - filtered_articles: Articles pipeline rejected (available for inclusion)
+    - duplicate_articles: Articles marked as duplicates
+    - curated_articles: Articles with curator overrides
+    - categories: Stream's presentation categories
+    """
+    logger.info(f"get_curation_view - user_id={current_user.user_id}, report_id={report_id}")
+
+    try:
+        service = ReportService(db)
+        result = service.get_curation_view(report_id, current_user.user_id)
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+
+        logger.info(f"get_curation_view complete - user_id={current_user.user_id}, report_id={report_id}")
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_curation_view failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get curation view: {str(e)}"
+        )
+
+
+@router.patch("/{report_id}/content", response_model=Dict[str, Any])
+async def update_report_content(
+    report_id: int,
+    request: UpdateReportContentRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update report content (title, summaries) for curation.
+    """
+    logger.info(f"update_report_content - user_id={current_user.user_id}, report_id={report_id}")
+
+    try:
+        service = ReportService(db)
+        result = service.update_report_content(
+            report_id=report_id,
+            user_id=current_user.user_id,
+            title=request.title,
+            executive_summary=request.executive_summary,
+            category_summaries=request.category_summaries
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+
+        logger.info(f"update_report_content complete - user_id={current_user.user_id}, report_id={report_id}")
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"update_report_content failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update report content: {str(e)}"
+        )
+
+
+@router.post("/{report_id}/articles/{article_id}/exclude", response_model=Dict[str, Any])
+async def exclude_article(
+    report_id: int,
+    article_id: int,
+    request: ExcludeArticleRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Curator excludes an article from the report.
+
+    - Deletes ReportArticleAssociation
+    - Updates WipArticle: included_in_report=False, curator_excluded=True
+    """
+    logger.info(f"exclude_article - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
+
+    try:
+        service = ReportService(db)
+        result = service.exclude_article(
+            report_id=report_id,
+            article_id=article_id,
+            user_id=current_user.user_id,
+            notes=request.notes
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report or article not found"
+            )
+
+        logger.info(f"exclude_article complete - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"exclude_article failed - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to exclude article: {str(e)}"
+        )
+
+
+@router.post("/{report_id}/articles/include", response_model=Dict[str, Any])
+async def include_article(
+    report_id: int,
+    request: IncludeArticleRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Curator includes a filtered article into the report.
+
+    - Creates/finds Article record
+    - Creates ReportArticleAssociation
+    - Updates WipArticle: included_in_report=True, curator_included=True
+    """
+    logger.info(f"include_article - user_id={current_user.user_id}, report_id={report_id}, wip_article_id={request.wip_article_id}")
+
+    try:
+        service = ReportService(db)
+        result = service.include_article(
+            report_id=report_id,
+            wip_article_id=request.wip_article_id,
+            user_id=current_user.user_id,
+            category=request.category,
+            notes=request.notes
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report or WIP article not found"
+            )
+
+        if 'error' in result:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result['error']
+            )
+
+        logger.info(f"include_article complete - user_id={current_user.user_id}, report_id={report_id}, article_id={result.get('article_id')}")
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"include_article failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to include article: {str(e)}"
+        )
+
+
+@router.patch("/{report_id}/articles/{article_id}", response_model=Dict[str, Any])
+async def update_article_in_report(
+    report_id: int,
+    article_id: int,
+    request: UpdateArticleRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Edit an article within the report (ranking, category, AI summary).
+    """
+    logger.info(f"update_article_in_report - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
+
+    try:
+        service = ReportService(db)
+        result = service.update_article_in_report(
+            report_id=report_id,
+            article_id=article_id,
+            user_id=current_user.user_id,
+            ranking=request.ranking,
+            category=request.category,
+            ai_summary=request.ai_summary,
+            curation_notes=request.curation_notes
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report or article not found"
+            )
+
+        logger.info(f"update_article_in_report complete - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"update_article_in_report failed - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update article: {str(e)}"
+        )
+
+
+@router.post("/{report_id}/approve", response_model=Dict[str, Any])
+async def approve_report(
+    report_id: int,
+    request: ApproveReportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Approve a report for publication.
+    """
+    logger.info(f"approve_report - user_id={current_user.user_id}, report_id={report_id}")
+
+    try:
+        service = ReportService(db)
+        result = service.approve_report(
+            report_id=report_id,
+            user_id=current_user.user_id,
+            notes=request.notes
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+
+        if 'error' in result:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result['error']
+            )
+
+        logger.info(f"approve_report complete - user_id={current_user.user_id}, report_id={report_id}")
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"approve_report failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to approve report: {str(e)}"
+        )
+
+
+@router.post("/{report_id}/reject", response_model=Dict[str, Any])
+async def reject_report(
+    report_id: int,
+    request: RejectReportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Reject a report with a reason.
+    """
+    logger.info(f"reject_report - user_id={current_user.user_id}, report_id={report_id}")
+
+    try:
+        service = ReportService(db)
+        result = service.reject_report(
+            report_id=report_id,
+            user_id=current_user.user_id,
+            reason=request.reason
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+
+        logger.info(f"reject_report complete - user_id={current_user.user_id}, report_id={report_id}")
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"reject_report failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reject report: {str(e)}"
         )

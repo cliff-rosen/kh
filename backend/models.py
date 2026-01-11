@@ -354,24 +354,41 @@ class Report(Base):
     approved_at = Column(DateTime, nullable=True)
     rejection_reason = Column(Text, nullable=True)  # Reason if rejected
 
+    # Curation tracking - original values preserved for comparison
+    original_report_name = Column(String(255), nullable=True)  # What pipeline generated
+    original_enrichments = Column(JSON, nullable=True)  # Original summaries before editing
+    has_curation_edits = Column(Boolean, default=False)  # Quick check: was anything manually changed?
+    last_curated_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    last_curated_at = Column(DateTime, nullable=True)
+
     # Relationships
     user = relationship("User", back_populates="reports", foreign_keys=[user_id])
     approver = relationship("User", foreign_keys=[approved_by])
+    curator = relationship("User", foreign_keys=[last_curated_by])
     research_stream = relationship("ResearchStream", back_populates="reports")
     article_associations = relationship("ReportArticleAssociation", back_populates="report")
     feedback = relationship("UserFeedback", back_populates="report")
     execution = relationship("PipelineExecution", back_populates="report", foreign_keys="PipelineExecution.report_id", uselist=False)
+    curation_events = relationship("CurationEvent", back_populates="report")
 
 
 class ReportArticleAssociation(Base):
-    """Association between reports and articles with metadata"""
+    """
+    Association between reports and articles with metadata.
+
+    Only contains articles that ARE in the report. If a record exists here,
+    the article is in the report. WipArticle.included_in_report is the source
+    of truth that stays in sync with this table's existence.
+
+    See docs/_specs/article-curation-flow.md for full state transition documentation.
+    """
     __tablename__ = "report_article_associations"
 
     report_id = Column(Integer, ForeignKey("reports.report_id"), primary_key=True)
     article_id = Column(Integer, ForeignKey("articles.article_id"), primary_key=True)
     relevance_score = Column(Float)  # AI-calculated relevance score
     relevance_rationale = Column(Text)  # Why this article is relevant
-    ranking = Column(Integer)  # Order within the report
+    ranking = Column(Integer)  # Order within the report (current, may be edited)
     user_feedback = Column(Enum(FeedbackType))  # User's feedback on this article
     is_starred = Column(Boolean, default=False)
     is_read = Column(Boolean, default=False)
@@ -379,11 +396,24 @@ class ReportArticleAssociation(Base):
     added_at = Column(DateTime, default=datetime.utcnow)
     read_at = Column(DateTime)
 
-    # Presentation categorization
+    # Presentation categorization (current, may be edited)
     presentation_categories = Column(JSON, default=list)  # List of presentation category IDs
 
     # AI-generated enrichments (stance analysis, summaries, etc.)
     ai_enrichments = Column(JSON, nullable=True)
+
+    # === ORIGINAL VALUES (set when added, preserved for curation comparison) ===
+    original_presentation_categories = Column(JSON, nullable=True)
+    original_ranking = Column(Integer, nullable=True)
+
+    # === AI SUMMARY (can be edited by curator) ===
+    ai_summary = Column(Text, nullable=True)  # Current summary (may be edited)
+    original_ai_summary = Column(Text, nullable=True)  # What AI originally generated
+
+    # === CURATION (for retrieval improvement feedback) ===
+    curation_notes = Column(Text, nullable=True)  # Curator notes about this article
+    curated_by = Column(Integer, nullable=True)  # User who last modified
+    curated_at = Column(DateTime, nullable=True)
 
     # Relationships
     report = relationship("Report", back_populates="article_associations")
@@ -473,13 +503,23 @@ class WipArticle(Base):
     # Metadata
     article_metadata = Column(JSON, default=dict)
 
-    # Processing status fields
+    # Processing status fields (set by pipeline)
     is_duplicate = Column(Boolean, default=False, index=True)
     duplicate_of_id = Column(Integer, ForeignKey("wip_articles.id"))
+    duplicate_of_pmid = Column(String(20), nullable=True)  # PMID of article this is a duplicate of
     passed_semantic_filter = Column(Boolean, default=None, index=True)
-    filter_rejection_reason = Column(Text)
-    included_in_report = Column(Boolean, default=False, index=True)
+    filter_score = Column(Float, nullable=True)  # Relevance score from semantic filter
+    filter_score_reason = Column(Text)  # AI reasoning for the score (captured for all articles)
+    included_in_report = Column(Boolean, default=False, index=True)  # SOURCE OF TRUTH - synced with ReportArticleAssociation existence
     presentation_categories = Column(JSON, default=list)  # List of category IDs assigned by LLM
+
+    # Curation override fields (set by curator, audit trail for how we got to current state)
+    # See docs/_specs/article-curation-flow.md for state transition documentation
+    curator_included = Column(Boolean, default=False)  # Curator overrode filter to include
+    curator_excluded = Column(Boolean, default=False)  # Curator overrode pipeline to exclude
+    curation_notes = Column(Text, nullable=True)  # Why curator made the decision
+    curated_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    curated_at = Column(DateTime, nullable=True)
 
     # Timestamps
     retrieved_at = Column(DateTime, default=datetime.utcnow)
@@ -489,6 +529,7 @@ class WipArticle(Base):
     research_stream = relationship("ResearchStream")
     source = relationship("InformationSource")
     execution = relationship("PipelineExecution", back_populates="wip_articles")
+    curator = relationship("User", foreign_keys=[curated_by])
 
 
 # Subscription tables for stream access control
@@ -577,11 +618,42 @@ class UserEvent(Base):
     user = relationship("User", back_populates="events")
 
 
+# === CURATION AUDIT TRAIL ===
+
+class CurationEvent(Base):
+    """
+    Audit trail for curation actions - history of how we got to current state.
+    NOT used to determine current state (that's on Report/ReportArticleAssociation).
+    """
+    __tablename__ = "curation_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    report_id = Column(Integer, ForeignKey("reports.report_id", ondelete="CASCADE"), nullable=False, index=True)
+    article_id = Column(Integer, ForeignKey("articles.article_id", ondelete="CASCADE"), nullable=True)  # NULL for report-level events
+
+    # What happened
+    event_type = Column(String(50), nullable=False)  # See event types in spec
+    field_name = Column(String(100), nullable=True)  # Which field changed
+    old_value = Column(Text, nullable=True)  # JSON-serialized previous value
+    new_value = Column(Text, nullable=True)  # JSON-serialized new value
+    notes = Column(Text, nullable=True)  # Curator's explanation
+
+    # Who/When
+    curator_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    # Relationships
+    report = relationship("Report", back_populates="curation_events")
+    article = relationship("Article")
+    curator = relationship("User")
+
+
 # Add relationships to User model
 User.research_streams = relationship("ResearchStream", back_populates="user", foreign_keys="ResearchStream.user_id")
 User.created_streams = relationship("ResearchStream", foreign_keys="ResearchStream.created_by")
 User.reports = relationship("Report", back_populates="user", foreign_keys="Report.user_id")
 User.approved_reports = relationship("Report", foreign_keys="Report.approved_by", viewonly=True)
+User.curated_reports = relationship("Report", foreign_keys="Report.last_curated_by", viewonly=True)
 User.report_schedule = relationship("ReportSchedule", back_populates="user", uselist=False)
 User.feedback = relationship("UserFeedback", back_populates="user")
 User.conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")

@@ -200,7 +200,8 @@ class OperationsService:
                 is_duplicate=wip.is_duplicate or False,
                 duplicate_of_id=wip.duplicate_of_id,
                 passed_semantic_filter=wip.passed_semantic_filter,
-                filter_rejection_reason=wip.filter_rejection_reason,
+                filter_score=wip.filter_score,
+                filter_score_reason=wip.filter_score_reason,
                 included_in_report=wip.included_in_report or False,
                 presentation_categories=wip.presentation_categories or [],
             ))

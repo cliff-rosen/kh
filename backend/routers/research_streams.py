@@ -1115,7 +1115,8 @@ class SuppliedArticleStatus(BaseModel):
     status: str = Field(..., description="not_found, filtered_out, or included")
     article_title: Optional[str] = None
     retrieval_unit_id: Optional[str] = Field(None, description="Concept ID or broad query ID that retrieved this article")
-    filter_rejection_reason: Optional[str] = None
+    filter_score: Optional[float] = None
+    filter_score_reason: Optional[str] = None
 
 
 class ReportOnlyArticle(BaseModel):
@@ -1218,7 +1219,8 @@ async def compare_report_to_pubmed_ids(
                 status="filtered_out",
                 article_title=wip.title,
                 retrieval_unit_id=wip.retrieval_group_id,
-                filter_rejection_reason=wip.filter_rejection_reason
+                filter_score=wip.filter_score,
+                filter_score_reason=wip.filter_score_reason
             ))
         elif pmid in report_pmids:
             # Found and included in report

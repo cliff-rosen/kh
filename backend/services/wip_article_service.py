@@ -213,6 +213,77 @@ class WipArticleService:
             )
         ).all()
 
+    def get_all_articles_by_status(self, execution_id: str) -> Dict[str, List[WipArticle]]:
+        """
+        Get all articles for an execution grouped by pipeline decision status.
+
+        Used for curation workflow where we need to show all candidate articles.
+
+        Args:
+            execution_id: Pipeline execution ID
+
+        Returns:
+            Dict with keys 'included', 'filtered_out', 'duplicate' mapping to lists of WipArticles
+        """
+        all_articles = self.db.query(WipArticle).filter(
+            WipArticle.pipeline_execution_id == execution_id
+        ).all()
+
+        result = {
+            'included': [],
+            'filtered_out': [],
+            'duplicate': []
+        }
+
+        for article in all_articles:
+            if article.is_duplicate:
+                result['duplicate'].append(article)
+            elif article.passed_semantic_filter == False:
+                result['filtered_out'].append(article)
+            elif article.included_in_report:
+                result['included'].append(article)
+            else:
+                # Articles that passed filter but aren't marked for inclusion yet
+                # This shouldn't happen in normal flow, but handle gracefully
+                result['filtered_out'].append(article)
+
+        return result
+
+    def get_filtered_articles(self, execution_id: str) -> List[WipArticle]:
+        """
+        Get articles that were filtered out by semantic filter.
+
+        Args:
+            execution_id: Pipeline execution ID
+
+        Returns:
+            List of WipArticle instances that failed the semantic filter
+        """
+        return self.db.query(WipArticle).filter(
+            and_(
+                WipArticle.pipeline_execution_id == execution_id,
+                WipArticle.is_duplicate == False,
+                WipArticle.passed_semantic_filter == False
+            )
+        ).all()
+
+    def get_duplicate_articles(self, execution_id: str) -> List[WipArticle]:
+        """
+        Get articles marked as duplicates.
+
+        Args:
+            execution_id: Pipeline execution ID
+
+        Returns:
+            List of WipArticle instances marked as duplicates
+        """
+        return self.db.query(WipArticle).filter(
+            and_(
+                WipArticle.pipeline_execution_id == execution_id,
+                WipArticle.is_duplicate == True
+            )
+        ).all()
+
     def get_article_by_pmid(
         self,
         execution_id: str,
@@ -259,7 +330,7 @@ class WipArticleService:
         article: WipArticle,
         passed: bool,
         score: Optional[float] = None,
-        rejection_reason: Optional[str] = None
+        score_reason: Optional[str] = None
     ) -> None:
         """
         Update semantic filter results for an article.
@@ -268,13 +339,13 @@ class WipArticleService:
             article: WipArticle to update
             passed: Whether the article passed the filter
             score: Filter score (0-1)
-            rejection_reason: Reason for rejection (if not passed)
+            score_reason: AI reasoning for the score (captured for all articles)
         """
         article.passed_semantic_filter = passed
         if score is not None:
             article.filter_score = score
-        if not passed and rejection_reason:
-            article.filter_rejection_reason = rejection_reason
+        if score_reason:
+            article.filter_score_reason = score_reason
 
     def mark_for_inclusion(self, article: WipArticle) -> None:
         """

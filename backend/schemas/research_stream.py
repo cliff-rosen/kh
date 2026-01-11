@@ -442,7 +442,8 @@ class WipArticle(BaseModel):
     is_duplicate: bool = False
     duplicate_of_id: Optional[int] = None
     passed_semantic_filter: Optional[bool] = None
-    filter_rejection_reason: Optional[str] = None
+    filter_score: Optional[float] = None
+    filter_score_reason: Optional[str] = None
     included_in_report: bool = False
     presentation_categories: List[str] = []
 

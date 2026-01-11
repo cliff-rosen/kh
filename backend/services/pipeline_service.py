@@ -573,6 +573,10 @@ class PipelineService:
         """
         Create report with proper execution.report_id linkage.
 
+        Only promotes articles with included_in_report=True from WipArticle.
+        WipArticle remains the source of truth for all pipeline decisions.
+        See docs/_specs/article-curation-flow.md for full documentation.
+
         CRITICAL: This method sets ctx.execution.report_id and commits everything
         in a single transaction to ensure the link is persisted.
         """
@@ -599,10 +603,14 @@ class PipelineService:
         report.pipeline_metrics = metrics
         report.is_read = False
 
-        # Get articles for report
+        # Store original values for curation comparison
+        report.original_report_name = final_report_name
+        report.original_enrichments = enrichments.copy()
+
+        # Get only INCLUDED articles (included_in_report=True)
         wip_articles = self.wip_article_service.get_included_articles(ctx.execution_id)
 
-        # Create Article records and associations
+        # Create Article records and associations for included articles only
         for idx, wip_article in enumerate(wip_articles):
             # Check for existing article
             existing_article = None
@@ -641,14 +649,17 @@ class PipelineService:
                 self.db.add(article)
                 self.db.flush()
 
-            # Create association
+            # Create association with original values preserved
             association = ReportArticleAssociation(
                 report_id=report.report_id,
                 article_id=article.article_id,
                 ranking=idx + 1,
-                presentation_categories=wip_article.presentation_categories,
+                presentation_categories=wip_article.presentation_categories or [],
                 is_read=False,
-                is_starred=False
+                is_starred=False,
+                # Store original values for curation comparison
+                original_ranking=idx + 1,
+                original_presentation_categories=wip_article.presentation_categories or [],
             )
             self.db.add(association)
 
@@ -840,7 +851,7 @@ class PipelineService:
                 article=article,
                 passed=is_relevant,
                 score=score,
-                rejection_reason=reasoning if not is_relevant else None
+                score_reason=reasoning  # Capture reasoning for all articles
             )
             if is_relevant:
                 passed += 1
