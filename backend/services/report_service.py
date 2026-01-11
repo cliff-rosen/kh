@@ -40,6 +40,7 @@ class ReportService:
         self.db = db
         self._user_service: Optional[UserService] = None
         self._stream_service = None  # Lazy-loaded to avoid circular import
+        self._wip_article_service = None  # Lazy-loaded
 
     @property
     def user_service(self) -> UserService:
@@ -55,6 +56,14 @@ class ReportService:
             from services.research_stream_service import ResearchStreamService
             self._stream_service = ResearchStreamService(self.db)
         return self._stream_service
+
+    @property
+    def wip_article_service(self):
+        """Lazy-load WipArticleService."""
+        if self._wip_article_service is None:
+            from services.wip_article_service import WipArticleService
+            self._wip_article_service = WipArticleService(self.db)
+        return self._wip_article_service
 
     def get_report_by_id(self, report_id: int) -> Report:
         """
@@ -1527,15 +1536,11 @@ class ReportService:
         """
         report, user, stream = self._get_report_for_curation(report_id, user_id)
 
-        # Find the WipArticle
-        wip_article = self.db.query(WipArticle).filter(
-            and_(
-                WipArticle.id == wip_article_id,
-                WipArticle.pipeline_execution_id == report.pipeline_execution_id
-            )
-        ).first()
+        # Get the WipArticle (throws 404 if not found)
+        wip_article = self.wip_article_service.get_by_id_or_404(wip_article_id)
 
-        if not wip_article:
+        # Verify it belongs to this report's pipeline execution
+        if wip_article.pipeline_execution_id != report.pipeline_execution_id:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="WIP article not found for this report"

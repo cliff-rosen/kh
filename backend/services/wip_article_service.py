@@ -9,6 +9,7 @@ import logging
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
+from fastapi import HTTPException, status
 
 from models import WipArticle
 
@@ -49,6 +50,29 @@ class WipArticleService:
         if not article:
             raise ValueError(f"WipArticle {wip_article_id} not found")
         return article
+
+    def get_by_id_or_404(self, wip_article_id: int) -> WipArticle:
+        """
+        Get a WipArticle by ID, raising HTTPException 404 if not found.
+
+        For HTTP-facing code. For internal services, use get_by_id.
+
+        Args:
+            wip_article_id: The WipArticle ID
+
+        Returns:
+            WipArticle model instance
+
+        Raises:
+            HTTPException: 404 if WipArticle not found
+        """
+        try:
+            return self.get_by_id(wip_article_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="WIP article not found"
+            )
 
     # =========================================================================
     # CREATE Operations
