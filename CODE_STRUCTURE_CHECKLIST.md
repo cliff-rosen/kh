@@ -50,12 +50,64 @@ class ReportResponse(BaseModel):
 | Transformed/combined domain objects (API-only) | Router: `{Action}Response` with custom fields |
 | Request payload | Router: `{Action}Request` |
 
+#### Routers Getting Services
+
+Routers instantiate services with the database session:
+
+```python
+@router.get("/{report_id}")
+async def get_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    service = ReportService(db)  # Instantiate with db session
+    report = service.get_report(report_id, current_user.user_id)
+    return ReportSchema.from_orm(report)
+```
+
 ### `services/` - Business Logic Layer
 - All business logic lives here
 - Database queries (via SQLAlchemy)
 - Returns **SQLAlchemy Models** (from `models/`), NOT Pydantic schemas
 - Routers convert Models to Schemas at the API boundary
 - Does NOT define API-specific types
+
+#### Service Constructor and Dependencies
+
+Services receive the database session in their constructor and lazy-load other services:
+
+```python
+class ReportService:
+    def __init__(self, db: Session):
+        self.db = db
+        self._wip_article_service = None  # Lazy-loaded
+        self._association_service = None
+
+    @property
+    def wip_article_service(self):
+        """Lazy-load to avoid circular imports."""
+        if self._wip_article_service is None:
+            from services.wip_article_service import WipArticleService
+            self._wip_article_service = WipArticleService(self.db)
+        return self._wip_article_service
+
+    @property
+    def association_service(self):
+        if self._association_service is None:
+            from services.report_article_association_service import ReportArticleAssociationService
+            self._association_service = ReportArticleAssociationService(self.db)
+        return self._association_service
+```
+
+Usage within the service:
+```python
+def get_report_analytics(self, report_id: int) -> PipelineAnalytics:
+    # Use other services via properties
+    wip_articles = self.wip_article_service.get_by_execution_id(execution_id)
+    count = self.association_service.count_visible(report_id)
+    ...
+```
 
 #### Services Return Models, Routers Convert to Schemas
 
