@@ -47,6 +47,7 @@ class ReportResponse(BaseModel):
 | Single domain object | `schemas/{domain}.py` → use directly |
 | List of domain objects | Router: `List[DomainObject]` or wrapper |
 | Domain object + metadata | Router: wrapper that contains the domain object |
+| Transformed/combined domain objects (API-only) | Router: `{Action}Response` with custom fields |
 | Request payload | Router: `{Action}Request` |
 
 ### `services/` - Business Logic Layer
