@@ -755,42 +755,6 @@ class ReportService:
 
         return report
 
-    def create_article_association(
-        self,
-        report_id: int,
-        article_id: int,
-        ranking: int,
-        relevance_score: Optional[float] = None,
-        relevance_rationale: Optional[str] = None,
-        presentation_categories: Optional[List[str]] = None
-    ) -> ReportArticleAssociation:
-        """
-        Create a report-article association.
-
-        Args:
-            report_id: Report ID
-            article_id: Article ID
-            ranking: Article ranking in the report
-            relevance_score: Optional relevance score
-            relevance_rationale: Optional relevance explanation
-            presentation_categories: Optional list of category IDs
-
-        Returns:
-            Created ReportArticleAssociation instance
-        """
-        association = ReportArticleAssociation(
-            report_id=report_id,
-            article_id=article_id,
-            ranking=ranking,
-            relevance_score=relevance_score,
-            relevance_rationale=relevance_rationale,
-            presentation_categories=presentation_categories or [],
-            is_starred=False,
-            is_read=False
-        )
-        self.db.add(association)
-        return association
-
     def update_report_enrichments(
         self,
         report: Report,
@@ -855,23 +819,6 @@ class ReportService:
             "report": report,
             "wip_articles": wip_articles
         }
-
-    def get_report_article_associations(
-        self,
-        report_id: int
-    ) -> List[ReportArticleAssociation]:
-        """
-        Get all article associations for a report.
-
-        Args:
-            report_id: Report ID
-
-        Returns:
-            List of ReportArticleAssociation instances with joined Article data
-        """
-        return self.db.query(ReportArticleAssociation).join(Article).filter(
-            ReportArticleAssociation.report_id == report_id
-        ).all()
 
     def get_report_pmids(self, report_id: int) -> Dict[str, Article]:
         """
