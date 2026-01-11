@@ -394,6 +394,138 @@ raise HTTPException(status_code=403, detail="Not authorized to access this repor
 
 ---
 
+## Access Control
+
+### User ID Must Come From JWT
+
+The `user_id` for access control MUST come from the authenticated JWT token, never from request parameters:
+
+```python
+# ✅ CORRECT - user_id from JWT
+@router.get("/{report_id}")
+async def get_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)  # From JWT
+):
+    service = ReportService(db)
+    return service.get_report(report_id, current_user.user_id)  # Use JWT user_id
+
+# ❌ WRONG - user_id from request (security vulnerability!)
+@router.get("/{report_id}")
+async def get_report(
+    report_id: int,
+    user_id: int,  # Attacker can spoof any user_id!
+    db: Session = Depends(get_db)
+):
+    ...
+```
+
+### Always Verify User Access
+
+Never trust that a resource belongs to a user just because they provided an ID:
+
+```python
+# In service
+def get_report(self, report_id: int, user_id: int) -> Report:
+    report = self.db.query(Report).filter(Report.report_id == report_id).first()
+
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    # Always verify access
+    if not self._user_can_access_report(user_id, report):
+        raise HTTPException(status_code=404, detail="Report not found")  # Don't reveal existence
+
+    return report
+```
+
+### Admin Endpoints
+
+Admin endpoints must verify admin role before any operations:
+
+```python
+@router.get("/admin/all-reports")
+async def admin_list_all_reports(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != UserRole.PLATFORM_ADMIN:
+        logger.warning(f"Unauthorized admin access attempt - user_id={current_user.user_id}")
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    # Admin can proceed
+    ...
+```
+
+---
+
+## Typing Requirements
+
+### Endpoint Response Models
+
+Every endpoint MUST specify a `response_model` (unless returning 204 No Content):
+
+```python
+# ✅ CORRECT
+@router.get("/{report_id}", response_model=ReportSchema)
+async def get_report(...):
+    ...
+
+@router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_report(...):  # No response body, no response_model needed
+    ...
+
+# ❌ WRONG - missing response_model
+@router.get("/{report_id}")
+async def get_report(...):
+    ...
+```
+
+### Service Method Typing
+
+All service methods MUST have typed parameters and return types:
+
+```python
+# ✅ CORRECT
+def get_report(self, report_id: int, user_id: int) -> Report:
+    ...
+
+def get_reports_for_user(self, user_id: int, limit: int = 50) -> List[Report]:
+    ...
+
+# ❌ WRONG - no types
+def get_report(self, report_id, user_id):
+    ...
+```
+
+---
+
+## New Endpoint Checklist
+
+Before merging any new endpoint, verify:
+
+- [ ] `response_model` specified (or 204 status)
+- [ ] Logging: entry, exit, and error logging with context
+- [ ] Exception handling: try/except with HTTPException passthrough
+- [ ] User ID from JWT (`current_user.user_id`), not request params
+- [ ] User access verified for resource access
+- [ ] Business logic in service, not router
+- [ ] No direct database queries in router
+- [ ] Service methods have type annotations
+
+---
+
+## TBD
+
+### Database/Transaction Patterns
+_To be documented: when to commit, session lifecycle, transaction boundaries_
+
+### Testing Patterns
+_To be documented: unit tests, integration tests, mocking services_
+
+---
+
 ## Frontend
 
 ### `lib/api/` - API Client Layer
