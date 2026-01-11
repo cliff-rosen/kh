@@ -376,9 +376,11 @@ class ReportArticleAssociation(Base):
     """
     Association between reports and articles with metadata.
 
-    Only contains articles that ARE in the report. If a record exists here,
-    the article is in the report. WipArticle.included_in_report is the source
-    of truth that stays in sync with this table's existence.
+    An article is visible in the report if: record exists AND curator_excluded=False.
+
+    Curation flags:
+    - curator_excluded: Article was in report but curator excluded it (preserves data for undo)
+    - curator_added: Article was added by curator (not by pipeline) - delete on reset
 
     See docs/_specs/article-curation-flow.md for full state transition documentation.
     """
@@ -410,7 +412,11 @@ class ReportArticleAssociation(Base):
     ai_summary = Column(Text, nullable=True)  # Current summary (may be edited)
     original_ai_summary = Column(Text, nullable=True)  # What AI originally generated
 
-    # === CURATION (for retrieval improvement feedback) ===
+    # === CURATION FLAGS ===
+    curator_excluded = Column(Boolean, default=False, nullable=False)  # Curator excluded from report view
+    curator_added = Column(Boolean, default=False, nullable=False)  # Curator added (vs pipeline added)
+
+    # === CURATION METADATA (for retrieval improvement feedback) ===
     curation_notes = Column(Text, nullable=True)  # Curator notes about this article
     curated_by = Column(Integer, nullable=True)  # User who last modified
     curated_at = Column(DateTime, nullable=True)

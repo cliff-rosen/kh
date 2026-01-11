@@ -176,15 +176,26 @@ class CurationCategory(BaseModel):
     description: Optional[str] = None
 
 
+class CurationStats(BaseModel):
+    """Pipeline and curation statistics"""
+    pipeline_included: int  # Articles pipeline decided to include
+    pipeline_filtered: int  # Articles pipeline filtered out
+    pipeline_duplicates: int  # Duplicate articles detected
+    current_included: int  # Current visible articles in report
+    curator_added: int  # Articles curator manually added
+    curator_removed: int  # Articles curator manually removed
+
+
 class CurationViewResponse(BaseModel):
     """Response for get_curation_view endpoint"""
     report: CurationReportData
     included_articles: List[CurationIncludedArticle]
     filtered_articles: List[CurationFilteredArticle]
-    duplicate_articles: List[CurationFilteredArticle]
+    duplicate_articles: List[CurationFilteredArticle] = []  # Empty - duplicates not actionable
     curated_articles: List[CurationFilteredArticle]
     categories: List[CurationCategory]
     stream_name: Optional[str] = None
+    stats: CurationStats
 
 
 class ResetCurationResponse(BaseModel):

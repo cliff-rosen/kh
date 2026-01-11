@@ -41,6 +41,7 @@ class ReportService:
         self._user_service: Optional[UserService] = None
         self._stream_service = None  # Lazy-loaded to avoid circular import
         self._wip_article_service = None  # Lazy-loaded
+        self._association_service = None  # Lazy-loaded
 
     @property
     def user_service(self) -> UserService:
@@ -64,6 +65,14 @@ class ReportService:
             from services.wip_article_service import WipArticleService
             self._wip_article_service = WipArticleService(self.db)
         return self._wip_article_service
+
+    @property
+    def association_service(self):
+        """Lazy-load ReportArticleAssociationService."""
+        if self._association_service is None:
+            from services.report_article_association_service import ReportArticleAssociationService
+            self._association_service = ReportArticleAssociationService(self.db)
+        return self._association_service
 
     def get_report_by_id(self, report_id: int) -> Report:
         """
@@ -1232,9 +1241,9 @@ class ReportService:
         Returns:
             Dict with:
             - report: Report content with originals for comparison
-            - included_articles: Articles currently in the report
-            - filtered_articles: Articles pipeline rejected (available for inclusion)
-            - duplicate_articles: Articles marked as duplicates
+            - included_articles: Visible articles in the report (curator_excluded=False)
+            - filtered_articles: Articles available for inclusion (not in report, not duplicate)
+            - duplicate_articles: Stats only (not actionable)
             - curated_articles: Articles with curator overrides
             - categories: Stream's presentation categories
 
@@ -1248,19 +1257,12 @@ class ReportService:
         if stream and stream.presentation_config:
             categories = stream.presentation_config.get('categories', [])
 
-        # Get included articles (from ReportArticleAssociation)
-        included_results = self.db.query(
-            ReportArticleAssociation, Article
-        ).join(
-            Article, Article.article_id == ReportArticleAssociation.article_id
-        ).filter(
-            ReportArticleAssociation.report_id == report_id
-        ).order_by(
-            ReportArticleAssociation.ranking
-        ).all()
+        # Get VISIBLE articles (curator_excluded=False)
+        visible_associations = self.association_service.get_visible_for_report(report_id)
 
         included_articles = []
-        for assoc, article in included_results:
+        for assoc in visible_associations:
+            article = assoc.article
             included_articles.append({
                 'article_id': article.article_id,
                 'pmid': article.pmid,
@@ -1284,10 +1286,18 @@ class ReportService:
                 'curated_at': assoc.curated_at.isoformat() if assoc.curated_at else None,
             })
 
-        # Get WIP articles for this execution
+        # Get WIP articles for this execution and compute stats
         filtered_articles = []
-        duplicate_articles = []
         curated_articles = []
+
+        # Pipeline stats (what pipeline originally decided)
+        pipeline_included_count = 0  # passed_filter AND NOT duplicate
+        pipeline_filtered_count = 0  # NOT passed_filter AND NOT duplicate
+        pipeline_duplicate_count = 0  # is_duplicate
+
+        # Curator stats
+        curator_added_count = 0   # curator manually added
+        curator_removed_count = 0  # curator manually excluded
 
         if report.pipeline_execution_id:
             wip_articles = self.db.query(WipArticle).filter(
@@ -1295,6 +1305,21 @@ class ReportService:
             ).all()
 
             for wip in wip_articles:
+                # Count pipeline decisions
+                if wip.is_duplicate:
+                    pipeline_duplicate_count += 1
+                    continue  # Duplicates not actionable
+                elif wip.passed_semantic_filter:
+                    pipeline_included_count += 1
+                else:
+                    pipeline_filtered_count += 1
+
+                # Count curator overrides
+                if wip.curator_included:
+                    curator_added_count += 1
+                if wip.curator_excluded:
+                    curator_removed_count += 1
+
                 wip_data = {
                     'wip_article_id': wip.id,
                     'pmid': wip.pmid,
@@ -1317,14 +1342,16 @@ class ReportService:
                     'presentation_categories': wip.presentation_categories or [],
                 }
 
-                if wip.is_duplicate:
-                    duplicate_articles.append(wip_data)
-                elif not wip.included_in_report and not wip.is_duplicate:
+                # Filtered = not currently visible in report
+                if not wip.included_in_report:
                     filtered_articles.append(wip_data)
 
-                # Track curated articles (curator override)
+                # Curated = has curator override
                 if wip.curator_included or wip.curator_excluded:
                     curated_articles.append(wip_data)
+
+        # Current count = pipeline_included - curator_removed + curator_added
+        current_included_count = len(included_articles)
 
         # Build report data with originals
         enrichments = report.enrichments or {}
@@ -1349,10 +1376,19 @@ class ReportService:
             'report': report_data,
             'included_articles': included_articles,
             'filtered_articles': filtered_articles,
-            'duplicate_articles': duplicate_articles,
+            'duplicate_articles': [],  # Not sent - duplicates not actionable
             'curated_articles': curated_articles,
             'categories': categories,
             'stream_name': stream.stream_name if stream else None,
+            # Pipeline stats (what pipeline originally decided)
+            'stats': {
+                'pipeline_included': pipeline_included_count,
+                'pipeline_filtered': pipeline_filtered_count,
+                'pipeline_duplicates': pipeline_duplicate_count,
+                'current_included': current_included_count,
+                'curator_added': curator_added_count,
+                'curator_removed': curator_removed_count,
+            }
         }
 
     def update_report_content(
@@ -1438,59 +1474,39 @@ class ReportService:
         """
         Curator excludes an article from the report.
 
-        - Deletes ReportArticleAssociation
-        - Updates WipArticle: included_in_report=False, curator_excluded=True
-        - Creates CurationEvent for audit trail
+        Sets curator_excluded=True on the association (preserves data for undo).
+        Updates WipArticle flags for consistency.
 
         Raises:
             HTTPException: 404 if report or article not found, or user doesn't have access
         """
         report, user, stream = self._get_report_for_curation(report_id, user_id)
 
-        # Find the association
-        association = self.db.query(ReportArticleAssociation).filter(
-            and_(
-                ReportArticleAssociation.report_id == report_id,
-                ReportArticleAssociation.article_id == article_id
-            )
-        ).first()
+        # Get the association
+        association = self.association_service.get(report_id, article_id)
 
-        if not association:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Article not found in report"
-            )
+        # Already excluded?
+        if association.curator_excluded:
+            return {
+                'article_id': article_id,
+                'excluded': True,
+                'wip_article_updated': False,
+            }
 
-        # Get the article for PMID lookup
+        # Set the excluded flag (preserves all association data)
+        self.association_service.set_excluded(association, True, user_id, notes)
+
+        # Update corresponding WipArticle if exists
         article = self.db.query(Article).filter(Article.article_id == article_id).first()
-
-        # Find corresponding WipArticle
         wip_article = None
         if report.pipeline_execution_id and article:
-            wip_article = self.db.query(WipArticle).filter(
-                and_(
-                    WipArticle.pipeline_execution_id == report.pipeline_execution_id,
-                    or_(
-                        WipArticle.pmid == article.pmid,
-                        WipArticle.doi == article.doi
-                    )
-                )
-            ).first()
-
-        # Import CurationEvent
-        from models import CurationEvent
-
-        # Delete the association
-        self.db.delete(association)
-
-        # Update WipArticle
-        if wip_article:
-            wip_article.included_in_report = False
-            wip_article.curator_excluded = True
-            wip_article.curator_included = False  # Clear include flag when excluding
-            wip_article.curation_notes = notes
-            wip_article.curated_by = user_id
-            wip_article.curated_at = datetime.utcnow()
+            wip_article = self.wip_article_service.get_by_execution_and_identifiers(
+                report.pipeline_execution_id,
+                pmid=article.pmid,
+                doi=article.doi
+            )
+            if wip_article:
+                self.wip_article_service.set_curator_excluded(wip_article, user_id, notes)
 
         # Update report curation tracking
         report.has_curation_edits = True
@@ -1498,6 +1514,7 @@ class ReportService:
         report.last_curated_at = datetime.utcnow()
 
         # Create audit event
+        from models import CurationEvent
         event = CurationEvent(
             report_id=report_id,
             article_id=article_id,
@@ -1526,10 +1543,8 @@ class ReportService:
         """
         Curator includes a filtered article into the report.
 
-        - Creates/finds Article record
-        - Creates ReportArticleAssociation
-        - Updates WipArticle: included_in_report=True, curator_included=True
-        - Creates CurationEvent for audit trail
+        Creates Article record if needed, creates association with curator_added=True.
+        Updates WipArticle flags for consistency.
 
         Raises:
             HTTPException: 404 if report or WIP article not found
@@ -1537,7 +1552,7 @@ class ReportService:
         """
         report, user, stream = self._get_report_for_curation(report_id, user_id)
 
-        # Get the WipArticle (throws 404 if not found)
+        # Get the WipArticle
         wip_article = self.wip_article_service.get_by_id_or_404(wip_article_id)
 
         # Verify it belongs to this report's pipeline execution
@@ -1547,7 +1562,7 @@ class ReportService:
                 detail="WIP article not found for this report"
             )
 
-        # Check if already included
+        # Check if already included (visible in report)
         if wip_article.included_in_report:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -1555,74 +1570,38 @@ class ReportService:
             )
 
         # Find or create Article record
-        article = None
-        if wip_article.pmid:
-            article = self.db.query(Article).filter(Article.pmid == wip_article.pmid).first()
-        if not article and wip_article.doi:
-            article = self.db.query(Article).filter(Article.doi == wip_article.doi).first()
+        article = self._find_or_create_article_from_wip(wip_article)
 
-        if not article:
-            # Create new Article from WipArticle
-            article = Article(
-                source_id=wip_article.source_id,
-                title=wip_article.title,
-                url=wip_article.url,
-                authors=wip_article.authors,
-                publication_date=wip_article.publication_date,
-                summary=wip_article.summary,
-                abstract=wip_article.abstract,
-                article_metadata=wip_article.article_metadata,
-                pmid=wip_article.pmid,
-                doi=wip_article.doi,
-                journal=wip_article.journal,
-                volume=wip_article.volume,
-                issue=wip_article.issue,
-                pages=wip_article.pages,
-                year=wip_article.year,
+        # Check if association already exists (e.g., was excluded)
+        existing_association = self.association_service.find(report_id, article.article_id)
+        if existing_association:
+            # Re-include a previously excluded article
+            self.association_service.set_excluded(existing_association, False, user_id, notes)
+            new_ranking = existing_association.ranking
+        else:
+            # Create new association (curator-added)
+            new_ranking = self.association_service.get_next_ranking(report_id)
+            categories = [category] if category else []
+            self.association_service.create(
+                report_id=report_id,
+                article_id=article.article_id,
+                ranking=new_ranking,
+                presentation_categories=categories,
+                curator_added=True
             )
-            self.db.add(article)
-            self.db.flush()  # Get article_id
-
-        # Get current max ranking
-        max_ranking = self.db.query(ReportArticleAssociation.ranking).filter(
-            ReportArticleAssociation.report_id == report_id
-        ).order_by(ReportArticleAssociation.ranking.desc()).first()
-
-        new_ranking = (max_ranking[0] + 1) if max_ranking and max_ranking[0] else 1
-
-        # Create association
-        categories = [category] if category else []
-        association = ReportArticleAssociation(
-            report_id=report_id,
-            article_id=article.article_id,
-            ranking=new_ranking,
-            presentation_categories=categories,
-            original_ranking=None,  # Curator-added, no pipeline original
-            original_presentation_categories=[],
-            is_starred=False,
-            is_read=False
-        )
-        self.db.add(association)
 
         # Update WipArticle
-        wip_article.included_in_report = True
-        wip_article.curator_included = True
-        wip_article.curator_excluded = False  # Clear exclude flag when including
-        wip_article.curation_notes = notes
-        wip_article.curated_by = user_id
-        wip_article.curated_at = datetime.utcnow()
+        self.wip_article_service.set_curator_included(wip_article, user_id, notes)
         if category:
-            wip_article.presentation_categories = categories
+            wip_article.presentation_categories = [category]
 
         # Update report curation tracking
         report.has_curation_edits = True
         report.last_curated_by = user_id
         report.last_curated_at = datetime.utcnow()
 
-        # Import CurationEvent
-        from models import CurationEvent
-
         # Create audit event
+        from models import CurationEvent
         event = CurationEvent(
             report_id=report_id,
             article_id=article.article_id,
@@ -1642,6 +1621,45 @@ class ReportService:
             'category': category,
         }
 
+    def _find_or_create_article_from_wip(self, wip_article: WipArticle) -> Article:
+        """
+        Find existing Article by PMID/DOI or create new one from WipArticle.
+
+        Args:
+            wip_article: Source WipArticle
+
+        Returns:
+            Article instance (existing or newly created)
+        """
+        article = None
+        if wip_article.pmid:
+            article = self.db.query(Article).filter(Article.pmid == wip_article.pmid).first()
+        if not article and wip_article.doi:
+            article = self.db.query(Article).filter(Article.doi == wip_article.doi).first()
+
+        if not article:
+            article = Article(
+                source_id=wip_article.source_id,
+                title=wip_article.title,
+                url=wip_article.url,
+                authors=wip_article.authors,
+                publication_date=wip_article.publication_date,
+                summary=wip_article.summary,
+                abstract=wip_article.abstract,
+                article_metadata=wip_article.article_metadata,
+                pmid=wip_article.pmid,
+                doi=wip_article.doi,
+                journal=wip_article.journal,
+                volume=wip_article.volume,
+                issue=wip_article.issue,
+                pages=wip_article.pages,
+                year=wip_article.year,
+            )
+            self.db.add(article)
+            self.db.flush()
+
+        return article
+
     def reset_curation(
         self,
         report_id: int,
@@ -1651,11 +1669,10 @@ class ReportService:
         """
         Reset curation for an article, restoring it to the pipeline's original decision.
 
-        This is the "undo" operation for curator include/exclude actions.
-        - Clears both curator_included and curator_excluded flags
-        - Restores included_in_report based on pipeline's original decision
-        - If article was curator_included: deletes ReportArticleAssociation
-        - If article was curator_excluded: recreates ReportArticleAssociation
+        This is the "undo" operation for curator include/exclude actions:
+        - If curator_added: delete the association entirely
+        - If curator_excluded: clear the flag to restore visibility
+        - Clear WipArticle curation flags
 
         Raises:
             HTTPException: 404 if report or WIP article not found
@@ -1672,25 +1689,18 @@ class ReportService:
                 detail="WIP article not found for this report"
             )
 
-        # Determine the pipeline's original decision
-        pipeline_would_include = (
-            wip_article.passed_semantic_filter and
-            not wip_article.is_duplicate
-        )
-
-        # Track what we're undoing for the audit event
+        # Track what we're undoing
         was_curator_included = wip_article.curator_included
         was_curator_excluded = wip_article.curator_excluded
 
         if not was_curator_included and not was_curator_excluded:
-            # Nothing to undo
             return {
                 'wip_article_id': wip_article_id,
                 'reset': False,
                 'message': 'Article has no curation overrides to reset'
             }
 
-        # Find existing Article record (if any)
+        # Find the Article record
         article = None
         if wip_article.pmid:
             article = self.db.query(Article).filter(Article.pmid == wip_article.pmid).first()
@@ -1698,69 +1708,33 @@ class ReportService:
             article = self.db.query(Article).filter(Article.doi == wip_article.doi).first()
 
         # Handle the ReportArticleAssociation
-        if was_curator_included:
-            # Article was manually included - need to remove it from report
-            if article:
-                association = self.db.query(ReportArticleAssociation).filter(
-                    and_(
-                        ReportArticleAssociation.report_id == report_id,
-                        ReportArticleAssociation.article_id == article.article_id
-                    )
-                ).first()
-                if association:
-                    self.db.delete(association)
+        article_id = None
+        if article:
+            article_id = article.article_id
+            association = self.association_service.find(report_id, article.article_id)
 
-        elif was_curator_excluded and pipeline_would_include:
-            # Article was manually excluded but pipeline wanted it - recreate association
-            if article:
-                # Check if association already exists (shouldn't, but be safe)
-                existing = self.db.query(ReportArticleAssociation).filter(
-                    and_(
-                        ReportArticleAssociation.report_id == report_id,
-                        ReportArticleAssociation.article_id == article.article_id
-                    )
-                ).first()
+            if association:
+                if association.curator_added:
+                    # Curator added this - delete entirely
+                    self.association_service.delete(association)
+                elif association.curator_excluded:
+                    # Curator excluded this - restore visibility
+                    self.association_service.set_excluded(association, False, user_id)
 
-                if not existing:
-                    # Get current max ranking
-                    max_ranking = self.db.query(ReportArticleAssociation.ranking).filter(
-                        ReportArticleAssociation.report_id == report_id
-                    ).order_by(ReportArticleAssociation.ranking.desc()).first()
-                    new_ranking = (max_ranking[0] + 1) if max_ranking and max_ranking[0] else 1
-
-                    # Recreate the association
-                    association = ReportArticleAssociation(
-                        report_id=report_id,
-                        article_id=article.article_id,
-                        ranking=new_ranking,
-                        presentation_categories=wip_article.presentation_categories or [],
-                        original_ranking=wip_article.original_ranking if hasattr(wip_article, 'original_ranking') else None,
-                        original_presentation_categories=wip_article.original_presentation_categories if hasattr(wip_article, 'original_presentation_categories') else [],
-                        is_starred=False,
-                        is_read=False
-                    )
-                    self.db.add(association)
-
-        # Reset the WipArticle curation flags
-        wip_article.curator_included = False
-        wip_article.curator_excluded = False
-        wip_article.included_in_report = pipeline_would_include
-        wip_article.curated_by = user_id
-        wip_article.curated_at = datetime.utcnow()
+        # Clear WipArticle curation flags, restore pipeline decision
+        pipeline_would_include = self.wip_article_service.clear_curation_flags(wip_article, user_id)
 
         # Update report curation tracking
         report.last_curated_by = user_id
         report.last_curated_at = datetime.utcnow()
 
-        # Import CurationEvent
-        from models import CurationEvent
-
         # Create audit event
+        from models import CurationEvent
         event = CurationEvent(
             report_id=report_id,
-            article_id=article.article_id if article else None,
+            article_id=article_id,
             event_type='reset_curation',
-            notes=f"Reset from {'curator_included' if was_curator_included else 'curator_excluded'} to pipeline decision (include={pipeline_would_include})",
+            notes=f"Reset from {'curator_included' if was_curator_included else 'curator_excluded'} to pipeline decision",
             curator_id=user_id
         )
         self.db.add(event)

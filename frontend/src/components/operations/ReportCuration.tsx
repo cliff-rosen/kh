@@ -163,9 +163,18 @@ export default function ReportCuration() {
     };
 
     // Handle category change for an article
-    const handleCategoryChange = async (_article: CurationIncludedArticle, _newCategoryId: string) => {
-        // TODO: Implement category change endpoint
-        console.log('Category change not yet implemented');
+    const handleCategoryChange = async (article: CurationIncludedArticle, newCategoryId: string) => {
+        if (!reportId) return;
+
+        try {
+            await reportApi.updateArticleInReport(parseInt(reportId), article.article_id, {
+                category: newCategoryId
+            });
+            await fetchCurationData();
+        } catch (err) {
+            console.error('Failed to update article category:', err);
+            alert('Failed to update article category');
+        }
     };
 
     // Approve report
@@ -229,7 +238,7 @@ export default function ReportCuration() {
     const categories = curationData.categories;
     const includedArticles = curationData.included_articles;
     const filteredArticles = curationData.filtered_articles;
-    const duplicateArticles = curationData.duplicate_articles;
+    const stats = curationData.stats;
 
     // Build categories with article counts from included articles
     const categoriesWithCounts = categories.map(cat => {
@@ -493,8 +502,28 @@ export default function ReportCuration() {
                 {/* Articles Section */}
                 <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                     <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center justify-between">
                             <h2 className="font-semibold text-gray-900 dark:text-white">Articles</h2>
+                            {/* Pipeline vs Curated Stats */}
+                            <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+                                <span>
+                                    Pipeline: <span className="font-medium text-gray-700 dark:text-gray-300">{stats.pipeline_included}</span> included
+                                </span>
+                                {(stats.curator_added > 0 || stats.curator_removed > 0) && (
+                                    <span className="flex items-center gap-2">
+                                        <span className="text-gray-300 dark:text-gray-600">|</span>
+                                        <span>
+                                            Curated:
+                                            {stats.curator_added > 0 && (
+                                                <span className="ml-1 text-green-600 dark:text-green-400">+{stats.curator_added}</span>
+                                            )}
+                                            {stats.curator_removed > 0 && (
+                                                <span className="ml-1 text-red-600 dark:text-red-400">-{stats.curator_removed}</span>
+                                            )}
+                                        </span>
+                                    </span>
+                                )}
+                            </div>
                         </div>
 
                         {/* Tabs */}
@@ -535,7 +564,7 @@ export default function ReportCuration() {
                             >
                                 Duplicates
                                 <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300">
-                                    {duplicateArticles.length}
+                                    {stats.pipeline_duplicates}
                                 </span>
                             </button>
                             <button
@@ -580,19 +609,12 @@ export default function ReportCuration() {
                             />
                         ))}
 
-                        {activeTab === 'duplicates' && duplicateArticles.map((article) => (
-                            <div key={article.wip_article_id} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50">
-                                <h4 className="font-medium text-gray-900 dark:text-white">{article.title}</h4>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                    {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
-                                </p>
-                                {article.duplicate_of_pmid && (
-                                    <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
-                                        Duplicate of PMID: {article.duplicate_of_pmid}
-                                    </p>
-                                )}
+                        {activeTab === 'duplicates' && stats.pipeline_duplicates > 0 && (
+                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                <p className="text-lg font-medium">{stats.pipeline_duplicates} duplicate{stats.pipeline_duplicates !== 1 ? 's' : ''} detected</p>
+                                <p className="text-sm mt-2">Duplicates are automatically excluded from the report.</p>
                             </div>
-                        ))}
+                        )}
 
                         {activeTab === 'curated' && (
                             curationData.curated_articles.length === 0 ? (
@@ -674,7 +696,7 @@ export default function ReportCuration() {
                             </div>
                         )}
 
-                        {activeTab === 'duplicates' && duplicateArticles.length === 0 && (
+                        {activeTab === 'duplicates' && stats.pipeline_duplicates === 0 && (
                             <div className="text-center py-8 text-gray-500">
                                 No duplicate articles detected
                             </div>

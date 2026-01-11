@@ -197,6 +197,30 @@ export const reportApi = {
     async rejectReport(reportId: number, reason: string): Promise<{ success: boolean; message: string }> {
         const response = await api.post(`/api/reports/${reportId}/reject`, { reason });
         return response.data;
+    },
+
+    /**
+     * Update an article within a report (ranking, category, AI summary)
+     * @param articleId - The Article ID (not WipArticle ID)
+     */
+    async updateArticleInReport(
+        reportId: number,
+        articleId: number,
+        updates: {
+            ranking?: number;
+            category?: string;
+            ai_summary?: string;
+            curation_notes?: string;
+        }
+    ): Promise<{
+        article_id: number;
+        ranking: number | null;
+        presentation_categories: string[];
+        ai_summary: string | null;
+        curation_notes: string | null;
+    }> {
+        const response = await api.patch(`/api/reports/${reportId}/articles/${articleId}`, updates);
+        return response.data;
     }
 };
 
@@ -207,14 +231,24 @@ export const reportApi = {
 /**
  * Backend curation view response structure
  */
+export interface CurationStats {
+    pipeline_included: number;  // Articles pipeline decided to include
+    pipeline_filtered: number;  // Articles pipeline filtered out
+    pipeline_duplicates: number;  // Duplicate articles detected
+    current_included: number;  // Current visible articles in report
+    curator_added: number;  // Articles curator manually added
+    curator_removed: number;  // Articles curator manually removed
+}
+
 export interface CurationViewResponse {
     report: CurationReportData;
     included_articles: CurationIncludedArticle[];
     filtered_articles: CurationFilteredArticle[];
-    duplicate_articles: CurationFilteredArticle[];
+    duplicate_articles: CurationFilteredArticle[];  // Empty - duplicates not actionable
     curated_articles: CurationFilteredArticle[];
     categories: CurationCategory[];
     stream_name: string | null;
+    stats: CurationStats;
 }
 
 export interface CurationReportData {

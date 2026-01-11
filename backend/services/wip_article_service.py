@@ -452,6 +452,150 @@ class WipArticleService:
         return categorized_count
 
     # =========================================================================
+    # CURATION Operations
+    # =========================================================================
+
+    def set_curator_included(
+        self,
+        article: WipArticle,
+        user_id: int,
+        notes: Optional[str] = None
+    ) -> None:
+        """
+        Mark an article as curator-included.
+
+        Used when curator adds a filtered article to the report.
+
+        Args:
+            article: WipArticle to update
+            user_id: ID of the curator
+            notes: Optional curation notes
+        """
+        from datetime import datetime
+        article.curator_included = True
+        article.curator_excluded = False  # Clear any exclude flag
+        article.included_in_report = True
+        article.curated_by = user_id
+        article.curated_at = datetime.utcnow()
+        if notes is not None:
+            article.curation_notes = notes
+
+    def set_curator_excluded(
+        self,
+        article: WipArticle,
+        user_id: int,
+        notes: Optional[str] = None
+    ) -> None:
+        """
+        Mark an article as curator-excluded.
+
+        Used when curator excludes an article from the report.
+
+        Args:
+            article: WipArticle to update
+            user_id: ID of the curator
+            notes: Optional curation notes
+        """
+        from datetime import datetime
+        article.curator_excluded = True
+        article.curator_included = False  # Clear any include flag
+        article.included_in_report = False
+        article.curated_by = user_id
+        article.curated_at = datetime.utcnow()
+        if notes is not None:
+            article.curation_notes = notes
+
+    def clear_curation_flags(
+        self,
+        article: WipArticle,
+        user_id: int
+    ) -> bool:
+        """
+        Clear curator override flags, restoring to pipeline decision.
+
+        Args:
+            article: WipArticle to update
+            user_id: ID of the curator
+
+        Returns:
+            The pipeline's original decision for included_in_report
+        """
+        from datetime import datetime
+
+        # Determine pipeline's original decision
+        pipeline_would_include = (
+            article.passed_semantic_filter is True and
+            not article.is_duplicate
+        )
+
+        article.curator_included = False
+        article.curator_excluded = False
+        article.included_in_report = pipeline_would_include
+        article.curated_by = user_id
+        article.curated_at = datetime.utcnow()
+
+        return pipeline_would_include
+
+    def get_by_execution_and_identifiers(
+        self,
+        execution_id: str,
+        pmid: Optional[str] = None,
+        doi: Optional[str] = None
+    ) -> Optional[WipArticle]:
+        """
+        Find a WipArticle by PMID or DOI within an execution.
+
+        Args:
+            execution_id: Pipeline execution ID
+            pmid: PubMed ID to search for
+            doi: DOI to search for
+
+        Returns:
+            WipArticle if found, None otherwise
+        """
+        if pmid:
+            article = self.db.query(WipArticle).filter(
+                and_(
+                    WipArticle.pipeline_execution_id == execution_id,
+                    WipArticle.pmid == pmid
+                )
+            ).first()
+            if article:
+                return article
+
+        if doi:
+            article = self.db.query(WipArticle).filter(
+                and_(
+                    WipArticle.pipeline_execution_id == execution_id,
+                    WipArticle.doi == doi
+                )
+            ).first()
+            if article:
+                return article
+
+        return None
+
+    def get_curated_articles(self, execution_id: str) -> List[WipArticle]:
+        """
+        Get articles with curator overrides for an execution.
+
+        Args:
+            execution_id: Pipeline execution ID
+
+        Returns:
+            List of WipArticle instances with curator flags set
+        """
+        return self.db.query(WipArticle).filter(
+            and_(
+                WipArticle.pipeline_execution_id == execution_id,
+                or_(
+                    WipArticle.curator_included == True,
+                    WipArticle.curator_excluded == True
+                )
+            )
+        ).all()
+
+    # =========================================================================
     # DELETE Operations
     # =========================================================================
 
