@@ -1487,6 +1487,7 @@ class ReportService:
         if wip_article:
             wip_article.included_in_report = False
             wip_article.curator_excluded = True
+            wip_article.curator_included = False  # Clear include flag when excluding
             wip_article.curation_notes = notes
             wip_article.curated_by = user_id
             wip_article.curated_at = datetime.utcnow()
@@ -1606,6 +1607,7 @@ class ReportService:
         # Update WipArticle
         wip_article.included_in_report = True
         wip_article.curator_included = True
+        wip_article.curator_excluded = False  # Clear exclude flag when including
         wip_article.curation_notes = notes
         wip_article.curated_by = user_id
         wip_article.curated_at = datetime.utcnow()
@@ -1638,6 +1640,140 @@ class ReportService:
             'included': True,
             'ranking': new_ranking,
             'category': category,
+        }
+
+    def reset_curation(
+        self,
+        report_id: int,
+        wip_article_id: int,
+        user_id: int
+    ) -> Dict[str, Any]:
+        """
+        Reset curation for an article, restoring it to the pipeline's original decision.
+
+        This is the "undo" operation for curator include/exclude actions.
+        - Clears both curator_included and curator_excluded flags
+        - Restores included_in_report based on pipeline's original decision
+        - If article was curator_included: deletes ReportArticleAssociation
+        - If article was curator_excluded: recreates ReportArticleAssociation
+
+        Raises:
+            HTTPException: 404 if report or WIP article not found
+        """
+        report, user, stream = self._get_report_for_curation(report_id, user_id)
+
+        # Get the WipArticle
+        wip_article = self.wip_article_service.get_by_id_or_404(wip_article_id)
+
+        # Verify it belongs to this report's pipeline execution
+        if wip_article.pipeline_execution_id != report.pipeline_execution_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="WIP article not found for this report"
+            )
+
+        # Determine the pipeline's original decision
+        pipeline_would_include = (
+            wip_article.passed_semantic_filter and
+            not wip_article.is_duplicate
+        )
+
+        # Track what we're undoing for the audit event
+        was_curator_included = wip_article.curator_included
+        was_curator_excluded = wip_article.curator_excluded
+
+        if not was_curator_included and not was_curator_excluded:
+            # Nothing to undo
+            return {
+                'wip_article_id': wip_article_id,
+                'reset': False,
+                'message': 'Article has no curation overrides to reset'
+            }
+
+        # Find existing Article record (if any)
+        article = None
+        if wip_article.pmid:
+            article = self.db.query(Article).filter(Article.pmid == wip_article.pmid).first()
+        if not article and wip_article.doi:
+            article = self.db.query(Article).filter(Article.doi == wip_article.doi).first()
+
+        # Handle the ReportArticleAssociation
+        if was_curator_included:
+            # Article was manually included - need to remove it from report
+            if article:
+                association = self.db.query(ReportArticleAssociation).filter(
+                    and_(
+                        ReportArticleAssociation.report_id == report_id,
+                        ReportArticleAssociation.article_id == article.article_id
+                    )
+                ).first()
+                if association:
+                    self.db.delete(association)
+
+        elif was_curator_excluded and pipeline_would_include:
+            # Article was manually excluded but pipeline wanted it - recreate association
+            if article:
+                # Check if association already exists (shouldn't, but be safe)
+                existing = self.db.query(ReportArticleAssociation).filter(
+                    and_(
+                        ReportArticleAssociation.report_id == report_id,
+                        ReportArticleAssociation.article_id == article.article_id
+                    )
+                ).first()
+
+                if not existing:
+                    # Get current max ranking
+                    max_ranking = self.db.query(ReportArticleAssociation.ranking).filter(
+                        ReportArticleAssociation.report_id == report_id
+                    ).order_by(ReportArticleAssociation.ranking.desc()).first()
+                    new_ranking = (max_ranking[0] + 1) if max_ranking and max_ranking[0] else 1
+
+                    # Recreate the association
+                    association = ReportArticleAssociation(
+                        report_id=report_id,
+                        article_id=article.article_id,
+                        ranking=new_ranking,
+                        presentation_categories=wip_article.presentation_categories or [],
+                        original_ranking=wip_article.original_ranking if hasattr(wip_article, 'original_ranking') else None,
+                        original_presentation_categories=wip_article.original_presentation_categories if hasattr(wip_article, 'original_presentation_categories') else [],
+                        is_starred=False,
+                        is_read=False
+                    )
+                    self.db.add(association)
+
+        # Reset the WipArticle curation flags
+        wip_article.curator_included = False
+        wip_article.curator_excluded = False
+        wip_article.included_in_report = pipeline_would_include
+        wip_article.curated_by = user_id
+        wip_article.curated_at = datetime.utcnow()
+
+        # Update report curation tracking
+        report.last_curated_by = user_id
+        report.last_curated_at = datetime.utcnow()
+
+        # Import CurationEvent
+        from models import CurationEvent
+
+        # Create audit event
+        event = CurationEvent(
+            report_id=report_id,
+            article_id=article.article_id if article else None,
+            event_type='reset_curation',
+            notes=f"Reset from {'curator_included' if was_curator_included else 'curator_excluded'} to pipeline decision (include={pipeline_would_include})",
+            curator_id=user_id
+        )
+        self.db.add(event)
+
+        self.db.commit()
+
+        return {
+            'wip_article_id': wip_article_id,
+            'reset': True,
+            'was_curator_included': was_curator_included,
+            'was_curator_excluded': was_curator_excluded,
+            'pipeline_decision': pipeline_would_include,
+            'now_in_report': pipeline_would_include,
         }
 
     def update_article_in_report(

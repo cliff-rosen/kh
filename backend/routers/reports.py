@@ -103,6 +103,151 @@ class UpdateSuccessResponse(BaseModel):
     ai_enrichments: Optional[Dict[str, Any]] = None
 
 
+# --- Curation View Response Schemas ---
+
+class CurationReportData(BaseModel):
+    """Report content data for curation view"""
+    report_id: int
+    report_name: str
+    original_report_name: Optional[str] = None
+    report_date: Optional[str] = None
+    approval_status: Optional[str] = None
+    executive_summary: str = ""
+    original_executive_summary: str = ""
+    category_summaries: Dict[str, str] = {}
+    original_category_summaries: Dict[str, str] = {}
+    has_curation_edits: bool = False
+    last_curated_by: Optional[int] = None
+    last_curated_at: Optional[str] = None
+
+
+class CurationIncludedArticle(BaseModel):
+    """Included article data (from Article + ReportArticleAssociation)"""
+    article_id: int
+    pmid: Optional[str] = None
+    doi: Optional[str] = None
+    title: str
+    authors: Optional[List[str]] = None
+    journal: Optional[str] = None
+    year: Optional[int] = None
+    abstract: Optional[str] = None
+    url: Optional[str] = None
+    # Association data
+    ranking: Optional[int] = None
+    original_ranking: Optional[int] = None
+    presentation_categories: List[str] = []
+    original_presentation_categories: List[str] = []
+    ai_summary: Optional[str] = None
+    original_ai_summary: Optional[str] = None
+    relevance_score: Optional[float] = None
+    curation_notes: Optional[str] = None
+    curated_by: Optional[int] = None
+    curated_at: Optional[str] = None
+
+
+class CurationFilteredArticle(BaseModel):
+    """Filtered/duplicate/curated article data (from WipArticle)"""
+    wip_article_id: int
+    pmid: Optional[str] = None
+    doi: Optional[str] = None
+    title: str
+    authors: Optional[List[str]] = None
+    journal: Optional[str] = None
+    year: Optional[int] = None
+    abstract: Optional[str] = None
+    url: Optional[str] = None
+    filter_score: Optional[float] = None
+    filter_score_reason: Optional[str] = None
+    passed_semantic_filter: Optional[bool] = None
+    is_duplicate: bool = False
+    duplicate_of_pmid: Optional[str] = None
+    included_in_report: bool = False
+    curator_included: bool = False
+    curator_excluded: bool = False
+    curation_notes: Optional[str] = None
+    presentation_categories: List[str] = []
+
+
+class CurationCategory(BaseModel):
+    """Category definition from stream config"""
+    id: str
+    name: str
+    color: Optional[str] = None
+    description: Optional[str] = None
+
+
+class CurationViewResponse(BaseModel):
+    """Response for get_curation_view endpoint"""
+    report: CurationReportData
+    included_articles: List[CurationIncludedArticle]
+    filtered_articles: List[CurationFilteredArticle]
+    duplicate_articles: List[CurationFilteredArticle]
+    curated_articles: List[CurationFilteredArticle]
+    categories: List[CurationCategory]
+    stream_name: Optional[str] = None
+
+
+class ResetCurationResponse(BaseModel):
+    """Response for reset_curation endpoint"""
+    wip_article_id: int
+    reset: bool
+    was_curator_included: Optional[bool] = None
+    was_curator_excluded: Optional[bool] = None
+    pipeline_decision: Optional[bool] = None
+    now_in_report: Optional[bool] = None
+    message: Optional[str] = None
+
+
+class ExcludeArticleResponse(BaseModel):
+    """Response for exclude_article endpoint"""
+    article_id: int
+    excluded: bool
+    wip_article_updated: bool
+
+
+class IncludeArticleResponse(BaseModel):
+    """Response for include_article endpoint"""
+    article_id: int
+    wip_article_id: int
+    included: bool
+    ranking: int
+    category: Optional[str] = None
+
+
+class UpdateReportContentResponse(BaseModel):
+    """Response for update_report_content endpoint"""
+    report_name: str
+    executive_summary: str = ""
+    category_summaries: Dict[str, str] = {}
+    has_curation_edits: bool
+
+
+class UpdateArticleResponse(BaseModel):
+    """Response for update_article_in_report endpoint"""
+    article_id: int
+    ranking: Optional[int] = None
+    presentation_categories: List[str] = []
+    ai_summary: Optional[str] = None
+    curation_notes: Optional[str] = None
+
+
+class ApproveReportResponse(BaseModel):
+    """Response for approve_report endpoint"""
+    report_id: int
+    approval_status: str
+    approved_by: int
+    approved_at: str
+
+
+class RejectReportResponse(BaseModel):
+    """Response for reject_report endpoint"""
+    report_id: int
+    approval_status: str
+    rejection_reason: str
+    rejected_by: int
+    rejected_at: str
+
+
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 
@@ -588,7 +733,7 @@ async def send_report_email(
 # CURATION ENDPOINTS
 # =============================================================================
 
-@router.get("/{report_id}/curation", response_model=Dict[str, Any])
+@router.get("/{report_id}/curation", response_model=CurationViewResponse)
 async def get_curation_view(
     report_id: int,
     db: Session = Depends(get_db),
@@ -623,7 +768,7 @@ async def get_curation_view(
         )
 
 
-@router.patch("/{report_id}/content", response_model=Dict[str, Any])
+@router.patch("/{report_id}/content", response_model=UpdateReportContentResponse)
 async def update_report_content(
     report_id: int,
     request: UpdateReportContentRequest,
@@ -657,7 +802,7 @@ async def update_report_content(
         )
 
 
-@router.post("/{report_id}/articles/{article_id}/exclude", response_model=Dict[str, Any])
+@router.post("/{report_id}/articles/{article_id}/exclude", response_model=ExcludeArticleResponse)
 async def exclude_article(
     report_id: int,
     article_id: int,
@@ -694,7 +839,7 @@ async def exclude_article(
         )
 
 
-@router.post("/{report_id}/articles/include", response_model=Dict[str, Any])
+@router.post("/{report_id}/articles/include", response_model=IncludeArticleResponse)
 async def include_article(
     report_id: int,
     request: IncludeArticleRequest,
@@ -732,7 +877,43 @@ async def include_article(
         )
 
 
-@router.patch("/{report_id}/articles/{article_id}", response_model=Dict[str, Any])
+@router.post("/{report_id}/articles/{wip_article_id}/reset-curation", response_model=ResetCurationResponse)
+async def reset_curation(
+    report_id: int,
+    wip_article_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Reset curation for an article, restoring it to the pipeline's original decision.
+
+    This is the "undo" operation for curator include/exclude actions.
+    - Clears both curator_included and curator_excluded flags
+    - Restores included_in_report based on pipeline's original decision
+    """
+    logger.info(f"reset_curation - user_id={current_user.user_id}, report_id={report_id}, wip_article_id={wip_article_id}")
+
+    try:
+        service = ReportService(db)
+        result = service.reset_curation(
+            report_id=report_id,
+            wip_article_id=wip_article_id,
+            user_id=current_user.user_id
+        )
+        logger.info(f"reset_curation complete - user_id={current_user.user_id}, report_id={report_id}, result={result}")
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"reset_curation failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reset curation: {str(e)}"
+        )
+
+
+@router.patch("/{report_id}/articles/{article_id}", response_model=UpdateArticleResponse)
 async def update_article_in_report(
     report_id: int,
     article_id: int,
@@ -769,7 +950,7 @@ async def update_article_in_report(
         )
 
 
-@router.post("/{report_id}/approve", response_model=Dict[str, Any])
+@router.post("/{report_id}/approve", response_model=ApproveReportResponse)
 async def approve_report(
     report_id: int,
     request: ApproveReportRequest,
@@ -801,7 +982,7 @@ async def approve_report(
         )
 
 
-@router.post("/{report_id}/reject", response_model=Dict[str, Any])
+@router.post("/{report_id}/reject", response_model=RejectReportResponse)
 async def reject_report(
     report_id: int,
     request: RejectReportRequest,

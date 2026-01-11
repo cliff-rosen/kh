@@ -166,6 +166,24 @@ export const reportApi = {
     },
 
     /**
+     * Reset curation for an article, restoring it to the pipeline's original decision.
+     * This is the "undo" operation for curator include/exclude actions.
+     * @param wipArticleId - The WipArticle ID
+     */
+    async resetCuration(reportId: number, wipArticleId: number): Promise<{
+        wip_article_id: number;
+        reset: boolean;
+        was_curator_included?: boolean;
+        was_curator_excluded?: boolean;
+        pipeline_decision?: boolean;
+        now_in_report?: boolean;
+        message?: string;
+    }> {
+        const response = await api.post(`/api/reports/${reportId}/articles/${wipArticleId}/reset-curation`);
+        return response.data;
+    },
+
+    /**
      * Approve a report for distribution
      */
     async approveReport(reportId: number): Promise<{ success: boolean; message: string }> {

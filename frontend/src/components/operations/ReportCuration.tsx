@@ -143,61 +143,20 @@ export default function ReportCuration() {
         }
     };
 
-    // Undo a manual inclusion (exclude the article that was manually included)
-    const handleUndoInclude = async (curatedArticle: CurationFilteredArticle) => {
-        if (!reportId || !curationData) return;
-
-        // Find the corresponding article in included_articles by matching PMID, DOI, or title
-        const includedArticle = curationData.included_articles.find(a => {
-            // Try PMID first (if both have it)
-            if (curatedArticle.pmid && a.pmid && a.pmid === curatedArticle.pmid) {
-                return true;
-            }
-            // Try DOI (if both have it)
-            if (curatedArticle.doi && a.doi && a.doi === curatedArticle.doi) {
-                return true;
-            }
-            // Fall back to title matching
-            if (a.title === curatedArticle.title) {
-                return true;
-            }
-            return false;
-        });
-
-        if (!includedArticle) {
-            console.error('Could not find included article to undo:', {
-                pmid: curatedArticle.pmid,
-                doi: curatedArticle.doi,
-                title: curatedArticle.title
-            });
-            alert('Could not find the article to undo. Please refresh and try again.');
-            return;
-        }
-
-        setUndoing(curatedArticle.wip_article_id);
-        try {
-            await reportApi.excludeArticle(parseInt(reportId), includedArticle.article_id);
-            await fetchCurationData();
-        } catch (err) {
-            console.error('Failed to undo inclusion:', err);
-            alert('Failed to undo inclusion');
-        } finally {
-            setUndoing(null);
-        }
-    };
-
-    // Undo a manual exclusion (re-include the article that was manually excluded)
-    const handleUndoExclude = async (curatedArticle: CurationFilteredArticle) => {
+    // Reset curation - restore article to pipeline's original decision
+    const handleResetCuration = async (curatedArticle: CurationFilteredArticle) => {
         if (!reportId) return;
 
         setUndoing(curatedArticle.wip_article_id);
         try {
-            // Re-include using the wip_article_id
-            await reportApi.includeArticle(parseInt(reportId), curatedArticle.wip_article_id);
+            const result = await reportApi.resetCuration(parseInt(reportId), curatedArticle.wip_article_id);
+            if (!result.reset) {
+                console.log('Nothing to reset:', result.message);
+            }
             await fetchCurationData();
         } catch (err) {
-            console.error('Failed to undo exclusion:', err);
-            alert('Failed to undo exclusion');
+            console.error('Failed to reset curation:', err);
+            alert('Failed to undo curation');
         } finally {
             setUndoing(null);
         }
@@ -684,17 +643,17 @@ export default function ReportCuration() {
                                                     </p>
                                                 </div>
                                                 <button
-                                                    onClick={() => isIncluded ? handleUndoInclude(article) : handleUndoExclude(article)}
+                                                    onClick={() => handleResetCuration(article)}
                                                     disabled={isUndoing}
                                                     className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-white dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                    title="Undo this change"
+                                                    title="Reset to pipeline's original decision"
                                                 >
                                                     {isUndoing ? (
                                                         <ArrowPathIcon className="h-4 w-4 animate-spin" />
                                                     ) : (
                                                         <ArrowUturnLeftIcon className="h-4 w-4" />
                                                     )}
-                                                    {isUndoing ? 'Undoing...' : 'Undo'}
+                                                    {isUndoing ? 'Resetting...' : 'Undo'}
                                                 </button>
                                             </div>
                                         </div>
