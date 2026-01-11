@@ -127,12 +127,34 @@ class ResearchStreamService:
 
         return accessible_ids
 
+    def get_stream_by_id(self, stream_id: int) -> ResearchStream:
+        """
+        Get a research stream by ID, raising ValueError if not found.
+
+        This is the canonical method for internal services to get a stream.
+        For HTTP-facing code, use get_stream_or_404 instead.
+
+        Args:
+            stream_id: The stream ID to look up
+
+        Returns:
+            ResearchStream model instance
+
+        Raises:
+            ValueError: if stream not found
+        """
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == stream_id
+        ).first()
+        if not stream:
+            raise ValueError(f"Research stream {stream_id} not found")
+        return stream
+
     def get_stream_or_404(self, stream_id: int) -> ResearchStream:
         """
-        Get a research stream by ID, raising 404 if not found.
+        Get a research stream by ID, raising HTTPException 404 if not found.
 
-        This is a raw lookup without access checks - use for internal operations
-        where access is verified separately.
+        This is for HTTP-facing code. For internal services, use get_stream_by_id.
 
         Args:
             stream_id: The stream ID to look up
@@ -143,15 +165,13 @@ class ResearchStreamService:
         Raises:
             HTTPException: 404 if stream not found
         """
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == stream_id
-        ).first()
-        if not stream:
+        try:
+            return self.get_stream_by_id(stream_id)
+        except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Research stream not found"
             )
-        return stream
 
     def get_user_research_streams(self, user_id: int) -> List[Dict[str, Any]]:
         """

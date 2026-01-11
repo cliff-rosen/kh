@@ -126,6 +126,30 @@ class PipelineService:
         self.summary_service = ReportSummaryService()
 
     # =========================================================================
+    # ENTITY LOOKUPS
+    # =========================================================================
+
+    def get_execution_by_id(self, execution_id: str) -> PipelineExecution:
+        """
+        Get a pipeline execution by ID, raising ValueError if not found.
+
+        Args:
+            execution_id: The execution ID (UUID string)
+
+        Returns:
+            PipelineExecution model instance
+
+        Raises:
+            ValueError: if execution not found
+        """
+        execution = self.db.query(PipelineExecution).filter(
+            PipelineExecution.id == execution_id
+        ).first()
+        if not execution:
+            raise ValueError(f"Pipeline execution {execution_id} not found")
+        return execution
+
+    # =========================================================================
     # PIPELINE ORCHESTRATION
     # =========================================================================
 
@@ -200,20 +224,10 @@ class PipelineService:
         Raises ValueError if execution not found or configuration invalid.
         """
         # Load execution record (single source of truth)
-        execution = self.db.query(PipelineExecution).filter(
-            PipelineExecution.id == execution_id
-        ).first()
-
-        if not execution:
-            raise ValueError(f"Execution {execution_id} not found")
+        execution = self.get_execution_by_id(execution_id)
 
         # Load stream for context (name, purpose, etc.)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == execution.stream_id
-        ).first()
-
-        if not stream:
-            raise ValueError(f"Stream {execution.stream_id} not found")
+        stream = self.research_stream_service.get_stream_by_id(execution.stream_id)
 
         # Parse retrieval config from execution snapshot
         retrieval_config = RetrievalConfig.model_validate(execution.retrieval_config)

@@ -60,6 +60,96 @@ async def get_my_service(db: Session = Depends(get_db)) -> MyService:
     return MyService(db)
 ```
 
+## Entity Lookups by ID
+
+### The Problem
+Inline queries with null checks are scattered everywhere:
+
+```python
+# ❌ BAD - Repeated everywhere
+def some_method(self, stream_id: int):
+    stream = self.db.query(ResearchStream).filter(
+        ResearchStream.stream_id == stream_id
+    ).first()
+    if not stream:
+        raise ValueError(f"Stream {stream_id} not found")
+    # ... use stream
+```
+
+### The Solution
+Each service that owns a domain object MUST provide canonical lookup methods:
+
+```python
+# ✅ GOOD - Canonical method in the owning service
+class ResearchStreamService:
+    def get_stream_by_id(self, stream_id: int) -> ResearchStream:
+        """
+        Get a research stream by ID, raising ValueError if not found.
+
+        For HTTP-facing code, use get_stream_or_404 instead.
+        """
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == stream_id
+        ).first()
+        if not stream:
+            raise ValueError(f"Research stream {stream_id} not found")
+        return stream
+
+    def get_stream_or_404(self, stream_id: int) -> ResearchStream:
+        """
+        Get a research stream by ID, raising HTTPException 404 if not found.
+
+        For internal services, use get_stream_by_id instead.
+        """
+        try:
+            return self.get_stream_by_id(stream_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found"
+            )
+```
+
+### Two Methods Per Entity
+
+| Method | Exception | Use Case |
+|--------|-----------|----------|
+| `get_*_by_id(id)` | `ValueError` | Internal services (e.g., PipelineService) |
+| `get_*_or_404(id)` | `HTTPException(404)` | HTTP-facing code (routers, curation endpoints) |
+
+The `_or_404` method wraps the `_by_id` method - single source of truth for the query.
+
+### Callers Use Service Methods
+
+```python
+# ❌ BAD - Inline query in PipelineService
+stream = self.db.query(ResearchStream).filter(
+    ResearchStream.stream_id == execution.stream_id
+).first()
+if not stream:
+    raise ValueError(f"Stream {execution.stream_id} not found")
+
+# ✅ GOOD - Use the owning service's method
+stream = self.research_stream_service.get_stream_by_id(execution.stream_id)
+```
+
+### Standard Methods Per Service
+
+| Service | Entity | Methods |
+|---------|--------|---------|
+| `UserService` | `User` | `get_user(id)`, `get_user_or_404(id)` |
+| `ResearchStreamService` | `ResearchStream` | `get_stream_by_id(id)`, `get_stream_or_404(id)` |
+| `ReportService` | `Report` | `get_report_by_id(id)`, `get_report_or_404(id)` |
+| `WipArticleService` | `WipArticle` | `get_by_id(id)` |
+| `PipelineService` | `PipelineExecution` | `get_execution_by_id(id)` |
+
+### Benefits
+1. **Single source of truth** - Query logic in one place
+2. **Consistent error messages** - Same format everywhere
+3. **No boilerplate** - Callers don't repeat the pattern
+4. **Testable** - Can mock the service method
+5. **Type-safe** - Return type is non-optional
+
 ## Error Handling
 
 ### Service Methods Should

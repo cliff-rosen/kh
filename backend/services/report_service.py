@@ -56,9 +56,32 @@ class ReportService:
             self._stream_service = ResearchStreamService(self.db)
         return self._stream_service
 
+    def get_report_by_id(self, report_id: int) -> Report:
+        """
+        Get a report by ID, raising ValueError if not found.
+
+        This is the canonical method for internal services.
+        For HTTP-facing code, use get_report_or_404.
+
+        Args:
+            report_id: The report ID to look up
+
+        Returns:
+            Report model instance
+
+        Raises:
+            ValueError: if report not found
+        """
+        report = self.db.query(Report).filter(Report.report_id == report_id).first()
+        if not report:
+            raise ValueError(f"Report {report_id} not found")
+        return report
+
     def get_report_or_404(self, report_id: int) -> Report:
         """
-        Get a report by ID, raising 404 if not found.
+        Get a report by ID, raising HTTPException 404 if not found.
+
+        For HTTP-facing code. For internal services, use get_report_by_id.
 
         Args:
             report_id: The report ID to look up
@@ -69,13 +92,13 @@ class ReportService:
         Raises:
             HTTPException: 404 if report not found
         """
-        report = self.db.query(Report).filter(Report.report_id == report_id).first()
-        if not report:
+        try:
+            return self.get_report_by_id(report_id)
+        except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Report not found"
             )
-        return report
 
     def _user_has_stream_access(self, user: User, stream: ResearchStream) -> bool:
         """

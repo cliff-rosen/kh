@@ -97,9 +97,32 @@ class UserService:
         """Get user by ID. Returns None if not found."""
         return self.db.query(UserModel).filter(UserModel.user_id == user_id).first()
 
+    def get_user(self, user_id: int) -> UserModel:
+        """
+        Get user by ID, raising ValueError if not found.
+
+        This is the canonical method for internal services.
+        For HTTP-facing code, use get_user_or_404.
+
+        Args:
+            user_id: The user ID to look up
+
+        Returns:
+            User model instance
+
+        Raises:
+            ValueError: if user not found
+        """
+        user = self.db.query(UserModel).filter(UserModel.user_id == user_id).first()
+        if not user:
+            raise ValueError(f"User {user_id} not found")
+        return user
+
     def get_user_or_404(self, user_id: int) -> UserModel:
         """
-        Get user by ID, raising 404 if not found.
+        Get user by ID, raising HTTPException 404 if not found.
+
+        For HTTP-facing code. For internal services, use get_user.
 
         Args:
             user_id: The user ID to look up
@@ -110,13 +133,13 @@ class UserService:
         Raises:
             HTTPException: 404 if user not found
         """
-        user = self.db.query(UserModel).filter(UserModel.user_id == user_id).first()
-        if not user:
+        try:
+            return self.get_user(user_id)
+        except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
             )
-        return user
 
     def get_user_by_email(self, email: str) -> Optional[UserModel]:
         """Get user by email."""

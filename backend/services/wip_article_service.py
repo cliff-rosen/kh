@@ -27,6 +27,30 @@ class WipArticleService:
         self.db = db
 
     # =========================================================================
+    # GET BY ID
+    # =========================================================================
+
+    def get_by_id(self, wip_article_id: int) -> WipArticle:
+        """
+        Get a WipArticle by ID, raising ValueError if not found.
+
+        Args:
+            wip_article_id: The WipArticle ID
+
+        Returns:
+            WipArticle model instance
+
+        Raises:
+            ValueError: if WipArticle not found
+        """
+        article = self.db.query(WipArticle).filter(
+            WipArticle.id == wip_article_id
+        ).first()
+        if not article:
+            raise ValueError(f"WipArticle {wip_article_id} not found")
+        return article
+
+    # =========================================================================
     # CREATE Operations
     # =========================================================================
 

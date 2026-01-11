@@ -18,6 +18,42 @@
 - Dicts only when genuine flexibility is needed (rare)
 - Does NOT define API-specific types
 
+#### Entity Lookups by ID
+Each service that owns a domain object MUST provide canonical lookup methods:
+
+```python
+# ✅ GOOD - Canonical method in the owning service
+class ResearchStreamService:
+    def get_stream_by_id(self, stream_id: int) -> ResearchStream:
+        """Raises ValueError if not found."""
+        stream = self.db.query(ResearchStream).filter(...).first()
+        if not stream:
+            raise ValueError(f"Research stream {stream_id} not found")
+        return stream
+
+    def get_stream_or_404(self, stream_id: int) -> ResearchStream:
+        """Raises HTTPException(404) if not found."""
+        try:
+            return self.get_stream_by_id(stream_id)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="Research stream not found")
+```
+
+| Method | Exception | Use Case |
+|--------|-----------|----------|
+| `get_*_by_id(id)` | `ValueError` | Internal services |
+| `get_*_or_404(id)` | `HTTPException(404)` | HTTP-facing code |
+
+```python
+# ❌ BAD - Inline query with null check (repeated everywhere)
+stream = self.db.query(ResearchStream).filter(...).first()
+if not stream:
+    raise ValueError(f"Stream not found")
+
+# ✅ GOOD - Use the owning service's method
+stream = self.research_stream_service.get_stream_by_id(stream_id)
+```
+
 ### `models/` - Database Layer
 - SQLAlchemy ORM models (table definitions)
 - Database relationships
