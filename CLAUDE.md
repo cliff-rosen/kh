@@ -1,5 +1,11 @@
 # Project Guidelines for Claude
 
+## Code Structure
+
+Follow the rules in [CODE_STRUCTURE_CHECKLIST.md](./CODE_STRUCTURE_CHECKLIST.md) for all backend and frontend code.
+
+---
+
 ## Layout Guidelines
 
 ### Flex Height Pattern (REQUIRED for scrollable content)

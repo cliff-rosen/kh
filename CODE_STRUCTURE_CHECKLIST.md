@@ -14,45 +14,112 @@
 ### `services/` - Business Logic Layer
 - All business logic lives here
 - Database queries (via SQLAlchemy)
-- Returns **typed domain objects** from `schemas/` (NOT dicts, NOT Pydantic response models)
-- Dicts only when genuine flexibility is needed (rare)
+- Returns **SQLAlchemy Models** (from `models/`), NOT Pydantic schemas
+- Routers convert Models to Schemas at the API boundary
 - Does NOT define API-specific types
 
-#### Entity Lookups by ID
-Each service that owns a domain object MUST provide canonical lookup methods:
+#### Services Return Models, Routers Convert to Schemas
+
+**This is a hard rule.** Services work with SQLAlchemy models internally. Routers convert to Pydantic schemas at the API boundary.
 
 ```python
-# ✅ GOOD - Canonical method in the owning service
-class ResearchStreamService:
-    def get_stream_by_id(self, stream_id: int) -> ResearchStream:
-        """Raises ValueError if not found."""
-        stream = self.db.query(ResearchStream).filter(...).first()
-        if not stream:
-            raise ValueError(f"Research stream {stream_id} not found")
-        return stream
+# ✅ CORRECT - Service returns Model
+class ReportService:
+    def get_report(self, report_id: int, user_id: int) -> Report:  # SQLAlchemy model
+        return self.db.query(Report).filter(...).first()
 
-    def get_stream_or_404(self, stream_id: int) -> ResearchStream:
-        """Raises HTTPException(404) if not found."""
-        try:
-            return self.get_stream_by_id(stream_id)
-        except ValueError:
-            raise HTTPException(status_code=404, detail="Research stream not found")
+# ✅ CORRECT - Router converts to Schema
+@router.get("/{report_id}", response_model=ReportSchema)
+async def get_report(report_id: int, ...):
+    report = service.get_report(report_id, user_id)  # Model
+    return ReportSchema.from_orm(report)             # Schema
+
+# ❌ WRONG - Service returns Schema
+class ReportService:
+    def get_report(self, ...) -> ReportSchema:  # NO!
+        report = self.db.query(Report).filter(...).first()
+        return ReportSchema.from_orm(report)  # Conversion belongs in router
 ```
 
-| Method | Exception | Use Case |
-|--------|-----------|----------|
-| `get_*_by_id(id)` | `ValueError` | Internal services |
-| `get_*_or_404(id)` | `HTTPException(404)` | HTTP-facing code |
+#### Computed Data Pattern
+
+When a service needs to return a model plus computed data, use a dataclass - NOT a schema:
 
 ```python
-# ❌ BAD - Inline query with null check (repeated everywhere)
-stream = self.db.query(ResearchStream).filter(...).first()
-if not stream:
-    raise ValueError(f"Stream not found")
+from dataclasses import dataclass
 
-# ✅ GOOD - Use the owning service's method
-stream = self.research_stream_service.get_stream_by_id(stream_id)
+@dataclass
+class ReportWithCount:
+    report: Report       # SQLAlchemy model
+    article_count: int   # Computed value
+
+class ReportService:
+    def get_report_with_count(self, report_id: int) -> ReportWithCount:
+        report = self.db.query(Report).filter(...).first()
+        count = self.association_service.count_visible(report_id)
+        return ReportWithCount(report=report, article_count=count)
 ```
+
+#### Entity Lookups: `find()` vs `get()`
+
+Services MUST use consistent naming for retrieval methods:
+
+| Method | Returns | Use Case |
+|--------|---------|----------|
+| `find(...)` | `Optional[Model]` | Existence checks, may not exist |
+| `get(...)` | `Model` (raises 404 if not found) | Retrieval of known records |
+
+```python
+class ReportArticleAssociationService:
+    def find(self, report_id: int, article_id: int) -> Optional[ReportArticleAssociation]:
+        """Returns None if not found. Use for existence checks."""
+        return self.db.query(...).first()
+
+    def get(self, report_id: int, article_id: int) -> ReportArticleAssociation:
+        """Raises HTTPException 404 if not found. Use for known records."""
+        association = self.find(report_id, article_id)
+        if not association:
+            raise HTTPException(status_code=404, detail="Not found")
+        return association
+```
+
+Usage:
+```python
+# Checking if something exists
+existing = self.association_service.find(report_id, article_id)
+if existing:
+    # Handle existing case
+    ...
+
+# Retrieving a record that must exist
+association = self.association_service.get(report_id, article_id)  # Raises if not found
+```
+
+#### Service Boundaries - No Cross-Service Inline Queries
+
+Each domain entity has an owning service. Services MUST use other services for tables they don't own.
+
+```python
+# ❌ WRONG - ReportService writing inline queries for WipArticle
+class ReportService:
+    def get_articles(self, execution_id: str):
+        return self.db.query(WipArticle).filter(...).all()  # NO!
+
+# ✅ CORRECT - ReportService uses WipArticleService
+class ReportService:
+    def get_articles(self, execution_id: str):
+        return self.wip_article_service.get_by_execution_id(execution_id)
+```
+
+**Service ownership:**
+| Table | Owning Service |
+|-------|----------------|
+| `Report` | `ReportService` |
+| `WipArticle` | `WipArticleService` |
+| `ReportArticleAssociation` | `ReportArticleAssociationService` |
+| `Article` | `ArticleService` |
+| `User` | `UserService` |
+| `ResearchStream` | `ResearchStreamService` |
 
 ### `models/` - Database Layer
 - SQLAlchemy ORM models (table definitions)
