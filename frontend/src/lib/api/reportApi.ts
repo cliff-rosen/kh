@@ -221,6 +221,29 @@ export const reportApi = {
     }> {
         const response = await api.patch(`/api/reports/${reportId}/articles/${articleId}`, updates);
         return response.data;
+    },
+
+    // =========================================================================
+    // Admin / Approval Operations
+    // =========================================================================
+
+    /**
+     * Get list of admin users who can approve reports
+     */
+    async getAdminUsers(): Promise<{ user_id: number; email: string; display_name: string }[]> {
+        const response = await api.get('/api/user/admins');
+        return response.data;
+    },
+
+    /**
+     * Send an approval request email to an admin
+     * Sends a notification with a link to the report curation page
+     */
+    async sendApprovalRequest(reportId: number, adminUserId: number): Promise<{ success: boolean; message: string }> {
+        const response = await api.post(`/api/reports/${reportId}/request-approval`, {
+            admin_user_id: adminUserId
+        });
+        return response.data;
     }
 };
 

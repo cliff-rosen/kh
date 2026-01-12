@@ -52,6 +52,11 @@ class SendReportEmailResponse(BaseModel):
     failed: List[str]
 
 
+class ApprovalRequestRequest(BaseModel):
+    """Request to send approval request to an admin"""
+    admin_user_id: int
+
+
 # --- Curation Request/Response Schemas ---
 
 class UpdateReportContentRequest(BaseModel):
@@ -875,6 +880,82 @@ async def send_report_email(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send report email: {str(e)}"
+        )
+
+
+@router.post("/{report_id}/request-approval")
+async def send_approval_request(
+    report_id: int,
+    request: ApprovalRequestRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Send an approval request email to an admin.
+    Includes a link to the report curation page and basic report metadata.
+    """
+    logger.info(f"send_approval_request - user_id={current_user.user_id}, report_id={report_id}, admin_id={request.admin_user_id}")
+
+    try:
+        report_service = ReportService(db)
+
+        # Get report details
+        report = report_service.get_report(report_id, current_user.user_id)
+        if not report:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+
+        # Get admin user
+        admin = db.query(User).filter(
+            User.user_id == request.admin_user_id,
+            User.is_active == True
+        ).first()
+
+        if not admin:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Admin user not found"
+            )
+
+        # Verify admin has appropriate role
+        if not (admin.is_platform_admin or admin.is_org_admin):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is not an admin"
+            )
+
+        # Get article count
+        article_count = report_service.association_service.count_visible(report_id)
+
+        # Get stream name
+        stream_name = None
+        if report.research_stream:
+            stream_name = report.research_stream.name
+
+        # Send email
+        email_service = EmailService()
+        await email_service.send_approval_request_email(
+            recipient_email=admin.email,
+            recipient_name=admin.full_name or admin.email,
+            report_id=report_id,
+            report_name=report.report_name,
+            stream_name=stream_name,
+            article_count=article_count,
+            requester_name=current_user.full_name or current_user.email
+        )
+
+        logger.info(f"send_approval_request complete - user_id={current_user.user_id}, report_id={report_id}, admin_id={request.admin_user_id}")
+        return {"success": True, "message": f"Approval request sent to {admin.email}"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"send_approval_request failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send approval request: {str(e)}"
         )
 
 

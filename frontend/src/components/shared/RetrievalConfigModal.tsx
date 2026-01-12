@@ -86,7 +86,8 @@ export default function RetrievalConfigModal({
 
     return (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+            {/* Fixed size modal - doesn't change with content */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[900px] h-[700px] flex flex-col">
                 {/* Header */}
                 <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                     <div>

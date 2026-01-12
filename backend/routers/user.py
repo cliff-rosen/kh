@@ -116,3 +116,58 @@ async def change_password(
     logger.info(f"Password changed for user {current_user.user_id}")
 
     return {"message": "Password changed successfully"}
+
+
+# ============== Admin Users ==============
+
+class AdminUserResponse(BaseModel):
+    """Response schema for admin user list."""
+    user_id: int
+    email: str
+    display_name: str
+
+
+@router.get(
+    "/admins",
+    response_model=list[AdminUserResponse],
+    summary="Get list of admin users"
+)
+async def get_admin_users(
+    current_user: User = Depends(auth_service.validate_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Get list of admin users who can approve reports.
+    Returns platform admins and organization admins for the user's organization.
+    """
+    user_service = UserService(db)
+
+    # Get platform admins
+    platform_admins = db.query(User).filter(
+        User.is_platform_admin == True,
+        User.is_active == True
+    ).all()
+
+    # Get org admins for user's organization
+    org_admins = []
+    if current_user.organization_id:
+        org_admins = db.query(User).filter(
+            User.organization_id == current_user.organization_id,
+            User.is_org_admin == True,
+            User.is_active == True,
+            User.user_id != current_user.user_id  # Exclude self
+        ).all()
+
+    # Combine and deduplicate
+    admin_ids = set()
+    result = []
+    for admin in platform_admins + org_admins:
+        if admin.user_id not in admin_ids:
+            admin_ids.add(admin.user_id)
+            result.append(AdminUserResponse(
+                user_id=admin.user_id,
+                email=admin.email,
+                display_name=admin.full_name or admin.email
+            ))
+
+    return result

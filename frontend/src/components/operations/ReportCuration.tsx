@@ -24,7 +24,6 @@ import {
     MinusIcon,
     ArrowTopRightOnSquareIcon,
     ExclamationCircleIcon,
-    EyeIcon,
     EnvelopeIcon,
     ChatBubbleLeftIcon,
     CheckCircleIcon,
@@ -64,8 +63,10 @@ export default function ReportCuration() {
     const [expandedArticle, setExpandedArticle] = useState<number | null>(null);
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
-    const [showPreview, setShowPreview] = useState(false);
     const [showConfigModal, setShowConfigModal] = useState(false);
+    const [showEmailModal, setShowEmailModal] = useState(false);
+    // Toggle between article list and full report preview in Included tab
+    const [includedViewMode, setIncludedViewMode] = useState<'list' | 'preview'>('list');
 
     // Track which article is being processed (for loading indicators)
     const [processingArticleId, setProcessingArticleId] = useState<number | null>(null);
@@ -370,11 +371,11 @@ export default function ReportCuration() {
                         )}
                         <button
                             type="button"
-                            onClick={() => setShowPreview(true)}
+                            onClick={() => setShowEmailModal(true)}
                             className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-                            title="Preview report"
+                            title="Email options"
                         >
-                            <EyeIcon className="h-5 w-5" />
+                            <EnvelopeIcon className="h-5 w-5" />
                         </button>
 
                         {/* Divider */}
@@ -622,7 +623,7 @@ export default function ReportCuration() {
                         </div>
 
                         {/* Tabs */}
-                        <div className="flex gap-2 mt-4">
+                        <div className="flex items-center gap-2 mt-4">
                             <button
                                 type="button"
                                 onClick={() => setActiveTab('included')}
@@ -679,12 +680,44 @@ export default function ReportCuration() {
                                     {curationData.curated_articles.length}
                                 </span>
                             </button>
+
+                            {/* View toggle for Included tab */}
+                            {activeTab === 'included' && (
+                                <>
+                                    <div className="flex-1" />
+                                    <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIncludedViewMode('list')}
+                                            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                                                includedViewMode === 'list'
+                                                    ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                                            }`}
+                                        >
+                                            List
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIncludedViewMode('preview')}
+                                            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                                                includedViewMode === 'preview'
+                                                    ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                                            }`}
+                                        >
+                                            Report Preview
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
 
                     {/* Article List */}
                     <div className="p-4 space-y-3">
-                        {activeTab === 'included' && includedArticles.map((article, idx) => (
+                        {/* Included tab - List view */}
+                        {activeTab === 'included' && includedViewMode === 'list' && includedArticles.map((article, idx) => (
                             <IncludedArticleCard
                                 key={article.article_id}
                                 article={article}
@@ -699,6 +732,18 @@ export default function ReportCuration() {
                                 onSaveNotes={(notes) => handleSaveIncludedNotes(article, notes)}
                             />
                         ))}
+
+                        {/* Included tab - Report Preview */}
+                        {activeTab === 'included' && includedViewMode === 'preview' && (
+                            <ReportPreviewContent
+                                report={report}
+                                categories={categories}
+                                includedArticles={includedArticles}
+                                editedName={editedName}
+                                editedSummary={editedSummary}
+                                editedCategorySummaries={editedCategorySummaries}
+                            />
+                        )}
 
                         {activeTab === 'filtered_out' && filteredArticles.map((article) => (
                             <FilteredArticleCard
@@ -850,16 +895,14 @@ export default function ReportCuration() {
                 </div>
             )}
 
-            {/* Preview Modal */}
-            {showPreview && (
-                <ReportPreviewModal
-                    report={report}
-                    articles={includedArticles}
-                    categories={categoriesWithCounts}
-                    editedSummary={editedSummary}
-                    editedCategorySummaries={editedCategorySummaries}
+            {/* Email Modal */}
+            {showEmailModal && (
+                <EmailModal
+                    reportId={parseInt(reportId!)}
+                    reportName={editedName}
                     streamName={curationData.stream_name}
-                    onClose={() => setShowPreview(false)}
+                    articleCount={includedArticles.length}
+                    onClose={() => setShowEmailModal(false)}
                 />
             )}
 
@@ -876,45 +919,192 @@ export default function ReportCuration() {
     );
 }
 
-// Report Preview Modal Component (Email-style preview)
-function ReportPreviewModal({
+// Inline Report Preview Content (for Included tab preview mode)
+function ReportPreviewContent({
     report,
-    articles,
     categories,
+    includedArticles,
+    editedName,
     editedSummary,
     editedCategorySummaries,
-    streamName,
-    onClose,
 }: {
     report: { report_name: string; report_date: string | null };
-    articles: CurationIncludedArticle[];
-    categories: (CurationCategory & { article_count: number })[];
+    categories: CurationCategory[];
+    includedArticles: CurationIncludedArticle[];
+    editedName: string;
     editedSummary: string;
     editedCategorySummaries: Record<string, string>;
-    streamName: string | null;
-    onClose: () => void;
 }) {
     // Group articles by category
     const articlesByCategory = categories.map(cat => ({
         ...cat,
-        articles: articles.filter(a => a.presentation_categories?.includes(cat.id)),
+        articles: includedArticles.filter(a => a.presentation_categories?.includes(cat.id)),
         summary: editedCategorySummaries[cat.id] || '',
     })).filter(cat => cat.articles.length > 0);
 
-    // Find uncategorized articles (no category or empty categories)
-    const uncategorizedArticles = articles.filter(a =>
+    // Find uncategorized articles
+    const uncategorizedArticles = includedArticles.filter(a =>
         !a.presentation_categories || a.presentation_categories.length === 0
     );
 
     return (
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            {/* Report Header */}
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-600 to-blue-700 rounded-t-lg">
+                <h1 className="text-xl font-bold text-white">
+                    {editedName || report.report_name}
+                </h1>
+                <p className="text-blue-100 text-sm mt-1">
+                    {report.report_date || 'No date'}
+                </p>
+            </div>
+
+            {/* Executive Summary */}
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
+                    Executive Summary
+                </h2>
+                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                    {editedSummary || 'No executive summary'}
+                </p>
+            </div>
+
+            {/* Categories with Articles */}
+            {articlesByCategory.map((cat) => (
+                <div key={cat.id} className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
+                        {cat.name}
+                        <span className="ml-2 text-sm font-normal text-gray-500">
+                            ({cat.articles.length} articles)
+                        </span>
+                    </h2>
+                    {cat.summary && (
+                        <p className="text-gray-600 dark:text-gray-400 mb-3 text-sm">
+                            {cat.summary}
+                        </p>
+                    )}
+                    <div className="space-y-3">
+                        {cat.articles.map((article, idx) => (
+                            <div key={article.article_id} className="pl-3 border-l-2 border-blue-200 dark:border-blue-800">
+                                <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {idx + 1}. {article.title}
+                                </h3>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
+                                </p>
+                                {article.ai_summary && (
+                                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                        {article.ai_summary}
+                                    </p>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ))}
+
+            {/* Uncategorized Articles */}
+            {uncategorizedArticles.length > 0 && (
+                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-amber-50 dark:bg-amber-900/10">
+                    <h2 className="text-base font-semibold text-amber-800 dark:text-amber-200 mb-2">
+                        Uncategorized
+                        <span className="ml-2 text-sm font-normal text-amber-600 dark:text-amber-400">
+                            ({uncategorizedArticles.length} articles need categorization)
+                        </span>
+                    </h2>
+                    <div className="space-y-3">
+                        {uncategorizedArticles.map((article, idx) => (
+                            <div key={article.article_id} className="pl-3 border-l-2 border-amber-300 dark:border-amber-700">
+                                <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {idx + 1}. {article.title}
+                                </h3>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Footer */}
+            <div className="px-6 py-3 bg-gray-50 dark:bg-gray-900/50 text-center text-xs text-gray-500 dark:text-gray-400 rounded-b-lg">
+                Generated by Knowledge Horizon Research Platform
+            </div>
+        </div>
+    );
+}
+
+// Email Modal Component
+function EmailModal({
+    reportId,
+    reportName,
+    streamName,
+    articleCount,
+    onClose,
+}: {
+    reportId: number;
+    reportName: string;
+    streamName: string | null;
+    articleCount: number;
+    onClose: () => void;
+}) {
+    const [activeTab, setActiveTab] = useState<'preview' | 'send' | 'approval'>('preview');
+    const [emailHtml, setEmailHtml] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [testEmail, setTestEmail] = useState('');
+    const [sending, setSending] = useState(false);
+    const [sendSuccess, setSendSuccess] = useState<string | null>(null);
+
+    // Load email preview when modal opens or tab changes to preview
+    useEffect(() => {
+        if (activeTab === 'preview' && !emailHtml) {
+            loadEmailPreview();
+        }
+    }, [activeTab]);
+
+    const loadEmailPreview = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const response = await reportApi.generateReportEmail(reportId);
+            setEmailHtml(response.html);
+        } catch (err) {
+            console.error('Failed to generate email preview:', err);
+            setError('Failed to generate email preview');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSendTestEmail = async () => {
+        if (!testEmail.trim()) return;
+        setSending(true);
+        setError(null);
+        setSendSuccess(null);
+        try {
+            await reportApi.sendReportEmail(reportId, [testEmail.trim()]);
+            setSendSuccess(`Email sent to ${testEmail}`);
+            setTestEmail('');
+        } catch (err) {
+            console.error('Failed to send test email:', err);
+            setError('Failed to send email');
+        } finally {
+            setSending(false);
+        }
+    };
+
+    return (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+            {/* Fixed size modal - doesn't change with content */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[900px] h-[700px] flex flex-col">
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center gap-3">
                         <EnvelopeIcon className="h-5 w-5 text-gray-400" />
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            Report Preview (Email Format)
+                            Email Options
                         </h2>
                     </div>
                     <button
@@ -926,124 +1116,137 @@ function ReportPreviewModal({
                     </button>
                 </div>
 
-                {/* Modal Content - Scrollable email preview */}
-                <div className="flex-1 overflow-auto p-6 bg-gray-100 dark:bg-gray-900">
-                    {/* Email Container */}
-                    <div className="max-w-2xl mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                        {/* Email Header */}
-                        <div className="px-8 py-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-600 to-blue-700">
-                            <h1 className="text-2xl font-bold text-white">
-                                {report.report_name}
-                            </h1>
-                            <p className="text-blue-100 mt-1">
-                                {streamName} &bull; {report.report_date || 'No date'}
-                            </p>
-                        </div>
+                {/* Tabs */}
+                <div className="flex-shrink-0 flex gap-4 px-6 pt-4 border-b border-gray-200 dark:border-gray-700">
+                    <button
+                        onClick={() => setActiveTab('preview')}
+                        className={`pb-3 px-2 font-medium transition-colors border-b-2 ${
+                            activeTab === 'preview'
+                                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                        }`}
+                    >
+                        Preview Email
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('send')}
+                        className={`pb-3 px-2 font-medium transition-colors border-b-2 ${
+                            activeTab === 'send'
+                                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                        }`}
+                    >
+                        Send Test Email
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('approval')}
+                        className={`pb-3 px-2 font-medium transition-colors border-b-2 ${
+                            activeTab === 'approval'
+                                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                        }`}
+                    >
+                        Request Approval
+                    </button>
+                </div>
 
-                        {/* Executive Summary */}
-                        <div className="px-8 py-6 border-b border-gray-200 dark:border-gray-700">
-                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                Executive Summary
-                            </h2>
-                            <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                                {editedSummary || 'No executive summary'}
-                            </p>
-                        </div>
-
-                        {/* Categories with Articles */}
-                        {articlesByCategory.map((cat) => (
-                            <div key={cat.id} className="px-8 py-6 border-b border-gray-200 dark:border-gray-700">
-                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                                    {cat.name}
-                                    <span className="ml-2 text-sm font-normal text-gray-500">
-                                        ({cat.articles.length} articles)
-                                    </span>
-                                </h2>
-                                {cat.summary && (
-                                    <p className="text-gray-600 dark:text-gray-400 mb-4 text-sm">
-                                        {cat.summary}
-                                    </p>
-                                )}
-
-                                {/* Articles in this category */}
-                                <div className="space-y-4">
-                                    {cat.articles.map((article, idx) => (
-                                        <div key={article.article_id} className="pl-4 border-l-2 border-blue-200 dark:border-blue-800">
-                                            <h3 className="font-medium text-gray-900 dark:text-white">
-                                                {idx + 1}. {article.title}
-                                            </h3>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
-                                            </p>
-                                            {article.ai_summary && (
-                                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                                                    {article.ai_summary}
-                                                </p>
-                                            )}
-                                            {article.pmid && (
-                                                <a
-                                                    href={`https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-xs text-blue-600 hover:underline mt-2 inline-block"
-                                                >
-                                                    View on PubMed →
-                                                </a>
-                                            )}
-                                        </div>
-                                    ))}
+                {/* Content - fixed height, scrolls internally */}
+                <div className="flex-1 overflow-auto p-6">
+                    {/* Preview Tab */}
+                    {activeTab === 'preview' && (
+                        <div className="h-full flex flex-col">
+                            {loading ? (
+                                <div className="flex-1 flex items-center justify-center">
+                                    <ArrowPathIcon className="h-8 w-8 animate-spin text-gray-400" />
                                 </div>
-                            </div>
-                        ))}
+                            ) : error ? (
+                                <div className="flex-1 flex items-center justify-center">
+                                    <div className="text-center">
+                                        <p className="text-red-600 dark:text-red-400">{error}</p>
+                                        <button
+                                            onClick={loadEmailPreview}
+                                            className="mt-4 px-4 py-2 text-sm text-blue-600 hover:underline"
+                                        >
+                                            Try again
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : emailHtml ? (
+                                <iframe
+                                    srcDoc={emailHtml}
+                                    className="flex-1 w-full border border-gray-200 dark:border-gray-700 rounded-lg bg-white"
+                                    title="Email Preview"
+                                />
+                            ) : null}
+                        </div>
+                    )}
 
-                        {/* Uncategorized Articles */}
-                        {uncategorizedArticles.length > 0 && (
-                            <div className="px-8 py-6 border-b border-gray-200 dark:border-gray-700">
-                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                                    Uncategorized
-                                    <span className="ml-2 text-sm font-normal text-gray-500">
-                                        ({uncategorizedArticles.length} articles)
-                                    </span>
-                                </h2>
-                                <p className="text-gray-500 dark:text-gray-400 mb-4 text-sm italic">
-                                    These articles need to be assigned to a category
+                    {/* Send Test Email Tab */}
+                    {activeTab === 'send' && (
+                        <div className="max-w-md mx-auto space-y-4">
+                            <div>
+                                <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-1">
+                                    Send Test Email
+                                </h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                    Send the report email to any address to preview how it looks in an email client.
+                                    This works even before the report is approved.
                                 </p>
-
-                                <div className="space-y-4">
-                                    {uncategorizedArticles.map((article, idx) => (
-                                        <div key={article.article_id} className="pl-4 border-l-2 border-amber-200 dark:border-amber-800">
-                                            <h3 className="font-medium text-gray-900 dark:text-white">
-                                                {idx + 1}. {article.title}
-                                            </h3>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
-                                            </p>
-                                            {article.ai_summary && (
-                                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                                                    {article.ai_summary}
-                                                </p>
-                                            )}
-                                            {article.pmid && (
-                                                <a
-                                                    href={`https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-xs text-blue-600 hover:underline mt-2 inline-block"
-                                                >
-                                                    View on PubMed →
-                                                </a>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
                             </div>
-                        )}
 
-                        {/* Footer */}
-                        <div className="px-8 py-4 bg-gray-50 dark:bg-gray-900/50 text-center text-xs text-gray-500 dark:text-gray-400">
-                            Generated by Knowledge Horizon Research Platform
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Email Address
+                                </label>
+                                <input
+                                    type="email"
+                                    value={testEmail}
+                                    onChange={(e) => setTestEmail(e.target.value)}
+                                    placeholder="test@example.com"
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                />
+                            </div>
+
+                            {error && (
+                                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                            )}
+
+                            {sendSuccess && (
+                                <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                                    <CheckCircleIcon className="h-4 w-4" />
+                                    {sendSuccess}
+                                </div>
+                            )}
+
+                            <button
+                                onClick={handleSendTestEmail}
+                                disabled={!testEmail.trim() || sending}
+                                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {sending ? (
+                                    <>
+                                        <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                        Sending...
+                                    </>
+                                ) : (
+                                    <>
+                                        <EnvelopeIcon className="h-4 w-4" />
+                                        Send Test Email
+                                    </>
+                                )}
+                            </button>
                         </div>
-                    </div>
+                    )}
+
+                    {/* Request Approval Tab */}
+                    {activeTab === 'approval' && (
+                        <ApprovalRequestSection
+                            reportId={reportId}
+                            reportName={reportName}
+                            streamName={streamName}
+                            articleCount={articleCount}
+                        />
+                    )}
                 </div>
 
                 {/* Modal Footer */}
@@ -1057,6 +1260,147 @@ function ReportPreviewModal({
                     </button>
                 </div>
             </div>
+        </div>
+    );
+}
+
+// Approval Request Section Component
+function ApprovalRequestSection({
+    reportId,
+    reportName,
+    streamName,
+    articleCount,
+}: {
+    reportId: number;
+    reportName: string;
+    streamName: string | null;
+    articleCount: number;
+}) {
+    const [admins, setAdmins] = useState<{ user_id: number; email: string; display_name: string }[]>([]);
+    const [selectedAdmin, setSelectedAdmin] = useState<number | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [sending, setSending] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
+
+    useEffect(() => {
+        loadAdmins();
+    }, []);
+
+    const loadAdmins = async () => {
+        setLoading(true);
+        try {
+            const adminList = await reportApi.getAdminUsers();
+            setAdmins(adminList);
+            if (adminList.length > 0) {
+                setSelectedAdmin(adminList[0].user_id);
+            }
+        } catch (err) {
+            console.error('Failed to load admins:', err);
+            setError('Failed to load admin users');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSendApprovalRequest = async () => {
+        if (!selectedAdmin) return;
+        setSending(true);
+        setError(null);
+        setSuccess(null);
+        try {
+            await reportApi.sendApprovalRequest(reportId, selectedAdmin);
+            const admin = admins.find(a => a.user_id === selectedAdmin);
+            setSuccess(`Approval request sent to ${admin?.display_name || admin?.email}`);
+        } catch (err) {
+            console.error('Failed to send approval request:', err);
+            setError('Failed to send approval request');
+        } finally {
+            setSending(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-32">
+                <ArrowPathIcon className="h-6 w-6 animate-spin text-gray-400" />
+            </div>
+        );
+    }
+
+    return (
+        <div className="max-w-md mx-auto space-y-4">
+            <div>
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-1">
+                    Request Approval
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                    Send a notification to an admin with a link to review and approve this report.
+                </p>
+            </div>
+
+            {/* Report Summary */}
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-sm">
+                <div className="grid grid-cols-2 gap-2">
+                    <span className="text-gray-500 dark:text-gray-400">Report:</span>
+                    <span className="text-gray-900 dark:text-white font-medium">{reportName}</span>
+                    <span className="text-gray-500 dark:text-gray-400">Stream:</span>
+                    <span className="text-gray-900 dark:text-white">{streamName || 'N/A'}</span>
+                    <span className="text-gray-500 dark:text-gray-400">Articles:</span>
+                    <span className="text-gray-900 dark:text-white">{articleCount}</span>
+                </div>
+            </div>
+
+            {/* Admin Selector */}
+            <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Send to Admin
+                </label>
+                {admins.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 italic">No admin users found</p>
+                ) : (
+                    <select
+                        value={selectedAdmin || ''}
+                        onChange={(e) => setSelectedAdmin(parseInt(e.target.value))}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                        {admins.map((admin) => (
+                            <option key={admin.user_id} value={admin.user_id}>
+                                {admin.display_name || admin.email}
+                            </option>
+                        ))}
+                    </select>
+                )}
+            </div>
+
+            {error && (
+                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            )}
+
+            {success && (
+                <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                    <CheckCircleIcon className="h-4 w-4" />
+                    {success}
+                </div>
+            )}
+
+            <button
+                onClick={handleSendApprovalRequest}
+                disabled={!selectedAdmin || sending || admins.length === 0}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+                {sending ? (
+                    <>
+                        <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                        Sending...
+                    </>
+                ) : (
+                    <>
+                        <EnvelopeIcon className="h-4 w-4" />
+                        Send Approval Request
+                    </>
+                )}
+            </button>
         </div>
     );
 }

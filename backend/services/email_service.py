@@ -254,6 +254,97 @@ class EmailService:
 
         return text
 
+    async def send_approval_request_email(
+        self,
+        recipient_email: str,
+        recipient_name: str,
+        report_id: int,
+        report_name: str,
+        stream_name: Optional[str],
+        article_count: int,
+        requester_name: str
+    ) -> bool:
+        """
+        Send an approval request email to an admin.
+
+        Args:
+            recipient_email: Admin's email address
+            recipient_name: Admin's display name
+            report_id: ID of the report
+            report_name: Name of the report
+            stream_name: Name of the research stream
+            article_count: Number of articles in the report
+            requester_name: Name of the person requesting approval
+
+        Returns:
+            bool: True if email sent successfully, False otherwise
+        """
+        # Build the curation URL
+        base_url = settings.APP_URL or 'http://localhost:5173'
+        curation_url = f"{base_url}/operations/reports/{report_id}/curate"
+
+        subject = f"Report Approval Requested: {report_name}"
+
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 24px; border-radius: 8px 8px 0 0; }}
+        .content {{ background: #f9fafb; padding: 24px; border: 1px solid #e5e7eb; border-top: none; }}
+        .metadata {{ background: white; padding: 16px; border-radius: 8px; margin: 16px 0; }}
+        .metadata-row {{ display: flex; padding: 8px 0; border-bottom: 1px solid #f3f4f6; }}
+        .metadata-row:last-child {{ border-bottom: none; }}
+        .metadata-label {{ color: #6b7280; width: 120px; }}
+        .metadata-value {{ color: #111827; font-weight: 500; }}
+        .button {{ display: inline-block; background: #3b82f6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; margin-top: 16px; }}
+        .footer {{ text-align: center; padding: 16px; color: #6b7280; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 style="margin: 0; font-size: 20px;">Report Approval Requested</h1>
+        </div>
+        <div class="content">
+            <p>Hi {recipient_name},</p>
+            <p><strong>{requester_name}</strong> has requested your approval for a new report.</p>
+
+            <div class="metadata">
+                <div class="metadata-row">
+                    <span class="metadata-label">Report:</span>
+                    <span class="metadata-value">{report_name}</span>
+                </div>
+                <div class="metadata-row">
+                    <span class="metadata-label">Stream:</span>
+                    <span class="metadata-value">{stream_name or 'N/A'}</span>
+                </div>
+                <div class="metadata-row">
+                    <span class="metadata-label">Articles:</span>
+                    <span class="metadata-value">{article_count}</span>
+                </div>
+            </div>
+
+            <p>Please review the report and approve or reject it.</p>
+
+            <a href="{curation_url}" class="button">Review Report</a>
+        </div>
+        <div class="footer">
+            {self.app_name} &bull; Research Intelligence Platform
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+        return await self.send_html_email(
+            to_email=recipient_email,
+            subject=subject,
+            html_content=html_content
+        )
+
     def _log_smtp_error(self, e: Exception) -> None:
         """Log helpful SMTP error messages"""
         if "Application-specific password required" in str(e):
