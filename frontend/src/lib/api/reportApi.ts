@@ -297,6 +297,8 @@ export interface CurationIncludedArticle {
     curation_notes: string | null;
     curated_by: number | null;
     curated_at: string | null;
+    // Source indicator
+    curator_added: boolean;  // true = curator override, false = pipeline included
 }
 
 /**

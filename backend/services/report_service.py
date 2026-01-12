@@ -176,6 +176,7 @@ class ExcludeArticleResult:
     article_id: int
     excluded: bool
     wip_article_updated: bool
+    was_curator_added: bool = False  # True if this undid a curator add (deleted association)
 
 
 @dataclass
@@ -1474,7 +1475,9 @@ class ReportService:
         """
         Curator excludes an article from the report.
 
-        Sets curator_excluded=True on the association (preserves data for undo).
+        For pipeline-included articles: Sets curator_excluded=True (preserves data for undo).
+        For curator-added articles: Deletes the association entirely (undoes the add).
+
         Updates WipArticle flags for consistency.
 
         Raises:
@@ -1493,10 +1496,7 @@ class ReportService:
                 wip_article_updated=False,
             )
 
-        # Set the excluded flag (preserves all association data)
-        self.association_service.set_excluded(association, True, user_id, notes)
-
-        # Update corresponding WipArticle if exists
+        # Get the Article for WipArticle lookup
         article = self.db.query(Article).filter(Article.article_id == article_id).first()
         wip_article = None
         if report.pipeline_execution_id and article:
@@ -1505,8 +1505,28 @@ class ReportService:
                 pmid=article.pmid,
                 doi=article.doi
             )
+
+        # Handle based on whether this was curator-added or pipeline-included
+        was_curator_added = association.curator_added or False
+
+        if was_curator_added:
+            # Curator-added article: delete association entirely (undo the add)
+            self.association_service.delete(association)
+
+            # Clear WipArticle curator_included flag
+            if wip_article:
+                self.wip_article_service.clear_curator_included(wip_article)
+
+            event_type = 'undo_include_article'
+        else:
+            # Pipeline-included article: soft exclude (preserve for undo)
+            self.association_service.set_excluded(association, True, user_id, notes)
+
+            # Set WipArticle curator_excluded flag
             if wip_article:
                 self.wip_article_service.set_curator_excluded(wip_article, user_id, notes)
+
+            event_type = 'exclude_article'
 
         # Update report curation tracking
         report.has_curation_edits = True
@@ -1518,7 +1538,7 @@ class ReportService:
         event = CurationEvent(
             report_id=report_id,
             article_id=article_id,
-            event_type='exclude_article',
+            event_type=event_type,
             notes=notes,
             curator_id=user_id
         )
@@ -1530,6 +1550,7 @@ class ReportService:
             article_id=article_id,
             excluded=True,
             wip_article_updated=wip_article is not None,
+            was_curator_added=was_curator_added,
         )
 
     def include_article(

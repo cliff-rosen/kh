@@ -505,6 +505,16 @@ class WipArticleService:
         if notes is not None:
             article.curation_notes = notes
 
+    def clear_curator_included(self, article: WipArticle) -> None:
+        """
+        Clear curator_included flag, restoring article to pipeline's filtered state.
+
+        Used when undoing a curator add (removing a curator-added article from the report).
+        This restores the article to its original pipeline decision (filtered out).
+        """
+        article.curator_included = False
+        article.included_in_report = False  # Restore to pipeline's decision (was filtered)
+
     def clear_curation_flags(
         self,
         article: WipArticle,

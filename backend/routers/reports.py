@@ -144,6 +144,8 @@ class CurationIncludedArticle(BaseModel):
     curation_notes: Optional[str] = None
     curated_by: Optional[int] = None
     curated_at: Optional[str] = None
+    # Source indicator
+    curator_added: bool = False  # True = curator override, False = pipeline included
 
 
 class CurationFilteredArticle(BaseModel):
@@ -922,6 +924,7 @@ async def get_curation_view(
                 curation_notes=item.association.curation_notes,
                 curated_by=item.association.curated_by,
                 curated_at=item.association.curated_at.isoformat() if item.association.curated_at else None,
+                curator_added=item.association.curator_added or False,
             )
             for item in data.included_articles
         ]

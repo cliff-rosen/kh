@@ -917,7 +917,11 @@ function IncludedArticleCard({
     const currentCategory = article.presentation_categories?.[0] || '';
 
     return (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+        <div className={`border rounded-lg overflow-hidden ${
+            article.curator_added
+                ? 'border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-900/10'
+                : 'border-gray-200 dark:border-gray-700'
+        }`}>
             {/* Main content */}
             <div className="p-4">
                 <div className="flex items-start justify-between gap-4">
@@ -925,6 +929,11 @@ function IncludedArticleCard({
                         <div className="flex items-start gap-3">
                             <div className="flex-shrink-0 flex items-center gap-1 text-gray-400">
                                 <span className="text-sm font-medium">#{ranking}</span>
+                                {article.curator_added && (
+                                    <span className="ml-1 px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 rounded">
+                                        Added
+                                    </span>
+                                )}
                                 <div className="flex flex-col">
                                     <button className="hover:text-gray-600 p-0.5" title="Move up">
                                         <ChevronUpIcon className="h-3 w-3" />
@@ -1073,47 +1082,44 @@ function FilteredArticleCard({
 
     return (
         <div className={`border rounded-lg overflow-hidden ${
-            isCurated
-                ? 'border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10'
+            article.curator_excluded
+                ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/10'
                 : 'border-gray-200 dark:border-gray-700'
         }`}>
             {/* Main content */}
             <div className="p-4">
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                        <div className="flex-1 min-w-0">
-                            {pubmedUrl ? (
-                                <a
-                                    href={pubmedUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline inline-flex items-center gap-1 group"
-                                >
-                                    {article.title}
-                                    <ArrowTopRightOnSquareIcon className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                                </a>
-                            ) : (
-                                <h4 className="font-medium text-gray-900 dark:text-white">
-                                    {article.title}
-                                </h4>
-                            )}
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
-                                {article.pmid && (
-                                    <span className="ml-2 text-gray-400">PMID: {article.pmid}</span>
-                                )}
-                            </p>
-
-                            {/* Curator badge */}
-                            {isCurated && (
-                                <span className={`inline-flex items-center gap-1 mt-2 px-2 py-0.5 text-xs font-medium rounded ${
-                                    article.curator_included
-                                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                                }`}>
-                                    {article.curator_included ? 'Manually Included' : 'Manually Excluded'}
+                        <div className="flex items-start gap-2">
+                            {/* Curator Excluded badge - shown prominently at start */}
+                            {article.curator_excluded && (
+                                <span className="flex-shrink-0 px-1.5 py-0.5 text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 rounded">
+                                    Excluded
                                 </span>
                             )}
+                            <div className="flex-1 min-w-0">
+                                {pubmedUrl ? (
+                                    <a
+                                        href={pubmedUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline inline-flex items-center gap-1 group"
+                                    >
+                                        {article.title}
+                                        <ArrowTopRightOnSquareIcon className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                                    </a>
+                                ) : (
+                                    <h4 className="font-medium text-gray-900 dark:text-white">
+                                        {article.title}
+                                    </h4>
+                                )}
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                    {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
+                                    {article.pmid && (
+                                        <span className="ml-2 text-gray-400">PMID: {article.pmid}</span>
+                                    )}
+                                </p>
+                            </div>
                         </div>
 
                         {/* Pipeline info */}
