@@ -772,8 +772,8 @@ async def store_report_email(
             )
 
         # Get report name for response
-        report = report_service.get_report_with_articles(report_id, current_user.user_id)
-        report_name = report['report_name'] if report else ''
+        report_data = report_service.get_report_with_articles(report_id, current_user.user_id)
+        report_name = report_data.report.report_name if report_data else ''
 
         logger.info(f"store_report_email complete - user_id={current_user.user_id}, report_id={report_id}")
         return EmailPreviewResponse(html=request.html, report_name=report_name)
@@ -813,8 +813,8 @@ async def get_report_email(
             )
 
         # Get report name for response
-        report = report_service.get_report_with_articles(report_id, current_user.user_id)
-        report_name = report['report_name'] if report else ''
+        report_data = report_service.get_report_with_articles(report_id, current_user.user_id)
+        report_name = report_data.report.report_name if report_data else ''
 
         logger.info(f"get_report_email complete - user_id={current_user.user_id}, report_id={report_id}")
         return EmailPreviewResponse(html=html, report_name=report_name)
@@ -866,7 +866,7 @@ async def send_report_email(
         email_service = EmailService()
         results = await email_service.send_bulk_report_emails(
             recipients=request.recipients,
-            report_name=report['report_name'],
+            report_name=report.report.report_name,
             html_content=html
         )
 
