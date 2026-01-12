@@ -280,7 +280,7 @@ class EmailService:
             bool: True if email sent successfully, False otherwise
         """
         # Build the curation URL
-        base_url = settings.APP_URL or 'http://localhost:5173'
+        base_url = settings.FRONTEND_URL or 'http://localhost:5173'
         curation_url = f"{base_url}/operations/reports/{report_id}/curate"
 
         subject = f"Report Approval Requested: {report_name}"
