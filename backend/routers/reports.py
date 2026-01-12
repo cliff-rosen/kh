@@ -452,9 +452,23 @@ async def get_report_with_articles(
                 detail="Report not found"
             )
 
+        # Build retrieval_params from the linked PipelineExecution
+        retrieval_params = {}
+        if result.report.execution:
+            exec = result.report.execution
+            retrieval_params = {
+                'start_date': exec.start_date,
+                'end_date': exec.end_date,
+                'retrieval_config': exec.retrieval_config,
+                'presentation_config': exec.presentation_config,
+            }
+
         # Convert model to schema
         report_schema = Report.model_validate(result.report, from_attributes=True).model_copy(
-            update={'article_count': result.article_count}
+            update={
+                'article_count': result.article_count,
+                'retrieval_params': retrieval_params,
+            }
         )
 
         # Convert articles with association metadata

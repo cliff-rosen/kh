@@ -351,41 +351,48 @@ export default function ReportCuration() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        {/* Utility buttons - icon only, subtle */}
                         {curationData.retrieval_config && (
                             <button
                                 type="button"
                                 onClick={() => setShowConfigModal(true)}
-                                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
-                                title="View retrieval configuration for this run"
+                                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                                title="View run configuration"
                             >
-                                <Cog6ToothIcon className="h-4 w-4" />
-                                Run Config
+                                <Cog6ToothIcon className="h-5 w-5" />
                             </button>
                         )}
                         <button
                             type="button"
                             onClick={() => setShowPreview(true)}
-                            className="px-4 py-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 border border-blue-300 dark:border-blue-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center gap-2"
+                            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                            title="Preview report"
                         >
-                            <EyeIcon className="h-4 w-4" />
-                            Preview
+                            <EyeIcon className="h-5 w-5" />
                         </button>
+
+                        {/* Divider */}
+                        <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2" />
+
+                        {/* Save Draft - only when changes exist */}
                         {hasContentChanges && (
                             <button
                                 type="button"
                                 onClick={handleSaveContent}
                                 disabled={saving}
-                                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+                                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
                             >
                                 {saving ? 'Saving...' : 'Save Draft'}
                             </button>
                         )}
+
+                        {/* Primary actions - Reject and Approve */}
                         <button
                             type="button"
                             onClick={() => setShowRejectModal(true)}
                             disabled={approving}
-                            className="px-4 py-2 text-red-600 hover:text-red-700 border border-red-300 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                            className="px-4 py-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium disabled:opacity-50"
                         >
                             Reject
                         </button>
@@ -393,14 +400,14 @@ export default function ReportCuration() {
                             type="button"
                             onClick={handleApprove}
                             disabled={approving}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
+                            className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center gap-2 disabled:opacity-50"
                         >
                             {approving ? (
                                 <ArrowPathIcon className="h-4 w-4 animate-spin" />
                             ) : (
                                 <CheckIcon className="h-4 w-4" />
                             )}
-                            {approving ? 'Approving...' : 'Approve Report'}
+                            {approving ? 'Approving...' : 'Approve'}
                         </button>
                     </div>
                 </div>
@@ -1075,8 +1082,6 @@ function RetrievalConfigModal({
     config: Record<string, unknown>;
     onClose: () => void;
 }) {
-    const [showQuery, setShowQuery] = useState(false);
-    const [showFilter, setShowFilter] = useState(false);
     const [showRaw, setShowRaw] = useState(false);
 
     // Extract from broad_search (one retrieval method)
@@ -1115,15 +1120,12 @@ function RetrievalConfigModal({
 
     return (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                    <div className="flex items-center gap-3">
-                        <Cog6ToothIcon className="h-5 w-5 text-gray-400" />
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            Run Configuration
-                        </h2>
-                    </div>
+                <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        Run Configuration
+                    </h2>
                     <button
                         type="button"
                         onClick={onClose}
@@ -1133,113 +1135,53 @@ function RetrievalConfigModal({
                     </button>
                 </div>
 
-                {/* Modal Content */}
-                <div className="flex-1 overflow-auto p-6">
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                        This is the retrieval configuration that was used for this pipeline run.
-                    </p>
+                {/* Modal Content - Scrollable */}
+                <div className="flex-1 overflow-auto p-6 space-y-6">
+                    {/* PubMed Query Section */}
+                    <div>
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                            <DocumentTextIcon className="h-4 w-4 text-purple-600" />
+                            PubMed Query
+                        </h3>
+                        {pubmedQuery ? (
+                            <pre className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap font-mono bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                {pubmedQuery}
+                            </pre>
+                        ) : (
+                            <p className="text-sm text-gray-400 italic">No PubMed query configured</p>
+                        )}
+                    </div>
 
-                    {!pubmedQuery && !semanticFilter ? (
-                        <div className="space-y-3">
-                            <p className="text-sm text-gray-400 italic">No query data available in expected format.</p>
-                            <button
-                                type="button"
-                                onClick={() => setShowRaw(!showRaw)}
-                                className="text-sm text-blue-600 hover:text-blue-700 underline"
-                            >
-                                {showRaw ? 'Hide' : 'Show'} raw configuration
-                            </button>
-                            {showRaw && (
-                                <pre className="mt-2 text-xs bg-gray-100 dark:bg-gray-900 p-3 rounded-lg overflow-auto max-h-60">
-                                    {JSON.stringify(config, null, 2)}
-                                </pre>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {/* Toggle Buttons */}
-                            <div className="flex flex-wrap items-center gap-2">
-                                {pubmedQuery && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowQuery(!showQuery)}
-                                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                                            showQuery
-                                                ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300'
-                                                : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                        }`}
-                                    >
-                                        <DocumentTextIcon className="h-4 w-4" />
-                                        PubMed Query
-                                        {showQuery ? <ChevronDownIcon className="h-3 w-3" /> : <ChevronRightIcon className="h-3 w-3" />}
-                                    </button>
-                                )}
-
-                                {semanticFilter && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowFilter(!showFilter)}
-                                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                                            showFilter
-                                                ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300'
-                                                : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                        }`}
-                                    >
-                                        <FunnelIcon className="h-4 w-4" />
-                                        Semantic Filter
-                                        {showFilter ? <ChevronDownIcon className="h-3 w-3" /> : <ChevronRightIcon className="h-3 w-3" />}
-                                    </button>
-                                )}
-
-                                <button
-                                    type="button"
-                                    onClick={() => setShowRaw(!showRaw)}
-                                    className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline ml-2"
-                                >
-                                    {showRaw ? 'Hide' : 'Show'} raw
-                                </button>
+                    {/* Semantic Filter Section */}
+                    <div>
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                            <FunnelIcon className="h-4 w-4 text-blue-600" />
+                            Semantic Filter
+                        </h3>
+                        {semanticFilter ? (
+                            <div className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                {semanticFilter}
                             </div>
+                        ) : (
+                            <p className="text-sm text-gray-400 italic">No semantic filter configured</p>
+                        )}
+                    </div>
 
-                            {/* Expanded Content */}
-                            {showQuery && (
-                                <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
-                                    <p className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-2">PubMed Query</p>
-                                    <pre className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap font-mono">
-                                        {pubmedQuery}
-                                    </pre>
-                                </div>
-                            )}
-
-                            {showFilter && (
-                                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                                    <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-2">Semantic Filter Criteria</p>
-                                    <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                                        {semanticFilter}
-                                    </p>
-                                </div>
-                            )}
-
-                            {showRaw && (
-                                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Raw Configuration</p>
-                                    <pre className="text-xs text-gray-700 dark:text-gray-300 overflow-auto max-h-60">
-                                        {JSON.stringify(config, null, 2)}
-                                    </pre>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                {/* Modal Footer */}
-                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-                    >
-                        Close
-                    </button>
+                    {/* Raw Config Toggle */}
+                    <div>
+                        <button
+                            type="button"
+                            onClick={() => setShowRaw(!showRaw)}
+                            className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                        >
+                            {showRaw ? '− Hide' : '+ Show'} raw configuration
+                        </button>
+                        {showRaw && (
+                            <pre className="mt-2 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 overflow-auto max-h-60">
+                                {JSON.stringify(config, null, 2)}
+                            </pre>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
