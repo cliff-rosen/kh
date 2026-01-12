@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 
 from database import get_db
-from models import User
+from models import User, UserRole
 from schemas.report import Report, ReportWithArticles
 from services.report_service import ReportService
 from services.email_service import EmailService
@@ -731,8 +731,8 @@ async def generate_report_email(
             )
 
         # Get report name for response
-        report = report_service.get_report_with_articles(report_id, current_user.user_id)
-        report_name = report['report_name'] if report else ''
+        report_data = report_service.get_report_with_articles(report_id, current_user.user_id)
+        report_name = report_data.report.report_name if report_data else ''
 
         logger.info(f"generate_report_email complete - user_id={current_user.user_id}, report_id={report_id}")
         return EmailPreviewResponse(html=html, report_name=report_name)
@@ -920,7 +920,7 @@ async def send_approval_request(
             )
 
         # Verify admin has appropriate role
-        if not (admin.is_platform_admin or admin.is_org_admin):
+        if admin.role not in (UserRole.PLATFORM_ADMIN, UserRole.ORG_ADMIN):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User is not an admin"

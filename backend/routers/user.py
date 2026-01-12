@@ -10,7 +10,7 @@ from typing import Optional
 import logging
 
 from database import get_db
-from models import User
+from models import User, UserRole
 from schemas.user import User as UserSchema
 from services import auth_service
 from services.user_service import UserService
@@ -140,11 +140,9 @@ async def get_admin_users(
     Get list of admin users who can approve reports.
     Returns platform admins and organization admins for the user's organization.
     """
-    user_service = UserService(db)
-
     # Get platform admins
     platform_admins = db.query(User).filter(
-        User.is_platform_admin == True,
+        User.role == UserRole.PLATFORM_ADMIN,
         User.is_active == True
     ).all()
 
@@ -153,7 +151,7 @@ async def get_admin_users(
     if current_user.organization_id:
         org_admins = db.query(User).filter(
             User.organization_id == current_user.organization_id,
-            User.is_org_admin == True,
+            User.role == UserRole.ORG_ADMIN,
             User.is_active == True,
             User.user_id != current_user.user_id  # Exclude self
         ).all()
