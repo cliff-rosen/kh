@@ -1356,7 +1356,7 @@ async def update_article_in_report(
 @router.post("/{report_id}/approve", response_model=ApproveReportResponse)
 async def approve_report(
     report_id: int,
-    request: ApproveReportRequest,
+    request: Optional[ApproveReportRequest] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -1370,7 +1370,7 @@ async def approve_report(
         result = service.approve_report(
             report_id=report_id,
             user_id=current_user.user_id,
-            notes=request.notes
+            notes=request.notes if request else None
         )
         logger.info(f"approve_report complete - user_id={current_user.user_id}, report_id={report_id}")
         return ApproveReportResponse(**asdict(result))

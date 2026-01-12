@@ -71,11 +71,11 @@ export async function getExecutionDetail(executionId: string): Promise<Execution
 }
 
 export async function approveReport(reportId: number): Promise<void> {
-    await api.post(`/api/operations/reports/${reportId}/approve`);
+    await api.post(`/api/reports/${reportId}/approve`);
 }
 
 export async function rejectReport(reportId: number, reason: string): Promise<void> {
-    await api.post(`/api/operations/reports/${reportId}/reject`, { reason });
+    await api.post(`/api/reports/${reportId}/reject`, { reason });
 }
 
 // === Scheduler API ===
