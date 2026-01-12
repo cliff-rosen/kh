@@ -38,6 +38,43 @@ When creating components with scrollable areas that should fill available space:
 
 ---
 
+## Modal Guidelines
+
+When creating modals:
+
+1. **Fixed size, never changes** - Modals must NOT change size when users click around or switch tabs
+2. **Almost maximized for long content** - If the modal contains long text, lists, or tabbed content, make it nearly full-screen
+3. **Use viewport-relative sizing** with max-width constraints
+
+### Standard modal sizes:
+
+```tsx
+// Small modal (confirmations, simple forms)
+className="w-full max-w-md"
+
+// Medium modal (forms, settings)
+className="w-[600px] h-[500px]"
+
+// Large modal with long content (lists, previews, multi-tab)
+className="w-[calc(100vw-4rem)] max-w-[1200px] h-[calc(100vh-4rem)]"
+```
+
+### Required structure for scrollable modals:
+```tsx
+<div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+  <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[calc(100vw-4rem)] max-w-[1200px] h-[calc(100vh-4rem)] flex flex-col">
+    {/* Header - fixed */}
+    <div className="flex-shrink-0 px-6 py-4 border-b">...</div>
+    {/* Tabs if any - fixed */}
+    <div className="flex-shrink-0 px-6 pt-4 border-b">...</div>
+    {/* Content - scrollable */}
+    <div className="flex-1 overflow-y-auto p-6">...</div>
+  </div>
+</div>
+```
+
+---
+
 ## Data Fetching Pattern for AI-Enabled Tables
 
 When building table components that support AI column processing (like Tablizer or TrialScout):

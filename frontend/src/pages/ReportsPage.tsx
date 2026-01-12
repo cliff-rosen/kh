@@ -677,6 +677,7 @@ export default function ReportsPage() {
                         config={selectedReport.retrieval_params.retrieval_config || {}}
                         startDate={selectedReport.retrieval_params.start_date}
                         endDate={selectedReport.retrieval_params.end_date}
+                        reportId={selectedReport.report_id}
                         onClose={() => setShowExecutionConfig(false)}
                     />
                 )}

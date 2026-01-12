@@ -109,6 +109,26 @@ class UpdateSuccessResponse(BaseModel):
     ai_enrichments: Optional[Dict[str, Any]] = None
 
 
+class CurationEventResponse(BaseModel):
+    """A single curation event for the history view"""
+    id: int
+    event_type: str
+    field_name: Optional[str] = None
+    old_value: Optional[str] = None
+    new_value: Optional[str] = None
+    notes: Optional[str] = None
+    article_id: Optional[int] = None
+    article_title: Optional[str] = None
+    curator_name: str
+    created_at: str
+
+
+class CurationHistoryResponse(BaseModel):
+    """Response containing curation history for a report"""
+    events: List[CurationEventResponse]
+    total_count: int
+
+
 # --- Curation View Response Schemas ---
 
 class CurationReportData(BaseModel):
@@ -229,6 +249,7 @@ class ExcludeArticleResponse(BaseModel):
     article_id: int
     excluded: bool
     wip_article_updated: bool
+    was_curator_added: bool = False  # True if this undid a curator add
 
 
 class IncludeArticleResponse(BaseModel):
@@ -1109,6 +1130,68 @@ async def get_curation_view(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get curation view: {str(e)}"
+        )
+
+
+@router.get("/{report_id}/curation/history", response_model=CurationHistoryResponse)
+async def get_curation_history(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get curation history (audit trail) for a report.
+    Returns all curation events in reverse chronological order.
+    """
+    logger.info(f"get_curation_history - user_id={current_user.user_id}, report_id={report_id}")
+
+    try:
+        from models import CurationEvent, Article
+
+        # Get all curation events for this report
+        events = db.query(CurationEvent).filter(
+            CurationEvent.report_id == report_id
+        ).order_by(CurationEvent.created_at.desc()).all()
+
+        # Build response
+        event_responses = []
+        for event in events:
+            # Get article title if this is an article-level event
+            article_title = None
+            if event.article_id:
+                article = db.query(Article).filter(Article.article_id == event.article_id).first()
+                if article:
+                    article_title = article.title
+
+            # Get curator name
+            curator_name = "Unknown"
+            if event.curator:
+                curator_name = event.curator.full_name or event.curator.email
+
+            event_responses.append(CurationEventResponse(
+                id=event.id,
+                event_type=event.event_type,
+                field_name=event.field_name,
+                old_value=event.old_value,
+                new_value=event.new_value,
+                notes=event.notes,
+                article_id=event.article_id,
+                article_title=article_title,
+                curator_name=curator_name,
+                created_at=event.created_at.isoformat() if event.created_at else "",
+            ))
+
+        logger.info(f"get_curation_history complete - user_id={current_user.user_id}, report_id={report_id}, events={len(event_responses)}")
+        return CurationHistoryResponse(
+            events=event_responses,
+            total_count=len(event_responses),
+        )
+
+    except Exception as e:
+        logger.error(f"get_curation_history failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get curation history: {str(e)}"
         )
 
 

@@ -137,6 +137,14 @@ export const reportApi = {
     },
 
     /**
+     * Get curation history (audit trail) for a report
+     */
+    async getCurationHistory(reportId: number): Promise<CurationHistoryResponse> {
+        const response = await api.get(`/api/reports/${reportId}/curation/history`);
+        return response.data;
+    },
+
+    /**
      * Update report content (title, summaries)
      */
     async updateReportContent(reportId: number, updates: ReportContentUpdate): Promise<{ success: boolean; message: string }> {
@@ -300,6 +308,24 @@ export interface CurationCategory {
     name: string;
     color?: string;
     description?: string;
+}
+
+export interface CurationEvent {
+    id: number;
+    event_type: string;
+    field_name: string | null;
+    old_value: string | null;
+    new_value: string | null;
+    notes: string | null;
+    article_id: number | null;
+    article_title: string | null;
+    curator_name: string;
+    created_at: string;
+}
+
+export interface CurationHistoryResponse {
+    events: CurationEvent[];
+    total_count: number;
 }
 
 /**

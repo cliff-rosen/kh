@@ -929,6 +929,7 @@ export default function ReportCuration() {
                     config={curationData.retrieval_config as Record<string, unknown>}
                     startDate={curationData.start_date}
                     endDate={curationData.end_date}
+                    reportId={parseInt(reportId!)}
                     onClose={() => setShowConfigModal(false)}
                 />
             )}
