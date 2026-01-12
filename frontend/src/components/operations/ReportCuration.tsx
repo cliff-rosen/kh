@@ -41,7 +41,7 @@ import {
 } from '../../lib/api/reportApi';
 import RetrievalConfigModal from '../shared/RetrievalConfigModal';
 
-type ArticleTab = 'included' | 'filtered_out' | 'duplicates' | 'curated';
+type ArticleTab = 'included' | 'filtered_out' | 'curated';
 
 export default function ReportCuration() {
     const { reportId } = useParams<{ reportId: string }>();
@@ -656,20 +656,6 @@ export default function ReportCuration() {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setActiveTab('duplicates')}
-                                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                                    activeTab === 'duplicates'
-                                        ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                }`}
-                            >
-                                Duplicates
-                                <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300">
-                                    {stats.pipeline_duplicates}
-                                </span>
-                            </button>
-                            <button
-                                type="button"
                                 onClick={() => setActiveTab('curated')}
                                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                                     activeTab === 'curated'
@@ -760,13 +746,6 @@ export default function ReportCuration() {
                             />
                         ))}
 
-                        {activeTab === 'duplicates' && stats.pipeline_duplicates > 0 && (
-                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                                <p className="text-lg font-medium">{stats.pipeline_duplicates} duplicate{stats.pipeline_duplicates !== 1 ? 's' : ''} detected</p>
-                                <p className="text-sm mt-2">Duplicates are automatically excluded from the report.</p>
-                            </div>
-                        )}
-
                         {activeTab === 'curated' && (
                             curationData.curated_articles.length === 0 ? (
                                 <div className="text-center py-8 text-gray-500 dark:text-gray-400">
@@ -845,12 +824,6 @@ export default function ReportCuration() {
                         {activeTab === 'filtered_out' && filteredArticles.length === 0 && (
                             <div className="text-center py-8 text-gray-500">
                                 No filtered articles
-                            </div>
-                        )}
-
-                        {activeTab === 'duplicates' && stats.pipeline_duplicates === 0 && (
-                            <div className="text-center py-8 text-gray-500">
-                                No duplicate articles detected
                             </div>
                         )}
                     </div>
@@ -1509,6 +1482,30 @@ function IncludedArticleCard({
                                         <span className="ml-2 text-gray-400">PMID: {article.pmid}</span>
                                     )}
                                 </p>
+                                {/* Category selector - always visible */}
+                                <div className="flex items-center gap-2 mt-2">
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">Category:</span>
+                                    <select
+                                        value={currentCategory}
+                                        onChange={(e) => onCategoryChange(e.target.value)}
+                                        disabled={isSavingCategory}
+                                        className={`text-xs border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white disabled:opacity-50 ${
+                                            isSavingCategory
+                                                ? 'border-blue-300 dark:border-blue-600'
+                                                : 'border-gray-200 dark:border-gray-700'
+                                        }`}
+                                    >
+                                        <option value="">None</option>
+                                        {categories.map(cat => (
+                                            <option key={cat.id} value={cat.id}>
+                                                {cat.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {isSavingCategory && (
+                                        <ArrowPathIcon className="h-3 w-3 animate-spin text-blue-600" />
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -1573,36 +1570,6 @@ function IncludedArticleCard({
                                                 : 'border-gray-200 dark:border-gray-700'
                                         }`}
                                     />
-                                </div>
-
-                                {/* Category assignment */}
-                                <div className="flex items-center gap-3">
-                                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Category:</span>
-                                    <div className="flex items-center gap-2">
-                                        <select
-                                            value={currentCategory}
-                                            onChange={(e) => onCategoryChange(e.target.value)}
-                                            disabled={isSavingCategory}
-                                            className={`text-sm border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white disabled:opacity-50 ${
-                                                isSavingCategory
-                                                    ? 'border-blue-300 dark:border-blue-600'
-                                                    : 'border-gray-200 dark:border-gray-700'
-                                            }`}
-                                        >
-                                            <option value="">None</option>
-                                            {categories.map(cat => (
-                                                <option key={cat.id} value={cat.id}>
-                                                    {cat.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        {isSavingCategory && (
-                                            <span className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
-                                                <ArrowPathIcon className="h-3 w-3 animate-spin" />
-                                                Saving...
-                                            </span>
-                                        )}
-                                    </div>
                                 </div>
                             </div>
                         )}
