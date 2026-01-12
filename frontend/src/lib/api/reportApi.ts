@@ -357,7 +357,7 @@ export interface CurationFilteredArticle {
 }
 
 export interface ReportContentUpdate {
-    report_name?: string;
+    title?: string;
     executive_summary?: string;
     category_summaries?: Record<string, string>;
 }

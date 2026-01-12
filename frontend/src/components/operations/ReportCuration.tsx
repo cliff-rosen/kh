@@ -119,7 +119,13 @@ export default function ReportCuration() {
     // Save report title immediately
     const handleSaveTitle = async () => {
         if (!reportId || !curationData) return;
-        if (editedName === curationData.report.report_name) {
+
+        const newName = editedName.trim();
+        if (!newName) {
+            alert('Title cannot be empty');
+            return;
+        }
+        if (newName === curationData.report.report_name) {
             setEditingTitle(false);
             return;
         }
@@ -127,8 +133,10 @@ export default function ReportCuration() {
         setSaving(true);
         try {
             await reportApi.updateReportContent(parseInt(reportId), {
-                report_name: editedName,
+                title: newName,
             });
+            // Update local state to match what was saved
+            setEditedName(newName);
             await fetchCurationData();
             setEditingTitle(false);
         } catch (err) {
