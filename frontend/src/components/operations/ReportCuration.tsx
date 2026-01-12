@@ -29,6 +29,8 @@ import {
     CheckCircleIcon,
     ArrowUturnLeftIcon,
     Cog6ToothIcon,
+    ArrowsPointingOutIcon,
+    ArrowsPointingInIcon,
 } from '@heroicons/react/24/outline';
 import {
     reportApi,
@@ -1056,6 +1058,7 @@ function EmailModal({
     const [testEmail, setTestEmail] = useState('');
     const [sending, setSending] = useState(false);
     const [sendSuccess, setSendSuccess] = useState<string | null>(null);
+    const [isMaximized, setIsMaximized] = useState(false);
 
     // Load email preview when modal opens or tab changes to preview
     useEffect(() => {
@@ -1097,8 +1100,12 @@ function EmailModal({
 
     return (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            {/* Fixed size modal - doesn't change with content */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[900px] h-[700px] flex flex-col">
+            {/* Modal - fixed size or maximized */}
+            <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl flex flex-col transition-all duration-200 ${
+                isMaximized
+                    ? 'w-[calc(100vw-2rem)] h-[calc(100vh-2rem)]'
+                    : 'w-[900px] h-[700px]'
+            }`}>
                 {/* Modal Header */}
                 <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center gap-3">
@@ -1107,13 +1114,27 @@ function EmailModal({
                             Email Options
                         </h2>
                     </div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-                    >
-                        <XMarkIcon className="h-5 w-5 text-gray-500" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                        <button
+                            type="button"
+                            onClick={() => setIsMaximized(!isMaximized)}
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                            title={isMaximized ? 'Restore' : 'Maximize'}
+                        >
+                            {isMaximized ? (
+                                <ArrowsPointingInIcon className="h-5 w-5 text-gray-500" />
+                            ) : (
+                                <ArrowsPointingOutIcon className="h-5 w-5 text-gray-500" />
+                            )}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                        >
+                            <XMarkIcon className="h-5 w-5 text-gray-500" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Tabs */}

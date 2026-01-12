@@ -148,9 +148,9 @@ async def get_admin_users(
 
     # Get org admins for user's organization
     org_admins = []
-    if current_user.organization_id:
+    if current_user.org_id:
         org_admins = db.query(User).filter(
-            User.organization_id == current_user.organization_id,
+            User.org_id == current_user.org_id,
             User.role == UserRole.ORG_ADMIN,
             User.is_active == True,
             User.user_id != current_user.user_id  # Exclude self
