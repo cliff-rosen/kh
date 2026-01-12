@@ -59,7 +59,7 @@ export default function ReportCuration() {
     const [editedCategorySummaries, setEditedCategorySummaries] = useState<Record<string, string>>({});
 
     const [activeTab, setActiveTab] = useState<ArticleTab>('included');
-    const [contentExpanded, setContentExpanded] = useState(true);
+    const [contentExpanded, setContentExpanded] = useState(false);
     const [editingTitle, setEditingTitle] = useState(false);
     const [editingSummary, setEditingSummary] = useState<string | null>(null);
     const [expandedArticle, setExpandedArticle] = useState<number | null>(null);
@@ -110,21 +110,42 @@ export default function ReportCuration() {
         fetchCurationData(true); // Initial load - show loading spinner
     }, [fetchCurationData]);
 
-    // Check if content has been modified
-    const hasContentChanges = curationData && (
-        editedName !== curationData.report.report_name ||
+    // Check if AI summaries have been modified (not title - that saves immediately)
+    const hasSummaryChanges = curationData && (
         editedSummary !== (curationData.report.executive_summary || '') ||
         JSON.stringify(editedCategorySummaries) !== JSON.stringify(curationData.report.category_summaries || {})
     );
 
-    // Save content changes
-    const handleSaveContent = async () => {
+    // Save report title immediately
+    const handleSaveTitle = async () => {
+        if (!reportId || !curationData) return;
+        if (editedName === curationData.report.report_name) {
+            setEditingTitle(false);
+            return;
+        }
+
+        setSaving(true);
+        try {
+            await reportApi.updateReportContent(parseInt(reportId), {
+                report_name: editedName,
+            });
+            await fetchCurationData();
+            setEditingTitle(false);
+        } catch (err) {
+            console.error('Failed to save title:', err);
+            alert('Failed to save title');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // Save AI summary changes
+    const handleSaveSummaries = async () => {
         if (!reportId || !curationData) return;
 
         setSaving(true);
         try {
             await reportApi.updateReportContent(parseInt(reportId), {
-                report_name: editedName !== curationData.report.report_name ? editedName : undefined,
                 executive_summary: editedSummary !== curationData.report.executive_summary ? editedSummary : undefined,
                 category_summaries: JSON.stringify(editedCategorySummaries) !== JSON.stringify(curationData.report.category_summaries || {})
                     ? editedCategorySummaries
@@ -133,7 +154,7 @@ export default function ReportCuration() {
             // Refresh data
             await fetchCurationData();
         } catch (err) {
-            console.error('Failed to save content:', err);
+            console.error('Failed to save summaries:', err);
             alert('Failed to save changes');
         } finally {
             setSaving(false);
@@ -342,9 +363,9 @@ export default function ReportCuration() {
                                     {report.approval_status === 'awaiting_approval' ? 'Awaiting Approval' :
                                      report.approval_status === 'approved' ? 'Approved' : 'Rejected'}
                                 </span>
-                                {(hasContentChanges || report.has_curation_edits) && (
+                                {report.has_curation_edits && (
                                     <span className="px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full">
-                                        {hasContentChanges ? 'Unsaved Changes' : 'Has Edits'}
+                                        Has Edits
                                     </span>
                                 )}
                             </div>
@@ -383,18 +404,6 @@ export default function ReportCuration() {
                         {/* Divider */}
                         <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2" />
 
-                        {/* Save Draft - only when changes exist */}
-                        {hasContentChanges && (
-                            <button
-                                type="button"
-                                onClick={handleSaveContent}
-                                disabled={saving}
-                                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
-                            >
-                                {saving ? 'Saving...' : 'Save Draft'}
-                            </button>
-                        )}
-
                         {/* Primary actions - Reject and Approve */}
                         <button
                             type="button"
@@ -423,7 +432,55 @@ export default function ReportCuration() {
 
             {/* Content */}
             <div className="flex-1 overflow-auto p-6 space-y-6">
-                {/* Report Content Section */}
+                {/* Report Title - Elevated above AI Summaries */}
+                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Report Title
+                        </label>
+                    </div>
+                    {editingTitle ? (
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={editedName}
+                                onChange={(e) => setEditedName(e.target.value)}
+                                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveTitle();
+                                    if (e.key === 'Escape') {
+                                        setEditedName(report.report_name);
+                                        setEditingTitle(false);
+                                    }
+                                }}
+                            />
+                            <button
+                                type="button"
+                                onClick={handleSaveTitle}
+                                disabled={saving}
+                                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                title="Save title"
+                            >
+                                {saving ? (
+                                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <CheckIcon className="h-4 w-4" />
+                                )}
+                            </button>
+                        </div>
+                    ) : (
+                        <div
+                            onClick={() => setEditingTitle(true)}
+                            className="flex items-center justify-between px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:border-blue-300 dark:hover:border-blue-600"
+                        >
+                            <span className="text-lg font-medium text-gray-900 dark:text-white">{editedName || 'Untitled Report'}</span>
+                            <PencilIcon className="h-4 w-4 text-gray-400" />
+                        </div>
+                    )}
+                </div>
+
+                {/* AI Summaries Section - Collapsible */}
                 <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                     <button
                         type="button"
@@ -432,10 +489,10 @@ export default function ReportCuration() {
                     >
                         <div className="flex items-center gap-2">
                             <DocumentTextIcon className="h-5 w-5 text-gray-400" />
-                            <span className="font-semibold text-gray-900 dark:text-white">Report Content</span>
-                            {(editedName !== report.report_name || editedSummary !== (report.executive_summary || '')) && (
-                                <span className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
-                                    Edited
+                            <span className="font-semibold text-gray-900 dark:text-white">AI Summaries</span>
+                            {hasSummaryChanges && (
+                                <span className="px-2 py-0.5 text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded">
+                                    Unsaved
                                 </span>
                             )}
                         </div>
@@ -448,44 +505,6 @@ export default function ReportCuration() {
 
                     {contentExpanded && (
                         <div className="border-t border-gray-200 dark:border-gray-700 p-4 space-y-6">
-                            {/* Report Title */}
-                            <div>
-                                <div className="flex items-center justify-between mb-2">
-                                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        Report Title
-                                    </label>
-                                    {editedName !== report.report_name && (
-                                        <span className="text-xs text-blue-600 dark:text-blue-400">Modified</span>
-                                    )}
-                                </div>
-                                {editingTitle ? (
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="text"
-                                            value={editedName}
-                                            onChange={(e) => setEditedName(e.target.value)}
-                                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                            autoFocus
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setEditingTitle(false)}
-                                            className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                                        >
-                                            <CheckIcon className="h-4 w-4" />
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div
-                                        onClick={() => setEditingTitle(true)}
-                                        className="flex items-center justify-between px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:border-blue-300 dark:hover:border-blue-600"
-                                    >
-                                        <span className="text-gray-900 dark:text-white">{editedName || 'Untitled Report'}</span>
-                                        <PencilIcon className="h-4 w-4 text-gray-400" />
-                                    </div>
-                                )}
-                            </div>
-
                             {/* Executive Summary */}
                             <div>
                                 <div className="flex items-center justify-between mb-2">
@@ -591,6 +610,21 @@ export default function ReportCuration() {
                                             );
                                         })}
                                     </div>
+                                </div>
+                            )}
+
+                            {/* Save Summaries Button */}
+                            {hasSummaryChanges && (
+                                <div className="flex justify-end pt-2 border-t border-gray-200 dark:border-gray-700">
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveSummaries}
+                                        disabled={saving}
+                                        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                                    >
+                                        {saving && <ArrowPathIcon className="h-4 w-4 animate-spin" />}
+                                        {saving ? 'Saving...' : 'Save Summaries'}
+                                    </button>
                                 </div>
                             )}
                         </div>
