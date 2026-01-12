@@ -9,7 +9,7 @@ const CANNED_QUERIES = [
     {
         id: 'asbestos-talc',
         name: 'Asbestos & Talc Literature',
-        query: `(asbestos[tiab] OR asbestiform[tiab] OR chrysotile[tiab] OR amosite[tiab] OR crocidolite[tiab] OR tremolite[tiab] OR anthophyllite[tiab] OR actinolite[tiab] OR "serpentine minerals"[tiab]) OR (talc[tiab] OR talcum[tiab] OR "magnesium silicate"[tiab]) OR (mesothelioma[tiab] OR "pleural cancer"[tiab] OR asbestosis[tiab] OR "pleural plaques"[tiab] OR "pleural effusion"[tiab]) OR ("ovarian cancer"[tiab] AND (talc[tiab] OR talcum[tiab] OR "body powder"[tiab] OR "perineal"[tiab]))`
+        query: `(cancer causation AND (genetic predisposition OR genetic susceptibility OR BAP1 OR NF2 OR CDKN2A OR TP53 OR BRCA1 OR BRCA2)) OR ((lung cancer OR ovarian cancer) AND (genetic predisposition OR genetic susceptibility OR BAP1 OR NF2 OR CDKN2A OR TP53 OR BRCA1 OR BRCA2)) OR (mesothelioma OR asbestosis OR "pleural plaque" OR "pleural plaques" OR "pleural disease" OR "pleural thickening") OR (asbestos OR talc)`
     }
 ];
 

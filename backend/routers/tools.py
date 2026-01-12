@@ -121,11 +121,8 @@ async def check_pubmed_ids(
     """
     Check which PubMed IDs from a list are captured by a query.
 
-    This tool runs a query and checks which of the provided PubMed IDs
-    appear in the results, helping validate query coverage.
-
-    This is optimized for speed: it only fetches article IDs from the query
-    (very fast), then fetches full metadata only for the captured IDs.
+    This tool checks each PMID directly by adding it as a constraint to the query,
+    ensuring accurate results even when the query returns thousands of results.
     """
     from services.pubmed_service import PubMedService
     from schemas.canonical_types import CanonicalPubMedArticle
@@ -142,35 +139,61 @@ async def check_pubmed_ids(
             start_date = start_date_obj.strftime("%Y/%m/%d")
             end_date = end_date_obj.strftime("%Y/%m/%d")
 
-        # FAST: Get just the IDs from the query (no article fetching)
         pubmed_service = PubMedService()
-        logger.info(f"Fetching IDs for query with date_type={request.date_type}: {request.query_expression}")
 
-        # Use same max_results as pipeline to ensure consistency
-        pmids_from_query, total_count = pubmed_service.get_article_ids(
+        # First, get the total count for the base query (for display purposes)
+        logger.info(f"Getting total count for query with date_type={request.date_type}: {request.query_expression}")
+        _, total_count = pubmed_service.get_article_ids(
             query=request.query_expression,
-            max_results=500,  # Match pipeline's MAX_ARTICLES_PER_SOURCE
+            max_results=1,  # Just need the count
             sort_by='relevance',
             start_date=start_date,
             end_date=end_date,
             date_type=request.date_type
         )
+        logger.info(f"Query has {total_count} total results")
 
-        # Build set of captured PubMed IDs
-        captured_pmids_set = set(pmids_from_query)
-        logger.info(f"Query returned {total_count} total results, got {len(pmids_from_query)} IDs")
+        # Clean user PMIDs
+        user_pmids_clean = [pmid.strip() for pmid in request.pubmed_ids if pmid.strip()]
 
-        # Determine which user IDs were captured
-        user_pmids_clean = [pmid.strip() for pmid in request.pubmed_ids]
-        captured_user_pmids = [pmid for pmid in user_pmids_clean if pmid in captured_pmids_set]
+        # Check each PMID by adding it as a constraint to the query
+        # This is more accurate than fetching top N results and checking membership
+        captured_pmids = []
 
-        logger.info(f"User provided {len(user_pmids_clean)} IDs, {len(captured_user_pmids)} were captured")
+        # Process in batches of 50 PMIDs to reduce API calls
+        BATCH_SIZE = 50
+        for i in range(0, len(user_pmids_clean), BATCH_SIZE):
+            batch = user_pmids_clean[i:i + BATCH_SIZE]
 
-        # SLOW: Fetch full article metadata ONLY for captured IDs
+            # Build a query that checks if any of these PMIDs match the original query
+            # Format: (original_query) AND (pmid1[uid] OR pmid2[uid] OR ...)
+            pmid_clause = " OR ".join([f"{pmid}[uid]" for pmid in batch])
+            combined_query = f"({request.query_expression}) AND ({pmid_clause})"
+
+            try:
+                # Get IDs that match both the query AND are in our batch
+                matched_ids, _ = pubmed_service.get_article_ids(
+                    query=combined_query,
+                    max_results=len(batch),
+                    sort_by='relevance',
+                    start_date=start_date,
+                    end_date=end_date,
+                    date_type=request.date_type
+                )
+                captured_pmids.extend(matched_ids)
+                logger.info(f"Batch {i//BATCH_SIZE + 1}: {len(matched_ids)}/{len(batch)} PMIDs captured")
+            except Exception as e:
+                logger.warning(f"Error checking batch {i//BATCH_SIZE + 1}: {e}")
+                # Continue with other batches
+
+        captured_pmids_set = set(captured_pmids)
+        logger.info(f"User provided {len(user_pmids_clean)} IDs, {len(captured_pmids_set)} were captured")
+
+        # Fetch full article metadata for all user-provided IDs (for display)
         article_lookup = {}
-        if captured_user_pmids:
-            logger.info(f"Fetching full article data for {len(captured_user_pmids)} captured IDs")
-            articles = pubmed_service.get_articles_from_ids(captured_user_pmids)
+        if user_pmids_clean:
+            logger.info(f"Fetching full article data for {len(user_pmids_clean)} IDs")
+            articles = pubmed_service.get_articles_from_ids(user_pmids_clean)
 
             # Convert to canonical format and build lookup
             for article in articles:
@@ -203,7 +226,7 @@ async def check_pubmed_ids(
             result = PubMedIdCheckResult(
                 pubmed_id=pmid_clean,
                 captured=is_captured,
-                article=article_lookup.get(pmid_clean) if is_captured else None
+                article=article_lookup.get(pmid_clean)  # Show article data for all IDs
             )
             results.append(result)
 
