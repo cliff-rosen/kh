@@ -596,7 +596,7 @@ class ReportService:
         Returns:
             Dict with report info and articles list, or None if not found/no access
         """
-        result = self._get_report_with_access(report_id, user_id)
+        result = self.get_report_with_access(report_id, user_id)
         if not result:
             return None
         report, user, stream = result
@@ -655,7 +655,7 @@ class ReportService:
 
     def get_report_with_articles(self, report_id: int, user_id: int) -> Optional[ReportWithArticlesData]:
         """Get a report with its associated articles for a user with stream access."""
-        result = self._get_report_with_access(report_id, user_id)
+        result = self.get_report_with_access(report_id, user_id)
         if not result:
             return None
         report, user, stream = result
@@ -695,7 +695,7 @@ class ReportService:
         Returns:
             List of WipArticle objects
         """
-        result = self._get_report_with_access(report_id, user_id)
+        result = self.get_report_with_access(report_id, user_id)
         if not result:
             return []
         report, user, stream = result
@@ -828,7 +828,7 @@ class ReportService:
         Returns:
             Dict with report data and wip_articles, or None if not found
         """
-        result = self._get_report_with_access(report_id, user_id)
+        result = self.get_report_with_access(report_id, user_id)
         if not result:
             return None
         report, user, stream = result
@@ -884,7 +884,7 @@ class ReportService:
         Returns:
             ReportArticleAssociation or None if not found
         """
-        result = self._get_report_with_access(report_id, user_id)
+        result = self.get_report_with_access(report_id, user_id)
         if not result:
             return None
 
@@ -993,7 +993,7 @@ class ReportService:
             PipelineAnalytics dataclass, or None if report not found.
             Raises ValueError if report has no pipeline execution data.
         """
-        result = self._get_report_with_access(report_id, user_id)
+        result = self.get_report_with_access(report_id, user_id)
         if not result:
             return None
         report, user, stream = result
@@ -1116,7 +1116,7 @@ class ReportService:
         Returns:
             HTML string, or None if report not found/no access
         """
-        result = self._get_report_with_access(report_id, user_id)
+        result = self.get_report_with_access(report_id, user_id)
         if not result:
             return None
         report, user, stream = result
@@ -1165,7 +1165,7 @@ class ReportService:
         Returns:
             True if stored successfully, False if report not found/no access
         """
-        result = self._get_report_with_access(report_id, user_id)
+        result = self.get_report_with_access(report_id, user_id)
         if not result:
             return False
         report, user, stream = result
@@ -1189,7 +1189,7 @@ class ReportService:
         Returns:
             Stored HTML string, or None if not found/no access/not generated
         """
-        result = self._get_report_with_access(report_id, user_id)
+        result = self.get_report_with_access(report_id, user_id)
         if not result:
             return None
         report, user, stream = result
