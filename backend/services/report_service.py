@@ -160,6 +160,7 @@ class CurationViewData:
     curated_articles: List[WipArticle]
     categories: List[Dict[str, Any]]
     stats: CurationStats
+    execution: Optional[PipelineExecution] = None  # For retrieval config access
 
 
 @dataclass
@@ -1342,6 +1343,13 @@ class ReportService:
         wip_by_pmid: Dict[str, int] = {}
         wip_by_doi: Dict[str, int] = {}
 
+        # Fetch execution for retrieval config access
+        execution: Optional[PipelineExecution] = None
+        if report.pipeline_execution_id:
+            execution = self.db.query(PipelineExecution).filter(
+                PipelineExecution.id == report.pipeline_execution_id
+            ).first()
+
         if report.pipeline_execution_id:
             wip_articles = self.wip_article_service.get_by_execution_id(report.pipeline_execution_id)
 
@@ -1414,6 +1422,7 @@ class ReportService:
             curated_articles=curated_articles,
             categories=categories,
             stats=stats,
+            execution=execution,
         )
 
     def update_report_content(

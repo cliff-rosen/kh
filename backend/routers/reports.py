@@ -200,6 +200,9 @@ class CurationViewResponse(BaseModel):
     categories: List[CurationCategory]
     stream_name: Optional[str] = None
     stats: CurationStats
+    # Execution info for retrieval config display
+    execution_id: Optional[str] = None
+    retrieval_config: Optional[Dict[str, Any]] = None
 
 
 class ResetCurationResponse(BaseModel):
@@ -988,6 +991,8 @@ async def get_curation_view(
             categories=categories,
             stream_name=data.stream.stream_name if data.stream else None,
             stats=stats,
+            execution_id=str(data.execution.id) if data.execution else None,
+            retrieval_config=data.execution.retrieval_config if data.execution else None,
         )
 
         logger.info(f"get_curation_view complete - user_id={current_user.user_id}, report_id={report_id}")

@@ -249,6 +249,9 @@ export interface CurationViewResponse {
     categories: CurationCategory[];
     stream_name: string | null;
     stats: CurationStats;
+    // Execution info for retrieval config display
+    execution_id: string | null;
+    retrieval_config: Record<string, unknown> | null;
 }
 
 export interface CurationReportData {

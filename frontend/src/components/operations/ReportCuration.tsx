@@ -16,6 +16,7 @@ import {
     XMarkIcon,
     ChevronDownIcon,
     ChevronUpIcon,
+    ChevronRightIcon,
     PencilIcon,
     ArrowPathIcon,
     DocumentTextIcon,
@@ -28,6 +29,8 @@ import {
     ChatBubbleLeftIcon,
     CheckCircleIcon,
     ArrowUturnLeftIcon,
+    Cog6ToothIcon,
+    FunnelIcon,
 } from '@heroicons/react/24/outline';
 import {
     reportApi,
@@ -62,9 +65,12 @@ export default function ReportCuration() {
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
     const [showPreview, setShowPreview] = useState(false);
+    const [showConfigModal, setShowConfigModal] = useState(false);
 
     // Track which article is being processed (for loading indicators)
     const [processingArticleId, setProcessingArticleId] = useState<number | null>(null);
+    // Track which article is having its category changed
+    const [savingCategoryArticleId, setSavingCategoryArticleId] = useState<number | null>(null);
 
     // Fetch curation data
     // isInitialLoad controls whether to show loading spinner (only on first load)
@@ -199,6 +205,7 @@ export default function ReportCuration() {
     const handleCategoryChange = async (article: CurationIncludedArticle, newCategoryId: string) => {
         if (!reportId) return;
 
+        setSavingCategoryArticleId(article.article_id);
         try {
             await reportApi.updateArticleInReport(parseInt(reportId), article.article_id, {
                 category: newCategoryId
@@ -207,6 +214,8 @@ export default function ReportCuration() {
         } catch (err) {
             console.error('Failed to update article category:', err);
             alert('Failed to update article category');
+        } finally {
+            setSavingCategoryArticleId(null);
         }
     };
 
@@ -343,6 +352,17 @@ export default function ReportCuration() {
                     </div>
 
                     <div className="flex items-center gap-3">
+                        {curationData.retrieval_config && (
+                            <button
+                                type="button"
+                                onClick={() => setShowConfigModal(true)}
+                                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                                title="View retrieval configuration for this run"
+                            >
+                                <Cog6ToothIcon className="h-4 w-4" />
+                                Run Config
+                            </button>
+                        )}
                         <button
                             type="button"
                             onClick={() => setShowPreview(true)}
@@ -660,6 +680,7 @@ export default function ReportCuration() {
                                 categories={categories}
                                 expanded={expandedArticle === article.article_id}
                                 isProcessing={processingArticleId === article.article_id}
+                                isSavingCategory={savingCategoryArticleId === article.article_id}
                                 onToggleExpand={() => setExpandedArticle(expandedArticle === article.article_id ? null : article.article_id)}
                                 onExclude={() => handleExcludeArticle(article)}
                                 onCategoryChange={(newCat) => handleCategoryChange(article, newCat)}
@@ -829,6 +850,14 @@ export default function ReportCuration() {
                     onClose={() => setShowPreview(false)}
                 />
             )}
+
+            {/* Retrieval Config Modal */}
+            {showConfigModal && curationData.retrieval_config && (
+                <RetrievalConfigModal
+                    config={curationData.retrieval_config}
+                    onClose={() => setShowConfigModal(false)}
+                />
+            )}
         </div>
     );
 }
@@ -857,6 +886,11 @@ function ReportPreviewModal({
         articles: articles.filter(a => a.presentation_categories?.includes(cat.id)),
         summary: editedCategorySummaries[cat.id] || '',
     })).filter(cat => cat.articles.length > 0);
+
+    // Find uncategorized articles (no category or empty categories)
+    const uncategorizedArticles = articles.filter(a =>
+        !a.presentation_categories || a.presentation_categories.length === 0
+    );
 
     return (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
@@ -904,7 +938,7 @@ function ReportPreviewModal({
 
                         {/* Categories with Articles */}
                         {articlesByCategory.map((cat) => (
-                            <div key={cat.id} className="px-8 py-6 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
+                            <div key={cat.id} className="px-8 py-6 border-b border-gray-200 dark:border-gray-700">
                                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                                     {cat.name}
                                     <span className="ml-2 text-sm font-normal text-gray-500">
@@ -948,11 +982,253 @@ function ReportPreviewModal({
                             </div>
                         ))}
 
+                        {/* Uncategorized Articles */}
+                        {uncategorizedArticles.length > 0 && (
+                            <div className="px-8 py-6 border-b border-gray-200 dark:border-gray-700">
+                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                                    Uncategorized
+                                    <span className="ml-2 text-sm font-normal text-gray-500">
+                                        ({uncategorizedArticles.length} articles)
+                                    </span>
+                                </h2>
+                                <p className="text-gray-500 dark:text-gray-400 mb-4 text-sm italic">
+                                    These articles need to be assigned to a category
+                                </p>
+
+                                <div className="space-y-4">
+                                    {uncategorizedArticles.map((article, idx) => (
+                                        <div key={article.article_id} className="pl-4 border-l-2 border-amber-200 dark:border-amber-800">
+                                            <h3 className="font-medium text-gray-900 dark:text-white">
+                                                {idx + 1}. {article.title}
+                                            </h3>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
+                                            </p>
+                                            {article.ai_summary && (
+                                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                                                    {article.ai_summary}
+                                                </p>
+                                            )}
+                                            {article.pmid && (
+                                                <a
+                                                    href={`https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-xs text-blue-600 hover:underline mt-2 inline-block"
+                                                >
+                                                    View on PubMed →
+                                                </a>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Footer */}
                         <div className="px-8 py-4 bg-gray-50 dark:bg-gray-900/50 text-center text-xs text-gray-500 dark:text-gray-400">
                             Generated by Knowledge Horizon Research Platform
                         </div>
                     </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Retrieval Configuration Modal Component
+interface BroadQueryConfig {
+    query_expression: string;
+    semantic_filter?: {
+        enabled: boolean;
+        criteria: string;
+        threshold?: number;
+    };
+}
+
+interface ConceptConfig {
+    concept_id: string;
+    name: string;
+    source_queries?: Record<string, { query_expression: string; enabled: boolean }>;
+    semantic_filter?: {
+        enabled: boolean;
+        criteria: string;
+        threshold?: number;
+    };
+}
+
+function RetrievalConfigModal({
+    config,
+    onClose,
+}: {
+    config: Record<string, unknown>;
+    onClose: () => void;
+}) {
+    const [showQuery, setShowQuery] = useState(false);
+    const [showFilter, setShowFilter] = useState(false);
+    const [showRaw, setShowRaw] = useState(false);
+
+    // Extract from broad_search (one retrieval method)
+    const broadSearch = config.broad_search as { queries: BroadQueryConfig[] } | undefined;
+    const broadQueries = broadSearch?.queries || [];
+
+    // Extract from concepts (alternative retrieval method)
+    const concepts = config.concepts as ConceptConfig[] | undefined;
+
+    // Get query expressions from broad_search
+    let pubmedQuery = broadQueries.map(q => q.query_expression).filter(Boolean).join('\n\nOR\n\n');
+
+    // If no broad_search, try to get queries from concepts
+    if (!pubmedQuery && concepts && concepts.length > 0) {
+        const conceptQueries = concepts
+            .filter(c => c.source_queries?.pubmed?.enabled && c.source_queries?.pubmed?.query_expression)
+            .map(c => `# ${c.name}\n${c.source_queries!.pubmed.query_expression}`)
+            .filter(Boolean);
+        pubmedQuery = conceptQueries.join('\n\n---\n\n');
+    }
+
+    // Get semantic filters from broad_search
+    let semanticFilter = broadQueries
+        .filter(q => q.semantic_filter?.enabled && q.semantic_filter?.criteria)
+        .map(q => q.semantic_filter!.criteria)
+        .join('\n\n---\n\n');
+
+    // If no broad_search filters, try to get filters from concepts
+    if (!semanticFilter && concepts && concepts.length > 0) {
+        const conceptFilters = concepts
+            .filter(c => c.semantic_filter?.enabled && c.semantic_filter?.criteria)
+            .map(c => `# ${c.name}\n${c.semantic_filter!.criteria}`)
+            .filter(Boolean);
+        semanticFilter = conceptFilters.join('\n\n---\n\n');
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+                {/* Modal Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center gap-3">
+                        <Cog6ToothIcon className="h-5 w-5 text-gray-400" />
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            Run Configuration
+                        </h2>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                    >
+                        <XMarkIcon className="h-5 w-5 text-gray-500" />
+                    </button>
+                </div>
+
+                {/* Modal Content */}
+                <div className="flex-1 overflow-auto p-6">
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                        This is the retrieval configuration that was used for this pipeline run.
+                    </p>
+
+                    {!pubmedQuery && !semanticFilter ? (
+                        <div className="space-y-3">
+                            <p className="text-sm text-gray-400 italic">No query data available in expected format.</p>
+                            <button
+                                type="button"
+                                onClick={() => setShowRaw(!showRaw)}
+                                className="text-sm text-blue-600 hover:text-blue-700 underline"
+                            >
+                                {showRaw ? 'Hide' : 'Show'} raw configuration
+                            </button>
+                            {showRaw && (
+                                <pre className="mt-2 text-xs bg-gray-100 dark:bg-gray-900 p-3 rounded-lg overflow-auto max-h-60">
+                                    {JSON.stringify(config, null, 2)}
+                                </pre>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {/* Toggle Buttons */}
+                            <div className="flex flex-wrap items-center gap-2">
+                                {pubmedQuery && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowQuery(!showQuery)}
+                                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                                            showQuery
+                                                ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300'
+                                                : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                        }`}
+                                    >
+                                        <DocumentTextIcon className="h-4 w-4" />
+                                        PubMed Query
+                                        {showQuery ? <ChevronDownIcon className="h-3 w-3" /> : <ChevronRightIcon className="h-3 w-3" />}
+                                    </button>
+                                )}
+
+                                {semanticFilter && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowFilter(!showFilter)}
+                                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                                            showFilter
+                                                ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300'
+                                                : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                        }`}
+                                    >
+                                        <FunnelIcon className="h-4 w-4" />
+                                        Semantic Filter
+                                        {showFilter ? <ChevronDownIcon className="h-3 w-3" /> : <ChevronRightIcon className="h-3 w-3" />}
+                                    </button>
+                                )}
+
+                                <button
+                                    type="button"
+                                    onClick={() => setShowRaw(!showRaw)}
+                                    className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline ml-2"
+                                >
+                                    {showRaw ? 'Hide' : 'Show'} raw
+                                </button>
+                            </div>
+
+                            {/* Expanded Content */}
+                            {showQuery && (
+                                <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+                                    <p className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-2">PubMed Query</p>
+                                    <pre className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap font-mono">
+                                        {pubmedQuery}
+                                    </pre>
+                                </div>
+                            )}
+
+                            {showFilter && (
+                                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                                    <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-2">Semantic Filter Criteria</p>
+                                    <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                                        {semanticFilter}
+                                    </p>
+                                </div>
+                            )}
+
+                            {showRaw && (
+                                <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Raw Configuration</p>
+                                    <pre className="text-xs text-gray-700 dark:text-gray-300 overflow-auto max-h-60">
+                                        {JSON.stringify(config, null, 2)}
+                                    </pre>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Modal Footer */}
@@ -977,6 +1253,7 @@ function IncludedArticleCard({
     categories,
     expanded,
     isProcessing,
+    isSavingCategory,
     onToggleExpand,
     onExclude,
     onCategoryChange,
@@ -987,6 +1264,7 @@ function IncludedArticleCard({
     categories: CurationCategory[];
     expanded: boolean;
     isProcessing: boolean;
+    isSavingCategory: boolean;
     onToggleExpand: () => void;
     onExclude: () => void;
     onCategoryChange: (categoryId: string) => void;
@@ -1120,18 +1398,31 @@ function IncludedArticleCard({
                                 {/* Category assignment */}
                                 <div className="flex items-center gap-3">
                                     <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Category:</span>
-                                    <select
-                                        value={currentCategory}
-                                        onChange={(e) => onCategoryChange(e.target.value)}
-                                        className="text-sm border border-gray-200 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                                    >
-                                        <option value="">None</option>
-                                        {categories.map(cat => (
-                                            <option key={cat.id} value={cat.id}>
-                                                {cat.name}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <div className="flex items-center gap-2">
+                                        <select
+                                            value={currentCategory}
+                                            onChange={(e) => onCategoryChange(e.target.value)}
+                                            disabled={isSavingCategory}
+                                            className={`text-sm border rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white disabled:opacity-50 ${
+                                                isSavingCategory
+                                                    ? 'border-blue-300 dark:border-blue-600'
+                                                    : 'border-gray-200 dark:border-gray-700'
+                                            }`}
+                                        >
+                                            <option value="">None</option>
+                                            {categories.map(cat => (
+                                                <option key={cat.id} value={cat.id}>
+                                                    {cat.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        {isSavingCategory && (
+                                            <span className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                                                <ArrowPathIcon className="h-3 w-3 animate-spin" />
+                                                Saving...
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         )}
