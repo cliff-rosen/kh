@@ -63,28 +63,42 @@ export default function ReportCuration() {
     const [rejectReason, setRejectReason] = useState('');
     const [showPreview, setShowPreview] = useState(false);
 
+    // Track which article is being processed (for loading indicators)
+    const [processingArticleId, setProcessingArticleId] = useState<number | null>(null);
+
     // Fetch curation data
-    const fetchCurationData = useCallback(async () => {
+    // isInitialLoad controls whether to show loading spinner (only on first load)
+    const fetchCurationData = useCallback(async (isInitialLoad = false) => {
         if (!reportId) return;
 
-        setLoading(true);
+        // Only show loading spinner on initial load, not on refreshes
+        if (isInitialLoad) {
+            setLoading(true);
+        }
         setError(null);
         try {
             const data = await reportApi.getCurationView(parseInt(reportId));
             setCurationData(data);
-            setEditedName(data.report.report_name);
-            setEditedSummary(data.report.executive_summary || '');
-            setEditedCategorySummaries(data.report.category_summaries || {});
+            // Only update edited values on initial load to preserve user edits
+            if (isInitialLoad) {
+                setEditedName(data.report.report_name);
+                setEditedSummary(data.report.executive_summary || '');
+                setEditedCategorySummaries(data.report.category_summaries || {});
+            }
         } catch (err) {
             console.error('Failed to fetch curation data:', err);
-            setError('Failed to load report for curation');
+            if (isInitialLoad) {
+                setError('Failed to load report for curation');
+            }
         } finally {
-            setLoading(false);
+            if (isInitialLoad) {
+                setLoading(false);
+            }
         }
     }, [reportId]);
 
     useEffect(() => {
-        fetchCurationData();
+        fetchCurationData(true); // Initial load - show loading spinner
     }, [fetchCurationData]);
 
     // Check if content has been modified
@@ -302,6 +316,7 @@ export default function ReportCuration() {
 
                     <div className="flex items-center gap-3">
                         <button
+                            type="button"
                             onClick={() => setShowPreview(true)}
                             className="px-4 py-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 border border-blue-300 dark:border-blue-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center gap-2"
                         >
@@ -310,6 +325,7 @@ export default function ReportCuration() {
                         </button>
                         {hasContentChanges && (
                             <button
+                                type="button"
                                 onClick={handleSaveContent}
                                 disabled={saving}
                                 className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
@@ -318,6 +334,7 @@ export default function ReportCuration() {
                             </button>
                         )}
                         <button
+                            type="button"
                             onClick={() => setShowRejectModal(true)}
                             disabled={approving}
                             className="px-4 py-2 text-red-600 hover:text-red-700 border border-red-300 rounded-lg hover:bg-red-50 disabled:opacity-50"
@@ -325,6 +342,7 @@ export default function ReportCuration() {
                             Reject
                         </button>
                         <button
+                            type="button"
                             onClick={handleApprove}
                             disabled={approving}
                             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
@@ -345,6 +363,7 @@ export default function ReportCuration() {
                 {/* Report Content Section */}
                 <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                     <button
+                        type="button"
                         onClick={() => setContentExpanded(!contentExpanded)}
                         className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50"
                     >
@@ -386,6 +405,7 @@ export default function ReportCuration() {
                                             autoFocus
                                         />
                                         <button
+                                            type="button"
                                             onClick={() => setEditingTitle(false)}
                                             className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                                         >
@@ -413,7 +433,7 @@ export default function ReportCuration() {
                                         {editedSummary !== (report.executive_summary || '') && (
                                             <span className="text-xs text-blue-600 dark:text-blue-400">Modified</span>
                                         )}
-                                        <button className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1">
+                                        <button type="button" className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1">
                                             <ArrowPathIcon className="h-3 w-3" />
                                             Regenerate
                                         </button>
@@ -428,6 +448,7 @@ export default function ReportCuration() {
                                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                         />
                                         <button
+                                            type="button"
                                             onClick={() => setEditingSummary(null)}
                                             className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
                                         >
@@ -469,7 +490,7 @@ export default function ReportCuration() {
                                                             {cat.name}
                                                             <span className="ml-2 text-gray-500 font-normal">({cat.article_count} articles)</span>
                                                         </span>
-                                                        <button className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
+                                                        <button type="button" className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
                                                             <ArrowPathIcon className="h-3 w-3" />
                                                             Regenerate
                                                         </button>
@@ -486,6 +507,7 @@ export default function ReportCuration() {
                                                                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                                             />
                                                             <button
+                                                                type="button"
                                                                 onClick={() => setEditingSummary(null)}
                                                                 className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
                                                             >
@@ -542,6 +564,7 @@ export default function ReportCuration() {
                         {/* Tabs */}
                         <div className="flex gap-2 mt-4">
                             <button
+                                type="button"
                                 onClick={() => setActiveTab('included')}
                                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                                     activeTab === 'included'
@@ -555,6 +578,7 @@ export default function ReportCuration() {
                                 </span>
                             </button>
                             <button
+                                type="button"
                                 onClick={() => setActiveTab('filtered_out')}
                                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                                     activeTab === 'filtered_out'
@@ -568,6 +592,7 @@ export default function ReportCuration() {
                                 </span>
                             </button>
                             <button
+                                type="button"
                                 onClick={() => setActiveTab('duplicates')}
                                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                                     activeTab === 'duplicates'
@@ -581,6 +606,7 @@ export default function ReportCuration() {
                                 </span>
                             </button>
                             <button
+                                type="button"
                                 onClick={() => setActiveTab('curated')}
                                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                                     activeTab === 'curated'
@@ -678,6 +704,7 @@ export default function ReportCuration() {
                                                     </p>
                                                 </div>
                                                 <button
+                                                    type="button"
                                                     onClick={() => handleResetCuration(article)}
                                                     disabled={isUndoing}
                                                     className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-white dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -739,12 +766,14 @@ export default function ReportCuration() {
                         </div>
                         <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
                             <button
+                                type="button"
                                 onClick={() => setShowRejectModal(false)}
                                 className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg"
                             >
                                 Cancel
                             </button>
                             <button
+                                type="button"
                                 onClick={handleReject}
                                 disabled={!rejectReason.trim() || approving}
                                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
@@ -809,6 +838,7 @@ function ReportPreviewModal({
                         </h2>
                     </div>
                     <button
+                        type="button"
                         onClick={onClose}
                         className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
                     >
@@ -896,6 +926,7 @@ function ReportPreviewModal({
                 {/* Modal Footer */}
                 <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
                     <button
+                        type="button"
                         onClick={onClose}
                         className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
@@ -948,10 +979,10 @@ function IncludedArticleCard({
                                     </span>
                                 )}
                                 <div className="flex flex-col">
-                                    <button className="hover:text-gray-600 p-0.5" title="Move up">
+                                    <button type="button" className="hover:text-gray-600 p-0.5" title="Move up">
                                         <ChevronUpIcon className="h-3 w-3" />
                                     </button>
-                                    <button className="hover:text-gray-600 p-0.5" title="Move down">
+                                    <button type="button" className="hover:text-gray-600 p-0.5" title="Move down">
                                         <ChevronDownIcon className="h-3 w-3" />
                                     </button>
                                 </div>
@@ -989,7 +1020,7 @@ function IncludedArticleCard({
                                     <div>
                                         <div className="flex items-center justify-between mb-1">
                                             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">AI Summary</span>
-                                            <button className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
+                                            <button type="button" className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
                                                 <PencilIcon className="h-3 w-3" />
                                                 Edit
                                             </button>
@@ -1051,6 +1082,7 @@ function IncludedArticleCard({
                     {/* Actions */}
                     <div className="flex-shrink-0 flex items-center gap-2">
                         <button
+                            type="button"
                             onClick={onExclude}
                             className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
                             title="Exclude from report"
@@ -1058,6 +1090,7 @@ function IncludedArticleCard({
                             <MinusIcon className="h-5 w-5" />
                         </button>
                         <button
+                            type="button"
                             onClick={onToggleExpand}
                             className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
                         >
@@ -1201,6 +1234,7 @@ function FilteredArticleCard({
                     {/* Actions */}
                     <div className="flex-shrink-0 flex items-center gap-2">
                         <button
+                            type="button"
                             onClick={() => onInclude(selectedCategory || undefined)}
                             className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg"
                             title="Include in report"
@@ -1208,6 +1242,7 @@ function FilteredArticleCard({
                             <PlusIcon className="h-5 w-5" />
                         </button>
                         <button
+                            type="button"
                             onClick={onToggleExpand}
                             className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
                         >
