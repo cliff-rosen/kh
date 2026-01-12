@@ -837,21 +837,25 @@ async def send_report_email(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Send stored report email to specified recipients.
-    Email must be generated first using POST /email/generate.
+    Send report email to specified recipients.
+    Generates the email HTML on-the-fly if not already stored.
     """
     logger.info(f"send_report_email - user_id={current_user.user_id}, report_id={report_id}, recipients={request.recipients}")
 
     try:
         report_service = ReportService(db)
 
-        # Get stored email HTML
+        # Try to get stored email HTML, otherwise generate it
         html = report_service.get_report_email_html(report_id, current_user.user_id)
+
+        if not html:
+            # Generate on the fly
+            html = report_service.generate_report_email_html(report_id, current_user.user_id)
 
         if not html:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Email not generated yet. Use POST /email/generate first."
+                detail="Could not generate email for this report."
             )
 
         # Get report name
@@ -932,7 +936,7 @@ async def send_approval_request(
         # Get stream name
         stream_name = None
         if report.research_stream:
-            stream_name = report.research_stream.name
+            stream_name = report.research_stream.stream_name
 
         # Send email
         email_service = EmailService()
