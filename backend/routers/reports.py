@@ -274,6 +274,13 @@ class RejectReportResponse(BaseModel):
     rejected_at: str
 
 
+class RegenerateCategorySummaryResponse(BaseModel):
+    """Response for regenerate_category_summary endpoint"""
+    category_id: str
+    summary: str
+    article_count: int
+
+
 # --- Pipeline Analytics Response Schemas ---
 
 class WipArticleAnalyticsResponse(BaseModel):
@@ -1355,4 +1362,99 @@ async def reject_report(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to reject report: {str(e)}"
+        )
+
+
+@router.post("/{report_id}/category-summaries/{category_id}/regenerate", response_model=RegenerateCategorySummaryResponse)
+async def regenerate_category_summary(
+    report_id: int,
+    category_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Regenerate the summary for a specific category based on current articles.
+
+    This is useful when articles have been added or removed from a category
+    and the summary needs to be updated to reflect the changes.
+
+    Returns the new summary text - does NOT automatically save it.
+    The frontend should call update_report_content to save the new summary.
+    """
+    logger.info(f"regenerate_category_summary - user_id={current_user.user_id}, report_id={report_id}, category_id={category_id}")
+
+    try:
+        from services.report_summary_service import ReportSummaryService
+
+        # Get curation view to access report, stream, and articles
+        service = ReportService(db)
+        curation_data = service.get_curation_view(report_id, current_user.user_id)
+
+        # Find the category definition
+        category_def = None
+        for cat in curation_data.categories:
+            if cat.get('id') == category_id:
+                category_def = cat
+                break
+
+        if not category_def:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Category '{category_id}' not found in stream configuration"
+            )
+
+        # Get articles in this category
+        articles_in_category = []
+        for inc_article in curation_data.included_articles:
+            assoc = inc_article.association
+            if assoc.presentation_categories and category_id in assoc.presentation_categories:
+                # Create a minimal object that matches what ReportSummaryService expects
+                articles_in_category.append(inc_article.article)
+
+        if len(articles_in_category) == 0:
+            return RegenerateCategorySummaryResponse(
+                category_id=category_id,
+                summary="No articles in this category.",
+                article_count=0
+            )
+
+        # Get stream purpose
+        stream_purpose = ""
+        stream_name = ""
+        if curation_data.stream:
+            stream_purpose = curation_data.stream.description or ""
+            stream_name = curation_data.stream.stream_name or ""
+
+        # Get enrichment config from execution if available
+        enrichment_config = None
+        if curation_data.execution and curation_data.execution.presentation_config:
+            enrichment_config = curation_data.execution.presentation_config.get('enrichment_config')
+
+        # Generate the new summary
+        summary_service = ReportSummaryService()
+        new_summary = await summary_service.generate_category_summary(
+            category_name=category_def.get('name', category_id),
+            category_description=category_def.get('description', ''),
+            wip_articles=articles_in_category,
+            stream_purpose=stream_purpose,
+            stream_name=stream_name,
+            category_topics=category_def.get('topics', []),
+            enrichment_config=enrichment_config
+        )
+
+        logger.info(f"regenerate_category_summary complete - user_id={current_user.user_id}, report_id={report_id}, category_id={category_id}, article_count={len(articles_in_category)}")
+
+        return RegenerateCategorySummaryResponse(
+            category_id=category_id,
+            summary=new_summary,
+            article_count=len(articles_in_category)
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"regenerate_category_summary failed - user_id={current_user.user_id}, report_id={report_id}, category_id={category_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to regenerate category summary: {str(e)}"
         )

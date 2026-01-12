@@ -74,6 +74,8 @@ export default function ReportCuration() {
     const [processingArticleId, setProcessingArticleId] = useState<number | null>(null);
     // Track which article is having its category changed
     const [savingCategoryArticleId, setSavingCategoryArticleId] = useState<number | null>(null);
+    // Track which category summary is being regenerated
+    const [regeneratingCategoryId, setRegeneratingCategoryId] = useState<string | null>(null);
 
     // Fetch curation data
     // isInitialLoad controls whether to show loading spinner (only on first load)
@@ -219,6 +221,26 @@ export default function ReportCuration() {
             alert('Failed to update article category');
         } finally {
             setSavingCategoryArticleId(null);
+        }
+    };
+
+    // Handle regenerating a category summary
+    const handleRegenerateCategorySummary = async (categoryId: string) => {
+        if (!reportId) return;
+
+        setRegeneratingCategoryId(categoryId);
+        try {
+            const result = await reportApi.regenerateCategorySummary(parseInt(reportId), categoryId);
+            // Update the edited summaries with the new summary
+            setEditedCategorySummaries(prev => ({
+                ...prev,
+                [categoryId]: result.summary
+            }));
+        } catch (err) {
+            console.error('Failed to regenerate category summary:', err);
+            alert('Failed to regenerate category summary');
+        } finally {
+            setRegeneratingCategoryId(null);
         }
     };
 
@@ -553,9 +575,17 @@ export default function ReportCuration() {
                                                             {cat.name}
                                                             <span className="ml-2 text-gray-500 font-normal">({cat.article_count} articles)</span>
                                                         </span>
-                                                        <button type="button" className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
-                                                            <ArrowPathIcon className="h-3 w-3" />
-                                                            Regenerate
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleRegenerateCategorySummary(cat.id);
+                                                            }}
+                                                            disabled={regeneratingCategoryId === cat.id}
+                                                            className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1 disabled:opacity-50"
+                                                        >
+                                                            <ArrowPathIcon className={`h-3 w-3 ${regeneratingCategoryId === cat.id ? 'animate-spin' : ''}`} />
+                                                            {regeneratingCategoryId === cat.id ? 'Regenerating...' : 'Regenerate'}
                                                         </button>
                                                     </div>
                                                     {isEditing ? (
@@ -730,6 +760,16 @@ export default function ReportCuration() {
                                 editedName={editedName}
                                 editedSummary={editedSummary}
                                 editedCategorySummaries={editedCategorySummaries}
+                                editingSummary={editingSummary}
+                                onSetEditingSummary={setEditingSummary}
+                                onUpdateCategorySummary={(categoryId, value) => {
+                                    setEditedCategorySummaries(prev => ({
+                                        ...prev,
+                                        [categoryId]: value
+                                    }));
+                                }}
+                                onRegenerateCategorySummary={handleRegenerateCategorySummary}
+                                regeneratingCategoryId={regeneratingCategoryId}
                             />
                         )}
 
@@ -902,6 +942,11 @@ function ReportPreviewContent({
     editedName,
     editedSummary,
     editedCategorySummaries,
+    editingSummary,
+    onSetEditingSummary,
+    onUpdateCategorySummary,
+    onRegenerateCategorySummary,
+    regeneratingCategoryId,
 }: {
     report: { report_name: string; report_date: string | null };
     categories: CurationCategory[];
@@ -909,6 +954,11 @@ function ReportPreviewContent({
     editedName: string;
     editedSummary: string;
     editedCategorySummaries: Record<string, string>;
+    editingSummary: string | null;
+    onSetEditingSummary: (id: string | null) => void;
+    onUpdateCategorySummary: (categoryId: string, value: string) => void;
+    onRegenerateCategorySummary: (categoryId: string) => void;
+    regeneratingCategoryId: string | null;
 }) {
     // Group articles by category
     const articlesByCategory = categories.map(cat => ({
@@ -945,38 +995,100 @@ function ReportPreviewContent({
             </div>
 
             {/* Categories with Articles */}
-            {articlesByCategory.map((cat) => (
-                <div key={cat.id} className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                    <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
-                        {cat.name}
-                        <span className="ml-2 text-sm font-normal text-gray-500">
-                            ({cat.articles.length} articles)
-                        </span>
-                    </h2>
-                    {cat.summary && (
-                        <p className="text-gray-600 dark:text-gray-400 mb-3 text-sm">
-                            {cat.summary}
-                        </p>
-                    )}
-                    <div className="space-y-3">
-                        {cat.articles.map((article, idx) => (
-                            <div key={article.article_id} className="pl-3 border-l-2 border-blue-200 dark:border-blue-800">
-                                <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                                    {idx + 1}. {article.title}
-                                </h3>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                    {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
-                                </p>
-                                {article.ai_summary && (
-                                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                        {article.ai_summary}
-                                    </p>
+            {articlesByCategory.map((cat) => {
+                const isEditing = editingSummary === `preview-${cat.id}`;
+                const isRegenerating = regeneratingCategoryId === cat.id;
+
+                return (
+                    <div key={cat.id} className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between mb-2">
+                            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                                {cat.name}
+                                <span className="ml-2 text-sm font-normal text-gray-500">
+                                    ({cat.articles.length} articles)
+                                </span>
+                            </h2>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => onRegenerateCategorySummary(cat.id)}
+                                    disabled={isRegenerating}
+                                    className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1 disabled:opacity-50"
+                                    title="Regenerate summary based on current articles"
+                                >
+                                    <ArrowPathIcon className={`h-3 w-3 ${isRegenerating ? 'animate-spin' : ''}`} />
+                                    {isRegenerating ? 'Regenerating...' : 'Regenerate'}
+                                </button>
+                                {!isEditing && (
+                                    <button
+                                        type="button"
+                                        onClick={() => onSetEditingSummary(`preview-${cat.id}`)}
+                                        className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1"
+                                    >
+                                        <PencilIcon className="h-3 w-3" />
+                                        Edit
+                                    </button>
                                 )}
                             </div>
-                        ))}
+                        </div>
+
+                        {/* Category Summary - editable */}
+                        {isEditing ? (
+                            <div className="mb-3 space-y-2">
+                                <textarea
+                                    value={cat.summary}
+                                    onChange={(e) => onUpdateCategorySummary(cat.id, e.target.value)}
+                                    rows={4}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    placeholder="Enter category summary..."
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => onSetEditingSummary(null)}
+                                    className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+                                >
+                                    Done
+                                </button>
+                            </div>
+                        ) : cat.summary ? (
+                            <div
+                                onClick={() => onSetEditingSummary(`preview-${cat.id}`)}
+                                className="text-gray-600 dark:text-gray-400 mb-3 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 p-2 -mx-2 rounded"
+                            >
+                                {cat.summary}
+                                <span className="block mt-1 text-xs text-gray-400 opacity-0 hover:opacity-100">
+                                    Click to edit
+                                </span>
+                            </div>
+                        ) : (
+                            <div
+                                onClick={() => onSetEditingSummary(`preview-${cat.id}`)}
+                                className="text-gray-400 dark:text-gray-500 mb-3 text-sm italic cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 p-2 -mx-2 rounded"
+                            >
+                                No summary - click to add or regenerate
+                            </div>
+                        )}
+
+                        <div className="space-y-3">
+                            {cat.articles.map((article, idx) => (
+                                <div key={article.article_id} className="pl-3 border-l-2 border-blue-200 dark:border-blue-800">
+                                    <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                                        {idx + 1}. {article.title}
+                                    </h3>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                        {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
+                                    </p>
+                                    {article.ai_summary && (
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                            {article.ai_summary}
+                                        </p>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                </div>
-            ))}
+                );
+            })}
 
             {/* Uncategorized Articles */}
             {uncategorizedArticles.length > 0 && (

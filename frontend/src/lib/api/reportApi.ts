@@ -244,6 +244,20 @@ export const reportApi = {
             admin_user_id: adminUserId
         });
         return response.data;
+    },
+
+    /**
+     * Regenerate the summary for a specific category based on current articles.
+     * Returns the new summary text - does NOT automatically save it.
+     * Call updateReportContent to save the new summary.
+     */
+    async regenerateCategorySummary(reportId: number, categoryId: string): Promise<{
+        category_id: string;
+        summary: string;
+        article_count: number;
+    }> {
+        const response = await api.post(`/api/reports/${reportId}/category-summaries/${categoryId}/regenerate`);
+        return response.data;
     }
 };
 
