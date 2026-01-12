@@ -47,8 +47,14 @@ export default function SchedulerManagement() {
     // Track running jobs: stream_id -> execution_id
     const [runningJobs, setRunningJobs] = useState<Record<number, string>>({});
 
-    const fetchStreams = useCallback(async () => {
-        setLoading(true);
+    // Track if this is the initial load vs a background refresh
+    const [initialLoadDone, setInitialLoadDone] = useState(false);
+
+    const fetchStreams = useCallback(async (isBackgroundRefresh = false) => {
+        // Only show loading spinner on initial load, not background refreshes
+        if (!isBackgroundRefresh) {
+            setLoading(true);
+        }
         setError(null);
         try {
             const data = await getScheduledStreams();
@@ -63,10 +69,16 @@ export default function SchedulerManagement() {
             }
             setRunningJobs(running);
         } catch (err) {
-            setError('Failed to load scheduled streams');
+            // Only show error on initial load, silently fail on background refresh
+            if (!isBackgroundRefresh) {
+                setError('Failed to load scheduled streams');
+            }
             console.error(err);
         } finally {
-            setLoading(false);
+            if (!isBackgroundRefresh) {
+                setLoading(false);
+            }
+            setInitialLoadDone(true);
         }
     }, []);
 
@@ -75,19 +87,22 @@ export default function SchedulerManagement() {
         fetchStreams();
     }, [fetchStreams]);
 
-    // Poll for updates while there are running jobs
+    // Poll for updates while there are running jobs (background refresh - no loading spinner)
     useEffect(() => {
+        // Don't start polling until initial load is done
+        if (!initialLoadDone) return;
+
         const hasRunningJobs = Object.keys(runningJobs).length > 0 ||
             streams.some(s => s.last_execution?.status === 'running');
 
         if (!hasRunningJobs) return;
 
         const interval = setInterval(() => {
-            fetchStreams();
+            fetchStreams(true); // Background refresh
         }, 5000); // Poll every 5 seconds
 
         return () => clearInterval(interval);
-    }, [runningJobs, streams, fetchStreams]);
+    }, [runningJobs, streams, fetchStreams, initialLoadDone]);
 
     const enabledCount = streams.filter(s => s.schedule_config?.enabled).length;
     const runningStreams = streams.filter(s => s.last_execution?.status === 'running');
@@ -158,7 +173,7 @@ export default function SchedulerManagement() {
                 return updated;
             });
         }
-        fetchStreams();
+        fetchStreams(true); // Background refresh
     };
 
     const handleCloseModal = () => {

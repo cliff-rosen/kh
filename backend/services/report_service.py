@@ -386,7 +386,7 @@ class ReportService:
 
         return False
 
-    def _get_report_with_access(
+    def get_report_with_access(
         self,
         report_id: int,
         user_id: int,
@@ -485,32 +485,6 @@ class ReportService:
             accessible_ids.update(s[0] for s in subscribed_global)
 
         return accessible_ids
-
-    def get_report(self, report_id: int, user_id: int) -> Report:
-        """
-        Get a report by ID for a user.
-
-        Args:
-            report_id: The report ID
-            user_id: The user ID (for access verification)
-
-        Returns:
-            Report ORM model
-
-        Raises:
-            HTTPException: 404 if report not found or user doesn't have access
-        """
-        report = self.get_report_or_404(report_id)
-        user = self.user_service.get_user_or_404(user_id)
-        stream = self.stream_service.get_stream_or_404(report.research_stream_id)
-
-        if not self._user_has_stream_access(user, stream):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found"
-            )
-
-        return report
 
     def get_reports_for_stream(self, research_stream_id: int, user_id: int) -> List[ReportWithArticleCount]:
         """Get all reports for a research stream that the user has access to."""
@@ -1326,7 +1300,7 @@ class ReportService:
         Raises:
             HTTPException: 404 if report not found or user doesn't have access
         """
-        result = self._get_report_with_access(report_id, user_id, raise_on_not_found=True)
+        result = self.get_report_with_access(report_id, user_id, raise_on_not_found=True)
         # result is guaranteed non-None when raise_on_not_found=True
         return result
 

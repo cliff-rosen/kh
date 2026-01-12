@@ -121,14 +121,12 @@ class PromptWorkbenchService:
         """Get context data from an existing report"""
         from fastapi import HTTPException
 
-        # Get the report (raises HTTPException if not found or no access)
+        # Get the report with access check (raises HTTPException if not found or no access)
         try:
-            report = self.report_service.get_report(report_id, user_id)
+            result = self.report_service.get_report_with_access(report_id, user_id, raise_on_not_found=True)
+            report, _, stream = result
         except HTTPException:
             raise PermissionError("You don't have access to this report")
-
-        # Get the stream for context building
-        stream = self.stream_service.get_research_stream(report.research_stream_id, user_id)
 
         # Get articles that were included in the report
         wip_articles = self.report_service.get_wip_articles_for_report(

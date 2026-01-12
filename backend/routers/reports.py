@@ -924,13 +924,10 @@ async def send_approval_request(
     try:
         report_service = ReportService(db)
 
-        # Get report details
-        report = report_service.get_report(report_id, current_user.user_id)
-        if not report:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found"
-            )
+        # Get report details with access check
+        report, _, _ = report_service.get_report_with_access(
+            report_id, current_user.user_id, raise_on_not_found=True
+        )
 
         # Get admin user
         admin = db.query(User).filter(
