@@ -210,6 +210,28 @@ export default function ReportCuration() {
         }
     };
 
+    // Handle saving curation notes for an included article
+    const handleSaveIncludedNotes = async (article: CurationIncludedArticle, notes: string) => {
+        if (!reportId) return;
+
+        try {
+            await reportApi.updateArticleInReport(parseInt(reportId), article.article_id, {
+                curation_notes: notes
+            });
+            await fetchCurationData();
+        } catch (err) {
+            console.error('Failed to save notes:', err);
+            alert('Failed to save notes');
+        }
+    };
+
+    // Handle saving curation notes for a filtered article (stored on WipArticle)
+    // Note: This would need a new API endpoint - for now just log
+    const handleSaveFilteredNotes = async (_article: CurationFilteredArticle, _notes: string) => {
+        // TODO: Implement when backend endpoint is available
+        console.log('Saving filtered article notes not yet implemented');
+    };
+
     // Approve report
     const handleApprove = async () => {
         if (!reportId) return;
@@ -641,6 +663,7 @@ export default function ReportCuration() {
                                 onToggleExpand={() => setExpandedArticle(expandedArticle === article.article_id ? null : article.article_id)}
                                 onExclude={() => handleExcludeArticle(article)}
                                 onCategoryChange={(newCat) => handleCategoryChange(article, newCat)}
+                                onSaveNotes={(notes) => handleSaveIncludedNotes(article, notes)}
                             />
                         ))}
 
@@ -653,6 +676,7 @@ export default function ReportCuration() {
                                 isProcessing={processingArticleId === article.wip_article_id}
                                 onToggleExpand={() => setExpandedArticle(expandedArticle === article.wip_article_id ? null : article.wip_article_id)}
                                 onInclude={(categoryId) => handleIncludeArticle(article, categoryId)}
+                                onSaveNotes={(notes) => handleSaveFilteredNotes(article, notes)}
                             />
                         ))}
 
@@ -956,6 +980,7 @@ function IncludedArticleCard({
     onToggleExpand,
     onExclude,
     onCategoryChange,
+    onSaveNotes,
 }: {
     article: CurationIncludedArticle;
     ranking: number;
@@ -965,10 +990,22 @@ function IncludedArticleCard({
     onToggleExpand: () => void;
     onExclude: () => void;
     onCategoryChange: (categoryId: string) => void;
+    onSaveNotes: (notes: string) => void;
 }) {
     const [notes, setNotes] = useState(article.curation_notes || '');
+    const [savingNotes, setSavingNotes] = useState(false);
     const pubmedUrl = article.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/` : null;
     const currentCategory = article.presentation_categories?.[0] || '';
+    const notesModified = notes !== (article.curation_notes || '');
+
+    const handleSaveNotes = async () => {
+        setSavingNotes(true);
+        try {
+            await onSaveNotes(notes);
+        } finally {
+            setSavingNotes(false);
+        }
+    };
 
     return (
         <div className={`border rounded-lg overflow-hidden ${
@@ -983,11 +1020,6 @@ function IncludedArticleCard({
                         <div className="flex items-start gap-3">
                             <div className="flex-shrink-0 flex items-center gap-1 text-gray-400">
                                 <span className="text-sm font-medium">#{ranking}</span>
-                                {article.curator_added && (
-                                    <span className="ml-1 px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 rounded">
-                                        Added
-                                    </span>
-                                )}
                                 <div className="flex flex-col">
                                     <button type="button" className="hover:text-gray-600 p-0.5" title="Move up">
                                         <ChevronUpIcon className="h-3 w-3" />
@@ -1053,19 +1085,35 @@ function IncludedArticleCard({
 
                                 {/* Curation Notes */}
                                 <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <ChatBubbleLeftIcon className="h-4 w-4 text-gray-400" />
-                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                            Curation Notes
-                                        </span>
-                                        <span className="text-xs text-gray-400">(for retrieval improvement)</span>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <div className="flex items-center gap-2">
+                                            <ChatBubbleLeftIcon className="h-4 w-4 text-gray-400" />
+                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                                Curation Notes
+                                            </span>
+                                            <span className="text-xs text-gray-400">(for retrieval improvement)</span>
+                                        </div>
+                                        {notesModified && (
+                                            <button
+                                                type="button"
+                                                onClick={handleSaveNotes}
+                                                disabled={savingNotes}
+                                                className="px-2 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50"
+                                            >
+                                                {savingNotes ? 'Saving...' : 'Save Notes'}
+                                            </button>
+                                        )}
                                     </div>
                                     <textarea
                                         value={notes}
                                         onChange={(e) => setNotes(e.target.value)}
                                         placeholder="Add notes about why this article should or shouldn't be included..."
                                         rows={2}
-                                        className="w-full text-sm px-3 py-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                                        className={`w-full text-sm px-3 py-2 border rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white ${
+                                            notesModified
+                                                ? 'border-blue-300 dark:border-blue-600'
+                                                : 'border-gray-200 dark:border-gray-700'
+                                        }`}
                                     />
                                 </div>
 
@@ -1094,9 +1142,26 @@ function IncludedArticleCard({
                         {isProcessing ? (
                             <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400">
                                 <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                                <span>Removing...</span>
+                                <span>{article.curator_added ? 'Undoing...' : 'Removing...'}</span>
+                            </div>
+                        ) : article.curator_added ? (
+                            /* Curator-added article: show "Added" badge with Undo button */
+                            <div className="flex items-center gap-2">
+                                <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300 rounded">
+                                    Added
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={onExclude}
+                                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
+                                    title="Undo - remove from report"
+                                >
+                                    <ArrowUturnLeftIcon className="h-3.5 w-3.5" />
+                                    Undo
+                                </button>
                             </div>
                         ) : (
+                            /* Pipeline-included article: show minus button */
                             <button
                                 type="button"
                                 onClick={onExclude}
@@ -1133,6 +1198,7 @@ function FilteredArticleCard({
     isProcessing,
     onToggleExpand,
     onInclude,
+    onSaveNotes,
 }: {
     article: CurationFilteredArticle;
     categories: CurationCategory[];
@@ -1140,11 +1206,22 @@ function FilteredArticleCard({
     isProcessing: boolean;
     onToggleExpand: () => void;
     onInclude: (categoryId?: string) => void;
+    onSaveNotes: (notes: string) => void;
 }) {
     const [selectedCategory, setSelectedCategory] = useState<string>('');
     const [notes, setNotes] = useState(article.curation_notes || '');
+    const [savingNotes, setSavingNotes] = useState(false);
     const pubmedUrl = article.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/` : null;
-    const isCurated = article.curator_included || article.curator_excluded;
+    const notesModified = notes !== (article.curation_notes || '');
+
+    const handleSaveNotes = async () => {
+        setSavingNotes(true);
+        try {
+            await onSaveNotes(notes);
+        } finally {
+            setSavingNotes(false);
+        }
+    };
 
     return (
         <div className={`border rounded-lg overflow-hidden ${
@@ -1157,12 +1234,6 @@ function FilteredArticleCard({
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                         <div className="flex items-start gap-2">
-                            {/* Curator Excluded badge - shown prominently at start */}
-                            {article.curator_excluded && (
-                                <span className="flex-shrink-0 px-1.5 py-0.5 text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 rounded">
-                                    Excluded
-                                </span>
-                            )}
                             <div className="flex-1 min-w-0">
                                 {pubmedUrl ? (
                                     <a
@@ -1216,18 +1287,34 @@ function FilteredArticleCard({
 
                                 {/* Curation Notes */}
                                 <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <ChatBubbleLeftIcon className="h-4 w-4 text-gray-400" />
-                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                            Curation Notes
-                                        </span>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <div className="flex items-center gap-2">
+                                            <ChatBubbleLeftIcon className="h-4 w-4 text-gray-400" />
+                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                                Curation Notes
+                                            </span>
+                                        </div>
+                                        {notesModified && (
+                                            <button
+                                                type="button"
+                                                onClick={handleSaveNotes}
+                                                disabled={savingNotes}
+                                                className="px-2 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50"
+                                            >
+                                                {savingNotes ? 'Saving...' : 'Save Notes'}
+                                            </button>
+                                        )}
                                     </div>
                                     <textarea
                                         value={notes}
                                         onChange={(e) => setNotes(e.target.value)}
                                         placeholder="Add notes about why this article should or shouldn't be included..."
                                         rows={2}
-                                        className="w-full text-sm px-3 py-2 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                                        className={`w-full text-sm px-3 py-2 border rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white ${
+                                            notesModified
+                                                ? 'border-blue-300 dark:border-blue-600'
+                                                : 'border-gray-200 dark:border-gray-700'
+                                        }`}
                                     />
                                 </div>
 
@@ -1256,9 +1343,26 @@ function FilteredArticleCard({
                         {isProcessing ? (
                             <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400">
                                 <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                                <span>Adding...</span>
+                                <span>{article.curator_excluded ? 'Undoing...' : 'Adding...'}</span>
+                            </div>
+                        ) : article.curator_excluded ? (
+                            /* Curator-excluded article: show "Excluded" badge with Undo button */
+                            <div className="flex items-center gap-2">
+                                <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 rounded">
+                                    Excluded
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => onInclude()}
+                                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
+                                    title="Undo - restore to report"
+                                >
+                                    <ArrowUturnLeftIcon className="h-3.5 w-3.5" />
+                                    Undo
+                                </button>
                             </div>
                         ) : (
+                            /* Pipeline-filtered article: show plus button */
                             <button
                                 type="button"
                                 onClick={() => onInclude(selectedCategory || undefined)}
