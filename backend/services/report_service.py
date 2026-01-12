@@ -358,6 +358,69 @@ class ReportService:
 
         return False
 
+    def _get_report_with_access(
+        self,
+        report_id: int,
+        user_id: int,
+        raise_on_not_found: bool = False
+    ) -> Optional[tuple[Report, User, ResearchStream]]:
+        """
+        Get report with user access verification.
+
+        Consolidates the common pattern of:
+        1. Getting a report by ID
+        2. Getting the user
+        3. Getting the stream
+        4. Verifying user has access to the stream
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID
+            raise_on_not_found: If True, raises HTTPException 404 on failure.
+                               If False, returns None on failure.
+
+        Returns:
+            Tuple of (report, user, stream) if found and accessible, None otherwise.
+
+        Raises:
+            HTTPException: 404 if raise_on_not_found=True and report not found or no access
+        """
+        # Get report
+        report = self.db.query(Report).filter(Report.report_id == report_id).first()
+        if not report:
+            if raise_on_not_found:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Report not found"
+                )
+            return None
+
+        # Get user
+        user = self.user_service.get_user_by_id(user_id)
+        if not user:
+            if raise_on_not_found:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Report not found"
+                )
+            return None
+
+        # Get stream
+        stream = self.db.query(ResearchStream).filter(
+            ResearchStream.stream_id == report.research_stream_id
+        ).first()
+
+        # Check access
+        if not stream or not self._user_has_stream_access(user, stream):
+            if raise_on_not_found:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Report not found"
+                )
+            return None
+
+        return report, user, stream
+
     def _get_accessible_stream_ids(self, user: User) -> Set[int]:
         """Get all stream IDs the user can access reports for."""
         accessible_ids = set()
@@ -531,21 +594,10 @@ class ReportService:
         Returns:
             Dict with report info and articles list, or None if not found/no access
         """
-        report = self.db.query(Report).filter(
-            Report.report_id == report_id
-        ).first()
-
-        if not report:
+        result = self._get_report_with_access(report_id, user_id)
+        if not result:
             return None
-
-        # Check stream access
-        user = self.user_service.get_user_by_id(user_id)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == report.research_stream_id
-        ).first()
-
-        if not user or not self._user_has_stream_access(user, stream):
-            return None
+        report, user, stream = result
 
         # Build category ID -> name mapping from stream's presentation_config
         category_map = {}
@@ -601,21 +653,10 @@ class ReportService:
 
     def get_report_with_articles(self, report_id: int, user_id: int) -> Optional[ReportWithArticlesData]:
         """Get a report with its associated articles for a user with stream access."""
-        report = self.db.query(Report).filter(
-            Report.report_id == report_id
-        ).first()
-
-        if not report:
+        result = self._get_report_with_access(report_id, user_id)
+        if not result:
             return None
-
-        # Check stream access
-        user = self.user_service.get_user_by_id(user_id)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == report.research_stream_id
-        ).first()
-
-        if not user or not self._user_has_stream_access(user, stream):
-            return None
+        report, user, stream = result
 
         # Get articles with association data
         article_associations = self.db.query(
@@ -652,21 +693,12 @@ class ReportService:
         Returns:
             List of WipArticle objects
         """
-        # Get the report
-        report = self.db.query(Report).filter(
-            Report.report_id == report_id
-        ).first()
-
-        if not report or not report.pipeline_execution_id:
+        result = self._get_report_with_access(report_id, user_id)
+        if not result:
             return []
+        report, user, stream = result
 
-        # Check stream access
-        user = self.user_service.get_user_by_id(user_id)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == report.research_stream_id
-        ).first()
-
-        if not user or not self._user_has_stream_access(user, stream):
+        if not report.pipeline_execution_id:
             return []
 
         return self.wip_article_service.get_by_execution_id(
@@ -794,21 +826,10 @@ class ReportService:
         Returns:
             Dict with report data and wip_articles, or None if not found
         """
-        report = self.db.query(Report).filter(
-            Report.report_id == report_id
-        ).first()
-
-        if not report:
+        result = self._get_report_with_access(report_id, user_id)
+        if not result:
             return None
-
-        # Check stream access
-        user = self.user_service.get_user_by_id(user_id)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == report.research_stream_id
-        ).first()
-
-        if not user or not self._user_has_stream_access(user, stream):
-            return None
+        report, user, stream = result
 
         # Get WIP articles if pipeline execution exists
         wip_articles = []
@@ -861,21 +882,8 @@ class ReportService:
         Returns:
             ReportArticleAssociation or None if not found
         """
-        # Verify report exists
-        report = self.db.query(Report).filter(
-            Report.report_id == report_id
-        ).first()
-
-        if not report:
-            return None
-
-        # Check stream access
-        user = self.user_service.get_user_by_id(user_id)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == report.research_stream_id
-        ).first()
-
-        if not user or not self._user_has_stream_access(user, stream):
+        result = self._get_report_with_access(report_id, user_id)
+        if not result:
             return None
 
         # Find the association
@@ -983,22 +991,10 @@ class ReportService:
             PipelineAnalytics dataclass, or None if report not found.
             Raises ValueError if report has no pipeline execution data.
         """
-        # Verify report exists
-        report = self.db.query(Report).filter(
-            Report.report_id == report_id
-        ).first()
-
-        if not report:
+        result = self._get_report_with_access(report_id, user_id)
+        if not result:
             return None
-
-        # Check stream access
-        user = self.user_service.get_user_by_id(user_id)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == report.research_stream_id
-        ).first()
-
-        if not user or not self._user_has_stream_access(user, stream):
-            return None
+        report, user, stream = result
 
         # Check for pipeline execution ID
         if not report.pipeline_execution_id:
@@ -1112,19 +1108,10 @@ class ReportService:
         Returns:
             HTML string, or None if report not found/no access
         """
-        # Get report with access check
-        report = self.db.query(Report).filter(Report.report_id == report_id).first()
-        if not report:
+        result = self._get_report_with_access(report_id, user_id)
+        if not result:
             return None
-
-        # Check stream access
-        user = self.user_service.get_user_by_id(user_id)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == report.research_stream_id
-        ).first()
-
-        if not user or not self._user_has_stream_access(user, stream):
-            return None
+        report, user, stream = result
 
         # Build email data
         email_data = self._build_email_report_data(report, stream)
@@ -1170,18 +1157,10 @@ class ReportService:
         Returns:
             True if stored successfully, False if report not found/no access
         """
-        report = self.db.query(Report).filter(Report.report_id == report_id).first()
-        if not report:
+        result = self._get_report_with_access(report_id, user_id)
+        if not result:
             return False
-
-        # Check stream access
-        user = self.user_service.get_user_by_id(user_id)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == report.research_stream_id
-        ).first()
-
-        if not user or not self._user_has_stream_access(user, stream):
-            return False
+        report, user, stream = result
 
         # Store in enrichments
         enrichments = report.enrichments or {}
@@ -1202,18 +1181,10 @@ class ReportService:
         Returns:
             Stored HTML string, or None if not found/no access/not generated
         """
-        report = self.db.query(Report).filter(Report.report_id == report_id).first()
-        if not report:
+        result = self._get_report_with_access(report_id, user_id)
+        if not result:
             return None
-
-        # Check stream access
-        user = self.user_service.get_user_by_id(user_id)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == report.research_stream_id
-        ).first()
-
-        if not user or not self._user_has_stream_access(user, stream):
-            return None
+        report, user, stream = result
 
         # Get from enrichments
         enrichments = report.enrichments or {}
@@ -1321,17 +1292,9 @@ class ReportService:
         Raises:
             HTTPException: 404 if report not found or user doesn't have access
         """
-        report = self.get_report_or_404(report_id)
-        user = self.user_service.get_user_or_404(user_id)
-        stream = self.stream_service.get_stream_or_404(report.research_stream_id)
-
-        if not self._user_has_stream_access(user, stream):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found"
-            )
-
-        return report, user, stream
+        result = self._get_report_with_access(report_id, user_id, raise_on_not_found=True)
+        # result is guaranteed non-None when raise_on_not_found=True
+        return result
 
     def get_curation_view(self, report_id: int, user_id: int) -> CurationViewData:
         """
