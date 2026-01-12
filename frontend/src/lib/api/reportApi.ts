@@ -299,6 +299,7 @@ export interface CurationIncludedArticle {
     curated_at: string | null;
     // Source indicator
     curator_added: boolean;  // true = curator override, false = pipeline included
+    wip_article_id: number | null;  // For reset curation on curator-added articles
 }
 
 /**

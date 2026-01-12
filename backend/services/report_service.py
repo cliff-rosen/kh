@@ -147,6 +147,7 @@ class IncludedArticleData:
     """Article data for curation view."""
     article: Article
     association: ReportArticleAssociation
+    wip_article_id: Optional[int] = None  # For reset curation on curator-added articles
 
 
 @dataclass
@@ -1324,12 +1325,6 @@ class ReportService:
         # Get VISIBLE articles (curator_excluded=False)
         visible_associations = self.association_service.get_visible_for_report(report_id)
 
-        # Build included articles as dataclasses with models
-        included_articles = [
-            IncludedArticleData(article=assoc.article, association=assoc)
-            for assoc in visible_associations
-        ]
-
         # Get WIP articles for this execution and compute stats
         filtered_articles: List[WipArticle] = []
         curated_articles: List[WipArticle] = []
@@ -1343,8 +1338,19 @@ class ReportService:
         curator_added_count = 0   # curator manually added
         curator_removed_count = 0  # curator manually excluded
 
+        # Build lookup map for WipArticle IDs by PMID/DOI
+        wip_by_pmid: Dict[str, int] = {}
+        wip_by_doi: Dict[str, int] = {}
+
         if report.pipeline_execution_id:
             wip_articles = self.wip_article_service.get_by_execution_id(report.pipeline_execution_id)
+
+            for wip in wip_articles:
+                # Build lookup maps
+                if wip.pmid:
+                    wip_by_pmid[wip.pmid] = wip.id
+                if wip.doi:
+                    wip_by_doi[wip.doi] = wip.id
 
             for wip in wip_articles:
                 # Count pipeline decisions
@@ -1369,6 +1375,24 @@ class ReportService:
                 # Curated = has curator override
                 if wip.curator_included or wip.curator_excluded:
                     curated_articles.append(wip)
+
+        # Build included articles with wip_article_id lookup
+        def get_wip_id(article: Article) -> Optional[int]:
+            """Look up WipArticle ID by PMID or DOI."""
+            if article.pmid and article.pmid in wip_by_pmid:
+                return wip_by_pmid[article.pmid]
+            if article.doi and article.doi in wip_by_doi:
+                return wip_by_doi[article.doi]
+            return None
+
+        included_articles = [
+            IncludedArticleData(
+                article=assoc.article,
+                association=assoc,
+                wip_article_id=get_wip_id(assoc.article)
+            )
+            for assoc in visible_associations
+        ]
 
         # Current count = pipeline_included - curator_removed + curator_added
         current_included_count = len(included_articles)
