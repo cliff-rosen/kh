@@ -135,6 +135,7 @@ export default function ReportCuration() {
     const handleExcludeArticle = async (article: CurationIncludedArticle) => {
         if (!reportId || !article.article_id) return;
 
+        setProcessingArticleId(article.article_id);
         try {
             // For curator-added articles, use resetCuration to undo the add
             // For pipeline-included articles, use excludeArticle to soft exclude
@@ -147,6 +148,8 @@ export default function ReportCuration() {
         } catch (err) {
             console.error('Failed to exclude article:', err);
             alert('Failed to exclude article');
+        } finally {
+            setProcessingArticleId(null);
         }
     };
 
@@ -154,6 +157,7 @@ export default function ReportCuration() {
     const handleIncludeArticle = async (article: CurationFilteredArticle, categoryId?: string) => {
         if (!reportId) return;
 
+        setProcessingArticleId(article.wip_article_id);
         try {
             // For curator-excluded articles (pipeline included, then manually excluded),
             // use resetCuration to restore to pipeline's original decision
@@ -167,6 +171,8 @@ export default function ReportCuration() {
         } catch (err) {
             console.error('Failed to include article:', err);
             alert('Failed to include article');
+        } finally {
+            setProcessingArticleId(null);
         }
     };
 
@@ -631,6 +637,7 @@ export default function ReportCuration() {
                                 ranking={idx + 1}
                                 categories={categories}
                                 expanded={expandedArticle === article.article_id}
+                                isProcessing={processingArticleId === article.article_id}
                                 onToggleExpand={() => setExpandedArticle(expandedArticle === article.article_id ? null : article.article_id)}
                                 onExclude={() => handleExcludeArticle(article)}
                                 onCategoryChange={(newCat) => handleCategoryChange(article, newCat)}
@@ -643,6 +650,7 @@ export default function ReportCuration() {
                                 article={article}
                                 categories={categories}
                                 expanded={expandedArticle === article.wip_article_id}
+                                isProcessing={processingArticleId === article.wip_article_id}
                                 onToggleExpand={() => setExpandedArticle(expandedArticle === article.wip_article_id ? null : article.wip_article_id)}
                                 onInclude={(categoryId) => handleIncludeArticle(article, categoryId)}
                             />
@@ -944,6 +952,7 @@ function IncludedArticleCard({
     ranking,
     categories,
     expanded,
+    isProcessing,
     onToggleExpand,
     onExclude,
     onCategoryChange,
@@ -952,6 +961,7 @@ function IncludedArticleCard({
     ranking: number;
     categories: CurationCategory[];
     expanded: boolean;
+    isProcessing: boolean;
     onToggleExpand: () => void;
     onExclude: () => void;
     onCategoryChange: (categoryId: string) => void;
@@ -1081,18 +1091,26 @@ function IncludedArticleCard({
 
                     {/* Actions */}
                     <div className="flex-shrink-0 flex items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={onExclude}
-                            className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
-                            title="Exclude from report"
-                        >
-                            <MinusIcon className="h-5 w-5" />
-                        </button>
+                        {isProcessing ? (
+                            <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400">
+                                <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                <span>Removing...</span>
+                            </div>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={onExclude}
+                                className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                                title="Exclude from report"
+                            >
+                                <MinusIcon className="h-5 w-5" />
+                            </button>
+                        )}
                         <button
                             type="button"
                             onClick={onToggleExpand}
-                            className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                            disabled={isProcessing}
+                            className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg disabled:opacity-50"
                         >
                             {expanded ? (
                                 <ChevronUpIcon className="h-5 w-5" />
@@ -1112,12 +1130,14 @@ function FilteredArticleCard({
     article,
     categories,
     expanded,
+    isProcessing,
     onToggleExpand,
     onInclude,
 }: {
     article: CurationFilteredArticle;
     categories: CurationCategory[];
     expanded: boolean;
+    isProcessing: boolean;
     onToggleExpand: () => void;
     onInclude: (categoryId?: string) => void;
 }) {
@@ -1233,18 +1253,26 @@ function FilteredArticleCard({
 
                     {/* Actions */}
                     <div className="flex-shrink-0 flex items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={() => onInclude(selectedCategory || undefined)}
-                            className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg"
-                            title="Include in report"
-                        >
-                            <PlusIcon className="h-5 w-5" />
-                        </button>
+                        {isProcessing ? (
+                            <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400">
+                                <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                <span>Adding...</span>
+                            </div>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => onInclude(selectedCategory || undefined)}
+                                className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg"
+                                title="Include in report"
+                            >
+                                <PlusIcon className="h-5 w-5" />
+                            </button>
+                        )}
                         <button
                             type="button"
                             onClick={onToggleExpand}
-                            className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                            disabled={isProcessing}
+                            className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg disabled:opacity-50"
                         >
                             {expanded ? (
                                 <ChevronUpIcon className="h-5 w-5" />
