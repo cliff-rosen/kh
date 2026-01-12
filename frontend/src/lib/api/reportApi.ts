@@ -252,6 +252,9 @@ export interface CurationViewResponse {
     // Execution info for retrieval config display
     execution_id: string | null;
     retrieval_config: Record<string, unknown> | null;
+    // Date range from the pipeline execution
+    start_date: string | null;
+    end_date: string | null;
 }
 
 export interface CurationReportData {

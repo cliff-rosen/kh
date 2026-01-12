@@ -18,6 +18,7 @@ export interface ReportHeaderProps {
     reportView: ReportView;
     cardFormat: CardFormat;
     hasPipelineData: boolean;
+    showAdminControls?: boolean;
     onViewChange: (view: ReportView) => void;
     onCardFormatChange: (format: CardFormat) => void;
     onShowExecutionConfig: () => void;
@@ -30,6 +31,7 @@ export default function ReportHeader({
     reportView,
     cardFormat,
     hasPipelineData,
+    showAdminControls = false,
     onViewChange,
     onCardFormatChange,
     onShowExecutionConfig,
@@ -44,21 +46,25 @@ export default function ReportHeader({
                     {report.report_name}
                 </h2>
                 <div className="flex items-center gap-2">
-                    <button
-                        onClick={onShowExecutionConfig}
-                        className="p-2 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                        title="View execution configuration snapshot"
-                    >
-                        <Cog6ToothIcon className="h-5 w-5" />
-                    </button>
-                    {hasPipelineData && (
-                        <button
-                            onClick={onShowAnalytics}
-                            className="p-2 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                            title="View pipeline analytics and detailed metrics"
-                        >
-                            <ChartBarIcon className="h-5 w-5" />
-                        </button>
+                    {showAdminControls && (
+                        <>
+                            <button
+                                onClick={onShowExecutionConfig}
+                                className="p-2 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                                title="View execution configuration snapshot"
+                            >
+                                <Cog6ToothIcon className="h-5 w-5" />
+                            </button>
+                            {hasPipelineData && (
+                                <button
+                                    onClick={onShowAnalytics}
+                                    className="p-2 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                                    title="View pipeline analytics and detailed metrics"
+                                >
+                                    <ChartBarIcon className="h-5 w-5" />
+                                </button>
+                            )}
+                        </>
                     )}
                     <button
                         onClick={onDeleteReport}

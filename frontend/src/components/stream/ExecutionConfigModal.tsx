@@ -1,4 +1,4 @@
-import { XMarkIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, CalendarIcon, DocumentTextIcon, FunnelIcon } from '@heroicons/react/24/outline';
 import { useState } from 'react';
 
 interface ExecutionConfigModalProps {
@@ -7,295 +7,155 @@ interface ExecutionConfigModalProps {
     onClose: () => void;
 }
 
+interface BroadQueryConfig {
+    query_expression: string;
+    semantic_filter?: {
+        enabled: boolean;
+        criteria: string;
+        threshold?: number;
+    };
+}
+
+interface ConceptConfig {
+    concept_id: string;
+    name: string;
+    source_queries?: Record<string, { query_expression: string; enabled: boolean }>;
+    semantic_filter?: {
+        enabled: boolean;
+        criteria: string;
+        threshold?: number;
+    };
+}
+
 export default function ExecutionConfigModal({ reportName, retrievalParams, onClose }: ExecutionConfigModalProps) {
-    const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['dateRange']));
+    const [showRaw, setShowRaw] = useState(false);
 
-    const toggleSection = (section: string) => {
-        setExpandedSections(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(section)) {
-                newSet.delete(section);
-            } else {
-                newSet.add(section);
-            }
-            return newSet;
-        });
-    };
+    const config = retrievalParams.retrieval_config || {};
 
-    const renderQueryConfig = (queries: any[]) => {
-        if (!queries || queries.length === 0) return <p className="text-sm text-gray-500">No queries configured</p>;
+    // Extract from broad_search (one retrieval method)
+    const broadSearch = config.broad_search as { queries: BroadQueryConfig[] } | undefined;
+    const broadQueries = broadSearch?.queries || [];
 
-        return (
-            <div className="space-y-4">
-                {queries.map((query: any, idx: number) => (
-                    <div key={idx} className="border border-gray-300 dark:border-gray-600 rounded-md p-3 bg-gray-50 dark:bg-gray-800">
-                        <div className="space-y-2">
-                            <div>
-                                <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Query {idx + 1}</span>
-                                <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">{query.query_id}</p>
-                            </div>
+    // Extract from concepts (alternative retrieval method)
+    const concepts = config.concepts as ConceptConfig[] | undefined;
 
-                            {query.search_terms && (
-                                <div>
-                                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Search Terms</span>
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                        {query.search_terms.map((term: string, i: number) => (
-                                            <span key={i} className="inline-block px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 rounded">
-                                                {term}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+    // Get query expressions from broad_search
+    let pubmedQuery = broadQueries.map(q => q.query_expression).filter(Boolean).join('\n\nOR\n\n');
 
-                            <div>
-                                <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Query Expression</span>
-                                <pre className="text-xs text-gray-700 dark:text-gray-300 mt-1 p-2 bg-white dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700 overflow-x-auto">
-                                    {query.query_expression}
-                                </pre>
-                            </div>
+    // If no broad_search, try to get queries from concepts
+    if (!pubmedQuery && concepts && concepts.length > 0) {
+        const conceptQueries = concepts
+            .filter(c => c.source_queries?.pubmed?.enabled && c.source_queries?.pubmed?.query_expression)
+            .map(c => `# ${c.name}\n${c.source_queries!.pubmed.query_expression}`)
+            .filter(Boolean);
+        pubmedQuery = conceptQueries.join('\n\n---\n\n');
+    }
 
-                            {query.semantic_filter && query.semantic_filter.enabled && (
-                                <div className="border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
-                                    <span className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase">Semantic Filter Enabled</span>
-                                    <div className="mt-1 space-y-1">
-                                        <div className="text-xs text-gray-600 dark:text-gray-400">
-                                            Threshold: <span className="font-medium text-gray-900 dark:text-white">{query.semantic_filter.threshold}</span>
-                                        </div>
-                                        <div className="text-xs text-gray-600 dark:text-gray-400">
-                                            Criteria: <span className="text-gray-700 dark:text-gray-300">{query.semantic_filter.criteria}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+    // Get semantic filters from broad_search
+    let semanticFilter = broadQueries
+        .filter(q => q.semantic_filter?.enabled && q.semantic_filter?.criteria)
+        .map(q => q.semantic_filter!.criteria)
+        .join('\n\n---\n\n');
 
-                            {query.rationale && (
-                                <div>
-                                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Rationale</span>
-                                    <p className="text-xs text-gray-700 dark:text-gray-300 mt-1">{query.rationale}</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                ))}
-            </div>
-        );
-    };
-
-    const renderCategories = (categories: any[]) => {
-        if (!categories || categories.length === 0) return <p className="text-sm text-gray-500">No categories configured</p>;
-
-        return (
-            <div className="space-y-3">
-                {categories.map((category: any, idx: number) => (
-                    <div key={idx} className="border border-gray-300 dark:border-gray-600 rounded-md p-3 bg-gray-50 dark:bg-gray-800">
-                        <div className="space-y-2">
-                            <div>
-                                <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Category {idx + 1}</span>
-                                <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">{category.name}</p>
-                            </div>
-
-                            {category.topics && category.topics.length > 0 && (
-                                <div>
-                                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Topics</span>
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                        {category.topics.map((topic: string, i: number) => (
-                                            <span key={i} className="inline-block px-2 py-0.5 text-xs bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 rounded">
-                                                {topic}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {category.specific_inclusions && category.specific_inclusions.length > 0 && (
-                                <div>
-                                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Specific Inclusions</span>
-                                    <ul className="list-disc list-inside text-xs text-gray-700 dark:text-gray-300 mt-1 space-y-0.5">
-                                        {category.specific_inclusions.map((inclusion: string, i: number) => (
-                                            <li key={i}>{inclusion}</li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                ))}
-            </div>
-        );
-    };
-
-    const renderTopics = (topics: any[]) => {
-        if (!topics || topics.length === 0) return <p className="text-sm text-gray-500">No topics defined</p>;
-
-        return (
-            <div className="space-y-2">
-                {topics.map((topic: any, idx: number) => (
-                    <div key={idx} className="border border-gray-300 dark:border-gray-600 rounded-md p-2 bg-gray-50 dark:bg-gray-800">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">{topic.topic_id}</p>
-                        <p className="text-xs text-gray-700 dark:text-gray-300 mt-1">{topic.description}</p>
-                    </div>
-                ))}
-            </div>
-        );
-    };
+    // If no broad_search filters, try to get filters from concepts
+    if (!semanticFilter && concepts && concepts.length > 0) {
+        const conceptFilters = concepts
+            .filter(c => c.semantic_filter?.enabled && c.semantic_filter?.criteria)
+            .map(c => `# ${c.name}\n${c.semantic_filter!.criteria}`)
+            .filter(Boolean);
+        semanticFilter = conceptFilters.join('\n\n---\n\n');
+    }
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-[95vw] h-[90vh] flex flex-col">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                     <div>
-                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                            Execution Configuration
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            Run Configuration
                         </h2>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                            Report: {reportName}
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                            {reportName}
                         </p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
                     >
-                        <XMarkIcon className="h-6 w-6" />
+                        <XMarkIcon className="h-5 w-5 text-gray-500" />
                     </button>
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                    {/* Date Range */}
-                    <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
-                        <button
-                            onClick={() => toggleSection('dateRange')}
-                            className="w-full bg-gray-50 dark:bg-gray-700 px-4 py-3 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-650 transition-colors"
-                        >
-                            <div className="flex items-center gap-2">
-                                {expandedSections.has('dateRange') ? (
-                                    <ChevronDownIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                                ) : (
-                                    <ChevronRightIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                                )}
-                                <h3 className="font-semibold text-gray-900 dark:text-white">Date Range</h3>
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {/* Date Range Section */}
+                    <div>
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                            <CalendarIcon className="h-4 w-4 text-green-600" />
+                            Date Range
+                        </h3>
+                        <div className="flex gap-6 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                            <div>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">Start Date</span>
+                                <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">
+                                    {retrievalParams.start_date || 'Not specified'}
+                                </p>
                             </div>
-                        </button>
-                        {expandedSections.has('dateRange') && (
-                            <div className="p-4 bg-white dark:bg-gray-800">
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div>
-                                        <span className="text-gray-600 dark:text-gray-400">Start Date:</span>
-                                        <p className="font-medium text-gray-900 dark:text-white mt-1">
-                                            {retrievalParams.start_date || 'Not specified'}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <span className="text-gray-600 dark:text-gray-400">End Date:</span>
-                                        <p className="font-medium text-gray-900 dark:text-white mt-1">
-                                            {retrievalParams.end_date || 'Not specified'}
-                                        </p>
-                                    </div>
-                                </div>
+                            <div>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">End Date</span>
+                                <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">
+                                    {retrievalParams.end_date || 'Not specified'}
+                                </p>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* PubMed Query Section */}
+                    <div>
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                            <DocumentTextIcon className="h-4 w-4 text-purple-600" />
+                            PubMed Query
+                        </h3>
+                        {pubmedQuery ? (
+                            <pre className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap font-mono bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                {pubmedQuery}
+                            </pre>
+                        ) : (
+                            <p className="text-sm text-gray-400 italic">No PubMed query configured</p>
                         )}
                     </div>
 
-                    {/* Retrieval Configuration */}
-                    {retrievalParams.retrieval_config && (
-                        <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
-                            <button
-                                onClick={() => toggleSection('retrieval')}
-                                className="w-full bg-gray-50 dark:bg-gray-700 px-4 py-3 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-650 transition-colors"
-                            >
-                                <div className="flex items-center gap-2">
-                                    {expandedSections.has('retrieval') ? (
-                                        <ChevronDownIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                                    ) : (
-                                        <ChevronRightIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                                    )}
-                                    <h3 className="font-semibold text-gray-900 dark:text-white">Retrieval Configuration</h3>
-                                </div>
-                            </button>
-                            {expandedSections.has('retrieval') && (
-                                <div className="p-4 bg-white dark:bg-gray-800">
-                                    {retrievalParams.retrieval_config.broad_search?.queries ? (
-                                        renderQueryConfig(retrievalParams.retrieval_config.broad_search.queries)
-                                    ) : (
-                                        <p className="text-sm text-gray-500">No retrieval queries configured</p>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    )}
+                    {/* Semantic Filter Section */}
+                    <div>
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                            <FunnelIcon className="h-4 w-4 text-blue-600" />
+                            Semantic Filter
+                        </h3>
+                        {semanticFilter ? (
+                            <div className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                {semanticFilter}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-400 italic">No semantic filter configured</p>
+                        )}
+                    </div>
 
-                    {/* Presentation Configuration */}
-                    {retrievalParams.presentation_config && (
-                        <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
-                            <button
-                                onClick={() => toggleSection('presentation')}
-                                className="w-full bg-gray-50 dark:bg-gray-700 px-4 py-3 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-650 transition-colors"
-                            >
-                                <div className="flex items-center gap-2">
-                                    {expandedSections.has('presentation') ? (
-                                        <ChevronDownIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                                    ) : (
-                                        <ChevronRightIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                                    )}
-                                    <h3 className="font-semibold text-gray-900 dark:text-white">Presentation Configuration</h3>
-                                </div>
-                            </button>
-                            {expandedSections.has('presentation') && (
-                                <div className="p-4 bg-white dark:bg-gray-800">
-                                    {renderCategories(retrievalParams.presentation_config.categories)}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Semantic Space */}
-                    {retrievalParams.semantic_space && (
-                        <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
-                            <button
-                                onClick={() => toggleSection('semanticSpace')}
-                                className="w-full bg-gray-50 dark:bg-gray-700 px-4 py-3 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-650 transition-colors"
-                            >
-                                <div className="flex items-center gap-2">
-                                    {expandedSections.has('semanticSpace') ? (
-                                        <ChevronDownIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                                    ) : (
-                                        <ChevronRightIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                                    )}
-                                    <h3 className="font-semibold text-gray-900 dark:text-white">Semantic Space</h3>
-                                </div>
-                            </button>
-                            {expandedSections.has('semanticSpace') && (
-                                <div className="p-4 bg-white dark:bg-gray-800 space-y-4">
-                                    {retrievalParams.semantic_space.purpose && (
-                                        <div>
-                                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Purpose</span>
-                                            <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">{retrievalParams.semantic_space.purpose}</p>
-                                        </div>
-                                    )}
-                                    {retrievalParams.semantic_space.topics && (
-                                        <div>
-                                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Topics ({retrievalParams.semantic_space.topics.length})</span>
-                                            <div className="mt-2">
-                                                {renderTopics(retrievalParams.semantic_space.topics)}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                {/* Footer */}
-                <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex justify-end">
-                    <button
-                        onClick={onClose}
-                        className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-                    >
-                        Close
-                    </button>
+                    {/* Raw Config Toggle */}
+                    <div>
+                        <button
+                            type="button"
+                            onClick={() => setShowRaw(!showRaw)}
+                            className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                        >
+                            {showRaw ? '− Hide' : '+ Show'} raw configuration
+                        </button>
+                        {showRaw && (
+                            <pre className="mt-2 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 overflow-auto max-h-60">
+                                {JSON.stringify(retrievalParams, null, 2)}
+                            </pre>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

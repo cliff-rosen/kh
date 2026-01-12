@@ -13,6 +13,9 @@ interface PipelineAnalytics {
         filtered_out: number;
         passed_filter: number;
         included_in_report: number;
+        // Curation stats
+        curator_added: number;
+        curator_removed: number;
     };
     by_group: Array<{
         group_id: string;
@@ -264,6 +267,41 @@ export default function PipelineAnalyticsModal({ reportId, onClose }: PipelineAn
                                     ></div>
                                 </div>
                             </div>
+
+                            {/* Curation Stats - show if there are any manual changes */}
+                            {(analytics.summary.curator_added > 0 || analytics.summary.curator_removed > 0) && (
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                                        Manual Curation
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                                            <p className="text-sm text-green-600 dark:text-green-400 font-medium">Curator Added</p>
+                                            <p className="text-3xl font-bold text-green-900 dark:text-green-100 mt-1">
+                                                +{analytics.summary.curator_added}
+                                            </p>
+                                            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                                                Filtered articles manually included
+                                            </p>
+                                        </div>
+                                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                                            <p className="text-sm text-red-600 dark:text-red-400 font-medium">Curator Removed</p>
+                                            <p className="text-3xl font-bold text-red-900 dark:text-red-100 mt-1">
+                                                -{analytics.summary.curator_removed}
+                                            </p>
+                                            <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                                                Pipeline articles manually excluded
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">
+                                        Final report: {analytics.summary.passed_filter} passed filter
+                                        {analytics.summary.curator_added > 0 && ` + ${analytics.summary.curator_added} added`}
+                                        {analytics.summary.curator_removed > 0 && ` - ${analytics.summary.curator_removed} removed`}
+                                        {' '}= {analytics.summary.included_in_report} articles
+                                    </p>
+                                </div>
+                            )}
 
                             {/* Category Distribution */}
                             {Object.keys(analytics.category_counts).length > 0 && (

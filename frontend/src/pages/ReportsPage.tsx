@@ -570,6 +570,7 @@ export default function ReportsPage() {
                                         reportView={reportView}
                                         cardFormat={cardFormat}
                                         hasPipelineData={hasPipelineData}
+                                        showAdminControls={isPlatformAdmin}
                                         onViewChange={handleViewChange}
                                         onCardFormatChange={handleCardFormatChange}
                                         onShowExecutionConfig={() => {

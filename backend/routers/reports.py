@@ -203,6 +203,9 @@ class CurationViewResponse(BaseModel):
     # Execution info for retrieval config display
     execution_id: Optional[str] = None
     retrieval_config: Optional[Dict[str, Any]] = None
+    # Date range for the run
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class ResetCurationResponse(BaseModel):
@@ -1007,6 +1010,8 @@ async def get_curation_view(
             stats=stats,
             execution_id=str(data.execution.id) if data.execution else None,
             retrieval_config=data.execution.retrieval_config if data.execution else None,
+            start_date=data.execution.start_date if data.execution else None,
+            end_date=data.execution.end_date if data.execution else None,
         )
 
         logger.info(f"get_curation_view complete - user_id={current_user.user_id}, report_id={report_id}")

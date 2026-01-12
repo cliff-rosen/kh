@@ -72,6 +72,9 @@ class PipelineAnalyticsSummary:
     filtered_out: int
     passed_filter: int
     included_in_report: int
+    # Curation stats
+    curator_added: int = 0  # Articles manually added by curator
+    curator_removed: int = 0  # Articles manually removed by curator
 
 
 @dataclass
@@ -1018,6 +1021,10 @@ class ReportService:
         passed_filter = sum(1 for a in wip_articles if a.passed_semantic_filter == True)
         included_count = sum(1 for a in wip_articles if a.included_in_report)
 
+        # Curation stats
+        curator_added = sum(1 for a in wip_articles if a.curator_included)
+        curator_removed = sum(1 for a in wip_articles if a.curator_excluded)
+
         # Group by retrieval group
         groups_dict: Dict[str, GroupAnalytics] = {}
         for article in wip_articles:
@@ -1088,7 +1095,9 @@ class ReportService:
                 duplicates=duplicates,
                 filtered_out=filtered_out,
                 passed_filter=passed_filter,
-                included_in_report=included_count
+                included_in_report=included_count,
+                curator_added=curator_added,
+                curator_removed=curator_removed
             ),
             by_group=list(groups_dict.values()),
             filter_reasons=filter_reasons,

@@ -347,6 +347,11 @@ export default function ReportCuration() {
                             </div>
                             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                                 {curationData.stream_name} &bull; {report.report_date || 'No date'}
+                                {(curationData.start_date || curationData.end_date) && (
+                                    <span className="ml-3 text-gray-400">
+                                        Run period: {curationData.start_date || '?'} to {curationData.end_date || '?'}
+                                    </span>
+                                )}
                             </p>
                         </div>
                     </div>
@@ -862,6 +867,8 @@ export default function ReportCuration() {
             {showConfigModal && curationData.retrieval_config && (
                 <RetrievalConfigModal
                     config={curationData.retrieval_config}
+                    startDate={curationData.start_date}
+                    endDate={curationData.end_date}
                     onClose={() => setShowConfigModal(false)}
                 />
             )}
@@ -1077,9 +1084,13 @@ interface ConceptConfig {
 
 function RetrievalConfigModal({
     config,
+    startDate,
+    endDate,
     onClose,
 }: {
     config: Record<string, unknown>;
+    startDate: string | null;
+    endDate: string | null;
     onClose: () => void;
 }) {
     const [showRaw, setShowRaw] = useState(false);
@@ -1137,6 +1148,29 @@ function RetrievalConfigModal({
 
                 {/* Modal Content - Scrollable */}
                 <div className="flex-1 overflow-auto p-6 space-y-6">
+                    {/* Date Range Section */}
+                    {(startDate || endDate) && (
+                        <div>
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+                                Date Range
+                            </h3>
+                            <div className="flex gap-6 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                <div>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">Start Date</span>
+                                    <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">
+                                        {startDate || 'Not specified'}
+                                    </p>
+                                </div>
+                                <div>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">End Date</span>
+                                    <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">
+                                        {endDate || 'Not specified'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* PubMed Query Section */}
                     <div>
                         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
