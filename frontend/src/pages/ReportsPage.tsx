@@ -14,7 +14,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTracking } from '../hooks/useTracking';
 
 import PipelineAnalyticsModal from '../components/stream/PipelineAnalyticsModal';
-import ExecutionConfigModal from '../components/stream/ExecutionConfigModal';
+import RetrievalConfigModal from '../components/shared/RetrievalConfigModal';
 import ArticleViewerModal from '../components/articles/ArticleViewerModal';
 import ChatTray from '../components/chat/ChatTray';
 import PubMedArticleCard, { PubMedArticleData } from '../components/chat/PubMedArticleCard';
@@ -672,9 +672,11 @@ export default function ReportsPage() {
 
                 {/* Execution Config Modal */}
                 {showExecutionConfig && selectedReport && selectedReport.retrieval_params && (
-                    <ExecutionConfigModal
-                        reportName={selectedReport.report_name}
-                        retrievalParams={selectedReport.retrieval_params}
+                    <RetrievalConfigModal
+                        subtitle={selectedReport.report_name}
+                        config={selectedReport.retrieval_params.retrieval_config || {}}
+                        startDate={selectedReport.retrieval_params.start_date}
+                        endDate={selectedReport.retrieval_params.end_date}
                         onClose={() => setShowExecutionConfig(false)}
                     />
                 )}

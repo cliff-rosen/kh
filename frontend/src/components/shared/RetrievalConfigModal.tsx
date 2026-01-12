@@ -1,11 +1,5 @@
-import { XMarkIcon, CalendarIcon, DocumentTextIcon, FunnelIcon } from '@heroicons/react/24/outline';
 import { useState } from 'react';
-
-interface ExecutionConfigModalProps {
-    reportName: string;
-    retrievalParams: Record<string, any>;
-    onClose: () => void;
-}
+import { XMarkIcon, CalendarIcon, DocumentTextIcon, FunnelIcon } from '@heroicons/react/24/outline';
 
 interface BroadQueryConfig {
     query_expression: string;
@@ -27,10 +21,32 @@ interface ConceptConfig {
     };
 }
 
-export default function ExecutionConfigModal({ reportName, retrievalParams, onClose }: ExecutionConfigModalProps) {
-    const [showRaw, setShowRaw] = useState(false);
+export interface RetrievalConfigModalProps {
+    /** Optional subtitle shown below the title */
+    subtitle?: string;
+    /** The retrieval configuration object */
+    config: Record<string, unknown>;
+    /** Start date of the retrieval period */
+    startDate?: string | null;
+    /** End date of the retrieval period */
+    endDate?: string | null;
+    /** Called when the modal should close */
+    onClose: () => void;
+}
 
-    const config = retrievalParams.retrieval_config || {};
+/**
+ * Modal for displaying retrieval/execution configuration.
+ * Shows date range, PubMed query, semantic filter, and raw config.
+ * Used on both Reports page and Report Curation page.
+ */
+export default function RetrievalConfigModal({
+    subtitle,
+    config,
+    startDate,
+    endDate,
+    onClose,
+}: RetrievalConfigModalProps) {
+    const [showRaw, setShowRaw] = useState(false);
 
     // Extract from broad_search (one retrieval method)
     const broadSearch = config.broad_search as { queries: BroadQueryConfig[] } | undefined;
@@ -66,8 +82,10 @@ export default function ExecutionConfigModal({ reportName, retrievalParams, onCl
         semanticFilter = conceptFilters.join('\n\n---\n\n');
     }
 
+    const hasDateRange = startDate || endDate;
+
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
                 {/* Header */}
                 <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
@@ -75,11 +93,14 @@ export default function ExecutionConfigModal({ reportName, retrievalParams, onCl
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                             Run Configuration
                         </h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                            {reportName}
-                        </p>
+                        {subtitle && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                                {subtitle}
+                            </p>
+                        )}
                     </div>
                     <button
+                        type="button"
                         onClick={onClose}
                         className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
                     >
@@ -90,26 +111,28 @@ export default function ExecutionConfigModal({ reportName, retrievalParams, onCl
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     {/* Date Range Section */}
-                    <div>
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                            <CalendarIcon className="h-4 w-4 text-green-600" />
-                            Date Range
-                        </h3>
-                        <div className="flex gap-6 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                            <div>
-                                <span className="text-xs text-gray-500 dark:text-gray-400">Start Date</span>
-                                <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">
-                                    {retrievalParams.start_date || 'Not specified'}
-                                </p>
-                            </div>
-                            <div>
-                                <span className="text-xs text-gray-500 dark:text-gray-400">End Date</span>
-                                <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">
-                                    {retrievalParams.end_date || 'Not specified'}
-                                </p>
+                    {hasDateRange && (
+                        <div>
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                                <CalendarIcon className="h-4 w-4 text-green-600" />
+                                Date Range
+                            </h3>
+                            <div className="flex gap-6 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                <div>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">Start Date</span>
+                                    <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">
+                                        {startDate || 'Not specified'}
+                                    </p>
+                                </div>
+                                <div>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">End Date</span>
+                                    <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">
+                                        {endDate || 'Not specified'}
+                                    </p>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* PubMed Query Section */}
                     <div>
@@ -152,7 +175,7 @@ export default function ExecutionConfigModal({ reportName, retrievalParams, onCl
                         </button>
                         {showRaw && (
                             <pre className="mt-2 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 overflow-auto max-h-60">
-                                {JSON.stringify(retrievalParams, null, 2)}
+                                {JSON.stringify(config, null, 2)}
                             </pre>
                         )}
                     </div>
