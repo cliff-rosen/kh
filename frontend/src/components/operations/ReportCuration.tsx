@@ -141,7 +141,14 @@ export default function ReportCuration() {
         if (!reportId) return;
 
         try {
-            await reportApi.includeArticle(parseInt(reportId), article.wip_article_id, categoryId);
+            // For curator-excluded articles (pipeline included, then manually excluded),
+            // use resetCuration to restore to pipeline's original decision
+            // For truly filtered articles, use includeArticle to add them
+            if (article.curator_excluded) {
+                await reportApi.resetCuration(parseInt(reportId), article.wip_article_id);
+            } else {
+                await reportApi.includeArticle(parseInt(reportId), article.wip_article_id, categoryId);
+            }
             await fetchCurationData();
         } catch (err) {
             console.error('Failed to include article:', err);
