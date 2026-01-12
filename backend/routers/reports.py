@@ -1146,47 +1146,23 @@ async def get_curation_history(
     logger.info(f"get_curation_history - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        from models import CurationEvent, Article
+        service = ReportService(db)
+        data = service.get_curation_history(report_id, current_user.user_id)
 
-        # Get all curation events for this report
-        events = db.query(CurationEvent).filter(
-            CurationEvent.report_id == report_id
-        ).order_by(CurationEvent.created_at.desc()).all()
-
-        # Build response
-        event_responses = []
-        for event in events:
-            # Get article title if this is an article-level event
-            article_title = None
-            if event.article_id:
-                article = db.query(Article).filter(Article.article_id == event.article_id).first()
-                if article:
-                    article_title = article.title
-
-            # Get curator name
-            curator_name = "Unknown"
-            if event.curator:
-                curator_name = event.curator.full_name or event.curator.email
-
-            event_responses.append(CurationEventResponse(
-                id=event.id,
-                event_type=event.event_type,
-                field_name=event.field_name,
-                old_value=event.old_value,
-                new_value=event.new_value,
-                notes=event.notes,
-                article_id=event.article_id,
-                article_title=article_title,
-                curator_name=curator_name,
-                created_at=event.created_at.isoformat() if event.created_at else "",
-            ))
+        # Convert dataclass to response schema
+        event_responses = [
+            CurationEventResponse(**asdict(event))
+            for event in data.events
+        ]
 
         logger.info(f"get_curation_history complete - user_id={current_user.user_id}, report_id={report_id}, events={len(event_responses)}")
         return CurationHistoryResponse(
             events=event_responses,
-            total_count=len(event_responses),
+            total_count=data.total_count,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"get_curation_history failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
         raise HTTPException(

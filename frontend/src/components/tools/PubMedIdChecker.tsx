@@ -4,9 +4,19 @@ import { CheckIcon } from '@heroicons/react/24/solid';
 import { toolsApi, PubMedIdCheckResponse } from '../../lib/api/toolsApi';
 import { copyToClipboard } from '../../lib/utils/clipboard';
 
+// Canned queries for quick selection
+const CANNED_QUERIES = [
+    {
+        id: 'asbestos-talc',
+        name: 'Asbestos & Talc Literature',
+        query: `(asbestos[tiab] OR asbestiform[tiab] OR chrysotile[tiab] OR amosite[tiab] OR crocidolite[tiab] OR tremolite[tiab] OR anthophyllite[tiab] OR actinolite[tiab] OR "serpentine minerals"[tiab]) OR (talc[tiab] OR talcum[tiab] OR "magnesium silicate"[tiab]) OR (mesothelioma[tiab] OR "pleural cancer"[tiab] OR asbestosis[tiab] OR "pleural plaques"[tiab] OR "pleural effusion"[tiab]) OR ("ovarian cancer"[tiab] AND (talc[tiab] OR talcum[tiab] OR "body powder"[tiab] OR "perineal"[tiab]))`
+    }
+];
+
 export default function PubMedIdChecker() {
     const [query, setQuery] = useState('');
     const [pubmedIds, setPubmedIds] = useState('');
+    const [selectedCannedQuery, setSelectedCannedQuery] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [dateType, setDateType] = useState('publication'); // Default to 'publication' to match pipeline
@@ -63,8 +73,19 @@ export default function PubMedIdChecker() {
         setStartDate('');
         setEndDate('');
         setDateType('publication');
+        setSelectedCannedQuery('');
         setResults(null);
         setError(null);
+    };
+
+    const handleCannedQuerySelect = (queryId: string) => {
+        setSelectedCannedQuery(queryId);
+        if (queryId) {
+            const selected = CANNED_QUERIES.find(q => q.id === queryId);
+            if (selected) {
+                setQuery(selected.query);
+            }
+        }
     };
 
     const handleCopyToClipboard = async (type: 'captured' | 'missed' | 'all') => {
@@ -127,6 +148,23 @@ export default function PubMedIdChecker() {
 
             {/* Input Form */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
+                {/* Canned Query Selector */}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Quick Select Query
+                    </label>
+                    <select
+                        value={selectedCannedQuery}
+                        onChange={(e) => handleCannedQuerySelect(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                    >
+                        <option value="">-- Select a saved query or enter your own below --</option>
+                        {CANNED_QUERIES.map(q => (
+                            <option key={q.id} value={q.id}>{q.name}</option>
+                        ))}
+                    </select>
+                </div>
+
                 {/* Query Input */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -134,7 +172,16 @@ export default function PubMedIdChecker() {
                     </label>
                     <textarea
                         value={query}
-                        onChange={(e) => setQuery(e.target.value)}
+                        onChange={(e) => {
+                            setQuery(e.target.value);
+                            // Clear canned selection if user edits manually
+                            if (selectedCannedQuery) {
+                                const selected = CANNED_QUERIES.find(q => q.id === selectedCannedQuery);
+                                if (selected && e.target.value !== selected.query) {
+                                    setSelectedCannedQuery('');
+                                }
+                            }
+                        }}
                         placeholder="e.g., asbestos AND mesothelioma"
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white font-mono text-sm"
                         rows={3}

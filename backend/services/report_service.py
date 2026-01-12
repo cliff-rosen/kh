@@ -235,6 +235,28 @@ class RejectReportResult:
     rejected_at: str
 
 
+@dataclass
+class CurationEventData:
+    """A single curation event for history view."""
+    id: int
+    event_type: str
+    field_name: Optional[str]
+    old_value: Optional[str]
+    new_value: Optional[str]
+    notes: Optional[str]
+    article_id: Optional[int]
+    article_title: Optional[str]
+    curator_name: str
+    created_at: str
+
+
+@dataclass
+class CurationHistoryData:
+    """Curation history for a report."""
+    events: List[CurationEventData]
+    total_count: int
+
+
 class ReportService:
     """
     Service for all Report and ReportArticleAssociation operations.
@@ -1989,6 +2011,64 @@ class ReportService:
             rejection_reason=reason,
             rejected_by=user_id,
             rejected_at=report.approved_at.isoformat(),
+        )
+
+    def get_curation_history(
+        self,
+        report_id: int,
+        user_id: int
+    ) -> CurationHistoryData:
+        """
+        Get curation history (audit trail) for a report.
+
+        Returns all curation events in reverse chronological order.
+
+        Raises:
+            HTTPException: 404 if report not found or user doesn't have access
+        """
+        # Verify access
+        report, user, stream = self._get_report_for_curation(report_id, user_id)
+
+        from models import CurationEvent
+
+        # Get all curation events for this report
+        events = self.db.query(CurationEvent).filter(
+            CurationEvent.report_id == report_id
+        ).order_by(CurationEvent.created_at.desc()).all()
+
+        # Build event data list
+        event_data_list = []
+        for event in events:
+            # Get article title if this is an article-level event
+            article_title = None
+            if event.article_id:
+                article = self.db.query(Article).filter(
+                    Article.article_id == event.article_id
+                ).first()
+                if article:
+                    article_title = article.title
+
+            # Get curator name
+            curator_name = "Unknown"
+            if event.curator:
+                curator_name = event.curator.full_name or event.curator.email
+
+            event_data_list.append(CurationEventData(
+                id=event.id,
+                event_type=event.event_type,
+                field_name=event.field_name,
+                old_value=event.old_value,
+                new_value=event.new_value,
+                notes=event.notes,
+                article_id=event.article_id,
+                article_title=article_title,
+                curator_name=curator_name,
+                created_at=event.created_at.isoformat() if event.created_at else "",
+            ))
+
+        return CurationHistoryData(
+            events=event_data_list,
+            total_count=len(event_data_list),
         )
 
     # =========================================================================
