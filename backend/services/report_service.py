@@ -20,6 +20,7 @@ from models import (
     OrgStreamSubscription, UserStreamSubscription, PipelineExecution,
     ApprovalStatus
 )
+from config.settings import settings
 from services.user_service import UserService
 from services.email_template_service import (
     EmailTemplateService, EmailReportData, EmailCategory, EmailArticle
@@ -1270,6 +1271,10 @@ class ReportService:
                     articles=cat_articles
                 ))
 
+        # Build report URL
+        base_url = settings.FRONTEND_URL or 'http://localhost:5173'
+        report_url = f"{base_url}/reports?stream={report.stream_id}&report={report.report_id}"
+
         # Build final data
         return EmailReportData(
             report_name=report.report_name,
@@ -1277,7 +1282,8 @@ class ReportService:
             report_date=report.report_date.strftime('%B %d, %Y') if report.report_date else '',
             executive_summary=executive_summary,
             categories=email_categories,
-            uncategorized_articles=uncategorized
+            uncategorized_articles=uncategorized,
+            report_url=report_url
         )
 
     # =========================================================================
