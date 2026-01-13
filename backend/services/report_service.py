@@ -1240,6 +1240,7 @@ class ReportService:
         for assoc, article in associations:
             email_article = EmailArticle(
                 title=article.title,
+                article_id=article.article_id,
                 url=article.url,
                 doi=article.doi,
                 pmid=article.pmid,

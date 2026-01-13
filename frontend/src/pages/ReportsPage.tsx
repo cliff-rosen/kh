@@ -185,6 +185,26 @@ export default function ReportsPage() {
         }
     };
 
+    // Handle article deep-link from URL parameter
+    useEffect(() => {
+        const articleParam = searchParams.get('article');
+        if (articleParam && selectedReport?.articles) {
+            const articleId = Number(articleParam);
+            const articleIndex = selectedReport.articles.findIndex(a => a.article_id === articleId);
+            if (articleIndex !== -1) {
+                // Open article viewer modal with this article
+                setArticleViewerArticles(selectedReport.articles);
+                setArticleViewerInitialIndex(articleIndex);
+                setArticleViewerIsFiltered(false);
+                setArticleViewerOpen(true);
+                // Clear the article param from URL to prevent re-opening on navigation
+                const newParams = new URLSearchParams(searchParams);
+                newParams.delete('article');
+                window.history.replaceState({}, '', `${window.location.pathname}?${newParams.toString()}`);
+            }
+        }
+    }, [selectedReport, searchParams]);
+
     const handleReportClick = (report: Report) => {
         track('report_select', { report_id: report.report_id, report_name: report.report_name });
         loadReportDetails(report.report_id);

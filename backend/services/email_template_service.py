@@ -16,6 +16,7 @@ from dataclasses import dataclass
 class EmailArticle:
     """Article data for email template"""
     title: str
+    article_id: Optional[int] = None  # For linking to article detail on site
     url: Optional[str] = None
     doi: Optional[str] = None
     pmid: Optional[str] = None
@@ -77,13 +78,13 @@ class EmailTemplateService:
         for category in data.categories:
             if category.articles:  # Only include categories with articles
                 html_parts.append(
-                    self._category_section(category.name, category.summary, category.articles)
+                    self._category_section(category.name, category.summary, category.articles, data.report_url)
                 )
 
         # Add uncategorized if any
         if data.uncategorized_articles:
             html_parts.append(
-                self._category_section("Other Articles", "", data.uncategorized_articles)
+                self._category_section("Other Articles", "", data.uncategorized_articles, data.report_url)
             )
 
         html_parts.append(self._html_footer(data.report_url))
@@ -283,7 +284,8 @@ class EmailTemplateService:
         self,
         category_name: str,
         category_summary: Optional[str],
-        articles: List[EmailArticle]
+        articles: List[EmailArticle],
+        report_url: Optional[str] = None
     ) -> str:
         """Generate a category section with its articles"""
         html = f'''
@@ -302,7 +304,7 @@ class EmailTemplateService:
             <div class="articles-list">'''
 
         for article in articles:
-            html += self._article_item(article)
+            html += self._article_item(article, report_url)
 
         html += '''
             </div>
@@ -310,15 +312,18 @@ class EmailTemplateService:
 
         return html
 
-    def _article_item(self, article: EmailArticle) -> str:
+    def _article_item(self, article: EmailArticle, report_url: Optional[str] = None) -> str:
         """Generate HTML for a single article"""
         title = article.title or "Untitled"
 
-        # Build URL - prefer article URL, fall back to DOI or PubMed link
-        url = article.url
-        if not url and article.doi:
+        # Build URL - prefer site link if we have article_id and report_url
+        url = None
+        if article.article_id and report_url:
+            # Link to article on site: /reports?stream=X&report=Y&article=Z
+            url = f"{report_url}&article={article.article_id}"
+        elif article.doi:
             url = f"https://doi.org/{article.doi}"
-        elif not url and article.pmid:
+        elif article.pmid:
             url = f"https://pubmed.ncbi.nlm.nih.gov/{article.pmid}/"
 
         # Format title with link if we have a URL
