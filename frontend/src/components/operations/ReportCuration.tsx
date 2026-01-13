@@ -868,7 +868,9 @@ export default function ReportCuration() {
                             />
                         )}
 
-                        {activeTab === 'filtered_out' && filteredArticles.map((article) => (
+                        {activeTab === 'filtered_out' && [...filteredArticles]
+                            .sort((a, b) => (b.filter_score ?? 0) - (a.filter_score ?? 0))
+                            .map((article) => (
                             <FilteredArticleCard
                                 key={article.wip_article_id}
                                 article={article}
