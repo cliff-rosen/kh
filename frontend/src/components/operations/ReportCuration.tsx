@@ -1609,11 +1609,6 @@ function IncludedArticleCard({
                                     {article.pmid && (
                                         <span className="ml-2 text-gray-400">PMID: {article.pmid}</span>
                                     )}
-                                    {article.filter_score != null && (
-                                        <span className="ml-2 text-green-600 dark:text-green-400" title="Filter score">
-                                            Score: {article.filter_score.toFixed(2)}
-                                        </span>
-                                    )}
                                 </p>
                                 {/* Category selector - always visible */}
                                 <div className="flex items-center gap-2 mt-2">
@@ -1720,6 +1715,12 @@ function IncludedArticleCard({
 
                     {/* Actions */}
                     <div className="flex-shrink-0 flex items-center gap-2">
+                        {/* Score display */}
+                        {article.filter_score != null && (
+                            <span className="text-sm text-green-600 dark:text-green-400" title="Filter score">
+                                {article.filter_score.toFixed(2)}
+                            </span>
+                        )}
                         {isProcessing ? (
                             <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400">
                                 <ArrowPathIcon className="h-4 w-4 animate-spin" />
@@ -1840,22 +1841,19 @@ function FilteredArticleCard({
                             </div>
                         </div>
 
-                        {/* Pipeline info */}
-                        {article.filter_score_reason && (
-                            <div className="mt-3 flex items-center gap-2 text-sm">
-                                <span className="text-red-600 dark:text-red-400">
-                                    Score: {article.filter_score?.toFixed(2)}
-                                </span>
-                                <span className="text-gray-400">&bull;</span>
-                                <span className="text-gray-500 dark:text-gray-400">
-                                    {article.filter_score_reason}
-                                </span>
-                            </div>
-                        )}
-
                         {/* Expanded content */}
                         {expanded && (
                             <div className="mt-4 space-y-4">
+                                {/* Filter Score Reason */}
+                                {article.filter_score_reason && (
+                                    <div>
+                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Filter Reasoning</span>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 bg-red-50 dark:bg-red-900/20 p-3 rounded mt-1 border-l-2 border-red-400 dark:border-red-600">
+                                            {article.filter_score_reason}
+                                        </p>
+                                    </div>
+                                )}
+
                                 {/* Abstract */}
                                 {article.abstract && (
                                     <div>
@@ -1921,6 +1919,12 @@ function FilteredArticleCard({
 
                     {/* Actions */}
                     <div className="flex-shrink-0 flex items-center gap-2">
+                        {/* Score display */}
+                        {article.filter_score != null && (
+                            <span className="text-sm text-red-600 dark:text-red-400" title="Filter score">
+                                {article.filter_score.toFixed(2)}
+                            </span>
+                        )}
                         {isProcessing ? (
                             <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400">
                                 <ArrowPathIcon className="h-4 w-4 animate-spin" />
