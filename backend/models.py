@@ -369,7 +369,7 @@ class Report(Base):
     article_associations = relationship("ReportArticleAssociation", back_populates="report")
     feedback = relationship("UserFeedback", back_populates="report")
     execution = relationship("PipelineExecution", back_populates="report", foreign_keys="PipelineExecution.report_id", uselist=False)
-    curation_events = relationship("CurationEvent", back_populates="report")
+    curation_events = relationship("CurationEvent", back_populates="report", cascade="all, delete-orphan", passive_deletes=True)
 
 
 class ReportArticleAssociation(Base):
