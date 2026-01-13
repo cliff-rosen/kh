@@ -1273,7 +1273,7 @@ class ReportService:
 
         # Build report URL
         base_url = settings.FRONTEND_URL or 'http://localhost:5173'
-        report_url = f"{base_url}/reports?stream={report.stream_id}&report={report.report_id}"
+        report_url = f"{base_url}/reports?stream={report.research_stream_id}&report={report.report_id}"
 
         # Build final data
         return EmailReportData(
