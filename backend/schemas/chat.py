@@ -33,6 +33,7 @@ class Message(BaseModel):
     role: MessageRole
     content: str
     context: Optional[dict] = None
+    extras: Optional[dict] = None  # tool_history, custom_payload, diagnostics, suggested_values, suggested_actions
     created_at: datetime
 
     class Config:
