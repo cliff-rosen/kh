@@ -644,24 +644,39 @@ export default function ReportCuration() {
                     <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                         <div className="flex items-center justify-between">
                             <h2 className="font-semibold text-gray-900 dark:text-white">Articles</h2>
-                            {/* Pipeline vs Curated Stats */}
-                            <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-                                <span>
-                                    Pipeline: <span className="font-medium text-gray-700 dark:text-gray-300">{stats.pipeline_included}</span> included
-                                </span>
+                            {/* Pipeline Stats - Original vs Current */}
+                            <div className="flex items-center gap-6 text-sm">
+                                {/* Original Pipeline Stats */}
+                                <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400">
+                                    <span className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Pipeline:</span>
+                                    <span title="Total articles retrieved from query">
+                                        <span className="font-medium text-gray-700 dark:text-gray-300">{stats.pipeline_included + stats.pipeline_filtered + stats.pipeline_duplicates}</span> retrieved
+                                    </span>
+                                    <span className="text-gray-300 dark:text-gray-600">→</span>
+                                    <span title="Articles filtered out by semantic filter" className="text-red-600 dark:text-red-400">
+                                        {stats.pipeline_filtered} filtered
+                                    </span>
+                                    <span className="text-gray-300 dark:text-gray-600">→</span>
+                                    <span title="Articles included by pipeline" className="text-green-600 dark:text-green-400">
+                                        {stats.pipeline_included} included
+                                    </span>
+                                </div>
+                                {/* Curator Changes */}
                                 {(stats.curator_added > 0 || stats.curator_removed > 0) && (
-                                    <span className="flex items-center gap-2">
-                                        <span className="text-gray-300 dark:text-gray-600">|</span>
-                                        <span>
-                                            Curated:
+                                    <>
+                                        <div className="h-4 w-px bg-gray-300 dark:bg-gray-600" />
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Curated:</span>
                                             {stats.curator_added > 0 && (
-                                                <span className="ml-1 text-green-600 dark:text-green-400">+{stats.curator_added}</span>
+                                                <span className="text-green-600 dark:text-green-400">+{stats.curator_added}</span>
                                             )}
                                             {stats.curator_removed > 0 && (
-                                                <span className="ml-1 text-red-600 dark:text-red-400">-{stats.curator_removed}</span>
+                                                <span className="text-red-600 dark:text-red-400">−{stats.curator_removed}</span>
                                             )}
-                                        </span>
-                                    </span>
+                                            <span className="text-gray-300 dark:text-gray-600">→</span>
+                                            <span className="font-medium text-gray-700 dark:text-gray-300">{stats.current_included} current</span>
+                                        </div>
+                                    </>
                                 )}
                             </div>
                         </div>
