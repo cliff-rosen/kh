@@ -355,6 +355,9 @@ export interface CurationIncludedArticle {
     // Source indicator
     curator_added: boolean;  // true = curator override, false = pipeline included
     wip_article_id: number | null;  // For reset curation on curator-added articles
+    // Filter data (from WipArticle)
+    filter_score: number | null;
+    filter_score_reason: string | null;
 }
 
 /**

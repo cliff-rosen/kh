@@ -761,22 +761,100 @@ export default function ReportCuration() {
 
                     {/* Article List */}
                     <div className="p-4 space-y-3">
-                        {/* Included tab - List view */}
-                        {activeTab === 'included' && includedViewMode === 'list' && includedArticles.map((article, idx) => (
-                            <IncludedArticleCard
-                                key={article.article_id}
-                                article={article}
-                                ranking={idx + 1}
-                                categories={categories}
-                                expanded={expandedArticle === article.article_id}
-                                isProcessing={processingArticleId === article.article_id}
-                                isSavingCategory={savingCategoryArticleId === article.article_id}
-                                onToggleExpand={() => setExpandedArticle(expandedArticle === article.article_id ? null : article.article_id)}
-                                onExclude={() => handleExcludeArticle(article)}
-                                onCategoryChange={(newCat) => handleCategoryChange(article, newCat)}
-                                onSaveNotes={(notes) => handleSaveIncludedNotes(article, notes)}
-                            />
-                        ))}
+                        {/* Included tab - List view grouped by category */}
+                        {activeTab === 'included' && includedViewMode === 'list' && (() => {
+                            // Group articles by category
+                            const articlesByCategory = categories.map(cat => ({
+                                ...cat,
+                                articles: includedArticles.filter(a =>
+                                    a.presentation_categories?.includes(cat.id)
+                                ),
+                            })).filter(cat => cat.articles.length > 0);
+
+                            // Find uncategorized articles
+                            const uncategorizedArticles = includedArticles.filter(a =>
+                                !a.presentation_categories || a.presentation_categories.length === 0
+                            );
+
+                            // Track global ranking across categories
+                            let globalRank = 0;
+
+                            return (
+                                <div className="space-y-6">
+                                    {/* Categorized articles */}
+                                    {articlesByCategory.map((cat) => (
+                                        <div key={cat.id}>
+                                            {/* Category header */}
+                                            <div className="flex items-center gap-3 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
+                                                <h3 className="font-semibold text-gray-900 dark:text-white">
+                                                    {cat.name}
+                                                </h3>
+                                                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
+                                                    {cat.articles.length} article{cat.articles.length !== 1 ? 's' : ''}
+                                                </span>
+                                            </div>
+                                            {/* Articles in this category */}
+                                            <div className="space-y-3">
+                                                {cat.articles.map((article) => {
+                                                    globalRank++;
+                                                    return (
+                                                        <IncludedArticleCard
+                                                            key={article.article_id}
+                                                            article={article}
+                                                            ranking={globalRank}
+                                                            categories={categories}
+                                                            expanded={expandedArticle === article.article_id}
+                                                            isProcessing={processingArticleId === article.article_id}
+                                                            isSavingCategory={savingCategoryArticleId === article.article_id}
+                                                            onToggleExpand={() => setExpandedArticle(expandedArticle === article.article_id ? null : article.article_id)}
+                                                            onExclude={() => handleExcludeArticle(article)}
+                                                            onCategoryChange={(newCat) => handleCategoryChange(article, newCat)}
+                                                            onSaveNotes={(notes) => handleSaveIncludedNotes(article, notes)}
+                                                        />
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {/* Uncategorized articles */}
+                                    {uncategorizedArticles.length > 0 && (
+                                        <div>
+                                            {/* Uncategorized header */}
+                                            <div className="flex items-center gap-3 mb-3 pb-2 border-b border-amber-200 dark:border-amber-800">
+                                                <h3 className="font-semibold text-amber-700 dark:text-amber-300">
+                                                    Uncategorized
+                                                </h3>
+                                                <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-full">
+                                                    {uncategorizedArticles.length} article{uncategorizedArticles.length !== 1 ? 's' : ''} need categorization
+                                                </span>
+                                            </div>
+                                            {/* Uncategorized articles */}
+                                            <div className="space-y-3">
+                                                {uncategorizedArticles.map((article) => {
+                                                    globalRank++;
+                                                    return (
+                                                        <IncludedArticleCard
+                                                            key={article.article_id}
+                                                            article={article}
+                                                            ranking={globalRank}
+                                                            categories={categories}
+                                                            expanded={expandedArticle === article.article_id}
+                                                            isProcessing={processingArticleId === article.article_id}
+                                                            isSavingCategory={savingCategoryArticleId === article.article_id}
+                                                            onToggleExpand={() => setExpandedArticle(expandedArticle === article.article_id ? null : article.article_id)}
+                                                            onExclude={() => handleExcludeArticle(article)}
+                                                            onCategoryChange={(newCat) => handleCategoryChange(article, newCat)}
+                                                            onSaveNotes={(notes) => handleSaveIncludedNotes(article, notes)}
+                                                        />
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
 
                         {/* Included tab - Report Preview */}
                         {activeTab === 'included' && includedViewMode === 'preview' && (
@@ -1507,16 +1585,8 @@ function IncludedArticleCard({
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                         <div className="flex items-start gap-3">
-                            <div className="flex-shrink-0 flex items-center gap-1 text-gray-400">
+                            <div className="flex-shrink-0 text-gray-400">
                                 <span className="text-sm font-medium">#{ranking}</span>
-                                <div className="flex flex-col">
-                                    <button type="button" className="hover:text-gray-600 p-0.5" title="Move up">
-                                        <ChevronUpIcon className="h-3 w-3" />
-                                    </button>
-                                    <button type="button" className="hover:text-gray-600 p-0.5" title="Move down">
-                                        <ChevronDownIcon className="h-3 w-3" />
-                                    </button>
-                                </div>
                             </div>
                             <div className="flex-1 min-w-0">
                                 {pubmedUrl ? (
@@ -1538,6 +1608,11 @@ function IncludedArticleCard({
                                     {article.authors?.join(', ')} &bull; {article.journal} &bull; {article.year}
                                     {article.pmid && (
                                         <span className="ml-2 text-gray-400">PMID: {article.pmid}</span>
+                                    )}
+                                    {article.filter_score != null && (
+                                        <span className="ml-2 text-green-600 dark:text-green-400" title="Filter score">
+                                            Score: {article.filter_score.toFixed(2)}
+                                        </span>
                                     )}
                                 </p>
                                 {/* Category selector - always visible */}
@@ -1582,6 +1657,16 @@ function IncludedArticleCard({
                                         </div>
                                         <p className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/50 p-3 rounded">
                                             {article.ai_summary}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Filter Score Reason */}
+                                {article.filter_score_reason && (
+                                    <div>
+                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Filter Reasoning</span>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 bg-green-50 dark:bg-green-900/20 p-3 rounded mt-1 border-l-2 border-green-400 dark:border-green-600">
+                                            {article.filter_score_reason}
                                         </p>
                                     </div>
                                 )}

@@ -151,6 +151,8 @@ class IncludedArticleData:
     article: Article
     association: ReportArticleAssociation
     wip_article_id: Optional[int] = None  # For reset curation on curator-added articles
+    filter_score: Optional[float] = None  # From WipArticle
+    filter_score_reason: Optional[str] = None  # From WipArticle
 
 
 @dataclass
@@ -1344,9 +1346,11 @@ class ReportService:
         curator_added_count = 0   # curator manually added
         curator_removed_count = 0  # curator manually excluded
 
-        # Build lookup map for WipArticle IDs by PMID/DOI
+        # Build lookup map for WipArticle IDs and objects by PMID/DOI
         wip_by_pmid: Dict[str, int] = {}
         wip_by_doi: Dict[str, int] = {}
+        wip_objects_by_pmid: Dict[str, WipArticle] = {}
+        wip_objects_by_doi: Dict[str, WipArticle] = {}
 
         # Fetch execution for retrieval config access
         execution: Optional[PipelineExecution] = None
@@ -1362,8 +1366,10 @@ class ReportService:
                 # Build lookup maps
                 if wip.pmid:
                     wip_by_pmid[wip.pmid] = wip.id
+                    wip_objects_by_pmid[wip.pmid] = wip
                 if wip.doi:
                     wip_by_doi[wip.doi] = wip.id
+                    wip_objects_by_doi[wip.doi] = wip
 
             for wip in wip_articles:
                 # Count pipeline decisions
@@ -1389,23 +1395,29 @@ class ReportService:
                 if wip.curator_included or wip.curator_excluded:
                     curated_articles.append(wip)
 
-        # Build included articles with wip_article_id lookup
-        def get_wip_id(article: Article) -> Optional[int]:
-            """Look up WipArticle ID by PMID or DOI."""
-            if article.pmid and article.pmid in wip_by_pmid:
-                return wip_by_pmid[article.pmid]
-            if article.doi and article.doi in wip_by_doi:
-                return wip_by_doi[article.doi]
-            return None
+        # Build included articles with wip_article_id and score data lookup
+        def get_wip_data(article: Article) -> tuple[Optional[int], Optional[float], Optional[str]]:
+            """Look up WipArticle data (id, filter_score, filter_score_reason) by PMID or DOI."""
+            wip: Optional[WipArticle] = None
+            if article.pmid and article.pmid in wip_objects_by_pmid:
+                wip = wip_objects_by_pmid[article.pmid]
+            elif article.doi and article.doi in wip_objects_by_doi:
+                wip = wip_objects_by_doi[article.doi]
 
-        included_articles = [
-            IncludedArticleData(
+            if wip:
+                return wip.id, wip.filter_score, wip.filter_score_reason
+            return None, None, None
+
+        included_articles = []
+        for assoc in visible_associations:
+            wip_id, score, reason = get_wip_data(assoc.article)
+            included_articles.append(IncludedArticleData(
                 article=assoc.article,
                 association=assoc,
-                wip_article_id=get_wip_id(assoc.article)
-            )
-            for assoc in visible_associations
-        ]
+                wip_article_id=wip_id,
+                filter_score=score,
+                filter_score_reason=reason
+            ))
 
         # Current count = pipeline_included - curator_removed + curator_added
         current_included_count = len(included_articles)

@@ -172,6 +172,9 @@ class CurationIncludedArticle(BaseModel):
     # Source indicator
     curator_added: bool = False  # True = curator override, False = pipeline included
     wip_article_id: Optional[int] = None  # For reset curation on curator-added articles
+    # Filter data (from WipArticle)
+    filter_score: Optional[float] = None
+    filter_score_reason: Optional[str] = None
 
 
 class CurationFilteredArticle(BaseModel):
@@ -1050,6 +1053,8 @@ async def get_curation_view(
                 curated_at=item.association.curated_at.isoformat() if item.association.curated_at else None,
                 curator_added=item.association.curator_added or False,
                 wip_article_id=item.wip_article_id,
+                filter_score=item.filter_score,
+                filter_score_reason=item.filter_score_reason,
             )
             for item in data.included_articles
         ]
