@@ -84,6 +84,8 @@ interface ArticleViewerModalProps {
     onArticleUpdate?: (articleId: number, updates: { notes?: string; ai_enrichments?: any }) => void;
     /** If true, articles list is a filtered subset */
     isFiltered?: boolean;
+    /** Report title to display in the header (when viewing from a report) */
+    reportTitle?: string;
 }
 
 export default function ArticleViewerModal({
@@ -93,7 +95,8 @@ export default function ArticleViewerModal({
     chatContext,
     chatPayloadHandlers,
     onArticleUpdate,
-    isFiltered = false
+    isFiltered = false,
+    reportTitle
 }: ArticleViewerModalProps) {
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
     const rawArticle = articles[currentIndex];
@@ -384,9 +387,16 @@ export default function ArticleViewerModal({
                                 </button>
                             </div>
                         )}
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            Article Viewer
-                        </h2>
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                Article Viewer
+                            </h2>
+                            {reportTitle && (
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    {reportTitle}
+                                </p>
+                            )}
+                        </div>
                     </div>
                     <div className="flex items-center gap-2">
                         <button

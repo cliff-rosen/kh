@@ -712,6 +712,7 @@ export default function ReportsPage() {
                         chatPayloadHandlers={payloadHandlers}
                         onArticleUpdate={handleArticleUpdate}
                         isFiltered={articleViewerIsFiltered}
+                        reportTitle={selectedReport?.report_name}
                     />
                 )}
             </div>
