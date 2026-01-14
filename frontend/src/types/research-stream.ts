@@ -56,9 +56,14 @@ export interface WipArticle {
     is_duplicate: boolean;
     duplicate_of_id: number | null;
     passed_semantic_filter: boolean | null;
-    filter_rejection_reason: string | null;
+    filter_score: number | null;
+    filter_score_reason: string | null;
     included_in_report: boolean;
     presentation_categories: string[];
+    // Curator override fields
+    curator_included: boolean;
+    curator_excluded: boolean;
+    curation_notes: string | null;
 }
 
 /**

@@ -998,8 +998,21 @@ function RetrievalConfigDisplay({ config }: RetrievalConfigProps) {
 function WipArticleCard({ article, type }: { article: WipArticle; type: 'included' | 'duplicate' | 'filtered' }) {
     const [expanded, setExpanded] = useState(false);
 
+    // Determine score color based on type and score
+    const getScoreColor = () => {
+        if (type === 'filtered') return 'text-red-600 dark:text-red-400';
+        if (type === 'included') return 'text-green-600 dark:text-green-400';
+        return 'text-gray-600 dark:text-gray-400';
+    };
+
     return (
-        <div className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
+        <div className={`p-3 border rounded-lg ${
+            article.curator_included
+                ? 'border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-900/10'
+                : article.curator_excluded
+                ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/10'
+                : 'border-gray-200 dark:border-gray-700'
+        }`}>
             <div className="flex items-start gap-2">
                 <button
                     onClick={() => setExpanded(!expanded)}
@@ -1030,30 +1043,70 @@ function WipArticleCard({ article, type }: { article: WipArticle; type: 'include
                     </p>
 
                     {/* Status indicator */}
-                    <div className="mt-2">
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
                         {type === 'duplicate' && (
                             <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
                                 Duplicate of article #{article.duplicate_of_id}
                             </span>
                         )}
-                        {type === 'filtered' && (
-                            <div className="space-y-1">
-                                {article.filter_rejection_reason && (
-                                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                                        {article.filter_rejection_reason}
-                                    </p>
-                                )}
-                            </div>
+                        {/* Curator override badges */}
+                        {article.curator_included && (
+                            <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">
+                                Curator added
+                            </span>
+                        )}
+                        {article.curator_excluded && (
+                            <span className="text-xs px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">
+                                Curator removed
+                            </span>
                         )}
                     </div>
                 </div>
+
+                {/* Score display */}
+                {article.filter_score != null && (
+                    <span className={`text-sm font-medium ${getScoreColor()}`} title="Filter score">
+                        {article.filter_score.toFixed(2)}
+                    </span>
+                )}
             </div>
 
-            {/* Expanded content - abstract */}
-            {expanded && article.abstract && (
-                <div className="mt-3 ml-6 p-3 bg-gray-50 dark:bg-gray-900 rounded text-sm text-gray-600 dark:text-gray-400">
-                    <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">Abstract</p>
-                    {article.abstract}
+            {/* Expanded content */}
+            {expanded && (
+                <div className="mt-3 ml-6 space-y-3">
+                    {/* Filter Score Reason */}
+                    {article.filter_score_reason && (
+                        <div className={`p-3 rounded border-l-2 ${
+                            type === 'filtered'
+                                ? 'bg-red-50 dark:bg-red-900/20 border-red-400 dark:border-red-600'
+                                : 'bg-green-50 dark:bg-green-900/20 border-green-400 dark:border-green-600'
+                        }`}>
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Filter Reasoning</p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300">
+                                {article.filter_score_reason}
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Curation Notes */}
+                    {article.curation_notes && (
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded border-l-2 border-blue-400 dark:border-blue-600">
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Curation Notes</p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300">
+                                {article.curation_notes}
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Abstract */}
+                    {article.abstract && (
+                        <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded">
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Abstract</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                {article.abstract}
+                            </p>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

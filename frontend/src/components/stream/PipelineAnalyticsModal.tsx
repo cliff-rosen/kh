@@ -34,7 +34,8 @@ interface PipelineAnalytics {
         is_duplicate: boolean;
         duplicate_of_id: number | null;
         passed_semantic_filter: boolean | null;
-        filter_rejection_reason: string | null;
+        filter_score: number | null;
+        filter_score_reason: string | null;
         included_in_report: boolean;
         presentation_categories: string[];
         authors: string[];
@@ -431,9 +432,9 @@ export default function PipelineAnalyticsModal({ reportId, onClose }: PipelineAn
                                                     </span>
                                                 )}
                                             </div>
-                                            {article.filter_rejection_reason && (
+                                            {article.filter_score_reason && (
                                                 <p className="text-sm text-red-600 dark:text-red-400 italic mt-2">
-                                                    Rejection: {article.filter_rejection_reason}
+                                                    Rejection: {article.filter_score_reason}
                                                 </p>
                                             )}
                                         </div>
@@ -638,9 +639,9 @@ export default function PipelineAnalyticsModal({ reportId, onClose }: PipelineAn
                                                                     Retrieved by: {article.retrieval_unit_id}
                                                                 </p>
                                                             )}
-                                                            {article.filter_rejection_reason && (
+                                                            {article.filter_score_reason && (
                                                                 <p className="text-xs text-orange-600 dark:text-orange-400 italic">
-                                                                    Rejection: {article.filter_rejection_reason}
+                                                                    Rejection: {article.filter_score_reason}
                                                                 </p>
                                                             )}
                                                         </div>
