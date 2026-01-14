@@ -150,6 +150,7 @@ export interface ExecutionDetail {
     approval_status: string | null;
     article_count: number;
     executive_summary: string | null;
+    category_summaries: Record<string, string> | null;
     categories: CategoryCount[];
     articles: ReportArticle[];
     approved_by: string | null;

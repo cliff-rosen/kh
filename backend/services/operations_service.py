@@ -46,6 +46,15 @@ class OperationsService:
 
     def __init__(self, db: Session):
         self.db = db
+        self._association_service = None
+
+    @property
+    def association_service(self):
+        """Lazy-load ReportArticleAssociationService."""
+        if self._association_service is None:
+            from services.report_article_association_service import ReportArticleAssociationService
+            self._association_service = ReportArticleAssociationService(self.db)
+        return self._association_service
 
     # ==================== Execution Queue ====================
 
@@ -223,6 +232,9 @@ class OperationsService:
                 filter_score_reason=wip.filter_score_reason,
                 included_in_report=wip.included_in_report or False,
                 presentation_categories=wip.presentation_categories or [],
+                curator_included=wip.curator_included or False,
+                curator_excluded=wip.curator_excluded or False,
+                curation_notes=wip.curation_notes,
             ))
 
         # Initialize report-related fields
@@ -231,6 +243,7 @@ class OperationsService:
         report_approval_status = None
         article_count = 0
         executive_summary = None
+        category_summaries = None
         categories_list: List[CategoryCount] = []
         articles_list: List[ReportArticle] = []
         approved_by_email = None
@@ -255,19 +268,18 @@ class OperationsService:
                     approver = self.db.query(User).filter(User.user_id == report.approved_by).first()
                     approved_by_email = approver.email if approver else None
 
-                # Get executive summary
+                # Get executive summary and category summaries
                 if report.enrichments:
                     executive_summary = report.enrichments.get("executive_summary")
+                    category_summaries = report.enrichments.get("category_summaries")
 
-                # Get report articles
-                report_articles = self.db.query(ReportArticleAssociation).filter(
-                    ReportArticleAssociation.report_id == report.report_id
-                ).all()
+                # Get visible report articles (excludes curator_excluded)
+                visible_associations = self.association_service.get_visible_for_report(report.report_id)
 
                 categories_dict: dict[str, CategoryCount] = {}
 
-                for ra in report_articles:
-                    article = self.db.query(Article).filter(Article.article_id == ra.article_id).first()
+                for ra in visible_associations:
+                    article = ra.article
                     if article:
                         presentation_categories = getattr(ra, 'presentation_categories', None) or []
 
@@ -318,6 +330,7 @@ class OperationsService:
             approval_status=report_approval_status,
             article_count=article_count,
             executive_summary=executive_summary,
+            category_summaries=category_summaries,
             categories=categories_list,
             articles=articles_list,
             approved_by=approved_by_email,

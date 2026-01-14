@@ -613,20 +613,12 @@ class ReportService:
                 if isinstance(cat, dict):
                     category_map[cat.get("id", "")] = cat.get("name", cat.get("id", "Unknown"))
 
-        # Get articles with their associations
-        results = self.db.query(
-            Article, ReportArticleAssociation
-        ).join(
-            ReportArticleAssociation,
-            Article.article_id == ReportArticleAssociation.article_id
-        ).filter(
-            ReportArticleAssociation.report_id == report_id
-        ).order_by(
-            ReportArticleAssociation.ranking.asc()
-        ).all()
+        # Get visible articles (excludes curator_excluded)
+        visible_associations = self.association_service.get_visible_for_report(report_id)
 
         articles = []
-        for article, assoc in results:
+        for assoc in visible_associations:
+            article = assoc.article
             # Resolve category IDs to names
             category_ids = assoc.presentation_categories or []
             category_names = [category_map.get(cid, cid) for cid in category_ids]
@@ -658,27 +650,19 @@ class ReportService:
         }
 
     def get_report_with_articles(self, report_id: int, user_id: int) -> Optional[ReportWithArticlesData]:
-        """Get a report with its associated articles for a user with stream access."""
+        """Get a report with its visible (non-excluded) articles for a user with stream access."""
         result = self.get_report_with_access(report_id, user_id)
         if not result:
             return None
         report, user, stream = result
 
-        # Get articles with association data
-        article_associations = self.db.query(
-            ReportArticleAssociation, Article
-        ).join(
-            Article, Article.article_id == ReportArticleAssociation.article_id
-        ).filter(
-            ReportArticleAssociation.report_id == report_id
-        ).order_by(
-            ReportArticleAssociation.ranking
-        ).all()
+        # Get visible articles (excludes curator_excluded articles)
+        visible_associations = self.association_service.get_visible_for_report(report_id)
 
         # Build list of ReportArticleInfo dataclasses
         articles = [
-            ReportArticleInfo(article=article, association=assoc)
-            for assoc, article in article_associations
+            ReportArticleInfo(article=assoc.article, association=assoc)
+            for assoc in visible_associations
         ]
 
         return ReportWithArticlesData(
@@ -849,21 +833,19 @@ class ReportService:
 
     def get_report_pmids(self, report_id: int) -> Dict[str, Article]:
         """
-        Get a mapping of PMIDs to Articles for a report.
+        Get a mapping of PMIDs to Articles for visible articles in a report.
 
         Args:
             report_id: Report ID
 
         Returns:
-            Dict mapping PMID -> Article
+            Dict mapping PMID -> Article (excludes curator_excluded articles)
         """
-        associations = self.db.query(ReportArticleAssociation).join(Article).filter(
-            ReportArticleAssociation.report_id == report_id
-        ).all()
+        visible_associations = self.association_service.get_visible_for_report(report_id)
 
         return {
             assoc.article.pmid: assoc.article
-            for assoc in associations
+            for assoc in visible_associations
             if assoc.article.pmid
         }
 
@@ -1225,20 +1207,15 @@ class ReportService:
         executive_summary = enrichments.get('executive_summary', '')
         category_summaries = enrichments.get('category_summaries', {})
 
-        # Get articles with associations
-        associations = self.db.query(ReportArticleAssociation, Article).join(
-            Article, ReportArticleAssociation.article_id == Article.article_id
-        ).filter(
-            ReportArticleAssociation.report_id == report.report_id
-        ).order_by(
-            ReportArticleAssociation.ranking
-        ).all()
+        # Get visible articles (excludes curator_excluded)
+        visible_associations = self.association_service.get_visible_for_report(report.report_id)
 
         # Group articles by category
         articles_by_category: Dict[str, List[EmailArticle]] = {}
         uncategorized: List[EmailArticle] = []
 
-        for assoc, article in associations:
+        for assoc in visible_associations:
+            article = assoc.article
             email_article = EmailArticle(
                 title=article.title,
                 article_id=article.article_id,

@@ -4,6 +4,7 @@ export type ApprovalStatus = 'awaiting_approval' | 'approved' | 'rejected';
 
 export interface ArticleEnrichments {
     stance_analysis?: StanceAnalysisResult;
+    summary?: string;  // AI-generated summary of the article
     // Add other enrichment types here as needed
 }
 

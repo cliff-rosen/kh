@@ -60,6 +60,15 @@ class ChatStreamService:
         self.user_id = user_id
         self.async_client = anthropic.AsyncAnthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
         self.chat_service = ChatService(db)
+        self._association_service = None
+
+    @property
+    def association_service(self):
+        """Lazy-load ReportArticleAssociationService."""
+        if self._association_service is None:
+            from services.report_article_association_service import ReportArticleAssociationService
+            self._association_service = ReportArticleAssociationService(self.db)
+        return self._association_service
 
     # =========================================================================
     # Public API
@@ -585,7 +594,7 @@ class ChatStreamService:
 
     def _load_report_context(self, report_id: int, context: Dict[str, Any]) -> Optional[str]:
         """Load report data from database and format it for LLM context."""
-        from models import Report, ReportArticleAssociation, Article
+        from models import Report
 
         report = self.db.query(Report).filter(
             Report.report_id == report_id,
@@ -595,15 +604,12 @@ class ChatStreamService:
         if not report:
             return None
 
-        # Load articles
-        article_associations = self.db.query(ReportArticleAssociation, Article).join(
-            Article, ReportArticleAssociation.article_id == Article.article_id
-        ).filter(
-            ReportArticleAssociation.report_id == report_id
-        ).all()
+        # Load visible articles (excludes curator_excluded)
+        visible_associations = self.association_service.get_visible_for_report(report_id)
 
         articles_context = []
-        for assoc, article in article_associations:
+        for assoc in visible_associations:
+            article = assoc.article
             articles_context.append({
                 "article_id": article.article_id,
                 "title": article.title,

@@ -446,6 +446,10 @@ class WipArticle(BaseModel):
     filter_score_reason: Optional[str] = None
     included_in_report: bool = False
     presentation_categories: List[str] = []
+    # Curation override fields
+    curator_included: bool = False
+    curator_excluded: bool = False
+    curation_notes: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -525,6 +529,7 @@ class ExecutionDetail(BaseModel):
     approval_status: Optional[str] = None
     article_count: int = 0
     executive_summary: Optional[str] = None
+    category_summaries: Optional[Dict[str, str]] = None
     categories: List[CategoryCount] = []
     articles: List["ReportArticle"] = []  # Forward ref to schemas.report
     approved_by: Optional[str] = None
