@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { XMarkIcon, CalendarIcon, DocumentTextIcon, FunnelIcon, ClockIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
-import { getCurationHistory, CurationEvent } from '../../lib/api/operationsApi';
+import { getCurationHistory, CurationEvent } from '../../lib/api/curationApi';
 
 interface BroadQueryConfig {
     query_expression: string;

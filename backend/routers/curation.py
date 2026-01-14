@@ -40,8 +40,8 @@ def get_current_user(
 # ==================== Request/Response Models ====================
 
 class UpdateReportContentRequest(BaseModel):
-    """Request to update report content (title, summaries)"""
-    title: Optional[str] = None
+    """Request to update report content (name, summaries)"""
+    report_name: Optional[str] = None
     executive_summary: Optional[str] = None
     category_summaries: Optional[Dict[str, str]] = None
 
@@ -357,17 +357,20 @@ async def get_curation_view(
         service = ReportService(db)
         data = service.get_curation_view(report_id, current_user.user_id)
 
-        # Build report data
+        # Build report data - enrichments are stored in JSON fields
+        enrichments = data.report.enrichments or {}
+        original_enrichments = data.report.original_enrichments or {}
+
         report_data = CurationReportData(
             report_id=data.report.report_id,
             report_name=data.report.report_name,
             original_report_name=data.report.original_report_name,
             report_date=data.report.report_date.isoformat() if data.report.report_date else None,
             approval_status=data.report.approval_status.value if data.report.approval_status else None,
-            executive_summary=data.report.executive_summary or "",
-            original_executive_summary=data.report.original_executive_summary or "",
-            category_summaries=data.report.category_summaries or {},
-            original_category_summaries=data.report.original_category_summaries or {},
+            executive_summary=enrichments.get('executive_summary', ''),
+            original_executive_summary=original_enrichments.get('executive_summary', ''),
+            category_summaries=enrichments.get('category_summaries', {}),
+            original_category_summaries=original_enrichments.get('category_summaries', {}),
             has_curation_edits=data.report.has_curation_edits or False,
             last_curated_by=data.report.last_curated_by,
             last_curated_at=data.report.last_curated_at.isoformat() if data.report.last_curated_at else None,
@@ -760,7 +763,7 @@ async def update_report_content(
         result = service.update_report_content(
             report_id=report_id,
             user_id=current_user.user_id,
-            title=request.title,
+            report_name=request.report_name,
             executive_summary=request.executive_summary,
             category_summaries=request.category_summaries
         )

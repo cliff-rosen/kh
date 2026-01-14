@@ -1403,12 +1403,12 @@ class ReportService:
         self,
         report_id: int,
         user_id: int,
-        title: Optional[str] = None,
+        report_name: Optional[str] = None,
         executive_summary: Optional[str] = None,
         category_summaries: Optional[Dict[str, str]] = None
     ) -> ReportContentUpdateResult:
         """
-        Update report content (title, summaries) for curation.
+        Update report content (name, summaries) for curation.
 
         Sets has_curation_edits=True and records curator info.
         Creates CurationEvent for audit trail.
@@ -1424,11 +1424,11 @@ class ReportService:
 
         changes_made = []
 
-        # Update title if provided
-        if title is not None and title != report.report_name:
+        # Update report_name if provided
+        if report_name is not None and report_name != report.report_name:
             old_value = report.report_name
-            report.report_name = title
-            changes_made.append(('report_name', old_value, title))
+            report.report_name = report_name
+            changes_made.append(('report_name', old_value, report_name))
 
         # Update enrichments
         enrichments = report.enrichments or {}

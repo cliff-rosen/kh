@@ -1,5 +1,7 @@
 /**
- * Operations API - Pipeline execution queue and scheduler management
+ * Operations API - Pipeline execution queue, scheduler, and run management
+ *
+ * Worker operations only. For curation (human review), see curationApi.ts
  */
 
 import { api } from './index';
@@ -16,25 +18,13 @@ import type {
 import type { ApprovalStatus } from '../../types/report';
 
 
-// === API-Specific Types (response wrappers and request shapes) ===
+// ==================== Execution Queue API ====================
 
 export interface ExecutionQueueResponse {
     executions: ExecutionQueueItem[];
     total: number;
     streams: StreamOption[];
 }
-
-export interface UpdateScheduleRequest {
-    enabled?: boolean;
-    frequency?: string;
-    anchor_day?: string;
-    preferred_time?: string;
-    timezone?: string;
-    lookback_days?: number;
-}
-
-
-// === Execution Queue API ===
 
 export async function getExecutionQueue(params?: {
     execution_status?: ExecutionStatus;
@@ -70,121 +60,17 @@ export async function getExecutionDetail(executionId: string): Promise<Execution
     return response.data;
 }
 
-// === Curation API ===
-// Human review and approval workflow for pipeline outputs
 
-export async function getCurationView(reportId: number): Promise<CurationViewResponse> {
-    const response = await api.get<CurationViewResponse>(`/api/operations/reports/${reportId}/curation`);
-    return response.data;
+// ==================== Scheduler API ====================
+
+export interface UpdateScheduleRequest {
+    enabled?: boolean;
+    frequency?: string;
+    anchor_day?: string;
+    preferred_time?: string;
+    timezone?: string;
+    lookback_days?: number;
 }
-
-export async function getCurationHistory(reportId: number): Promise<CurationHistoryResponse> {
-    const response = await api.get<CurationHistoryResponse>(`/api/operations/reports/${reportId}/curation/history`);
-    return response.data;
-}
-
-export async function updateReportContent(
-    reportId: number,
-    updates: ReportContentUpdate
-): Promise<ReportContentUpdateResponse> {
-    const response = await api.patch<ReportContentUpdateResponse>(
-        `/api/operations/reports/${reportId}/content`,
-        updates
-    );
-    return response.data;
-}
-
-export async function excludeArticle(
-    reportId: number,
-    articleId: number,
-    reason?: string
-): Promise<ExcludeArticleResponse> {
-    const response = await api.post<ExcludeArticleResponse>(
-        `/api/operations/reports/${reportId}/articles/${articleId}/exclude`,
-        { notes: reason }
-    );
-    return response.data;
-}
-
-export async function includeArticle(
-    reportId: number,
-    wipArticleId: number,
-    category?: string
-): Promise<IncludeArticleResponse> {
-    const response = await api.post<IncludeArticleResponse>(
-        `/api/operations/reports/${reportId}/articles/include`,
-        { wip_article_id: wipArticleId, category }
-    );
-    return response.data;
-}
-
-export async function resetCuration(
-    reportId: number,
-    wipArticleId: number
-): Promise<ResetCurationResponse> {
-    const response = await api.post<ResetCurationResponse>(
-        `/api/operations/reports/${reportId}/articles/${wipArticleId}/reset-curation`
-    );
-    return response.data;
-}
-
-export async function updateArticleInReport(
-    reportId: number,
-    articleId: number,
-    updates: {
-        ranking?: number;
-        category?: string;
-        ai_summary?: string;
-    }
-): Promise<UpdateArticleResponse> {
-    const response = await api.patch<UpdateArticleResponse>(
-        `/api/operations/reports/${reportId}/articles/${articleId}`,
-        updates
-    );
-    return response.data;
-}
-
-export async function updateWipArticleCurationNotes(
-    reportId: number,
-    wipArticleId: number,
-    curationNotes: string
-): Promise<UpdateWipArticleNotesResponse> {
-    const response = await api.patch<UpdateWipArticleNotesResponse>(
-        `/api/operations/reports/${reportId}/wip-articles/${wipArticleId}/notes`,
-        { curation_notes: curationNotes }
-    );
-    return response.data;
-}
-
-export async function approveReport(reportId: number): Promise<ApproveReportResponse> {
-    const response = await api.post<ApproveReportResponse>(`/api/operations/reports/${reportId}/approve`);
-    return response.data;
-}
-
-export async function rejectReport(reportId: number, reason: string): Promise<RejectReportResponse> {
-    const response = await api.post<RejectReportResponse>(`/api/operations/reports/${reportId}/reject`, { reason });
-    return response.data;
-}
-
-export async function sendApprovalRequest(
-    reportId: number,
-    adminUserId: number
-): Promise<{ success: boolean; message: string }> {
-    const response = await api.post<{ success: boolean; message: string }>(
-        `/api/operations/reports/${reportId}/request-approval`,
-        { admin_user_id: adminUserId }
-    );
-    return response.data;
-}
-
-export async function getPipelineAnalytics(reportId: number): Promise<PipelineAnalyticsResponse> {
-    const response = await api.get<PipelineAnalyticsResponse>(
-        `/api/operations/reports/${reportId}/pipeline-analytics`
-    );
-    return response.data;
-}
-
-// === Scheduler API ===
 
 export async function getScheduledStreams(): Promise<ScheduledStream[]> {
     const response = await api.get<ScheduledStream[]>('/api/operations/streams/scheduled');
@@ -203,7 +89,7 @@ export async function updateStreamSchedule(
 }
 
 
-// === Run Management API ===
+// ==================== Run Management API ====================
 
 export interface TriggerRunRequest {
     stream_id: number;
@@ -257,12 +143,6 @@ export async function cancelRun(executionId: string): Promise<{ message: string;
 
 /**
  * Subscribe to run status updates via SSE.
- *
- * @param executionId - The execution ID to subscribe to
- * @param onMessage - Callback for each status update
- * @param onError - Callback for errors
- * @param onComplete - Callback when stream ends
- * @returns Cleanup function to close the connection
  */
 export function subscribeToRunStatus(
     executionId: string,
@@ -276,7 +156,6 @@ export function subscribeToRunStatus(
         `/api/operations/runs/${executionId}/stream`,
         (event) => {
             onMessage(event);
-            // Check for completion stages
             if (event.stage === 'completed' || event.stage === 'failed') {
                 onComplete?.();
                 cleanup?.();
@@ -287,192 +166,4 @@ export function subscribeToRunStatus(
     );
 
     return () => cleanup?.();
-}
-
-
-// ==================== Curation Types ====================
-
-export interface CurationStats {
-    pipeline_included: number;
-    pipeline_filtered: number;
-    pipeline_duplicates: number;
-    current_included: number;
-    curator_added: number;
-    curator_removed: number;
-}
-
-export interface CurationViewResponse {
-    report: CurationReportData;
-    included_articles: CurationIncludedArticle[];
-    filtered_articles: CurationFilteredArticle[];
-    duplicate_articles: CurationFilteredArticle[];
-    curated_articles: CurationFilteredArticle[];
-    categories: CurationCategory[];
-    stream_name: string | null;
-    stats: CurationStats;
-    execution_id: string | null;
-    retrieval_config: Record<string, unknown> | null;
-    start_date: string | null;
-    end_date: string | null;
-}
-
-export interface CurationReportData {
-    report_id: number;
-    report_name: string;
-    original_report_name: string | null;
-    report_date: string | null;
-    approval_status: string | null;
-    executive_summary: string;
-    original_executive_summary: string;
-    category_summaries: Record<string, string>;
-    original_category_summaries: Record<string, string>;
-    has_curation_edits: boolean;
-    last_curated_by: number | null;
-    last_curated_at: string | null;
-}
-
-export interface CurationCategory {
-    id: string;
-    name: string;
-    color?: string;
-    description?: string;
-}
-
-export interface CurationEvent {
-    id: number;
-    event_type: string;
-    field_name: string | null;
-    old_value: string | null;
-    new_value: string | null;
-    notes: string | null;
-    article_id: number | null;
-    article_title: string | null;
-    curator_name: string;
-    created_at: string;
-}
-
-export interface CurationHistoryResponse {
-    events: CurationEvent[];
-    total_count: number;
-}
-
-export interface CurationIncludedArticle {
-    article_id: number;
-    pmid: string | null;
-    doi: string | null;
-    title: string;
-    authors: string[];
-    journal: string | null;
-    year: number | null;
-    abstract: string | null;
-    url: string | null;
-    ranking: number | null;
-    original_ranking: number | null;
-    presentation_categories: string[];
-    original_presentation_categories: string[];
-    ai_summary: string | null;
-    original_ai_summary: string | null;
-    relevance_score: number | null;
-    curation_notes: string | null;
-    curated_by: number | null;
-    curated_at: string | null;
-    curator_added: boolean;
-    wip_article_id: number | null;
-    filter_score: number | null;
-    filter_score_reason: string | null;
-}
-
-export interface CurationFilteredArticle {
-    wip_article_id: number;
-    pmid: string | null;
-    doi: string | null;
-    title: string;
-    authors: string[];
-    journal: string | null;
-    year: number | null;
-    abstract: string | null;
-    url: string | null;
-    filter_score: number | null;
-    filter_score_reason: string | null;
-    passed_semantic_filter: boolean | null;
-    is_duplicate: boolean;
-    duplicate_of_pmid: string | null;
-    included_in_report: boolean;
-    curator_included: boolean;
-    curator_excluded: boolean;
-    curation_notes: string | null;
-    presentation_categories: string[];
-}
-
-export interface ReportContentUpdate {
-    title?: string;
-    executive_summary?: string;
-    category_summaries?: Record<string, string>;
-}
-
-export interface ReportContentUpdateResponse {
-    report_name: string;
-    executive_summary: string;
-    category_summaries: Record<string, string>;
-    has_curation_edits: boolean;
-}
-
-export interface ExcludeArticleResponse {
-    article_id: number;
-    excluded: boolean;
-    wip_article_updated: boolean;
-}
-
-export interface IncludeArticleResponse {
-    article_id: number;
-    wip_article_id: number;
-    included: boolean;
-    ranking: number;
-    category: string | null;
-}
-
-export interface ResetCurationResponse {
-    wip_article_id: number;
-    reset: boolean;
-    was_curator_included?: boolean;
-    was_curator_excluded?: boolean;
-    pipeline_decision?: boolean;
-    now_in_report?: boolean;
-    message?: string;
-}
-
-export interface UpdateArticleResponse {
-    article_id: number;
-    ranking: number | null;
-    presentation_categories: string[];
-    ai_summary: string | null;
-    curation_notes: string | null;
-}
-
-export interface UpdateWipArticleNotesResponse {
-    wip_article_id: number;
-    curation_notes: string | null;
-}
-
-export interface ApproveReportResponse {
-    report_id: number;
-    approval_status: string;
-    approved_by: number;
-    approved_at: string;
-}
-
-export interface RejectReportResponse {
-    report_id: number;
-    approval_status: string;
-    rejection_reason: string;
-    rejected_by: number;
-    rejected_at: string;
-}
-
-export interface PipelineAnalyticsResponse {
-    report_id: number;
-    execution_id: string | null;
-    retrieval_config: Record<string, unknown> | null;
-    stats: CurationStats;
-    [key: string]: unknown;
 }

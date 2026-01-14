@@ -48,7 +48,7 @@ import {
     CurationIncludedArticle,
     CurationFilteredArticle,
     CurationCategory,
-} from '../../lib/api/operationsApi';
+} from '../../lib/api/curationApi';
 import RetrievalConfigModal from '../shared/RetrievalConfigModal';
 
 type ArticleTab = 'included' | 'filtered_out' | 'curated';
@@ -143,7 +143,7 @@ export default function ReportCuration() {
         setSaving(true);
         try {
             await updateReportContent(parseInt(reportId), {
-                title: newName,
+                report_name: newName,
             });
             // Update local state to match what was saved
             setEditedName(newName);

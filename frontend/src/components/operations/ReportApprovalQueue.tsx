@@ -19,7 +19,8 @@ import {
     UserCircleIcon,
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
-import { getExecutionQueue, approveReport } from '../../lib/api/operationsApi';
+import { getExecutionQueue } from '../../lib/api/operationsApi';
+import { approveReport } from '../../lib/api/curationApi';
 import type { ExecutionQueueItem } from '../../types/research-stream';
 
 // Helper to calculate time ago
