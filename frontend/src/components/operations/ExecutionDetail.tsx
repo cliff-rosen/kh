@@ -281,14 +281,25 @@ export default function ExecutionDetail() {
                         </p>
                     </div>
 
-                    {/* Duration */}
+                    {/* Completed */}
                     <div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Duration</p>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                            {execution.started_at && execution.completed_at
-                                ? `${Math.round((new Date(execution.completed_at).getTime() - new Date(execution.started_at).getTime()) / 60000)} min`
-                                : execution.started_at ? 'In progress...' : 'N/A'}
-                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Completed</p>
+                        {execution.completed_at ? (
+                            <>
+                                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {new Date(execution.completed_at).toLocaleString()}
+                                </p>
+                                {execution.started_at && (
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        ({Math.round((new Date(execution.completed_at).getTime() - new Date(execution.started_at).getTime()) / 60000)} min duration)
+                                    </p>
+                                )}
+                            </>
+                        ) : execution.started_at ? (
+                            <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">In progress...</p>
+                        ) : (
+                            <p className="text-sm text-gray-400">N/A</p>
+                        )}
                     </div>
 
                     {/* Pipeline Metrics - Enhanced Funnel */}
