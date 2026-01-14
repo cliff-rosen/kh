@@ -435,44 +435,6 @@ async def get_reports_for_stream(
         )
 
 
-@router.get("/stream/{stream_id}/latest", response_model=Report)
-async def get_latest_report_for_stream(
-    stream_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Get the latest report for a research stream"""
-    logger.info(f"get_latest_report_for_stream - user_id={current_user.user_id}, stream_id={stream_id}")
-
-    try:
-        service = ReportService(db)
-        result = service.get_latest_report_for_stream(stream_id, current_user.user_id)
-
-        if not result:
-            logger.warning(f"get_latest_report_for_stream - no reports found - user_id={current_user.user_id}, stream_id={stream_id}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No reports found for this research stream"
-            )
-
-        # Convert model + article_count to schema
-        report = Report.model_validate(result.report, from_attributes=True).model_copy(
-            update={'article_count': result.article_count}
-        )
-
-        logger.info(f"get_latest_report_for_stream complete - user_id={current_user.user_id}, stream_id={stream_id}, report_id={report.report_id}")
-        return report
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"get_latest_report_for_stream failed - user_id={current_user.user_id}, stream_id={stream_id}: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get latest report: {str(e)}"
-        )
-
-
 @router.get("/{report_id}", response_model=ReportWithArticles)
 @track_endpoint("view_report")
 async def get_report_with_articles(

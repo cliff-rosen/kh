@@ -520,35 +520,6 @@ class ReportService:
 
         return result
 
-    def get_latest_report_for_stream(self, research_stream_id: int, user_id: int) -> Optional[ReportWithArticleCount]:
-        """Get the most recent report for a research stream that the user has access to."""
-        # Check stream access
-        user = self.user_service.get_user_by_id(user_id)
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == research_stream_id
-        ).first()
-
-        if not user or not stream or not self._user_has_stream_access(user, stream):
-            return None
-
-        # Build query for latest report
-        query = self.db.query(Report).filter(
-            Report.research_stream_id == research_stream_id
-        )
-
-        # Non-admins can only see approved reports
-        if user.role != UserRole.PLATFORM_ADMIN:
-            query = query.filter(Report.approval_status == ApprovalStatus.APPROVED)
-
-        report = query.order_by(Report.report_date.desc()).first()
-
-        if not report:
-            return None
-
-        # Return dataclass with report model and article count
-        article_count = self.association_service.count_visible(report.report_id)
-        return ReportWithArticleCount(report=report, article_count=article_count)
-
     def get_recent_reports(self, user_id: int, limit: int = 5) -> List[ReportWithArticleCount]:
         """Get the most recent reports across all accessible streams for a user."""
         user = self.user_service.get_user_by_id(user_id)
