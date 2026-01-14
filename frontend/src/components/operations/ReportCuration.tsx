@@ -251,26 +251,21 @@ export default function ReportCuration() {
         }
     };
 
-    // Handle saving curation notes for an included article
-    const handleSaveIncludedNotes = async (article: CurationIncludedArticle, notes: string) => {
+    // Handle saving curation notes (stored on WipArticle - single source of truth)
+    const handleSaveCurationNotes = async (wipArticleId: number, notes: string) => {
         if (!reportId) return;
 
         try {
-            await reportApi.updateArticleInReport(parseInt(reportId), article.article_id, {
-                curation_notes: notes
-            });
+            await reportApi.updateWipArticleCurationNotes(
+                parseInt(reportId),
+                wipArticleId,
+                notes
+            );
             await fetchCurationData();
         } catch (err) {
             console.error('Failed to save notes:', err);
             alert('Failed to save notes');
         }
-    };
-
-    // Handle saving curation notes for a filtered article (stored on WipArticle)
-    // Note: This would need a new API endpoint - for now just log
-    const handleSaveFilteredNotes = async (_article: CurationFilteredArticle, _notes: string) => {
-        // TODO: Implement when backend endpoint is available
-        console.log('Saving filtered article notes not yet implemented');
     };
 
     // Approve report
@@ -809,7 +804,7 @@ export default function ReportCuration() {
                                                             onToggleExpand={() => setExpandedArticle(expandedArticle === article.article_id ? null : article.article_id)}
                                                             onExclude={() => handleExcludeArticle(article)}
                                                             onCategoryChange={(newCat) => handleCategoryChange(article, newCat)}
-                                                            onSaveNotes={(notes) => handleSaveIncludedNotes(article, notes)}
+                                                            onSaveNotes={article.wip_article_id ? (notes) => handleSaveCurationNotes(article.wip_article_id!, notes) : undefined}
                                                         />
                                                     );
                                                 })}
@@ -845,7 +840,7 @@ export default function ReportCuration() {
                                                             onToggleExpand={() => setExpandedArticle(expandedArticle === article.article_id ? null : article.article_id)}
                                                             onExclude={() => handleExcludeArticle(article)}
                                                             onCategoryChange={(newCat) => handleCategoryChange(article, newCat)}
-                                                            onSaveNotes={(notes) => handleSaveIncludedNotes(article, notes)}
+                                                            onSaveNotes={article.wip_article_id ? (notes) => handleSaveCurationNotes(article.wip_article_id!, notes) : undefined}
                                                         />
                                                     );
                                                 })}
@@ -879,7 +874,7 @@ export default function ReportCuration() {
                                 isProcessing={processingArticleId === article.wip_article_id}
                                 onToggleExpand={() => setExpandedArticle(expandedArticle === article.wip_article_id ? null : article.wip_article_id)}
                                 onInclude={(categoryId) => handleIncludeArticle(article, categoryId)}
-                                onSaveNotes={(notes) => handleSaveFilteredNotes(article, notes)}
+                                onSaveNotes={(notes) => handleSaveCurationNotes(article.wip_article_id, notes)}
                             />
                         ))}
 
@@ -1559,15 +1554,17 @@ function IncludedArticleCard({
     onToggleExpand: () => void;
     onExclude: () => void;
     onCategoryChange: (categoryId: string) => void;
-    onSaveNotes: (notes: string) => void;
+    onSaveNotes?: (notes: string) => void;
 }) {
     const [notes, setNotes] = useState(article.curation_notes || '');
     const [savingNotes, setSavingNotes] = useState(false);
     const pubmedUrl = article.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/` : null;
     const currentCategory = article.presentation_categories?.[0] || '';
     const notesModified = notes !== (article.curation_notes || '');
+    const canSaveNotes = !!onSaveNotes;
 
     const handleSaveNotes = async () => {
+        if (!onSaveNotes) return;
         setSavingNotes(true);
         try {
             await onSaveNotes(notes);
@@ -1688,7 +1685,7 @@ function IncludedArticleCard({
                                             </span>
                                             <span className="text-xs text-gray-400">(for retrieval improvement)</span>
                                         </div>
-                                        {notesModified && (
+                                        {canSaveNotes && notesModified && (
                                             <button
                                                 type="button"
                                                 onClick={handleSaveNotes}
@@ -1701,13 +1698,16 @@ function IncludedArticleCard({
                                     </div>
                                     <textarea
                                         value={notes}
-                                        onChange={(e) => setNotes(e.target.value)}
-                                        placeholder="Add notes about why this article should or shouldn't be included..."
+                                        onChange={(e) => canSaveNotes && setNotes(e.target.value)}
+                                        readOnly={!canSaveNotes}
+                                        placeholder={canSaveNotes ? "Add notes about why this article should or shouldn't be included..." : "Notes unavailable (no WipArticle linked)"}
                                         rows={2}
-                                        className={`w-full text-sm px-3 py-2 border rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white ${
-                                            notesModified
-                                                ? 'border-blue-300 dark:border-blue-600'
-                                                : 'border-gray-200 dark:border-gray-700'
+                                        className={`w-full text-sm px-3 py-2 border rounded text-gray-900 dark:text-white ${
+                                            !canSaveNotes
+                                                ? 'bg-gray-100 dark:bg-gray-900 border-gray-200 dark:border-gray-700 cursor-not-allowed'
+                                                : notesModified
+                                                    ? 'bg-white dark:bg-gray-800 border-blue-300 dark:border-blue-600'
+                                                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
                                         }`}
                                     />
                                 </div>

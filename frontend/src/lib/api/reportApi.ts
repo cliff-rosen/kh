@@ -218,16 +218,35 @@ export const reportApi = {
             ranking?: number;
             category?: string;
             ai_summary?: string;
-            curation_notes?: string;
         }
     ): Promise<{
         article_id: number;
         ranking: number | null;
         presentation_categories: string[];
         ai_summary: string | null;
-        curation_notes: string | null;
     }> {
         const response = await api.patch(`/api/reports/${reportId}/articles/${articleId}`, updates);
+        return response.data;
+    },
+
+    /**
+     * Update curation notes for a WipArticle
+     * This is the single source of truth for curation notes - works for both
+     * included and filtered articles.
+     * @param wipArticleId - The WipArticle ID (available on both included and filtered articles)
+     */
+    async updateWipArticleCurationNotes(
+        reportId: number,
+        wipArticleId: number,
+        curationNotes: string
+    ): Promise<{
+        wip_article_id: number;
+        curation_notes: string;
+    }> {
+        const response = await api.patch(
+            `/api/reports/${reportId}/wip-articles/${wipArticleId}/notes`,
+            { curation_notes: curationNotes }
+        );
         return response.data;
     },
 

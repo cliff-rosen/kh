@@ -15,6 +15,7 @@ from schemas.report import Report, ReportWithArticles
 from services.report_service import ReportService
 from services.email_service import EmailService
 from services.user_tracking_service import track_endpoint
+from services.wip_article_service import WipArticleService
 from routers.auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -79,11 +80,11 @@ class IncludeArticleRequest(BaseModel):
 
 
 class UpdateArticleRequest(BaseModel):
-    """Request to update an article within the report"""
+    """Request to update an article within the report (ranking, category, AI summary)"""
     ranking: Optional[int] = None
     category: Optional[str] = None
     ai_summary: Optional[str] = None
-    curation_notes: Optional[str] = None
+    # Note: curation_notes are stored on WipArticle, use PATCH /wip-articles/{id}/notes endpoint
 
 
 class ApproveReportRequest(BaseModel):
@@ -247,6 +248,17 @@ class ResetCurationResponse(BaseModel):
     message: Optional[str] = None
 
 
+class UpdateWipArticleNotesRequest(BaseModel):
+    """Request to update curation notes on a WipArticle"""
+    curation_notes: str
+
+
+class UpdateWipArticleNotesResponse(BaseModel):
+    """Response for update_wip_article_notes endpoint"""
+    wip_article_id: int
+    curation_notes: str
+
+
 class ExcludeArticleResponse(BaseModel):
     """Response for exclude_article endpoint"""
     article_id: int
@@ -278,7 +290,7 @@ class UpdateArticleResponse(BaseModel):
     ranking: Optional[int] = None
     presentation_categories: List[str] = []
     ai_summary: Optional[str] = None
-    curation_notes: Optional[str] = None
+    # Note: curation_notes are on WipArticle, not returned here
 
 
 class ApproveReportResponse(BaseModel):
@@ -1048,7 +1060,7 @@ async def get_curation_view(
                 ai_summary=item.association.ai_summary,
                 original_ai_summary=item.association.original_ai_summary,
                 relevance_score=item.association.relevance_score,
-                curation_notes=item.association.curation_notes,
+                curation_notes=item.curation_notes,  # From WipArticle (single source of truth)
                 curated_by=item.association.curated_by,
                 curated_at=item.association.curated_at.isoformat() if item.association.curated_at else None,
                 curator_added=item.association.curator_added or False,
@@ -1318,6 +1330,55 @@ async def reset_curation(
         )
 
 
+@router.patch("/{report_id}/wip-articles/{wip_article_id}/notes", response_model=UpdateWipArticleNotesResponse)
+async def update_wip_article_notes(
+    report_id: int,
+    wip_article_id: int,
+    request: UpdateWipArticleNotesRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update curation notes for a WipArticle.
+
+    Curation notes document the curator's reasoning for including/excluding an article.
+    This is the single source of truth for curation notes - works for both included
+    and filtered articles.
+
+    The report_id is used to verify user has access to this report's curation.
+    """
+    logger.info(f"update_wip_article_notes - user_id={current_user.user_id}, report_id={report_id}, wip_article_id={wip_article_id}")
+
+    try:
+        # Verify user has access to this report (will raise 404 if not found or no access)
+        report_service = ReportService(db)
+        report_service._get_report_for_curation(report_id, current_user.user_id)
+
+        # Update the WipArticle curation notes
+        wip_service = WipArticleService(db)
+        article = wip_service.update_curation_notes(
+            wip_article_id=wip_article_id,
+            user_id=current_user.user_id,
+            notes=request.curation_notes
+        )
+        db.commit()
+
+        logger.info(f"update_wip_article_notes complete - user_id={current_user.user_id}, wip_article_id={wip_article_id}")
+        return UpdateWipArticleNotesResponse(
+            wip_article_id=article.id,
+            curation_notes=article.curation_notes
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"update_wip_article_notes failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update curation notes: {str(e)}"
+        )
+
+
 @router.patch("/{report_id}/articles/{article_id}", response_model=UpdateArticleResponse)
 async def update_article_in_report(
     report_id: int,
@@ -1339,8 +1400,7 @@ async def update_article_in_report(
             user_id=current_user.user_id,
             ranking=request.ranking,
             category=request.category,
-            ai_summary=request.ai_summary,
-            curation_notes=request.curation_notes
+            ai_summary=request.ai_summary
         )
         logger.info(f"update_article_in_report complete - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
         return UpdateArticleResponse(**asdict(result))

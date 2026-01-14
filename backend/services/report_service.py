@@ -153,6 +153,7 @@ class IncludedArticleData:
     association: ReportArticleAssociation
     wip_article_id: Optional[int] = None  # For reset curation on curator-added articles
     filter_score: Optional[float] = None  # From WipArticle
+    curation_notes: Optional[str] = None  # From WipArticle (single source of truth)
     filter_score_reason: Optional[str] = None  # From WipArticle
 
 
@@ -216,7 +217,7 @@ class UpdateArticleResult:
     ranking: Optional[int]
     presentation_categories: List[str]
     ai_summary: Optional[str]
-    curation_notes: Optional[str]
+    # Note: curation_notes are on WipArticle, not here
 
 
 @dataclass
@@ -1403,8 +1404,8 @@ class ReportService:
                     curated_articles.append(wip)
 
         # Build included articles with wip_article_id and score data lookup
-        def get_wip_data(article: Article) -> tuple[Optional[int], Optional[float], Optional[str]]:
-            """Look up WipArticle data (id, filter_score, filter_score_reason) by PMID or DOI."""
+        def get_wip_data(article: Article) -> tuple[Optional[int], Optional[float], Optional[str], Optional[str]]:
+            """Look up WipArticle data (id, filter_score, filter_score_reason, curation_notes) by PMID or DOI."""
             wip: Optional[WipArticle] = None
             if article.pmid and article.pmid in wip_objects_by_pmid:
                 wip = wip_objects_by_pmid[article.pmid]
@@ -1412,18 +1413,19 @@ class ReportService:
                 wip = wip_objects_by_doi[article.doi]
 
             if wip:
-                return wip.id, wip.filter_score, wip.filter_score_reason
-            return None, None, None
+                return wip.id, wip.filter_score, wip.filter_score_reason, wip.curation_notes
+            return None, None, None, None
 
         included_articles = []
         for assoc in visible_associations:
-            wip_id, score, reason = get_wip_data(assoc.article)
+            wip_id, score, reason, notes = get_wip_data(assoc.article)
             included_articles.append(IncludedArticleData(
                 article=assoc.article,
                 association=assoc,
                 wip_article_id=wip_id,
                 filter_score=score,
-                filter_score_reason=reason
+                filter_score_reason=reason,
+                curation_notes=notes
             ))
 
         # Current count = pipeline_included - curator_removed + curator_added
@@ -1835,13 +1837,13 @@ class ReportService:
         user_id: int,
         ranking: Optional[int] = None,
         category: Optional[str] = None,
-        ai_summary: Optional[str] = None,
-        curation_notes: Optional[str] = None
+        ai_summary: Optional[str] = None
     ) -> UpdateArticleResult:
         """
         Edit an article within the report (ranking, category, AI summary).
 
         Updates ReportArticleAssociation and creates CurationEvent.
+        Note: curation_notes are stored on WipArticle, use WipArticleService.update_curation_notes()
 
         Raises:
             HTTPException: 404 if report or article not found
@@ -1877,10 +1879,7 @@ class ReportService:
             association.ai_summary = ai_summary
             changes_made.append(('ai_summary', old_val[:100] if old_val else None, ai_summary[:100]))
 
-        if curation_notes is not None:
-            association.curation_notes = curation_notes
-
-        if changes_made or curation_notes:
+        if changes_made:
             association.curated_by = user_id
             association.curated_at = datetime.utcnow()
 
@@ -1909,7 +1908,6 @@ class ReportService:
             ranking=association.ranking,
             presentation_categories=association.presentation_categories or [],
             ai_summary=association.ai_summary,
-            curation_notes=association.curation_notes,
         )
 
     def approve_report(

@@ -546,6 +546,38 @@ class WipArticleService:
 
         return pipeline_would_include
 
+    def update_curation_notes(
+        self,
+        wip_article_id: int,
+        user_id: int,
+        notes: str
+    ) -> WipArticle:
+        """
+        Update curation notes for a WipArticle.
+
+        Curation notes document why an article was included/excluded during curation.
+        This is the single source of truth for curation notes (not ReportArticleAssociation).
+
+        Args:
+            wip_article_id: ID of the WipArticle
+            user_id: ID of the curator making the change
+            notes: The curation notes text
+
+        Returns:
+            Updated WipArticle
+
+        Raises:
+            HTTPException 404 if article not found
+        """
+        from datetime import datetime
+
+        article = self.get_by_id_or_404(wip_article_id)
+        article.curation_notes = notes
+        article.curated_by = user_id
+        article.curated_at = datetime.utcnow()
+
+        return article
+
     def get_by_execution_and_identifiers(
         self,
         execution_id: str,
