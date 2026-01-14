@@ -576,6 +576,8 @@ class WipArticleService:
         article.curated_by = user_id
         article.curated_at = datetime.utcnow()
 
+        self.db.commit()
+
         return article
 
     def get_by_execution_and_identifiers(

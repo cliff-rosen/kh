@@ -685,8 +685,8 @@ async def update_wip_article_notes(
         wip_service = WipArticleService(db)
         article = wip_service.update_curation_notes(
             wip_article_id=wip_article_id,
-            curation_notes=request.curation_notes,
-            user_id=current_user.user_id
+            user_id=current_user.user_id,
+            notes=request.curation_notes
         )
 
         logger.info(f"update_wip_article_notes complete - user_id={current_user.user_id}, wip_article_id={wip_article_id}")
