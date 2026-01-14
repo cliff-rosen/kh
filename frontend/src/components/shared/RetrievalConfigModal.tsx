@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { XMarkIcon, CalendarIcon, DocumentTextIcon, FunnelIcon, ClockIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
-import { reportApi, CurationEvent } from '../../lib/api/reportApi';
+import { getCurationHistory, CurationEvent } from '../../lib/api/operationsApi';
 
 interface BroadQueryConfig {
     query_expression: string;
@@ -68,7 +68,7 @@ export default function RetrievalConfigModal({
         setHistoryLoading(true);
         setHistoryError(null);
         try {
-            const response = await reportApi.getCurationHistory(reportId);
+            const response = await getCurationHistory(reportId);
             setCurationEvents(response.events);
         } catch (err) {
             console.error('Failed to load curation history:', err);

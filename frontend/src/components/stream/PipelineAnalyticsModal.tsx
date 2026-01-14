@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { XMarkIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { reportApi } from '../../lib/api/reportApi';
+import { getPipelineAnalytics } from '../../lib/api/operationsApi';
 
 interface PipelineAnalytics {
     report_id: number;
@@ -75,7 +76,7 @@ export default function PipelineAnalyticsModal({ reportId, onClose }: PipelineAn
         setLoading(true);
         setError(null);
         try {
-            const data = await reportApi.getPipelineAnalytics(reportId);
+            const data = await getPipelineAnalytics(reportId);
             setAnalytics(data);
         } catch (err: any) {
             setError(err.response?.data?.detail || 'Failed to load analytics');

@@ -32,13 +32,23 @@ import {
     ArrowsPointingOutIcon,
     ArrowsPointingInIcon,
 } from '@heroicons/react/24/outline';
+import { reportApi } from '../../lib/api/reportApi';
 import {
-    reportApi,
+    getCurationView,
+    updateReportContent,
+    excludeArticle,
+    includeArticle,
+    resetCuration,
+    updateArticleInReport,
+    updateWipArticleCurationNotes,
+    approveReport,
+    rejectReport,
+    sendApprovalRequest,
     CurationViewResponse,
     CurationIncludedArticle,
     CurationFilteredArticle,
     CurationCategory,
-} from '../../lib/api/reportApi';
+} from '../../lib/api/operationsApi';
 import RetrievalConfigModal from '../shared/RetrievalConfigModal';
 
 type ArticleTab = 'included' | 'filtered_out' | 'curated';
@@ -86,7 +96,7 @@ export default function ReportCuration() {
         }
         setError(null);
         try {
-            const data = await reportApi.getCurationView(parseInt(reportId));
+            const data = await getCurationView(parseInt(reportId));
             setCurationData(data);
             // Only update edited values on initial load to preserve user edits
             if (isInitialLoad) {
@@ -132,7 +142,7 @@ export default function ReportCuration() {
 
         setSaving(true);
         try {
-            await reportApi.updateReportContent(parseInt(reportId), {
+            await updateReportContent(parseInt(reportId), {
                 title: newName,
             });
             // Update local state to match what was saved
@@ -153,7 +163,7 @@ export default function ReportCuration() {
 
         setSaving(true);
         try {
-            await reportApi.updateReportContent(parseInt(reportId), {
+            await updateReportContent(parseInt(reportId), {
                 executive_summary: editedSummary !== curationData.report.executive_summary ? editedSummary : undefined,
                 category_summaries: JSON.stringify(editedCategorySummaries) !== JSON.stringify(curationData.report.category_summaries || {})
                     ? editedCategorySummaries
@@ -178,9 +188,9 @@ export default function ReportCuration() {
             // For curator-added articles, use resetCuration to undo the add
             // For pipeline-included articles, use excludeArticle to soft exclude
             if (article.curator_added && article.wip_article_id) {
-                await reportApi.resetCuration(parseInt(reportId), article.wip_article_id);
+                await resetCuration(parseInt(reportId), article.wip_article_id);
             } else {
-                await reportApi.excludeArticle(parseInt(reportId), article.article_id);
+                await excludeArticle(parseInt(reportId), article.article_id);
             }
             await fetchCurationData();
         } catch (err) {
@@ -201,9 +211,9 @@ export default function ReportCuration() {
             // use resetCuration to restore to pipeline's original decision
             // For truly filtered articles, use includeArticle to add them
             if (article.curator_excluded) {
-                await reportApi.resetCuration(parseInt(reportId), article.wip_article_id);
+                await resetCuration(parseInt(reportId), article.wip_article_id);
             } else {
-                await reportApi.includeArticle(parseInt(reportId), article.wip_article_id, categoryId);
+                await includeArticle(parseInt(reportId), article.wip_article_id, categoryId);
             }
             await fetchCurationData();
         } catch (err) {
@@ -220,7 +230,7 @@ export default function ReportCuration() {
 
         setUndoing(curatedArticle.wip_article_id);
         try {
-            const result = await reportApi.resetCuration(parseInt(reportId), curatedArticle.wip_article_id);
+            const result = await resetCuration(parseInt(reportId), curatedArticle.wip_article_id);
             if (!result.reset) {
                 console.log('Nothing to reset:', result.message);
             }
@@ -239,7 +249,7 @@ export default function ReportCuration() {
 
         setSavingCategoryArticleId(article.article_id);
         try {
-            await reportApi.updateArticleInReport(parseInt(reportId), article.article_id, {
+            await updateArticleInReport(parseInt(reportId), article.article_id, {
                 category: newCategoryId
             });
             await fetchCurationData();
@@ -256,7 +266,7 @@ export default function ReportCuration() {
         if (!reportId) return;
 
         try {
-            await reportApi.updateWipArticleCurationNotes(
+            await updateWipArticleCurationNotes(
                 parseInt(reportId),
                 wipArticleId,
                 notes
@@ -274,7 +284,7 @@ export default function ReportCuration() {
 
         setApproving(true);
         try {
-            await reportApi.approveReport(parseInt(reportId));
+            await approveReport(parseInt(reportId));
             navigate('/operations/approvals');
         } catch (err) {
             console.error('Failed to approve report:', err);
@@ -290,7 +300,7 @@ export default function ReportCuration() {
 
         setApproving(true);
         try {
-            await reportApi.rejectReport(parseInt(reportId), rejectReason);
+            await rejectReport(parseInt(reportId), rejectReason);
             navigate('/operations/approvals');
         } catch (err) {
             console.error('Failed to reject report:', err);
@@ -1436,7 +1446,7 @@ function ApprovalRequestSection({
         setError(null);
         setSuccess(null);
         try {
-            await reportApi.sendApprovalRequest(reportId, selectedAdmin);
+            await sendApprovalRequest(reportId, selectedAdmin);
             const admin = admins.find(a => a.user_id === selectedAdmin);
             setSuccess(`Approval request sent to ${admin?.display_name || admin?.email}`);
         } catch (err) {
