@@ -1,17 +1,19 @@
 /**
- * Execution Review - Detailed view for reviewing a pipeline execution and approving/rejecting its report
+ * Execution Detail - Read-only view of a pipeline execution and its results
  *
  * Route: /operations/executions/:executionId
  * Features:
  * - View execution details (when ran, duration, filtering stats)
- * - View executive summary
- * - View articles by category
- * - Browse all pipeline articles (included, duplicates, filtered out)
- * - Approve or reject with reason (for completed executions)
+ * - View report output: executive summary, articles by category with summaries
+ * - View pipeline details: filtered articles, duplicates, retrieval config
+ * - Link to Curation for editing
+ * - Email report functionality
+ *
+ * Note: Approval/rejection is done in the Curation screen, not here.
  */
 
 import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
     ArrowLeftIcon,
     CheckIcon,
@@ -26,31 +28,24 @@ import {
     ExclamationTriangleIcon,
     EnvelopeIcon,
     PaperAirplaneIcon,
+    PencilSquareIcon,
 } from '@heroicons/react/24/outline';
 import {
     getExecutionDetail,
-    approveReport,
-    rejectReport,
 } from '../../lib/api/operationsApi';
 import { reportApi } from '../../lib/api/reportApi';
 import type { ExecutionStatus, WipArticle, ExecutionDetail } from '../../types/research-stream';
 import type { ReportWithArticles, ReportArticle } from '../../types/report';
 
-type PipelineTab = 'report_preview' | 'included' | 'duplicates' | 'filtered_out';
-
-export default function ReportReview() {
+export default function ExecutionDetail() {
     const { executionId } = useParams<{ executionId: string }>();
-    const navigate = useNavigate();
     const [execution, setExecution] = useState<ExecutionDetail | null>(null);
     const [report, setReport] = useState<ReportWithArticles | null>(null);
     const [loading, setLoading] = useState(true);
     const [loadingReport, setLoadingReport] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
-    const [rejectionReason, setRejectionReason] = useState('');
-    const [showRejectModal, setShowRejectModal] = useState(false);
-    const [pipelineTab, setPipelineTab] = useState<PipelineTab>('report_preview');
-    const [submitting, setSubmitting] = useState(false);
+    const [showPipelineDetails, setShowPipelineDetails] = useState(false);
 
     // Email state
     const [showEmailModal, setShowEmailModal] = useState(false);
@@ -129,39 +124,6 @@ export default function ReportReview() {
         });
 
         return categoryMap;
-    };
-
-    const canApproveReject = execution?.execution_status === 'completed' &&
-        execution?.report_id &&
-        execution?.approval_status === 'awaiting_approval';
-
-    const handleApprove = async () => {
-        if (!execution?.report_id) return;
-        setSubmitting(true);
-        try {
-            await approveReport(execution.report_id);
-            navigate('/operations');
-        } catch (err) {
-            console.error('Failed to approve report:', err);
-            setError('Failed to approve report');
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    const handleReject = async () => {
-        if (!execution?.report_id || !rejectionReason.trim()) return;
-        setSubmitting(true);
-        try {
-            await rejectReport(execution.report_id, rejectionReason);
-            setShowRejectModal(false);
-            navigate('/operations');
-        } catch (err) {
-            console.error('Failed to reject report:', err);
-            setError('Failed to reject report');
-        } finally {
-            setSubmitting(false);
-        }
     };
 
     // Email handlers
@@ -273,25 +235,14 @@ export default function ReportReview() {
                         </p>
                     </div>
                 </div>
-                {canApproveReject && (
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => setShowRejectModal(true)}
-                            className="px-5 py-2.5 border-2 border-red-600 text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 font-medium"
-                            disabled={submitting}
-                        >
-                            <XMarkIcon className="h-5 w-5" />
-                            Reject Report
-                        </button>
-                        <button
-                            onClick={handleApprove}
-                            className="px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 font-medium disabled:opacity-50"
-                            disabled={submitting}
-                        >
-                            <CheckIcon className="h-5 w-5" />
-                            {submitting ? 'Processing...' : 'Approve Report'}
-                        </button>
-                    </div>
+                {execution.report_id && (
+                    <Link
+                        to={`/operations/reports/${execution.report_id}/curate`}
+                        className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 font-medium"
+                    >
+                        <PencilSquareIcon className="h-5 w-5" />
+                        Go to Curation
+                    </Link>
                 )}
             </div>
 
@@ -302,10 +253,22 @@ export default function ReportReview() {
                     {/* Status & Type */}
                     <div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Status</p>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                             <ExecutionStatusBadge status={execution.execution_status} />
+                            {execution.report_id && execution.approval_status && (
+                                <>
+                                    <span className="text-gray-300 dark:text-gray-600">→</span>
+                                    <ApprovalStatusBadge status={execution.approval_status} />
+                                </>
+                            )}
                             <span className="text-xs text-gray-500 capitalize">({execution.run_type})</span>
                         </div>
+                        {execution.approved_by && (
+                            <p className="text-xs text-gray-400 mt-1">
+                                by {execution.approved_by}
+                                {execution.approved_at && ` on ${new Date(execution.approved_at).toLocaleDateString()}`}
+                            </p>
+                        )}
                     </div>
 
                     {/* Date Range */}
@@ -328,45 +291,71 @@ export default function ReportReview() {
                         </p>
                     </div>
 
-                    {/* Pipeline Metrics */}
-                    <div>
+                    {/* Pipeline Metrics - Enhanced Funnel */}
+                    <div className="col-span-2 md:col-span-1">
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Article Funnel</p>
-                        {report?.pipeline_metrics ? (
-                            <div className="flex items-center gap-1 text-sm">
-                                <span className="font-medium text-gray-700 dark:text-gray-300" title="Total Retrieved">
-                                    {report.pipeline_metrics.total_retrieved ?? '?'}
-                                </span>
-                                <span className="text-gray-400">→</span>
-                                <span className="font-medium text-gray-700 dark:text-gray-300" title="After Dedup">
-                                    {report.pipeline_metrics.total_retrieved != null && report.pipeline_metrics.global_duplicates != null
-                                        ? report.pipeline_metrics.total_retrieved - report.pipeline_metrics.global_duplicates
-                                        : '?'}
-                                </span>
-                                <span className="text-gray-400">→</span>
-                                <span className="font-bold text-blue-600 dark:text-blue-400" title="Included">
-                                    {report.pipeline_metrics.included_in_report ?? '?'}
-                                </span>
-                            </div>
-                        ) : (
-                            <p className="text-sm text-gray-400">-</p>
-                        )}
+                        {(() => {
+                            // Compute stats from WIP articles
+                            const wip = execution?.wip_articles || [];
+                            const retrieved = wip.length;
+                            const duplicates = wip.filter(a => a.is_duplicate).length;
+                            const filtered = wip.filter(a => !a.is_duplicate && a.passed_semantic_filter === false).length;
+                            const pipelineIncluded = wip.filter(a => !a.is_duplicate && a.passed_semantic_filter === true).length;
+                            const curatorAdded = wip.filter(a => a.curator_included).length;
+                            const curatorRemoved = wip.filter(a => a.curator_excluded).length;
+                            const finalCount = includedArticles.length;
+
+                            return (
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-1 text-sm flex-wrap">
+                                        <span className="text-gray-500 dark:text-gray-400">Pipeline:</span>
+                                        <span className="font-medium text-gray-700 dark:text-gray-300" title="Retrieved">
+                                            {retrieved}
+                                        </span>
+                                        <span className="text-gray-400">→</span>
+                                        <span className="text-gray-500" title={`${duplicates} duplicates removed`}>
+                                            -{duplicates} dup
+                                        </span>
+                                        <span className="text-gray-400">→</span>
+                                        <span className="text-gray-500" title={`${filtered} filtered out`}>
+                                            -{filtered} filt
+                                        </span>
+                                        <span className="text-gray-400">→</span>
+                                        <span className="font-medium text-gray-700 dark:text-gray-300" title="Pipeline included">
+                                            {pipelineIncluded}
+                                        </span>
+                                    </div>
+                                    {(curatorAdded > 0 || curatorRemoved > 0) && (
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <span className="text-gray-500 dark:text-gray-400">Curation:</span>
+                                            {curatorAdded > 0 && (
+                                                <span className="text-green-600 dark:text-green-400" title="Curator added">
+                                                    +{curatorAdded}
+                                                </span>
+                                            )}
+                                            {curatorRemoved > 0 && (
+                                                <span className="text-red-600 dark:text-red-400" title="Curator removed">
+                                                    -{curatorRemoved}
+                                                </span>
+                                            )}
+                                            <span className="text-gray-400">→</span>
+                                            <span className="font-bold text-blue-600 dark:text-blue-400" title="Final count">
+                                                {finalCount} final
+                                            </span>
+                                        </div>
+                                    )}
+                                    {curatorAdded === 0 && curatorRemoved === 0 && (
+                                        <div className="text-sm">
+                                            <span className="font-bold text-blue-600 dark:text-blue-400">
+                                                {finalCount} articles in report
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
                     </div>
                 </div>
-
-                {/* Approval Status Row (if applicable) */}
-                {execution.report_id && execution.approval_status && (
-                    <div className="px-4 py-2 bg-gray-50 dark:bg-gray-900/50 flex items-center gap-3 border-b border-gray-200 dark:border-gray-700">
-                        <ApprovalStatusBadge status={execution.approval_status} />
-                        {execution.approved_by && (
-                            <span className="text-xs text-gray-500">by {execution.approved_by}</span>
-                        )}
-                        {execution.approved_at && (
-                            <span className="text-xs text-gray-400">
-                                on {new Date(execution.approved_at).toLocaleDateString()}
-                            </span>
-                        )}
-                    </div>
-                )}
 
                 {/* Error display */}
                 {execution.execution_status === 'failed' && execution.error && (
@@ -397,63 +386,20 @@ export default function ReportReview() {
                 </div>
             </div>
 
-            {/* Main Content Tabs */}
+            {/* Section 1: Report Output (Primary) */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
                 <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                    {/* Tabs */}
-                    <div className="flex gap-1 bg-gray-100 dark:bg-gray-900 rounded-lg p-1">
-                        <button
-                            onClick={() => setPipelineTab('report_preview')}
-                            className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pipelineTab === 'report_preview'
-                                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
-                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                                }`}
-                        >
-                            Report Preview
-                        </button>
-                        <button
-                            onClick={() => setPipelineTab('included')}
-                            className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pipelineTab === 'included'
-                                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
-                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                                }`}
-                        >
-                            Included
-                            <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
-                                {includedArticles.length}
-                            </span>
-                        </button>
-                        <button
-                            onClick={() => setPipelineTab('duplicates')}
-                            className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pipelineTab === 'duplicates'
-                                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
-                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                                }`}
-                        >
-                            Duplicates
-                            <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-                                {duplicateArticles.length}
-                            </span>
-                        </button>
-                        <button
-                            onClick={() => setPipelineTab('filtered_out')}
-                            className={`flex-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${pipelineTab === 'filtered_out'
-                                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow'
-                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                                }`}
-                        >
-                            Filtered Out
-                            <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
-                                {filteredOutArticles.length}
-                            </span>
-                        </button>
-                    </div>
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <DocumentTextIcon className="h-5 w-5 text-gray-400" />
+                        Report Output
+                    </h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        What will be sent to subscribers - verify summaries are correct
+                    </p>
                 </div>
 
-                {/* Tab content */}
                 <div className="p-4">
-                    {/* Report Preview Tab */}
-                    {pipelineTab === 'report_preview' && (
+                    {(
                         <div className="space-y-6">
                             {loadingReport ? (
                                 <div className="flex items-center justify-center py-12">
@@ -577,93 +523,79 @@ export default function ReportReview() {
                             )}
                         </div>
                     )}
-
-                    {/* Included Tab */}
-                    {pipelineTab === 'included' && (
-                        <div className="space-y-3">
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                                Articles marked for inclusion in the report.
-                            </p>
-                            {includedArticles.map((article) => (
-                                <WipArticleCard key={article.id} article={article} type="included" />
-                            ))}
-                            {includedArticles.length === 0 && (
-                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
-                                    No articles included in report
-                                </p>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Duplicates Tab */}
-                    {pipelineTab === 'duplicates' && (
-                        <div className="space-y-3">
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                                These articles were detected as duplicates of existing articles and excluded from processing.
-                            </p>
-                            {duplicateArticles.map((article) => (
-                                <WipArticleCard key={article.id} article={article} type="duplicate" />
-                            ))}
-                            {duplicateArticles.length === 0 && (
-                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">No duplicates detected</p>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Filtered Out Tab */}
-                    {pipelineTab === 'filtered_out' && (
-                        <div className="space-y-3">
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                                These articles did not pass the semantic filter and were excluded from the report.
-                            </p>
-                            {filteredOutArticles.map((article) => (
-                                <WipArticleCard key={article.id} article={article} type="filtered" />
-                            ))}
-                            {filteredOutArticles.length === 0 && (
-                                <p className="text-center text-gray-500 dark:text-gray-400 py-8">No articles filtered out</p>
-                            )}
-                        </div>
-                    )}
-
                 </div>
             </div>
 
-            {/* Reject Modal */}
-            {showRejectModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                            Reject Report
-                        </h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                            Please provide a reason for rejecting this report. This will be visible to the stream owner.
-                        </p>
-                        <textarea
-                            value={rejectionReason}
-                            onChange={(e) => setRejectionReason(e.target.value)}
-                            placeholder="Reason for rejection..."
-                            rows={4}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        />
-                        <div className="flex justify-end gap-3 mt-4">
-                            <button
-                                onClick={() => setShowRejectModal(false)}
-                                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900"
-                                disabled={submitting}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleReject}
-                                disabled={!rejectionReason.trim() || submitting}
-                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
-                            >
-                                {submitting ? 'Processing...' : 'Reject Report'}
-                            </button>
+            {/* Section 2: Pipeline Details (Collapsible) */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+                <button
+                    onClick={() => setShowPipelineDetails(!showPipelineDetails)}
+                    className="w-full p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg"
+                >
+                    <div className="flex items-center gap-2">
+                        <FunnelIcon className="h-5 w-5 text-gray-400" />
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            Pipeline Details
+                        </h2>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                            ({filteredOutArticles.length} filtered, {duplicateArticles.length} duplicates)
+                        </span>
+                    </div>
+                    {showPipelineDetails ? (
+                        <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                    ) : (
+                        <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                    )}
+                </button>
+
+                {showPipelineDetails && (
+                    <div className="border-t border-gray-200 dark:border-gray-700">
+                        {/* Filtered Out Articles */}
+                        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                                <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
+                                    {filteredOutArticles.length}
+                                </span>
+                                Filtered Out
+                            </h3>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                                Articles that did not pass the semantic filter
+                            </p>
+                            {filteredOutArticles.length > 0 ? (
+                                <div className="space-y-2 max-h-96 overflow-y-auto">
+                                    {filteredOutArticles.map((article) => (
+                                        <WipArticleCard key={article.id} article={article} type="filtered" />
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-gray-400 italic">No articles filtered out</p>
+                            )}
+                        </div>
+
+                        {/* Duplicate Articles */}
+                        <div className="p-4">
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                                <span className="px-2 py-0.5 text-xs rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                                    {duplicateArticles.length}
+                                </span>
+                                Duplicates
+                            </h3>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                                Articles detected as duplicates of existing articles
+                            </p>
+                            {duplicateArticles.length > 0 ? (
+                                <div className="space-y-2 max-h-96 overflow-y-auto">
+                                    {duplicateArticles.map((article) => (
+                                        <WipArticleCard key={article.id} article={article} type="duplicate" />
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-gray-400 italic">No duplicates detected</p>
+                            )}
                         </div>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
 
             {/* Email Modal */}
             {showEmailModal && (

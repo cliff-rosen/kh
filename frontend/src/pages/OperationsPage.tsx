@@ -4,7 +4,8 @@
  * Routes handled:
  * - /operations              → Report Queue (pipeline monitoring)
  * - /operations/approvals    → Report Approval Queue (approval workflow)
- * - /operations/executions/:id → Report Review (detail + curation)
+ * - /operations/executions/:id → Execution Detail (read-only view of pipeline results)
+ * - /operations/reports/:id/curate → Report Curation (editing, approval)
  * - /operations/scheduler    → Scheduler Management
  */
 
@@ -14,7 +15,7 @@ import {
     ClockIcon,
     ClipboardDocumentCheckIcon,
 } from '@heroicons/react/24/outline';
-import { ReportQueue, ReportReview, SchedulerManagement, ReportApprovalQueue, ReportCuration } from '../components/operations';
+import { ReportQueue, ExecutionDetail, SchedulerManagement, ReportApprovalQueue, ReportCuration } from '../components/operations';
 
 function OperationsLayout() {
     return (
@@ -83,7 +84,7 @@ export default function OperationsPage() {
             <Route element={<OperationsLayout />}>
                 <Route index element={<ReportQueue />} />
                 <Route path="approvals" element={<ReportApprovalQueue />} />
-                <Route path="executions/:executionId" element={<ReportReview />} />
+                <Route path="executions/:executionId" element={<ExecutionDetail />} />
                 <Route path="scheduler" element={<SchedulerManagement />} />
             </Route>
             <Route path="*" element={<Navigate to="/operations" replace />} />
