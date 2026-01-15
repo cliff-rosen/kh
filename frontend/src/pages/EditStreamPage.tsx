@@ -1028,33 +1028,33 @@ export default function EditStreamPage() {
                             </div>
                         )}
 
-                        {/* Layer 4: Content Enrichment Tab */}
-                        {activeTab === 'enrichment' && stream && (
-                            <ContentEnrichmentForm
-                                streamId={parseInt(streamId!)}
-                                onSave={() => loadResearchStream(parseInt(streamId!))}
-                                appliedSuggestions={appliedPromptSuggestions}
-                                onSuggestionsApplied={handlePromptSuggestionsApplied}
-                            />
-                        )}
-
-                        {/* Layer 5: Test & Refine Tab */}
-                        {activeTab === 'execute' && stream && (
-                            <TestRefineTab
-                                streamId={parseInt(streamId!)}
-                                stream={stream}
-                                onStreamUpdate={() => loadResearchStream(parseInt(streamId!))}
-                                canModify={canModify}
-                                onWorkbenchStateChange={setWorkbenchState}
-                                onSubTabChange={setExecuteSubTab}
-                                pendingQueryUpdate={pendingQueryUpdate}
-                                onQueryUpdateApplied={() => setPendingQueryUpdate(null)}
-                                pendingFilterUpdate={pendingFilterUpdate}
-                                onFilterUpdateApplied={() => setPendingFilterUpdate(null)}
-                            />
-                        )}
-
                     </form>
+
+                    {/* Layer 4: Content Enrichment Tab - outside form, has own save */}
+                    {activeTab === 'enrichment' && stream && (
+                        <ContentEnrichmentForm
+                            streamId={parseInt(streamId!)}
+                            onSave={() => loadResearchStream(parseInt(streamId!))}
+                            appliedSuggestions={appliedPromptSuggestions}
+                            onSuggestionsApplied={handlePromptSuggestionsApplied}
+                        />
+                    )}
+
+                    {/* Layer 5: Test & Refine Tab - outside form, has own controls */}
+                    {activeTab === 'execute' && stream && (
+                        <TestRefineTab
+                            streamId={parseInt(streamId!)}
+                            stream={stream}
+                            onStreamUpdate={() => loadResearchStream(parseInt(streamId!))}
+                            canModify={canModify}
+                            onWorkbenchStateChange={setWorkbenchState}
+                            onSubTabChange={setExecuteSubTab}
+                            pendingQueryUpdate={pendingQueryUpdate}
+                            onQueryUpdateApplied={() => setPendingQueryUpdate(null)}
+                            pendingFilterUpdate={pendingFilterUpdate}
+                            onFilterUpdateApplied={() => setPendingFilterUpdate(null)}
+                        />
+                    )}
                 </div>
             </div>
 
