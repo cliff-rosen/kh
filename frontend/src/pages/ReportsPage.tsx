@@ -401,8 +401,8 @@ export default function ReportsPage() {
                 <ReportArticleTable
                     articles={selectedReport.articles}
                     title={selectedReport.report_name}
-                    showAbstract={cardFormat === 'expanded'}
-                    onAbstractVisibilityChange={(visible) => setCardFormat(visible ? 'expanded' : 'compact')}
+                    cardFormat={cardFormat}
+                    onCardFormatChange={setCardFormat}
                     onRowClick={(articles, index, isFiltered) => openArticleViewer(articles, index, isFiltered)}
                 />
             </div>
@@ -468,7 +468,7 @@ export default function ReportsPage() {
                                                     <ReportArticleCard
                                                         key={article.article_id}
                                                         article={article}
-                                                        showAbstract={cardFormat === 'expanded'}
+                                                        cardFormat={cardFormat}
                                                         onClick={() => openArticleViewer(data.articles, idx)}
                                                     />
                                                 ))}
@@ -494,7 +494,7 @@ export default function ReportsPage() {
                         <ReportArticleCard
                             key={article.article_id}
                             article={article}
-                            showAbstract={cardFormat === 'expanded'}
+                            cardFormat={cardFormat}
                             onClick={() => openArticleViewer(selectedReport.articles, idx)}
                         />
                     ))}

@@ -49,6 +49,7 @@ function normalizeArticle(article: ViewerArticle) {
             url: article.url,
             year: article.year,
             publication_date: article.publication_date,
+            ai_summary: article.ai_summary,
             ai_enrichments: article.ai_enrichments,
             relevance_score: article.relevance_score,
             relevance_rationale: article.relevance_rationale,
@@ -66,6 +67,7 @@ function normalizeArticle(article: ViewerArticle) {
         url: article.url,
         year: article.publication_year?.toString(),
         publication_date: article.publication_date,
+        ai_summary: undefined,
         ai_enrichments: article.ai_enrichments,
         relevance_score: article.relevance_score,
         relevance_rationale: undefined,
@@ -540,6 +542,18 @@ export default function ArticleViewerModal({
                                     </a>
                                 )}
                             </div>
+
+                            {/* AI Summary */}
+                            {article.ai_summary && (
+                                <div className="mt-4 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border-l-4 border-purple-400 dark:border-purple-600">
+                                    <p className="text-xs font-medium text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-2">
+                                        AI Summary
+                                    </p>
+                                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                                        {article.ai_summary}
+                                    </p>
+                                </div>
+                            )}
 
                             {/* Abstract */}
                             <div className="mt-4">

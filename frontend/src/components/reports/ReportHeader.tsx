@@ -6,12 +6,13 @@ import {
     Squares2X2Icon,
     TableCellsIcon,
     Bars2Icon,
-    Bars3BottomLeftIcon
+    Bars3BottomLeftIcon,
+    SparklesIcon
 } from '@heroicons/react/24/outline';
 import { ReportWithArticles } from '../../types';
 
 export type ReportView = 'all' | 'by-category' | 'tablizer';
-export type CardFormat = 'compact' | 'expanded';
+export type CardFormat = 'compact' | 'abstract' | 'ai_summary';
 
 export interface ReportHeaderProps {
     report: ReportWithArticles;
@@ -139,15 +140,26 @@ export default function ReportHeader({
                             <Bars2Icon className="h-4 w-4" />
                         </button>
                         <button
-                            onClick={() => onCardFormatChange('expanded')}
+                            onClick={() => onCardFormatChange('abstract')}
                             className={`p-1.5 rounded-md transition-colors ${
-                                cardFormat === 'expanded'
+                                cardFormat === 'abstract'
                                     ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white'
                                     : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                             }`}
-                            title="Expanded view with abstracts"
+                            title="Show abstracts"
                         >
                             <Bars3BottomLeftIcon className="h-4 w-4" />
+                        </button>
+                        <button
+                            onClick={() => onCardFormatChange('ai_summary')}
+                            className={`p-1.5 rounded-md transition-colors ${
+                                cardFormat === 'ai_summary'
+                                    ? 'bg-purple-200 dark:bg-purple-600 text-purple-900 dark:text-white'
+                                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                            }`}
+                            title="Show AI summaries"
+                        >
+                            <SparklesIcon className="h-4 w-4" />
                         </button>
                     </div>
                 </div>

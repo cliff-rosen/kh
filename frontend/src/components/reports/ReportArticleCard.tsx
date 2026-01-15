@@ -1,15 +1,16 @@
 import { ChevronRightIcon } from '@heroicons/react/24/outline';
 import { ReportArticle } from '../../types';
+import { CardFormat } from './ReportHeader';
 
 export interface ReportArticleCardProps {
     article: ReportArticle;
-    showAbstract?: boolean;
+    cardFormat?: CardFormat;
     onClick?: () => void;
 }
 
 export default function ReportArticleCard({
     article,
-    showAbstract = false,
+    cardFormat = 'compact',
     onClick
 }: ReportArticleCardProps) {
     return (
@@ -39,14 +40,22 @@ export default function ReportArticleCard({
                         )}
                         {article.pmid && <span>• PMID: {article.pmid}</span>}
                     </div>
-                    {article.ai_summary && (
+                    {cardFormat === 'ai_summary' && article.ai_summary && (
                         <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-md border-l-2 border-purple-400 dark:border-purple-600">
                             <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
                                 {article.ai_summary}
                             </p>
                         </div>
                     )}
-                    {showAbstract && article.abstract && (
+                    {cardFormat === 'ai_summary' && !article.ai_summary && article.abstract && (
+                        <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 italic">No AI summary available - showing abstract</p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                                {article.abstract}
+                            </p>
+                        </div>
+                    )}
+                    {cardFormat === 'abstract' && article.abstract && (
                         <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700">
                             <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
                                 {article.abstract}

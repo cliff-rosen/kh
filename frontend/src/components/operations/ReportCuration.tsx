@@ -261,6 +261,21 @@ export default function ReportCuration() {
         }
     };
 
+    // Handle AI summary update for an article
+    const handleSaveAiSummary = async (articleId: number, aiSummary: string) => {
+        if (!reportId) return;
+
+        try {
+            await updateArticleInReport(parseInt(reportId), articleId, {
+                ai_summary: aiSummary
+            });
+            await fetchCurationData();
+        } catch (err) {
+            console.error('Failed to update AI summary:', err);
+            alert('Failed to update AI summary');
+        }
+    };
+
     // Handle saving curation notes (stored on WipArticle - single source of truth)
     const handleSaveCurationNotes = async (wipArticleId: number, notes: string) => {
         if (!reportId) return;
@@ -815,6 +830,7 @@ export default function ReportCuration() {
                                                             onExclude={() => handleExcludeArticle(article)}
                                                             onCategoryChange={(newCat) => handleCategoryChange(article, newCat)}
                                                             onSaveNotes={article.wip_article_id ? (notes) => handleSaveCurationNotes(article.wip_article_id!, notes) : undefined}
+                                                            onSaveAiSummary={(summary) => handleSaveAiSummary(article.article_id, summary)}
                                                         />
                                                     );
                                                 })}
@@ -851,6 +867,7 @@ export default function ReportCuration() {
                                                             onExclude={() => handleExcludeArticle(article)}
                                                             onCategoryChange={(newCat) => handleCategoryChange(article, newCat)}
                                                             onSaveNotes={article.wip_article_id ? (notes) => handleSaveCurationNotes(article.wip_article_id!, notes) : undefined}
+                                                            onSaveAiSummary={(summary) => handleSaveAiSummary(article.article_id, summary)}
                                                         />
                                                     );
                                                 })}
@@ -1554,6 +1571,7 @@ function IncludedArticleCard({
     onExclude,
     onCategoryChange,
     onSaveNotes,
+    onSaveAiSummary,
 }: {
     article: CurationIncludedArticle;
     ranking: number;
@@ -1565,9 +1583,23 @@ function IncludedArticleCard({
     onExclude: () => void;
     onCategoryChange: (categoryId: string) => void;
     onSaveNotes?: (notes: string) => void;
+    onSaveAiSummary: (aiSummary: string) => void;
 }) {
     const [notes, setNotes] = useState(article.curation_notes || '');
     const [savingNotes, setSavingNotes] = useState(false);
+    const [editingAiSummary, setEditingAiSummary] = useState(false);
+    const [editedAiSummary, setEditedAiSummary] = useState(article.ai_summary || '');
+    const [savingAiSummary, setSavingAiSummary] = useState(false);
+
+    const handleSaveAiSummary = async () => {
+        setSavingAiSummary(true);
+        try {
+            await onSaveAiSummary(editedAiSummary);
+            setEditingAiSummary(false);
+        } finally {
+            setSavingAiSummary(false);
+        }
+    };
     const pubmedUrl = article.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/` : null;
     const currentCategory = article.presentation_categories?.[0] || '';
     const notesModified = notes !== (article.curation_notes || '');
@@ -1650,20 +1682,65 @@ function IncludedArticleCard({
                         {expanded && (
                             <div className="mt-4 space-y-4 ml-10">
                                 {/* AI Summary */}
-                                {article.ai_summary && (
-                                    <div>
-                                        <div className="flex items-center justify-between mb-1">
-                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">AI Summary</span>
-                                            <button type="button" className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
+                                <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">AI Summary</span>
+                                        {!editingAiSummary && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setEditedAiSummary(article.ai_summary || '');
+                                                    setEditingAiSummary(true);
+                                                }}
+                                                className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex items-center gap-1"
+                                            >
                                                 <PencilIcon className="h-3 w-3" />
-                                                Edit
+                                                {article.ai_summary ? 'Edit' : 'Add'}
                                             </button>
+                                        )}
+                                    </div>
+                                    {editingAiSummary ? (
+                                        <div className="space-y-2">
+                                            <textarea
+                                                value={editedAiSummary}
+                                                onChange={(e) => setEditedAiSummary(e.target.value)}
+                                                rows={4}
+                                                className="w-full text-sm px-3 py-2 border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                                                placeholder="Enter AI summary..."
+                                                disabled={savingAiSummary}
+                                            />
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleSaveAiSummary}
+                                                    disabled={savingAiSummary}
+                                                    className="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50"
+                                                >
+                                                    {savingAiSummary ? 'Saving...' : 'Save'}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setEditedAiSummary(article.ai_summary || '');
+                                                        setEditingAiSummary(false);
+                                                    }}
+                                                    disabled={savingAiSummary}
+                                                    className="px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
                                         </div>
-                                        <p className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/50 p-3 rounded">
+                                    ) : article.ai_summary ? (
+                                        <p className="text-sm text-gray-700 dark:text-gray-300 bg-purple-50 dark:bg-purple-900/20 p-3 rounded border-l-2 border-purple-400 dark:border-purple-600">
                                             {article.ai_summary}
                                         </p>
-                                    </div>
-                                )}
+                                    ) : (
+                                        <p className="text-sm text-gray-400 dark:text-gray-500 italic">
+                                            No AI summary available
+                                        </p>
+                                    )}
+                                </div>
 
                                 {/* Filter Score Reason */}
                                 {article.filter_score_reason && (

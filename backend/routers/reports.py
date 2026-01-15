@@ -198,6 +198,7 @@ async def get_report_with_articles(
                 is_read=info.association.is_read,
                 notes=info.association.notes,
                 presentation_categories=info.association.presentation_categories or [],
+                ai_summary=info.association.ai_summary,
                 ai_enrichments=info.association.ai_enrichments,
             )
             for info in result.articles

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, forwardRef } from 'react';
 import { Tablizer, TableColumn, TablizerRef, AIColumnInfo } from '../tools/Tablizer';
 import { ReportArticle } from '../../types';
+import { CardFormat } from './ReportHeader';
 
 // ============================================================================
 // Types
@@ -9,10 +10,10 @@ import { ReportArticle } from '../../types';
 export interface ReportArticleTableProps {
     articles: ReportArticle[];
     title?: string;
-    /** Controls abstract column visibility - syncs with report-level compact/expanded toggle */
-    showAbstract?: boolean;
-    /** Called when abstract column visibility is toggled in Tablizer's column selector */
-    onAbstractVisibilityChange?: (visible: boolean) => void;
+    /** Controls which content column is visible - syncs with report-level format toggle */
+    cardFormat?: CardFormat;
+    /** Called when content column visibility is toggled in Tablizer's column selector */
+    onCardFormatChange?: (format: CardFormat) => void;
     onColumnsChange?: (aiColumns: AIColumnInfo[]) => void;
     onRowClick?: (articles: ReportArticle[], index: number, isFiltered: boolean) => void;
 }
@@ -27,6 +28,7 @@ export type { TablizerRef as ReportArticleTableRef };
 const REPORT_COLUMNS: TableColumn[] = [
     { id: 'pmid', label: 'PMID', accessor: 'pmid', type: 'text', visible: true },
     { id: 'title', label: 'Title', accessor: 'title', type: 'text', visible: true },
+    { id: 'ai_summary', label: 'AI Summary', accessor: 'ai_summary', type: 'text', visible: false },
     { id: 'abstract', label: 'Abstract', accessor: 'abstract', type: 'text', visible: false },
     { id: 'journal', label: 'Journal', accessor: 'journal', type: 'text', visible: true },
     { id: 'publication_date', label: 'Date', accessor: 'publication_date', type: 'date', visible: true },
@@ -41,25 +43,35 @@ const REPORT_COLUMNS: TableColumn[] = [
 const ReportArticleTable = forwardRef<TablizerRef, ReportArticleTableProps>(function ReportArticleTable({
     articles,
     title,
-    showAbstract = false,
-    onAbstractVisibilityChange,
+    cardFormat = 'compact',
+    onCardFormatChange,
     onColumnsChange,
     onRowClick
 }, ref) {
-    // Sync abstract column visibility with showAbstract prop
+
+    // Sync column visibility with cardFormat
     const columns = useMemo(() =>
-        REPORT_COLUMNS.map(col =>
-            col.id === 'abstract' ? { ...col, visible: showAbstract } : col
-        ),
-        [showAbstract]
+        REPORT_COLUMNS.map(col => {
+            if (col.id === 'abstract') {
+                return { ...col, visible: cardFormat === 'abstract' };
+            }
+            if (col.id === 'ai_summary') {
+                return { ...col, visible: cardFormat === 'ai_summary' };
+            }
+            return col;
+        }),
+        [cardFormat]
     );
 
     // Handle column visibility changes from Tablizer
     const handleColumnVisibilityChange = useCallback((columnId: string, visible: boolean) => {
-        if (columnId === 'abstract' && onAbstractVisibilityChange) {
-            onAbstractVisibilityChange(visible);
+        if (!onCardFormatChange) return;
+        if (columnId === 'abstract') {
+            onCardFormatChange(visible ? 'abstract' : 'compact');
+        } else if (columnId === 'ai_summary') {
+            onCardFormatChange(visible ? 'ai_summary' : 'compact');
         }
-    }, [onAbstractVisibilityChange]);
+    }, [onCardFormatChange]);
 
     return (
         <Tablizer<ReportArticle>
