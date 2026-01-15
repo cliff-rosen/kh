@@ -44,6 +44,7 @@ from services.research_stream_service import ResearchStreamService
 from services.report_summary_service import ReportSummaryService
 from services.wip_article_service import WipArticleService
 from services.report_service import ReportService
+from services.report_article_association_service import ReportArticleAssociationService
 
 
 @dataclass
@@ -120,6 +121,7 @@ class PipelineService:
         self.research_stream_service = ResearchStreamService(db)
         self.wip_article_service = WipArticleService(db)
         self.report_service = ReportService(db)
+        self.association_service = ReportArticleAssociationService(db)
         self.pubmed_service = PubMedService()
         self.eval_service = get_ai_evaluation_service()
         self.categorization_service = ArticleCategorizationService()
