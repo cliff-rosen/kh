@@ -59,8 +59,7 @@ export interface WipArticle {
     filter_score: number | null;
     filter_score_reason: string | null;
     included_in_report: boolean;
-    presentation_categories: string[];
-    // Curator override fields
+    // Curator override fields (audit trail)
     curator_included: boolean;
     curator_excluded: boolean;
     curation_notes: string | null;

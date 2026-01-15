@@ -231,7 +231,6 @@ class OperationsService:
                 filter_score=wip.filter_score,
                 filter_score_reason=wip.filter_score_reason,
                 included_in_report=wip.included_in_report or False,
-                presentation_categories=wip.presentation_categories or [],
                 curator_included=wip.curator_included or False,
                 curator_excluded=wip.curator_excluded or False,
                 curation_notes=wip.curation_notes,

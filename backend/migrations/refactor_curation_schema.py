@@ -9,11 +9,16 @@ Changes to ReportArticleAssociation:
 - DROP: curated_at (use WipArticle.curated_at as single source of truth)
 
 Changes to WipArticle:
-- DROP: presentation_categories (report-specific, keep only on Association)
+- DROP: presentation_categories (now only on ReportArticleAssociation)
+
+Pipeline flow after this change:
+1. Pipeline creates Report with bare associations (no categories/summaries)
+2. Categorization stage writes categories directly to ReportArticleAssociation
+3. Summarization stage writes ai_summary directly to ReportArticleAssociation
 
 This clarifies ownership:
 - WipArticle: Pipeline processing data + curation audit trail (why decisions were made)
-- ReportArticleAssociation: How article appears in a specific report (ranking, categories, visibility)
+- ReportArticleAssociation: How article appears in a specific report (ranking, categories, visibility, summaries)
 """
 
 import sys
@@ -38,13 +43,15 @@ def column_exists(conn, table_name: str, column_name: str) -> bool:
     return result.fetchone() is not None
 
 
-def index_exists(conn, index_name: str) -> bool:
-    """Check if an index exists."""
+def index_exists(conn, table_name: str, index_name: str) -> bool:
+    """Check if an index exists (MySQL compatible)."""
     result = conn.execute(text("""
-        SELECT indexname
-        FROM pg_indexes
-        WHERE indexname = :index_name
-    """), {"index_name": index_name})
+        SELECT INDEX_NAME
+        FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = :table_name
+        AND INDEX_NAME = :index_name
+    """), {"table_name": table_name, "index_name": index_name})
     return result.fetchone() is not None
 
 
@@ -64,12 +71,10 @@ def run_migration():
             print("Adding 'wip_article_id' column to report_article_associations...")
             conn.execute(text("""
                 ALTER TABLE report_article_associations
-                ADD COLUMN wip_article_id INTEGER REFERENCES wip_articles(id) ON DELETE SET NULL
-            """))
-            # Add index for lookups
-            conn.execute(text("""
-                CREATE INDEX idx_report_article_associations_wip_article_id
-                ON report_article_associations (wip_article_id)
+                ADD COLUMN wip_article_id INTEGER NULL,
+                ADD INDEX idx_report_article_associations_wip_article_id (wip_article_id),
+                ADD CONSTRAINT fk_report_article_wip_article
+                    FOREIGN KEY (wip_article_id) REFERENCES wip_articles(id) ON DELETE SET NULL
             """))
         else:
             print("Column 'wip_article_id' already exists")
@@ -80,14 +85,8 @@ def run_migration():
                 print("Renaming 'curator_excluded' to 'is_hidden' in report_article_associations...")
                 conn.execute(text("""
                     ALTER TABLE report_article_associations
-                    RENAME COLUMN curator_excluded TO is_hidden
+                    CHANGE COLUMN curator_excluded is_hidden BOOLEAN NOT NULL DEFAULT FALSE
                 """))
-                # Update index name if it exists
-                if index_exists(conn, 'idx_report_articles_visible'):
-                    conn.execute(text("""
-                        ALTER INDEX idx_report_articles_visible
-                        RENAME TO idx_report_articles_is_hidden
-                    """))
             else:
                 print("Column 'is_hidden' already exists, dropping 'curator_excluded'...")
                 conn.execute(text("""
@@ -127,10 +126,19 @@ def run_migration():
         else:
             print("Column 'curated_at' already dropped")
 
-        # Note: wip_articles.presentation_categories is KEPT as a pipeline staging field
-        # The source of truth for display is ReportArticleAssociation.presentation_categories
-        # WipArticle.presentation_categories is used during pipeline categorization, then
-        # copied to ReportArticleAssociation during promotion.
+        # ========================================
+        # WipArticle changes
+        # ========================================
+
+        # Drop presentation_categories from wip_articles (now only on ReportArticleAssociation)
+        if column_exists(conn, 'wip_articles', 'presentation_categories'):
+            print("Dropping 'presentation_categories' from wip_articles...")
+            conn.execute(text("""
+                ALTER TABLE wip_articles
+                DROP COLUMN presentation_categories
+            """))
+        else:
+            print("Column 'presentation_categories' already dropped from wip_articles")
 
         conn.commit()
         print("\nCuration schema refactor migration completed successfully!")
@@ -141,7 +149,7 @@ Summary of changes:
 - report_article_associations.curation_notes: Dropped (use wip_articles)
 - report_article_associations.curated_by: Dropped (use wip_articles)
 - report_article_associations.curated_at: Dropped (use wip_articles)
-- wip_articles.presentation_categories: KEPT (pipeline staging field)
+- wip_articles.presentation_categories: Dropped (now only on ReportArticleAssociation)
         """)
 
 

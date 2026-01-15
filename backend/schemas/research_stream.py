@@ -445,8 +445,6 @@ class WipArticle(BaseModel):
     filter_score: Optional[float] = None
     filter_score_reason: Optional[str] = None
     included_in_report: bool = False
-    # Pipeline staging field - source of truth is ReportArticleAssociation
-    presentation_categories: List[str] = []
     # Curation override fields (audit trail)
     curator_included: bool = False
     curator_excluded: bool = False  # On WipArticle - records curator decision

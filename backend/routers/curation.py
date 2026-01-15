@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from dataclasses import asdict
+from datetime import datetime
 import logging
 
 from database import get_db
@@ -123,7 +124,9 @@ class CurationIncludedArticle(BaseModel):
     original_ai_summary: Optional[str] = None
     relevance_score: Optional[float] = None
     # Curation data (from WipArticle - audit trail)
-    curation_notes: Optional[str] = None  # From WipArticle
+    curation_notes: Optional[str] = None
+    curated_by: Optional[int] = None
+    curated_at: Optional[datetime] = None
     # Source indicator
     curator_added: bool = False
     wip_article_id: Optional[int] = None
@@ -152,7 +155,6 @@ class CurationFilteredArticle(BaseModel):
     curator_included: bool = False
     curator_excluded: bool = False
     curation_notes: Optional[str] = None
-    presentation_categories: List[str] = []
 
 
 class CurationCategory(BaseModel):
@@ -394,7 +396,9 @@ async def get_curation_view(
                 ai_summary=item.association.ai_summary,
                 original_ai_summary=item.association.original_ai_summary,
                 relevance_score=item.association.relevance_score,
-                curation_notes=item.curation_notes,  # From WipArticle
+                curation_notes=item.curation_notes,
+                curated_by=item.curated_by,
+                curated_at=item.curated_at,
                 curator_added=item.association.curator_added or False,
                 wip_article_id=item.wip_article_id,
                 filter_score=item.filter_score,
@@ -424,7 +428,6 @@ async def get_curation_view(
                 curator_included=wip.curator_included or False,
                 curator_excluded=wip.curator_excluded or False,
                 curation_notes=wip.curation_notes,
-                presentation_categories=wip.presentation_categories or [],
             )
 
         filtered_articles = [wip_to_filtered(wip) for wip in data.filtered_articles]

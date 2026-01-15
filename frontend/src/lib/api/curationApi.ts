@@ -59,6 +59,8 @@ export interface CurationIncludedArticle {
     relevance_score: number | null;
     // Curation data (from WipArticle - audit trail)
     curation_notes: string | null;
+    curated_by: number | null;
+    curated_at: string | null;
     // Source indicator
     curator_added: boolean;
     wip_article_id: number | null;
@@ -86,7 +88,6 @@ export interface CurationFilteredArticle {
     curator_included: boolean;
     curator_excluded: boolean;
     curation_notes: string | null;
-    presentation_categories: string[];
 }
 
 export interface CurationViewResponse {

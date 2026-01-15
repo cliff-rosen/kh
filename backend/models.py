@@ -520,9 +520,6 @@ class WipArticle(Base):
     filter_score = Column(Float, nullable=True)  # Relevance score from semantic filter
     filter_score_reason = Column(Text)  # AI reasoning for the score (captured for all articles)
     included_in_report = Column(Boolean, default=False, index=True)  # SOURCE OF TRUTH - synced with ReportArticleAssociation existence
-    # Pipeline staging field - copied to ReportArticleAssociation on promotion
-    # Source of truth for display is ReportArticleAssociation.presentation_categories
-    presentation_categories = Column(JSON, default=list)
 
     # Curation override fields (set by curator, audit trail for how we got to current state)
     # See docs/_specs/article-curation-flow.md for state transition documentation

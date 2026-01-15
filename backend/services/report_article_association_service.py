@@ -6,7 +6,7 @@ All association operations should go through this service.
 """
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from fastapi import HTTPException, status
@@ -269,6 +269,55 @@ class ReportArticleAssociationService:
             categories: New category list
         """
         association.presentation_categories = categories
+
+    def bulk_set_categories_from_pipeline(
+        self,
+        categorization_results: List[Tuple[ReportArticleAssociation, str]]
+    ) -> int:
+        """
+        Bulk set presentation categories from pipeline categorization results.
+
+        Sets both presentation_categories and original_presentation_categories
+        since this is the initial assignment from the pipeline.
+
+        Args:
+            categorization_results: List of (association, category_id) tuples
+
+        Returns:
+            Number of associations categorized
+        """
+        categorized_count = 0
+        for association, category_id in categorization_results:
+            if category_id:
+                categories = [category_id]
+                association.presentation_categories = categories
+                association.original_presentation_categories = categories
+                categorized_count += 1
+        return categorized_count
+
+    def bulk_set_ai_summary_from_pipeline(
+        self,
+        summary_results: List[Tuple[ReportArticleAssociation, str]]
+    ) -> int:
+        """
+        Bulk set AI summaries from pipeline summarization results.
+
+        Sets both ai_summary and original_ai_summary since this is the
+        initial assignment from the pipeline.
+
+        Args:
+            summary_results: List of (association, summary) tuples
+
+        Returns:
+            Number of associations with summaries set
+        """
+        summary_count = 0
+        for association, summary in summary_results:
+            if summary:
+                association.ai_summary = summary
+                association.original_ai_summary = summary
+                summary_count += 1
+        return summary_count
 
     def update_ai_summary(
         self,

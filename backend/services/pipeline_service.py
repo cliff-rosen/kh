@@ -303,9 +303,9 @@ class PipelineService:
             async for status in self._stage_retrieval(ctx): yield status
             async for status in self._stage_semantic_filter(ctx): yield status
             async for status in self._stage_deduplicate(ctx): yield status
-            async for status in self._stage_categorize(ctx): yield status
-            async for status in self._stage_generate_summaries(ctx): yield status
-            async for status in self._stage_generate_report(ctx): yield status
+            async for status in self._stage_generate_report(ctx): yield status  # Creates bare associations
+            async for status in self._stage_categorize(ctx): yield status       # Writes to associations
+            async for status in self._stage_generate_summaries(ctx): yield status  # Writes ai_summary to associations
 
             # Complete
             yield PipelineStatus("complete", "Pipeline execution complete", ctx.final_metrics())
@@ -468,7 +468,9 @@ class PipelineService:
     ) -> AsyncGenerator[PipelineStatus, None]:
         """
         Stage: Categorize articles into presentation categories.
-        Commits: presentation_categories on WipArticles.
+        Commits: presentation_categories on ReportArticleAssociations.
+
+        Requires: Report must already exist (ctx.report populated).
         """
         yield PipelineStatus("categorize", "Categorizing articles...")
 
@@ -476,8 +478,7 @@ class PipelineService:
         result = None
         async for status, res in self._stream_with_progress(
             task_coro=lambda on_progress: self._categorize_articles(
-                research_stream_id=ctx.research_stream_id,
-                execution_id=ctx.execution_id,
+                report_id=ctx.report.report_id,
                 presentation_config=ctx.presentation_config,
                 on_progress=on_progress
             ),
@@ -491,9 +492,6 @@ class PipelineService:
                 yield status
 
         ctx.categorized_count, ctx.categorize_errors = result
-
-        # Stage commit
-        self.wip_article_service.commit()
 
         if ctx.categorize_errors > 0:
             yield PipelineStatus(
@@ -663,18 +661,15 @@ class PipelineService:
                 self.db.add(article)
                 self.db.flush()
 
-            # Create association with original values preserved
+            # Create bare association - categories and summaries populated in later stages
             association = ReportArticleAssociation(
                 report_id=report.report_id,
                 article_id=article.article_id,
                 wip_article_id=wip_article.id,  # Link back to pipeline data
                 ranking=idx + 1,
-                presentation_categories=wip_article.presentation_categories or [],
                 is_read=False,
                 is_starred=False,
-                # Store original values for curation comparison
                 original_ranking=idx + 1,
-                original_presentation_categories=wip_article.presentation_categories or [],
             )
             self.db.add(association)
 
@@ -927,48 +922,56 @@ class PipelineService:
 
     async def _categorize_articles(
         self,
-        research_stream_id: int,
-        execution_id: str,
+        report_id: int,
         presentation_config: PresentationConfig,
         on_progress: Optional[callable] = None
     ) -> Tuple[int, int]:
         """
-        Use LLM to categorize each unique article into presentation categories in parallel batches.
+        Use LLM to categorize report articles and write directly to associations.
 
         Args:
-            research_stream_id: Stream ID
-            execution_id: Current pipeline execution ID
+            report_id: Report ID (report must already exist)
             presentation_config: Presentation configuration with categories
             on_progress: Optional async callback(completed, total) for progress updates
 
         Returns:
             Tuple of (categorized_count, error_count)
         """
-        # Get all articles marked for report inclusion (to categorize them)
-        articles = self.wip_article_service.get_included_articles(execution_id)
+        # Get visible associations with their articles
+        associations = self.association_service.get_visible_for_report(report_id)
 
-        if not articles:
-            logger.info(f"No articles to categorize for execution_id={execution_id}")
+        if not associations:
+            logger.info(f"No articles to categorize for report_id={report_id}")
             return 0, 0
 
-        logger.info(f"Categorizing {len(articles)} articles into {len(presentation_config.categories)} categories")
+        logger.info(f"Categorizing {len(associations)} articles into {len(presentation_config.categories)} categories")
 
         # Prepare category descriptions for LLM
         categories_desc = self.categorization_service.prepare_category_definitions(
             presentation_config.categories
         )
 
-        # Use centralized batch categorization from ArticleCategorizationService
-        results, error_count = await self.categorization_service.categorize_wip_articles_batch(
+        # Build mapping from article to association
+        article_to_association = {assoc.article_id: assoc for assoc in associations}
+        articles = [assoc.article for assoc in associations]
+
+        # Use centralized batch categorization (works with any article-like object)
+        results, error_count = await self.categorization_service.categorize_articles_batch(
             articles=articles,
             categories=categories_desc,
             max_concurrent=50,
             on_progress=on_progress
         )
 
-        # Update database with results using WipArticleService
-        categorized = self.wip_article_service.bulk_update_categories(results)
-        self.wip_article_service.commit()
+        # Map results back to associations: (Article, category_id) -> (Association, category_id)
+        association_results = [
+            (article_to_association[article.article_id], category_id)
+            for article, category_id in results
+        ]
+
+        # Update associations with results
+        categorized = self.association_service.bulk_set_categories_from_pipeline(association_results)
+        self.db.commit()
         logger.info(f"Categorization complete: {categorized} articles categorized, {error_count} errors")
         return categorized, error_count
 

@@ -155,6 +155,8 @@ class IncludedArticleData:
     filter_score: Optional[float] = None  # From WipArticle
     curation_notes: Optional[str] = None  # From WipArticle (single source of truth)
     filter_score_reason: Optional[str] = None  # From WipArticle
+    curated_by: Optional[int] = None  # From WipArticle (audit trail)
+    curated_at: Optional[datetime] = None  # From WipArticle (audit trail)
 
 
 @dataclass
@@ -1351,29 +1353,35 @@ class ReportService:
                 if wip.curator_included or wip.curator_excluded:
                     curated_articles.append(wip)
 
-        # Build included articles with wip_article_id and score data lookup
-        def get_wip_data(article: Article) -> tuple[Optional[int], Optional[float], Optional[str], Optional[str]]:
-            """Look up WipArticle data (id, filter_score, filter_score_reason, curation_notes) by PMID or DOI."""
-            wip: Optional[WipArticle] = None
+        # Build included articles with WipArticle data lookup
+        # Now that associations have wip_article_id, prefer direct lookup over PMID/DOI
+        def get_wip_for_association(assoc: ReportArticleAssociation) -> Optional[WipArticle]:
+            """Get WipArticle for an association, using direct ID or PMID/DOI fallback."""
+            # Prefer direct wip_article_id link (new schema)
+            if assoc.wip_article_id:
+                for wip in wip_articles:
+                    if wip.id == assoc.wip_article_id:
+                        return wip
+            # Fallback to PMID/DOI lookup (for legacy data)
+            article = assoc.article
             if article.pmid and article.pmid in wip_objects_by_pmid:
-                wip = wip_objects_by_pmid[article.pmid]
+                return wip_objects_by_pmid[article.pmid]
             elif article.doi and article.doi in wip_objects_by_doi:
-                wip = wip_objects_by_doi[article.doi]
-
-            if wip:
-                return wip.id, wip.filter_score, wip.filter_score_reason, wip.curation_notes
-            return None, None, None, None
+                return wip_objects_by_doi[article.doi]
+            return None
 
         included_articles = []
         for assoc in visible_associations:
-            wip_id, score, reason, notes = get_wip_data(assoc.article)
+            wip = get_wip_for_association(assoc)
             included_articles.append(IncludedArticleData(
                 article=assoc.article,
                 association=assoc,
-                wip_article_id=wip_id,
-                filter_score=score,
-                filter_score_reason=reason,
-                curation_notes=notes
+                wip_article_id=wip.id if wip else None,
+                filter_score=wip.filter_score if wip else None,
+                filter_score_reason=wip.filter_score_reason if wip else None,
+                curation_notes=wip.curation_notes if wip else None,
+                curated_by=wip.curated_by if wip else None,
+                curated_at=wip.curated_at if wip else None,
             ))
 
         # Current count = pipeline_included - curator_removed + curator_added
@@ -1621,8 +1629,6 @@ class ReportService:
 
         # Update WipArticle
         self.wip_article_service.set_curator_included(wip_article, user_id, notes)
-        if category:
-            wip_article.presentation_categories = [category]
 
         # Update report curation tracking
         report.has_curation_edits = True
