@@ -74,6 +74,31 @@ DEFAULT_PROMPTS = {
         {articles.formatted}
 
         Generate a focused summary that captures the key insights from articles in this category."""
+    },
+    "article_summary": {
+        "system_prompt": """You are an expert research analyst who synthesizes scientific literature.
+
+        Your task is to write a concise summary of a research article that highlights its key contributions.
+
+        The summary should:
+        - Be 2-4 sentences (50-100 words)
+        - Capture the main research question or objective
+        - Highlight key findings or contributions
+        - Note any significant methodology or implications
+        - Be written for a technical audience familiar with the field
+
+        Write in a professional, analytical tone. Include only the summary with no heading or other text.""",
+        "user_prompt_template": """Summarize this research article:
+
+        # Article Information
+        Title: {article.title}
+        Authors: {article.authors}
+        Journal: {article.journal} ({article.year})
+
+        # Abstract
+        {article.abstract}
+
+        Generate a concise summary that captures the key contributions and findings of this article."""
     }
 }
 
@@ -94,6 +119,16 @@ AVAILABLE_SLUGS = {
         {"slug": "{category.topics}", "description": "List of topics in this category"},
         {"slug": "{articles.count}", "description": "Number of articles in this category"},
         {"slug": "{articles.formatted}", "description": "Formatted list of articles in this category"},
+        {"slug": "{articles.summaries}", "description": "AI-generated summaries for articles in this category"},
+    ],
+    "article_summary": [
+        {"slug": "{stream.name}", "description": "Name of the research stream"},
+        {"slug": "{stream.purpose}", "description": "Purpose/description of the stream"},
+        {"slug": "{article.title}", "description": "Title of the article"},
+        {"slug": "{article.authors}", "description": "Authors of the article"},
+        {"slug": "{article.journal}", "description": "Journal where published"},
+        {"slug": "{article.year}", "description": "Publication year"},
+        {"slug": "{article.abstract}", "description": "Article abstract"},
     ]
 }
 
@@ -193,7 +228,8 @@ class ReportSummaryService:
         stream_purpose: str,
         stream_name: str = "",
         category_topics: Optional[List[str]] = None,
-        enrichment_config: Optional[Dict[str, Any]] = None
+        enrichment_config: Optional[Dict[str, Any]] = None,
+        article_summaries: Optional[List[str]] = None
     ) -> str:
         """
         Generate a summary for a specific category.
@@ -206,6 +242,7 @@ class ReportSummaryService:
             stream_name: Name of the research stream (for custom prompts)
             category_topics: List of topics in this category (for custom prompts)
             enrichment_config: Optional custom prompts config
+            article_summaries: Optional list of AI-generated article summaries
 
         Returns:
             Category summary text
@@ -224,6 +261,13 @@ class ReportSummaryService:
                 "abstract": article.abstract[:400] if article.abstract else None
             })
 
+        # Format article summaries if provided
+        summaries_text = ""
+        if article_summaries:
+            summaries_text = "\n\n".join([
+                f"- {summary}" for summary in article_summaries if summary
+            ])
+
         # Get prompt (custom or default)
         prompt = self._get_custom_prompt(enrichment_config, "category_summary") or DEFAULT_PROMPTS["category_summary"]
 
@@ -240,7 +284,8 @@ class ReportSummaryService:
             },
             "articles": {
                 "count": str(len(wip_articles)),
-                "formatted": self._format_articles_for_prompt(article_info)
+                "formatted": self._format_articles_for_prompt(article_info),
+                "summaries": summaries_text
             }
         }
 
@@ -312,3 +357,128 @@ class ReportSummaryService:
                 result = result.replace(slug, str(top_value))
 
         return result
+
+    async def generate_article_summary(
+        self,
+        article: Any,
+        stream_purpose: str = "",
+        stream_name: str = "",
+        enrichment_config: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """
+        Generate an AI summary for a single article.
+
+        Args:
+            article: Article or WipArticle object with title, authors, journal, year, abstract
+            stream_purpose: Purpose of the research stream (for context)
+            stream_name: Name of the research stream (for custom prompts)
+            enrichment_config: Optional custom prompts config
+
+        Returns:
+            AI-generated summary text
+        """
+        # Skip if no abstract
+        if not article.abstract:
+            return ""
+
+        # Get prompt (custom or default)
+        prompt = self._get_custom_prompt(enrichment_config, "article_summary") or DEFAULT_PROMPTS["article_summary"]
+
+        # Format authors
+        authors = article.authors if article.authors else []
+        if isinstance(authors, list):
+            if len(authors) > 3:
+                authors_str = ", ".join(authors[:3]) + " et al."
+            else:
+                authors_str = ", ".join(authors)
+        else:
+            authors_str = str(authors)
+
+        # Build context for slug replacement
+        context = {
+            "stream": {
+                "name": stream_name,
+                "purpose": stream_purpose
+            },
+            "article": {
+                "title": article.title or "Untitled",
+                "authors": authors_str or "Unknown",
+                "journal": article.journal or "Unknown",
+                "year": str(article.year) if article.year else "Unknown",
+                "abstract": article.abstract or ""
+            }
+        }
+
+        system_prompt = self._render_slugs(prompt.get("system_prompt", ""), context)
+        user_prompt = self._render_slugs(prompt.get("user_prompt_template", ""), context)
+
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            max_tokens=500,
+            temperature=0.3,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+        )
+
+        return response.choices[0].message.content
+
+    async def generate_article_summaries_batch(
+        self,
+        articles: List[Any],
+        stream_purpose: str = "",
+        stream_name: str = "",
+        enrichment_config: Optional[Dict[str, Any]] = None,
+        max_concurrency: int = 5,
+        on_progress: Optional[callable] = None
+    ) -> List[Tuple[Any, str]]:
+        """
+        Generate AI summaries for multiple articles with concurrency control.
+
+        Args:
+            articles: List of Article or WipArticle objects
+            stream_purpose: Purpose of the research stream
+            stream_name: Name of the research stream
+            enrichment_config: Optional custom prompts config
+            max_concurrency: Maximum concurrent API calls
+            on_progress: Optional callback(completed, total) for progress updates
+
+        Returns:
+            List of (article, summary) tuples
+        """
+        import asyncio
+
+        if not articles:
+            return []
+
+        results: List[Tuple[Any, str]] = []
+        semaphore = asyncio.Semaphore(max_concurrency)
+        completed = 0
+
+        async def process_article(article):
+            nonlocal completed
+            async with semaphore:
+                try:
+                    summary = await self.generate_article_summary(
+                        article=article,
+                        stream_purpose=stream_purpose,
+                        stream_name=stream_name,
+                        enrichment_config=enrichment_config
+                    )
+                    completed += 1
+                    if on_progress:
+                        on_progress(completed, len(articles))
+                    return (article, summary)
+                except Exception as e:
+                    completed += 1
+                    if on_progress:
+                        on_progress(completed, len(articles))
+                    # Return empty summary on error
+                    return (article, "")
+
+        # Process all articles concurrently with semaphore limiting
+        tasks = [process_article(article) for article in articles]
+        results = await asyncio.gather(*tasks)
+
+        return results

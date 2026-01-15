@@ -330,13 +330,14 @@ class EnrichmentConfig(BaseModel):
     """
     Layer 4: Configuration for content enrichment (custom prompts).
 
-    Slugs available for executive_summary:
+    Slugs available for article_summary:
     - {stream.name} - Name of the research stream
     - {stream.purpose} - Purpose/description of the stream
-    - {articles.count} - Total number of articles
-    - {articles.formatted} - Formatted list of articles (title, authors, journal, year, abstract)
-    - {categories.count} - Number of categories
-    - {categories.summaries} - Formatted category summaries
+    - {article.title} - Article title
+    - {article.authors} - Article authors
+    - {article.journal} - Journal name
+    - {article.year} - Publication year
+    - {article.abstract} - Article abstract
 
     Slugs available for category_summary:
     - {stream.name} - Name of the research stream
@@ -346,10 +347,19 @@ class EnrichmentConfig(BaseModel):
     - {category.topics} - List of topics in this category
     - {articles.count} - Number of articles in this category
     - {articles.formatted} - Formatted list of articles in this category
+    - {articles.summaries} - AI-generated summaries for articles in this category
+
+    Slugs available for executive_summary:
+    - {stream.name} - Name of the research stream
+    - {stream.purpose} - Purpose/description of the stream
+    - {articles.count} - Total number of articles
+    - {articles.formatted} - Formatted list of articles (title, authors, journal, year, abstract)
+    - {categories.count} - Number of categories
+    - {categories.summaries} - Formatted category summaries
     """
     prompts: Dict[str, PromptTemplate] = Field(
         default_factory=dict,
-        description="Custom prompts keyed by type: 'executive_summary', 'category_summary'"
+        description="Custom prompts keyed by type: 'article_summary', 'category_summary', 'executive_summary'"
     )
 
 

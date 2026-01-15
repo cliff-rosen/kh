@@ -1198,7 +1198,7 @@ class ReportService:
                 authors=article.authors if isinstance(article.authors, list) else [],
                 journal=article.journal,
                 publication_date=article.publication_date.strftime('%Y-%m-%d') if article.publication_date else article.year,
-                summary=article.ai_summary or article.abstract or article.summary
+                summary=assoc.ai_summary or article.ai_summary or article.abstract or article.summary
             )
 
             cat_ids = assoc.presentation_categories or []

@@ -139,6 +139,8 @@ class PromptWorkbenchService:
             if not category_id:
                 raise ValueError("category_id is required for category_summary prompt type")
             return self._build_category_summary_context(stream, wip_articles, category_id)
+        elif prompt_type == "article_summary":
+            return self._build_article_summary_context(stream, wip_articles)
         else:
             raise ValueError(f"Unknown prompt type: {prompt_type}")
 
@@ -229,6 +231,45 @@ class PromptWorkbenchService:
             "articles": {
                 "count": len(category_articles),
                 "formatted": articles_formatted
+            }
+        }
+
+    def _build_article_summary_context(
+        self,
+        stream: ResearchStreamSchema,
+        wip_articles: List[WipArticle]
+    ) -> Dict[str, Any]:
+        """Build context for article summary prompt (uses first article with abstract)"""
+        # Find the first article with an abstract for testing
+        test_article = next(
+            (a for a in wip_articles if a.abstract),
+            wip_articles[0] if wip_articles else None
+        )
+
+        if not test_article:
+            raise ValueError("No articles available for testing")
+
+        # Format authors
+        authors = test_article.authors if test_article.authors else []
+        if isinstance(authors, list):
+            if len(authors) > 3:
+                authors_str = ", ".join(authors[:3]) + " et al."
+            else:
+                authors_str = ", ".join(authors)
+        else:
+            authors_str = str(authors) if authors else "Unknown"
+
+        return {
+            "stream": {
+                "name": stream.stream_name,
+                "purpose": stream.purpose
+            },
+            "article": {
+                "title": test_article.title or "Untitled",
+                "authors": authors_str or "Unknown",
+                "journal": test_article.journal or "Unknown",
+                "year": str(test_article.year) if test_article.year else "Unknown",
+                "abstract": test_article.abstract or ""
             }
         }
 

@@ -27,6 +27,7 @@ export interface ReportArticle {
     is_read?: boolean;
     notes?: string;
     presentation_categories?: string[];  // List of category IDs
+    ai_summary?: string | null;  // AI-generated summary from pipeline
     ai_enrichments?: ArticleEnrichments | null;
 }
 

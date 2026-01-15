@@ -840,12 +840,12 @@ function ReportArticleCard({ article, wipArticle }: { article: ReportArticle; wi
                         </div>
                     )}
 
-                    {/* AI Summary from report article */}
-                    {article.ai_enrichments?.summary && (
+                    {/* AI Summary from pipeline */}
+                    {article.ai_summary && (
                         <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded border-l-2 border-purple-400 dark:border-purple-600">
                             <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">AI Summary</p>
                             <p className="text-sm text-gray-700 dark:text-gray-300">
-                                {article.ai_enrichments.summary}
+                                {article.ai_summary}
                             </p>
                         </div>
                     )}

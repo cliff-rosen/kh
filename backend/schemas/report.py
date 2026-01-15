@@ -35,6 +35,7 @@ class ReportArticle(BaseModel):
     is_read: Optional[bool] = False
     notes: Optional[str] = None
     presentation_categories: List[str] = []  # List of category IDs
+    ai_summary: Optional[str] = None  # AI-generated summary from pipeline
     ai_enrichments: Optional[Dict[str, Any]] = None  # AI-generated enrichments (stance analysis, etc.)
 
 

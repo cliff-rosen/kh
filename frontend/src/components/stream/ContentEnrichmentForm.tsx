@@ -47,7 +47,7 @@ interface PromptSuggestion {
 }
 
 interface AppliedPromptSuggestions {
-    prompt_type: 'executive_summary' | 'category_summary';
+    prompt_type: 'executive_summary' | 'category_summary' | 'article_summary';
     suggestions: PromptSuggestion[];
 }
 
@@ -58,7 +58,7 @@ interface ContentEnrichmentFormProps {
     onSuggestionsApplied?: () => void;
 }
 
-type PromptType = 'executive_summary' | 'category_summary';
+type PromptType = 'executive_summary' | 'category_summary' | 'article_summary';
 type ResultsPaneMode = 'collapsed' | 'side' | 'full';
 
 interface HistoryEntry {
@@ -367,7 +367,7 @@ export default function ContentEnrichmentForm({
                             <div className="flex items-center gap-2">
                                 <span className="font-medium">{formatTimestamp(entry.timestamp)}</span>
                                 <span className="px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
-                                    {entry.promptType === 'executive_summary' ? 'Executive' : 'Category'}
+                                    {entry.promptType === 'executive_summary' ? 'Executive' : entry.promptType === 'category_summary' ? 'Category' : 'Article'}
                                 </span>
                                 {entry.dataSource.type === 'report' && (
                                     <span className="text-gray-400">
@@ -539,6 +539,17 @@ export default function ContentEnrichmentForm({
                             }`}
                         >
                             Category Summary
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setActivePromptType('article_summary')}
+                            className={`py-3 px-1 border-b-2 text-sm font-medium ${
+                                activePromptType === 'article_summary'
+                                    ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                            }`}
+                        >
+                            Article Summary
                         </button>
                     </nav>
                 </div>

@@ -306,8 +306,9 @@ class PipelineService:
             async for status in self._stage_semantic_filter(ctx): yield status
             async for status in self._stage_deduplicate(ctx): yield status
             async for status in self._stage_generate_report(ctx): yield status  # Creates bare associations
-            async for status in self._stage_categorize(ctx): yield status       # Writes to associations
-            async for status in self._stage_generate_summaries(ctx): yield status  # Writes ai_summary to associations
+            async for status in self._stage_categorize(ctx): yield status       # Writes categories to associations
+            async for status in self._stage_generate_article_summaries(ctx): yield status  # Writes ai_summary to associations
+            async for status in self._stage_generate_summaries(ctx): yield status  # Executive/category summaries
 
             # Complete
             yield PipelineStatus("complete", "Pipeline execution complete", ctx.final_metrics())
@@ -508,6 +509,97 @@ class PipelineService:
                 {"categorized": ctx.categorized_count}
             )
 
+    async def _stage_generate_article_summaries(
+        self,
+        ctx: PipelineContext
+    ) -> AsyncGenerator[PipelineStatus, None]:
+        """
+        Stage: Generate AI summaries for individual articles.
+        Commits: ai_summary written to ReportArticleAssociation.
+        """
+        # Get enrichment_config (for custom prompts, or None to use defaults)
+        enrichment_config = None
+        if hasattr(ctx.stream, 'enrichment_config') and ctx.stream.enrichment_config:
+            enrichment_config = ctx.stream.enrichment_config.dict() if hasattr(ctx.stream.enrichment_config, 'dict') else ctx.stream.enrichment_config
+
+        yield PipelineStatus("article_summaries", "Generating article summaries...")
+
+        # Stream progress while generating
+        result = None
+        async for status, res in self._stream_with_progress(
+            task_coro=lambda on_progress: self._generate_article_summaries(
+                report_id=ctx.report.report_id,
+                stream=ctx.stream,
+                enrichment_config=enrichment_config,
+                on_progress=on_progress
+            ),
+            stage="article_summaries",
+            progress_msg_template="Summarizing: {completed}/{total}",
+            heartbeat_msg="Generating summaries..."
+        ):
+            if res is not None:
+                result = res
+            else:
+                yield status
+
+        # Stage commit
+        self.db.commit()
+
+        yield PipelineStatus(
+            "article_summaries",
+            f"Generated {result} article summaries",
+            {"generated": result}
+        )
+
+    async def _generate_article_summaries(
+        self,
+        report_id: int,
+        stream: Any,
+        enrichment_config: Dict[str, Any],
+        on_progress: Optional[callable] = None
+    ) -> int:
+        """
+        Generate AI summaries for articles in a report.
+
+        Returns:
+            Number of summaries generated
+        """
+        # Get associations - assoc.article gives us the Article with abstract
+        associations = self.association_service.get_visible_for_report(report_id)
+
+        # Filter to associations with articles that have abstracts
+        articles_to_summarize = [
+            assoc for assoc in associations
+            if assoc.article and assoc.article.abstract
+        ]
+
+        if not articles_to_summarize:
+            return 0
+
+        # Generate summaries
+        articles = [assoc.article for assoc in articles_to_summarize]
+        article_summaries = await self.summary_service.generate_article_summaries_batch(
+            articles=articles,
+            stream_purpose=stream.purpose,
+            stream_name=stream.stream_name,
+            enrichment_config=enrichment_config,
+            max_concurrency=5,
+            on_progress=on_progress
+        )
+
+        # Build results for bulk update
+        article_id_to_summary = {article.article_id: summary for article, summary in article_summaries}
+        association_updates = [
+            (assoc, article_id_to_summary[assoc.article.article_id])
+            for assoc in articles_to_summarize
+            if article_id_to_summary.get(assoc.article.article_id)
+        ]
+
+        # Write to associations
+        if association_updates:
+            return self.association_service.bulk_set_ai_summary_from_pipeline(association_updates)
+        return 0
+
     async def _stage_generate_summaries(
         self,
         ctx: PipelineContext
@@ -523,6 +615,7 @@ class PipelineService:
             self._generate_summaries(
                 research_stream_id=ctx.research_stream_id,
                 execution_id=ctx.execution_id,
+                report_id=ctx.report.report_id,
                 stream=ctx.stream,
                 presentation_config=ctx.presentation_config
             )
@@ -981,6 +1074,7 @@ class PipelineService:
         self,
         research_stream_id: int,
         execution_id: str,
+        report_id: int,
         stream: ResearchStream,
         presentation_config: PresentationConfig
     ) -> Tuple[str, Dict[str, str]]:
@@ -990,6 +1084,7 @@ class PipelineService:
         Args:
             research_stream_id: Stream ID
             execution_id: UUID of pipeline execution
+            report_id: Report ID (needed to get categories from associations)
             stream: ResearchStream object
             presentation_config: Presentation configuration
 
@@ -1007,16 +1102,25 @@ class PipelineService:
         if hasattr(stream, 'enrichment_config') and stream.enrichment_config:
             enrichment_config = stream.enrichment_config.dict() if hasattr(stream.enrichment_config, 'dict') else stream.enrichment_config
 
+        # Get associations to read categories (categories are now on ReportArticleAssociation)
+        associations = self.association_service.get_visible_for_report(report_id)
+        wip_to_categories: Dict[int, List[str]] = {}
+        wip_to_summary: Dict[int, str] = {}
+        for assoc in associations:
+            if assoc.wip_article_id:
+                wip_to_categories[assoc.wip_article_id] = assoc.presentation_categories or []
+                wip_to_summary[assoc.wip_article_id] = assoc.ai_summary or ""
+
         logger.info(f"Generating summaries for {len(wip_articles)} articles across {len(presentation_config.categories)} categories")
 
         # Generate category summaries in parallel
         async def generate_single_category_summary(category):
             """Generate summary for a single category"""
             try:
-                # Get articles in this category
+                # Get articles in this category (categories are now on association)
                 category_articles = [
                     article for article in wip_articles
-                    if article.presentation_categories and category.id in article.presentation_categories
+                    if article.id in wip_to_categories and category.id in wip_to_categories[article.id]
                 ]
 
                 if not category_articles:
@@ -1027,6 +1131,12 @@ class PipelineService:
                 if category.specific_inclusions:
                     category_description += "Includes: " + ", ".join(category.specific_inclusions)
 
+                # Gather article summaries for this category (if available)
+                article_summaries = [
+                    wip_to_summary.get(article.id, "") for article in category_articles
+                    if wip_to_summary.get(article.id)
+                ]
+
                 # Generate summary for this category
                 summary = await self.summary_service.generate_category_summary(
                     category_name=category.name,
@@ -1035,7 +1145,8 @@ class PipelineService:
                     stream_purpose=stream.purpose,
                     stream_name=stream.stream_name,
                     category_topics=category.topics,
-                    enrichment_config=enrichment_config
+                    enrichment_config=enrichment_config,
+                    article_summaries=article_summaries
                 )
                 return category.id, summary
             except Exception as e:

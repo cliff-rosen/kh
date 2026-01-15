@@ -292,6 +292,7 @@ class OperationsService:
                             abstract=article.abstract,
                             relevance_score=ra.relevance_score,
                             presentation_categories=presentation_categories,
+                            ai_summary=ra.ai_summary,
                         ))
 
                         # Track categories
