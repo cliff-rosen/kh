@@ -667,6 +667,7 @@ class PipelineService:
             association = ReportArticleAssociation(
                 report_id=report.report_id,
                 article_id=article.article_id,
+                wip_article_id=wip_article.id,  # Link back to pipeline data
                 ranking=idx + 1,
                 presentation_categories=wip_article.presentation_categories or [],
                 is_read=False,

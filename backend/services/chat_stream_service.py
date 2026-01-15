@@ -604,7 +604,7 @@ class ChatStreamService:
         if not report:
             return None
 
-        # Load visible articles (excludes curator_excluded)
+        # Load visible articles (excludes hidden)
         visible_associations = self.association_service.get_visible_for_report(report_id)
 
         articles_context = []

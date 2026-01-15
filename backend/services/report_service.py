@@ -1495,8 +1495,8 @@ class ReportService:
         # Get the association
         association = self.association_service.get(report_id, article_id)
 
-        # Already excluded?
-        if association.curator_excluded:
+        # Already hidden?
+        if association.is_hidden:
             return ExcludeArticleResult(
                 article_id=article_id,
                 excluded=True,
@@ -1526,10 +1526,10 @@ class ReportService:
 
             event_type = 'undo_include_article'
         else:
-            # Pipeline-included article: soft exclude (preserve for undo)
-            self.association_service.set_excluded(association, True, user_id, notes)
+            # Pipeline-included article: soft hide (preserve for undo)
+            self.association_service.set_hidden(association, True)
 
-            # Set WipArticle curator_excluded flag
+            # Set WipArticle curator_excluded flag (audit trail)
             if wip_article:
                 self.wip_article_service.set_curator_excluded(wip_article, user_id, notes)
 
@@ -1600,11 +1600,11 @@ class ReportService:
         # Find or create Article record
         article = self._find_or_create_article_from_wip(wip_article)
 
-        # Check if association already exists (e.g., was excluded)
+        # Check if association already exists (e.g., was hidden)
         existing_association = self.association_service.find(report_id, article.article_id)
         if existing_association:
-            # Re-include a previously excluded article
-            self.association_service.set_excluded(existing_association, False, user_id, notes)
+            # Re-include a previously hidden article
+            self.association_service.set_hidden(existing_association, False)
             new_ranking = existing_association.ranking
         else:
             # Create new association (curator-added)
@@ -1613,6 +1613,7 @@ class ReportService:
             self.association_service.create(
                 report_id=report_id,
                 article_id=article.article_id,
+                wip_article_id=wip_article.id,  # Link back to pipeline data
                 ranking=new_ranking,
                 presentation_categories=categories,
                 curator_added=True
@@ -1745,9 +1746,9 @@ class ReportService:
                 if association.curator_added:
                     # Curator added this - delete entirely
                     self.association_service.delete(association)
-                elif association.curator_excluded:
-                    # Curator excluded this - restore visibility
-                    self.association_service.set_excluded(association, False, user_id)
+                elif association.is_hidden:
+                    # Curator hid this - restore visibility
+                    self.association_service.set_hidden(association, False)
 
         # Clear WipArticle curation flags, restore pipeline decision
         pipeline_would_include = self.wip_article_service.clear_curation_flags(wip_article, user_id)
@@ -1828,9 +1829,6 @@ class ReportService:
             changes_made.append(('ai_summary', old_val[:100] if old_val else None, ai_summary[:100]))
 
         if changes_made:
-            association.curated_by = user_id
-            association.curated_at = datetime.utcnow()
-
             # Update report curation tracking
             report.has_curation_edits = True
             report.last_curated_by = user_id

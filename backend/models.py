@@ -376,11 +376,14 @@ class ReportArticleAssociation(Base):
     """
     Association between reports and articles with metadata.
 
-    An article is visible in the report if: record exists AND curator_excluded=False.
+    An article is visible in the report if: record exists AND is_hidden=False.
 
-    Curation flags:
-    - curator_excluded: Article was in report but curator excluded it (preserves data for undo)
+    Visibility flags:
+    - is_hidden: Article is soft-deleted from report view (preserves data for undo)
     - curator_added: Article was added by curator (not by pipeline) - delete on reset
+
+    Curation audit trail (why decisions were made) is stored on WipArticle, not here.
+    This table only stores how the article appears in this specific report.
 
     See docs/_specs/article-curation-flow.md for full state transition documentation.
     """
@@ -388,6 +391,10 @@ class ReportArticleAssociation(Base):
 
     report_id = Column(Integer, ForeignKey("reports.report_id"), primary_key=True)
     article_id = Column(Integer, ForeignKey("articles.article_id"), primary_key=True)
+
+    # Link back to pipeline data (for curation notes, filter scores, etc.)
+    wip_article_id = Column(Integer, ForeignKey("wip_articles.id"), nullable=True, index=True)
+
     relevance_score = Column(Float)  # AI-calculated relevance score
     relevance_rationale = Column(Text)  # Why this article is relevant
     ranking = Column(Integer)  # Order within the report (current, may be edited)
@@ -412,18 +419,14 @@ class ReportArticleAssociation(Base):
     ai_summary = Column(Text, nullable=True)  # Current summary (may be edited)
     original_ai_summary = Column(Text, nullable=True)  # What AI originally generated
 
-    # === CURATION FLAGS ===
-    curator_excluded = Column(Boolean, default=False, nullable=False)  # Curator excluded from report view
+    # === VISIBILITY FLAGS ===
+    is_hidden = Column(Boolean, default=False, nullable=False)  # Soft-delete: hidden from report view
     curator_added = Column(Boolean, default=False, nullable=False)  # Curator added (vs pipeline added)
-
-    # === CURATION METADATA (for retrieval improvement feedback) ===
-    curation_notes = Column(Text, nullable=True)  # Curator notes about this article
-    curated_by = Column(Integer, nullable=True)  # User who last modified
-    curated_at = Column(DateTime, nullable=True)
 
     # Relationships
     report = relationship("Report", back_populates="article_associations")
     article = relationship("Article", back_populates="report_associations")
+    wip_article = relationship("WipArticle")
 
 
 class ReportSchedule(Base):
@@ -517,7 +520,9 @@ class WipArticle(Base):
     filter_score = Column(Float, nullable=True)  # Relevance score from semantic filter
     filter_score_reason = Column(Text)  # AI reasoning for the score (captured for all articles)
     included_in_report = Column(Boolean, default=False, index=True)  # SOURCE OF TRUTH - synced with ReportArticleAssociation existence
-    presentation_categories = Column(JSON, default=list)  # List of category IDs assigned by LLM
+    # Pipeline staging field - copied to ReportArticleAssociation on promotion
+    # Source of truth for display is ReportArticleAssociation.presentation_categories
+    presentation_categories = Column(JSON, default=list)
 
     # Curation override fields (set by curator, audit trail for how we got to current state)
     # See docs/_specs/article-curation-flow.md for state transition documentation

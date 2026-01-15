@@ -49,6 +49,7 @@ export interface CurationIncludedArticle {
     year: number | null;
     abstract: string | null;
     url: string | null;
+    // Association data (how article appears in this report)
     ranking: number | null;
     original_ranking: number | null;
     presentation_categories: string[];
@@ -56,11 +57,12 @@ export interface CurationIncludedArticle {
     ai_summary: string | null;
     original_ai_summary: string | null;
     relevance_score: number | null;
+    // Curation data (from WipArticle - audit trail)
     curation_notes: string | null;
-    curated_by: number | null;
-    curated_at: string | null;
+    // Source indicator
     curator_added: boolean;
     wip_article_id: number | null;
+    // Filter data (from WipArticle)
     filter_score: number | null;
     filter_score_reason: string | null;
 }

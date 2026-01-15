@@ -273,7 +273,7 @@ class OperationsService:
                     executive_summary = report.enrichments.get("executive_summary")
                     category_summaries = report.enrichments.get("category_summaries")
 
-                # Get visible report articles (excludes curator_excluded)
+                # Get visible report articles (excludes hidden)
                 visible_associations = self.association_service.get_visible_for_report(report.report_id)
 
                 categories_dict: dict[str, CategoryCount] = {}

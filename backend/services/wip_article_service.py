@@ -136,7 +136,7 @@ class WipArticleService:
             is_duplicate=False,
             passed_semantic_filter=None,
             included_in_report=False,
-            presentation_categories=[]
+            presentation_categories=[]  # Pipeline staging field
         )
         self.db.add(wip_article)
         return wip_article

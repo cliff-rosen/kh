@@ -6,13 +6,12 @@ All association operations should go through this service.
 """
 
 import logging
-from datetime import datetime
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from fastapi import HTTPException, status
 
-from models import ReportArticleAssociation, Article
+from models import ReportArticleAssociation
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +74,7 @@ class ReportArticleAssociationService:
 
     def get_visible_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
         """
-        Get all visible (non-excluded) associations for a report.
+        Get all visible (non-hidden) associations for a report.
 
         Args:
             report_id: The report ID
@@ -86,7 +85,7 @@ class ReportArticleAssociationService:
         return self.db.query(ReportArticleAssociation).filter(
             and_(
                 ReportArticleAssociation.report_id == report_id,
-                ReportArticleAssociation.curator_excluded == False
+                ReportArticleAssociation.is_hidden == False
             )
         ).order_by(ReportArticleAssociation.ranking).all()
 
@@ -104,20 +103,20 @@ class ReportArticleAssociationService:
             ReportArticleAssociation.report_id == report_id
         ).order_by(ReportArticleAssociation.ranking).all()
 
-    def get_excluded_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
+    def get_hidden_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
         """
-        Get curator-excluded associations for a report.
+        Get hidden associations for a report.
 
         Args:
             report_id: The report ID
 
         Returns:
-            List of excluded associations
+            List of hidden associations
         """
         return self.db.query(ReportArticleAssociation).filter(
             and_(
                 ReportArticleAssociation.report_id == report_id,
-                ReportArticleAssociation.curator_excluded == True
+                ReportArticleAssociation.is_hidden == True
             )
         ).all()
 
@@ -151,7 +150,7 @@ class ReportArticleAssociationService:
         return self.db.query(ReportArticleAssociation).filter(
             and_(
                 ReportArticleAssociation.report_id == report_id,
-                ReportArticleAssociation.curator_excluded == False
+                ReportArticleAssociation.is_hidden == False
             )
         ).count()
 
@@ -183,7 +182,8 @@ class ReportArticleAssociationService:
         presentation_categories: Optional[List[str]] = None,
         ai_summary: Optional[str] = None,
         relevance_score: Optional[float] = None,
-        curator_added: bool = False
+        curator_added: bool = False,
+        wip_article_id: Optional[int] = None
     ) -> ReportArticleAssociation:
         """
         Create a new association.
@@ -196,6 +196,7 @@ class ReportArticleAssociationService:
             ai_summary: AI-generated summary
             relevance_score: Relevance score
             curator_added: True if added by curator (not pipeline)
+            wip_article_id: Optional link to WipArticle for curation data
 
         Returns:
             Created association
@@ -205,6 +206,7 @@ class ReportArticleAssociationService:
         association = ReportArticleAssociation(
             report_id=report_id,
             article_id=article_id,
+            wip_article_id=wip_article_id,
             ranking=ranking,
             presentation_categories=categories,
             original_presentation_categories=categories if not curator_added else [],
@@ -213,7 +215,7 @@ class ReportArticleAssociationService:
             original_ai_summary=ai_summary if not curator_added else None,
             relevance_score=relevance_score,
             curator_added=curator_added,
-            curator_excluded=False,
+            is_hidden=False,
             is_starred=False,
             is_read=False
         )
@@ -224,33 +226,26 @@ class ReportArticleAssociationService:
     # UPDATE Operations
     # =========================================================================
 
-    def set_excluded(
+    def set_hidden(
         self,
         association: ReportArticleAssociation,
-        excluded: bool,
-        user_id: int,
-        notes: Optional[str] = None
+        hidden: bool
     ) -> None:
         """
-        Set the curator_excluded flag on an association.
+        Set the is_hidden flag on an association.
+
+        Note: Curation audit trail (who/when/why) is stored on WipArticle, not here.
 
         Args:
             association: The association to update
-            excluded: True to exclude, False to restore
-            user_id: ID of the user making the change
-            notes: Optional curation notes
+            hidden: True to hide, False to restore
         """
-        association.curator_excluded = excluded
-        association.curated_by = user_id
-        association.curated_at = datetime.utcnow()
-        if notes is not None:
-            association.curation_notes = notes
+        association.is_hidden = hidden
 
     def update_ranking(
         self,
         association: ReportArticleAssociation,
-        ranking: int,
-        user_id: int
+        ranking: int
     ) -> None:
         """
         Update the ranking of an association.
@@ -258,17 +253,13 @@ class ReportArticleAssociationService:
         Args:
             association: The association to update
             ranking: New ranking
-            user_id: ID of the user making the change
         """
         association.ranking = ranking
-        association.curated_by = user_id
-        association.curated_at = datetime.utcnow()
 
     def update_categories(
         self,
         association: ReportArticleAssociation,
-        categories: List[str],
-        user_id: int
+        categories: List[str]
     ) -> None:
         """
         Update the presentation categories of an association.
@@ -276,17 +267,13 @@ class ReportArticleAssociationService:
         Args:
             association: The association to update
             categories: New category list
-            user_id: ID of the user making the change
         """
         association.presentation_categories = categories
-        association.curated_by = user_id
-        association.curated_at = datetime.utcnow()
 
     def update_ai_summary(
         self,
         association: ReportArticleAssociation,
-        summary: str,
-        user_id: int
+        summary: str
     ) -> None:
         """
         Update the AI summary of an association.
@@ -296,15 +283,12 @@ class ReportArticleAssociationService:
         Args:
             association: The association to update
             summary: New summary text
-            user_id: ID of the user making the change
         """
         # Preserve original on first edit
         if association.original_ai_summary is None and association.ai_summary:
             association.original_ai_summary = association.ai_summary
 
         association.ai_summary = summary
-        association.curated_by = user_id
-        association.curated_at = datetime.utcnow()
 
     # =========================================================================
     # DELETE Operations

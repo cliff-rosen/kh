@@ -104,7 +104,7 @@ class CurationReportData(BaseModel):
 
 
 class CurationIncludedArticle(BaseModel):
-    """Included article data (from Article + ReportArticleAssociation)"""
+    """Included article data (from Article + ReportArticleAssociation + WipArticle)"""
     article_id: int
     pmid: Optional[str] = None
     doi: Optional[str] = None
@@ -114,7 +114,7 @@ class CurationIncludedArticle(BaseModel):
     year: Optional[int] = None
     abstract: Optional[str] = None
     url: Optional[str] = None
-    # Association data
+    # Association data (how article appears in this report)
     ranking: Optional[int] = None
     original_ranking: Optional[int] = None
     presentation_categories: List[str] = []
@@ -122,9 +122,8 @@ class CurationIncludedArticle(BaseModel):
     ai_summary: Optional[str] = None
     original_ai_summary: Optional[str] = None
     relevance_score: Optional[float] = None
-    curation_notes: Optional[str] = None
-    curated_by: Optional[int] = None
-    curated_at: Optional[str] = None
+    # Curation data (from WipArticle - audit trail)
+    curation_notes: Optional[str] = None  # From WipArticle
     # Source indicator
     curator_added: bool = False
     wip_article_id: Optional[int] = None
@@ -395,9 +394,7 @@ async def get_curation_view(
                 ai_summary=item.association.ai_summary,
                 original_ai_summary=item.association.original_ai_summary,
                 relevance_score=item.association.relevance_score,
-                curation_notes=item.curation_notes,
-                curated_by=item.association.curated_by,
-                curated_at=item.association.curated_at.isoformat() if item.association.curated_at else None,
+                curation_notes=item.curation_notes,  # From WipArticle
                 curator_added=item.association.curator_added or False,
                 wip_article_id=item.wip_article_id,
                 filter_score=item.filter_score,
