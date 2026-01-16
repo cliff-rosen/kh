@@ -297,6 +297,47 @@ export interface PresentationConfig {
     categories: Category[];    // How to organize results in reports
 }
 
+// ============================================================================
+// Model Configuration - LLM Selection per Pipeline Stage
+// ============================================================================
+
+/**
+ * Reasoning effort levels for reasoning models (o3, o3-mini, o4-mini)
+ */
+export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high';
+
+/**
+ * Configuration for a single pipeline stage's LLM
+ */
+export interface StageModelConfig {
+    model: string;  // Model identifier (e.g., 'gpt-4.1', 'o4-mini')
+    temperature?: number;  // Temperature (0.0-2.0) for flagship_chat models
+    reasoning_effort?: ReasoningEffort;  // Reasoning effort for reasoning models
+}
+
+/**
+ * LLM configuration for each pipeline stage.
+ *
+ * Pipeline stages:
+ * - semantic_filter: Evaluates article relevance (default: o4-mini with medium reasoning)
+ * - categorization: Assigns articles to categories (default: gpt-4.1)
+ * - article_summary: Generates per-article AI summaries (default: gpt-4.1)
+ * - category_summary: Generates category-level summaries (default: gpt-4.1)
+ * - executive_summary: Generates overall report summary (default: gpt-4.1)
+ *
+ * Model families:
+ * - reasoning: o3, o3-mini, o4-mini - Support reasoning_effort, fixed temperature
+ * - flagship_chat: gpt-4.1, gpt-4o, gpt-4.5-preview - Support temperature
+ * - cost_optimized: gpt-4.1-nano - Limited parameters
+ */
+export interface LLMConfig {
+    semantic_filter?: StageModelConfig;
+    categorization?: StageModelConfig;
+    article_summary?: StageModelConfig;
+    category_summary?: StageModelConfig;
+    executive_summary?: StageModelConfig;
+}
+
 
 export interface ResearchStream {
     // === CORE IDENTITY ===
@@ -315,6 +356,10 @@ export interface ResearchStream {
 
     // Layer 3: PRESENTATION CONFIG - How to organize results for users
     presentation_config: PresentationConfig;
+
+    // === CONTROL PANEL ===
+    // LLM configuration - which LLMs to use per pipeline stage
+    llm_config?: LLMConfig | null;
 
     // === CHAT CONFIGURATION ===
     chat_instructions?: string | null;  // Stream-specific instructions for the AI chat assistant

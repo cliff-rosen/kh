@@ -33,8 +33,14 @@ logger = logging.getLogger(__name__)
 ProgressCallback = Callable[[int, int], Coroutine[Any, Any, None]]
 
 from models import (
-    ResearchStream, Report, ReportArticleAssociation, Article,
-    WipArticle, InformationSource, RunType, PipelineExecution
+    ResearchStream,
+    Report,
+    ReportArticleAssociation,
+    Article,
+    WipArticle,
+    InformationSource,
+    RunType,
+    PipelineExecution,
 )
 from schemas.research_stream import RetrievalConfig, PresentationConfig
 from services.pubmed_service import PubMedService
@@ -55,10 +61,11 @@ class PipelineContext:
     Immutable fields are set during config loading.
     Mutable fields are updated as stages execute.
     """
+
     # === Immutable (set during config loading) ===
     execution_id: str
-    execution: 'PipelineExecution'
-    stream: 'ResearchStream'
+    execution: "PipelineExecution"
+    stream: "ResearchStream"
     research_stream_id: int
     user_id: int
     start_date: Optional[str]
@@ -67,6 +74,8 @@ class PipelineContext:
     queries: List[Any]  # List of BroadSearchQuery from retrieval_config
     categories: List[Dict]  # From presentation_config (for LLM prompts)
     presentation_config: Any  # Full PresentationConfig object
+    enrichment_config: Optional[Dict]  # Custom prompts configuration (snapshot)
+    llm_config: Optional[Dict]  # LLM configuration (snapshot)
 
     # === Mutable (accumulated during execution) ===
     total_retrieved: int = 0
@@ -77,14 +86,16 @@ class PipelineContext:
     categorize_errors: int = 0
     executive_summary: str = ""
     category_summaries: Dict[str, str] = field(default_factory=dict)
-    report: Optional['Report'] = None
+    report: Optional["Report"] = None
 
     def final_metrics(self) -> Dict[str, Any]:
         """Build metrics dict for completion status."""
         return {
             "report_id": self.report.report_id if self.report else None,
             "total_retrieved": self.total_retrieved,
-            "final_article_count": len(self.report.article_associations) if self.report else 0,
+            "final_article_count": (
+                len(self.report.article_associations) if self.report else 0
+            ),
             "filter_stats": self.filter_stats,
             "global_duplicates": self.global_duplicates,
             "included_count": self.included_count,
@@ -94,6 +105,7 @@ class PipelineContext:
 
 class PipelineStatus:
     """Status update yielded during pipeline execution"""
+
     def __init__(self, stage: str, message: str, data: Optional[Dict] = None):
         self.stage = stage
         self.message = message
@@ -105,7 +117,7 @@ class PipelineStatus:
             "stage": self.stage,
             "message": self.message,
             "data": self.data,
-            "timestamp": self.timestamp
+            "timestamp": self.timestamp,
         }
 
 
@@ -144,12 +156,49 @@ class PipelineService:
         Raises:
             ValueError: if execution not found
         """
-        execution = self.db.query(PipelineExecution).filter(
-            PipelineExecution.id == execution_id
-        ).first()
+        execution = (
+            self.db.query(PipelineExecution)
+            .filter(PipelineExecution.id == execution_id)
+            .first()
+        )
         if not execution:
             raise ValueError(f"Pipeline execution {execution_id} not found")
         return execution
+
+    # =========================================================================
+    # MODEL CONFIGURATION HELPERS
+    # =========================================================================
+
+    # Default model configuration for each stage
+    DEFAULT_MODEL_CONFIG = {
+        "semantic_filter": {"model": "gpt-4.1", "temperature": 0.0},
+        "categorization": {"model": "gpt-4.1", "temperature": 0.0},
+        "article_summary": {"model": "gpt-4.1", "temperature": 0.0},
+        "category_summary": {"model": "gpt-4.1", "temperature": 0.0},
+        "executive_summary": {"model": "gpt-4.1", "temperature": 0.0},
+    }
+
+    def _get_stage_llm_config(
+        self, ctx: "PipelineContext", stage: str
+    ) -> Dict[str, Any]:
+        """
+        Get LLM configuration for a specific pipeline stage.
+
+        Args:
+            ctx: Pipeline context with llm_config snapshot
+            stage: One of: semantic_filter, categorization, article_summary,
+                   category_summary, executive_summary
+
+        Returns:
+            Dict with 'model' and either 'temperature' or 'reasoning_effort'
+        """
+        if ctx.llm_config and stage in ctx.llm_config:
+            stage_config = ctx.llm_config[stage]
+            # Merge with defaults to ensure all required keys exist
+            return {**self.DEFAULT_MODEL_CONFIG.get(stage, {}), **stage_config}
+        return self.DEFAULT_MODEL_CONFIG.get(
+            stage, {"model": "gpt-4.1", "temperature": 0.3}
+        )
 
     # =========================================================================
     # PIPELINE ORCHESTRATION
@@ -163,7 +212,7 @@ class PipelineService:
         heartbeat_msg: str = "Processing...",
         extra_data: Optional[Dict] = None,
         progress_interval: int = 5,
-        heartbeat_timeout: float = 3.0
+        heartbeat_timeout: float = 3.0,
     ) -> AsyncGenerator[Tuple[PipelineStatus, Any], None]:
         """
         Run a long-running task while yielding progress updates.
@@ -184,7 +233,11 @@ class PipelineService:
         extra = extra_data or {}
 
         async def progress_callback(completed: int, total: int):
-            if completed == 1 or completed == total or completed % progress_interval == 0:
+            if (
+                completed == 1
+                or completed == total
+                or completed % progress_interval == 0
+            ):
                 await progress_queue.put((completed, total))
 
         # Start the task - inject the progress callback
@@ -199,13 +252,11 @@ class PipelineService:
                 yield PipelineStatus(
                     stage,
                     progress_msg_template.format(completed=completed, total=total),
-                    {"completed": completed, "total": total, **extra}
+                    {"completed": completed, "total": total, **extra},
                 ), None
             except asyncio.TimeoutError:
                 yield PipelineStatus(
-                    stage,
-                    heartbeat_msg,
-                    {"heartbeat": True, **extra}
+                    stage, heartbeat_msg, {"heartbeat": True, **extra}
                 ), None
 
         # Drain remaining progress
@@ -236,13 +287,20 @@ class PipelineService:
 
         # Validate retrieval strategy
         if retrieval_config.concepts and len(retrieval_config.concepts) > 0:
-            raise ValueError("Concept-based retrieval is not supported in pipeline execution")
+            raise ValueError(
+                "Concept-based retrieval is not supported in pipeline execution"
+            )
 
-        if not retrieval_config.broad_search or not retrieval_config.broad_search.queries:
+        if (
+            not retrieval_config.broad_search
+            or not retrieval_config.broad_search.queries
+        ):
             raise ValueError("No broad search queries configured")
 
         # Parse presentation config
-        presentation_config = PresentationConfig.model_validate(execution.presentation_config)
+        presentation_config = PresentationConfig.model_validate(
+            execution.presentation_config
+        )
 
         # Prepare categories for categorization
         categories = []
@@ -252,10 +310,14 @@ class PipelineService:
                     "id": cat.id,
                     "name": cat.name,
                     "topics": cat.topics,
-                    "specific_inclusions": cat.specific_inclusions
+                    "specific_inclusions": cat.specific_inclusions,
                 }
                 for cat in presentation_config.categories
             ]
+
+        # Get enrichment_config and llm_config from execution snapshot
+        enrichment_config = execution.enrichment_config
+        llm_config = execution.llm_config
 
         return PipelineContext(
             execution_id=execution_id,
@@ -269,11 +331,12 @@ class PipelineService:
             queries=retrieval_config.broad_search.queries,
             categories=categories,
             presentation_config=presentation_config,
+            enrichment_config=enrichment_config,
+            llm_config=llm_config,
         )
 
     async def run_pipeline(
-        self,
-        execution_id: str
+        self, execution_id: str
     ) -> AsyncGenerator[PipelineStatus, None]:
         """
         Execute the full pipeline for a research stream and yield status updates.
@@ -291,31 +354,53 @@ class PipelineService:
             # Load configuration
             yield PipelineStatus("init", "Loading execution configuration...")
             ctx = await self._load_execution_context(execution_id)
-            logger.info(f"Starting pipeline for execution_id={execution_id}, stream_id={ctx.research_stream_id}")
+            logger.info(
+                f"Starting pipeline for execution_id={execution_id}, stream_id={ctx.research_stream_id}"
+            )
 
-            yield PipelineStatus("init", "Configuration loaded", {
-                "execution_id": execution_id,
-                "stream_name": ctx.stream.stream_name,
-                "num_queries": len(ctx.queries),
-                "num_categories": len(ctx.categories),
-                "date_range": f"{ctx.start_date} to {ctx.end_date}"
-            })
+            yield PipelineStatus(
+                "init",
+                "Configuration loaded",
+                {
+                    "execution_id": execution_id,
+                    "stream_name": ctx.stream.stream_name,
+                    "num_queries": len(ctx.queries),
+                    "num_categories": len(ctx.categories),
+                    "date_range": f"{ctx.start_date} to {ctx.end_date}",
+                },
+            )
 
             # Execute pipeline stages
-            async for status in self._stage_retrieval(ctx): yield status
-            async for status in self._stage_semantic_filter(ctx): yield status
-            async for status in self._stage_deduplicate(ctx): yield status
-            async for status in self._stage_generate_report(ctx): yield status  # Creates bare associations
-            async for status in self._stage_categorize(ctx): yield status       # Writes categories to associations
-            async for status in self._stage_generate_article_summaries(ctx): yield status  # Writes ai_summary to associations
-            async for status in self._stage_generate_summaries(ctx): yield status  # Executive/category summaries
+            async for status in self._stage_retrieval(ctx):
+                yield status
+            async for status in self._stage_semantic_filter(ctx):
+                yield status
+            async for status in self._stage_deduplicate(ctx):
+                yield status
+            async for status in self._stage_generate_report(ctx):
+                yield status  # Creates bare associations
+            async for status in self._stage_categorize(ctx):
+                yield status  # Writes categories to associations
+            async for status in self._stage_generate_article_summaries(ctx):
+                yield status  # Writes ai_summary to associations
+            async for status in self._stage_generate_summaries(ctx):
+                yield status  # Executive/category summaries
 
             # Complete
-            yield PipelineStatus("complete", "Pipeline execution complete", ctx.final_metrics())
+            yield PipelineStatus(
+                "complete", "Pipeline execution complete", ctx.final_metrics()
+            )
 
         except Exception as e:
-            logger.error(f"Pipeline failed for execution_id={execution_id}: {type(e).__name__}: {str(e)}", exc_info=True)
-            yield PipelineStatus("error", f"Pipeline failed: {str(e)}", {"error": str(e), "error_type": type(e).__name__})
+            logger.error(
+                f"Pipeline failed for execution_id={execution_id}: {type(e).__name__}: {str(e)}",
+                exc_info=True,
+            )
+            yield PipelineStatus(
+                "error",
+                f"Pipeline failed: {str(e)}",
+                {"error": str(e), "error_type": type(e).__name__},
+            )
             raise
 
     # =========================================================================
@@ -323,8 +408,7 @@ class PipelineService:
     # =========================================================================
 
     async def _stage_retrieval(
-        self,
-        ctx: PipelineContext
+        self, ctx: PipelineContext
     ) -> AsyncGenerator[PipelineStatus, None]:
         """
         Stage: Execute retrieval for each broad search query.
@@ -333,7 +417,7 @@ class PipelineService:
         yield PipelineStatus(
             "retrieval",
             f"Starting retrieval for {len(ctx.queries)} queries",
-            {"num_queries": len(ctx.queries)}
+            {"num_queries": len(ctx.queries)},
         )
 
         for query in ctx.queries:
@@ -342,14 +426,17 @@ class PipelineService:
                 yield PipelineStatus(
                     "retrieval",
                     f"Hit MAX_TOTAL_ARTICLES limit ({self.MAX_TOTAL_ARTICLES})",
-                    {"limit_reached": True}
+                    {"limit_reached": True},
                 )
                 break
 
             yield PipelineStatus(
                 "retrieval",
                 f"Fetching: {query.search_terms}",
-                {"query_id": query.query_id, "query_expression": query.query_expression}
+                {
+                    "query_id": query.query_id,
+                    "query_expression": query.query_expression,
+                },
             )
 
             count = await self._fetch_and_store_articles(
@@ -359,7 +446,7 @@ class PipelineService:
                 source_id="pubmed",
                 query_expression=query.query_expression,
                 start_date=ctx.start_date,
-                end_date=ctx.end_date
+                end_date=ctx.end_date,
             )
 
             ctx.total_retrieved += count
@@ -367,7 +454,11 @@ class PipelineService:
             yield PipelineStatus(
                 "retrieval",
                 f"Retrieved {count} articles",
-                {"query_id": query.query_id, "count": count, "total": ctx.total_retrieved}
+                {
+                    "query_id": query.query_id,
+                    "count": count,
+                    "total": ctx.total_retrieved,
+                },
             )
 
         # Stage commit
@@ -376,12 +467,11 @@ class PipelineService:
         yield PipelineStatus(
             "retrieval",
             f"Retrieval complete: {ctx.total_retrieved} articles",
-            {"total_retrieved": ctx.total_retrieved}
+            {"total_retrieved": ctx.total_retrieved},
         )
 
     async def _stage_semantic_filter(
-        self,
-        ctx: PipelineContext
+        self, ctx: PipelineContext
     ) -> AsyncGenerator[PipelineStatus, None]:
         """
         Stage: Apply semantic filters to retrieved articles.
@@ -389,29 +479,41 @@ class PipelineService:
         """
         yield PipelineStatus("filter", "Applying semantic filters...")
 
+        # Get model configuration for semantic filter stage
+        filter_model_cfg = self._get_stage_llm_config(ctx, "semantic_filter")
+        filter_model = filter_model_cfg.get("model")
+        filter_temp = filter_model_cfg.get("temperature")
+        filter_reasoning = filter_model_cfg.get("reasoning_effort")
+
         for query in ctx.queries:
             if not query.semantic_filter.enabled:
                 yield PipelineStatus(
                     "filter",
                     "Filter disabled for query",
-                    {"query_id": query.query_id, "filtered": False}
+                    {"query_id": query.query_id, "filtered": False},
                 )
                 continue
+
+            # Capture query-specific values for lambda closure
+            q = query  # Avoid closure over loop variable
 
             # Stream progress while filtering
             result = None
             async for status, res in self._stream_with_progress(
-                task_coro=lambda on_progress: self._apply_semantic_filter(
+                task_coro=lambda on_progress, q=q: self._apply_semantic_filter(
                     execution_id=ctx.execution_id,
-                    retrieval_unit_id=query.query_id,
-                    filter_criteria=query.semantic_filter.criteria,
-                    threshold=query.semantic_filter.threshold,
-                    on_progress=on_progress
+                    retrieval_unit_id=q.query_id,
+                    filter_criteria=q.semantic_filter.criteria,
+                    threshold=q.semantic_filter.threshold,
+                    on_progress=on_progress,
+                    model=filter_model,
+                    temperature=filter_temp,
+                    reasoning_effort=filter_reasoning,
                 ),
                 stage="filter",
                 progress_msg_template="Filtering: {completed}/{total}",
                 heartbeat_msg="Processing...",
-                extra_data={"query_id": query.query_id}
+                extra_data={"query_id": query.query_id},
             ):
                 if res is not None:
                     result = res
@@ -424,17 +526,18 @@ class PipelineService:
             yield PipelineStatus(
                 "filter",
                 f"Filtered: {passed} passed, {rejected} rejected",
-                {"query_id": query.query_id, "passed": passed, "rejected": rejected}
+                {"query_id": query.query_id, "passed": passed, "rejected": rejected},
             )
 
         # Stage commit
         self.wip_article_service.commit()
 
-        yield PipelineStatus("filter", "Semantic filtering complete", {"stats": ctx.filter_stats})
+        yield PipelineStatus(
+            "filter", "Semantic filtering complete", {"stats": ctx.filter_stats}
+        )
 
     async def _stage_deduplicate(
-        self,
-        ctx: PipelineContext
+        self, ctx: PipelineContext
     ) -> AsyncGenerator[PipelineStatus, None]:
         """
         Stage: Deduplicate globally and mark articles for inclusion.
@@ -443,14 +546,13 @@ class PipelineService:
         yield PipelineStatus("dedup_global", "Deduplicating across all groups...")
 
         ctx.global_duplicates = await self._deduplicate_globally(
-            ctx.research_stream_id,
-            ctx.execution_id
+            ctx.research_stream_id, ctx.execution_id
         )
 
         yield PipelineStatus(
             "dedup_global",
             f"Found {ctx.global_duplicates} cross-query duplicates",
-            {"duplicates": ctx.global_duplicates}
+            {"duplicates": ctx.global_duplicates},
         )
 
         # Mark articles for inclusion
@@ -462,12 +564,11 @@ class PipelineService:
         yield PipelineStatus(
             "dedup_global",
             f"Marked {ctx.included_count} articles for report inclusion",
-            {"included": ctx.included_count}
+            {"included": ctx.included_count},
         )
 
     async def _stage_categorize(
-        self,
-        ctx: PipelineContext
+        self, ctx: PipelineContext
     ) -> AsyncGenerator[PipelineStatus, None]:
         """
         Stage: Categorize articles into presentation categories.
@@ -477,17 +578,22 @@ class PipelineService:
         """
         yield PipelineStatus("categorize", "Categorizing articles...")
 
+        # Get LLM config for categorization
+        model_cfg = self._get_stage_llm_config(ctx, "categorization")
+
         # Stream progress while categorizing
         result = None
         async for status, res in self._stream_with_progress(
             task_coro=lambda on_progress: self._categorize_articles(
                 report_id=ctx.report.report_id,
                 presentation_config=ctx.presentation_config,
-                on_progress=on_progress
+                model=model_cfg.get("model"),
+                temperature=model_cfg.get("temperature"),
+                on_progress=on_progress,
             ),
             stage="categorize",
             progress_msg_template="Categorizing: {completed}/{total}",
-            heartbeat_msg="Processing..."
+            heartbeat_msg="Processing...",
         ):
             if res is not None:
                 result = res
@@ -500,27 +606,27 @@ class PipelineService:
             yield PipelineStatus(
                 "categorize",
                 f"Categorized {ctx.categorized_count} articles ({ctx.categorize_errors} failed)",
-                {"categorized": ctx.categorized_count, "errors": ctx.categorize_errors}
+                {"categorized": ctx.categorized_count, "errors": ctx.categorize_errors},
             )
         else:
             yield PipelineStatus(
                 "categorize",
                 f"Categorized {ctx.categorized_count} articles",
-                {"categorized": ctx.categorized_count}
+                {"categorized": ctx.categorized_count},
             )
 
     async def _stage_generate_article_summaries(
-        self,
-        ctx: PipelineContext
+        self, ctx: PipelineContext
     ) -> AsyncGenerator[PipelineStatus, None]:
         """
         Stage: Generate AI summaries for individual articles.
         Commits: ai_summary written to ReportArticleAssociation.
         """
-        # Get enrichment_config (for custom prompts, or None to use defaults)
-        enrichment_config = None
-        if hasattr(ctx.stream, 'enrichment_config') and ctx.stream.enrichment_config:
-            enrichment_config = ctx.stream.enrichment_config.dict() if hasattr(ctx.stream.enrichment_config, 'dict') else ctx.stream.enrichment_config
+        # Use enrichment_config from execution snapshot
+        enrichment_config = ctx.enrichment_config
+
+        # Get LLM config for article summaries
+        model_cfg = self._get_stage_llm_config(ctx, "article_summary")
 
         yield PipelineStatus("article_summaries", "Generating article summaries...")
 
@@ -531,11 +637,13 @@ class PipelineService:
                 report_id=ctx.report.report_id,
                 stream=ctx.stream,
                 enrichment_config=enrichment_config,
-                on_progress=on_progress
+                model=model_cfg.get("model"),
+                temperature=model_cfg.get("temperature"),
+                on_progress=on_progress,
             ),
             stage="article_summaries",
             progress_msg_template="Summarizing: {completed}/{total}",
-            heartbeat_msg="Generating summaries..."
+            heartbeat_msg="Generating summaries...",
         ):
             if res is not None:
                 result = res
@@ -548,7 +656,7 @@ class PipelineService:
         yield PipelineStatus(
             "article_summaries",
             f"Generated {result} article summaries",
-            {"generated": result}
+            {"generated": result},
         )
 
     async def _generate_article_summaries(
@@ -556,7 +664,9 @@ class PipelineService:
         report_id: int,
         stream: Any,
         enrichment_config: Dict[str, Any],
-        on_progress: Optional[callable] = None
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        on_progress: Optional[callable] = None,
     ) -> int:
         """
         Generate AI summaries for articles in a report.
@@ -569,8 +679,7 @@ class PipelineService:
 
         # Filter to associations with articles that have abstracts
         articles_to_summarize = [
-            assoc for assoc in associations
-            if assoc.article and assoc.article.abstract
+            assoc for assoc in associations if assoc.article and assoc.article.abstract
         ]
 
         if not articles_to_summarize:
@@ -584,11 +693,15 @@ class PipelineService:
             stream_name=stream.stream_name,
             enrichment_config=enrichment_config,
             max_concurrency=5,
-            on_progress=on_progress
+            on_progress=on_progress,
+            model=model,
+            temperature=temperature,
         )
 
         # Build results for bulk update
-        article_id_to_summary = {article.article_id: summary for article, summary in article_summaries}
+        article_id_to_summary = {
+            article.article_id: summary for article, summary in article_summaries
+        }
         association_updates = [
             (assoc, article_id_to_summary[assoc.article.article_id])
             for assoc in articles_to_summarize
@@ -597,18 +710,23 @@ class PipelineService:
 
         # Write to associations
         if association_updates:
-            return self.association_service.bulk_set_ai_summary_from_pipeline(association_updates)
+            return self.association_service.bulk_set_ai_summary_from_pipeline(
+                association_updates
+            )
         return 0
 
     async def _stage_generate_summaries(
-        self,
-        ctx: PipelineContext
+        self, ctx: PipelineContext
     ) -> AsyncGenerator[PipelineStatus, None]:
         """
         Stage: Generate executive summary and category summaries.
         Commits: None (summaries stored in ctx only).
         """
         yield PipelineStatus("summary", "Generating summaries...")
+
+        # Get LLM configs for summary stages
+        category_summary_cfg = self._get_stage_llm_config(ctx, "category_summary")
+        executive_summary_cfg = self._get_stage_llm_config(ctx, "executive_summary")
 
         # Run summary generation with heartbeat
         summary_task = asyncio.create_task(
@@ -617,7 +735,10 @@ class PipelineService:
                 execution_id=ctx.execution_id,
                 report_id=ctx.report.report_id,
                 stream=ctx.stream,
-                presentation_config=ctx.presentation_config
+                presentation_config=ctx.presentation_config,
+                enrichment_config=ctx.enrichment_config,
+                category_summary_model_cfg=category_summary_cfg,
+                executive_summary_model_cfg=executive_summary_cfg,
             )
         )
 
@@ -628,7 +749,7 @@ class PipelineService:
                 yield PipelineStatus(
                     "summary",
                     f"Generating summaries for {len(ctx.categories)} categories...",
-                    {"heartbeat": True, "num_categories": len(ctx.categories)}
+                    {"heartbeat": True, "num_categories": len(ctx.categories)},
                 )
 
         ctx.executive_summary, ctx.category_summaries = await summary_task
@@ -636,12 +757,11 @@ class PipelineService:
         yield PipelineStatus(
             "summary",
             f"Generated executive summary and {len(ctx.category_summaries)} category summaries",
-            {"categories": len(ctx.category_summaries)}
+            {"categories": len(ctx.category_summaries)},
         )
 
     async def _stage_generate_report(
-        self,
-        ctx: PipelineContext
+        self, ctx: PipelineContext
     ) -> AsyncGenerator[PipelineStatus, None]:
         """
         Stage: Generate final report with article associations.
@@ -660,14 +780,17 @@ class PipelineService:
                 "filter_stats": ctx.filter_stats,
                 "global_duplicates": ctx.global_duplicates,
                 "included_in_report": ctx.included_count,
-                "categorized": ctx.categorized_count
-            }
+                "categorized": ctx.categorized_count,
+            },
         )
 
         yield PipelineStatus(
             "report",
             f"Report created successfully",
-            {"report_id": ctx.report.report_id, "article_count": len(ctx.report.article_associations)}
+            {
+                "report_id": ctx.report.report_id,
+                "article_count": len(ctx.report.article_associations),
+            },
         )
 
     async def _create_report(
@@ -675,7 +798,7 @@ class PipelineService:
         ctx: PipelineContext,
         executive_summary: str,
         category_summaries: Dict[str, str],
-        metrics: Dict
+        metrics: Dict,
     ) -> Report:
         """
         Create report with proper execution.report_id linkage.
@@ -690,12 +813,14 @@ class PipelineService:
         # Build enrichments
         enrichments = {
             "executive_summary": executive_summary,
-            "category_summaries": category_summaries
+            "category_summaries": category_summaries,
         }
 
         # Create report
         report_date_obj = date.today()
-        final_report_name = ctx.report_name if ctx.report_name else report_date_obj.strftime("%Y.%m.%d")
+        final_report_name = (
+            ctx.report_name if ctx.report_name else report_date_obj.strftime("%Y.%m.%d")
+        )
 
         report = self.report_service.create_report(
             user_id=ctx.user_id,
@@ -704,7 +829,7 @@ class PipelineService:
             title=final_report_name,
             pipeline_execution_id=ctx.execution_id,
             executive_summary=executive_summary,
-            enrichments=enrichments
+            enrichments=enrichments,
         )
 
         report.pipeline_metrics = metrics
@@ -722,14 +847,18 @@ class PipelineService:
             # Check for existing article
             existing_article = None
             if wip_article.doi:
-                existing_article = self.db.query(Article).filter(
-                    Article.doi == wip_article.doi
-                ).first()
+                existing_article = (
+                    self.db.query(Article)
+                    .filter(Article.doi == wip_article.doi)
+                    .first()
+                )
 
             if not existing_article and wip_article.pmid:
-                existing_article = self.db.query(Article).filter(
-                    Article.pmid == wip_article.pmid
-                ).first()
+                existing_article = (
+                    self.db.query(Article)
+                    .filter(Article.pmid == wip_article.pmid)
+                    .first()
+                )
 
             if existing_article:
                 article = existing_article
@@ -751,7 +880,7 @@ class PipelineService:
                     pages=wip_article.pages,
                     year=wip_article.year,
                     article_metadata=wip_article.article_metadata,
-                    fetch_count=1
+                    fetch_count=1,
                 )
                 self.db.add(article)
                 self.db.flush()
@@ -789,7 +918,7 @@ class PipelineService:
         source_id: str,
         query_expression: str,
         start_date: Optional[str] = None,
-        end_date: Optional[str] = None
+        end_date: Optional[str] = None,
     ) -> int:
         """
         Fetch articles from a source and store all results in wip_articles table.
@@ -810,9 +939,11 @@ class PipelineService:
             Number of articles retrieved and stored
         """
         # Get source from database
-        source = self.db.query(InformationSource).filter(
-            InformationSource.source_name == source_id
-        ).first()
+        source = (
+            self.db.query(InformationSource)
+            .filter(InformationSource.source_name == source_id)
+            .first()
+        )
 
         if not source:
             raise ValueError(f"Source '{source_id}' not found")
@@ -829,7 +960,7 @@ class PipelineService:
                 start_date=start_date,
                 end_date=end_date,
                 date_type="publication",  # Use publication date for filtering
-                sort_by="relevance"  # Most relevant first
+                sort_by="relevance",  # Most relevant first
             )
         else:
             # Other sources not yet implemented
@@ -845,6 +976,7 @@ class PipelineService:
             if article.publication_date:
                 try:
                     from datetime import datetime as dt
+
                     pub_date = dt.fromisoformat(article.publication_date).date()
                 except (ValueError, AttributeError):
                     pass  # Skip invalid dates
@@ -859,11 +991,14 @@ class PipelineService:
                 authors=article.authors or [],
                 publication_date=pub_date,
                 abstract=article.abstract,
-                pmid=article.pmid or (article.id if article.source == 'pubmed' else None),
+                pmid=article.pmid
+                or (article.id if article.source == "pubmed" else None),
                 doi=article.doi,
                 journal=article.journal,
-                year=int(article.publication_year) if article.publication_year else None,
-                source_specific_id=article.id
+                year=(
+                    int(article.publication_year) if article.publication_year else None
+                ),
+                source_specific_id=article.id,
             )
 
         self.wip_article_service.commit()
@@ -875,7 +1010,10 @@ class PipelineService:
         retrieval_unit_id: str,
         filter_criteria: str,
         threshold: float,
-        on_progress: Optional[callable] = None
+        on_progress: Optional[callable] = None,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> Tuple[int, int]:
         """
         Apply semantic filter to articles in a retrieval unit (concept or broad query) using LLM in parallel batches.
@@ -886,18 +1024,27 @@ class PipelineService:
             filter_criteria: Natural language filter criteria
             threshold: Minimum score (0-1) for article to pass
             on_progress: Optional async callback(completed, total) for progress updates
+            model: Optional LLM model to use (e.g., 'o4-mini', 'gpt-4.1')
+            temperature: Optional temperature for chat models
+            reasoning_effort: Optional reasoning effort for reasoning models
 
         Returns:
             Tuple of (passed_count, rejected_count)
         """
         # Get all non-duplicate articles for this unit that haven't been filtered yet
-        articles = self.wip_article_service.get_for_filtering(execution_id, retrieval_unit_id)
+        articles = self.wip_article_service.get_for_filtering(
+            execution_id, retrieval_unit_id
+        )
 
         if not articles:
-            logger.info(f"No articles to filter for execution_id={execution_id}, retrieval_unit_id={retrieval_unit_id}")
+            logger.info(
+                f"No articles to filter for execution_id={execution_id}, retrieval_unit_id={retrieval_unit_id}"
+            )
             return 0, 0
 
-        logger.info(f"Filtering {len(articles)} articles for retrieval_unit_id={retrieval_unit_id}, threshold={threshold}")
+        logger.info(
+            f"Filtering {len(articles)} articles for retrieval_unit_id={retrieval_unit_id}, threshold={threshold}"
+        )
 
         # Convert WipArticle objects to dicts for evaluation
         items = []
@@ -905,14 +1052,16 @@ class PipelineService:
         for article in articles:
             article_id = str(article.id)  # Use database primary key
             article_map[article_id] = article
-            items.append({
-                "id": article_id,
-                "title": article.title or "",
-                "abstract": article.abstract or "",
-                "pmid": article.pmid,
-                "journal": article.journal,
-                "authors": article.authors
-            })
+            items.append(
+                {
+                    "id": article_id,
+                    "title": article.title or "",
+                    "abstract": article.abstract or "",
+                    "pmid": article.pmid,
+                    "journal": article.journal,
+                    "authors": article.authors,
+                }
+            )
 
         # Use AIEvaluationService score_batch to get relevance scores
         results = await self.eval_service.score_batch(
@@ -924,7 +1073,10 @@ class PipelineService:
             include_reasoning=True,
             include_source_data=True,  # Include full article data for LLM context
             max_concurrent=50,
-            on_progress=on_progress
+            on_progress=on_progress,
+            model=model,
+            temperature=temperature,
+            reasoning_effort=reasoning_effort,
         )
 
         # Update database with results using WipArticleService
@@ -944,7 +1096,7 @@ class PipelineService:
                 article=article,
                 passed=is_relevant,
                 score=score,
-                score_reason=reasoning  # Capture reasoning for all articles
+                score_reason=reasoning,  # Capture reasoning for all articles
             )
             if is_relevant:
                 passed += 1
@@ -952,10 +1104,14 @@ class PipelineService:
                 rejected += 1
 
         self.wip_article_service.commit()
-        logger.info(f"Filtering complete: {passed} passed, {rejected} rejected out of {len(articles)} total")
+        logger.info(
+            f"Filtering complete: {passed} passed, {rejected} rejected out of {len(articles)} total"
+        )
         return passed, rejected
 
-    async def _deduplicate_globally(self, research_stream_id: int, execution_id: str) -> int:
+    async def _deduplicate_globally(
+        self, research_stream_id: int, execution_id: str
+    ) -> int:
         """
         Find and mark duplicates across all groups (after filtering) for this execution.
         Only considers articles that passed semantic filter and aren't already marked as dupes.
@@ -979,7 +1135,9 @@ class PipelineService:
             if article.doi and article.doi.strip():
                 doi_normalized = article.doi.lower().strip()
                 if doi_normalized in seen_dois:
-                    self.wip_article_service.mark_as_duplicate(article, seen_dois[doi_normalized])
+                    self.wip_article_service.mark_as_duplicate(
+                        article, seen_dois[doi_normalized]
+                    )
                     duplicates_found += 1
                 else:
                     seen_dois[doi_normalized] = article.pmid or str(article.id)
@@ -988,7 +1146,9 @@ class PipelineService:
             elif article.title:
                 title_normalized = article.title.lower().strip()
                 if title_normalized in seen_titles:
-                    self.wip_article_service.mark_as_duplicate(article, seen_titles[title_normalized])
+                    self.wip_article_service.mark_as_duplicate(
+                        article, seen_titles[title_normalized]
+                    )
                     duplicates_found += 1
                 else:
                     seen_titles[title_normalized] = article.pmid or str(article.id)
@@ -1019,7 +1179,9 @@ class PipelineService:
         self,
         report_id: int,
         presentation_config: PresentationConfig,
-        on_progress: Optional[callable] = None
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        on_progress: Optional[callable] = None,
     ) -> Tuple[int, int]:
         """
         Use LLM to categorize report articles and write directly to associations.
@@ -1027,6 +1189,8 @@ class PipelineService:
         Args:
             report_id: Report ID (report must already exist)
             presentation_config: Presentation configuration with categories
+            model: Optional model override
+            temperature: Optional temperature override
             on_progress: Optional async callback(completed, total) for progress updates
 
         Returns:
@@ -1039,7 +1203,9 @@ class PipelineService:
             logger.info(f"No articles to categorize for report_id={report_id}")
             return 0, 0
 
-        logger.info(f"Categorizing {len(associations)} articles into {len(presentation_config.categories)} categories")
+        logger.info(
+            f"Categorizing {len(associations)} articles into {len(presentation_config.categories)} categories"
+        )
 
         # Prepare category descriptions for LLM
         categories_desc = self.categorization_service.prepare_category_definitions(
@@ -1051,11 +1217,15 @@ class PipelineService:
         articles = [assoc.article for assoc in associations]
 
         # Use centralized batch categorization (works with any article-like object)
-        results, error_count = await self.categorization_service.categorize_articles_batch(
-            articles=articles,
-            categories=categories_desc,
-            max_concurrent=50,
-            on_progress=on_progress
+        results, error_count = (
+            await self.categorization_service.categorize_articles_batch(
+                articles=articles,
+                categories=categories_desc,
+                max_concurrent=50,
+                on_progress=on_progress,
+                model=model,
+                temperature=temperature,
+            )
         )
 
         # Map results back to associations: (Article, category_id) -> (Association, category_id)
@@ -1065,9 +1235,13 @@ class PipelineService:
         ]
 
         # Update associations with results
-        categorized = self.association_service.bulk_set_categories_from_pipeline(association_results)
+        categorized = self.association_service.bulk_set_categories_from_pipeline(
+            association_results
+        )
         self.db.commit()
-        logger.info(f"Categorization complete: {categorized} articles categorized, {error_count} errors")
+        logger.info(
+            f"Categorization complete: {categorized} articles categorized, {error_count} errors"
+        )
         return categorized, error_count
 
     async def _generate_summaries(
@@ -1076,7 +1250,10 @@ class PipelineService:
         execution_id: str,
         report_id: int,
         stream: ResearchStream,
-        presentation_config: PresentationConfig
+        presentation_config: PresentationConfig,
+        enrichment_config: Optional[Dict[str, Any]] = None,
+        category_summary_model_cfg: Optional[Dict[str, Any]] = None,
+        executive_summary_model_cfg: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, Dict[str, str]]:
         """
         Generate executive summary and per-category summaries.
@@ -1087,6 +1264,9 @@ class PipelineService:
             report_id: Report ID (needed to get categories from associations)
             stream: ResearchStream object
             presentation_config: Presentation configuration
+            enrichment_config: Custom prompts configuration
+            category_summary_model_cfg: Model config for category summaries
+            executive_summary_model_cfg: Model config for executive summary
 
         Returns:
             Tuple of (executive_summary, category_summaries_dict)
@@ -1097,21 +1277,20 @@ class PipelineService:
         if not wip_articles:
             return "No articles in this report.", {}
 
-        # Get enrichment_config if available (for custom prompts)
-        enrichment_config = None
-        if hasattr(stream, 'enrichment_config') and stream.enrichment_config:
-            enrichment_config = stream.enrichment_config.dict() if hasattr(stream.enrichment_config, 'dict') else stream.enrichment_config
-
         # Get associations to read categories (categories are now on ReportArticleAssociation)
         associations = self.association_service.get_visible_for_report(report_id)
         wip_to_categories: Dict[int, List[str]] = {}
         wip_to_summary: Dict[int, str] = {}
         for assoc in associations:
             if assoc.wip_article_id:
-                wip_to_categories[assoc.wip_article_id] = assoc.presentation_categories or []
+                wip_to_categories[assoc.wip_article_id] = (
+                    assoc.presentation_categories or []
+                )
                 wip_to_summary[assoc.wip_article_id] = assoc.ai_summary or ""
 
-        logger.info(f"Generating summaries for {len(wip_articles)} articles across {len(presentation_config.categories)} categories")
+        logger.info(
+            f"Generating summaries for {len(wip_articles)} articles across {len(presentation_config.categories)} categories"
+        )
 
         # Generate category summaries in parallel
         async def generate_single_category_summary(category):
@@ -1119,8 +1298,10 @@ class PipelineService:
             try:
                 # Get articles in this category (categories are now on association)
                 category_articles = [
-                    article for article in wip_articles
-                    if article.id in wip_to_categories and category.id in wip_to_categories[article.id]
+                    article
+                    for article in wip_articles
+                    if article.id in wip_to_categories
+                    and category.id in wip_to_categories[article.id]
                 ]
 
                 if not category_articles:
@@ -1129,11 +1310,14 @@ class PipelineService:
                 # Build category description
                 category_description = f"{category.name}. "
                 if category.specific_inclusions:
-                    category_description += "Includes: " + ", ".join(category.specific_inclusions)
+                    category_description += "Includes: " + ", ".join(
+                        category.specific_inclusions
+                    )
 
                 # Gather article summaries for this category (if available)
                 article_summaries = [
-                    wip_to_summary.get(article.id, "") for article in category_articles
+                    wip_to_summary.get(article.id, "")
+                    for article in category_articles
                     if wip_to_summary.get(article.id)
                 ]
 
@@ -1146,17 +1330,32 @@ class PipelineService:
                     stream_name=stream.stream_name,
                     category_topics=category.topics,
                     enrichment_config=enrichment_config,
-                    article_summaries=article_summaries
+                    article_summaries=article_summaries,
+                    model=(
+                        category_summary_model_cfg.get("model")
+                        if category_summary_model_cfg
+                        else None
+                    ),
+                    temperature=(
+                        category_summary_model_cfg.get("temperature")
+                        if category_summary_model_cfg
+                        else None
+                    ),
                 )
                 return category.id, summary
             except Exception as e:
-                logger.error(f"Failed to generate summary for category {category.id}: {type(e).__name__}: {e}")
+                logger.error(
+                    f"Failed to generate summary for category {category.id}: {type(e).__name__}: {e}"
+                )
                 return category.id, f"Error generating summary: {str(e)}"
 
         # Run all category summaries in parallel with exception handling
         category_results = await asyncio.gather(
-            *[generate_single_category_summary(cat) for cat in presentation_config.categories],
-            return_exceptions=True
+            *[
+                generate_single_category_summary(cat)
+                for cat in presentation_config.categories
+            ],
+            return_exceptions=True,
         )
 
         # Process results, handling any exceptions
@@ -1164,7 +1363,9 @@ class PipelineService:
         for i, result in enumerate(category_results):
             if isinstance(result, Exception):
                 cat_id = presentation_config.categories[i].id
-                logger.error(f"Category summary task failed for {cat_id}: {type(result).__name__}: {result}")
+                logger.error(
+                    f"Category summary task failed for {cat_id}: {type(result).__name__}: {result}"
+                )
                 category_summaries[cat_id] = f"Error generating summary: {str(result)}"
             else:
                 cat_id, summary = result
@@ -1177,11 +1378,26 @@ class PipelineService:
                 stream_purpose=stream.purpose,
                 category_summaries=category_summaries,
                 stream_name=stream.stream_name,
-                enrichment_config=enrichment_config
+                enrichment_config=enrichment_config,
+                model=(
+                    executive_summary_model_cfg.get("model")
+                    if executive_summary_model_cfg
+                    else None
+                ),
+                temperature=(
+                    executive_summary_model_cfg.get("temperature")
+                    if executive_summary_model_cfg
+                    else None
+                ),
             )
         except Exception as e:
-            logger.error(f"Failed to generate executive summary: {type(e).__name__}: {e}", exc_info=True)
+            logger.error(
+                f"Failed to generate executive summary: {type(e).__name__}: {e}",
+                exc_info=True,
+            )
             executive_summary = f"Error generating executive summary: {str(e)}"
 
-        logger.info(f"Summary generation complete: executive summary + {len(category_summaries)} category summaries")
+        logger.info(
+            f"Summary generation complete: executive summary + {len(category_summaries)} category summaries"
+        )
         return executive_summary, category_summaries

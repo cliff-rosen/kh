@@ -371,16 +371,37 @@ class AIEvaluationService:
         """Get LLM model configuration for evaluation tasks."""
         return get_task_config("extraction", "default")
 
-    def _create_prompt_caller(self, response_schema: Dict[str, Any], system_message: str) -> BasePromptCaller:
-        """Create a BasePromptCaller with the given schema and system message."""
-        model_config = self._get_model_config()
+    def _create_prompt_caller(
+        self,
+        response_schema: Dict[str, Any],
+        system_message: str,
+        model_override: Optional[str] = None,
+        temperature_override: Optional[float] = None,
+        reasoning_effort_override: Optional[str] = None
+    ) -> BasePromptCaller:
+        """Create a BasePromptCaller with the given schema and system message.
+
+        Args:
+            response_schema: JSON schema for the response
+            system_message: System message for the LLM
+            model_override: Optional model to use instead of default
+            temperature_override: Optional temperature to use instead of default
+            reasoning_effort_override: Optional reasoning effort (for reasoning models)
+        """
+        default_config = self._get_model_config()
+
+        # Use overrides if provided, otherwise fall back to defaults
+        model = model_override or default_config["model"]
+        temperature = temperature_override if temperature_override is not None else default_config.get("temperature", 0.0)
+        reasoning_effort = reasoning_effort_override or default_config.get("reasoning_effort")
+
         return BasePromptCaller(
             response_model=response_schema,
             system_message=system_message,
             messages_placeholder=True,
-            model=model_config["model"],
-            temperature=model_config.get("temperature", 0.0),
-            reasoning_effort=model_config.get("reasoning_effort") if supports_reasoning_effort(model_config["model"]) else None
+            model=model,
+            temperature=temperature,
+            reasoning_effort=reasoning_effort if supports_reasoning_effort(model) else None
         )
 
     async def _call_llm(self, prompt_caller: BasePromptCaller, user_message: "ChatMessage") -> Dict[str, Any]:
@@ -552,7 +573,10 @@ class AIEvaluationService:
         max_value: float = 1,
         interval: Optional[float] = None,
         include_reasoning: bool = True,
-        include_source_data: bool = False
+        include_source_data: bool = False,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        reasoning_effort: Optional[str] = None
     ) -> EvaluationResult:
         """
         Score an item on a numeric scale based on criteria.
@@ -566,12 +590,15 @@ class AIEvaluationService:
             interval: Optional step size (e.g., 0.5 for discrete steps)
             include_reasoning: Whether to include explanation in result
             include_source_data: If True, include all item fields in prompt context
+            model: Optional model override (e.g., 'o4-mini', 'gpt-4.1')
+            temperature: Optional temperature override (for chat models)
+            reasoning_effort: Optional reasoning effort override (for reasoning models)
 
         Returns:
             EvaluationResult with float value in specified range
         """
         item_id = self._get_item_id(item, id_field)
-        logger.debug(f"score - item_id={item_id}, range=[{min_value}, {max_value}]")
+        logger.debug(f"score - item_id={item_id}, range=[{min_value}, {max_value}], model={model}")
 
         try:
             # Get appropriate system message and schema
@@ -585,7 +612,12 @@ class AIEvaluationService:
             full_instruction = f"{criteria}\n\n{range_instruction}"
 
             # Create prompt caller and build message
-            prompt_caller = self._create_prompt_caller(response_schema, system_message)
+            prompt_caller = self._create_prompt_caller(
+                response_schema, system_message,
+                model_override=model,
+                temperature_override=temperature,
+                reasoning_effort_override=reasoning_effort
+            )
             user_message = self._build_user_message(full_instruction, item, include_source_data)
 
             # Call LLM
@@ -620,7 +652,10 @@ class AIEvaluationService:
         include_reasoning: bool = True,
         include_source_data: bool = False,
         max_concurrent: int = 50,
-        on_progress: Optional[callable] = None
+        on_progress: Optional[callable] = None,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        reasoning_effort: Optional[str] = None
     ) -> List[EvaluationResult]:
         """
         Score multiple items in parallel.
@@ -636,6 +671,9 @@ class AIEvaluationService:
             include_source_data: If True, include all item fields in prompt context
             max_concurrent: Maximum concurrent LLM calls (default: 50)
             on_progress: Optional callback(completed, total) called after each item completes
+            model: Optional model override (e.g., 'o4-mini', 'gpt-4.1')
+            temperature: Optional temperature override (for chat models)
+            reasoning_effort: Optional reasoning effort override (for reasoning models)
 
         Returns:
             List of EvaluationResult objects in same order as input items
@@ -643,14 +681,18 @@ class AIEvaluationService:
         if not items:
             return []
 
-        logger.info(f"score_batch - items={len(items)}, range=[{min_value}, {max_value}], max_concurrent={max_concurrent}")
+        logger.info(f"score_batch - items={len(items)}, range=[{min_value}, {max_value}], model={model}, max_concurrent={max_concurrent}")
 
         # Create semaphore to limit concurrent LLM calls
         semaphore = asyncio.Semaphore(max_concurrent)
 
         async def score_one(idx: int, item: Dict[str, Any]) -> tuple:
             async with semaphore:
-                result = await self.score(item, criteria, id_field, min_value, max_value, interval, include_reasoning, include_source_data)
+                result = await self.score(
+                    item, criteria, id_field, min_value, max_value, interval,
+                    include_reasoning, include_source_data,
+                    model=model, temperature=temperature, reasoning_effort=reasoning_effort
+                )
                 return idx, result
 
         # Execute with as_completed for progress reporting

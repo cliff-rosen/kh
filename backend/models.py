@@ -177,6 +177,8 @@ class PipelineExecution(Base):
     report_name = Column(String(255), nullable=True)  # Custom report name (defaults to YYYY.MM.DD if null)
     retrieval_config = Column(JSON, nullable=True)  # Snapshot: queries, filters, sources
     presentation_config = Column(JSON, nullable=True)  # Snapshot: categories for categorization
+    enrichment_config = Column(JSON, nullable=True)  # Snapshot: custom prompts for summaries
+    llm_config = Column(JSON, nullable=True)  # Snapshot: which LLMs to use per stage
 
     # === OUTPUT REFERENCE ===
     report_id = Column(Integer, ForeignKey("reports.report_id"), nullable=True)
@@ -230,6 +232,10 @@ class ResearchStream(Base):
     # Stores EnrichmentConfig (custom prompts) as JSON
     # Format: {"prompts": {"executive_summary": {...}, "category_summary": {...}}}
     enrichment_config = Column(JSON, nullable=True)
+
+    # LLM CONFIG - Which LLMs to use for each pipeline stage
+    # Format: {"semantic_filter": {"model": "gpt-5-mini", "reasoning_effort": "medium"}, ...}
+    llm_config = Column(JSON, nullable=True)
 
     # === CHAT CONFIGURATION ===
     # Stream-specific instructions for the chat assistant

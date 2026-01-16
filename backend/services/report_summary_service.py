@@ -9,8 +9,9 @@ Supports custom prompts via enrichment_config with slug replacement.
 """
 
 from typing import List, Dict, Tuple, Optional, Any
-from openai import AsyncOpenAI
-import httpx
+
+from agents.prompts.base_prompt_caller import BasePromptCaller
+from schemas.llm import ChatMessage, MessageRole
 
 
 # =============================================================================
@@ -134,19 +135,48 @@ AVAILABLE_SLUGS = {
 
 
 class ReportSummaryService:
-    """Service for generating report summaries using LLM"""
+    """Service for generating report summaries using LLM.
 
-    def __init__(self):
-        # Create httpx client with higher connection limits
-        http_client = httpx.AsyncClient(
-            limits=httpx.Limits(
-                max_connections=100,
-                max_keepalive_connections=20,
-            ),
-            timeout=httpx.Timeout(120.0)  # 2 minute timeout for summaries
+    Uses BasePromptCaller in text-only mode for all LLM calls.
+    Model selection is the responsibility of the caller.
+    """
+
+    # Default model configuration
+    DEFAULT_MODEL = "gpt-4.1"
+    DEFAULT_TEMPERATURE = 0.3
+
+    async def _call_llm(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        temperature: float,
+        max_tokens: int
+    ) -> str:
+        """
+        Call LLM using BasePromptCaller in text-only mode.
+
+        Args:
+            system_prompt: System message for the LLM
+            user_prompt: User message for the LLM
+            model: Model to use
+            temperature: Temperature for generation
+            max_tokens: Maximum tokens in response
+
+        Returns:
+            Generated text response
+        """
+        caller = BasePromptCaller(
+            response_model=None,  # Text-only mode
+            system_message=system_prompt,
+            messages_placeholder=True,
+            model=model,
+            temperature=temperature
         )
-        self.client = AsyncOpenAI(http_client=http_client)
-        self.model = "gpt-4.1"  # Use gpt-4.1 which supports temperature for summarization
+
+        messages = [ChatMessage(role=MessageRole.USER, content=user_prompt)]
+        result = await caller.invoke(messages=messages, max_tokens=max_tokens, log_prompt=False)
+        return result
 
     async def generate_executive_summary(
         self,
@@ -154,7 +184,9 @@ class ReportSummaryService:
         stream_purpose: str,
         category_summaries: Dict[str, str],
         stream_name: str = "",
-        enrichment_config: Optional[Dict[str, Any]] = None
+        enrichment_config: Optional[Dict[str, Any]] = None,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None
     ) -> str:
         """
         Generate an executive summary for the entire report.
@@ -165,6 +197,8 @@ class ReportSummaryService:
             category_summaries: Dict mapping category_id to category summary
             stream_name: Name of the research stream (for custom prompts)
             enrichment_config: Optional custom prompts config
+            model: Optional model override (defaults to gpt-4.1)
+            temperature: Optional temperature override (defaults to 0.3)
 
         Returns:
             Executive summary text
@@ -208,17 +242,17 @@ class ReportSummaryService:
         system_prompt = self._render_slugs(prompt.get("system_prompt", ""), context)
         user_prompt = self._render_slugs(prompt.get("user_prompt_template", ""), context)
 
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            max_tokens=2000,
-            temperature=0.3,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-        )
+        # Use provided model/temperature or defaults
+        effective_model = model or self.DEFAULT_MODEL
+        effective_temperature = temperature if temperature is not None else self.DEFAULT_TEMPERATURE
 
-        return response.choices[0].message.content
+        return await self._call_llm(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            model=effective_model,
+            temperature=effective_temperature,
+            max_tokens=2000
+        )
 
     async def generate_category_summary(
         self,
@@ -229,7 +263,9 @@ class ReportSummaryService:
         stream_name: str = "",
         category_topics: Optional[List[str]] = None,
         enrichment_config: Optional[Dict[str, Any]] = None,
-        article_summaries: Optional[List[str]] = None
+        article_summaries: Optional[List[str]] = None,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None
     ) -> str:
         """
         Generate a summary for a specific category.
@@ -243,6 +279,8 @@ class ReportSummaryService:
             category_topics: List of topics in this category (for custom prompts)
             enrichment_config: Optional custom prompts config
             article_summaries: Optional list of AI-generated article summaries
+            model: Optional model override (defaults to gpt-4.1)
+            temperature: Optional temperature override (defaults to 0.3)
 
         Returns:
             Category summary text
@@ -292,17 +330,17 @@ class ReportSummaryService:
         system_prompt = self._render_slugs(prompt.get("system_prompt", ""), context)
         user_prompt = self._render_slugs(prompt.get("user_prompt_template", ""), context)
 
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            max_tokens=1500,
-            temperature=0.3,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-        )
+        # Use provided model/temperature or defaults
+        effective_model = model or self.DEFAULT_MODEL
+        effective_temperature = temperature if temperature is not None else self.DEFAULT_TEMPERATURE
 
-        return response.choices[0].message.content
+        return await self._call_llm(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            model=effective_model,
+            temperature=effective_temperature,
+            max_tokens=1500
+        )
 
     def _format_articles_for_prompt(self, articles: List[Dict]) -> str:
         """Format articles for inclusion in LLM prompt"""
@@ -363,7 +401,9 @@ class ReportSummaryService:
         article: Any,
         stream_purpose: str = "",
         stream_name: str = "",
-        enrichment_config: Optional[Dict[str, Any]] = None
+        enrichment_config: Optional[Dict[str, Any]] = None,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None
     ) -> str:
         """
         Generate an AI summary for a single article.
@@ -373,6 +413,8 @@ class ReportSummaryService:
             stream_purpose: Purpose of the research stream (for context)
             stream_name: Name of the research stream (for custom prompts)
             enrichment_config: Optional custom prompts config
+            model: Optional model override (defaults to gpt-4.1)
+            temperature: Optional temperature override (defaults to 0.3)
 
         Returns:
             AI-generated summary text
@@ -412,17 +454,17 @@ class ReportSummaryService:
         system_prompt = self._render_slugs(prompt.get("system_prompt", ""), context)
         user_prompt = self._render_slugs(prompt.get("user_prompt_template", ""), context)
 
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            max_tokens=500,
-            temperature=0.3,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-        )
+        # Use provided model/temperature or defaults
+        effective_model = model or self.DEFAULT_MODEL
+        effective_temperature = temperature if temperature is not None else self.DEFAULT_TEMPERATURE
 
-        return response.choices[0].message.content
+        return await self._call_llm(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            model=effective_model,
+            temperature=effective_temperature,
+            max_tokens=500
+        )
 
     async def generate_article_summaries_batch(
         self,
@@ -431,7 +473,9 @@ class ReportSummaryService:
         stream_name: str = "",
         enrichment_config: Optional[Dict[str, Any]] = None,
         max_concurrency: int = 5,
-        on_progress: Optional[callable] = None
+        on_progress: Optional[callable] = None,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None
     ) -> List[Tuple[Any, str]]:
         """
         Generate AI summaries for multiple articles with concurrency control.
@@ -443,6 +487,8 @@ class ReportSummaryService:
             enrichment_config: Optional custom prompts config
             max_concurrency: Maximum concurrent API calls
             on_progress: Optional callback(completed, total) for progress updates
+            model: Optional model override (defaults to gpt-4.1)
+            temperature: Optional temperature override (defaults to 0.3)
 
         Returns:
             List of (article, summary) tuples
@@ -464,7 +510,9 @@ class ReportSummaryService:
                         article=article,
                         stream_purpose=stream_purpose,
                         stream_name=stream_name,
-                        enrichment_config=enrichment_config
+                        enrichment_config=enrichment_config,
+                        model=model,
+                        temperature=temperature
                     )
                     completed += 1
                     if on_progress:

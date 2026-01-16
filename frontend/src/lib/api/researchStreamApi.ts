@@ -1,5 +1,5 @@
 import { api } from './index';
-import { ResearchStream, InformationSource, Concept, RetrievalConfig, SemanticSpace, PresentationConfig, BroadQuery, ScheduleConfig } from '../../types';
+import { ResearchStream, InformationSource, Concept, RetrievalConfig, SemanticSpace, PresentationConfig, BroadQuery, ScheduleConfig, LLMConfig } from '../../types';
 import { makeStreamRequest } from './streamUtils';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
 
@@ -107,6 +107,7 @@ export interface ResearchStreamUpdateRequest {
     semantic_space?: SemanticSpace;
     retrieval_config?: RetrievalConfig;
     presentation_config?: PresentationConfig;
+    llm_config?: LLMConfig;
 }
 
 // ============================================================================

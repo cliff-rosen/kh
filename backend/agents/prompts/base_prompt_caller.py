@@ -60,10 +60,10 @@ class LLMResponse(BaseModel):
 
 class BasePromptCaller:
     """Base class for creating and using prompt callers"""
-    
+
     def __init__(
         self,
-        response_model: Union[Type[BaseModel], Dict[str, Any]],
+        response_model: Union[Type[BaseModel], Dict[str, Any], None] = None,
         system_message: Optional[str] = None,
         messages_placeholder: bool = True,
         model: Optional[str] = None,
@@ -72,28 +72,37 @@ class BasePromptCaller:
     ):
         """
         Initialize a prompt caller.
-        
+
         Args:
-            response_model: Either a Pydantic model class or a JSON schema dict
+            response_model: Either a Pydantic model class, a JSON schema dict, or None for text-only mode
             system_message: The system message to use in the prompt (optional)
             messages_placeholder: Whether to include a messages placeholder in the prompt
             model: The OpenAI model to use (optional, defaults to DEFAULT_MODEL)
             temperature: The temperature for the model (optional, defaults to 0.0)
             reasoning_effort: The reasoning effort level for models that support it (optional)
         """
+        # Handle text-only mode (no response model)
+        if response_model is None:
+            self.response_model = None
+            self._is_dynamic_model = False
+            self._original_schema = None
+            self.parser = None
+            self._text_only = True
         # Handle both Pydantic models and JSON schemas
-        if isinstance(response_model, dict):
+        elif isinstance(response_model, dict):
             # Convert JSON schema to Pydantic model
             self.response_model = self._json_schema_to_pydantic_model(response_model)
             self._is_dynamic_model = True
             self._original_schema = response_model
+            self.parser = PydanticOutputParser(pydantic_object=self.response_model)
+            self._text_only = False
         else:
             # Use the Pydantic model directly
             self.response_model = response_model
             self._is_dynamic_model = False
             self._original_schema = None
-            
-        self.parser = PydanticOutputParser(pydantic_object=self.response_model)
+            self.parser = PydanticOutputParser(pydantic_object=self.response_model)
+            self._text_only = False
         self.system_message = system_message
         self.messages_placeholder = messages_placeholder
         
@@ -207,10 +216,10 @@ class BasePromptCaller:
         """Format messages for the prompt"""
         # Convert messages to langchain format
         langchain_messages = format_langchain_messages(messages)
-        
-        # Get format instructions
-        format_instructions = self.parser.get_format_instructions()
-        
+
+        # Get format instructions (empty string for text-only mode)
+        format_instructions = self.parser.get_format_instructions() if self.parser else ""
+
         # Format messages using template
         prompt = self.get_prompt_template()
         formatted_messages = prompt.format_messages(
@@ -218,7 +227,7 @@ class BasePromptCaller:
             format_instructions=format_instructions,
             **kwargs
         )
-        
+
         # Convert to OpenAI format
         return format_messages_for_openai(formatted_messages)
     
@@ -232,6 +241,8 @@ class BasePromptCaller:
     
     def get_response_model_name(self) -> str:
         """Get the name of the response model"""
+        if self.response_model is None:
+            return "TextResponse"
         return self.response_model.__name__
     
     async def invoke(
@@ -242,11 +253,12 @@ class BasePromptCaller:
         model: Optional[str] = None,
         temperature: Optional[float] = None,
         reasoning_effort: Optional[str] = None,
+        max_tokens: Optional[int] = None,
         **kwargs: Dict[str, Any]
-    ) -> Union[BaseModel, LLMResponse]:
+    ) -> Union[BaseModel, LLMResponse, str]:
         """
         Invoke the prompt and get a parsed response.
-        
+
         Args:
             messages: List of conversation messages (optional)
             log_prompt: Whether to log the prompt messages
@@ -254,9 +266,11 @@ class BasePromptCaller:
             model: Override the model for this call (optional)
             temperature: Override the temperature for this call (optional)
             reasoning_effort: Override the reasoning effort for this call (optional)
+            max_tokens: Maximum tokens in response (optional)
             **kwargs: Additional variables to format into the prompt
-            
+
         Returns:
+            If text-only mode: str (raw text response)
             If return_usage=True: LLMResponse with result and usage info
             If return_usage=False: Parsed response as an instance of the response model
         """
@@ -277,10 +291,10 @@ class BasePromptCaller:
                 logger.debug(f"Prompt messages logged to: {log_file_path}")
             except Exception as log_error:
                 logger.warning(f"Failed to log prompt: {log_error}")
-        
-        # Get schema
-        schema = self.get_schema()
-        
+
+        # Get schema (None for text-only mode)
+        schema = self.get_schema() if not self._text_only else None
+
         # Determine which model and temperature to use
         use_model = self.model
         if model:
@@ -306,15 +320,22 @@ class BasePromptCaller:
         api_params = {
             "model": use_model,
             "messages": formatted_messages,
-            "response_format": {
+        }
+
+        # Add response_format only for structured output (not text-only mode)
+        if not self._text_only and schema:
+            api_params["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {
                     "schema": schema,
                     "name": self.get_response_model_name()
                 }
             }
-        }
-        
+
+        # Add max_tokens if specified
+        if max_tokens:
+            api_params["max_tokens"] = max_tokens
+
         # Add reasoning effort if supported and valid (nested format per OpenAI API)
         # NOTE: Disabled until openai SDK is updated to support reasoning parameter
         # if use_reasoning_effort:
@@ -351,7 +372,12 @@ class BasePromptCaller:
             if not response_text:
                 logger.error("OpenAI returned empty response content")
                 raise ValueError("OpenAI returned empty response")
-            parsed_result = self.parser.parse(response_text)
+
+            # For text-only mode, return raw text; otherwise parse with Pydantic
+            if self._text_only:
+                parsed_result = response_text
+            else:
+                parsed_result = self.parser.parse(response_text)
         except Exception as parse_error:
             logger.error(f"Failed to parse LLM response: {parse_error}")
             logger.debug(f"Raw response text: {response_text[:500] if response_text else 'None'}...")

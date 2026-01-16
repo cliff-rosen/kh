@@ -24,13 +24,19 @@ if TYPE_CHECKING:
 class ArticleCategorizationService:
     """Service for categorizing articles into presentation categories using LLM"""
 
+    # Default model configuration
+    DEFAULT_MODEL = "gpt-4.1"
+    DEFAULT_TEMPERATURE = 0.3
+
     async def categorize_article(
         self,
         article_title: str,
         article_abstract: str,
         article_journal: str = None,
         article_year: str = None,
-        categories: List[Dict] = None
+        categories: List[Dict] = None,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None
     ) -> str:
         """
         Use LLM to assign ONE presentation category to an article.
@@ -41,6 +47,8 @@ class ArticleCategorizationService:
             article_journal: Journal name (optional)
             article_year: Publication year (optional)
             categories: List of category definitions with id, name, topics, specific_inclusions
+            model: Optional model override (defaults to config)
+            temperature: Optional temperature override (defaults to 0.3)
 
         Returns:
             Single category ID that best fits this article, or None if no good fit
@@ -99,12 +107,17 @@ class ArticleCategorizationService:
         system_prompt = "You are categorizing research articles into presentation categories for user reports."
 
         task_config = get_task_config("smart_search", "keyword_generation")
+
+        # Use provided model/temperature or defaults
+        effective_model = model or task_config["model"]
+        effective_temperature = temperature if temperature is not None else self.DEFAULT_TEMPERATURE
+
         prompt_caller = BasePromptCaller(
             response_model=response_schema,
             system_message=system_prompt,
-            model=task_config["model"],
-            temperature=0.3,
-            reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(task_config["model"]) else None
+            model=effective_model,
+            temperature=effective_temperature,
+            reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(effective_model) else None
         )
 
         user_message = ChatMessage(
@@ -135,7 +148,9 @@ class ArticleCategorizationService:
     async def categorize_wip_article(
         self,
         article: WipArticle,
-        categories: List[Dict]
+        categories: List[Dict],
+        model: Optional[str] = None,
+        temperature: Optional[float] = None
     ) -> str:
         """
         Categorize a WipArticle into ONE presentation category.
@@ -143,6 +158,8 @@ class ArticleCategorizationService:
         Args:
             article: WipArticle instance
             categories: List of category definitions
+            model: Optional model override
+            temperature: Optional temperature override
 
         Returns:
             Single category ID that best fits this article, or None
@@ -152,13 +169,17 @@ class ArticleCategorizationService:
             article_abstract=article.abstract,
             article_journal=article.journal,
             article_year=article.year,
-            categories=categories
+            categories=categories,
+            model=model,
+            temperature=temperature
         )
 
     async def categorize_regular_article(
         self,
         article: Article,
-        categories: List[Dict]
+        categories: List[Dict],
+        model: Optional[str] = None,
+        temperature: Optional[float] = None
     ) -> str:
         """
         Categorize a regular Article into ONE presentation category.
@@ -166,6 +187,8 @@ class ArticleCategorizationService:
         Args:
             article: Article instance
             categories: List of category definitions
+            model: Optional model override
+            temperature: Optional temperature override
 
         Returns:
             Single category ID that best fits this article, or None
@@ -175,7 +198,9 @@ class ArticleCategorizationService:
             article_abstract=article.abstract,
             article_journal=article.journal,
             article_year=article.year,
-            categories=categories
+            categories=categories,
+            model=model,
+            temperature=temperature
         )
 
     @staticmethod
@@ -205,7 +230,9 @@ class ArticleCategorizationService:
         articles: List[Any],
         categories: List[Dict],
         max_concurrent: int = 10,
-        on_progress: Optional[callable] = None
+        on_progress: Optional[callable] = None,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None
     ) -> List[Tuple[Any, str]]:
         """
         Categorize multiple articles in parallel with rate limiting.
@@ -218,6 +245,8 @@ class ArticleCategorizationService:
             categories: List of category definitions with id, name, topics, specific_inclusions
             max_concurrent: Maximum number of concurrent LLM categorizations (default: 10)
             on_progress: Optional callback(completed, total) called after each item completes
+            model: Optional model override
+            temperature: Optional temperature override
 
         Returns:
             List of tuples: (article, assigned_category_id)
@@ -258,7 +287,9 @@ class ArticleCategorizationService:
                         article_abstract=abstract or "",
                         article_journal=journal,
                         article_year=str(year) if year else None,
-                        categories=categories
+                        categories=categories,
+                        model=model,
+                        temperature=temperature
                     )
                     return idx, article, assigned_category
                 except Exception as e:
@@ -296,7 +327,9 @@ class ArticleCategorizationService:
         articles: List[WipArticle],
         categories: List[Dict],
         max_concurrent: int = 10,
-        on_progress: Optional[callable] = None
+        on_progress: Optional[callable] = None,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None
     ) -> Tuple[List[Tuple[WipArticle, str]], int]:
         """
         Categorize multiple WipArticles in parallel.
@@ -306,6 +339,8 @@ class ArticleCategorizationService:
             categories: List of category definitions
             max_concurrent: Maximum number of concurrent categorizations
             on_progress: Optional callback(completed, total) called after each item completes
+            model: Optional model override
+            temperature: Optional temperature override
 
         Returns:
             Tuple of (results, error_count) where results is a list of (article, category_id) tuples.
@@ -315,14 +350,18 @@ class ArticleCategorizationService:
             articles=articles,
             categories=categories,
             max_concurrent=max_concurrent,
-            on_progress=on_progress
+            on_progress=on_progress,
+            model=model,
+            temperature=temperature
         )
 
     async def categorize_canonical_articles_batch(
         self,
         articles: List['CanonicalResearchArticle'],
         categories: List[Dict],
-        max_concurrent: int = 10
+        max_concurrent: int = 10,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None
     ) -> Tuple[List[Tuple['CanonicalResearchArticle', str]], int]:
         """
         Categorize multiple CanonicalResearchArticles in parallel.
@@ -331,6 +370,8 @@ class ArticleCategorizationService:
             articles: List of CanonicalResearchArticle instances
             categories: List of category definitions
             max_concurrent: Maximum number of concurrent categorizations
+            model: Optional model override
+            temperature: Optional temperature override
 
         Returns:
             Tuple of (results, error_count) where results is a list of (article, category_id) tuples.
@@ -339,5 +380,7 @@ class ArticleCategorizationService:
         return await self.categorize_articles_batch(
             articles=articles,
             categories=categories,
-            max_concurrent=max_concurrent
+            max_concurrent=max_concurrent,
+            model=model,
+            temperature=temperature
         )

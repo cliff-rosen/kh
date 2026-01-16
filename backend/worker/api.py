@@ -122,6 +122,8 @@ async def trigger_run(
         # Snapshot ALL configuration from stream at trigger time
         retrieval_config = stream.retrieval_config if stream.retrieval_config else {}
         presentation_config = stream.presentation_config if stream.presentation_config else {}
+        enrichment_config = stream.enrichment_config if stream.enrichment_config else None
+        llm_config = stream.llm_config if stream.llm_config else None
 
         # Create execution with ALL configuration
         execution_id = str(uuid.uuid4())
@@ -138,7 +140,9 @@ async def trigger_run(
             end_date=end_date,
             report_name=request.report_name,
             retrieval_config=retrieval_config,
-            presentation_config=presentation_config
+            presentation_config=presentation_config,
+            enrichment_config=enrichment_config,
+            llm_config=llm_config
         )
         db.add(execution)
         db.commit()

@@ -934,8 +934,8 @@ export default function EditStreamPage() {
                                     }`}
                             >
                                 <div className="flex flex-col items-start">
-                                    <span>Layer 5: Test & Refine</span>
-                                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Refine queries and run pipeline</span>
+                                    <span>Control Panel</span>
+                                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Refine queries, models & run pipeline</span>
                                 </div>
                             </button>
                         </nav>
@@ -1039,7 +1039,7 @@ export default function EditStreamPage() {
                         />
                     )}
 
-                    {/* Layer 5: Test & Refine Tab - outside form, has own controls */}
+                    {/* Control Panel Tab - outside form, has own controls */}
                     {activeTab === 'execute' && stream && (
                         <TestRefineTab
                             streamId={parseInt(streamId!)}
@@ -1057,7 +1057,7 @@ export default function EditStreamPage() {
                 </div>
             </div>
 
-            {/* Pinned Footer Actions - hide completely when on Test & Refine tab */}
+            {/* Pinned Footer Actions - hide completely when on Control Panel tab */}
             {activeTab !== 'execute' && (
             <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-4">
                 <div className="max-w-7xl mx-auto flex justify-between">
