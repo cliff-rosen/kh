@@ -350,3 +350,57 @@ export async function sendApprovalRequest(
     );
     return response.data;
 }
+
+// ==================== Regeneration ====================
+
+export interface RegenerateExecutiveSummaryResponse {
+    executive_summary: string;
+}
+
+export interface RegenerateCategorySummaryResponse {
+    category_id: string;
+    category_summary: string;
+}
+
+export interface RegenerateArticleSummaryResponse {
+    article_id: number;
+    ai_summary: string;
+}
+
+/**
+ * Regenerate the executive summary for a report using AI.
+ */
+export async function regenerateExecutiveSummary(
+    reportId: number
+): Promise<RegenerateExecutiveSummaryResponse> {
+    const response = await api.post<RegenerateExecutiveSummaryResponse>(
+        `${BASE_PATH}/${reportId}/regenerate/executive-summary`
+    );
+    return response.data;
+}
+
+/**
+ * Regenerate a category summary for a report using AI.
+ */
+export async function regenerateCategorySummary(
+    reportId: number,
+    categoryId: string
+): Promise<RegenerateCategorySummaryResponse> {
+    const response = await api.post<RegenerateCategorySummaryResponse>(
+        `${BASE_PATH}/${reportId}/regenerate/category-summary/${categoryId}`
+    );
+    return response.data;
+}
+
+/**
+ * Regenerate the AI summary for a specific article in the report.
+ */
+export async function regenerateArticleSummary(
+    reportId: number,
+    articleId: number
+): Promise<RegenerateArticleSummaryResponse> {
+    const response = await api.post<RegenerateArticleSummaryResponse>(
+        `${BASE_PATH}/${reportId}/articles/${articleId}/regenerate-summary`
+    );
+    return response.data;
+}

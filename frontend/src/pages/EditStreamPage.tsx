@@ -1034,7 +1034,6 @@ export default function EditStreamPage() {
                     {activeTab === 'enrichment' && stream && (
                         <ContentEnrichmentForm
                             streamId={parseInt(streamId!)}
-                            onSave={() => loadResearchStream(parseInt(streamId!))}
                             appliedSuggestions={appliedPromptSuggestions}
                             onSuggestionsApplied={handlePromptSuggestionsApplied}
                         />

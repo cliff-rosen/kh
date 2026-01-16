@@ -44,6 +44,9 @@ import {
     approveReport,
     rejectReport,
     sendApprovalRequest,
+    regenerateExecutiveSummary,
+    regenerateCategorySummary,
+    regenerateArticleSummary,
     CurationViewResponse,
     CurationIncludedArticle,
     CurationFilteredArticle,
@@ -84,6 +87,10 @@ export default function ReportCuration() {
     const [processingArticleId, setProcessingArticleId] = useState<number | null>(null);
     // Track which article is having its category changed
     const [savingCategoryArticleId, setSavingCategoryArticleId] = useState<number | null>(null);
+
+    // Regeneration state
+    const [regeneratingExecutiveSummary, setRegeneratingExecutiveSummary] = useState(false);
+    const [regeneratingCategoryId, setRegeneratingCategoryId] = useState<string | null>(null);
 
     // Fetch curation data
     // isInitialLoad controls whether to show loading spinner (only on first load)
@@ -290,6 +297,58 @@ export default function ReportCuration() {
         } catch (err) {
             console.error('Failed to save notes:', err);
             alert('Failed to save notes');
+        }
+    };
+
+    // Regenerate executive summary
+    const handleRegenerateExecutiveSummary = async () => {
+        if (!reportId) return;
+
+        setRegeneratingExecutiveSummary(true);
+        try {
+            const result = await regenerateExecutiveSummary(parseInt(reportId));
+            setEditedSummary(result.executive_summary);
+            await fetchCurationData();
+        } catch (err) {
+            console.error('Failed to regenerate executive summary:', err);
+            alert('Failed to regenerate executive summary');
+        } finally {
+            setRegeneratingExecutiveSummary(false);
+        }
+    };
+
+    // Regenerate category summary
+    const handleRegenerateCategorySummary = async (categoryId: string) => {
+        if (!reportId) return;
+
+        setRegeneratingCategoryId(categoryId);
+        try {
+            const result = await regenerateCategorySummary(parseInt(reportId), categoryId);
+            setEditedCategorySummaries(prev => ({
+                ...prev,
+                [categoryId]: result.category_summary
+            }));
+            await fetchCurationData();
+        } catch (err) {
+            console.error('Failed to regenerate category summary:', err);
+            alert('Failed to regenerate category summary');
+        } finally {
+            setRegeneratingCategoryId(null);
+        }
+    };
+
+    // Regenerate article AI summary
+    const handleRegenerateArticleSummary = async (articleId: number) => {
+        if (!reportId) return;
+
+        try {
+            const result = await regenerateArticleSummary(parseInt(reportId), articleId);
+            await fetchCurationData();
+            return result.ai_summary;
+        } catch (err) {
+            console.error('Failed to regenerate article summary:', err);
+            alert('Failed to regenerate article summary');
+            throw err;
         }
     };
 
@@ -543,9 +602,14 @@ export default function ReportCuration() {
                                         {editedSummary !== (report.executive_summary || '') && (
                                             <span className="text-xs text-blue-600 dark:text-blue-400">Modified</span>
                                         )}
-                                        <button type="button" className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1">
-                                            <ArrowPathIcon className="h-3 w-3" />
-                                            Regenerate
+                                        <button
+                                            type="button"
+                                            onClick={handleRegenerateExecutiveSummary}
+                                            disabled={regeneratingExecutiveSummary}
+                                            className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1 disabled:opacity-50"
+                                        >
+                                            <ArrowPathIcon className={`h-3 w-3 ${regeneratingExecutiveSummary ? 'animate-spin' : ''}`} />
+                                            {regeneratingExecutiveSummary ? 'Regenerating...' : 'Regenerate'}
                                         </button>
                                     </div>
                                 </div>
@@ -600,9 +664,14 @@ export default function ReportCuration() {
                                                             {cat.name}
                                                             <span className="ml-2 text-gray-500 font-normal">({cat.article_count} articles)</span>
                                                         </span>
-                                                        <button type="button" className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
-                                                            <ArrowPathIcon className="h-3 w-3" />
-                                                            Regenerate
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRegenerateCategorySummary(cat.id)}
+                                                            disabled={regeneratingCategoryId === cat.id}
+                                                            className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1 disabled:opacity-50"
+                                                        >
+                                                            <ArrowPathIcon className={`h-3 w-3 ${regeneratingCategoryId === cat.id ? 'animate-spin' : ''}`} />
+                                                            {regeneratingCategoryId === cat.id ? 'Regenerating...' : 'Regenerate'}
                                                         </button>
                                                     </div>
                                                     {isEditing ? (
@@ -831,6 +900,7 @@ export default function ReportCuration() {
                                                             onCategoryChange={(newCat) => handleCategoryChange(article, newCat)}
                                                             onSaveNotes={article.wip_article_id ? (notes) => handleSaveCurationNotes(article.wip_article_id!, notes) : undefined}
                                                             onSaveAiSummary={(summary) => handleSaveAiSummary(article.article_id, summary)}
+                                                            onRegenerateAiSummary={() => handleRegenerateArticleSummary(article.article_id)}
                                                         />
                                                     );
                                                 })}
@@ -868,6 +938,7 @@ export default function ReportCuration() {
                                                             onCategoryChange={(newCat) => handleCategoryChange(article, newCat)}
                                                             onSaveNotes={article.wip_article_id ? (notes) => handleSaveCurationNotes(article.wip_article_id!, notes) : undefined}
                                                             onSaveAiSummary={(summary) => handleSaveAiSummary(article.article_id, summary)}
+                                                            onRegenerateAiSummary={() => handleRegenerateArticleSummary(article.article_id)}
                                                         />
                                                     );
                                                 })}
@@ -1572,6 +1643,7 @@ function IncludedArticleCard({
     onCategoryChange,
     onSaveNotes,
     onSaveAiSummary,
+    onRegenerateAiSummary,
 }: {
     article: CurationIncludedArticle;
     ranking: number;
@@ -1584,12 +1656,14 @@ function IncludedArticleCard({
     onCategoryChange: (categoryId: string) => void;
     onSaveNotes?: (notes: string) => void;
     onSaveAiSummary: (aiSummary: string) => void;
+    onRegenerateAiSummary: () => Promise<string>;
 }) {
     const [notes, setNotes] = useState(article.curation_notes || '');
     const [savingNotes, setSavingNotes] = useState(false);
     const [editingAiSummary, setEditingAiSummary] = useState(false);
     const [editedAiSummary, setEditedAiSummary] = useState(article.ai_summary || '');
     const [savingAiSummary, setSavingAiSummary] = useState(false);
+    const [regeneratingAiSummary, setRegeneratingAiSummary] = useState(false);
 
     const handleSaveAiSummary = async () => {
         setSavingAiSummary(true);
@@ -1600,6 +1674,17 @@ function IncludedArticleCard({
             setSavingAiSummary(false);
         }
     };
+
+    const handleRegenerateAiSummary = async () => {
+        setRegeneratingAiSummary(true);
+        try {
+            const newSummary = await onRegenerateAiSummary();
+            setEditedAiSummary(newSummary);
+        } finally {
+            setRegeneratingAiSummary(false);
+        }
+    };
+
     const pubmedUrl = article.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/` : null;
     const currentCategory = article.presentation_categories?.[0] || '';
     const notesModified = notes !== (article.curation_notes || '');
@@ -1686,17 +1771,29 @@ function IncludedArticleCard({
                                     <div className="flex items-center justify-between mb-1">
                                         <span className="text-xs font-medium text-gray-500 dark:text-gray-400">AI Summary</span>
                                         {!editingAiSummary && (
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setEditedAiSummary(article.ai_summary || '');
-                                                    setEditingAiSummary(true);
-                                                }}
-                                                className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex items-center gap-1"
-                                            >
-                                                <PencilIcon className="h-3 w-3" />
-                                                {article.ai_summary ? 'Edit' : 'Add'}
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleRegenerateAiSummary}
+                                                    disabled={regeneratingAiSummary}
+                                                    className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex items-center gap-1 disabled:opacity-50"
+                                                >
+                                                    <ArrowPathIcon className={`h-3 w-3 ${regeneratingAiSummary ? 'animate-spin' : ''}`} />
+                                                    {regeneratingAiSummary ? 'Regenerating...' : 'Regenerate'}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setEditedAiSummary(article.ai_summary || '');
+                                                        setEditingAiSummary(true);
+                                                    }}
+                                                    disabled={regeneratingAiSummary}
+                                                    className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex items-center gap-1 disabled:opacity-50"
+                                                >
+                                                    <PencilIcon className="h-3 w-3" />
+                                                    {article.ai_summary ? 'Edit' : 'Add'}
+                                                </button>
+                                            </div>
                                         )}
                                     </div>
                                     {editingAiSummary ? (

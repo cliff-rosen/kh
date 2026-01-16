@@ -25,6 +25,7 @@ from services import auth_service
 from services.report_service import ReportService
 from services.wip_article_service import WipArticleService
 from services.email_service import EmailService
+from services.report_summary_service import ReportSummaryService
 
 logger = logging.getLogger(__name__)
 
@@ -330,6 +331,23 @@ class PipelineAnalyticsResponse(BaseModel):
     filter_reasons: Dict[str, int]
     category_counts: Dict[str, int]
     wip_articles: List[WipArticleAnalyticsResponse]
+
+
+class RegenerateExecutiveSummaryResponse(BaseModel):
+    """Response for regenerating executive summary"""
+    executive_summary: str
+
+
+class RegenerateCategorySummaryResponse(BaseModel):
+    """Response for regenerating a category summary"""
+    category_id: str
+    category_summary: str
+
+
+class RegenerateArticleSummaryResponse(BaseModel):
+    """Response for regenerating an article AI summary"""
+    article_id: int
+    ai_summary: str
 
 
 # ==================== Curation View Endpoints ====================
@@ -910,4 +928,221 @@ async def reject_report(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to reject report: {str(e)}"
+        )
+
+
+# ==================== Regeneration Endpoints ====================
+
+@router.post("/{report_id}/regenerate/executive-summary", response_model=RegenerateExecutiveSummaryResponse)
+async def regenerate_executive_summary(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Regenerate the executive summary for a report using AI.
+    Uses the stream's enrichment config (custom prompts) if available.
+    """
+    logger.info(f"regenerate_executive_summary - user_id={current_user.user_id}, report_id={report_id}")
+
+    try:
+        report_service = ReportService(db)
+        summary_service = ReportSummaryService()
+
+        # Get report and stream
+        curation_data = report_service.get_curation_view(report_id, current_user.user_id)
+        report = curation_data.report
+        stream = curation_data.stream
+
+        # Get enrichment config from stream
+        enrichment_config = stream.enrichment_config if stream else None
+
+        # Get visible articles for the report
+        visible_associations = report_service.association_service.get_visible_for_report(report_id)
+
+        # Build WIP article list from associations
+        wip_articles = []
+        for assoc in visible_associations:
+            if assoc.article:
+                wip_articles.append(assoc.article)
+
+        # Get existing category summaries
+        enrichments = report.enrichments or {}
+        category_summaries = enrichments.get('category_summaries', {})
+
+        # Generate new executive summary
+        new_summary = await summary_service.generate_executive_summary(
+            wip_articles=wip_articles,
+            stream_purpose=stream.purpose if stream else "",
+            category_summaries=category_summaries,
+            stream_name=stream.stream_name if stream else "",
+            enrichment_config=enrichment_config
+        )
+
+        # Save to report enrichments
+        enrichments['executive_summary'] = new_summary
+        report.enrichments = enrichments
+        db.commit()
+
+        logger.info(f"regenerate_executive_summary complete - user_id={current_user.user_id}, report_id={report_id}")
+        return RegenerateExecutiveSummaryResponse(executive_summary=new_summary)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"regenerate_executive_summary failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to regenerate executive summary: {str(e)}"
+        )
+
+
+@router.post("/{report_id}/regenerate/category-summary/{category_id}", response_model=RegenerateCategorySummaryResponse)
+async def regenerate_category_summary(
+    report_id: int,
+    category_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Regenerate a specific category summary for a report using AI.
+    Uses the stream's enrichment config (custom prompts) if available.
+    """
+    logger.info(f"regenerate_category_summary - user_id={current_user.user_id}, report_id={report_id}, category_id={category_id}")
+
+    try:
+        report_service = ReportService(db)
+        summary_service = ReportSummaryService()
+
+        # Get report and stream
+        curation_data = report_service.get_curation_view(report_id, current_user.user_id)
+        report = curation_data.report
+        stream = curation_data.stream
+
+        # Get enrichment config from stream
+        enrichment_config = stream.enrichment_config if stream else None
+
+        # Get category config from presentation_config
+        category_config = None
+        categories = stream.presentation_config.get('categories', []) if stream and stream.presentation_config else []
+        for cat in categories:
+            if cat.get('id') == category_id:
+                category_config = cat
+                break
+
+        if not category_config:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Category '{category_id}' not found"
+            )
+
+        # Get visible articles for this category
+        visible_associations = report_service.association_service.get_visible_for_report(report_id)
+        category_articles = []
+        for assoc in visible_associations:
+            if assoc.article and assoc.presentation_categories:
+                if category_id in assoc.presentation_categories:
+                    category_articles.append(assoc.article)
+
+        # Get article AI summaries for this category
+        article_summaries = []
+        for assoc in visible_associations:
+            if assoc.presentation_categories and category_id in assoc.presentation_categories:
+                if assoc.ai_summary:
+                    article_summaries.append(assoc.ai_summary)
+
+        # Build category description
+        category_description = category_config.get('description', '')
+        if category_config.get('specific_inclusions'):
+            category_description += " Includes: " + ", ".join(category_config['specific_inclusions'])
+
+        # Generate new category summary
+        new_summary = await summary_service.generate_category_summary(
+            category_name=category_config.get('name', category_id),
+            category_description=category_description,
+            wip_articles=category_articles,
+            stream_purpose=stream.purpose if stream else "",
+            stream_name=stream.stream_name if stream else "",
+            category_topics=category_config.get('topics'),
+            enrichment_config=enrichment_config,
+            article_summaries=article_summaries
+        )
+
+        # Save to report enrichments
+        enrichments = report.enrichments or {}
+        category_summaries = enrichments.get('category_summaries', {})
+        category_summaries[category_id] = new_summary
+        enrichments['category_summaries'] = category_summaries
+        report.enrichments = enrichments
+        db.commit()
+
+        logger.info(f"regenerate_category_summary complete - user_id={current_user.user_id}, report_id={report_id}, category_id={category_id}")
+        return RegenerateCategorySummaryResponse(category_id=category_id, category_summary=new_summary)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"regenerate_category_summary failed - user_id={current_user.user_id}, report_id={report_id}, category_id={category_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to regenerate category summary: {str(e)}"
+        )
+
+
+@router.post("/{report_id}/articles/{article_id}/regenerate-summary", response_model=RegenerateArticleSummaryResponse)
+async def regenerate_article_summary(
+    report_id: int,
+    article_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Regenerate the AI summary for a specific article in the report.
+    Uses the stream's enrichment config (custom prompts) if available.
+    """
+    logger.info(f"regenerate_article_summary - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
+
+    try:
+        report_service = ReportService(db)
+        summary_service = ReportSummaryService()
+
+        # Get report and stream
+        curation_data = report_service.get_curation_view(report_id, current_user.user_id)
+        stream = curation_data.stream
+
+        # Get enrichment config from stream
+        enrichment_config = stream.enrichment_config if stream else None
+
+        # Get the article association
+        association = report_service.association_service.get_association(report_id, article_id)
+        if not association or not association.article:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Article {article_id} not found in report {report_id}"
+            )
+
+        article = association.article
+
+        # Generate new article summary
+        new_summary = await summary_service.generate_article_summary(
+            article=article,
+            stream_purpose=stream.purpose if stream else "",
+            stream_name=stream.stream_name if stream else "",
+            enrichment_config=enrichment_config
+        )
+
+        # Save to association
+        association.ai_summary = new_summary
+        db.commit()
+
+        logger.info(f"regenerate_article_summary complete - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
+        return RegenerateArticleSummaryResponse(article_id=article_id, ai_summary=new_summary)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"regenerate_article_summary failed - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to regenerate article summary: {str(e)}"
         )
