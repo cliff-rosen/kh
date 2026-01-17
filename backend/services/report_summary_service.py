@@ -343,60 +343,6 @@ class ReportSummaryService:
             max_tokens=1500
         )
 
-    def _format_articles_for_prompt(self, articles: List[Dict]) -> str:
-        """Format articles for inclusion in LLM prompt"""
-        formatted = []
-        for i, article in enumerate(articles, 1):
-            authors_str = ", ".join(article["authors"]) if article["authors"] else "Unknown"
-            if len(article["authors"]) > 3:
-                authors_str += " et al."
-
-            journal_year = []
-            if article["journal"]:
-                journal_year.append(article["journal"])
-            if article["year"]:
-                journal_year.append(f"({article['year']})")
-
-            location = " ".join(journal_year) if journal_year else "Unknown source"
-
-            formatted.append(f"{i}. {article['title']}\n   {authors_str} - {location}")
-
-            if article["abstract"]:
-                formatted.append(f"   Abstract: {article['abstract']}")
-
-        return "\n\n".join(formatted)
-
-    def _get_custom_prompt(
-        self,
-        enrichment_config: Optional[Dict[str, Any]],
-        prompt_type: str
-    ) -> Optional[Dict[str, str]]:
-        """Get custom prompt from enrichment config if available"""
-        if not enrichment_config:
-            return None
-
-        prompts = enrichment_config.get("prompts", {})
-        return prompts.get(prompt_type)
-
-    def _render_slugs(self, template: str, context: Dict[str, Any]) -> str:
-        """Replace slugs in template with context values"""
-        result = template
-
-        # Replace nested slugs like {stream.name}, {articles.count}, etc.
-        for top_key, top_value in context.items():
-            if isinstance(top_value, dict):
-                for sub_key, sub_value in top_value.items():
-                    slug = f"{{{top_key}.{sub_key}}}"
-                    if isinstance(sub_value, list):
-                        result = result.replace(slug, ", ".join(str(v) for v in sub_value))
-                    else:
-                        result = result.replace(slug, str(sub_value))
-            else:
-                slug = f"{{{top_key}}}"
-                result = result.replace(slug, str(top_value))
-
-        return result
-
     async def generate_article_summary(
         self,
         article: Any,
@@ -531,3 +477,58 @@ class ReportSummaryService:
         results = await asyncio.gather(*tasks)
 
         return results
+
+    def _format_articles_for_prompt(self, articles: List[Dict]) -> str:
+        """Format articles for inclusion in LLM prompt"""
+        formatted = []
+        for i, article in enumerate(articles, 1):
+            authors_str = ", ".join(article["authors"]) if article["authors"] else "Unknown"
+            if len(article["authors"]) > 3:
+                authors_str += " et al."
+
+            journal_year = []
+            if article["journal"]:
+                journal_year.append(article["journal"])
+            if article["year"]:
+                journal_year.append(f"({article['year']})")
+
+            location = " ".join(journal_year) if journal_year else "Unknown source"
+
+            formatted.append(f"{i}. {article['title']}\n   {authors_str} - {location}")
+
+            if article["abstract"]:
+                formatted.append(f"   Abstract: {article['abstract']}")
+
+        return "\n\n".join(formatted)
+
+    def _get_custom_prompt(
+        self,
+        enrichment_config: Optional[Dict[str, Any]],
+        prompt_type: str
+    ) -> Optional[Dict[str, str]]:
+        """Get custom prompt from enrichment config if available"""
+        if not enrichment_config:
+            return None
+
+        prompts = enrichment_config.get("prompts", {})
+        return prompts.get(prompt_type)
+
+    def _render_slugs(self, template: str, context: Dict[str, Any]) -> str:
+        """Replace slugs in template with context values"""
+        result = template
+
+        # Replace nested slugs like {stream.name}, {articles.count}, etc.
+        for top_key, top_value in context.items():
+            if isinstance(top_value, dict):
+                for sub_key, sub_value in top_value.items():
+                    slug = f"{{{top_key}.{sub_key}}}"
+                    if isinstance(sub_value, list):
+                        result = result.replace(slug, ", ".join(str(v) for v in sub_value))
+                    else:
+                        result = result.replace(slug, str(sub_value))
+            else:
+                slug = f"{{{top_key}}}"
+                result = result.replace(slug, str(top_value))
+
+        return result
+
