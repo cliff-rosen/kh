@@ -20,6 +20,7 @@ Retrieval Strategy:
 from typing import AsyncGenerator, Dict, List, Optional, Tuple, Any, Callable, Coroutine
 from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import and_, or_
 from datetime import date, datetime
 import asyncio
@@ -767,6 +768,19 @@ class PipelineService:
                 )
 
         ctx.executive_summary, ctx.category_summaries = await summary_task
+
+        # Update the report with the generated summaries
+        if ctx.report:
+            self.db.refresh(ctx.report)
+            ctx.report.enrichments = {
+                "executive_summary": ctx.executive_summary,
+                "category_summaries": ctx.category_summaries,
+            }
+            flag_modified(ctx.report, "enrichments")
+            ctx.report.original_enrichments = ctx.report.enrichments.copy()
+            flag_modified(ctx.report, "original_enrichments")
+            self.db.commit()
+            logger.info(f"Saved executive summary and {len(ctx.category_summaries)} category summaries to report {ctx.report.report_id}")
 
         yield PipelineStatus(
             "summary",

@@ -39,29 +39,30 @@ def setup_logging():
     date_format = '%Y-%m-%d %H:%M:%S'
     formatter = logging.Formatter(log_format, date_format)
 
-    # Get the worker logger (not root - avoids uvicorn conflicts)
-    worker_logger = logging.getLogger('worker')
-    worker_logger.setLevel(logging.DEBUG)
-    worker_logger.handlers.clear()  # Remove any existing handlers
-
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(formatter)
-    worker_logger.addHandler(console_handler)
 
     # File handler
+    file_handler = None
     try:
         os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
         file_handler = logging.FileHandler(LOG_FILE)
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(formatter)
-        worker_logger.addHandler(file_handler)
     except Exception as e:
         print(f"Warning: Could not set up file logging: {e}")
 
-    # Don't propagate to root logger (avoids duplicate logs)
-    worker_logger.propagate = False
+    # Configure loggers that should output to worker logs
+    for logger_name in ['worker', 'services']:
+        lg = logging.getLogger(logger_name)
+        lg.setLevel(logging.DEBUG)
+        lg.handlers.clear()
+        lg.addHandler(console_handler)
+        if file_handler:
+            lg.addHandler(file_handler)
+        lg.propagate = False
 
     # Reduce noise from libraries
     logging.getLogger('httpx').setLevel(logging.WARNING)

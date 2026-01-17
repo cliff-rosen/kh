@@ -858,6 +858,9 @@ async def send_approval_request(
                 detail="User is not an admin"
             )
 
+        # Get article count
+        article_count = service.association_service.count_visible(report_id)
+
         # Send the email
         email_service = EmailService()
         await email_service.send_approval_request_email(
@@ -866,6 +869,7 @@ async def send_approval_request(
             report_id=report.report_id,
             report_name=report.report_name,
             stream_name=stream.stream_name if stream else "Unknown",
+            article_count=article_count,
             requester_name=user.full_name or user.email,
         )
 
