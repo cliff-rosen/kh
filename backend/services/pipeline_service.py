@@ -1080,6 +1080,7 @@ class PipelineService:
         user_message = """## Article
 Title: {title}
 Abstract: {abstract}
+AI Summary: {summary}
 Journal: {journal}
 Authors: {authors}
 
@@ -1099,6 +1100,7 @@ Score from {min_value} to {max_value}."""
                     "id": article_id,
                     "title": article.title or "",
                     "abstract": article.abstract or "",
+                    "summary": article.summary or "",
                     "journal": article.journal or "",
                     "authors": article.authors or [],
                 }

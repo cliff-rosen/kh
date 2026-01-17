@@ -97,20 +97,18 @@ You must provide an answer (true or false) even when uncertain—use low confide
 
 SYSTEM_MESSAGE_SCORE = f"""You are a scoring function that rates data on a numeric scale.
 
-## Your Task
-Given source data and criteria, provide a score within the specified range.
+Given source data and scoring criteria, provide a score within the specified range.
 You must provide a score even when uncertain—use low confidence to signal unreliability.
 
 ## Response Format
 - value: Your score (within the specified range)
 - confidence: Your confidence based on evidence quality (0.0-1.0)
-- reasoning: Brief explanation (if requested)
+- reasoning: Brief explanation of your score
 {CONFIDENCE_RUBRIC}"""
 
 SYSTEM_MESSAGE_SCORE_NO_REASONING = f"""You are a scoring function that rates data on a numeric scale.
 
-## Your Task
-Given source data and criteria, provide a score within the specified range.
+Given source data and scoring criteria, provide a score within the specified range.
 You must provide a score even when uncertain—use low confidence to signal unreliability.
 
 ## Response Format
@@ -565,38 +563,6 @@ class AIEvaluationService:
     # Score (number output with configurable range)
     # =========================================================================
 
-    # System message for scoring operations
-    SCORE_SYSTEM_MESSAGE = """You are a scoring function that rates data on a numeric scale.
-
-Given source data and scoring criteria, provide a score within the specified range.
-You must provide a score even when uncertain—use low confidence to signal unreliability.
-
-## Response Format
-- value: Your score (within the specified range)
-- confidence: Your confidence based on evidence quality (0.0-1.0)
-- reasoning: Brief explanation of your score
-
-## Confidence Calibration
-- 0.9–1.0: Explicit statement in source text
-- 0.7–0.89: Strong inference with clear supporting context
-- 0.4–0.69: Weak inference or ambiguous evidence
-- Below 0.4: Insufficient evidence"""
-
-    SCORE_SYSTEM_MESSAGE_NO_REASONING = """You are a scoring function that rates data on a numeric scale.
-
-Given source data and scoring criteria, provide a score within the specified range.
-You must provide a score even when uncertain—use low confidence to signal unreliability.
-
-## Response Format
-- value: Your score (within the specified range)
-- confidence: Your confidence based on evidence quality (0.0-1.0)
-
-## Confidence Calibration
-- 0.9–1.0: Explicit statement in source text
-- 0.7–0.89: Strong inference with clear supporting context
-- 0.4–0.69: Weak inference or ambiguous evidence
-- Below 0.4: Insufficient evidence"""
-
     async def score(
         self,
         items: Union[Dict[str, Any], List[Dict[str, Any]]],
@@ -654,7 +620,7 @@ You must provide a score even when uncertain—use low confidence to signal unre
             return [] if not is_single else LLMResult(input={}, data=None, error="No items provided")
 
         # Get system message and response schema
-        system_message = self.SCORE_SYSTEM_MESSAGE if include_reasoning else self.SCORE_SYSTEM_MESSAGE_NO_REASONING
+        system_message = SYSTEM_MESSAGE_SCORE if include_reasoning else SYSTEM_MESSAGE_SCORE_NO_REASONING
         response_schema = get_score_response_schema(min_value, max_value, interval, include_reasoning)
 
         # Build values list for call_llm
