@@ -3,15 +3,12 @@ import { ResearchStream, LLMConfig, StageModelConfig, ReasoningEffort } from '..
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
 import { showErrorToast, showSuccessToast } from '../../lib/errorToast';
 
-// Model definitions
+// Model definitions - must match backend/config/llm_models.py
 const AVAILABLE_MODELS = [
-    { id: 'gpt-4.1', name: 'GPT-4.1', family: 'flagship_chat', description: 'Enhanced GPT-4, 128k context' },
-    { id: 'gpt-4o', name: 'GPT-4o', family: 'flagship_chat', description: 'Optimized GPT-4, 128k context' },
-    { id: 'gpt-4.5-preview', name: 'GPT-4.5 Preview', family: 'flagship_chat', description: 'Latest preview, 128k context' },
-    { id: 'o4-mini', name: 'o4-mini', family: 'reasoning', description: 'Reasoning model, 8k context' },
-    { id: 'o3-mini', name: 'o3-mini', family: 'reasoning', description: 'Compact reasoning, 4k context' },
-    { id: 'o3', name: 'o3', family: 'reasoning', description: 'Full reasoning model, 8k context' },
-    { id: 'gpt-4.1-nano', name: 'GPT-4.1 Nano', family: 'cost_optimized', description: 'Cost-efficient, 8k context' },
+    { id: 'gpt-4.1', name: 'GPT-4.1', family: 'chat', description: 'Enhanced GPT-4, 128k context, supports temperature' },
+    { id: 'gpt-5', name: 'GPT-5', family: 'reasoning', description: 'Full GPT-5, 128k context, supports reasoning effort' },
+    { id: 'gpt-5-mini', name: 'GPT-5 Mini', family: 'reasoning', description: 'Cost-efficient GPT-5, 64k context' },
+    { id: 'gpt-5-nano', name: 'GPT-5 Nano', family: 'reasoning', description: 'Compact GPT-5, 32k context' },
 ];
 
 const REASONING_EFFORT_OPTIONS: { value: ReasoningEffort; label: string }[] = [
@@ -23,11 +20,11 @@ const REASONING_EFFORT_OPTIONS: { value: ReasoningEffort; label: string }[] = [
 
 // Default configurations
 const DEFAULT_LLM_CONFIG: LLMConfig = {
-    semantic_filter: { model: 'o4-mini', reasoning_effort: 'medium' },
-    categorization: { model: 'gpt-4.1', temperature: 0.3 },
-    article_summary: { model: 'gpt-4.1', temperature: 0.3 },
-    category_summary: { model: 'gpt-4.1', temperature: 0.3 },
-    executive_summary: { model: 'gpt-4.1', temperature: 0.3 },
+    semantic_filter: { model: 'gpt-4.1', temperature: 0.0 },
+    categorization: { model: 'gpt-4.1', temperature: 0.0 },
+    article_summary: { model: 'gpt-4.1', temperature: 0.0 },
+    category_summary: { model: 'gpt-4.1', temperature: 0.0 },
+    executive_summary: { model: 'gpt-4.1', temperature: 0.0 },
 };
 
 const STAGE_LABELS: Record<keyof LLMConfig, { name: string; description: string }> = {
@@ -132,18 +129,13 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
                                        focus:ring-2 focus:ring-blue-500 focus:border-transparent
                                        disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            <optgroup label="Flagship Chat">
-                                {AVAILABLE_MODELS.filter(m => m.family === 'flagship_chat').map(m => (
+                            <optgroup label="Chat Models (Temperature)">
+                                {AVAILABLE_MODELS.filter(m => m.family === 'chat').map(m => (
                                     <option key={m.id} value={m.id}>{m.name}</option>
                                 ))}
                             </optgroup>
-                            <optgroup label="Reasoning">
+                            <optgroup label="Reasoning Models (Reasoning Effort)">
                                 {AVAILABLE_MODELS.filter(m => m.family === 'reasoning').map(m => (
-                                    <option key={m.id} value={m.id}>{m.name}</option>
-                                ))}
-                            </optgroup>
-                            <optgroup label="Cost Optimized">
-                                {AVAILABLE_MODELS.filter(m => m.family === 'cost_optimized').map(m => (
                                     <option key={m.id} value={m.id}>{m.name}</option>
                                 ))}
                             </optgroup>
@@ -201,7 +193,7 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
                     Model Configuration
                 </h3>
                 <p className="text-sm text-orange-800 dark:text-orange-300">
-                    Configure which AI models to use for each pipeline stage. Reasoning models (o3, o4-mini) use "reasoning effort" instead of temperature.
+                    Configure which AI models to use for each pipeline stage. GPT-5 models use "reasoning effort" instead of temperature.
                 </p>
             </div>
 

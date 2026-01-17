@@ -8,23 +8,15 @@ import logging
 from schemas.llm import ChatMessage
 from utils.message_formatter import format_langchain_messages, format_messages_for_openai
 from utils.prompt_logger import log_prompt_messages
-from config.llm_models import get_model_capabilities, supports_reasoning_effort, supports_temperature, get_valid_reasoning_efforts
+from config.llm_models import MODEL_CONFIGS, get_model_capabilities, supports_reasoning_effort, supports_temperature, get_valid_reasoning_efforts
 import json
 
 logger = logging.getLogger(__name__)
 
-# Available OpenAI models (as of January 2025)
-AVAILABLE_MODELS = {
-    # GPT-5 Series (Latest generation models)
-    "gpt-5": "gpt-5",                          # Full GPT-5 model
-    "gpt-5-mini": "gpt-5-mini",                # Cost-efficient GPT-5 variant
-    "gpt-5-nano": "gpt-5-nano",                # Smallest GPT-5 variant
-    
-    # GPT-4.1 Series
-    "gpt-4.1": "gpt-4.1",                      # Enhanced GPT-4 model
-}
+# Derive available models from the single source of truth (config/llm_models.py)
+AVAILABLE_MODELS = {model_id: model_id for model_id in MODEL_CONFIGS.keys()}
 
-DEFAULT_MODEL = "gpt-5-mini"  # Default to the cost-effective GPT-5 mini model
+DEFAULT_MODEL = "gpt-4.1"  # Default to GPT-4.1 (supports temperature)
 OPENAI_TIMEOUT = 120.0
 
 # Shared OpenAI client with higher connection limits for parallel processing
