@@ -8,7 +8,7 @@ import logging
 from schemas.llm import ChatMessage
 from utils.message_formatter import format_langchain_messages, format_messages_for_openai
 from utils.prompt_logger import log_prompt_messages
-from config.llm_models import MODEL_CONFIGS, get_model_capabilities, supports_reasoning_effort, supports_temperature, get_valid_reasoning_efforts
+from config.llm_models import MODEL_CONFIGS, get_model_capabilities, supports_reasoning_effort, supports_temperature, get_valid_reasoning_efforts, uses_max_completion_tokens
 import json
 
 logger = logging.getLogger(__name__)
@@ -324,9 +324,12 @@ class BasePromptCaller:
                 }
             }
 
-        # Add max_tokens if specified
+        # Add max_tokens if specified (use max_completion_tokens for newer models)
         if max_tokens:
-            api_params["max_tokens"] = max_tokens
+            if uses_max_completion_tokens(use_model):
+                api_params["max_completion_tokens"] = max_tokens
+            else:
+                api_params["max_tokens"] = max_tokens
 
         # Add reasoning effort if supported and valid (nested format per OpenAI API)
         # NOTE: Disabled until openai SDK is updated to support reasoning parameter

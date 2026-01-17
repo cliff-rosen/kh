@@ -11,6 +11,7 @@ class ModelCapabilities(BaseModel):
     supports_reasoning_effort: bool = False
     reasoning_effort_levels: Optional[List[str]] = None
     supports_temperature: bool = True  # Models with reasoning effort don't support temperature
+    uses_max_completion_tokens: bool = False  # Newer models use max_completion_tokens instead of max_tokens
     max_tokens: Optional[int] = None
     supports_vision: bool = False
     supports_function_calling: bool = True
@@ -24,6 +25,7 @@ MODEL_CONFIGS: Dict[str, ModelCapabilities] = {
         supports_reasoning_effort=True,
         reasoning_effort_levels=["minimal", "low", "medium", "high"],
         supports_temperature=False,  # Reasoning models don't support temperature
+        uses_max_completion_tokens=True,  # Reasoning models use max_completion_tokens
         max_tokens=128000,
         supports_vision=True,
         supports_function_calling=True,
@@ -33,6 +35,7 @@ MODEL_CONFIGS: Dict[str, ModelCapabilities] = {
         supports_reasoning_effort=True,
         reasoning_effort_levels=["minimal", "low", "medium", "high"],
         supports_temperature=False,  # Reasoning models don't support temperature
+        uses_max_completion_tokens=True,  # Reasoning models use max_completion_tokens
         max_tokens=64000,
         supports_vision=True,
         supports_function_calling=True,
@@ -42,6 +45,7 @@ MODEL_CONFIGS: Dict[str, ModelCapabilities] = {
         supports_reasoning_effort=True,
         reasoning_effort_levels=["minimal", "low", "medium", "high"],
         supports_temperature=False,  # Reasoning models don't support temperature
+        uses_max_completion_tokens=True,  # Reasoning models use max_completion_tokens
         max_tokens=32000,
         supports_vision=False,
         supports_function_calling=True,
@@ -51,6 +55,7 @@ MODEL_CONFIGS: Dict[str, ModelCapabilities] = {
     # GPT-4.1 Series - Enhanced GPT-4
     "gpt-4.1": ModelCapabilities(
         supports_reasoning_effort=False,  # GPT-4.1 doesn't support reasoning effort
+        uses_max_completion_tokens=True,  # Newer OpenAI API uses max_completion_tokens
         max_tokens=128000,
         supports_vision=True,
         supports_function_calling=True,
@@ -198,10 +203,10 @@ def supports_temperature(model_name: str) -> bool:
 def get_valid_reasoning_efforts(model_name: str) -> Optional[List[str]]:
     """
     Get the valid reasoning effort levels for a model.
-    
+
     Args:
         model_name: The name of the model
-        
+
     Returns:
         List of valid reasoning effort levels, or None if not supported
     """
@@ -212,6 +217,23 @@ def get_valid_reasoning_efforts(model_name: str) -> Optional[List[str]]:
         return None
     except ValueError:
         return None
+
+
+def uses_max_completion_tokens(model_name: str) -> bool:
+    """
+    Check if a model uses max_completion_tokens instead of max_tokens.
+
+    Args:
+        model_name: The name of the model
+
+    Returns:
+        True if the model uses max_completion_tokens, False otherwise
+    """
+    try:
+        capabilities = get_model_capabilities(model_name)
+        return capabilities.uses_max_completion_tokens
+    except ValueError:
+        return False  # Default to False for unknown models
 
 
 def get_task_config(category: str, task: str = None) -> dict:
