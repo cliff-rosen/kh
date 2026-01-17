@@ -4,204 +4,134 @@ Article Categorization Service - AI-powered article categorization
 This service provides article categorization capabilities using LLMs to assign
 articles to presentation categories. Used by pipeline execution and can be used
 standalone for ad-hoc categorization tasks.
+
+Uses the unified call_llm interface for all LLM calls.
 """
 
-from typing import List, Dict, Any, Tuple, Optional, TYPE_CHECKING
-from datetime import datetime
+from typing import List, Dict, Any, Optional, Union
 import json
-import asyncio
 import logging
 
-from models import WipArticle, Article
+from agents.prompts.llm import call_llm, ModelConfig, LLMOptions, LLMResult
 from schemas.research_stream import Category
 
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:
-    from schemas.canonical_types import CanonicalResearchArticle
+
+# =============================================================================
+# Default Prompts
+# =============================================================================
+
+SYSTEM_PROMPT = """You are categorizing research articles into presentation categories for user reports.
+
+Your task is to analyze an article and determine which ONE category it belongs to.
+Each article should be placed in exactly one category - choose the category that best fits the article's primary focus.
+
+If the article clearly doesn't fit any category, return null for the category_id."""
+
+USER_PROMPT_TEMPLATE = """Categorize this research article into one of the available categories.
+
+## Article
+Title: {title}
+Abstract: {abstract}
+Journal: {journal}
+Year: {year}
+
+## Available Categories
+{categories_json}
+
+Analyze the article and select the single best-matching category ID, or null if no good fit."""
+
+# Response schema for structured output
+RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "category_id": {
+            "type": ["string", "null"],
+            "description": "The single category ID that best fits this article, or null if no good fit",
+        }
+    },
+    "required": ["category_id"],
+}
 
 
 class ArticleCategorizationService:
-    """Service for categorizing articles into presentation categories using LLM"""
+    """Service for categorizing articles into presentation categories using LLM.
+
+    Uses the unified call_llm interface for all LLM calls.
+    Model selection is the responsibility of the caller.
+    """
 
     # Default model configuration
     DEFAULT_MODEL = "gpt-4.1"
-    DEFAULT_TEMPERATURE = 0.3
+    DEFAULT_TEMPERATURE = 0.0
 
-    async def categorize_article(
+    def _get_default_model_config(self) -> ModelConfig:
+        """Get default model configuration."""
+        return ModelConfig(
+            model=self.DEFAULT_MODEL,
+            temperature=self.DEFAULT_TEMPERATURE,
+        )
+
+    async def categorize(
         self,
-        article_title: str,
-        article_abstract: str,
-        article_journal: str = None,
-        article_year: str = None,
-        categories: List[Dict] = None,
-        model: Optional[str] = None,
-        temperature: Optional[float] = None
-    ) -> str:
+        items: Union[Dict[str, Any], List[Dict[str, Any]]],
+        model_config: Optional[ModelConfig] = None,
+        options: Optional[LLMOptions] = None,
+    ) -> Union[LLMResult, List[LLMResult]]:
         """
-        Use LLM to assign ONE presentation category to an article.
+        Categorize article(s) into presentation categories.
 
         Args:
-            article_title: Title of the article
-            article_abstract: Abstract text
-            article_journal: Journal name (optional)
-            article_year: Publication year (optional)
-            categories: List of category definitions with id, name, topics, specific_inclusions
-            model: Optional model override (defaults to config)
-            temperature: Optional temperature override (defaults to 0.3)
+            items: Single item dict or list of item dicts. Each dict should contain:
+                - title: Article title
+                - abstract: Article abstract
+                - journal: Journal name (optional)
+                - year: Publication year (optional)
+                - categories_json: JSON string of available categories
+            model_config: Model configuration (model, temperature)
+            options: Call options (max_concurrent, on_progress)
 
         Returns:
-            Single category ID that best fits this article, or None if no good fit
+            Single item: LLMResult with .data containing {"category_id": "..."}
+            List of items: List[LLMResult] in same order as input
         """
-        if not categories:
-            return None
+        # Determine if single or batch
+        is_single = isinstance(items, dict)
+        items_list = [items] if is_single else items
 
-        # Prepare article content
-        article_content = f"""
-        Title: {article_title}
-        Abstract: {article_abstract or 'N/A'}
-        Journal: {article_journal or 'N/A'}
-        Year: {article_year or 'N/A'}
-        """
+        if not items_list:
+            return (
+                LLMResult(input={}, data=None, error="No items provided")
+                if is_single
+                else []
+            )
 
-        # Prepare prompt
-        prompt = f"""You are categorizing a research article into presentation categories for a user report.
+        # Apply default model config if not provided
+        if model_config is None:
+            model_config = self._get_default_model_config()
 
-        ARTICLE:
-        {article_content}
+        # Apply default options if not provided
+        if options is None:
+            options = LLMOptions(max_concurrent=10)
 
-        AVAILABLE CATEGORIES:
-        {json.dumps(categories, indent=2)}
+        logger.info(f"categorize - items={len(items_list)}, model={model_config.model}")
 
-        Analyze the article and determine which ONE category it belongs to. Each article should be placed in exactly one category - choose the category that best fits the article's primary focus.
-
-        If the article clearly doesn't fit any category, return null for the category_id.
-
-        Respond with JSON:
-        {{
-            "category_id": "the_best_matching_category_id"
-        }}
-
-        Or if no good fit:
-        {{
-            "category_id": null
-        }}
-        """
-
-        # Call LLM using BasePromptCaller
-        from schemas.llm import ChatMessage, MessageRole
-        from agents.prompts.base_prompt_caller import BasePromptCaller
-        from config.llm_models import get_task_config, supports_reasoning_effort
-
-        response_schema = {
-            "type": "object",
-            "properties": {
-                "category_id": {
-                    "type": ["string", "null"],
-                    "description": "The single category ID that best fits this article, or null if no good fit"
-                }
-            },
-            "required": ["category_id"]
-        }
-
-        system_prompt = "You are categorizing research articles into presentation categories for user reports."
-
-        task_config = get_task_config("smart_search", "keyword_generation")
-
-        # Use provided model/temperature or defaults
-        effective_model = model or task_config["model"]
-        effective_temperature = temperature if temperature is not None else self.DEFAULT_TEMPERATURE
-
-        prompt_caller = BasePromptCaller(
-            response_model=response_schema,
-            system_message=system_prompt,
-            model=effective_model,
-            temperature=effective_temperature,
-            reasoning_effort=task_config.get("reasoning_effort") if supports_reasoning_effort(effective_model) else None
+        # Call LLM with structured response
+        results = await call_llm(
+            system_message=SYSTEM_PROMPT,
+            user_message=USER_PROMPT_TEMPLATE,
+            values=items_list[0] if is_single else items_list,
+            model_config=model_config,
+            response_schema=RESPONSE_SCHEMA,
+            options=options,
         )
 
-        user_message = ChatMessage(
-            id="temp_id",
-            chat_id="temp_chat",
-            role=MessageRole.USER,
-            content=prompt,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        )
+        return results
 
-        result = await prompt_caller.invoke(
-            messages=[user_message],
-            return_usage=True
-        )
-
-        # Extract result
-        llm_response = result.result
-        if hasattr(llm_response, 'model_dump'):
-            response_data = llm_response.model_dump()
-        elif hasattr(llm_response, 'dict'):
-            response_data = llm_response.dict()
-        else:
-            response_data = llm_response
-
-        return response_data.get("category_id", None)
-
-    async def categorize_wip_article(
-        self,
-        article: WipArticle,
-        categories: List[Dict],
-        model: Optional[str] = None,
-        temperature: Optional[float] = None
-    ) -> str:
-        """
-        Categorize a WipArticle into ONE presentation category.
-
-        Args:
-            article: WipArticle instance
-            categories: List of category definitions
-            model: Optional model override
-            temperature: Optional temperature override
-
-        Returns:
-            Single category ID that best fits this article, or None
-        """
-        return await self.categorize_article(
-            article_title=article.title,
-            article_abstract=article.abstract,
-            article_journal=article.journal,
-            article_year=article.year,
-            categories=categories,
-            model=model,
-            temperature=temperature
-        )
-
-    async def categorize_regular_article(
-        self,
-        article: Article,
-        categories: List[Dict],
-        model: Optional[str] = None,
-        temperature: Optional[float] = None
-    ) -> str:
-        """
-        Categorize a regular Article into ONE presentation category.
-
-        Args:
-            article: Article instance
-            categories: List of category definitions
-            model: Optional model override
-            temperature: Optional temperature override
-
-        Returns:
-            Single category ID that best fits this article, or None
-        """
-        return await self.categorize_article(
-            article_title=article.title,
-            article_abstract=article.abstract,
-            article_journal=article.journal,
-            article_year=article.year,
-            categories=categories,
-            model=model,
-            temperature=temperature
-        )
+    # =========================================================================
+    # Helper Methods
+    # =========================================================================
 
     @staticmethod
     def prepare_category_definitions(categories: List[Category]) -> List[Dict]:
@@ -220,167 +150,20 @@ class ArticleCategorizationService:
                 "id": cat.id,
                 "name": cat.name,
                 "topics": cat.topics,
-                "specific_inclusions": cat.specific_inclusions
+                "specific_inclusions": cat.specific_inclusions,
             }
             categories_desc.append(cat_info)
         return categories_desc
 
-    async def categorize_articles_batch(
-        self,
-        articles: List[Any],
-        categories: List[Dict],
-        max_concurrent: int = 10,
-        on_progress: Optional[callable] = None,
-        model: Optional[str] = None,
-        temperature: Optional[float] = None
-    ) -> List[Tuple[Any, str]]:
+    @staticmethod
+    def format_categories_json(categories: List[Dict]) -> str:
         """
-        Categorize multiple articles in parallel with rate limiting.
-
-        This method processes articles concurrently to improve performance while
-        respecting LLM API rate limits through semaphore-based concurrency control.
+        Format category definitions as JSON string for prompt.
 
         Args:
-            articles: List of article objects (WipArticle, Article, CanonicalResearchArticle, or dict-like)
-            categories: List of category definitions with id, name, topics, specific_inclusions
-            max_concurrent: Maximum number of concurrent LLM categorizations (default: 10)
-            on_progress: Optional callback(completed, total) called after each item completes
-            model: Optional model override
-            temperature: Optional temperature override
+            categories: List of category dictionaries
 
         Returns:
-            List of tuples: (article, assigned_category_id)
-            Each article gets exactly one category ID (or None).
-            Results are in the same order as input articles.
+            JSON string representation
         """
-        if not articles or not categories:
-            logger.info("categorize_articles_batch called with empty articles or categories")
-            return [(article, None) for article in articles]
-
-        logger.info(f"Starting batch categorization of {len(articles)} articles into {len(categories)} categories")
-
-        # Create semaphore to limit concurrent LLM calls (avoid rate limits)
-        semaphore = asyncio.Semaphore(max_concurrent)
-        errors = 0
-
-        async def categorize_single(idx: int, article: Any) -> Tuple[int, Any, str]:
-            """Categorize a single article with rate limiting"""
-            nonlocal errors
-            async with semaphore:
-                try:
-                    # Extract article attributes (works with WipArticle, Article, CanonicalResearchArticle, or dict)
-                    if hasattr(article, 'title'):
-                        title = article.title
-                        abstract = getattr(article, 'abstract', None)
-                        journal = getattr(article, 'journal', None)
-                        year = getattr(article, 'year', None)
-                    elif isinstance(article, dict):
-                        title = article.get('title', '')
-                        abstract = article.get('abstract')
-                        journal = article.get('journal')
-                        year = article.get('year')
-                    else:
-                        raise ValueError(f"Unsupported article type: {type(article)}")
-
-                    assigned_category = await self.categorize_article(
-                        article_title=title,
-                        article_abstract=abstract or "",
-                        article_journal=journal,
-                        article_year=str(year) if year else None,
-                        categories=categories,
-                        model=model,
-                        temperature=temperature
-                    )
-                    return idx, article, assigned_category
-                except Exception as e:
-                    errors += 1
-                    article_id = getattr(article, 'id', getattr(article, 'pmid', idx))
-                    logger.error(f"Failed to categorize article {article_id}: {type(e).__name__}: {e}")
-                    return idx, article, None
-
-        # Execute with as_completed for progress reporting
-        tasks = [categorize_single(i, article) for i, article in enumerate(articles)]
-        results_by_idx = {}
-        completed = 0
-
-        for coro in asyncio.as_completed(tasks):
-            idx, article, category = await coro
-            results_by_idx[idx] = (article, category)
-
-            completed += 1
-            if on_progress:
-                try:
-                    await on_progress(completed, len(articles))
-                except Exception as cb_err:
-                    logger.warning(f"Progress callback failed: {cb_err}")
-
-        logger.info(f"Batch categorization complete: {len(articles)} articles, {errors} errors")
-
-        # Build final results in original order
-        results = [results_by_idx[i] for i in range(len(articles))]
-
-        # Return tuple of (results, error_count) for pipeline to report
-        return results, errors
-
-    async def categorize_wip_articles_batch(
-        self,
-        articles: List[WipArticle],
-        categories: List[Dict],
-        max_concurrent: int = 10,
-        on_progress: Optional[callable] = None,
-        model: Optional[str] = None,
-        temperature: Optional[float] = None
-    ) -> Tuple[List[Tuple[WipArticle, str]], int]:
-        """
-        Categorize multiple WipArticles in parallel.
-
-        Args:
-            articles: List of WipArticle instances
-            categories: List of category definitions
-            max_concurrent: Maximum number of concurrent categorizations
-            on_progress: Optional callback(completed, total) called after each item completes
-            model: Optional model override
-            temperature: Optional temperature override
-
-        Returns:
-            Tuple of (results, error_count) where results is a list of (article, category_id) tuples.
-            Each article gets exactly one category ID (or None if categorization failed).
-        """
-        return await self.categorize_articles_batch(
-            articles=articles,
-            categories=categories,
-            max_concurrent=max_concurrent,
-            on_progress=on_progress,
-            model=model,
-            temperature=temperature
-        )
-
-    async def categorize_canonical_articles_batch(
-        self,
-        articles: List['CanonicalResearchArticle'],
-        categories: List[Dict],
-        max_concurrent: int = 10,
-        model: Optional[str] = None,
-        temperature: Optional[float] = None
-    ) -> Tuple[List[Tuple['CanonicalResearchArticle', str]], int]:
-        """
-        Categorize multiple CanonicalResearchArticles in parallel.
-
-        Args:
-            articles: List of CanonicalResearchArticle instances
-            categories: List of category definitions
-            max_concurrent: Maximum number of concurrent categorizations
-            model: Optional model override
-            temperature: Optional temperature override
-
-        Returns:
-            Tuple of (results, error_count) where results is a list of (article, category_id) tuples.
-            Each article gets exactly one category ID (or None if categorization failed).
-        """
-        return await self.categorize_articles_batch(
-            articles=articles,
-            categories=categories,
-            max_concurrent=max_concurrent,
-            model=model,
-            temperature=temperature
-        )
+        return json.dumps(categories, indent=2)

@@ -15,6 +15,7 @@ from schemas.research_article_converters import legacy_article_to_canonical_pubm
 from services.pubmed_service import PubMedService, fetch_articles_by_ids
 from services.ai_evaluation_service import get_ai_evaluation_service
 from services.article_categorization_service import ArticleCategorizationService
+from agents.prompts.llm import ModelConfig, LLMOptions
 
 logger = logging.getLogger(__name__)
 
@@ -347,22 +348,44 @@ class RefinementWorkbenchService:
         if not articles:
             return []
 
-        # Use centralized batch categorization from ArticleCategorizationService
-        batch_results, error_count = await self.categorization_service.categorize_canonical_articles_batch(
-            articles=articles,
-            categories=categories,
-            max_concurrent=10
+        # Format categories as JSON for the prompt
+        categories_json = self.categorization_service.format_categories_json(categories)
+
+        # Build items list for categorization service
+        items = []
+        for article in articles:
+            items.append({
+                "title": article.title or "Untitled",
+                "abstract": article.abstract or "",
+                "journal": article.journal or "Unknown",
+                "year": str(article.year) if article.year else "Unknown",
+                "categories_json": categories_json,
+            })
+
+        # Call categorization service
+        llm_results = await self.categorization_service.categorize(
+            items=items,
+            model_config=ModelConfig(model="gpt-4.1", temperature=0.3),
+            options=LLMOptions(max_concurrent=10),
         )
 
+        # Count errors
+        error_count = sum(1 for r in llm_results if not r.ok)
         if error_count > 0:
             logger.warning(f"Categorization had {error_count} errors out of {len(articles)} articles")
 
-        # Convert batch results to expected format
+        # Convert results to expected format
         results = []
-        for article, assigned_category in batch_results:
+        for i, article in enumerate(articles):
+            result = llm_results[i]
+            if result.ok and result.data:
+                category_id = result.data.get("category_id")
+                assigned_categories = [category_id] if category_id else []
+            else:
+                assigned_categories = []
             results.append({
                 "article": article,
-                "assigned_categories": [assigned_category] if assigned_category else []
+                "assigned_categories": assigned_categories
             })
 
         return results

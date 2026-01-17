@@ -772,10 +772,14 @@ class PipelineService:
                     category_to_associations[cat_id] = []
                 category_to_associations[cat_id].append(assoc)
 
-        # Build items list for summary service - one item per category
+        # Build items list for summary service - one item per category (skip empty categories)
         items = []
         for category in ctx.presentation_config.categories:
             category_assocs = category_to_associations.get(category.id, [])
+
+            # Skip categories with no articles
+            if not category_assocs:
+                continue
 
             # Prepare article info from associations
             article_info = []
@@ -823,8 +827,6 @@ class PipelineService:
             cat_id = items[i]["category_id"]
             if result.ok and result.data:
                 ctx.category_summaries[cat_id] = result.data
-            elif items[i]["articles_count"] == "0":
-                ctx.category_summaries[cat_id] = "No articles in this category."
             else:
                 ctx.category_summaries[cat_id] = f"Error generating summary: {result.error}"
 
@@ -1407,32 +1409,59 @@ Score from {min_value} to {max_value}."""
             f"Categorizing {len(associations)} articles into {len(presentation_config.categories)} categories"
         )
 
-        # Prepare category descriptions for LLM
+        # Prepare category definitions and format as JSON
         categories_desc = self.categorization_service.prepare_category_definitions(
             presentation_config.categories
         )
+        categories_json = self.categorization_service.format_categories_json(categories_desc)
 
-        # Build mapping from article to association
-        article_to_association = {assoc.article_id: assoc for assoc in associations}
-        articles = [assoc.article for assoc in associations]
+        # Build items list for categorization service
+        items = []
+        for assoc in associations:
+            article = assoc.article
+            if article:
+                items.append({
+                    "assoc_id": assoc.id,  # Track association for result mapping
+                    "title": article.title or "Untitled",
+                    "abstract": article.abstract or "",
+                    "journal": article.journal or "Unknown",
+                    "year": str(article.year) if article.year else "Unknown",
+                    "categories_json": categories_json,
+                })
 
-        # Use centralized batch categorization (works with any article-like object)
-        results, error_count = (
-            await self.categorization_service.categorize_articles_batch(
-                articles=articles,
-                categories=categories_desc,
-                max_concurrent=50,
-                on_progress=on_progress,
-                model=model,
-                temperature=temperature,
-            )
+        if not items:
+            logger.info(f"No articles with data to categorize for report_id={report_id}")
+            return 0, 0
+
+        # Build model config
+        model_config = ModelConfig(
+            model=model or "gpt-4.1",
+            temperature=temperature if temperature is not None else 0.3,
         )
 
-        # Map results back to associations: (Article, category_id) -> (Association, category_id)
-        association_results = [
-            (article_to_association[article.article_id], category_id)
-            for article, category_id in results
-        ]
+        # Call categorization service
+        results = await self.categorization_service.categorize(
+            items=items,
+            model_config=model_config,
+            options=LLMOptions(max_concurrent=50, on_progress=on_progress),
+        )
+
+        # Build mapping from assoc_id to association for result processing
+        assoc_by_id = {assoc.id: assoc for assoc in associations}
+
+        # Map results back to associations: (Association, category_id)
+        association_results = []
+        error_count = 0
+        for i, result in enumerate(results):
+            assoc_id = items[i]["assoc_id"]
+            assoc = assoc_by_id.get(assoc_id)
+            if assoc:
+                if result.ok and result.data:
+                    category_id = result.data.get("category_id")
+                    association_results.append((assoc, category_id))
+                else:
+                    error_count += 1
+                    association_results.append((assoc, None))
 
         # Update associations with results
         categorized = self.association_service.bulk_set_categories_from_pipeline(
