@@ -1075,6 +1075,19 @@ class PipelineService:
             f"Filtering {len(articles)} articles for retrieval_unit_id={retrieval_unit_id}, threshold={threshold}"
         )
 
+        # User message template for semantic filtering
+        # All {field} placeholders are substituted by call_llm
+        user_message = """## Article
+Title: {title}
+Abstract: {abstract}
+Journal: {journal}
+Authors: {authors}
+
+## Criteria
+{criteria}
+
+Score from {min_value} to {max_value}."""
+
         # Convert WipArticle objects to dicts for evaluation
         items = []
         article_map = {}  # Map from id to WipArticle for result matching
@@ -1086,20 +1099,19 @@ class PipelineService:
                     "id": article_id,
                     "title": article.title or "",
                     "abstract": article.abstract or "",
-                    "pmid": article.pmid,
-                    "journal": article.journal,
-                    "authors": article.authors,
+                    "journal": article.journal or "",
+                    "authors": article.authors or [],
                 }
             )
 
         # Use AIEvaluationService score to get relevance scores
         results = await self.eval_service.score(
             items=items,
+            user_message=user_message,
             criteria=filter_criteria,
             min_value=0.0,
             max_value=1.0,
             include_reasoning=True,
-            include_source_data=True,  # Include full article data for LLM context
             model_config=ModelConfig(
                 model=model or "gpt-4.1",
                 temperature=temperature or 0.0,

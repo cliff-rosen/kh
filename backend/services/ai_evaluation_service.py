@@ -565,31 +565,38 @@ class AIEvaluationService:
     # Score (number output with configurable range)
     # =========================================================================
 
-    # User message template for score operation
-    # Note: {criteria} is placed BEFORE item fields in values dict so that
-    # any {field} placeholders in criteria get substituted by call_llm
-    SCORE_USER_MESSAGE_WITH_SOURCE = """## Source Data
-{_source_data}
+    # System message for scoring operations
+    SCORE_SYSTEM_MESSAGE = """You are a scoring function that rates data on a numeric scale.
 
-## Instruction
-{criteria}
+Given source data and scoring criteria, provide a score within the specified range.
+You must provide a score even when uncertain—use low confidence to signal unreliability.
 
-{_range_instruction}"""
+## Confidence Calibration
+- 0.9–1.0: Explicit statement in source text
+- 0.7–0.89: Strong inference with clear supporting context
+- 0.4–0.69: Weak inference or ambiguous evidence
+- Below 0.4: Insufficient evidence"""
 
-    SCORE_USER_MESSAGE_NO_SOURCE = """## Instruction
-{criteria}
+    SCORE_SYSTEM_MESSAGE_NO_REASONING = """You are a scoring function that rates data on a numeric scale.
 
-{_range_instruction}"""
+Given source data and scoring criteria, provide a score within the specified range.
+You must provide a score even when uncertain—use low confidence to signal unreliability.
+
+## Confidence Calibration
+- 0.9–1.0: Explicit statement in source text
+- 0.7–0.89: Strong inference with clear supporting context
+- 0.4–0.69: Weak inference or ambiguous evidence
+- Below 0.4: Insufficient evidence"""
 
     async def score(
         self,
         items: Union[Dict[str, Any], List[Dict[str, Any]]],
+        user_message: str,
         criteria: str,
         min_value: float = 0,
         max_value: float = 1,
         interval: Optional[float] = None,
         include_reasoning: bool = True,
-        include_source_data: bool = True,
         model_config: Optional[ModelConfig] = None,
         options: Optional[LLMOptions] = None,
     ) -> Union[LLMResult, List[LLMResult]]:
@@ -598,12 +605,13 @@ class AIEvaluationService:
 
         Args:
             items: Single item dict or list of item dicts to evaluate
-            criteria: Natural language scoring criteria (may contain {field} templates)
+            user_message: Template for the user message with {field} placeholders.
+                          Should include {criteria}, {min_value}, {max_value} and item fields.
+            criteria: Natural language scoring criteria text
             min_value: Lower bound of score range (default: 0)
             max_value: Upper bound of score range (default: 1)
             interval: Optional step size (e.g., 0.5 for discrete steps)
             include_reasoning: Whether to include explanation in result
-            include_source_data: If True, include all item fields in prompt context
             model_config: Model configuration (model, temperature, max_tokens, reasoning_effort)
             options: Call options (max_concurrent, on_progress, log_prompt)
 
@@ -612,23 +620,22 @@ class AIEvaluationService:
             List of items: List[LLMResult] in same order as input
 
         Example:
-            # Single item
+            user_msg = '''## Article
+            Title: {title}
+            Abstract: {abstract}
+
+            ## Criteria
+            {criteria}
+
+            Score from {min_value} to {max_value}.'''
+
             result = await service.score(
                 items={"id": "1", "title": "...", "abstract": "..."},
+                user_message=user_msg,
                 criteria="Rate relevance to cancer research",
-                model_config=ModelConfig(model="gpt-4.1"),
             )
             if result.ok:
                 score = result.data["value"]
-
-            # Batch
-            results = await service.score(
-                items=[item1, item2, item3],
-                criteria="Rate relevance to cancer research",
-                options=LLMOptions(max_concurrent=50, on_progress=callback),
-            )
-            for result in results:
-                print(result.input["id"], result.data["value"] if result.ok else result.error)
         """
         # Determine if single or batch
         is_single = isinstance(items, dict)
@@ -638,31 +645,18 @@ class AIEvaluationService:
             return [] if not is_single else LLMResult(input={}, data=None, error="No items provided")
 
         # Get system message and response schema
-        system_message = SYSTEM_MESSAGE_SCORE if include_reasoning else SYSTEM_MESSAGE_SCORE_NO_REASONING
+        system_message = self.SCORE_SYSTEM_MESSAGE if include_reasoning else self.SCORE_SYSTEM_MESSAGE_NO_REASONING
         response_schema = get_score_response_schema(min_value, max_value, interval, include_reasoning)
 
-        # Build range instruction
-        range_instruction = f"Score from {min_value} to {max_value}"
-        if interval:
-            range_instruction += f" (use increments of {interval})"
-
-        # Select user message template
-        user_message = self.SCORE_USER_MESSAGE_WITH_SOURCE if include_source_data else self.SCORE_USER_MESSAGE_NO_SOURCE
-
         # Build values list for call_llm
-        # IMPORTANT: criteria and _range_instruction come FIRST so that any {field}
+        # criteria, min_value, max_value come FIRST so that any {field}
         # placeholders in criteria get substituted when item fields are processed
         values_list = []
         for item in items_list:
-            # Format source data (converts item dict to readable text)
-            source_data = self._format_item_for_prompt(item) if include_source_data else ""
-
-            # Build values dict with templates first, then item fields
-            # This ordering ensures {field} placeholders in criteria get substituted
             values = {
                 "criteria": criteria,
-                "_range_instruction": range_instruction,
-                "_source_data": source_data,
+                "min_value": min_value,
+                "max_value": max_value,
                 **item,  # Item fields LAST so they substitute into criteria
             }
             values_list.append(values)
@@ -681,7 +675,7 @@ class AIEvaluationService:
 
         results = await call_llm(
             system_message=system_message,
-            user_message=self.SCORE_USER_MESSAGE,
+            user_message=user_message,
             values=values_list if not is_single else values_list[0],
             model_config=model_config,
             response_schema=response_schema,
