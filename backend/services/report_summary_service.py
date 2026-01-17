@@ -1,17 +1,21 @@
 """
-Report Summary Service - Generates executive summaries for reports using LLM
+Report Summary Service - Generates summaries for reports using LLM
 
 This service generates:
-1. Executive summary for all articles in the report
-2. Category-specific summaries for each presentation category
+1. Article summaries for individual articles
+2. Category summaries for each presentation category
+3. Executive summary synthesizing the entire report
 
+Uses the unified call_llm interface for all LLM calls.
 Supports custom prompts via enrichment_config with slug replacement.
 """
 
-from typing import List, Dict, Tuple, Optional, Any
+from typing import List, Dict, Optional, Any, Union
 
-from agents.prompts.base_prompt_caller import BasePromptCaller
-from schemas.llm import ChatMessage, MessageRole
+from agents.prompts.llm import call_llm, ModelConfig, LLMOptions, LLMResult
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -22,95 +26,128 @@ DEFAULT_PROMPTS = {
     "executive_summary": {
         "system_prompt": """You are an expert research analyst who specializes in synthesizing scientific literature.
 
-        Your task is to write a concise executive summary of a research report.
+Your task is to write a concise executive summary of a research report.
 
-        The summary should:
-        - Be 3-5 paragraphs (200-400 words total)
-        - Highlight the most important findings and trends
-        - Identify key themes across the literature
-        - Note any significant developments or breakthroughs
-        - Be written for an executive audience (technical but accessible)
-        - Focus on insights and implications, not just listing papers
+The summary should:
+- Be 3-5 paragraphs (200-400 words total)
+- Highlight the most important findings and trends
+- Identify key themes across the literature
+- Note any significant developments or breakthroughs
+- Be written for an executive audience (technical but accessible)
+- Focus on insights and implications, not just listing papers
 
-        Write in a professional, analytical tone. Include only the summary with no heading or other text.""",
+Write in a professional, analytical tone. Include only the summary with no heading or other text.""",
         "user_prompt_template": """Generate an executive summary for this research report.
 
-        # Research Stream Purpose
-        {stream.purpose}
+# Research Stream Purpose
+{stream_purpose}
 
-        # Report Statistics
-        - Total articles: {articles.count}
-        - Categories covered: {categories.count}
+# Report Statistics
+- Total articles: {articles_count}
+- Categories covered: {categories_count}
 
-        # Category Summaries
-        {categories.summaries}
+# Category Summaries
+{categories_summaries}
 
-        # Sample Articles (representative of the full report)
-        {articles.formatted}
+# Sample Articles (representative of the full report)
+{articles_formatted}
 
-        Generate a comprehensive executive summary that synthesizes the key findings and themes across all articles."""
-        },
+Generate a comprehensive executive summary that synthesizes the key findings and themes across all articles."""
+    },
     "category_summary": {
         "system_prompt": """You are an expert research analyst synthesizing scientific literature.
 
-        Your task is to write a concise summary of articles in the "{category.name}" category.
+Your task is to write a concise summary of articles in the "{category_name}" category.
 
-        The summary should:
-        - Be 2-3 paragraphs (150-250 words total)
-        - Identify the main themes and findings in this category
-        - Highlight the most significant or impactful articles
-        - Note any emerging trends or patterns
-        - Be written for a technical audience familiar with the field
+The summary should:
+- Be 2-3 paragraphs (150-250 words total)
+- Identify the main themes and findings in this category
+- Highlight the most significant or impactful articles
+- Note any emerging trends or patterns
+- Be written for a technical audience familiar with the field
 
-        Write in a professional, analytical tone.""",
-        "user_prompt_template": """Generate a summary for the "{category.name}" category.
+Write in a professional, analytical tone.""",
+        "user_prompt_template": """Generate a summary for the "{category_name}" category.
 
-        # Category Description
-        {category.description}
+# Category Description
+{category_description}
 
-        # Research Stream Purpose
-        {stream.purpose}
+# Research Stream Purpose
+{stream_purpose}
 
-        # Articles in This Category ({articles.count} total)
-        {articles.formatted}
+# Articles in This Category ({articles_count} total)
+{articles_formatted}
 
-        Generate a focused summary that captures the key insights from articles in this category."""
+Generate a focused summary that captures the key insights from articles in this category."""
     },
     "article_summary": {
         "system_prompt": """You are an expert research analyst who synthesizes scientific literature.
 
-        Your task is to write a concise summary of a research article that highlights its key contributions.
+Your task is to write a concise summary of a research article that highlights its key contributions.
 
-        The summary should:
-        - Be 2-4 sentences (50-100 words)
-        - Capture the main research question or objective
-        - Highlight key findings or contributions
-        - Note any significant methodology or implications
-        - Be written for a technical audience familiar with the field
+The summary should:
+- Be 2-4 sentences (50-100 words)
+- Capture the main research question or objective
+- Highlight key findings or contributions
+- Note any significant methodology or implications
+- Be written for a technical audience familiar with the field
 
-        Write in a professional, analytical tone. Include only the summary with no heading or other text.""",
+Write in a professional, analytical tone. Include only the summary with no heading or other text.""",
         "user_prompt_template": """Summarize this research article:
 
-        # Article Information
-        Title: {article.title}
-        Authors: {article.authors}
-        Journal: {article.journal} ({article.year})
+# Article Information
+Title: {title}
+Authors: {authors}
+Journal: {journal} ({year})
 
-        # Abstract
-        {article.abstract}
+# Abstract
+{abstract}
 
-        Generate a concise summary that captures the key contributions and findings of this article."""
+Generate a concise summary that captures the key contributions and findings of this article."""
     }
 }
 
+# Slug mappings for custom prompts - maps nested slugs to flat placeholders
+SLUG_MAPPINGS = {
+    "article_summary": {
+        "{stream.name}": "{stream_name}",
+        "{stream.purpose}": "{stream_purpose}",
+        "{article.title}": "{title}",
+        "{article.authors}": "{authors}",
+        "{article.journal}": "{journal}",
+        "{article.year}": "{year}",
+        "{article.abstract}": "{abstract}",
+        "{article.filter_reason}": "{filter_reason}",
+    },
+    "category_summary": {
+        "{stream.name}": "{stream_name}",
+        "{stream.purpose}": "{stream_purpose}",
+        "{category.name}": "{category_name}",
+        "{category.description}": "{category_description}",
+        "{category.topics}": "{category_topics}",
+        "{articles.count}": "{articles_count}",
+        "{articles.formatted}": "{articles_formatted}",
+        "{articles.summaries}": "{articles_summaries}",
+    },
+    "executive_summary": {
+        "{stream.name}": "{stream_name}",
+        "{stream.purpose}": "{stream_purpose}",
+        "{articles.count}": "{articles_count}",
+        "{articles.formatted}": "{articles_formatted}",
+        "{categories.count}": "{categories_count}",
+        "{categories.summaries}": "{categories_summaries}",
+    },
+}
+
+# Available slugs documentation (for UI/help)
 AVAILABLE_SLUGS = {
     "executive_summary": [
         {"slug": "{stream.name}", "description": "Name of the research stream"},
         {"slug": "{stream.purpose}", "description": "Purpose/description of the stream"},
         {"slug": "{articles.count}", "description": "Total number of articles in the report"},
-        {"slug": "{articles.formatted}", "description": "Formatted list of articles (title, authors, journal, year, abstract)"},
+        {"slug": "{articles.formatted}", "description": "Formatted list of articles"},
         {"slug": "{categories.count}", "description": "Number of categories in the report"},
-        {"slug": "{categories.summaries}", "description": "Formatted category summaries (if available)"},
+        {"slug": "{categories.summaries}", "description": "Formatted category summaries"},
     ],
     "category_summary": [
         {"slug": "{stream.name}", "description": "Name of the research stream"},
@@ -120,7 +157,7 @@ AVAILABLE_SLUGS = {
         {"slug": "{category.topics}", "description": "List of topics in this category"},
         {"slug": "{articles.count}", "description": "Number of articles in this category"},
         {"slug": "{articles.formatted}", "description": "Formatted list of articles in this category"},
-        {"slug": "{articles.summaries}", "description": "AI-generated summaries for articles in this category"},
+        {"slug": "{articles.summaries}", "description": "AI-generated summaries for articles"},
     ],
     "article_summary": [
         {"slug": "{stream.name}", "description": "Name of the research stream"},
@@ -130,7 +167,7 @@ AVAILABLE_SLUGS = {
         {"slug": "{article.journal}", "description": "Journal where published"},
         {"slug": "{article.year}", "description": "Publication year"},
         {"slug": "{article.abstract}", "description": "Article abstract"},
-        {"slug": "{article.filter_reason}", "description": "AI reasoning for why this article passed the semantic filter"},
+        {"slug": "{article.filter_reason}", "description": "AI reasoning for semantic filter"},
     ]
 }
 
@@ -138,7 +175,7 @@ AVAILABLE_SLUGS = {
 class ReportSummaryService:
     """Service for generating report summaries using LLM.
 
-    Uses BasePromptCaller in text-only mode for all LLM calls.
+    Uses the unified call_llm interface for all LLM calls.
     Model selection is the responsibility of the caller.
     """
 
@@ -146,389 +183,295 @@ class ReportSummaryService:
     DEFAULT_MODEL = "gpt-4.1"
     DEFAULT_TEMPERATURE = 0.3
 
-    async def _call_llm(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        model: str,
-        temperature: float,
-        max_tokens: int
-    ) -> str:
-        """
-        Call LLM using BasePromptCaller in text-only mode.
-
-        Args:
-            system_prompt: System message for the LLM
-            user_prompt: User message for the LLM
-            model: Model to use
-            temperature: Temperature for generation
-            max_tokens: Maximum tokens in response
-
-        Returns:
-            Generated text response
-        """
-        caller = BasePromptCaller(
-            response_model=None,  # Text-only mode
-            system_message=system_prompt,
-            messages_placeholder=True,
-            model=model,
-            temperature=temperature
+    def _get_default_model_config(self) -> ModelConfig:
+        """Get default model configuration."""
+        return ModelConfig(
+            model=self.DEFAULT_MODEL,
+            temperature=self.DEFAULT_TEMPERATURE,
         )
 
-        messages = [ChatMessage(role=MessageRole.USER, content=user_prompt)]
-        result = await caller.invoke(messages=messages, max_tokens=max_tokens, log_prompt=False)
-        return result
-
-    async def generate_executive_summary(
+    def _get_prompts(
         self,
-        wip_articles: List,
-        stream_purpose: str,
-        category_summaries: Dict[str, str],
-        stream_name: str = "",
+        prompt_type: str,
         enrichment_config: Optional[Dict[str, Any]] = None,
-        model: Optional[str] = None,
-        temperature: Optional[float] = None
-    ) -> str:
+    ) -> tuple[str, str]:
         """
-        Generate an executive summary for the entire report.
+        Get system and user prompts, using custom prompts from enrichment_config if available.
 
         Args:
-            wip_articles: List of WipArticle objects included in the report
-            stream_purpose: Purpose of the research stream
-            category_summaries: Dict mapping category_id to category summary
-            stream_name: Name of the research stream (for custom prompts)
+            prompt_type: One of "article_summary", "category_summary", "executive_summary"
             enrichment_config: Optional custom prompts config
-            model: Optional model override (defaults to gpt-4.1)
-            temperature: Optional temperature override (defaults to 0.3)
 
         Returns:
-            Executive summary text
+            Tuple of (system_message, user_message)
         """
-        # Prepare article information
-        article_info = []
-        for article in wip_articles[:20]:  # Limit to top 20 for context
-            article_info.append({
-                "title": article.title,
-                "authors": article.authors[:3] if article.authors else [],  # First 3 authors
-                "journal": article.journal,
-                "year": article.year,
-                "abstract": article.abstract[:500] if article.abstract else None  # First 500 chars
-            })
+        # Check for custom prompts
+        custom_prompt = None
+        if enrichment_config:
+            prompts = enrichment_config.get("prompts", {})
+            custom_prompt = prompts.get(prompt_type)
 
-        # Build category summaries text
-        category_summaries_text = "\n\n".join([
-            f"**{category_id}**: {summary}"
-            for category_id, summary in category_summaries.items()
-        ])
+        if custom_prompt:
+            system_message = custom_prompt.get("system_prompt", DEFAULT_PROMPTS[prompt_type]["system_prompt"])
+            user_message = custom_prompt.get("user_prompt_template", DEFAULT_PROMPTS[prompt_type]["user_prompt_template"])
+            # Convert nested slugs to flat placeholders for custom prompts
+            mappings = SLUG_MAPPINGS.get(prompt_type, {})
+            for old_slug, new_placeholder in mappings.items():
+                system_message = system_message.replace(old_slug, new_placeholder)
+                user_message = user_message.replace(old_slug, new_placeholder)
+        else:
+            # Default prompts already use flat placeholders
+            system_message = DEFAULT_PROMPTS[prompt_type]["system_prompt"]
+            user_message = DEFAULT_PROMPTS[prompt_type]["user_prompt_template"]
 
-        # Get prompt (custom or default)
-        prompt = self._get_custom_prompt(enrichment_config, "executive_summary") or DEFAULT_PROMPTS["executive_summary"]
+        return system_message, user_message
 
-        # Build context for slug replacement
-        context = {
-            "stream": {
-                "name": stream_name,
-                "purpose": stream_purpose
-            },
-            "articles": {
-                "count": str(len(wip_articles)),
-                "formatted": self._format_articles_for_prompt(article_info)
-            },
-            "categories": {
-                "count": str(len(category_summaries)),
-                "summaries": category_summaries_text
-            }
-        }
-
-        system_prompt = self._render_slugs(prompt.get("system_prompt", ""), context)
-        user_prompt = self._render_slugs(prompt.get("user_prompt_template", ""), context)
-
-        # Use provided model/temperature or defaults
-        effective_model = model or self.DEFAULT_MODEL
-        effective_temperature = temperature if temperature is not None else self.DEFAULT_TEMPERATURE
-
-        return await self._call_llm(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            model=effective_model,
-            temperature=effective_temperature,
-            max_tokens=2000
-        )
-
-    async def generate_category_summary(
-        self,
-        category_name: str,
-        category_description: str,
-        wip_articles: List,
-        stream_purpose: str,
-        stream_name: str = "",
-        category_topics: Optional[List[str]] = None,
-        enrichment_config: Optional[Dict[str, Any]] = None,
-        article_summaries: Optional[List[str]] = None,
-        model: Optional[str] = None,
-        temperature: Optional[float] = None
-    ) -> str:
-        """
-        Generate a summary for a specific category.
-
-        Args:
-            category_name: Name of the category
-            category_description: Description of what this category covers
-            wip_articles: List of WipArticle objects in this category
-            stream_purpose: Purpose of the research stream
-            stream_name: Name of the research stream (for custom prompts)
-            category_topics: List of topics in this category (for custom prompts)
-            enrichment_config: Optional custom prompts config
-            article_summaries: Optional list of AI-generated article summaries
-            model: Optional model override (defaults to gpt-4.1)
-            temperature: Optional temperature override (defaults to 0.3)
-
-        Returns:
-            Category summary text
-        """
-        if len(wip_articles) == 0:
-            return "No articles in this category."
-
-        # Prepare article information
-        article_info = []
-        for article in wip_articles[:15]:  # Limit to top 15 for context
-            article_info.append({
-                "title": article.title,
-                "authors": article.authors[:3] if article.authors else [],
-                "journal": article.journal,
-                "year": article.year,
-                "abstract": article.abstract[:400] if article.abstract else None
-            })
-
-        # Format article summaries if provided
-        summaries_text = ""
-        if article_summaries:
-            summaries_text = "\n\n".join([
-                f"- {summary}" for summary in article_summaries if summary
-            ])
-
-        # Get prompt (custom or default)
-        prompt = self._get_custom_prompt(enrichment_config, "category_summary") or DEFAULT_PROMPTS["category_summary"]
-
-        # Build context for slug replacement
-        context = {
-            "stream": {
-                "name": stream_name,
-                "purpose": stream_purpose
-            },
-            "category": {
-                "name": category_name,
-                "description": category_description,
-                "topics": ", ".join(category_topics) if category_topics else ""
-            },
-            "articles": {
-                "count": str(len(wip_articles)),
-                "formatted": self._format_articles_for_prompt(article_info),
-                "summaries": summaries_text
-            }
-        }
-
-        system_prompt = self._render_slugs(prompt.get("system_prompt", ""), context)
-        user_prompt = self._render_slugs(prompt.get("user_prompt_template", ""), context)
-
-        # Use provided model/temperature or defaults
-        effective_model = model or self.DEFAULT_MODEL
-        effective_temperature = temperature if temperature is not None else self.DEFAULT_TEMPERATURE
-
-        return await self._call_llm(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            model=effective_model,
-            temperature=effective_temperature,
-            max_tokens=1500
-        )
+    # =========================================================================
+    # Article Summary
+    # =========================================================================
 
     async def generate_article_summary(
         self,
-        article: Any,
-        stream_purpose: str = "",
-        stream_name: str = "",
+        items: Union[Dict[str, Any], List[Dict[str, Any]]],
         enrichment_config: Optional[Dict[str, Any]] = None,
-        model: Optional[str] = None,
-        temperature: Optional[float] = None
-    ) -> str:
+        model_config: Optional[ModelConfig] = None,
+        options: Optional[LLMOptions] = None,
+    ) -> Union[LLMResult, List[LLMResult]]:
         """
-        Generate an AI summary for a single article.
+        Generate AI summary for article(s).
 
         Args:
-            article: Article or WipArticle object with title, authors, journal, year, abstract
-            stream_purpose: Purpose of the research stream (for context)
-            stream_name: Name of the research stream (for custom prompts)
+            items: Single item dict or list of item dicts. Each dict should contain:
+                - title: Article title
+                - authors: Formatted authors string
+                - journal: Journal name
+                - year: Publication year
+                - abstract: Article abstract
+                - filter_reason: (optional) AI reasoning from semantic filter
+                - stream_name: (optional) Research stream name
+                - stream_purpose: (optional) Research stream purpose
             enrichment_config: Optional custom prompts config
-            model: Optional model override (defaults to gpt-4.1)
-            temperature: Optional temperature override (defaults to 0.3)
+            model_config: Model configuration (model, temperature)
+            options: Call options (max_concurrent, on_progress)
 
         Returns:
-            AI-generated summary text
+            Single item: LLMResult with .data containing summary text
+            List of items: List[LLMResult] in same order as input
         """
-        # Skip if no abstract
-        if not article.abstract:
-            return ""
+        # Determine if single or batch
+        is_single = isinstance(items, dict)
+        items_list = [items] if is_single else items
 
-        # Get prompt (custom or default)
-        prompt = self._get_custom_prompt(enrichment_config, "article_summary") or DEFAULT_PROMPTS["article_summary"]
+        if not items_list:
+            return LLMResult(input={}, data=None, error="No items provided") if is_single else []
 
-        # Format authors
-        authors = article.authors if article.authors else []
-        if isinstance(authors, list):
-            if len(authors) > 3:
-                authors_str = ", ".join(authors[:3]) + " et al."
-            else:
-                authors_str = ", ".join(authors)
-        else:
-            authors_str = str(authors)
+        # Get prompts (custom or default)
+        system_message, user_message = self._get_prompts("article_summary", enrichment_config)
 
-        # Build context for slug replacement
-        context = {
-            "stream": {
-                "name": stream_name,
-                "purpose": stream_purpose
-            },
-            "article": {
-                "title": article.title or "Untitled",
-                "authors": authors_str or "Unknown",
-                "journal": article.journal or "Unknown",
-                "year": str(article.year) if article.year else "Unknown",
-                "abstract": article.abstract or ""
-            }
-        }
+        # Apply default model config if not provided
+        if model_config is None:
+            model_config = self._get_default_model_config()
 
-        system_prompt = self._render_slugs(prompt.get("system_prompt", ""), context)
-        user_prompt = self._render_slugs(prompt.get("user_prompt_template", ""), context)
+        # Apply default options if not provided
+        if options is None:
+            options = LLMOptions(max_concurrent=5)
 
-        # Use provided model/temperature or defaults
-        effective_model = model or self.DEFAULT_MODEL
-        effective_temperature = temperature if temperature is not None else self.DEFAULT_TEMPERATURE
+        logger.info(f"generate_article_summary - items={len(items_list)}, model={model_config.model}")
 
-        return await self._call_llm(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            model=effective_model,
-            temperature=effective_temperature,
-            max_tokens=500
+        # Call LLM (text mode - no response_schema)
+        results = await call_llm(
+            system_message=system_message,
+            user_message=user_message,
+            values=items_list[0] if is_single else items_list,
+            model_config=model_config,
+            response_schema=None,
+            options=options,
         )
-
-    async def generate_article_summaries_batch(
-        self,
-        articles: List[Any],
-        stream_purpose: str = "",
-        stream_name: str = "",
-        enrichment_config: Optional[Dict[str, Any]] = None,
-        max_concurrency: int = 5,
-        on_progress: Optional[callable] = None,
-        model: Optional[str] = None,
-        temperature: Optional[float] = None
-    ) -> List[Tuple[Any, str]]:
-        """
-        Generate AI summaries for multiple articles with concurrency control.
-
-        Args:
-            articles: List of Article or WipArticle objects
-            stream_purpose: Purpose of the research stream
-            stream_name: Name of the research stream
-            enrichment_config: Optional custom prompts config
-            max_concurrency: Maximum concurrent API calls
-            on_progress: Optional callback(completed, total) for progress updates
-            model: Optional model override (defaults to gpt-4.1)
-            temperature: Optional temperature override (defaults to 0.3)
-
-        Returns:
-            List of (article, summary) tuples
-        """
-        import asyncio
-
-        if not articles:
-            return []
-
-        results: List[Tuple[Any, str]] = []
-        semaphore = asyncio.Semaphore(max_concurrency)
-        completed = 0
-
-        async def process_article(article):
-            nonlocal completed
-            async with semaphore:
-                try:
-                    summary = await self.generate_article_summary(
-                        article=article,
-                        stream_purpose=stream_purpose,
-                        stream_name=stream_name,
-                        enrichment_config=enrichment_config,
-                        model=model,
-                        temperature=temperature
-                    )
-                    completed += 1
-                    if on_progress:
-                        on_progress(completed, len(articles))
-                    return (article, summary)
-                except Exception as e:
-                    completed += 1
-                    if on_progress:
-                        on_progress(completed, len(articles))
-                    # Return empty summary on error
-                    return (article, "")
-
-        # Process all articles concurrently with semaphore limiting
-        tasks = [process_article(article) for article in articles]
-        results = await asyncio.gather(*tasks)
 
         return results
 
-    def _format_articles_for_prompt(self, articles: List[Dict]) -> str:
-        """Format articles for inclusion in LLM prompt"""
+    # =========================================================================
+    # Category Summary
+    # =========================================================================
+
+    async def generate_category_summary(
+        self,
+        items: Union[Dict[str, Any], List[Dict[str, Any]]],
+        enrichment_config: Optional[Dict[str, Any]] = None,
+        model_config: Optional[ModelConfig] = None,
+        options: Optional[LLMOptions] = None,
+    ) -> Union[LLMResult, List[LLMResult]]:
+        """
+        Generate summary for category(ies).
+
+        Args:
+            items: Single item dict or list of item dicts. Each dict should contain:
+                - category_name: Name of the category
+                - category_description: Description of what this category covers
+                - category_topics: (optional) Comma-separated topics
+                - articles_count: Number of articles in category
+                - articles_formatted: Formatted article list for prompt
+                - articles_summaries: (optional) AI summaries for articles
+                - stream_name: (optional) Research stream name
+                - stream_purpose: (optional) Research stream purpose
+            enrichment_config: Optional custom prompts config
+            model_config: Model configuration (model, temperature)
+            options: Call options (max_concurrent, on_progress)
+
+        Returns:
+            Single item: LLMResult with .data containing summary text
+            List of items: List[LLMResult] in same order as input
+        """
+        # Determine if single or batch
+        is_single = isinstance(items, dict)
+        items_list = [items] if is_single else items
+
+        if not items_list:
+            return LLMResult(input={}, data=None, error="No items provided") if is_single else []
+
+        # Get prompts (custom or default)
+        system_message, user_message = self._get_prompts("category_summary", enrichment_config)
+
+        # Apply default model config if not provided
+        if model_config is None:
+            model_config = self._get_default_model_config()
+
+        # Apply default options if not provided
+        if options is None:
+            options = LLMOptions(max_concurrent=5)
+
+        logger.info(f"generate_category_summary - items={len(items_list)}, model={model_config.model}")
+
+        # Call LLM (text mode - no response_schema)
+        results = await call_llm(
+            system_message=system_message,
+            user_message=user_message,
+            values=items_list[0] if is_single else items_list,
+            model_config=model_config,
+            response_schema=None,
+            options=options,
+        )
+
+        return results
+
+    # =========================================================================
+    # Executive Summary
+    # =========================================================================
+
+    async def generate_executive_summary(
+        self,
+        items: Union[Dict[str, Any], List[Dict[str, Any]]],
+        enrichment_config: Optional[Dict[str, Any]] = None,
+        model_config: Optional[ModelConfig] = None,
+        options: Optional[LLMOptions] = None,
+    ) -> Union[LLMResult, List[LLMResult]]:
+        """
+        Generate executive summary for report(s).
+
+        Args:
+            items: Single item dict or list of item dicts. Each dict should contain:
+                - articles_count: Total number of articles
+                - articles_formatted: Formatted article list for prompt
+                - categories_count: Number of categories
+                - categories_summaries: Formatted category summaries
+                - stream_name: (optional) Research stream name
+                - stream_purpose: (optional) Research stream purpose
+            enrichment_config: Optional custom prompts config
+            model_config: Model configuration (model, temperature)
+            options: Call options (max_concurrent, on_progress)
+
+        Returns:
+            Single item: LLMResult with .data containing summary text
+            List of items: List[LLMResult] in same order as input
+        """
+        # Determine if single or batch
+        is_single = isinstance(items, dict)
+        items_list = [items] if is_single else items
+
+        if not items_list:
+            return LLMResult(input={}, data=None, error="No items provided") if is_single else []
+
+        # Get prompts (custom or default)
+        system_message, user_message = self._get_prompts("executive_summary", enrichment_config)
+
+        # Apply default model config if not provided
+        if model_config is None:
+            model_config = self._get_default_model_config()
+
+        logger.info(f"generate_executive_summary - items={len(items_list)}, model={model_config.model}")
+
+        # Call LLM (text mode - no response_schema)
+        results = await call_llm(
+            system_message=system_message,
+            user_message=user_message,
+            values=items_list[0] if is_single else items_list,
+            model_config=model_config,
+            response_schema=None,
+            options=options,
+        )
+
+        return results
+
+    # =========================================================================
+    # Helper Methods
+    # =========================================================================
+
+    @staticmethod
+    def format_articles_for_prompt(articles: List[Dict[str, Any]], max_articles: int = 15) -> str:
+        """
+        Format articles for inclusion in LLM prompt.
+
+        Args:
+            articles: List of article dicts with title, authors, journal, year, abstract
+            max_articles: Maximum number of articles to include
+
+        Returns:
+            Formatted string for prompt
+        """
         formatted = []
-        for i, article in enumerate(articles, 1):
-            authors_str = ", ".join(article["authors"]) if article["authors"] else "Unknown"
-            if len(article["authors"]) > 3:
-                authors_str += " et al."
+        for i, article in enumerate(articles[:max_articles], 1):
+            authors = article.get("authors", [])
+            if isinstance(authors, list):
+                authors_str = ", ".join(authors) if authors else "Unknown"
+                if len(authors) > 3:
+                    authors_str = ", ".join(authors[:3]) + " et al."
+            else:
+                authors_str = str(authors) if authors else "Unknown"
 
             journal_year = []
-            if article["journal"]:
+            if article.get("journal"):
                 journal_year.append(article["journal"])
-            if article["year"]:
+            if article.get("year"):
                 journal_year.append(f"({article['year']})")
 
             location = " ".join(journal_year) if journal_year else "Unknown source"
 
-            formatted.append(f"{i}. {article['title']}\n   {authors_str} - {location}")
+            formatted.append(f"{i}. {article.get('title', 'Untitled')}\n   {authors_str} - {location}")
 
-            if article["abstract"]:
-                formatted.append(f"   Abstract: {article['abstract']}")
+            if article.get("abstract"):
+                # Truncate abstract if too long
+                abstract = article["abstract"]
+                if len(abstract) > 400:
+                    abstract = abstract[:400] + "..."
+                formatted.append(f"   Abstract: {abstract}")
 
         return "\n\n".join(formatted)
 
-    def _get_custom_prompt(
-        self,
-        enrichment_config: Optional[Dict[str, Any]],
-        prompt_type: str
-    ) -> Optional[Dict[str, str]]:
-        """Get custom prompt from enrichment config if available"""
-        if not enrichment_config:
-            return None
+    @staticmethod
+    def format_authors(authors: Any) -> str:
+        """
+        Format authors list for display.
 
-        prompts = enrichment_config.get("prompts", {})
-        return prompts.get(prompt_type)
+        Args:
+            authors: List of author names or string
 
-    def _render_slugs(self, template: str, context: Dict[str, Any]) -> str:
-        """Replace slugs in template with context values"""
-        result = template
-
-        # Replace nested slugs like {stream.name}, {articles.count}, etc.
-        for top_key, top_value in context.items():
-            if isinstance(top_value, dict):
-                for sub_key, sub_value in top_value.items():
-                    slug = f"{{{top_key}.{sub_key}}}"
-                    if isinstance(sub_value, list):
-                        result = result.replace(slug, ", ".join(str(v) for v in sub_value))
-                    else:
-                        result = result.replace(slug, str(sub_value))
-            else:
-                slug = f"{{{top_key}}}"
-                result = result.replace(slug, str(top_value))
-
-        return result
-
+        Returns:
+            Formatted authors string
+        """
+        if not authors:
+            return "Unknown"
+        if isinstance(authors, list):
+            if len(authors) > 3:
+                return ", ".join(authors[:3]) + " et al."
+            return ", ".join(authors)
+        return str(authors)

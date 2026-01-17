@@ -385,8 +385,10 @@ class PipelineService:
                 yield status  # Writes categories to associations
             async for status in self._stage_generate_article_summaries(ctx):
                 yield status  # Writes ai_summary to associations
-            async for status in self._stage_generate_summaries(ctx):
-                yield status  # Executive/category summaries
+            async for status in self._stage_generate_category_summaries(ctx):
+                yield status  # Category summaries
+            async for status in self._stage_generate_executive_summary(ctx):
+                yield status  # Executive summary
 
             # Complete
             yield PipelineStatus(
@@ -665,10 +667,10 @@ class PipelineService:
         self,
         report_id: int,
         stream: Any,
-        enrichment_config: Dict[str, Any],
+        enrichment_config: Optional[Dict[str, Any]],
         model: Optional[str] = None,
         temperature: Optional[float] = None,
-        on_progress: Optional[callable] = None,
+        on_progress: Optional[ProgressCallback] = None,
     ) -> int:
         """
         Generate AI summaries for articles in a report.
@@ -687,42 +689,45 @@ class PipelineService:
         if not articles_to_summarize:
             return 0
 
-        # Generate summaries - create wrapper objects that include filter_score_reason from WipArticle
-        class ArticleWithFilterReason:
-            """Wrapper to combine Article data with WipArticle's filter_score_reason"""
-            def __init__(self, article, wip_article):
-                self._article = article
-                self._wip_article = wip_article
+        # Build items list for summary service
+        items = []
+        for assoc in articles_to_summarize:
+            article = assoc.article
+            wip_article = assoc.wip_article
 
-            def __getattr__(self, name):
-                if name == 'filter_score_reason':
-                    return self._wip_article.filter_score_reason if self._wip_article else None
-                return getattr(self._article, name)
+            items.append({
+                "id": article.article_id,
+                "title": article.title or "Untitled",
+                "authors": self.summary_service.format_authors(article.authors),
+                "journal": article.journal or "Unknown",
+                "year": str(article.year) if article.year else "Unknown",
+                "abstract": article.abstract or "",
+                "filter_reason": wip_article.filter_score_reason if wip_article else "",
+                "stream_name": stream.stream_name or "",
+                "stream_purpose": stream.purpose or "",
+            })
 
-        articles = [
-            ArticleWithFilterReason(assoc.article, assoc.wip_article)
-            for assoc in articles_to_summarize
-        ]
-        article_summaries = await self.summary_service.generate_article_summaries_batch(
-            articles=articles,
-            stream_purpose=stream.purpose,
-            stream_name=stream.stream_name,
-            enrichment_config=enrichment_config,
-            max_concurrency=5,
-            on_progress=on_progress,
-            model=model,
-            temperature=temperature,
+        # Build model config
+        model_config = ModelConfig(
+            model=model or "gpt-4.1",
+            temperature=temperature if temperature is not None else 0.3,
         )
 
-        # Build results for bulk update (wrapper objects proxy article_id from underlying Article)
-        article_id_to_summary = {
-            wrapper.article_id: summary for wrapper, summary in article_summaries
-        }
-        association_updates = [
-            (assoc, article_id_to_summary[assoc.article.article_id])
-            for assoc in articles_to_summarize
-            if article_id_to_summary.get(assoc.article.article_id)
-        ]
+        # Call summary service
+        results = await self.summary_service.generate_article_summary(
+            items=items,
+            enrichment_config=enrichment_config,
+            model_config=model_config,
+            options=LLMOptions(max_concurrent=5, on_progress=on_progress),
+        )
+
+        # Build association updates from results
+        # Results are in same order as items/articles_to_summarize
+        association_updates = []
+        for i, result in enumerate(results):
+            if result.ok and result.data:
+                assoc = articles_to_summarize[i]
+                association_updates.append((assoc, result.data))
 
         # Write to associations
         if association_updates:
@@ -731,62 +736,199 @@ class PipelineService:
             )
         return 0
 
-    async def _stage_generate_summaries(
+    async def _stage_generate_category_summaries(
         self, ctx: PipelineContext
     ) -> AsyncGenerator[PipelineStatus, None]:
         """
-        Stage: Generate executive summary and category summaries.
-        Commits: None (summaries stored in ctx only).
+        Stage: Generate category summaries.
+        Commits: Category summaries to report enrichments.
         """
-        yield PipelineStatus("summary", "Generating summaries...")
+        yield PipelineStatus("category_summaries", f"Generating summaries for {len(ctx.categories)} categories...")
 
-        # Get LLM configs for summary stages
+        # Get LLM config for category summaries
         category_summary_cfg = self._get_stage_llm_config(ctx, "category_summary")
-        executive_summary_cfg = self._get_stage_llm_config(ctx, "executive_summary")
-
-        # Run summary generation with heartbeat
-        summary_task = asyncio.create_task(
-            self._generate_summaries(
-                research_stream_id=ctx.research_stream_id,
-                execution_id=ctx.execution_id,
-                report_id=ctx.report.report_id,
-                stream=ctx.stream,
-                presentation_config=ctx.presentation_config,
-                enrichment_config=ctx.enrichment_config,
-                category_summary_model_cfg=category_summary_cfg,
-                executive_summary_model_cfg=executive_summary_cfg,
-            )
+        model_config = ModelConfig(
+            model=category_summary_cfg.get("model", "gpt-4.1"),
+            temperature=category_summary_cfg.get("temperature", 0.3),
         )
 
-        while not summary_task.done():
-            try:
-                await asyncio.wait_for(asyncio.shield(summary_task), timeout=5.0)
-            except asyncio.TimeoutError:
-                yield PipelineStatus(
-                    "summary",
-                    f"Generating summaries for {len(ctx.categories)} categories...",
-                    {"heartbeat": True, "num_categories": len(ctx.categories)},
-                )
+        # Get associations to read categories and article summaries
+        associations = self.association_service.get_visible_for_report(ctx.report.report_id)
+        wip_to_categories: Dict[int, List[str]] = {}
+        wip_to_summary: Dict[int, str] = {}
+        for assoc in associations:
+            if assoc.wip_article_id:
+                wip_to_categories[assoc.wip_article_id] = assoc.presentation_categories or []
+                wip_to_summary[assoc.wip_article_id] = assoc.ai_summary or ""
 
-        ctx.executive_summary, ctx.category_summaries = await summary_task
+        # Get all articles marked for report inclusion
+        wip_articles = self.wip_article_service.get_included_articles(ctx.execution_id)
 
-        # Update the report with the generated summaries
+        if not wip_articles:
+            ctx.category_summaries = {}
+            yield PipelineStatus("category_summaries", "No articles to summarize", {"categories": 0})
+            return
+
+        # Build items list for summary service
+        items = []
+        for category in ctx.presentation_config.categories:
+            # Get articles in this category
+            category_articles = [
+                article for article in wip_articles
+                if article.id in wip_to_categories
+                and category.id in wip_to_categories[article.id]
+            ]
+
+            # Prepare article info for formatting
+            article_info = []
+            for article in category_articles[:15]:
+                article_info.append({
+                    "title": article.title,
+                    "authors": (article.authors or [])[:3],
+                    "journal": article.journal,
+                    "year": article.year,
+                    "abstract": (article.abstract or "")[:400],
+                })
+
+            # Gather article summaries for this category
+            article_summaries = [
+                wip_to_summary.get(article.id, "")
+                for article in category_articles
+                if wip_to_summary.get(article.id)
+            ]
+            summaries_text = "\n\n".join([f"- {s}" for s in article_summaries if s])
+
+            items.append({
+                "category_id": category.id,
+                "category_name": category.name,
+                "category_description": f"{category.name}. " + (
+                    "Includes: " + ", ".join(category.specific_inclusions)
+                    if category.specific_inclusions else ""
+                ),
+                "category_topics": ", ".join(category.topics) if category.topics else "",
+                "articles_count": str(len(category_articles)),
+                "articles_formatted": self.summary_service.format_articles_for_prompt(article_info),
+                "articles_summaries": summaries_text,
+                "stream_name": ctx.stream.stream_name or "",
+                "stream_purpose": ctx.stream.purpose or "",
+            })
+
+        # Generate summaries in batch
+        results = await self.summary_service.generate_category_summary(
+            items=items,
+            enrichment_config=ctx.enrichment_config,
+            model_config=model_config,
+            options=LLMOptions(max_concurrent=5),
+        )
+
+        # Build category summaries dict from results
+        ctx.category_summaries = {}
+        for i, result in enumerate(results):
+            cat_id = items[i]["category_id"]
+            if result.ok and result.data:
+                ctx.category_summaries[cat_id] = result.data
+            elif items[i]["articles_count"] == "0":
+                ctx.category_summaries[cat_id] = "No articles in this category."
+            else:
+                ctx.category_summaries[cat_id] = f"Error generating summary: {result.error}"
+
+        # Save category summaries to report
         if ctx.report:
             self.db.refresh(ctx.report)
-            ctx.report.enrichments = {
-                "executive_summary": ctx.executive_summary,
-                "category_summaries": ctx.category_summaries,
-            }
+            enrichments = ctx.report.enrichments or {}
+            enrichments["category_summaries"] = ctx.category_summaries
+            ctx.report.enrichments = enrichments
+            flag_modified(ctx.report, "enrichments")
+            self.db.commit()
+
+        logger.info(f"Generated {len(ctx.category_summaries)} category summaries for report {ctx.report.report_id}")
+
+        yield PipelineStatus(
+            "category_summaries",
+            f"Generated {len(ctx.category_summaries)} category summaries",
+            {"categories": len(ctx.category_summaries)},
+        )
+
+    async def _stage_generate_executive_summary(
+        self, ctx: PipelineContext
+    ) -> AsyncGenerator[PipelineStatus, None]:
+        """
+        Stage: Generate executive summary.
+        Commits: Executive summary to report enrichments.
+        """
+        yield PipelineStatus("executive_summary", "Generating executive summary...")
+
+        # Get LLM config for executive summary
+        executive_summary_cfg = self._get_stage_llm_config(ctx, "executive_summary")
+        model_config = ModelConfig(
+            model=executive_summary_cfg.get("model", "gpt-4.1"),
+            temperature=executive_summary_cfg.get("temperature", 0.3),
+        )
+
+        # Get all articles marked for report inclusion
+        wip_articles = self.wip_article_service.get_included_articles(ctx.execution_id)
+
+        if not wip_articles:
+            ctx.executive_summary = "No articles in this report."
+            yield PipelineStatus("executive_summary", "No articles to summarize", {})
+            return
+
+        # Prepare article info for prompt
+        article_info = []
+        for article in wip_articles[:20]:
+            article_info.append({
+                "title": article.title,
+                "authors": (article.authors or [])[:3],
+                "journal": article.journal,
+                "year": article.year,
+                "abstract": (article.abstract or "")[:500],
+            })
+
+        # Format category summaries
+        category_summaries_text = "\n\n".join([
+            f"**{cat_id}**: {summary}"
+            for cat_id, summary in ctx.category_summaries.items()
+        ])
+
+        # Build item for executive summary
+        item = {
+            "articles_count": str(len(wip_articles)),
+            "articles_formatted": self.summary_service.format_articles_for_prompt(article_info, max_articles=20),
+            "categories_count": str(len(ctx.category_summaries)),
+            "categories_summaries": category_summaries_text,
+            "stream_name": ctx.stream.stream_name or "",
+            "stream_purpose": ctx.stream.purpose or "",
+        }
+
+        # Generate executive summary (single item)
+        result = await self.summary_service.generate_executive_summary(
+            items=item,
+            enrichment_config=ctx.enrichment_config,
+            model_config=model_config,
+        )
+
+        if result.ok and result.data:
+            ctx.executive_summary = result.data
+        else:
+            ctx.executive_summary = f"Error generating executive summary: {result.error}"
+
+        # Save executive summary to report and set original_enrichments
+        if ctx.report:
+            self.db.refresh(ctx.report)
+            enrichments = ctx.report.enrichments or {}
+            enrichments["executive_summary"] = ctx.executive_summary
+            ctx.report.enrichments = enrichments
             flag_modified(ctx.report, "enrichments")
             ctx.report.original_enrichments = ctx.report.enrichments.copy()
             flag_modified(ctx.report, "original_enrichments")
             self.db.commit()
-            logger.info(f"Saved executive summary and {len(ctx.category_summaries)} category summaries to report {ctx.report.report_id}")
+
+        logger.info(f"Generated executive summary for report {ctx.report.report_id}")
 
         yield PipelineStatus(
-            "summary",
-            f"Generated executive summary and {len(ctx.category_summaries)} category summaries",
-            {"categories": len(ctx.category_summaries)},
+            "executive_summary",
+            "Generated executive summary",
+            {"length": len(ctx.executive_summary)},
         )
 
     async def _stage_generate_report(
@@ -1300,160 +1442,3 @@ Score from {min_value} to {max_value}."""
         )
         return categorized, error_count
 
-    async def _generate_summaries(
-        self,
-        research_stream_id: int,
-        execution_id: str,
-        report_id: int,
-        stream: ResearchStream,
-        presentation_config: PresentationConfig,
-        enrichment_config: Optional[Dict[str, Any]] = None,
-        category_summary_model_cfg: Optional[Dict[str, Any]] = None,
-        executive_summary_model_cfg: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[str, Dict[str, str]]:
-        """
-        Generate executive summary and per-category summaries.
-
-        Args:
-            research_stream_id: Stream ID
-            execution_id: UUID of pipeline execution
-            report_id: Report ID (needed to get categories from associations)
-            stream: ResearchStream object
-            presentation_config: Presentation configuration
-            enrichment_config: Custom prompts configuration
-            category_summary_model_cfg: Model config for category summaries
-            executive_summary_model_cfg: Model config for executive summary
-
-        Returns:
-            Tuple of (executive_summary, category_summaries_dict)
-        """
-        # Get all articles marked for report inclusion
-        wip_articles = self.wip_article_service.get_included_articles(execution_id)
-
-        if not wip_articles:
-            return "No articles in this report.", {}
-
-        # Get associations to read categories (categories are now on ReportArticleAssociation)
-        associations = self.association_service.get_visible_for_report(report_id)
-        wip_to_categories: Dict[int, List[str]] = {}
-        wip_to_summary: Dict[int, str] = {}
-        for assoc in associations:
-            if assoc.wip_article_id:
-                wip_to_categories[assoc.wip_article_id] = (
-                    assoc.presentation_categories or []
-                )
-                wip_to_summary[assoc.wip_article_id] = assoc.ai_summary or ""
-
-        logger.info(
-            f"Generating summaries for {len(wip_articles)} articles across {len(presentation_config.categories)} categories"
-        )
-
-        # Generate category summaries in parallel
-        async def generate_single_category_summary(category):
-            """Generate summary for a single category"""
-            try:
-                # Get articles in this category (categories are now on association)
-                category_articles = [
-                    article
-                    for article in wip_articles
-                    if article.id in wip_to_categories
-                    and category.id in wip_to_categories[article.id]
-                ]
-
-                if not category_articles:
-                    return category.id, "No articles in this category."
-
-                # Build category description
-                category_description = f"{category.name}. "
-                if category.specific_inclusions:
-                    category_description += "Includes: " + ", ".join(
-                        category.specific_inclusions
-                    )
-
-                # Gather article summaries for this category (if available)
-                article_summaries = [
-                    wip_to_summary.get(article.id, "")
-                    for article in category_articles
-                    if wip_to_summary.get(article.id)
-                ]
-
-                # Generate summary for this category
-                summary = await self.summary_service.generate_category_summary(
-                    category_name=category.name,
-                    category_description=category_description,
-                    wip_articles=category_articles,
-                    stream_purpose=stream.purpose,
-                    stream_name=stream.stream_name,
-                    category_topics=category.topics,
-                    enrichment_config=enrichment_config,
-                    article_summaries=article_summaries,
-                    model=(
-                        category_summary_model_cfg.get("model")
-                        if category_summary_model_cfg
-                        else None
-                    ),
-                    temperature=(
-                        category_summary_model_cfg.get("temperature")
-                        if category_summary_model_cfg
-                        else None
-                    ),
-                )
-                return category.id, summary
-            except Exception as e:
-                logger.error(
-                    f"Failed to generate summary for category {category.id}: {type(e).__name__}: {e}"
-                )
-                return category.id, f"Error generating summary: {str(e)}"
-
-        # Run all category summaries in parallel with exception handling
-        category_results = await asyncio.gather(
-            *[
-                generate_single_category_summary(cat)
-                for cat in presentation_config.categories
-            ],
-            return_exceptions=True,
-        )
-
-        # Process results, handling any exceptions
-        category_summaries = {}
-        for i, result in enumerate(category_results):
-            if isinstance(result, Exception):
-                cat_id = presentation_config.categories[i].id
-                logger.error(
-                    f"Category summary task failed for {cat_id}: {type(result).__name__}: {result}"
-                )
-                category_summaries[cat_id] = f"Error generating summary: {str(result)}"
-            else:
-                cat_id, summary = result
-                category_summaries[cat_id] = summary
-
-        # Generate executive summary using category summaries
-        try:
-            executive_summary = await self.summary_service.generate_executive_summary(
-                wip_articles=wip_articles,
-                stream_purpose=stream.purpose,
-                category_summaries=category_summaries,
-                stream_name=stream.stream_name,
-                enrichment_config=enrichment_config,
-                model=(
-                    executive_summary_model_cfg.get("model")
-                    if executive_summary_model_cfg
-                    else None
-                ),
-                temperature=(
-                    executive_summary_model_cfg.get("temperature")
-                    if executive_summary_model_cfg
-                    else None
-                ),
-            )
-        except Exception as e:
-            logger.error(
-                f"Failed to generate executive summary: {type(e).__name__}: {e}",
-                exc_info=True,
-            )
-            executive_summary = f"Error generating executive summary: {str(e)}"
-
-        logger.info(
-            f"Summary generation complete: executive summary + {len(category_summaries)} category summaries"
-        )
-        return executive_summary, category_summaries
