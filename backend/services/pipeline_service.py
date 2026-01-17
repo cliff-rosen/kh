@@ -46,6 +46,7 @@ from models import (
 from schemas.research_stream import RetrievalConfig, PresentationConfig
 from services.pubmed_service import PubMedService
 from services.ai_evaluation_service import get_ai_evaluation_service
+from agents.prompts.llm import ModelConfig, LLMOptions
 from services.article_categorization_service import ArticleCategorizationService
 from services.research_stream_service import ResearchStreamService
 from services.report_summary_service import ReportSummaryService
@@ -521,8 +522,8 @@ class PipelineService:
                 else:
                     yield status
 
-            passed, rejected = result
-            ctx.filter_stats[query.query_id] = {"passed": passed, "rejected": rejected}
+            passed, rejected, errors = result
+            ctx.filter_stats[query.query_id] = {"passed": passed, "rejected": rejected, "errors": errors}
 
             yield PipelineStatus(
                 "filter",
@@ -1042,7 +1043,7 @@ class PipelineService:
         model: Optional[str] = None,
         temperature: Optional[float] = None,
         reasoning_effort: Optional[str] = None,
-    ) -> Tuple[int, int]:
+    ) -> Tuple[int, int, int]:
         """
         Apply semantic filter to articles in a retrieval unit (concept or broad query) using LLM in parallel batches.
 
@@ -1057,7 +1058,7 @@ class PipelineService:
             reasoning_effort: Optional reasoning effort for reasoning models
 
         Returns:
-            Tuple of (passed_count, rejected_count)
+            Tuple of (passed_count, rejected_count, error_count)
         """
         # Get all non-duplicate articles for this unit that haven't been filtered yet
         articles = self.wip_article_service.get_for_filtering(
@@ -1068,7 +1069,7 @@ class PipelineService:
             logger.info(
                 f"No articles to filter for execution_id={execution_id}, retrieval_unit_id={retrieval_unit_id}"
             )
-            return 0, 0
+            return 0, 0, 0
 
         logger.info(
             f"Filtering {len(articles)} articles for retrieval_unit_id={retrieval_unit_id}, threshold={threshold}"
@@ -1091,40 +1092,53 @@ class PipelineService:
                 }
             )
 
-        # Use AIEvaluationService score_batch to get relevance scores
-        results = await self.eval_service.score_batch(
+        # Use AIEvaluationService score to get relevance scores
+        results = await self.eval_service.score(
             items=items,
             criteria=filter_criteria,
-            id_field="id",
             min_value=0.0,
             max_value=1.0,
             include_reasoning=True,
             include_source_data=True,  # Include full article data for LLM context
-            max_concurrent=50,
-            on_progress=on_progress,
-            model=model,
-            temperature=temperature,
-            reasoning_effort=reasoning_effort,
+            model_config=ModelConfig(
+                model=model or "gpt-4.1",
+                temperature=temperature or 0.0,
+                reasoning_effort=reasoning_effort,
+            ),
+            options=LLMOptions(
+                max_concurrent=50,
+                on_progress=on_progress,
+            ),
         )
 
         # Update database with results using WipArticleService
         passed = 0
         rejected = 0
+        errors = 0
 
         for result in results:
-            article = article_map.get(result.item_id)
+            article = article_map.get(result.input["id"])
             if not article:
                 continue
 
-            score = result.value if result.value is not None else 0.0
+            if not result.ok:
+                # Error occurred - record it but leave passed_semantic_filter as None (unprocessed)
+                # so it can be retried. Store error in filter_score_reason for visibility.
+                errors += 1
+                article.filter_score = None
+                article.filter_score_reason = f"ERROR: {result.error}"
+                # Don't set passed_semantic_filter - leave as None
+                continue
+
+            score = result.data.get("value", 0.0) if result.data else 0.0
+            reasoning = result.data.get("reasoning", "") if result.data else ""
             is_relevant = score >= threshold
-            reasoning = result.reasoning or result.error or ""
 
             self.wip_article_service.update_filter_result(
                 article=article,
                 passed=is_relevant,
                 score=score,
-                score_reason=reasoning,  # Capture reasoning for all articles
+                score_reason=reasoning,
             )
             if is_relevant:
                 passed += 1
@@ -1133,9 +1147,9 @@ class PipelineService:
 
         self.wip_article_service.commit()
         logger.info(
-            f"Filtering complete: {passed} passed, {rejected} rejected out of {len(articles)} total"
+            f"Filtering complete: {passed} passed, {rejected} rejected, {errors} errors out of {len(articles)} total"
         )
-        return passed, rejected
+        return passed, rejected, errors
 
     async def _deduplicate_globally(
         self, research_stream_id: int, execution_id: str

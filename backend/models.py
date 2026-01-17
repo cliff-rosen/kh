@@ -61,13 +61,11 @@ class RunType(str, PyEnum):
     SCHEDULED = "scheduled"  # Automated scheduled run
     MANUAL = "manual"     # Manual run triggered by user
 
-
 class ApprovalStatus(str, PyEnum):
     """Approval status for reports"""
     AWAITING_APPROVAL = "awaiting_approval"  # Report complete, awaiting admin review
     APPROVED = "approved"                     # Approved and visible to subscribers
     REJECTED = "rejected"                     # Rejected by admin
-
 
 class ExecutionStatus(str, PyEnum):
     """Status of a pipeline execution"""
@@ -142,53 +140,7 @@ class User(Base):
     # Additional relationships added at end of file
 
 
-class PipelineExecution(Base):
-    """
-    Tracks each pipeline run attempt - the single source of truth for execution state AND configuration.
-
-    All configuration is determined and stored at creation time (trigger time):
-    - Who triggered it (user_id)
-    - What to retrieve (retrieval_config snapshot)
-    - How to categorize/present (presentation_config snapshot)
-    - What date range to query (start_date, end_date)
-    - What to name the report (report_name)
-
-    The pipeline service reads ALL configuration from this record - it does NOT
-    go back to the stream for any configuration.
-    """
-    __tablename__ = "pipeline_executions"
-
-    # === IDENTITY ===
-    id = Column(String(36), primary_key=True)  # UUID
-    stream_id = Column(Integer, ForeignKey("research_streams.stream_id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)  # Who triggered/owns this execution
-
-    # === EXECUTION STATE ===
-    status = Column(Enum(ExecutionStatus, values_callable=lambda x: [e.value for e in x], name='executionstatus'), default=ExecutionStatus.PENDING, nullable=False)
-    run_type = Column(Enum(RunType, values_callable=lambda x: [e.value for e in x], name='runtype'), default=RunType.MANUAL, nullable=False)
-    started_at = Column(DateTime, nullable=True)
-    completed_at = Column(DateTime, nullable=True)
-    error = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    # === EXECUTION CONFIGURATION (all determined at trigger time) ===
-    start_date = Column(String(10), nullable=True)  # YYYY-MM-DD format for retrieval
-    end_date = Column(String(10), nullable=True)    # YYYY-MM-DD format for retrieval
-    report_name = Column(String(255), nullable=True)  # Custom report name (defaults to YYYY.MM.DD if null)
-    retrieval_config = Column(JSON, nullable=True)  # Snapshot: queries, filters, sources
-    presentation_config = Column(JSON, nullable=True)  # Snapshot: categories for categorization
-    enrichment_config = Column(JSON, nullable=True)  # Snapshot: custom prompts for summaries
-    llm_config = Column(JSON, nullable=True)  # Snapshot: which LLMs to use per stage
-
-    # === OUTPUT REFERENCE ===
-    report_id = Column(Integer, ForeignKey("reports.report_id"), nullable=True)
-
-    # Relationships
-    stream = relationship("ResearchStream", back_populates="executions", foreign_keys=[stream_id])
-    user = relationship("User", foreign_keys=[user_id])
-    report = relationship("Report", back_populates="execution", foreign_keys=[report_id])
-    wip_articles = relationship("WipArticle", back_populates="execution", primaryjoin="PipelineExecution.id == foreign(WipArticle.pipeline_execution_id)")
-
+# Core Stream tables
 
 class ResearchStream(Base):
     """Research stream with clean three-layer architecture"""
@@ -273,20 +225,114 @@ class ResearchStream(Base):
     last_execution = relationship("PipelineExecution", foreign_keys=[last_execution_id], uselist=False)
 
 
-class InformationSource(Base):
-    """Sources of information for curation - represents actual searchable sources like PubMed, Google Scholar, etc."""
-    __tablename__ = "information_sources"
+class PipelineExecution(Base):
+    """
+    Tracks each pipeline run attempt - the single source of truth for execution state AND configuration.
 
-    source_id = Column(Integer, primary_key=True, index=True)
-    source_name = Column(String(255), nullable=False, unique=True)  # e.g., "PubMed", "Google Scholar", "Semantic Scholar"
-    source_url = Column(String(500))  # Base URL for the source
-    description = Column(Text)  # Description of the source
-    is_active = Column(Boolean, default=True)
+    All configuration is determined and stored at creation time (trigger time):
+    - Who triggered it (user_id)
+    - What to retrieve (retrieval_config snapshot)
+    - How to categorize/present (presentation_config snapshot)
+    - What date range to query (start_date, end_date)
+    - What to name the report (report_name)
+
+    The pipeline service reads ALL configuration from this record - it does NOT
+    go back to the stream for any configuration.
+    """
+    __tablename__ = "pipeline_executions"
+
+    # === IDENTITY ===
+    id = Column(String(36), primary_key=True)  # UUID
+    stream_id = Column(Integer, ForeignKey("research_streams.stream_id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)  # Who triggered/owns this execution
+
+    # === EXECUTION STATE ===
+    status = Column(Enum(ExecutionStatus, values_callable=lambda x: [e.value for e in x], name='executionstatus'), default=ExecutionStatus.PENDING, nullable=False)
+    run_type = Column(Enum(RunType, values_callable=lambda x: [e.value for e in x], name='runtype'), default=RunType.MANUAL, nullable=False)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    error = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # === EXECUTION CONFIGURATION (all determined at trigger time) ===
+    start_date = Column(String(10), nullable=True)  # YYYY-MM-DD format for retrieval
+    end_date = Column(String(10), nullable=True)    # YYYY-MM-DD format for retrieval
+    report_name = Column(String(255), nullable=True)  # Custom report name (defaults to YYYY.MM.DD if null)
+    retrieval_config = Column(JSON, nullable=True)  # Snapshot: queries, filters, sources
+    presentation_config = Column(JSON, nullable=True)  # Snapshot: categories for categorization
+    enrichment_config = Column(JSON, nullable=True)  # Snapshot: custom prompts for summaries
+    llm_config = Column(JSON, nullable=True)  # Snapshot: which LLMs to use per stage
+
+    # === OUTPUT REFERENCE ===
+    report_id = Column(Integer, ForeignKey("reports.report_id"), nullable=True)
 
     # Relationships
-    articles = relationship("Article", back_populates="source")
+    stream = relationship("ResearchStream", back_populates="executions", foreign_keys=[stream_id])
+    user = relationship("User", foreign_keys=[user_id])
+    report = relationship("Report", back_populates="execution", foreign_keys=[report_id])
+    wip_articles = relationship("WipArticle", back_populates="execution", primaryjoin="PipelineExecution.id == foreign(WipArticle.pipeline_execution_id)")
+
+
+class WipArticle(Base):
+    """Work-in-progress articles for pipeline test execution and audit trail"""
+    __tablename__ = "wip_articles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    research_stream_id = Column(Integer, ForeignKey("research_streams.stream_id"), nullable=False)
+    retrieval_group_id = Column(String(255), nullable=False, index=True)
+    source_id = Column(Integer, ForeignKey("information_sources.source_id"), nullable=False)
+    pipeline_execution_id = Column(String(36), ForeignKey("pipeline_executions.id"), nullable=False, index=True)  # UUID of pipeline run
+
+    # Article data (mirroring articles table structure)
+    title = Column(String(500), nullable=False)
+    url = Column(String(1000))
+    authors = Column(JSON, default=list)
+    publication_date = Column(Date)
+    abstract = Column(Text)
+    summary = Column(Text)
+    full_text = Column(Text)
+
+    # PubMed-specific fields
+    pmid = Column(String(20), index=True)
+    doi = Column(String(255), index=True)
+    journal = Column(String(255))
+    volume = Column(String(50))
+    issue = Column(String(50))
+    pages = Column(String(50))
+    year = Column(String(4))
+
+    # Source-specific identifier (e.g., PubMed ID, Semantic Scholar ID, etc.)
+    source_specific_id = Column(String(255), index=True)
+
+    # Metadata
+    article_metadata = Column(JSON, default=dict)
+
+    # Processing status fields (set by pipeline)
+    is_duplicate = Column(Boolean, default=False, index=True)
+    duplicate_of_id = Column(Integer, ForeignKey("wip_articles.id"))
+    duplicate_of_pmid = Column(String(20), nullable=True)  # PMID of article this is a duplicate of
+    passed_semantic_filter = Column(Boolean, default=None, index=True)
+    filter_score = Column(Float, nullable=True)  # Relevance score from semantic filter
+    filter_score_reason = Column(Text)  # AI reasoning for the score (captured for all articles)
+    included_in_report = Column(Boolean, default=False, index=True)  # SOURCE OF TRUTH - synced with ReportArticleAssociation existence
+
+    # Curation override fields (set by curator, audit trail for how we got to current state)
+    # See docs/_specs/article-curation-flow.md for state transition documentation
+    curator_included = Column(Boolean, default=False)  # Curator overrode filter to include
+    curator_excluded = Column(Boolean, default=False)  # Curator overrode pipeline to exclude
+    curation_notes = Column(Text, nullable=True)  # Why curator made the decision
+    curated_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    curated_at = Column(DateTime, nullable=True)
+
+    # Timestamps
+    retrieved_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    research_stream = relationship("ResearchStream")
+    source = relationship("InformationSource")
+    execution = relationship("PipelineExecution", back_populates="wip_articles")
+    curator = relationship("User", foreign_keys=[curated_by])
 
 
 class Article(Base):
@@ -435,28 +481,6 @@ class ReportArticleAssociation(Base):
     wip_article = relationship("WipArticle")
 
 
-class ReportSchedule(Base):
-    """Automated report generation schedule"""
-    __tablename__ = "report_schedules"
-
-    schedule_id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, unique=True)
-    frequency = Column(Enum(ReportFrequency), nullable=False)
-    day_of_week = Column(Integer)  # 0-6 for Monday-Sunday (for weekly)
-    day_of_month = Column(Integer)  # 1-31 (for monthly)
-    time_of_day = Column(String(5), default="08:00")  # HH:MM format
-    timezone = Column(String(50), default="UTC")
-    is_active = Column(Boolean, default=True)
-    is_paused = Column(Boolean, default=False)
-    next_run_at = Column(DateTime)
-    last_run_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Relationships
-    user = relationship("User", back_populates="report_schedule")
-
-
 class UserFeedback(Base):
     """User feedback on reports and articles"""
     __tablename__ = "user_feedback"
@@ -482,68 +506,6 @@ class UserFeedback(Base):
             name="feedback_target_check"
         ),
     )
-
-
-class WipArticle(Base):
-    """Work-in-progress articles for pipeline test execution and audit trail"""
-    __tablename__ = "wip_articles"
-
-    id = Column(Integer, primary_key=True, index=True)
-    research_stream_id = Column(Integer, ForeignKey("research_streams.stream_id"), nullable=False)
-    retrieval_group_id = Column(String(255), nullable=False, index=True)
-    source_id = Column(Integer, ForeignKey("information_sources.source_id"), nullable=False)
-    pipeline_execution_id = Column(String(36), ForeignKey("pipeline_executions.id"), nullable=False, index=True)  # UUID of pipeline run
-
-    # Article data (mirroring articles table structure)
-    title = Column(String(500), nullable=False)
-    url = Column(String(1000))
-    authors = Column(JSON, default=list)
-    publication_date = Column(Date)
-    abstract = Column(Text)
-    summary = Column(Text)
-    full_text = Column(Text)
-
-    # PubMed-specific fields
-    pmid = Column(String(20), index=True)
-    doi = Column(String(255), index=True)
-    journal = Column(String(255))
-    volume = Column(String(50))
-    issue = Column(String(50))
-    pages = Column(String(50))
-    year = Column(String(4))
-
-    # Source-specific identifier (e.g., PubMed ID, Semantic Scholar ID, etc.)
-    source_specific_id = Column(String(255), index=True)
-
-    # Metadata
-    article_metadata = Column(JSON, default=dict)
-
-    # Processing status fields (set by pipeline)
-    is_duplicate = Column(Boolean, default=False, index=True)
-    duplicate_of_id = Column(Integer, ForeignKey("wip_articles.id"))
-    duplicate_of_pmid = Column(String(20), nullable=True)  # PMID of article this is a duplicate of
-    passed_semantic_filter = Column(Boolean, default=None, index=True)
-    filter_score = Column(Float, nullable=True)  # Relevance score from semantic filter
-    filter_score_reason = Column(Text)  # AI reasoning for the score (captured for all articles)
-    included_in_report = Column(Boolean, default=False, index=True)  # SOURCE OF TRUTH - synced with ReportArticleAssociation existence
-
-    # Curation override fields (set by curator, audit trail for how we got to current state)
-    # See docs/_specs/article-curation-flow.md for state transition documentation
-    curator_included = Column(Boolean, default=False)  # Curator overrode filter to include
-    curator_excluded = Column(Boolean, default=False)  # Curator overrode pipeline to exclude
-    curation_notes = Column(Text, nullable=True)  # Why curator made the decision
-    curated_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
-    curated_at = Column(DateTime, nullable=True)
-
-    # Timestamps
-    retrieved_at = Column(DateTime, default=datetime.utcnow)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    # Relationships
-    research_stream = relationship("ResearchStream")
-    source = relationship("InformationSource")
-    execution = relationship("PipelineExecution", back_populates="wip_articles")
-    curator = relationship("User", foreign_keys=[curated_by])
 
 
 # Subscription tables for stream access control
@@ -660,6 +622,45 @@ class CurationEvent(Base):
     report = relationship("Report", back_populates="curation_events")
     article = relationship("Article")
     curator = relationship("User")
+
+# === MISC ===
+
+class InformationSource(Base):
+    """Sources of information for curation - represents actual searchable sources like PubMed, Google Scholar, etc."""
+    __tablename__ = "information_sources"
+
+    source_id = Column(Integer, primary_key=True, index=True)
+    source_name = Column(String(255), nullable=False, unique=True)  # e.g., "PubMed", "Google Scholar", "Semantic Scholar"
+    source_url = Column(String(500))  # Base URL for the source
+    description = Column(Text)  # Description of the source
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    articles = relationship("Article", back_populates="source")
+
+
+class ReportSchedule(Base):
+    """Automated report generation schedule"""
+    __tablename__ = "report_schedules"
+
+    schedule_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, unique=True)
+    frequency = Column(Enum(ReportFrequency), nullable=False)
+    day_of_week = Column(Integer)  # 0-6 for Monday-Sunday (for weekly)
+    day_of_month = Column(Integer)  # 1-31 (for monthly)
+    time_of_day = Column(String(5), default="08:00")  # HH:MM format
+    timezone = Column(String(50), default="UTC")
+    is_active = Column(Boolean, default=True)
+    is_paused = Column(Boolean, default=False)
+    next_run_at = Column(DateTime)
+    last_run_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="report_schedule")
 
 
 # Add relationships to User model

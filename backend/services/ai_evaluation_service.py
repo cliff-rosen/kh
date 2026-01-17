@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 from agents.prompts.base_prompt_caller import BasePromptCaller
+from agents.prompts.llm import call_llm, ModelConfig, LLMOptions, LLMResult
 from config.llm_models import get_task_config, supports_reasoning_effort
 
 
@@ -564,177 +565,131 @@ class AIEvaluationService:
     # Score (number output with configurable range)
     # =========================================================================
 
+    # User message template for score operation
+    SCORE_USER_MESSAGE = """## Source Data
+{_source_data}
+
+## Instruction
+{_instruction}"""
+
     async def score(
         self,
-        item: Dict[str, Any],
+        items: Union[Dict[str, Any], List[Dict[str, Any]]],
         criteria: str,
-        id_field: str,
         min_value: float = 0,
         max_value: float = 1,
         interval: Optional[float] = None,
         include_reasoning: bool = True,
-        include_source_data: bool = False,
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        reasoning_effort: Optional[str] = None
-    ) -> EvaluationResult:
+        include_source_data: bool = True,
+        model_config: Optional[ModelConfig] = None,
+        options: Optional[LLMOptions] = None,
+    ) -> Union[LLMResult, List[LLMResult]]:
         """
-        Score an item on a numeric scale based on criteria.
+        Score item(s) on a numeric scale based on criteria.
 
         Args:
-            item: Source data to evaluate (as dict)
+            items: Single item dict or list of item dicts to evaluate
             criteria: Natural language scoring criteria (may contain {field} templates)
-            id_field: Name of the field containing the item's unique identifier
             min_value: Lower bound of score range (default: 0)
             max_value: Upper bound of score range (default: 1)
             interval: Optional step size (e.g., 0.5 for discrete steps)
             include_reasoning: Whether to include explanation in result
             include_source_data: If True, include all item fields in prompt context
-            model: Optional model override (e.g., 'o4-mini', 'gpt-4.1')
-            temperature: Optional temperature override (for chat models)
-            reasoning_effort: Optional reasoning effort override (for reasoning models)
+            model_config: Model configuration (model, temperature, max_tokens, reasoning_effort)
+            options: Call options (max_concurrent, on_progress, log_prompt)
 
         Returns:
-            EvaluationResult with float value in specified range
-        """
-        item_id = self._get_item_id(item, id_field)
-        logger.debug(f"score - item_id={item_id}, range=[{min_value}, {max_value}], model={model}")
+            Single item: LLMResult with data containing {value, confidence, reasoning?}
+            List of items: List[LLMResult] in same order as input
 
-        try:
-            # Get appropriate system message and schema
-            system_message = SYSTEM_MESSAGE_SCORE if include_reasoning else SYSTEM_MESSAGE_SCORE_NO_REASONING
-            response_schema = get_score_response_schema(min_value, max_value, interval, include_reasoning)
-
-            # Build instruction with range info
-            range_instruction = f"Score from {min_value} to {max_value}"
-            if interval:
-                range_instruction += f" (use increments of {interval})"
-            full_instruction = f"{criteria}\n\n{range_instruction}"
-
-            # Create prompt caller and build message
-            prompt_caller = self._create_prompt_caller(
-                response_schema, system_message,
-                model_override=model,
-                temperature_override=temperature,
-                reasoning_effort_override=reasoning_effort
+        Example:
+            # Single item
+            result = await service.score(
+                items={"id": "1", "title": "...", "abstract": "..."},
+                criteria="Rate relevance to cancer research",
+                model_config=ModelConfig(model="gpt-4.1"),
             )
-            user_message = self._build_user_message(full_instruction, item, include_source_data)
+            if result.ok:
+                score = result.data["value"]
 
-            # Call LLM
-            result = await self._call_llm(prompt_caller, user_message)
+            # Batch
+            results = await service.score(
+                items=[item1, item2, item3],
+                criteria="Rate relevance to cancer research",
+                options=LLMOptions(max_concurrent=50, on_progress=callback),
+            )
+            for result in results:
+                print(result.input["id"], result.data["value"] if result.ok else result.error)
+        """
+        # Determine if single or batch
+        is_single = isinstance(items, dict)
+        items_list = [items] if is_single else items
 
-            logger.debug(f"score complete - item_id={item_id}, value={result.get('value')}, confidence={result.get('confidence', 0.0):.2f}")
-            return EvaluationResult(
-                item_id=item_id,
-                value=result.get("value"),
-                confidence=result.get("confidence", 0.0),
-                reasoning=result.get("reasoning") if include_reasoning else None
+        if not items_list:
+            return [] if not is_single else LLMResult(input={}, data=None, error="No items provided")
+
+        # Get system message and response schema
+        system_message = SYSTEM_MESSAGE_SCORE if include_reasoning else SYSTEM_MESSAGE_SCORE_NO_REASONING
+        response_schema = get_score_response_schema(min_value, max_value, interval, include_reasoning)
+
+        # Build range instruction
+        range_instruction = f"Score from {min_value} to {max_value}"
+        if interval:
+            range_instruction += f" (use increments of {interval})"
+
+        # Build values list for call_llm
+        values_list = []
+        for item in items_list:
+            # Populate template placeholders in criteria
+            populated_criteria = self._populate_template(criteria, item)
+            full_instruction = f"{populated_criteria}\n\n{range_instruction}"
+
+            # Format source data
+            source_data = self._format_item_for_prompt(item) if include_source_data else ""
+
+            # Build values dict - include original item fields plus our special fields
+            values = {
+                **item,  # Include all original item fields
+                "_source_data": source_data,
+                "_instruction": full_instruction,
+            }
+            values_list.append(values)
+
+        # Apply default model config if not provided
+        if model_config is None:
+            default_cfg = self._get_model_config()
+            model_config = ModelConfig(
+                model=default_cfg.get("model", "gpt-4.1"),
+                temperature=default_cfg.get("temperature", 0.0),
+                reasoning_effort=default_cfg.get("reasoning_effort"),
             )
 
-        except Exception as e:
-            logger.error(f"score failed - item_id={item_id}: {e}", exc_info=True)
-            return EvaluationResult(
-                item_id=item_id,
-                value=None,
-                confidence=0.0,
-                reasoning=None,
-                error=str(e)
-            )
+        # Call LLM
+        logger.info(f"score - items={len(items_list)}, range=[{min_value}, {max_value}], model={model_config.model}")
 
-    async def score_batch(
-        self,
-        items: List[Dict[str, Any]],
-        criteria: str,
-        id_field: str,
-        min_value: float = 0,
-        max_value: float = 1,
-        interval: Optional[float] = None,
-        include_reasoning: bool = True,
-        include_source_data: bool = False,
-        max_concurrent: int = 50,
-        on_progress: Optional[callable] = None,
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        reasoning_effort: Optional[str] = None
-    ) -> List[EvaluationResult]:
-        """
-        Score multiple items in parallel.
+        results = await call_llm(
+            system_message=system_message,
+            user_message=self.SCORE_USER_MESSAGE,
+            values=values_list if not is_single else values_list[0],
+            model_config=model_config,
+            response_schema=response_schema,
+            options=options,
+        )
 
-        Args:
-            items: List of source data items to score
-            criteria: Natural language scoring criteria (may contain {field} templates)
-            id_field: Name of the field containing each item's unique identifier
-            min_value: Lower bound of score range (default: 0)
-            max_value: Upper bound of score range (default: 1)
-            interval: Optional step size (e.g., 0.5 for discrete steps)
-            include_reasoning: Whether to include explanation in results
-            include_source_data: If True, include all item fields in prompt context
-            max_concurrent: Maximum concurrent LLM calls (default: 50)
-            on_progress: Optional callback(completed, total) called after each item completes
-            model: Optional model override (e.g., 'o4-mini', 'gpt-4.1')
-            temperature: Optional temperature override (for chat models)
-            reasoning_effort: Optional reasoning effort override (for reasoning models)
-
-        Returns:
-            List of EvaluationResult objects in same order as input items
-        """
-        if not items:
-            return []
-
-        logger.info(f"score_batch - items={len(items)}, range=[{min_value}, {max_value}], model={model}, max_concurrent={max_concurrent}")
-
-        # Create semaphore to limit concurrent LLM calls
-        semaphore = asyncio.Semaphore(max_concurrent)
-
-        async def score_one(idx: int, item: Dict[str, Any]) -> tuple:
-            async with semaphore:
-                result = await self.score(
-                    item, criteria, id_field, min_value, max_value, interval,
-                    include_reasoning, include_source_data,
-                    model=model, temperature=temperature, reasoning_effort=reasoning_effort
-                )
-                return idx, result
-
-        # Execute with as_completed for progress reporting
-        tasks = [score_one(i, item) for i, item in enumerate(items)]
-        results_by_idx = {}
-        completed = 0
-        errors = 0
-
-        for coro in asyncio.as_completed(tasks):
-            try:
-                idx, result = await coro
-                results_by_idx[idx] = result
-            except Exception as e:
-                logger.error(f"score_batch item failed: {e}", exc_info=False)
-                errors += 1
-
-            completed += 1
-            if on_progress:
-                try:
-                    await on_progress(completed, len(items))
-                except Exception as cb_err:
-                    logger.warning(f"Progress callback failed: {cb_err}")
-
-        # Build final results in original order
-        final_results = []
-        for i in range(len(items)):
-            if i in results_by_idx:
-                final_results.append(results_by_idx[i])
+        # Log summary
+        if is_single:
+            result = results
+            if result.ok:
+                logger.debug(f"score complete - value={result.data.get('value')}, confidence={result.data.get('confidence', 0.0):.2f}")
             else:
-                item_id = self._get_item_id(items[i], id_field)
-                final_results.append(EvaluationResult(
-                    item_id=item_id,
-                    value=None,
-                    confidence=0.0,
-                    reasoning=None,
-                    error="Processing failed"
-                ))
+                logger.debug(f"score failed - error={result.error}")
+        else:
+            scored = [r.data.get("value") for r in results if r.ok and r.data]
+            avg_score = sum(scored) / max(1, len(scored)) if scored else 0
+            errors = sum(1 for r in results if not r.ok)
+            logger.info(f"score complete - items={len(items_list)}, avg_score={avg_score:.2f}, errors={errors}")
 
-        scored = [r.value for r in final_results if r.value is not None]
-        avg_score = sum(scored) / max(1, len(scored)) if scored else 0
-        logger.info(f"score_batch complete - items={len(items)}, avg_score={avg_score:.2f}, errors={errors}")
-        return final_results
+        return results
 
     # =========================================================================
     # Extract (single value, any type)
