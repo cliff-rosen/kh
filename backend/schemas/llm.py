@@ -23,14 +23,20 @@ class MessageRole(str, Enum):
 
 
 class LLMMessage(BaseModel):
-    """Individual message for LLM interactions"""
-    id: str = Field(description="Unique identifier for the message")
-    chat_id: str = Field(description="ID of the parent chat session")
+    """Individual message for LLM interactions.
+
+    Can be used in two modes:
+    1. Simple mode: Just role and content (for internal LLM calls)
+    2. Full mode: All fields populated (for chat storage/retrieval)
+    """
     role: MessageRole = Field(description="Role of the message sender")
     content: str = Field(description="Content of the message")
+    # Optional fields for chat storage - not needed for simple LLM calls
+    id: Optional[str] = Field(default=None, description="Unique identifier for the message")
+    chat_id: Optional[str] = Field(default=None, description="ID of the parent chat session")
     message_metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional message metadata")
-    created_at: datetime = Field(description="When the message was created")
-    updated_at: datetime = Field(description="When the message was last updated")
+    created_at: Optional[datetime] = Field(default=None, description="When the message was created")
+    updated_at: Optional[datetime] = Field(default=None, description="When the message was last updated")
 
 
 # Backwards compatibility alias

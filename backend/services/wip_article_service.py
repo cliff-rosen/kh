@@ -638,6 +638,27 @@ class WipArticleService:
             )
         ).all()
 
+    def get_articles_with_curation_notes_by_stream(
+        self,
+        stream_id: int
+    ) -> List[WipArticle]:
+        """
+        Get all WipArticles with curation notes for a stream (across all executions).
+
+        Args:
+            stream_id: Research stream ID
+
+        Returns:
+            List of WipArticle instances with curation notes, ordered by curated_at desc
+        """
+        return self.db.query(WipArticle).filter(
+            and_(
+                WipArticle.research_stream_id == stream_id,
+                WipArticle.curation_notes != None,
+                WipArticle.curation_notes != ""
+            )
+        ).order_by(WipArticle.curated_at.desc()).all()
+
     # =========================================================================
     # DELETE Operations
     # =========================================================================

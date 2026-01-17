@@ -103,6 +103,9 @@ export interface CurationViewResponse {
     retrieval_config: Record<string, unknown> | null;
     start_date: string | null;
     end_date: string | null;
+    // Configuration snapshots from execution
+    enrichment_config: Record<string, unknown> | null;
+    llm_config: Record<string, unknown> | null;
 }
 
 export interface CurationEvent {

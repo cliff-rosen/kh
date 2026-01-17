@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { XMarkIcon, CalendarIcon, DocumentTextIcon, FunnelIcon, ClockIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, CalendarIcon, DocumentTextIcon, FunnelIcon, ClockIcon, ArrowPathIcon, SparklesIcon, CpuChipIcon, ChatBubbleLeftIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
 import { getCurationHistory, CurationEvent } from '../../lib/api/curationApi';
 
 interface BroadQueryConfig {
@@ -22,6 +22,15 @@ interface ConceptConfig {
     };
 }
 
+/** Article with curation notes for display */
+export interface ArticleCurationNote {
+    article_id: number;
+    pmid: string | null;
+    title: string;
+    curation_notes: string | null;
+    curator_added?: boolean;
+}
+
 export interface RetrievalConfigModalProps {
     /** Optional subtitle shown below the title */
     subtitle?: string;
@@ -33,6 +42,12 @@ export interface RetrievalConfigModalProps {
     endDate?: string | null;
     /** Report ID for fetching curation history */
     reportId?: number;
+    /** Enrichment configuration (custom prompts) */
+    enrichmentConfig?: Record<string, unknown> | null;
+    /** LLM configuration (model selection per stage) */
+    llmConfig?: Record<string, unknown> | null;
+    /** Articles with curation notes */
+    articleCurationNotes?: ArticleCurationNote[];
     /** Called when the modal should close */
     onClose: () => void;
 }
@@ -48,9 +63,12 @@ export default function RetrievalConfigModal({
     startDate,
     endDate,
     reportId,
+    enrichmentConfig,
+    llmConfig,
+    articleCurationNotes,
     onClose,
 }: RetrievalConfigModalProps) {
-    const [activeTab, setActiveTab] = useState<'config' | 'history'>('config');
+    const [activeTab, setActiveTab] = useState<'config' | 'enrichment' | 'models' | 'history'>('config');
     const [showRaw, setShowRaw] = useState(false);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyError, setHistoryError] = useState<string | null>(null);
@@ -191,6 +209,26 @@ export default function RetrievalConfigModal({
                     >
                         Run Configuration
                     </button>
+                    <button
+                        onClick={() => setActiveTab('enrichment')}
+                        className={`pb-3 px-2 font-medium transition-colors border-b-2 ${
+                            activeTab === 'enrichment'
+                                ? 'border-purple-600 text-purple-600 dark:text-purple-400'
+                                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                        }`}
+                    >
+                        Enhancement Config
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('models')}
+                        className={`pb-3 px-2 font-medium transition-colors border-b-2 ${
+                            activeTab === 'models'
+                                ? 'border-orange-600 text-orange-600 dark:text-orange-400'
+                                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                        }`}
+                    >
+                        Model Config
+                    </button>
                     {reportId && (
                         <button
                             onClick={() => setActiveTab('history')}
@@ -287,9 +325,160 @@ export default function RetrievalConfigModal({
                         </div>
                     )}
 
+                    {/* Enhancement Config Tab */}
+                    {activeTab === 'enrichment' && (
+                        <div className="space-y-6">
+                            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+                                <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-200 mb-2 flex items-center gap-2">
+                                    <SparklesIcon className="h-4 w-4" />
+                                    Content Enhancement Configuration
+                                </h3>
+                                <p className="text-sm text-purple-800 dark:text-purple-300">
+                                    Custom prompts used to generate AI summaries for this report.
+                                </p>
+                            </div>
+
+                            {enrichmentConfig ? (
+                                <div className="space-y-4">
+                                    {/* Prompts */}
+                                    {(enrichmentConfig as any).prompts && Object.entries((enrichmentConfig as any).prompts).map(([promptType, promptConfig]: [string, any]) => (
+                                        <div key={promptType} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3 capitalize">
+                                                {promptType.replace(/_/g, ' ')}
+                                            </h4>
+
+                                            {promptConfig.system_prompt && (
+                                                <div className="mb-3">
+                                                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">System Prompt</p>
+                                                    <div className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 rounded p-3 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                                                        {promptConfig.system_prompt}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {promptConfig.user_prompt_template && (
+                                                <div>
+                                                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">User Prompt Template</p>
+                                                    <div className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 rounded p-3 whitespace-pre-wrap max-h-40 overflow-y-auto font-mono text-xs">
+                                                        {promptConfig.user_prompt_template}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                    <SparklesIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                                    <p>Using default prompts</p>
+                                    <p className="text-sm mt-1">No custom enhancement configuration was set for this execution</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Model Config Tab */}
+                    {activeTab === 'models' && (
+                        <div className="space-y-6">
+                            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
+                                <h3 className="text-sm font-semibold text-orange-900 dark:text-orange-200 mb-2 flex items-center gap-2">
+                                    <CpuChipIcon className="h-4 w-4" />
+                                    Model Configuration
+                                </h3>
+                                <p className="text-sm text-orange-800 dark:text-orange-300">
+                                    AI models used for each pipeline stage in this report.
+                                </p>
+                            </div>
+
+                            {llmConfig ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {Object.entries(llmConfig).map(([stage, stageConfig]: [string, any]) => (
+                                        <div key={stage} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                                            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 capitalize">
+                                                {stage.replace(/_/g, ' ')}
+                                            </h4>
+                                            <div className="space-y-1 text-sm">
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-500 dark:text-gray-400">Model:</span>
+                                                    <span className="font-medium text-gray-900 dark:text-white">{stageConfig.model || 'Default'}</span>
+                                                </div>
+                                                {stageConfig.temperature !== undefined && (
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-500 dark:text-gray-400">Temperature:</span>
+                                                        <span className="font-medium text-gray-900 dark:text-white">{stageConfig.temperature}</span>
+                                                    </div>
+                                                )}
+                                                {stageConfig.reasoning_effort && (
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-500 dark:text-gray-400">Reasoning Effort:</span>
+                                                        <span className="font-medium text-gray-900 dark:text-white capitalize">{stageConfig.reasoning_effort}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                    <CpuChipIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                                    <p>Using default models</p>
+                                    <p className="text-sm mt-1">No custom model configuration was set for this execution</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Curation History Tab */}
                     {activeTab === 'history' && (
-                        <div>
+                        <div className="space-y-6">
+                            {/* Article Curation Notes Section */}
+                            {articleCurationNotes && articleCurationNotes.filter(a => a.curation_notes).length > 0 && (
+                                <div>
+                                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                                        <ChatBubbleLeftIcon className="h-4 w-4 text-blue-600" />
+                                        Curator Notes on Articles ({articleCurationNotes.filter(a => a.curation_notes).length})
+                                    </h3>
+                                    <div className="space-y-2">
+                                        {articleCurationNotes.filter(a => a.curation_notes).map((article) => (
+                                            <div
+                                                key={article.article_id}
+                                                className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3"
+                                            >
+                                                <div className="flex items-start gap-2">
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                                                {article.title}
+                                                            </p>
+                                                            {article.pmid && (
+                                                                <a
+                                                                    href={`https://pubmed.ncbi.nlm.nih.gov/${article.pmid}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="flex-shrink-0 text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5"
+                                                                >
+                                                                    {article.pmid}
+                                                                    <ArrowTopRightOnSquareIcon className="h-3 w-3" />
+                                                                </a>
+                                                            )}
+                                                            {article.curator_added && (
+                                                                <span className="flex-shrink-0 text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">
+                                                                    Curator added
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+                                                            {article.curation_notes}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Curation Events History */}
                             {historyLoading ? (
                                 <div className="flex items-center justify-center py-12">
                                     <ArrowPathIcon className="h-8 w-8 animate-spin text-gray-400" />
@@ -304,14 +493,19 @@ export default function RetrievalConfigModal({
                                         Try again
                                     </button>
                                 </div>
-                            ) : curationEvents.length === 0 ? (
+                            ) : curationEvents.length === 0 && (!articleCurationNotes || articleCurationNotes.filter(a => a.curation_notes).length === 0) ? (
                                 <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                                     <ClockIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
                                     <p>No curation changes recorded</p>
                                     <p className="text-sm mt-1">Changes will appear here when articles are included, excluded, or edited</p>
                                 </div>
-                            ) : (
-                                <div className="space-y-3">
+                            ) : curationEvents.length > 0 ? (
+                                <div>
+                                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                                        <ClockIcon className="h-4 w-4 text-gray-600" />
+                                        Change History ({curationEvents.length})
+                                    </h3>
+                                    <div className="space-y-3">
                                     {curationEvents.map((event) => (
                                         <div
                                             key={event.id}
@@ -381,8 +575,9 @@ export default function RetrievalConfigModal({
                                             </div>
                                         </div>
                                     ))}
+                                    </div>
                                 </div>
-                            )}
+                            ) : null}
                         </div>
                     )}
                 </div>

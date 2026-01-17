@@ -3,9 +3,10 @@ import { useSearchParams } from 'react-router-dom';
 import QueryRefinementWorkbench, { WorkbenchState } from './QueryRefinementWorkbench';
 import ExecutePipelineTab from './ExecutePipelineTab';
 import ModelConfigForm from './ModelConfigForm';
+import CurationNotesTab from './CurationNotesTab';
 import { ResearchStream } from '../../types';
 
-export type ExecuteSubTab = 'workbench' | 'pipeline' | 'models';
+export type ExecuteSubTab = 'workbench' | 'pipeline' | 'models' | 'curation-notes';
 
 interface TestRefineTabProps {
     streamId: number;
@@ -91,6 +92,19 @@ export default function TestRefineTab({ streamId, stream, onStreamUpdate, canMod
                     >
                         Model Configuration
                     </button>
+                    <button
+                        type="button"
+                        onClick={() => handleSubTabChange('curation-notes')}
+                        className={`
+                            py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap
+                            ${activeSubTab === 'curation-notes'
+                                ? 'border-teal-500 text-teal-600 dark:text-teal-400'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                            }
+                        `}
+                    >
+                        Curation Notes
+                    </button>
                 </nav>
             </div>
 
@@ -116,6 +130,9 @@ export default function TestRefineTab({ streamId, stream, onStreamUpdate, canMod
                         onConfigUpdate={onStreamUpdate}
                         canModify={canModify}
                     />
+                )}
+                {activeSubTab === 'curation-notes' && (
+                    <CurationNotesTab streamId={streamId} />
                 )}
             </div>
         </div>

@@ -16,7 +16,6 @@ import {
     XMarkIcon,
     ChevronDownIcon,
     ChevronUpIcon,
-    ChevronRightIcon,
     PencilIcon,
     ArrowPathIcon,
     DocumentTextIcon,
@@ -1118,6 +1117,15 @@ export default function ReportCuration() {
                     startDate={curationData.start_date}
                     endDate={curationData.end_date}
                     reportId={parseInt(reportId!)}
+                    enrichmentConfig={curationData.enrichment_config}
+                    llmConfig={curationData.llm_config}
+                    articleCurationNotes={includedArticles.map(a => ({
+                        article_id: a.article_id,
+                        pmid: a.pmid,
+                        title: a.title,
+                        curation_notes: a.curation_notes,
+                        curator_added: a.curator_added
+                    }))}
                     onClose={() => setShowConfigModal(false)}
                 />
             )}
@@ -1656,7 +1664,7 @@ function IncludedArticleCard({
     onCategoryChange: (categoryId: string) => void;
     onSaveNotes?: (notes: string) => void;
     onSaveAiSummary: (aiSummary: string) => void;
-    onRegenerateAiSummary: () => Promise<string>;
+    onRegenerateAiSummary: () => Promise<string | undefined>;
 }) {
     const [notes, setNotes] = useState(article.curation_notes || '');
     const [savingNotes, setSavingNotes] = useState(false);
@@ -1679,7 +1687,9 @@ function IncludedArticleCard({
         setRegeneratingAiSummary(true);
         try {
             const newSummary = await onRegenerateAiSummary();
-            setEditedAiSummary(newSummary);
+            if (newSummary) {
+                setEditedAiSummary(newSummary);
+            }
         } finally {
             setRegeneratingAiSummary(false);
         }

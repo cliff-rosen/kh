@@ -1292,3 +1292,101 @@ async def compare_report_to_pubmed_ids(
         report_only_articles=report_only_articles,
         statistics=stats
     )
+
+
+# ============================================================================
+# Curation Notes Endpoint
+# ============================================================================
+
+class CurationNoteItem(BaseModel):
+    """A single curation note entry"""
+    wip_article_id: int
+    pmid: Optional[str] = None
+    title: str
+    curation_notes: str
+    curator_included: bool
+    curator_excluded: bool
+    curated_by: Optional[int] = None
+    curator_name: Optional[str] = None
+    curated_at: Optional[str] = None
+    pipeline_execution_id: str
+    report_id: Optional[int] = None
+
+
+class StreamCurationNotesResponse(BaseModel):
+    """Response for stream curation notes"""
+    stream_id: int
+    stream_name: str
+    notes: List[CurationNoteItem]
+    total_count: int
+
+
+@router.get("/{stream_id}/curation-notes", response_model=StreamCurationNotesResponse)
+async def get_stream_curation_notes(
+    stream_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get all curation notes for a research stream.
+
+    Returns all WIP articles with curation notes across all pipeline executions
+    for this stream, ordered by most recent first.
+    """
+    from services.wip_article_service import WipArticleService
+    from models import PipelineExecution, Report
+
+    stream_service = ResearchStreamService(db)
+    wip_service = WipArticleService(db)
+
+    try:
+        # Get stream (raises 404 if not found or not authorized)
+        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+
+        # Get all articles with curation notes for this stream
+        articles = wip_service.get_articles_with_curation_notes_by_stream(stream_id)
+
+        # Build response items with curator names and report IDs
+        notes_list = []
+        for article in articles:
+            # Get curator name if available
+            curator_name = None
+            if article.curator and hasattr(article.curator, 'display_name'):
+                curator_name = article.curator.display_name
+            elif article.curator and hasattr(article.curator, 'email'):
+                curator_name = article.curator.email
+
+            # Get report ID from execution if available
+            report_id = None
+            if article.execution and article.execution.report_id:
+                report_id = article.execution.report_id
+
+            notes_list.append(CurationNoteItem(
+                wip_article_id=article.id,
+                pmid=article.pmid,
+                title=article.title,
+                curation_notes=article.curation_notes,
+                curator_included=article.curator_included or False,
+                curator_excluded=article.curator_excluded or False,
+                curated_by=article.curated_by,
+                curator_name=curator_name,
+                curated_at=article.curated_at.isoformat() if article.curated_at else None,
+                pipeline_execution_id=article.pipeline_execution_id,
+                report_id=report_id
+            ))
+
+        return StreamCurationNotesResponse(
+            stream_id=stream_id,
+            stream_name=stream.stream_name,
+            notes=notes_list,
+            total_count=len(notes_list)
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get curation notes: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get curation notes: {str(e)}"
+        )

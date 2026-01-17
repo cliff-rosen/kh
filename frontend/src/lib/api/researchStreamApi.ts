@@ -461,6 +461,39 @@ export const researchStreamApi = {
             filter
         );
         return response.data;
+    },
+
+    /**
+     * Get all curation notes for a stream
+     */
+    async getCurationNotes(streamId: number): Promise<StreamCurationNotesResponse> {
+        const response = await api.get(`/api/research-streams/${streamId}/curation-notes`);
+        return response.data;
     }
 
 };
+
+// ============================================================================
+// Curation Notes Types
+// ============================================================================
+
+export interface CurationNoteItem {
+    wip_article_id: number;
+    pmid: string | null;
+    title: string;
+    curation_notes: string;
+    curator_included: boolean;
+    curator_excluded: boolean;
+    curated_by: number | null;
+    curator_name: string | null;
+    curated_at: string | null;
+    pipeline_execution_id: string;
+    report_id: number | null;
+}
+
+export interface StreamCurationNotesResponse {
+    stream_id: number;
+    stream_name: string;
+    notes: CurationNoteItem[];
+    total_count: number;
+}

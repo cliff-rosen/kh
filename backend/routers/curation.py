@@ -190,6 +190,9 @@ class CurationViewResponse(BaseModel):
     retrieval_config: Optional[Dict[str, Any]] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    # Configuration snapshots from execution
+    enrichment_config: Optional[Dict[str, Any]] = None
+    llm_config: Optional[Dict[str, Any]] = None
 
 
 class CurationEventResponse(BaseModel):
@@ -468,6 +471,18 @@ async def get_curation_view(
         )
 
         logger.info(f"get_curation_view complete - user_id={current_user.user_id}, report_id={report_id}")
+
+        # Get config snapshots - prefer execution snapshot, fall back to current stream config
+        enrichment_config = None
+        llm_config = None
+        if data.execution:
+            enrichment_config = data.execution.enrichment_config
+            llm_config = data.execution.llm_config
+        if not enrichment_config and data.stream:
+            enrichment_config = data.stream.enrichment_config
+        if not llm_config and data.stream:
+            llm_config = data.stream.llm_config
+
         return CurationViewResponse(
             report=report_data,
             included_articles=included_articles,
@@ -481,6 +496,8 @@ async def get_curation_view(
             retrieval_config=data.execution.retrieval_config if data.execution else None,
             start_date=data.execution.start_date if data.execution else None,
             end_date=data.execution.end_date if data.execution else None,
+            enrichment_config=enrichment_config,
+            llm_config=llm_config,
         )
 
     except HTTPException:
@@ -1114,7 +1131,7 @@ async def regenerate_article_summary(
         enrichment_config = stream.enrichment_config if stream else None
 
         # Get the article association
-        association = report_service.association_service.get_association(report_id, article_id)
+        association = report_service.association_service.get(report_id, article_id)
         if not association or not association.article:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

@@ -807,6 +807,15 @@ function ReportArticleCard({ article, wipArticle }: { article: ReportArticle; wi
                             </span>
                         )}
                     </div>
+
+                    {/* AI Summary - shown by default */}
+                    {article.ai_summary && (
+                        <div className="mt-2 p-2 bg-purple-50 dark:bg-purple-900/20 rounded border-l-2 border-purple-400 dark:border-purple-600">
+                            <p className="text-sm text-gray-700 dark:text-gray-300">
+                                {article.ai_summary}
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Score display */}
@@ -836,16 +845,6 @@ function ReportArticleCard({ article, wipArticle }: { article: ReportArticle; wi
                             <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Curation Notes</p>
                             <p className="text-sm text-gray-700 dark:text-gray-300">
                                 {wipArticle.curation_notes}
-                            </p>
-                        </div>
-                    )}
-
-                    {/* AI Summary from pipeline */}
-                    {article.ai_summary && (
-                        <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded border-l-2 border-purple-400 dark:border-purple-600">
-                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">AI Summary</p>
-                            <p className="text-sm text-gray-700 dark:text-gray-300">
-                                {article.ai_summary}
                             </p>
                         </div>
                     )}
