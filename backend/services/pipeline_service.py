@@ -1416,18 +1416,20 @@ Score from {min_value} to {max_value}."""
         categories_json = self.categorization_service.format_categories_json(categories_desc)
 
         # Build items list for categorization service
+        # Track associations by index since we process results in order
         items = []
+        valid_associations = []
         for assoc in associations:
             article = assoc.article
             if article:
                 items.append({
-                    "assoc_id": assoc.id,  # Track association for result mapping
                     "title": article.title or "Untitled",
                     "abstract": article.abstract or "",
                     "journal": article.journal or "Unknown",
                     "year": str(article.year) if article.year else "Unknown",
                     "categories_json": categories_json,
                 })
+                valid_associations.append(assoc)
 
         if not items:
             logger.info(f"No articles with data to categorize for report_id={report_id}")
@@ -1436,7 +1438,7 @@ Score from {min_value} to {max_value}."""
         # Build model config
         model_config = ModelConfig(
             model=model or "gpt-4.1",
-            temperature=temperature if temperature is not None else 0.3,
+            temperature=temperature if temperature is not None else 0.0,
         )
 
         # Call categorization service
@@ -1446,22 +1448,18 @@ Score from {min_value} to {max_value}."""
             options=LLMOptions(max_concurrent=50, on_progress=on_progress),
         )
 
-        # Build mapping from assoc_id to association for result processing
-        assoc_by_id = {assoc.id: assoc for assoc in associations}
-
         # Map results back to associations: (Association, category_id)
+        # Results are in same order as items/valid_associations
         association_results = []
         error_count = 0
         for i, result in enumerate(results):
-            assoc_id = items[i]["assoc_id"]
-            assoc = assoc_by_id.get(assoc_id)
-            if assoc:
-                if result.ok and result.data:
-                    category_id = result.data.get("category_id")
-                    association_results.append((assoc, category_id))
-                else:
-                    error_count += 1
-                    association_results.append((assoc, None))
+            assoc = valid_associations[i]
+            if result.ok and result.data:
+                category_id = result.data.get("category_id")
+                association_results.append((assoc, category_id))
+            else:
+                error_count += 1
+                association_results.append((assoc, None))
 
         # Update associations with results
         categorized = self.association_service.bulk_set_categories_from_pipeline(
