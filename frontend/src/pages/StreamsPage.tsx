@@ -41,6 +41,9 @@ export default function StreamsPage() {
     const { researchStreams, loadResearchStreams, isLoading, error, clearError } = useResearchStream();
     const { user, isPlatformAdmin, isOrgAdmin } = useAuth();
 
+    // Only admins can create new streams
+    const canCreateStream = isPlatformAdmin || isOrgAdmin;
+
     // Check if user can modify a stream (edit/delete/run)
     const canModifyStream = (stream: ResearchStream): boolean => {
         const scope = stream.scope || 'personal';
@@ -76,13 +79,15 @@ export default function StreamsPage() {
                             </p>
                         </div>
 
-                        <button
-                            onClick={() => navigate('/new-stream')}
-                            className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                            <PlusIcon className="h-5 w-5 mr-2" />
-                            New Stream
-                        </button>
+                        {canCreateStream && (
+                            <button
+                                onClick={() => navigate('/new-stream')}
+                                className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                                <PlusIcon className="h-5 w-5 mr-2" />
+                                New Stream
+                            </button>
+                        )}
                     </div>
 
             {error && (
@@ -108,14 +113,18 @@ export default function StreamsPage() {
                         No Research Streams Yet
                     </h3>
                     <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-2xl mx-auto">
-                        Create your first research stream to start monitoring the information that matters to your business.
+                        {canCreateStream
+                            ? 'Create your first research stream to start monitoring the information that matters to your business.'
+                            : 'No research streams are available yet. Contact your administrator to create one.'}
                     </p>
-                    <button
-                        onClick={() => navigate('/new-stream')}
-                        className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                        Create Your First Stream
-                    </button>
+                    {canCreateStream && (
+                        <button
+                            onClick={() => navigate('/new-stream')}
+                            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                            Create Your First Stream
+                        </button>
+                    )}
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

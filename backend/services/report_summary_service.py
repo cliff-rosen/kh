@@ -8,12 +8,9 @@ This service generates:
 Supports custom prompts via enrichment_config with slug replacement.
 """
 
-import logging
 from typing import List, Dict, Tuple, Optional, Any
 
 from agents.prompts.base_prompt_caller import BasePromptCaller
-
-logger = logging.getLogger(__name__)
 from schemas.llm import ChatMessage, MessageRole
 
 
@@ -440,9 +437,6 @@ class ReportSummaryService:
         else:
             authors_str = str(authors)
 
-        # Get filter reason if available (from WipArticle)
-        filter_reason = getattr(article, 'filter_score_reason', None) or ""
-
         # Build context for slug replacement
         context = {
             "stream": {
@@ -454,8 +448,7 @@ class ReportSummaryService:
                 "authors": authors_str or "Unknown",
                 "journal": article.journal or "Unknown",
                 "year": str(article.year) if article.year else "Unknown",
-                "abstract": article.abstract or "",
-                "filter_reason": filter_reason
+                "abstract": article.abstract or ""
             }
         }
 
@@ -471,7 +464,7 @@ class ReportSummaryService:
             user_prompt=user_prompt,
             model=effective_model,
             temperature=effective_temperature,
-            max_tokens=1500  # Reasoning models need more tokens (reasoning + output)
+            max_tokens=500
         )
 
     async def generate_article_summaries_batch(
@@ -524,19 +517,12 @@ class ReportSummaryService:
                     )
                     completed += 1
                     if on_progress:
-                        if asyncio.iscoroutinefunction(on_progress):
-                            await on_progress(completed, len(articles))
-                        else:
-                            on_progress(completed, len(articles))
+                        on_progress(completed, len(articles))
                     return (article, summary)
                 except Exception as e:
-                    logger.error(f"Failed to generate summary for article {getattr(article, 'pmid', 'unknown')}: {e}")
                     completed += 1
                     if on_progress:
-                        if asyncio.iscoroutinefunction(on_progress):
-                            await on_progress(completed, len(articles))
-                        else:
-                            on_progress(completed, len(articles))
+                        on_progress(completed, len(articles))
                     # Return empty summary on error
                     return (article, "")
 
