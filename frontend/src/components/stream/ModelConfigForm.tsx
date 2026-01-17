@@ -2,14 +2,22 @@ import { useState, useEffect } from 'react';
 import { ResearchStream, LLMConfig, StageModelConfig, ReasoningEffort } from '../../types';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
 import { showErrorToast, showSuccessToast } from '../../lib/errorToast';
+import { api } from '../../lib/api';
 
-// Model definitions - must match backend/config/llm_models.py
-const AVAILABLE_MODELS = [
-    { id: 'gpt-4.1', name: 'GPT-4.1', family: 'chat', description: 'Enhanced GPT-4, 128k context, supports temperature' },
-    { id: 'gpt-5', name: 'GPT-5', family: 'reasoning', description: 'Full GPT-5, 128k context, supports reasoning effort' },
-    { id: 'gpt-5-mini', name: 'GPT-5 Mini', family: 'reasoning', description: 'Cost-efficient GPT-5, 64k context' },
-    { id: 'gpt-5-nano', name: 'GPT-5 Nano', family: 'reasoning', description: 'Compact GPT-5, 32k context' },
-];
+// Type for model data from backend
+interface ModelInfo {
+    id: string;
+    name: string;
+    supports_reasoning_effort: boolean;
+    reasoning_effort_levels: string[] | null;
+    supports_temperature: boolean;
+    max_tokens: number | null;
+}
+
+interface ModelsResponse {
+    models: ModelInfo[];
+    default_model: string;
+}
 
 const REASONING_EFFORT_OPTIONS: { value: ReasoningEffort; label: string }[] = [
     { value: 'minimal', label: 'Minimal' },
@@ -45,6 +53,24 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
     const [config, setConfig] = useState<LLMConfig>(stream.llm_config || DEFAULT_LLM_CONFIG);
     const [isSaving, setIsSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
+    const [models, setModels] = useState<ModelInfo[]>([]);
+    const [isLoadingModels, setIsLoadingModels] = useState(true);
+
+    // Fetch available models from backend
+    useEffect(() => {
+        const fetchModels = async () => {
+            try {
+                const response = await api.get<ModelsResponse>('/api/llm/models');
+                setModels(response.data.models);
+            } catch (error) {
+                console.error('Failed to fetch models:', error);
+                showErrorToast(error, 'Failed to load model options');
+            } finally {
+                setIsLoadingModels(false);
+            }
+        };
+        fetchModels();
+    }, []);
 
     // Reset when stream changes
     useEffect(() => {
@@ -53,8 +79,8 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
     }, [stream.stream_id, stream.llm_config]);
 
     const isReasoningModel = (modelId: string) => {
-        const model = AVAILABLE_MODELS.find(m => m.id === modelId);
-        return model?.family === 'reasoning';
+        const model = models.find(m => m.id === modelId);
+        return model?.supports_reasoning_effort ?? false;
     };
 
     const updateStageConfig = (
@@ -72,7 +98,7 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
             }
             // If changing to a non-reasoning model, set default temperature and remove reasoning_effort
             else if (updates.model && !isReasoningModel(updates.model)) {
-                newStageConfig.temperature = newStageConfig.temperature ?? 0.3;
+                newStageConfig.temperature = newStageConfig.temperature ?? 0.0;
                 delete newStageConfig.reasoning_effort;
             }
 
@@ -104,6 +130,10 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
         setHasChanges(true);
     };
 
+    // Separate models by type
+    const chatModels = models.filter(m => m.supports_temperature && !m.supports_reasoning_effort);
+    const reasoningModels = models.filter(m => m.supports_reasoning_effort);
+
     const renderStageConfig = (stage: keyof LLMConfig) => {
         const stageConfig = config[stage] || (DEFAULT_LLM_CONFIG[stage] as StageModelConfig);
         const { name, description } = STAGE_LABELS[stage];
@@ -123,22 +153,32 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
                         <select
                             value={stageConfig.model}
                             onChange={(e) => updateStageConfig(stage, { model: e.target.value })}
-                            disabled={!canModify}
+                            disabled={!canModify || isLoadingModels}
                             className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md
                                        bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
                                        focus:ring-2 focus:ring-blue-500 focus:border-transparent
                                        disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            <optgroup label="Chat Models (Temperature)">
-                                {AVAILABLE_MODELS.filter(m => m.family === 'chat').map(m => (
-                                    <option key={m.id} value={m.id}>{m.name}</option>
-                                ))}
-                            </optgroup>
-                            <optgroup label="Reasoning Models (Reasoning Effort)">
-                                {AVAILABLE_MODELS.filter(m => m.family === 'reasoning').map(m => (
-                                    <option key={m.id} value={m.id}>{m.name}</option>
-                                ))}
-                            </optgroup>
+                            {isLoadingModels ? (
+                                <option>Loading models...</option>
+                            ) : (
+                                <>
+                                    {chatModels.length > 0 && (
+                                        <optgroup label="Chat Models (Temperature)">
+                                            {chatModels.map(m => (
+                                                <option key={m.id} value={m.id}>{m.name}</option>
+                                            ))}
+                                        </optgroup>
+                                    )}
+                                    {reasoningModels.length > 0 && (
+                                        <optgroup label="Reasoning Models (Reasoning Effort)">
+                                            {reasoningModels.map(m => (
+                                                <option key={m.id} value={m.id}>{m.name}</option>
+                                            ))}
+                                        </optgroup>
+                                    )}
+                                </>
+                            )}
                         </select>
                     </div>
                     <div>
@@ -164,14 +204,14 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
                         ) : (
                             <>
                                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Temperature ({stageConfig.temperature?.toFixed(1) || '0.3'})
+                                    Temperature ({stageConfig.temperature?.toFixed(1) || '0.0'})
                                 </label>
                                 <input
                                     type="range"
                                     min="0"
                                     max="1"
                                     step="0.1"
-                                    value={stageConfig.temperature ?? 0.3}
+                                    value={stageConfig.temperature ?? 0.0}
                                     onChange={(e) => updateStageConfig(stage, { temperature: parseFloat(e.target.value) })}
                                     disabled={!canModify}
                                     className="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer
@@ -193,7 +233,7 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
                     Model Configuration
                 </h3>
                 <p className="text-sm text-orange-800 dark:text-orange-300">
-                    Configure which AI models to use for each pipeline stage. GPT-5 models use "reasoning effort" instead of temperature.
+                    Configure which AI models to use for each pipeline stage. Reasoning models use "reasoning effort" instead of temperature.
                 </p>
             </div>
 

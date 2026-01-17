@@ -1,6 +1,6 @@
 from fastapi import APIRouter
-from typing import Dict, Any, List
-from config.llm_models import MODEL_CONFIGS, ModelCapabilities
+from typing import Dict, Any
+from config.llm_models import MODEL_CONFIGS
 
 router = APIRouter(prefix="/llm", tags=["llm"])
 
