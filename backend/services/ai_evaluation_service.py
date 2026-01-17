@@ -566,11 +566,20 @@ class AIEvaluationService:
     # =========================================================================
 
     # User message template for score operation
-    SCORE_USER_MESSAGE = """## Source Data
+    # Note: {criteria} is placed BEFORE item fields in values dict so that
+    # any {field} placeholders in criteria get substituted by call_llm
+    SCORE_USER_MESSAGE_WITH_SOURCE = """## Source Data
 {_source_data}
 
 ## Instruction
-{_instruction}"""
+{criteria}
+
+{_range_instruction}"""
+
+    SCORE_USER_MESSAGE_NO_SOURCE = """## Instruction
+{criteria}
+
+{_range_instruction}"""
 
     async def score(
         self,
@@ -637,21 +646,24 @@ class AIEvaluationService:
         if interval:
             range_instruction += f" (use increments of {interval})"
 
+        # Select user message template
+        user_message = self.SCORE_USER_MESSAGE_WITH_SOURCE if include_source_data else self.SCORE_USER_MESSAGE_NO_SOURCE
+
         # Build values list for call_llm
+        # IMPORTANT: criteria and _range_instruction come FIRST so that any {field}
+        # placeholders in criteria get substituted when item fields are processed
         values_list = []
         for item in items_list:
-            # Populate template placeholders in criteria
-            populated_criteria = self._populate_template(criteria, item)
-            full_instruction = f"{populated_criteria}\n\n{range_instruction}"
-
-            # Format source data
+            # Format source data (converts item dict to readable text)
             source_data = self._format_item_for_prompt(item) if include_source_data else ""
 
-            # Build values dict - include original item fields plus our special fields
+            # Build values dict with templates first, then item fields
+            # This ordering ensures {field} placeholders in criteria get substituted
             values = {
-                **item,  # Include all original item fields
+                "criteria": criteria,
+                "_range_instruction": range_instruction,
                 "_source_data": source_data,
-                "_instruction": full_instruction,
+                **item,  # Item fields LAST so they substitute into criteria
             }
             values_list.append(values)
 
