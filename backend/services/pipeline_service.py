@@ -752,51 +752,47 @@ class PipelineService:
             temperature=category_summary_cfg.get("temperature") if category_summary_cfg.get("temperature") is not None else 0.3,
         )
 
-        # Get associations to read categories and article summaries
+        # Get associations - single source of truth for article data
+        if not ctx.report:
+            ctx.category_summaries = {}
+            yield PipelineStatus("category_summaries", "No report available", {})
+            return
         associations = self.association_service.get_visible_for_report(ctx.report.report_id)
-        wip_to_categories: Dict[int, List[str]] = {}
-        wip_to_summary: Dict[int, str] = {}
-        for assoc in associations:
-            if assoc.wip_article_id:
-                wip_to_categories[assoc.wip_article_id] = assoc.presentation_categories or []
-                wip_to_summary[assoc.wip_article_id] = assoc.ai_summary or ""
 
-        # Get all articles marked for report inclusion
-        wip_articles = self.wip_article_service.get_included_articles(ctx.execution_id)
-
-        if not wip_articles:
+        if not associations:
             ctx.category_summaries = {}
             yield PipelineStatus("category_summaries", "No articles to summarize", {"categories": 0})
             return
 
-        # Build items list for summary service
+        # Group associations by category
+        category_to_associations: Dict[str, List[ReportArticleAssociation]] = {}
+        for assoc in associations:
+            for cat_id in (assoc.presentation_categories or []):
+                if cat_id not in category_to_associations:
+                    category_to_associations[cat_id] = []
+                category_to_associations[cat_id].append(assoc)
+
+        # Build items list for summary service - one item per category
         items = []
         for category in ctx.presentation_config.categories:
-            # Get articles in this category
-            category_articles = [
-                article for article in wip_articles
-                if article.id in wip_to_categories
-                and category.id in wip_to_categories[article.id]
-            ]
+            category_assocs = category_to_associations.get(category.id, [])
 
-            # Prepare article info for formatting
+            # Prepare article info from associations
             article_info = []
-            for article in category_articles[:15]:
-                article_info.append({
-                    "title": article.title,
-                    "authors": (article.authors or [])[:3],
-                    "journal": article.journal,
-                    "year": article.year,
-                    "abstract": (article.abstract or "")[:400],
-                })
+            for assoc in category_assocs[:15]:
+                article = assoc.article
+                if article:
+                    article_info.append({
+                        "title": article.title,
+                        "authors": (article.authors or [])[:3],
+                        "journal": article.journal,
+                        "year": article.year,
+                        "abstract": (article.abstract or "")[:400],
+                    })
 
             # Gather article summaries for this category
-            article_summaries = [
-                wip_to_summary.get(article.id, "")
-                for article in category_articles
-                if wip_to_summary.get(article.id)
-            ]
-            summaries_text = "\n\n".join([f"- {s}" for s in article_summaries if s])
+            article_summaries = [assoc.ai_summary for assoc in category_assocs if assoc.ai_summary]
+            summaries_text = "\n\n".join([f"- {s}" for s in article_summaries])
 
             items.append({
                 "category_id": category.id,
@@ -806,7 +802,7 @@ class PipelineService:
                     if category.specific_inclusions else ""
                 ),
                 "category_topics": ", ".join(category.topics) if category.topics else "",
-                "articles_count": str(len(category_articles)),
+                "articles_count": str(len(category_assocs)),
                 "articles_formatted": self.summary_service.format_articles_for_prompt(article_info),
                 "articles_summaries": summaries_text,
                 "stream_name": ctx.stream.stream_name or "",
@@ -865,23 +861,27 @@ class PipelineService:
             temperature=executive_summary_cfg.get("temperature") if executive_summary_cfg.get("temperature") is not None else 0.3,
         )
 
-        # Get all articles marked for report inclusion
-        wip_articles = self.wip_article_service.get_included_articles(ctx.execution_id)
+        # Get associations - single source of truth for article data
+        if not ctx.report:
+            ctx.executive_summary = "No report available for executive summary."
+            yield PipelineStatus("executive_summary", "No report available", {})
+            return
+        associations = self.association_service.get_visible_for_report(ctx.report.report_id)
 
-        if not wip_articles:
+        if not associations:
             ctx.executive_summary = "No articles in this report."
             yield PipelineStatus("executive_summary", "No articles to summarize", {})
             return
 
-        # Prepare article info for prompt
+        # Prepare article info for prompt (limit to first 20 for context)
         article_info = []
-        for article in wip_articles[:20]:
+        for assoc in associations[:20]:
             article_info.append({
-                "title": article.title,
-                "authors": (article.authors or [])[:3],
-                "journal": article.journal,
-                "year": article.year,
-                "abstract": (article.abstract or "")[:500],
+                "title": assoc.title,
+                "authors": (assoc.authors or [])[:3],
+                "journal": assoc.journal,
+                "year": assoc.year,
+                "abstract": (assoc.abstract or "")[:500],
             })
 
         # Format category summaries
@@ -892,7 +892,7 @@ class PipelineService:
 
         # Build item for executive summary
         item = {
-            "articles_count": str(len(wip_articles)),
+            "articles_count": str(len(associations)),
             "articles_formatted": self.summary_service.format_articles_for_prompt(article_info, max_articles=20),
             "categories_count": str(len(ctx.category_summaries)),
             "categories_summaries": category_summaries_text,
