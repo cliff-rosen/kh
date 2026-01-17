@@ -571,6 +571,11 @@ class AIEvaluationService:
 Given source data and scoring criteria, provide a score within the specified range.
 You must provide a score even when uncertain—use low confidence to signal unreliability.
 
+## Response Format
+- value: Your score (within the specified range)
+- confidence: Your confidence based on evidence quality (0.0-1.0)
+- reasoning: Brief explanation of your score
+
 ## Confidence Calibration
 - 0.9–1.0: Explicit statement in source text
 - 0.7–0.89: Strong inference with clear supporting context
@@ -581,6 +586,10 @@ You must provide a score even when uncertain—use low confidence to signal unre
 
 Given source data and scoring criteria, provide a score within the specified range.
 You must provide a score even when uncertain—use low confidence to signal unreliability.
+
+## Response Format
+- value: Your score (within the specified range)
+- confidence: Your confidence based on evidence quality (0.0-1.0)
 
 ## Confidence Calibration
 - 0.9–1.0: Explicit statement in source text
