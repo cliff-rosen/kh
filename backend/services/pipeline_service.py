@@ -748,8 +748,8 @@ class PipelineService:
         # Get LLM config for category summaries
         category_summary_cfg = self._get_stage_llm_config(ctx, "category_summary")
         model_config = ModelConfig(
-            model=category_summary_cfg.get("model", "gpt-4.1"),
-            temperature=category_summary_cfg.get("temperature", 0.3),
+            model=category_summary_cfg.get("model") or "gpt-4.1",
+            temperature=category_summary_cfg.get("temperature") if category_summary_cfg.get("temperature") is not None else 0.3,
         )
 
         # Get associations to read categories and article summaries
@@ -861,8 +861,8 @@ class PipelineService:
         # Get LLM config for executive summary
         executive_summary_cfg = self._get_stage_llm_config(ctx, "executive_summary")
         model_config = ModelConfig(
-            model=executive_summary_cfg.get("model", "gpt-4.1"),
-            temperature=executive_summary_cfg.get("temperature", 0.3),
+            model=executive_summary_cfg.get("model") or "gpt-4.1",
+            temperature=executive_summary_cfg.get("temperature") if executive_summary_cfg.get("temperature") is not None else 0.3,
         )
 
         # Get all articles marked for report inclusion
