@@ -685,8 +685,22 @@ class PipelineService:
         if not articles_to_summarize:
             return 0
 
-        # Generate summaries
-        articles = [assoc.article for assoc in articles_to_summarize]
+        # Generate summaries - create wrapper objects that include filter_score_reason from WipArticle
+        class ArticleWithFilterReason:
+            """Wrapper to combine Article data with WipArticle's filter_score_reason"""
+            def __init__(self, article, wip_article):
+                self._article = article
+                self._wip_article = wip_article
+
+            def __getattr__(self, name):
+                if name == 'filter_score_reason':
+                    return self._wip_article.filter_score_reason if self._wip_article else None
+                return getattr(self._article, name)
+
+        articles = [
+            ArticleWithFilterReason(assoc.article, assoc.wip_article)
+            for assoc in articles_to_summarize
+        ]
         article_summaries = await self.summary_service.generate_article_summaries_batch(
             articles=articles,
             stream_purpose=stream.purpose,
@@ -698,9 +712,9 @@ class PipelineService:
             temperature=temperature,
         )
 
-        # Build results for bulk update
+        # Build results for bulk update (wrapper objects proxy article_id from underlying Article)
         article_id_to_summary = {
-            article.article_id: summary for article, summary in article_summaries
+            wrapper.article_id: summary for wrapper, summary in article_summaries
         }
         association_updates = [
             (assoc, article_id_to_summary[assoc.article.article_id])

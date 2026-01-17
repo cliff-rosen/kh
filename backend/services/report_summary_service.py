@@ -130,6 +130,7 @@ AVAILABLE_SLUGS = {
         {"slug": "{article.journal}", "description": "Journal where published"},
         {"slug": "{article.year}", "description": "Publication year"},
         {"slug": "{article.abstract}", "description": "Article abstract"},
+        {"slug": "{article.filter_reason}", "description": "AI reasoning for why this article passed the semantic filter"},
     ]
 }
 
@@ -436,6 +437,9 @@ class ReportSummaryService:
         else:
             authors_str = str(authors)
 
+        # Get filter reason if available (from WipArticle)
+        filter_reason = getattr(article, 'filter_score_reason', None) or ""
+
         # Build context for slug replacement
         context = {
             "stream": {
@@ -447,7 +451,8 @@ class ReportSummaryService:
                 "authors": authors_str or "Unknown",
                 "journal": article.journal or "Unknown",
                 "year": str(article.year) if article.year else "Unknown",
-                "abstract": article.abstract or ""
+                "abstract": article.abstract or "",
+                "filter_reason": filter_reason
             }
         }
 
