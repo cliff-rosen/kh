@@ -876,13 +876,15 @@ class PipelineService:
         # Prepare article info for prompt (limit to first 20 for context)
         article_info = []
         for assoc in associations[:20]:
-            article_info.append({
-                "title": assoc.title,
-                "authors": (assoc.authors or [])[:3],
-                "journal": assoc.journal,
-                "year": assoc.year,
-                "abstract": (assoc.abstract or "")[:500],
-            })
+            article = assoc.article
+            if article:
+                article_info.append({
+                    "title": article.title,
+                    "authors": (article.authors or [])[:3],
+                    "journal": article.journal,
+                    "year": article.year,
+                    "abstract": (article.abstract or "")[:500],
+                })
 
         # Format category summaries
         category_summaries_text = "\n\n".join([
