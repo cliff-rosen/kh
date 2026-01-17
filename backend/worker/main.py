@@ -55,7 +55,7 @@ def setup_logging():
         print(f"Warning: Could not set up file logging: {e}")
 
     # Configure loggers that should output to worker logs
-    for logger_name in ['worker', 'services']:
+    for logger_name in ['worker', 'services', 'agents']:
         lg = logging.getLogger(logger_name)
         lg.setLevel(logging.DEBUG)
         lg.handlers.clear()

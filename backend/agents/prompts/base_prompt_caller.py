@@ -363,9 +363,16 @@ class BasePromptCaller:
 
         # Parse response with error handling
         try:
-            response_text = response.choices[0].message.content
+            message = response.choices[0].message
+            response_text = message.content
+
             if not response_text:
-                logger.error("OpenAI returned empty response content")
+                # Log full response for debugging
+                logger.error(f"OpenAI returned empty response content. Model: {use_model}")
+                logger.error(f"Response message: {message}")
+                logger.error(f"Full response: {response}")
+                if hasattr(message, 'refusal') and message.refusal:
+                    logger.error(f"Model refused: {message.refusal}")
                 raise ValueError("OpenAI returned empty response")
 
             # For text-only mode, return raw text; otherwise parse with Pydantic

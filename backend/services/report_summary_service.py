@@ -8,9 +8,12 @@ This service generates:
 Supports custom prompts via enrichment_config with slug replacement.
 """
 
+import logging
 from typing import List, Dict, Tuple, Optional, Any
 
 from agents.prompts.base_prompt_caller import BasePromptCaller
+
+logger = logging.getLogger(__name__)
 from schemas.llm import ChatMessage, MessageRole
 
 
@@ -468,7 +471,7 @@ class ReportSummaryService:
             user_prompt=user_prompt,
             model=effective_model,
             temperature=effective_temperature,
-            max_tokens=500
+            max_tokens=1500  # Reasoning models need more tokens (reasoning + output)
         )
 
     async def generate_article_summaries_batch(
@@ -521,12 +524,19 @@ class ReportSummaryService:
                     )
                     completed += 1
                     if on_progress:
-                        on_progress(completed, len(articles))
+                        if asyncio.iscoroutinefunction(on_progress):
+                            await on_progress(completed, len(articles))
+                        else:
+                            on_progress(completed, len(articles))
                     return (article, summary)
                 except Exception as e:
+                    logger.error(f"Failed to generate summary for article {getattr(article, 'pmid', 'unknown')}: {e}")
                     completed += 1
                     if on_progress:
-                        on_progress(completed, len(articles))
+                        if asyncio.iscoroutinefunction(on_progress):
+                            await on_progress(completed, len(articles))
+                        else:
+                            on_progress(completed, len(articles))
                     # Return empty summary on error
                     return (article, "")
 
