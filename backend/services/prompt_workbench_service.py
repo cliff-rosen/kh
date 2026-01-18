@@ -56,7 +56,7 @@ class PromptWorkbenchService:
 
     async def get_enrichment_config(self, stream_id: int) -> Dict[str, Any]:
         """Get enrichment config for a stream"""
-        raw_config = await self.stream_service.async_get_enrichment_config(stream_id)
+        raw_config = await self.stream_service.get_enrichment_config(stream_id)
 
         enrichment_config = None
         if raw_config:
@@ -76,7 +76,7 @@ class PromptWorkbenchService:
         """Update enrichment config for a stream"""
         config_dict = enrichment_config.dict() if enrichment_config else None
         logger.info(f"PromptWorkbenchService.update_enrichment_config: stream_id={stream_id}, config_dict={config_dict}")
-        await self.stream_service.async_update_enrichment_config(stream_id, config_dict)
+        await self.stream_service.update_enrichment_config(stream_id, config_dict)
 
     async def test_prompt(
         self,
@@ -123,13 +123,13 @@ class PromptWorkbenchService:
 
         # Get the report with access check (raises HTTPException if not found or no access)
         try:
-            result = await self.report_service.async_get_report_with_access(report_id, user_id, raise_on_not_found=True)
+            result = await self.report_service.get_report_with_access(report_id, user_id, raise_on_not_found=True)
             report, _, stream = result
         except HTTPException:
             raise PermissionError("You don't have access to this report")
 
         # Get articles that were included in the report
-        wip_articles = await self.report_service.async_get_wip_articles_for_report(
+        wip_articles = await self.report_service.get_wip_articles_for_report(
             report_id, user_id, included_only=True
         )
 

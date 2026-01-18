@@ -149,7 +149,7 @@ class ReportArticleAssociationService:
     # ASYNC Methods
     # =========================================================================
 
-    async def async_find(self, report_id: int, article_id: int) -> Optional[ReportArticleAssociation]:
+    async def find(self, report_id: int, article_id: int) -> Optional[ReportArticleAssociation]:
         """Find an association by report and article ID (async)."""
         result = await self.db.execute(
             select(ReportArticleAssociation).where(
@@ -161,9 +161,9 @@ class ReportArticleAssociationService:
         )
         return result.scalars().first()
 
-    async def async_get(self, report_id: int, article_id: int) -> ReportArticleAssociation:
+    async def get(self, report_id: int, article_id: int) -> ReportArticleAssociation:
         """Get an association, raising 404 if not found (async)."""
-        association = await self.async_find(report_id, article_id)
+        association = await self.find(report_id, article_id)
         if not association:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -171,7 +171,7 @@ class ReportArticleAssociationService:
             )
         return association
 
-    async def async_get_visible_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
+    async def get_visible_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
         """Get all visible associations for a report (async)."""
         result = await self.db.execute(
             select(ReportArticleAssociation)
@@ -185,7 +185,7 @@ class ReportArticleAssociationService:
         )
         return list(result.scalars().all())
 
-    async def async_get_all_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
+    async def get_all_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
         """Get all associations for a report (async)."""
         result = await self.db.execute(
             select(ReportArticleAssociation)
@@ -196,7 +196,7 @@ class ReportArticleAssociationService:
         )
         return list(result.scalars().all())
 
-    async def async_count_visible(self, report_id: int) -> int:
+    async def count_visible(self, report_id: int) -> int:
         """Count visible articles in a report (async)."""
         result = await self.db.execute(
             select(func.count(ReportArticleAssociation.article_id)).where(
@@ -208,7 +208,7 @@ class ReportArticleAssociationService:
         )
         return result.scalar() or 0
 
-    async def async_get_next_ranking(self, report_id: int) -> int:
+    async def get_next_ranking(self, report_id: int) -> int:
         """Get the next available ranking for a report (async)."""
         result = await self.db.execute(
             select(ReportArticleAssociation.ranking).where(
@@ -218,7 +218,7 @@ class ReportArticleAssociationService:
         max_ranking = result.scalar()
         return (max_ranking + 1) if max_ranking else 1
 
-    async def async_create(
+    async def create(
         self,
         report_id: int,
         article_id: int,
@@ -251,19 +251,19 @@ class ReportArticleAssociationService:
         self.db.add(association)
         return association
 
-    async def async_delete(self, association: ReportArticleAssociation) -> None:
+    async def delete(self, association: ReportArticleAssociation) -> None:
         """Delete an association (async)."""
         await self.db.delete(association)
 
-    async def async_delete_by_ids(self, report_id: int, article_id: int) -> bool:
+    async def delete_by_ids(self, report_id: int, article_id: int) -> bool:
         """Delete an association by IDs (async)."""
-        association = await self.async_find(report_id, article_id)
+        association = await self.find(report_id, article_id)
         if association:
             await self.db.delete(association)
             return True
         return False
 
-    async def async_get_hidden_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
+    async def get_hidden_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
         """Get hidden associations for a report (async)."""
         result = await self.db.execute(
             select(ReportArticleAssociation)
@@ -277,7 +277,7 @@ class ReportArticleAssociationService:
         )
         return list(result.scalars().all())
 
-    async def async_get_curator_added_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
+    async def get_curator_added_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
         """Get curator-added associations for a report (async)."""
         result = await self.db.execute(
             select(ReportArticleAssociation)
@@ -291,7 +291,7 @@ class ReportArticleAssociationService:
         )
         return list(result.scalars().all())
 
-    async def async_delete_all_for_report(self, report_id: int) -> int:
+    async def delete_all_for_report(self, report_id: int) -> int:
         """Delete all associations for a report (async)."""
         from sqlalchemy import delete as sql_delete
         result = await self.db.execute(

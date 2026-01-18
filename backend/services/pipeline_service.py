@@ -318,7 +318,7 @@ class PipelineService:
         execution = await self.get_execution_by_id(execution_id)
 
         # Load stream for context (name, purpose, etc.)
-        stream = await self.research_stream_service.async_get_stream_by_id(execution.stream_id)
+        stream = await self.research_stream_service.get_stream_by_id(execution.stream_id)
 
         # Parse retrieval config from execution snapshot
         retrieval_config = RetrievalConfig.model_validate(execution.retrieval_config)
@@ -717,7 +717,7 @@ class PipelineService:
             Number of summaries generated
         """
         # Get associations - assoc.article gives us the Article with abstract
-        associations = await self.association_service.async_get_visible_for_report(report_id)
+        associations = await self.association_service.get_visible_for_report(report_id)
 
         # Filter to associations with articles that have abstracts
         articles_to_summarize = [
@@ -787,7 +787,7 @@ class PipelineService:
             ctx.category_summaries = {}
             yield PipelineStatus("category_summaries", "No report available", {})
             return
-        associations = await self.association_service.async_get_visible_for_report(ctx.report.report_id)
+        associations = await self.association_service.get_visible_for_report(ctx.report.report_id)
 
         if not associations:
             ctx.category_summaries = {}
@@ -894,7 +894,7 @@ class PipelineService:
             ctx.executive_summary = "No report available for executive summary."
             yield PipelineStatus("executive_summary", "No report available", {})
             return
-        associations = await self.association_service.async_get_visible_for_report(ctx.report.report_id)
+        associations = await self.association_service.get_visible_for_report(ctx.report.report_id)
 
         if not associations:
             ctx.executive_summary = "No articles in this report."
@@ -1028,7 +1028,7 @@ class PipelineService:
             ctx.report_name if ctx.report_name else report_date_obj.strftime("%Y.%m.%d")
         )
 
-        report = await self.report_service.async_create_report(
+        report = await self.report_service.create_report(
             user_id=ctx.user_id,
             research_stream_id=ctx.research_stream_id,
             report_date=report_date_obj,
@@ -1415,7 +1415,7 @@ Score from {min_value} to {max_value}."""
             Tuple of (categorized_count, error_count)
         """
         # Get visible associations with their articles
-        associations = await self.association_service.async_get_visible_for_report(report_id)
+        associations = await self.association_service.get_visible_for_report(report_id)
 
         if not associations:
             logger.info(f"No articles to categorize for report_id={report_id}")

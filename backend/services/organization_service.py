@@ -79,27 +79,27 @@ class OrganizationService:
 
     # ==================== Async Methods ====================
 
-    async def async_get_organization(self, org_id: int) -> Optional[Organization]:
+    async def get_organization(self, org_id: int) -> Optional[Organization]:
         """Get an organization by ID (async)."""
         result = await self.db.execute(
             select(Organization).where(Organization.org_id == org_id)
         )
         return result.scalars().first()
 
-    async def async_get_organization_for_user(self, user: User) -> Optional[OrgSchema]:
+    async def get_organization_for_user(self, user: User) -> Optional[OrgSchema]:
         """Get the organization for a user (async)."""
         if not user.org_id:
             return None
 
-        org = await self.async_get_organization(user.org_id)
+        org = await self.get_organization(user.org_id)
         if not org:
             return None
 
         return OrgSchema.model_validate(org)
 
-    async def async_get_organization_with_stats(self, org_id: int) -> Optional[OrganizationWithStats]:
+    async def get_organization_with_stats(self, org_id: int) -> Optional[OrganizationWithStats]:
         """Get organization with member and stream counts (async)."""
-        org = await self.async_get_organization(org_id)
+        org = await self.get_organization(org_id)
         if not org:
             return None
 
@@ -141,7 +141,7 @@ class OrganizationService:
             pending_invitation_count=pending_invitation_count
         )
 
-    async def async_create_organization(self, data: OrganizationCreate) -> Organization:
+    async def create_organization(self, data: OrganizationCreate) -> Organization:
         """Create a new organization (async)."""
         org = Organization(
             name=data.name,
@@ -153,13 +153,13 @@ class OrganizationService:
         logger.info(f"Created organization: {org.org_id} - {org.name}")
         return org
 
-    async def async_update_organization(
+    async def update_organization(
         self,
         org_id: int,
         data: OrganizationUpdate
     ) -> Optional[Organization]:
         """Update an organization (async)."""
-        org = await self.async_get_organization(org_id)
+        org = await self.get_organization(org_id)
         if not org:
             return None
 
@@ -173,7 +173,7 @@ class OrganizationService:
         logger.info(f"Updated organization: {org.org_id}")
         return org
 
-    async def async_list_organizations(
+    async def list_organizations(
         self,
         include_inactive: bool = False
     ) -> List[OrganizationWithStats]:
@@ -188,15 +188,15 @@ class OrganizationService:
 
         org_stats = []
         for org in orgs:
-            stats = await self.async_get_organization_with_stats(org.org_id)
+            stats = await self.get_organization_with_stats(org.org_id)
             if stats:
                 org_stats.append(stats)
 
         return org_stats
 
-    async def async_delete_organization(self, org_id: int) -> bool:
+    async def delete_organization(self, org_id: int) -> bool:
         """Delete an organization (async)."""
-        org = await self.async_get_organization(org_id)
+        org = await self.get_organization(org_id)
         if not org:
             return False
 
@@ -222,7 +222,7 @@ class OrganizationService:
         logger.info(f"Deleted organization: {org_id}")
         return True
 
-    async def async_get_org_members(self, org_id: int) -> List[OrgMemberSchema]:
+    async def get_org_members(self, org_id: int) -> List[OrgMemberSchema]:
         """Get all members of an organization (async)."""
         result = await self.db.execute(
             select(User)
@@ -242,7 +242,7 @@ class OrganizationService:
             for u in users
         ]
 
-    async def async_get_user_in_org(
+    async def get_user_in_org(
         self,
         user_id: int,
         org_id: int
@@ -256,7 +256,7 @@ class OrganizationService:
         )
         return result.scalars().first()
 
-    async def async_update_member_role(
+    async def update_member_role(
         self,
         org_id: int,
         user_id: int,
@@ -264,7 +264,7 @@ class OrganizationService:
         acting_user: User
     ) -> Optional[OrgMember]:
         """Update a member's role (async)."""
-        target_user = await self.async_get_user_in_org(user_id, org_id)
+        target_user = await self.get_user_in_org(user_id, org_id)
 
         if not target_user:
             return None
@@ -306,7 +306,7 @@ class OrganizationService:
             joined_at=target_user.created_at
         )
 
-    async def async_remove_member(
+    async def remove_member(
         self,
         org_id: int,
         user_id: int,
@@ -319,7 +319,7 @@ class OrganizationService:
                 detail="Cannot remove yourself from the organization"
             )
 
-        target_user = await self.async_get_user_in_org(user_id, org_id)
+        target_user = await self.get_user_in_org(user_id, org_id)
 
         if not target_user:
             return False

@@ -23,7 +23,7 @@ class ChatService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def async_get_user_chats(
+    async def get_user_chats(
         self,
         user_id: int,
         app: str = "kh",
@@ -41,7 +41,7 @@ class ChatService:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    async def async_get_chat(
+    async def get_chat(
         self,
         chat_id: int,
         user_id: int
@@ -54,7 +54,7 @@ class ChatService:
         result = await self.db.execute(stmt)
         return result.scalars().first()
 
-    async def async_get_messages(
+    async def get_messages(
         self,
         chat_id: int,
         user_id: int,
@@ -62,7 +62,7 @@ class ChatService:
     ) -> List[Message]:
         """Get messages for a chat (async)."""
         # Verify ownership first
-        chat = await self.async_get_chat(chat_id, user_id)
+        chat = await self.get_chat(chat_id, user_id)
         if not chat:
             return []
 
@@ -75,7 +75,7 @@ class ChatService:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    async def async_get_all_chats(
+    async def get_all_chats(
         self,
         limit: int = 100,
         offset: int = 0,
@@ -130,7 +130,7 @@ class ChatService:
 
         return chats, total
 
-    async def async_get_chat_with_messages(
+    async def get_chat_with_messages(
         self,
         chat_id: int
     ) -> Optional[Dict[str, Any]]:
@@ -178,7 +178,7 @@ class ChatService:
             ]
         }
 
-    async def async_create_chat(
+    async def create_chat(
         self,
         user_id: int,
         app: str = "kh",
@@ -196,7 +196,7 @@ class ChatService:
         logger.debug(f"Created chat {chat.id} for user {user_id} in app {app}")
         return chat
 
-    async def async_add_message(
+    async def add_message(
         self,
         chat_id: int,
         user_id: int,
@@ -206,7 +206,7 @@ class ChatService:
         extras: Optional[Dict[str, Any]] = None
     ) -> Optional[Message]:
         """Add a message to a chat (async)."""
-        chat = await self.async_get_chat(chat_id, user_id)
+        chat = await self.get_chat(chat_id, user_id)
         if not chat:
             return None
 
@@ -232,23 +232,23 @@ class ChatService:
         logger.debug(f"Added message to chat {chat_id}: role={role}")
         return message
 
-    async def async_delete_chat(self, chat_id: int, user_id: int) -> bool:
+    async def delete_chat(self, chat_id: int, user_id: int) -> bool:
         """Delete a chat and all its messages (async)."""
-        chat = await self.async_get_chat(chat_id, user_id)
+        chat = await self.get_chat(chat_id, user_id)
         if chat:
             await self.db.delete(chat)
             await self.db.commit()
             return True
         return False
 
-    async def async_update_chat_title(
+    async def update_chat_title(
         self,
         chat_id: int,
         user_id: int,
         title: str
     ) -> Optional[Conversation]:
         """Update chat title (async)."""
-        chat = await self.async_get_chat(chat_id, user_id)
+        chat = await self.get_chat(chat_id, user_id)
         if chat:
             chat.title = title
             await self.db.commit()

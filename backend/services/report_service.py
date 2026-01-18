@@ -320,7 +320,7 @@ class ReportService:
     # ASYNC CREATE Operations
     # =========================================================================
 
-    async def async_create_report(
+    async def create_report(
         self,
         user_id: int,
         research_stream_id: int,
@@ -423,7 +423,7 @@ class ReportService:
 
         return accessible_ids
 
-    async def async_get_recent_reports(
+    async def get_recent_reports(
         self,
         user: User,
         limit: int = 20,
@@ -470,7 +470,7 @@ class ReportService:
 
         return reports
 
-    async def async_get_report_with_access(
+    async def get_report_with_access(
         self,
         report_id: int,
         user_id: int,
@@ -510,7 +510,7 @@ class ReportService:
             return None
 
         # Get user
-        user = await self.user_service.async_get_user_by_id(user_id)
+        user = await self.user_service.get_user_by_id(user_id)
         if not user:
             if raise_on_not_found:
                 raise HTTPException(
@@ -538,7 +538,7 @@ class ReportService:
 
         return (report, user, stream)
 
-    async def async_get_reports_for_stream(
+    async def get_reports_for_stream(
         self,
         user: User,
         research_stream_id: int
@@ -575,13 +575,13 @@ class ReportService:
 
         return reports
 
-    async def async_get_report_with_articles(
+    async def get_report_with_articles(
         self,
         user: User,
         report_id: int
     ) -> Optional[ReportWithArticlesData]:
         """Get report with its articles (async)."""
-        access_result = await self.async_get_report_with_access(report_id, user.user_id)
+        access_result = await self.get_report_with_access(report_id, user.user_id)
         if not access_result:
             return None
         report, _, stream = access_result
@@ -607,7 +607,7 @@ class ReportService:
             article_count=len(articles)
         )
 
-    async def async_get_report_articles_list(
+    async def get_report_articles_list(
         self,
         report_id: int,
         user_id: int,
@@ -627,7 +627,7 @@ class ReportService:
         Returns:
             Dict with report info and articles list, or None if not found/no access
         """
-        result = await self.async_get_report_with_access(report_id, user_id)
+        result = await self.get_report_with_access(report_id, user_id)
         if not result:
             return None
         report, user, stream = result
@@ -641,7 +641,7 @@ class ReportService:
                     category_map[cat.get("id", "")] = cat.get("name", cat.get("id", "Unknown"))
 
         # Get visible articles (excludes curator_excluded)
-        visible_associations = await self.association_service.async_get_visible_for_report(report_id)
+        visible_associations = await self.association_service.get_visible_for_report(report_id)
 
         articles = []
         for assoc in visible_associations:
@@ -676,7 +676,7 @@ class ReportService:
             "articles": articles
         }
 
-    async def async_get_wip_articles_for_report(
+    async def get_wip_articles_for_report(
         self,
         report_id: int,
         user_id: int,
@@ -693,7 +693,7 @@ class ReportService:
         Returns:
             List of WipArticle objects
         """
-        result = await self.async_get_report_with_access(report_id, user_id)
+        result = await self.get_report_with_access(report_id, user_id)
         if not result:
             return []
         report, _, stream = result
@@ -701,14 +701,14 @@ class ReportService:
         if not report.pipeline_execution_id:
             return []
 
-        return await self.wip_article_service.async_get_by_execution_id(
+        return await self.wip_article_service.get_by_execution_id(
             report.pipeline_execution_id,
             included_only=included_only
         )
 
-    async def async_delete_report(self, user: User, report_id: int) -> bool:
+    async def delete_report(self, user: User, report_id: int) -> bool:
         """Delete a report if user has access (async)."""
-        access_result = await self.async_get_report_with_access(report_id, user.user_id)
+        access_result = await self.get_report_with_access(report_id, user.user_id)
         if not access_result:
             return False
         report, _, _ = access_result
@@ -736,14 +736,14 @@ class ReportService:
         await self.db.commit()
         return True
 
-    async def async_get_article_association(
+    async def get_article_association(
         self,
         user: User,
         report_id: int,
         article_id: int
     ) -> Optional[ReportArticleAssociation]:
         """Get article association if user has access (async)."""
-        access_result = await self.async_get_report_with_access(report_id, user.user_id)
+        access_result = await self.get_report_with_access(report_id, user.user_id)
         if not access_result:
             return None
 
@@ -754,7 +754,7 @@ class ReportService:
         result = await self.db.execute(stmt)
         return result.scalars().first()
 
-    async def async_update_article_notes(
+    async def update_article_notes(
         self,
         user: User,
         report_id: int,
@@ -762,7 +762,7 @@ class ReportService:
         notes: Optional[str]
     ) -> Optional[NotesUpdateResult]:
         """Update notes on an article association (async)."""
-        assoc = await self.async_get_article_association(user, report_id, article_id)
+        assoc = await self.get_article_association(user, report_id, article_id)
         if not assoc:
             return None
 
@@ -775,7 +775,7 @@ class ReportService:
             notes=notes
         )
 
-    async def async_update_article_enrichments(
+    async def update_article_enrichments(
         self,
         user: User,
         report_id: int,
@@ -783,7 +783,7 @@ class ReportService:
         ai_enrichments: Dict[str, Any]
     ) -> Optional[EnrichmentsUpdateResult]:
         """Update AI enrichments on an article association (async)."""
-        assoc = await self.async_get_article_association(user, report_id, article_id)
+        assoc = await self.get_article_association(user, report_id, article_id)
         if not assoc:
             return None
 
@@ -796,14 +796,14 @@ class ReportService:
             ai_enrichments=ai_enrichments
         )
 
-    async def async_get_article_metadata(
+    async def get_article_metadata(
         self,
         user: User,
         report_id: int,
         article_id: int
     ) -> Optional[ArticleMetadataResult]:
         """Get full article metadata (async)."""
-        assoc = await self.async_get_article_association(user, report_id, article_id)
+        assoc = await self.get_article_association(user, report_id, article_id)
         if not assoc:
             return None
 
@@ -819,13 +819,13 @@ class ReportService:
             association=assoc
         )
 
-    async def async_get_report_email_html(
+    async def get_report_email_html(
         self,
         user: User,
         report_id: int
     ) -> Optional[str]:
         """Get stored email HTML for a report (async)."""
-        access_result = await self.async_get_report_with_access(report_id, user.user_id)
+        access_result = await self.get_report_with_access(report_id, user.user_id)
         if not access_result:
             return None
         report, _, _ = access_result
@@ -834,14 +834,14 @@ class ReportService:
             return None
         return report.enrichments.get('email_html')
 
-    async def async_store_report_email_html(
+    async def store_report_email_html(
         self,
         user: User,
         report_id: int,
         html: str
     ) -> bool:
         """Store email HTML for a report (async)."""
-        access_result = await self.async_get_report_with_access(report_id, user.user_id)
+        access_result = await self.get_report_with_access(report_id, user.user_id)
         if not access_result:
             return False
         report, _, _ = access_result
@@ -853,13 +853,13 @@ class ReportService:
 
         return True
 
-    async def async_generate_report_email_html(
+    async def generate_report_email_html(
         self,
         user: User,
         report_id: int
     ) -> Optional[str]:
         """Generate HTML email content for a report (async)."""
-        access_result = await self.async_get_report_with_access(report_id, user.user_id)
+        access_result = await self.get_report_with_access(report_id, user.user_id)
         if not access_result:
             return None
         report, _, stream = access_result
@@ -916,7 +916,7 @@ class ReportService:
         template_service = EmailTemplateService()
         return template_service.generate_report_email(email_data)
 
-    async def async_approve_report(
+    async def approve_report(
         self,
         report_id: int,
         user_id: int,
@@ -975,7 +975,7 @@ class ReportService:
             approved_at=report.approved_at.isoformat(),
         )
 
-    async def async_reject_report(
+    async def reject_report(
         self,
         report_id: int,
         user_id: int,
@@ -1021,7 +1021,7 @@ class ReportService:
             rejected_at=report.approved_at.isoformat(),
         )
 
-    async def async_get_curation_history(
+    async def get_curation_history(
         self,
         report_id: int,
         user_id: int
@@ -1078,7 +1078,7 @@ class ReportService:
             total_count=len(events),
         )
 
-    async def _async_get_report_for_curation(
+    async def _get_report_for_curation(
         self,
         report_id: int,
         user_id: int
@@ -1092,7 +1092,7 @@ class ReportService:
         Raises:
             HTTPException: 404 if report not found or user doesn't have access
         """
-        result = await self.async_get_report_with_access(report_id, user_id)
+        result = await self.get_report_with_access(report_id, user_id)
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -1100,11 +1100,11 @@ class ReportService:
             )
         return result
 
-    async def async_get_curation_view(self, report_id: int, user_id: int) -> CurationViewData:
+    async def get_curation_view(self, report_id: int, user_id: int) -> CurationViewData:
         """
         Get full curation view data for a report (async).
         """
-        report, user, stream = await self._async_get_report_for_curation(report_id, user_id)
+        report, user, stream = await self._get_report_for_curation(report_id, user_id)
 
         # Get categories from stream config
         categories = []
@@ -1112,7 +1112,7 @@ class ReportService:
             categories = stream.presentation_config.get('categories', [])
 
         # Get VISIBLE articles (curator_excluded=False)
-        visible_associations = await self.association_service.async_get_visible_for_report(report_id)
+        visible_associations = await self.association_service.get_visible_for_report(report_id)
 
         # Get WIP articles for this execution and compute stats
         filtered_articles: List[WipArticle] = []
@@ -1145,7 +1145,7 @@ class ReportService:
             )
             execution = exec_result.scalars().first()
 
-            wip_articles = await self.wip_article_service.async_get_by_execution_id(
+            wip_articles = await self.wip_article_service.get_by_execution_id(
                 report.pipeline_execution_id
             )
 
@@ -1232,7 +1232,7 @@ class ReportService:
             execution=execution,
         )
 
-    async def async_update_report_content(
+    async def update_report_content(
         self,
         report_id: int,
         user_id: int,
@@ -1241,7 +1241,7 @@ class ReportService:
         category_summaries: Optional[Dict[str, str]] = None
     ) -> ReportContentUpdateResult:
         """Update report content (name, summaries) for curation (async)."""
-        report, user, stream = await self._async_get_report_for_curation(report_id, user_id)
+        report, user, stream = await self._get_report_for_curation(report_id, user_id)
 
         from models import CurationEvent
         import json
@@ -1293,7 +1293,7 @@ class ReportService:
             has_curation_edits=report.has_curation_edits,
         )
 
-    async def async_exclude_article(
+    async def exclude_article(
         self,
         report_id: int,
         article_id: int,
@@ -1301,10 +1301,10 @@ class ReportService:
         notes: Optional[str] = None
     ) -> ExcludeArticleResult:
         """Curator excludes an article from the report (async)."""
-        report, user, stream = await self._async_get_report_for_curation(report_id, user_id)
+        report, user, stream = await self._get_report_for_curation(report_id, user_id)
 
         # Get the association
-        association = await self.association_service.async_get(report_id, article_id)
+        association = await self.association_service.get(report_id, article_id)
 
         # Already hidden?
         if association.is_hidden:
@@ -1322,7 +1322,7 @@ class ReportService:
 
         wip_article = None
         if report.pipeline_execution_id and article:
-            wip_article = await self.wip_article_service.async_get_by_execution_and_identifiers(
+            wip_article = await self.wip_article_service.get_by_execution_and_identifiers(
                 report.pipeline_execution_id,
                 pmid=article.pmid,
                 doi=article.doi
@@ -1332,7 +1332,7 @@ class ReportService:
 
         if was_curator_added:
             # Curator-added article: delete association entirely
-            await self.association_service.async_delete(association)
+            await self.association_service.delete(association)
             if wip_article:
                 self.wip_article_service.clear_curator_included(wip_article)
             event_type = 'undo_include_article'
@@ -1366,7 +1366,7 @@ class ReportService:
             was_curator_added=was_curator_added,
         )
 
-    async def async_include_article(
+    async def include_article(
         self,
         report_id: int,
         wip_article_id: int,
@@ -1375,10 +1375,10 @@ class ReportService:
         notes: Optional[str] = None
     ) -> IncludeArticleResult:
         """Curator includes a filtered article into the report (async)."""
-        report, user, stream = await self._async_get_report_for_curation(report_id, user_id)
+        report, user, stream = await self._get_report_for_curation(report_id, user_id)
 
         # Get the WipArticle
-        wip_article = await self.wip_article_service.async_get_by_id_or_404(wip_article_id)
+        wip_article = await self.wip_article_service.get_by_id_or_404(wip_article_id)
 
         if wip_article.pipeline_execution_id != report.pipeline_execution_id:
             raise HTTPException(
@@ -1393,17 +1393,17 @@ class ReportService:
             )
 
         # Find or create Article record
-        article = await self._async_find_or_create_article_from_wip(wip_article)
+        article = await self._find_or_create_article_from_wip(wip_article)
 
         # Check if association already exists
-        existing_association = await self.association_service.async_find(report_id, article.article_id)
+        existing_association = await self.association_service.find(report_id, article.article_id)
         if existing_association:
             self.association_service.set_hidden(existing_association, False)
             new_ranking = existing_association.ranking
         else:
-            new_ranking = await self.association_service.async_get_next_ranking(report_id)
+            new_ranking = await self.association_service.get_next_ranking(report_id)
             categories = [category] if category else []
-            await self.association_service.async_create(
+            await self.association_service.create(
                 report_id=report_id,
                 article_id=article.article_id,
                 wip_article_id=wip_article.id,
@@ -1439,7 +1439,7 @@ class ReportService:
             category=category,
         )
 
-    async def _async_find_or_create_article_from_wip(self, wip_article: WipArticle) -> Article:
+    async def _find_or_create_article_from_wip(self, wip_article: WipArticle) -> Article:
         """Find existing Article by PMID/DOI or create new one from WipArticle (async)."""
         article = None
         if wip_article.pmid:
@@ -1476,17 +1476,17 @@ class ReportService:
 
         return article
 
-    async def async_reset_curation(
+    async def reset_curation(
         self,
         report_id: int,
         wip_article_id: int,
         user_id: int
     ) -> ResetCurationResult:
         """Reset curation for an article (async)."""
-        report, user, stream = await self._async_get_report_for_curation(report_id, user_id)
+        report, user, stream = await self._get_report_for_curation(report_id, user_id)
 
         # Get the WipArticle
-        wip_article = await self.wip_article_service.async_get_by_id_or_404(wip_article_id)
+        wip_article = await self.wip_article_service.get_by_id_or_404(wip_article_id)
 
         if wip_article.pipeline_execution_id != report.pipeline_execution_id:
             raise HTTPException(
@@ -1520,11 +1520,11 @@ class ReportService:
         article_id = None
         if article:
             article_id = article.article_id
-            association = await self.association_service.async_find(report_id, article.article_id)
+            association = await self.association_service.find(report_id, article.article_id)
 
             if association:
                 if association.curator_added:
-                    await self.association_service.async_delete(association)
+                    await self.association_service.delete(association)
                 elif association.is_hidden:
                     self.association_service.set_hidden(association, False)
 
@@ -1555,7 +1555,7 @@ class ReportService:
             now_in_report=pipeline_would_include,
         )
 
-    async def async_update_article_in_report(
+    async def update_article_in_report(
         self,
         report_id: int,
         article_id: int,
@@ -1565,9 +1565,9 @@ class ReportService:
         ai_summary: Optional[str] = None
     ) -> UpdateArticleResult:
         """Edit an article within the report (async)."""
-        report, user, stream = await self._async_get_report_for_curation(report_id, user_id)
+        report, user, stream = await self._get_report_for_curation(report_id, user_id)
 
-        association = await self.association_service.async_get(report_id, article_id)
+        association = await self.association_service.get(report_id, article_id)
 
         from models import CurationEvent
         import json
@@ -1619,13 +1619,13 @@ class ReportService:
             ai_summary=association.ai_summary,
         )
 
-    async def async_get_pipeline_analytics(
+    async def get_pipeline_analytics(
         self,
         report_id: int,
         user_id: int
     ) -> PipelineAnalytics:
         """Get pipeline analytics for a report (async)."""
-        report, user, stream = await self._async_get_report_for_curation(report_id, user_id)
+        report, user, stream = await self._get_report_for_curation(report_id, user_id)
 
         # Initialize empty analytics
         summary = PipelineAnalyticsSummary(
@@ -1642,12 +1642,12 @@ class ReportService:
         wip_articles_data: List[WipArticleAnalytics] = []
 
         if report.pipeline_execution_id:
-            wip_articles = await self.wip_article_service.async_get_by_execution_id(
+            wip_articles = await self.wip_article_service.get_by_execution_id(
                 report.pipeline_execution_id
             )
 
             # Get associations for category info
-            associations = await self.association_service.async_get_all_for_report(report_id)
+            associations = await self.association_service.get_all_for_report(report_id)
             article_categories: Dict[int, List[str]] = {}
             for assoc in associations:
                 article_categories[assoc.article_id] = assoc.presentation_categories or []

@@ -193,7 +193,7 @@ async def request_login_token(
     """
     try:
         # Find user by email
-        user = await user_service.async_get_user_by_email(email)
+        user = await user_service.get_user_by_email(email)
         if not user:
             # For security, don't reveal if email exists or not
             return {"message": "If an account with this email exists, a login link has been sent."}
@@ -203,14 +203,14 @@ async def request_login_token(
         token, expires_at = email_service.generate_login_token()
 
         # Store token in database
-        await user_service.async_update_login_token(user.user_id, token, expires_at)
+        await user_service.update_login_token(user.user_id, token, expires_at)
 
         # Send email
         success = await email_service.send_login_token(email, token)
 
         if not success:
             # Clear token if email failed
-            await user_service.async_clear_login_token(user.user_id)
+            await user_service.clear_login_token(user.user_id)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to send login email. Please try again."
@@ -247,7 +247,7 @@ async def login_with_token(
     """
     try:
         # Find user by login token
-        user = await user_service.async_get_user_by_login_token(token)
+        user = await user_service.get_user_by_login_token(token)
 
         if not user:
             raise HTTPException(
@@ -256,7 +256,7 @@ async def login_with_token(
             )
 
         # Clear the login token (one-time use)
-        await user_service.async_clear_login_token(user.user_id)
+        await user_service.clear_login_token(user.user_id)
 
         # Extract username from email
         username = user.email.split('@')[0]
@@ -354,7 +354,7 @@ async def request_password_reset(
     """
     try:
         # Find user by email
-        user = await user_service.async_get_user_by_email(request.email)
+        user = await user_service.get_user_by_email(request.email)
         if not user:
             # For security, don't reveal if email exists or not
             return {"message": "If an account with this email exists, a password reset link has been sent."}
@@ -364,14 +364,14 @@ async def request_password_reset(
         token, expires_at = email_service.generate_password_reset_token()
 
         # Store token in database
-        await user_service.async_update_password_reset_token(user.user_id, token, expires_at)
+        await user_service.update_password_reset_token(user.user_id, token, expires_at)
 
         # Send email
         success = await email_service.send_password_reset_token(request.email, token)
 
         if not success:
             # Clear token if email failed
-            await user_service.async_clear_password_reset_token(user.user_id)
+            await user_service.clear_password_reset_token(user.user_id)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to send password reset email. Please try again."
@@ -410,7 +410,7 @@ async def reset_password(
     """
     try:
         # Find user by password reset token
-        user = await user_service.async_get_user_by_password_reset_token(request.token)
+        user = await user_service.get_user_by_password_reset_token(request.token)
 
         if not user:
             raise HTTPException(
@@ -423,7 +423,7 @@ async def reset_password(
         user.password = new_hashed_password
 
         # Clear the password reset token (one-time use)
-        await user_service.async_clear_password_reset_token(user.user_id)
+        await user_service.clear_password_reset_token(user.user_id)
 
         # Commit password change
         await db.commit()

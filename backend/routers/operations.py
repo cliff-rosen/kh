@@ -111,7 +111,7 @@ async def get_execution_queue(
     )
 
     try:
-        executions, total, streams = await service.async_get_execution_queue(
+        executions, total, streams = await service.get_execution_queue(
             user_id=current_user.user_id,
             execution_status=execution_status,
             approval_status=approval_status,
@@ -147,7 +147,7 @@ async def get_execution_detail(
     logger.info(f"get_execution_detail - user_id={current_user.user_id}, execution_id={execution_id}")
 
     try:
-        result = await service.async_get_execution_detail(execution_id, current_user.user_id)
+        result = await service.get_execution_detail(execution_id, current_user.user_id)
 
         logger.info(f"get_execution_detail complete - user_id={current_user.user_id}, execution_id={execution_id}")
         return result
@@ -177,7 +177,7 @@ async def get_scheduled_streams(
     logger.info(f"get_scheduled_streams - user_id={current_user.user_id}")
 
     try:
-        result = await service.async_get_scheduled_streams(current_user.user_id)
+        result = await service.get_scheduled_streams(current_user.user_id)
 
         logger.info(f"get_scheduled_streams complete - user_id={current_user.user_id}, count={len(result)}")
         return result
@@ -207,7 +207,7 @@ async def update_stream_schedule(
     logger.info(f"update_stream_schedule - user_id={current_user.user_id}, stream_id={stream_id}")
 
     try:
-        result = await service.async_update_stream_schedule(
+        result = await service.update_stream_schedule(
             stream_id=stream_id,
             user_id=current_user.user_id,
             updates=request.model_dump(exclude_none=True)

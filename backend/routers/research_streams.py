@@ -139,7 +139,7 @@ async def get_research_streams(
 
     try:
         # Use async method on service
-        results = await service.async_get_user_research_streams(current_user)
+        results = await service.get_user_research_streams(current_user)
 
         # Convert dataclasses to schemas at API boundary
         streams = [
@@ -174,7 +174,7 @@ async def get_research_stream(
 
     try:
         # Use async method for access check and retrieval
-        stream = await service.async_get_research_stream(current_user, stream_id)
+        stream = await service.get_research_stream(current_user, stream_id)
 
         if not stream:
             logger.warning(f"get_research_stream - not found - user_id={current_user.user_id}, stream_id={stream_id}")
@@ -251,7 +251,7 @@ async def create_research_stream(
         presentation_config_dict = request.presentation_config.model_dump() if hasattr(request.presentation_config, 'model_dump') else request.presentation_config
         schedule_config_dict = request.schedule_config.model_dump() if request.schedule_config and hasattr(request.schedule_config, 'model_dump') else request.schedule_config
 
-        stream = await service.async_create_research_stream(
+        stream = await service.create_research_stream(
             user=current_user,
             stream_name=request.stream_name,
             purpose=request.purpose,
@@ -292,7 +292,7 @@ async def update_research_stream(
 
     try:
         # Verify access using async method
-        existing_stream = await service.async_get_research_stream(current_user, stream_id)
+        existing_stream = await service.get_research_stream(current_user, stream_id)
         if not existing_stream:
             logger.warning(f"update_research_stream - not found - user_id={current_user.user_id}, stream_id={stream_id}")
             raise HTTPException(
@@ -311,7 +311,7 @@ async def update_research_stream(
             if hasattr(update_data['scoring_config'], 'dict'):
                 update_data['scoring_config'] = update_data['scoring_config'].dict()
 
-        stream = await service.async_update_research_stream(stream_id, update_data)
+        stream = await service.update_research_stream(stream_id, update_data)
         if not stream:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -345,7 +345,7 @@ async def delete_research_stream(
 
     try:
         # Verify access using async method
-        existing_stream = await service.async_get_research_stream(current_user, stream_id)
+        existing_stream = await service.get_research_stream(current_user, stream_id)
         if not existing_stream:
             logger.warning(f"delete_research_stream - not found - user_id={current_user.user_id}, stream_id={stream_id}")
             raise HTTPException(
@@ -356,7 +356,7 @@ async def delete_research_stream(
         # Check if user can modify this stream (based on scope and role)
         _check_can_modify_stream(existing_stream, current_user)
 
-        deleted = await service.async_delete_research_stream(current_user, stream_id)
+        deleted = await service.delete_research_stream(current_user, stream_id)
         if not deleted:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -387,7 +387,7 @@ async def toggle_research_stream_status(
 
     try:
         # Verify access using async method
-        existing_stream = await service.async_get_research_stream(current_user, stream_id)
+        existing_stream = await service.get_research_stream(current_user, stream_id)
         if not existing_stream:
             logger.warning(f"toggle_research_stream_status - not found - user_id={current_user.user_id}, stream_id={stream_id}")
             raise HTTPException(
@@ -398,7 +398,7 @@ async def toggle_research_stream_status(
         # Check if user can modify this stream (based on scope and role)
         _check_can_modify_stream(existing_stream, current_user)
 
-        stream = await service.async_update_research_stream(stream_id, {"is_active": request.is_active})
+        stream = await service.update_research_stream(stream_id, {"is_active": request.is_active})
         if not stream:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -462,7 +462,7 @@ async def update_broad_query(
 
     try:
         # Verify access using async method
-        stream = await service.async_get_research_stream(current_user, stream_id)
+        stream = await service.get_research_stream(current_user, stream_id)
         if not stream:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -473,7 +473,7 @@ async def update_broad_query(
         _check_can_modify_stream(stream, current_user)
 
         # Update via async method
-        updated_stream = await service.async_update_broad_query(
+        updated_stream = await service.update_broad_query(
             stream_id=stream_id,
             query_index=query_index,
             query_expression=request.query_expression
@@ -531,7 +531,7 @@ async def update_semantic_filter(
 
     try:
         # Verify access using async method
-        stream = await service.async_get_research_stream(current_user, stream_id)
+        stream = await service.get_research_stream(current_user, stream_id)
         if not stream:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -542,7 +542,7 @@ async def update_semantic_filter(
         _check_can_modify_stream(stream, current_user)
 
         # Update via async method
-        updated_stream = await service.async_update_semantic_filter(
+        updated_stream = await service.update_semantic_filter(
             stream_id=stream_id,
             query_index=query_index,
             enabled=request.enabled,
@@ -674,7 +674,7 @@ async def propose_retrieval_concepts(
     try:
         # Get stream (raises 404 if not found or not authorized)
         # Returns model with semantic_space already parsed
-        stream = await stream_service.async_get_research_stream(current_user, stream_id)
+        stream = await stream_service.get_research_stream(current_user, stream_id)
         if not stream:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
 
@@ -723,7 +723,7 @@ async def propose_broad_search(
 
     try:
         # Get stream (raises 404 if not found or not authorized)
-        stream = await stream_service.async_get_research_stream(current_user, stream_id)
+        stream = await stream_service.get_research_stream(current_user, stream_id)
         if not stream:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
 
@@ -765,7 +765,7 @@ async def generate_broad_filter(
 
     try:
         # Get stream (raises 404 if not found or not authorized)
-        stream = await stream_service.async_get_research_stream(current_user, stream_id)
+        stream = await stream_service.get_research_stream(current_user, stream_id)
         if not stream:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
 
@@ -813,7 +813,7 @@ async def generate_concept_query(
     try:
         # Get stream (raises 404 if not found or not authorized)
         # Returns model with semantic_space already parsed
-        stream = await stream_service.async_get_research_stream(current_user, stream_id)
+        stream = await stream_service.get_research_stream(current_user, stream_id)
         if not stream:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
 
@@ -866,7 +866,7 @@ async def generate_concept_filter(
     try:
         # Get stream (raises 404 if not found or not authorized)
         # Returns model with semantic_space already parsed
-        stream = await stream_service.async_get_research_stream(current_user, stream_id)
+        stream = await stream_service.get_research_stream(current_user, stream_id)
         if not stream:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
 
@@ -908,7 +908,7 @@ async def validate_concepts(
     try:
         # Get stream (raises 404 if not found or not authorized)
         # Returns Pydantic schema with semantic_space already parsed
-        stream = await stream_service.async_get_research_stream(current_user, stream_id)
+        stream = await stream_service.get_research_stream(current_user, stream_id)
         if not stream:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
 
@@ -1000,7 +1000,7 @@ async def test_source_query(
 
     try:
         # Get stream (raises 404 if not found or not authorized)
-        stream = await stream_service.async_get_research_stream(current_user, stream_id)
+        stream = await stream_service.get_research_stream(current_user, stream_id)
         if not stream:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
 
@@ -1099,7 +1099,7 @@ async def execute_pipeline(
     """
     try:
         # Verify stream exists and user has access
-        stream = await stream_service.async_get_research_stream(current_user, stream_id)
+        stream = await stream_service.get_research_stream(current_user, stream_id)
         if not stream:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
 
@@ -1408,7 +1408,7 @@ async def get_stream_curation_notes(
 
     try:
         # Get stream (raises 404 if not found or not authorized)
-        stream = await stream_service.async_get_research_stream(current_user, stream_id)
+        stream = await stream_service.get_research_stream(current_user, stream_id)
         if not stream:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
 
@@ -1416,7 +1416,7 @@ async def get_stream_curation_notes(
         wip_service = WipArticleService(stream_service.db)
 
         # Get all articles with curation notes for this stream
-        articles = await wip_service.async_get_articles_with_curation_notes_by_stream(stream_id)
+        articles = await wip_service.get_articles_with_curation_notes_by_stream(stream_id)
 
         # Build response items with curator names and report IDs
         notes_list = []

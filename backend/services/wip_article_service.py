@@ -299,7 +299,7 @@ class WipArticleService:
     # ASYNC Operations
     # =========================================================================
 
-    async def async_get_articles_with_curation_notes_by_stream(
+    async def get_articles_with_curation_notes_by_stream(
         self,
         stream_id: int
     ) -> List[WipArticle]:
@@ -326,7 +326,7 @@ class WipArticleService:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    async def async_get_by_id(self, wip_article_id: int) -> WipArticle:
+    async def get_by_id(self, wip_article_id: int) -> WipArticle:
         """Get a WipArticle by ID (async), raising ValueError if not found."""
         result = await self.db.execute(
             select(WipArticle).where(WipArticle.id == wip_article_id)
@@ -336,17 +336,17 @@ class WipArticleService:
             raise ValueError(f"WipArticle {wip_article_id} not found")
         return article
 
-    async def async_get_by_id_or_404(self, wip_article_id: int) -> WipArticle:
+    async def get_by_id_or_404(self, wip_article_id: int) -> WipArticle:
         """Get a WipArticle by ID (async), raising HTTPException 404 if not found."""
         try:
-            return await self.async_get_by_id(wip_article_id)
+            return await self.get_by_id(wip_article_id)
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="WIP article not found"
             )
 
-    async def async_get_by_execution_id(
+    async def get_by_execution_id(
         self,
         execution_id: str,
         included_only: bool = False
@@ -367,7 +367,7 @@ class WipArticleService:
             )
         return list(result.scalars().all())
 
-    async def async_get_for_filtering(
+    async def get_for_filtering(
         self,
         execution_id: str,
         retrieval_group_id: str
@@ -385,7 +385,7 @@ class WipArticleService:
         )
         return list(result.scalars().all())
 
-    async def async_get_for_deduplication(self, execution_id: str) -> List[WipArticle]:
+    async def get_for_deduplication(self, execution_id: str) -> List[WipArticle]:
         """Get articles ready for cross-group deduplication (async)."""
         result = await self.db.execute(
             select(WipArticle).where(
@@ -401,7 +401,7 @@ class WipArticleService:
         )
         return list(result.scalars().all())
 
-    async def async_get_included_articles(self, execution_id: str) -> List[WipArticle]:
+    async def get_included_articles(self, execution_id: str) -> List[WipArticle]:
         """Get articles marked for report inclusion (async)."""
         result = await self.db.execute(
             select(WipArticle).where(
@@ -413,7 +413,7 @@ class WipArticleService:
         )
         return list(result.scalars().all())
 
-    async def async_get_article_by_pmid(
+    async def get_article_by_pmid(
         self,
         execution_id: str,
         pmid: str
@@ -429,7 +429,7 @@ class WipArticleService:
         )
         return result.scalars().first()
 
-    async def async_get_all_articles_by_status(
+    async def get_all_articles_by_status(
         self,
         execution_id: str
     ) -> Dict[str, List[WipArticle]]:
@@ -459,7 +459,7 @@ class WipArticleService:
 
         return grouped
 
-    async def async_get_curated_articles(self, execution_id: str) -> List[WipArticle]:
+    async def get_curated_articles(self, execution_id: str) -> List[WipArticle]:
         """Get articles with curator overrides for an execution (async)."""
         result = await self.db.execute(
             select(WipArticle).where(
@@ -474,7 +474,7 @@ class WipArticleService:
         )
         return list(result.scalars().all())
 
-    async def async_update_curation_notes(
+    async def update_curation_notes(
         self,
         wip_article_id: int,
         user_id: int,
@@ -483,7 +483,7 @@ class WipArticleService:
         """Update curation notes for a WipArticle (async)."""
         from datetime import datetime
 
-        article = await self.async_get_by_id_or_404(wip_article_id)
+        article = await self.get_by_id_or_404(wip_article_id)
         article.curation_notes = notes
         article.curated_by = user_id
         article.curated_at = datetime.utcnow()
@@ -492,7 +492,7 @@ class WipArticleService:
 
         return article
 
-    async def async_get_by_execution_and_identifiers(
+    async def get_by_execution_and_identifiers(
         self,
         execution_id: str,
         pmid: Optional[str] = None,
@@ -527,7 +527,7 @@ class WipArticleService:
 
         return None
 
-    async def async_delete_by_execution_id(self, execution_id: str) -> int:
+    async def delete_by_execution_id(self, execution_id: str) -> int:
         """Delete all WipArticles for a pipeline execution (async)."""
         from sqlalchemy import delete
         result = await self.db.execute(
@@ -537,11 +537,11 @@ class WipArticleService:
         )
         return result.rowcount
 
-    async def async_commit(self) -> None:
+    async def commit(self) -> None:
         """Commit pending changes to the database (async)."""
         await self.db.commit()
 
-    async def async_flush(self) -> None:
+    async def flush(self) -> None:
         """Flush pending changes without committing (async)."""
         await self.db.flush()
 

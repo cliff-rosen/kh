@@ -36,7 +36,7 @@ async def get_article_notes(
     - User's own notes (personal and shared)
     - Shared notes from other users in the same organization
     """
-    notes = await notes_service.async_get_notes(report_id, article_id, current_user)
+    notes = await notes_service.get_notes(report_id, article_id, current_user)
 
     return ArticleNotesResponse(
         report_id=report_id,
@@ -65,7 +65,7 @@ async def create_article_note(
     - **content**: The note text
     - **visibility**: "personal" (only you can see) or "shared" (org members can see)
     """
-    note = await notes_service.async_create_note(
+    note = await notes_service.create_note(
         report_id=report_id,
         article_id=article_id,
         user=current_user,
@@ -101,7 +101,7 @@ async def update_article_note(
     - **content**: New note text (optional)
     - **visibility**: New visibility setting (optional)
     """
-    note = await notes_service.async_update_note(
+    note = await notes_service.update_note(
         report_id=report_id,
         article_id=article_id,
         note_id=note_id,
@@ -132,7 +132,7 @@ async def delete_article_note(
     notes_service: NotesService = Depends(get_async_notes_service)
 ):
     """Delete a note. Only the author can delete their note."""
-    success = await notes_service.async_delete_note(
+    success = await notes_service.delete_note(
         report_id=report_id,
         article_id=article_id,
         note_id=note_id,

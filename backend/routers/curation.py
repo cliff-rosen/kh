@@ -377,7 +377,7 @@ async def get_curation_view(
     logger.info(f"get_curation_view - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        data = await service.async_get_curation_view(report_id, current_user.user_id)
+        data = await service.get_curation_view(report_id, current_user.user_id)
 
         # Build report data - enrichments are stored in JSON fields
         enrichments = data.report.enrichments or {}
@@ -523,7 +523,7 @@ async def get_curation_history(
     logger.info(f"get_curation_history - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        data = await service.async_get_curation_history(report_id, current_user.user_id)
+        data = await service.get_curation_history(report_id, current_user.user_id)
 
         # Convert dataclass to response schema
         event_responses = [
@@ -557,7 +557,7 @@ async def get_pipeline_analytics(
     logger.info(f"get_pipeline_analytics - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        result = await service.async_get_pipeline_analytics(report_id, current_user.user_id)
+        result = await service.get_pipeline_analytics(report_id, current_user.user_id)
 
         logger.info(f"get_pipeline_analytics complete - user_id={current_user.user_id}, report_id={report_id}")
         return result
@@ -591,7 +591,7 @@ async def exclude_article(
     logger.info(f"exclude_article - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
 
     try:
-        result = await service.async_exclude_article(
+        result = await service.exclude_article(
             report_id=report_id,
             article_id=article_id,
             user_id=current_user.user_id,
@@ -627,7 +627,7 @@ async def include_article(
     logger.info(f"include_article - user_id={current_user.user_id}, report_id={report_id}, wip_article_id={request.wip_article_id}")
 
     try:
-        result = await service.async_include_article(
+        result = await service.include_article(
             report_id=report_id,
             wip_article_id=request.wip_article_id,
             user_id=current_user.user_id,
@@ -664,7 +664,7 @@ async def reset_curation(
     logger.info(f"reset_curation - user_id={current_user.user_id}, report_id={report_id}, wip_article_id={wip_article_id}")
 
     try:
-        result = await service.async_reset_curation(
+        result = await service.reset_curation(
             report_id=report_id,
             wip_article_id=wip_article_id,
             user_id=current_user.user_id
@@ -704,7 +704,7 @@ async def update_wip_article_notes(
 
     try:
         # Verify user has access to this report
-        result = await service.async_get_report_with_access(report_id, current_user.user_id)
+        result = await service.get_report_with_access(report_id, current_user.user_id)
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -712,7 +712,7 @@ async def update_wip_article_notes(
             )
 
         # Update the WipArticle curation notes
-        article = await wip_service.async_update_curation_notes(
+        article = await wip_service.update_curation_notes(
             wip_article_id=wip_article_id,
             user_id=current_user.user_id,
             notes=request.curation_notes
@@ -748,7 +748,7 @@ async def update_article_in_report(
     logger.info(f"update_article_in_report - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
 
     try:
-        result = await service.async_update_article_in_report(
+        result = await service.update_article_in_report(
             report_id=report_id,
             article_id=article_id,
             user_id=current_user.user_id,
@@ -787,7 +787,7 @@ async def update_report_content(
     logger.info(f"update_report_content - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        result = await service.async_update_report_content(
+        result = await service.update_report_content(
             report_id=report_id,
             user_id=current_user.user_id,
             report_name=request.report_name,
@@ -823,7 +823,7 @@ async def send_approval_request(
     logger.info(f"send_approval_request - user_id={current_user.user_id}, report_id={report_id}, admin_id={request.admin_user_id}")
 
     try:
-        result = await service.async_get_report_with_access(report_id, current_user.user_id)
+        result = await service.get_report_with_access(report_id, current_user.user_id)
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -854,7 +854,7 @@ async def send_approval_request(
             )
 
         # Get article count
-        article_count = await service.association_service.async_count_visible(report_id)
+        article_count = await service.association_service.count_visible(report_id)
 
         # Send the email
         email_service = EmailService()
@@ -895,7 +895,7 @@ async def approve_report(
     logger.info(f"approve_report - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        result = await service.async_approve_report(
+        result = await service.approve_report(
             report_id=report_id,
             user_id=current_user.user_id,
             notes=request.notes if request else None
@@ -927,7 +927,7 @@ async def reject_report(
     logger.info(f"reject_report - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        result = await service.async_reject_report(
+        result = await service.reject_report(
             report_id=report_id,
             user_id=current_user.user_id,
             reason=request.reason
@@ -964,7 +964,7 @@ async def regenerate_executive_summary(
         summary_service = ReportSummaryService()
 
         # Get report and stream via async curation view
-        curation_data = await service.async_get_curation_view(report_id, current_user.user_id)
+        curation_data = await service.get_curation_view(report_id, current_user.user_id)
         report = curation_data.report
         stream = curation_data.stream
 
@@ -972,7 +972,7 @@ async def regenerate_executive_summary(
         enrichment_config = stream.enrichment_config if stream else None
 
         # Get visible articles for the report
-        visible_associations = await service.association_service.async_get_visible_for_report(report_id)
+        visible_associations = await service.association_service.get_visible_for_report(report_id)
 
         # Build article list from associations
         wip_articles = []
@@ -1029,7 +1029,7 @@ async def regenerate_category_summary(
         summary_service = ReportSummaryService()
 
         # Get report and stream
-        curation_data = await service.async_get_curation_view(report_id, current_user.user_id)
+        curation_data = await service.get_curation_view(report_id, current_user.user_id)
         report = curation_data.report
         stream = curation_data.stream
 
@@ -1051,7 +1051,7 @@ async def regenerate_category_summary(
             )
 
         # Get visible articles for this category
-        visible_associations = await service.association_service.async_get_visible_for_report(report_id)
+        visible_associations = await service.association_service.get_visible_for_report(report_id)
         category_articles = []
         for assoc in visible_associations:
             if assoc.article and assoc.presentation_categories:
@@ -1121,14 +1121,14 @@ async def regenerate_article_summary(
         summary_service = ReportSummaryService()
 
         # Get report and stream
-        curation_data = await service.async_get_curation_view(report_id, current_user.user_id)
+        curation_data = await service.get_curation_view(report_id, current_user.user_id)
         stream = curation_data.stream
 
         # Get enrichment config from stream
         enrichment_config = stream.enrichment_config if stream else None
 
         # Get the article association
-        association = await service.association_service.async_get(report_id, article_id)
+        association = await service.association_service.get(report_id, article_id)
         if not association or not association.article:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

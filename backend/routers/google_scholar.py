@@ -346,7 +346,7 @@ async def stream_google_scholar(
 
                     # Track completion event
                     tracker = EventTracker(db)
-                    await tracker.async_track_event(
+                    await tracker.track_event(
                         user_id=user_id,
                         journey_id=journey_id,
                         event_type=EventType.SCHOLAR_ENRICH_COMPLETE,

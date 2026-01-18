@@ -78,7 +78,7 @@ class NotesService:
         )
         return result.scalars().first()
 
-    async def async_get_notes(
+    async def get_notes(
         self,
         report_id: int,
         article_id: int,
@@ -126,7 +126,7 @@ class NotesService:
 
         return visible_notes
 
-    async def async_create_note(
+    async def create_note(
         self,
         report_id: int,
         article_id: int,
@@ -171,7 +171,7 @@ class NotesService:
 
         return new_note
 
-    async def async_update_note(
+    async def update_note(
         self,
         report_id: int,
         article_id: int,
@@ -214,7 +214,7 @@ class NotesService:
 
         return None
 
-    async def async_delete_note(
+    async def delete_note(
         self,
         report_id: int,
         article_id: int,

@@ -100,7 +100,7 @@ async def get_stream_enrichment_config(
 ):
     """Get enrichment config for a stream (or defaults if not set)"""
     # Verify ownership and get stream (raises 404 if not found/not authorized)
-    stream = await stream_service.async_get_research_stream(current_user, stream_id)
+    stream = await stream_service.get_research_stream(current_user, stream_id)
     if not stream:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stream not found")
 
@@ -135,7 +135,7 @@ async def update_stream_enrichment_config(
     logger.info(f"Updating enrichment config for stream {stream_id}: {request.enrichment_config}")
 
     # Verify ownership (raises 404 if not found/not authorized)
-    stream = await stream_service.async_get_research_stream(current_user, stream_id)
+    stream = await stream_service.get_research_stream(current_user, stream_id)
     if not stream:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stream not found")
 
@@ -143,7 +143,7 @@ async def update_stream_enrichment_config(
     config_dict = request.enrichment_config.dict() if request.enrichment_config else None
 
     # Update via async method
-    await stream_service.async_update_research_stream(stream_id, {"enrichment_config": config_dict})
+    await stream_service.update_research_stream(stream_id, {"enrichment_config": config_dict})
 
     logger.info(f"Enrichment config saved for stream {stream_id}")
     return {"status": "success", "message": "Enrichment config updated"}

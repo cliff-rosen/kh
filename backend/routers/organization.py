@@ -28,7 +28,7 @@ async def get_organization(
     org_service: OrganizationService = Depends(get_async_organization_service)
 ):
     """Get the current user's organization details."""
-    org = await org_service.async_get_organization_for_user(current_user)
+    org = await org_service.get_organization_for_user(current_user)
 
     if not org:
         raise HTTPException(
@@ -52,7 +52,7 @@ async def update_organization(
     """Update the current user's organization. Requires org admin role."""
     org_service.require_org_admin(current_user, current_user.org_id)
 
-    org = await org_service.async_update_organization(current_user.org_id, update_data)
+    org = await org_service.update_organization(current_user.org_id, update_data)
     if not org:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -78,7 +78,7 @@ async def list_members(
             detail="User is not associated with an organization"
         )
 
-    return await org_service.async_get_org_members(current_user.org_id)
+    return await org_service.get_org_members(current_user.org_id)
 
 
 @router.put(
@@ -95,7 +95,7 @@ async def update_member_role(
     """Update a member's role. Requires org admin role."""
     org_service.require_org_admin(current_user, current_user.org_id)
 
-    member = await org_service.async_update_member_role(
+    member = await org_service.update_member_role(
         current_user.org_id,
         user_id,
         update_data.role,
@@ -124,7 +124,7 @@ async def remove_member(
     """Remove a member from the organization. Requires org admin role."""
     org_service.require_org_admin(current_user, current_user.org_id)
 
-    success = await org_service.async_remove_member(current_user.org_id, user_id, current_user)
+    success = await org_service.remove_member(current_user.org_id, user_id, current_user)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

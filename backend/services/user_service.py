@@ -48,7 +48,7 @@ class UserService:
             return True
 
         if self.is_org_admin(manager):
-            target = await self.async_get_user_by_id(target_user_id)
+            target = await self.get_user_by_id(target_user_id)
             if target and target.org_id == manager.org_id:
                 return True
 
@@ -56,21 +56,21 @@ class UserService:
 
     # ==================== Async Methods ====================
 
-    async def async_get_user_by_id(self, user_id: int) -> Optional[UserModel]:
+    async def get_user_by_id(self, user_id: int) -> Optional[UserModel]:
         """Get user by ID (async). Returns None if not found."""
         result = await self.db.execute(
             select(UserModel).where(UserModel.user_id == user_id)
         )
         return result.scalars().first()
 
-    async def async_get_user_by_email(self, email: str) -> Optional[UserModel]:
+    async def get_user_by_email(self, email: str) -> Optional[UserModel]:
         """Get user by email (async)."""
         result = await self.db.execute(
             select(UserModel).where(UserModel.email == email)
         )
         return result.scalars().first()
 
-    async def async_get_user_by_login_token(self, token: str) -> Optional[UserModel]:
+    async def get_user_by_login_token(self, token: str) -> Optional[UserModel]:
         """Get user by valid (non-expired) login token (async)."""
         result = await self.db.execute(
             select(UserModel).where(
@@ -80,7 +80,7 @@ class UserService:
         )
         return result.scalars().first()
 
-    async def async_get_user_by_password_reset_token(self, token: str) -> Optional[UserModel]:
+    async def get_user_by_password_reset_token(self, token: str) -> Optional[UserModel]:
         """Get user by valid (non-expired) password reset token (async)."""
         result = await self.db.execute(
             select(UserModel).where(
@@ -90,7 +90,7 @@ class UserService:
         )
         return result.scalars().first()
 
-    async def async_list_users(
+    async def list_users(
         self,
         org_id: Optional[int] = None,
         role: Optional[UserRole] = None,
@@ -124,7 +124,7 @@ class UserService:
 
         return users, total
 
-    async def async_get_org_members(self, org_id: int) -> List[OrgMember]:
+    async def get_org_members(self, org_id: int) -> List[OrgMember]:
         """Get all members of an organization (async)."""
         result = await self.db.execute(
             select(UserModel)
@@ -144,7 +144,7 @@ class UserService:
             for u in users
         ]
 
-    async def async_create_user(
+    async def create_user(
         self,
         email: str,
         password: str,
@@ -154,7 +154,7 @@ class UserService:
     ) -> UserModel:
         """Create a new user (async)."""
         # Check for existing email
-        existing = await self.async_get_user_by_email(email)
+        existing = await self.get_user_by_email(email)
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -190,13 +190,13 @@ class UserService:
         logger.info(f"Created user: {email} (id={user.user_id})")
         return user
 
-    async def async_update_user(
+    async def update_user(
         self,
         user_id: int,
         updates: Dict[str, Any]
     ) -> UserModel:
         """Update user fields (async)."""
-        user = await self.async_get_user_by_id(user_id)
+        user = await self.get_user_by_id(user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -215,14 +215,14 @@ class UserService:
         logger.info(f"Updated user {user_id}: {list(updates.keys())}")
         return user
 
-    async def async_update_login_token(
+    async def update_login_token(
         self,
         user_id: int,
         token: Optional[str],
         expires_at: Optional[datetime]
     ) -> UserModel:
         """Update user's login token (async)."""
-        user = await self.async_get_user_by_id(user_id)
+        user = await self.get_user_by_id(user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -234,18 +234,18 @@ class UserService:
         await self.db.refresh(user)
         return user
 
-    async def async_clear_login_token(self, user_id: int) -> UserModel:
+    async def clear_login_token(self, user_id: int) -> UserModel:
         """Clear user's login token after use (async)."""
-        return await self.async_update_login_token(user_id, None, None)
+        return await self.update_login_token(user_id, None, None)
 
-    async def async_update_password_reset_token(
+    async def update_password_reset_token(
         self,
         user_id: int,
         token: Optional[str],
         expires_at: Optional[datetime]
     ) -> UserModel:
         """Update user's password reset token (async)."""
-        user = await self.async_get_user_by_id(user_id)
+        user = await self.get_user_by_id(user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -257,13 +257,13 @@ class UserService:
         await self.db.refresh(user)
         return user
 
-    async def async_clear_password_reset_token(self, user_id: int) -> UserModel:
+    async def clear_password_reset_token(self, user_id: int) -> UserModel:
         """Clear user's password reset token after use (async)."""
-        return await self.async_update_password_reset_token(user_id, None, None)
+        return await self.update_password_reset_token(user_id, None, None)
 
-    async def async_verify_credentials(self, email: str, password: str) -> Optional[UserModel]:
+    async def verify_credentials(self, email: str, password: str) -> Optional[UserModel]:
         """Verify user credentials (async)."""
-        user = await self.async_get_user_by_email(email)
+        user = await self.get_user_by_email(email)
         if not user:
             return None
 
@@ -275,7 +275,7 @@ class UserService:
 
         return user
 
-    async def async_deactivate_user(self, user_id: int, deactivated_by: UserModel) -> UserModel:
+    async def deactivate_user(self, user_id: int, deactivated_by: UserModel) -> UserModel:
         """Deactivate a user (async)."""
         if deactivated_by.role != UserRoleModel.PLATFORM_ADMIN:
             raise HTTPException(
@@ -283,7 +283,7 @@ class UserService:
                 detail="Only platform admins can deactivate users"
             )
 
-        user = await self.async_get_user_by_id(user_id)
+        user = await self.get_user_by_id(user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -303,7 +303,7 @@ class UserService:
         logger.info(f"Deactivated user {user_id}")
         return user
 
-    async def async_reactivate_user(self, user_id: int, reactivated_by: UserModel) -> UserModel:
+    async def reactivate_user(self, user_id: int, reactivated_by: UserModel) -> UserModel:
         """Reactivate a deactivated user (async)."""
         if reactivated_by.role != UserRoleModel.PLATFORM_ADMIN:
             raise HTTPException(
@@ -311,7 +311,7 @@ class UserService:
                 detail="Only platform admins can reactivate users"
             )
 
-        user = await self.async_get_user_by_id(user_id)
+        user = await self.get_user_by_id(user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -325,7 +325,7 @@ class UserService:
         logger.info(f"Reactivated user {user_id}")
         return user
 
-    async def async_update_role(
+    async def update_role(
         self,
         user_id: int,
         new_role: UserRole,
@@ -335,7 +335,7 @@ class UserService:
         # Permission check: only platform_admin can change roles
         if updated_by.role != UserRoleModel.PLATFORM_ADMIN:
             if updated_by.role == UserRoleModel.ORG_ADMIN:
-                user = await self.async_get_user_by_id(user_id)
+                user = await self.get_user_by_id(user_id)
                 if not user:
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
@@ -357,7 +357,7 @@ class UserService:
                     detail="Insufficient permissions to change roles"
                 )
 
-        user = await self.async_get_user_by_id(user_id)
+        user = await self.get_user_by_id(user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -385,7 +385,7 @@ class UserService:
         logger.info(f"Updated role for user {user_id} to {new_role.value}")
         return user
 
-    async def async_assign_to_org(
+    async def assign_to_org(
         self,
         user_id: int,
         org_id: int,
@@ -409,7 +409,7 @@ class UserService:
                 detail="Organization not found"
             )
 
-        user = await self.async_get_user_by_id(user_id)
+        user = await self.get_user_by_id(user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -423,7 +423,7 @@ class UserService:
         logger.info(f"Assigned user {user_id} to org {org_id}")
         return user
 
-    async def async_delete_user(self, user_id: int, deleted_by: UserModel) -> bool:
+    async def delete_user(self, user_id: int, deleted_by: UserModel) -> bool:
         """Hard delete a user from the database (async)."""
         if deleted_by.role != UserRoleModel.PLATFORM_ADMIN:
             raise HTTPException(
@@ -431,7 +431,7 @@ class UserService:
                 detail="Only platform admins can delete users"
             )
 
-        user = await self.async_get_user_by_id(user_id)
+        user = await self.get_user_by_id(user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

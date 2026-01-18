@@ -166,7 +166,7 @@ class ResearchStreamService:
 
         return accessible_ids
 
-    async def async_get_user_research_streams(
+    async def get_user_research_streams(
         self,
         user: User
     ) -> List[StreamWithStats]:
@@ -208,7 +208,7 @@ class ResearchStreamService:
             for stream, report_count, latest_report_date in rows
         ]
 
-    async def async_get_research_stream(
+    async def get_research_stream(
         self,
         user: User,
         stream_id: int
@@ -230,7 +230,7 @@ class ResearchStreamService:
         )
         return result.scalars().first()
 
-    async def async_create_research_stream(
+    async def create_research_stream(
         self,
         user: User,
         stream_name: str,
@@ -297,7 +297,7 @@ class ResearchStreamService:
 
         return stream
 
-    async def async_delete_research_stream(
+    async def delete_research_stream(
         self,
         user: User,
         stream_id: int
@@ -335,7 +335,7 @@ class ResearchStreamService:
 
         return True
 
-    async def async_update_research_stream(
+    async def update_research_stream(
         self,
         stream_id: int,
         update_data: Dict[str, Any]
@@ -389,7 +389,7 @@ class ResearchStreamService:
         await self.db.refresh(stream)
         return stream
 
-    async def async_update_broad_query(
+    async def update_broad_query(
         self,
         stream_id: int,
         query_index: int,
@@ -436,7 +436,7 @@ class ResearchStreamService:
         await self.db.refresh(stream)
         return stream
 
-    async def async_update_semantic_filter(
+    async def update_semantic_filter(
         self,
         stream_id: int,
         query_index: int,
@@ -488,7 +488,7 @@ class ResearchStreamService:
         await self.db.refresh(stream)
         return stream
 
-    async def async_list_global_streams(self) -> List[ResearchStreamSchema]:
+    async def list_global_streams(self) -> List[ResearchStreamSchema]:
         """Get all global streams (async). For platform admin use."""
         result = await self.db.execute(
             select(ResearchStream).where(ResearchStream.scope == StreamScope.GLOBAL)
@@ -498,7 +498,7 @@ class ResearchStreamService:
         logger.info(f"Listed {len(streams)} global streams")
         return [ResearchStreamSchema.model_validate(s) for s in streams]
 
-    async def async_get_global_stream(self, stream_id: int) -> Optional[ResearchStreamSchema]:
+    async def get_global_stream(self, stream_id: int) -> Optional[ResearchStreamSchema]:
         """Get a specific global stream by ID (async). For platform admin use."""
         result = await self.db.execute(
             select(ResearchStream).where(
@@ -512,7 +512,7 @@ class ResearchStreamService:
             return ResearchStreamSchema.model_validate(stream)
         return None
 
-    async def async_set_stream_scope_global(self, stream_id: int) -> ResearchStreamSchema:
+    async def set_stream_scope_global(self, stream_id: int) -> ResearchStreamSchema:
         """Change a stream's scope to global (async). For platform admin use."""
         result = await self.db.execute(
             select(ResearchStream).where(ResearchStream.stream_id == stream_id)
@@ -534,7 +534,7 @@ class ResearchStreamService:
         logger.info(f"Set stream {stream_id} scope to global")
         return ResearchStreamSchema.model_validate(stream)
 
-    async def async_delete_global_stream(self, stream_id: int) -> bool:
+    async def delete_global_stream(self, stream_id: int) -> bool:
         """Delete a global stream (async). For platform admin use."""
         result = await self.db.execute(
             select(ResearchStream).where(
@@ -556,7 +556,7 @@ class ResearchStreamService:
         logger.info(f"Deleted global stream {stream_id}")
         return True
 
-    async def async_get_all_streams_with_chat_instructions(self) -> List[dict]:
+    async def get_all_streams_with_chat_instructions(self) -> List[dict]:
         """Get all streams with their chat instructions status (async). For admin chat config."""
         result = await self.db.execute(
             select(ResearchStream).order_by(ResearchStream.stream_name)
@@ -580,7 +580,7 @@ class ResearchStreamService:
         logger.info(f"Got chat instructions status for {len(results)} streams")
         return results
 
-    async def async_get_stream_by_id(self, stream_id: int) -> ResearchStream:
+    async def get_stream_by_id(self, stream_id: int) -> ResearchStream:
         """
         Get a research stream by ID, raising ValueError if not found (async).
 
@@ -601,7 +601,7 @@ class ResearchStreamService:
             raise ValueError(f"Research stream {stream_id} not found")
         return stream
 
-    async def async_get_enrichment_config(self, stream_id: int) -> Optional[Dict[str, Any]]:
+    async def get_enrichment_config(self, stream_id: int) -> Optional[Dict[str, Any]]:
         """
         Get enrichment config for a stream (async).
 
@@ -621,7 +621,7 @@ class ResearchStreamService:
 
         return stream.enrichment_config
 
-    async def async_update_enrichment_config(
+    async def update_enrichment_config(
         self,
         stream_id: int,
         enrichment_config: Optional[Dict[str, Any]]
@@ -655,7 +655,7 @@ class ResearchStreamService:
 
 
 # Dependency injection provider for async research stream service
-async def get_async_research_stream_service(
+async def get_research_stream_service(
     db: AsyncSession = Depends(get_async_db)
 ) -> ResearchStreamService:
     """Get a ResearchStreamService instance with async database session."""

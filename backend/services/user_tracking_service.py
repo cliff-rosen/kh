@@ -27,7 +27,7 @@ class UserTrackingService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def async_track_event(
+    async def track_event(
         self,
         user_id: int,
         event_source: EventSource,
@@ -48,21 +48,21 @@ class UserTrackingService:
         logger.debug(f"Tracked event: user={user_id}, type={event_type}, source={event_source.value}")
         return event
 
-    async def async_track_frontend_event(
+    async def track_frontend_event(
         self,
         user_id: int,
         event_type: str,
         event_data: Optional[Dict[str, Any]] = None
     ) -> UserEvent:
         """Track a frontend UI event (async)."""
-        return await self.async_track_event(
+        return await self.track_event(
             user_id=user_id,
             event_source=EventSource.FRONTEND,
             event_type=event_type,
             event_data=event_data
         )
 
-    async def async_get_all_events(
+    async def get_all_events(
         self,
         limit: int = 100,
         offset: int = 0,
@@ -113,7 +113,7 @@ class UserTrackingService:
 
         return events, total
 
-    async def async_get_event_types(self) -> List[str]:
+    async def get_event_types(self) -> List[str]:
         """Get distinct event types for filtering (async)."""
         result = await self.db.execute(
             select(UserEvent.event_type).distinct()
@@ -175,7 +175,7 @@ def track_endpoint(event_type: str = "api_call", include_params: bool = True):
                                     event_data[key] = value
 
                     service = UserTrackingService(db)
-                    await service.async_track_event(
+                    await service.track_event(
                         user_id=current_user.user_id,
                         event_source=EventSource.BACKEND,
                         event_type=event_type,

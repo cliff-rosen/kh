@@ -74,7 +74,7 @@ async def update_current_user(
         # No updates provided, return current user
         return UserSchema.model_validate(current_user)
 
-    updated_user = await user_service.async_update_user(
+    updated_user = await user_service.update_user(
         user_id=current_user.user_id,
         updates=update_dict
     )

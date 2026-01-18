@@ -58,7 +58,7 @@ async def list_all_organizations(
     logger.info(f"list_all_organizations - admin_user_id={current_user.user_id}")
 
     try:
-        orgs = await org_service.async_list_organizations(include_inactive=True)
+        orgs = await org_service.list_organizations(include_inactive=True)
         logger.info(f"list_all_organizations complete - count={len(orgs)}")
         return orgs
 
@@ -88,7 +88,7 @@ async def create_organization(
 
     try:
         from schemas.organization import OrganizationCreate
-        org = await org_service.async_create_organization(OrganizationCreate(name=name))
+        org = await org_service.create_organization(OrganizationCreate(name=name))
         logger.info(f"create_organization complete - org_id={org.org_id}")
         return org
 
@@ -116,7 +116,7 @@ async def get_organization(
     logger.info(f"get_organization - admin_user_id={current_user.user_id}, org_id={org_id}")
 
     try:
-        org = await org_service.async_get_organization_with_stats(org_id)
+        org = await org_service.get_organization_with_stats(org_id)
         if not org:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -150,7 +150,7 @@ async def update_organization(
     logger.info(f"update_organization - admin_user_id={current_user.user_id}, org_id={org_id}")
 
     try:
-        org = await org_service.async_update_organization(org_id, update_data)
+        org = await org_service.update_organization(org_id, update_data)
         if not org:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -183,7 +183,7 @@ async def delete_organization(
     logger.info(f"delete_organization - admin_user_id={current_user.user_id}, org_id={org_id}")
 
     try:
-        success = await org_service.async_delete_organization(org_id)
+        success = await org_service.delete_organization(org_id)
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -215,7 +215,7 @@ async def assign_user_to_org(
     logger.info(f"assign_user_to_org - admin_user_id={current_user.user_id}, user_id={user_id}, org_id={org_id}")
 
     try:
-        user = await user_service.async_assign_to_org(user_id, org_id, current_user)
+        user = await user_service.assign_to_org(user_id, org_id, current_user)
         logger.info(f"assign_user_to_org complete - user_id={user_id}, org_id={org_id}")
         return {"status": "success", "user_id": user.user_id, "org_id": user.org_id}
 
@@ -244,7 +244,7 @@ async def list_global_streams(
     logger.info(f"list_global_streams - admin_user_id={current_user.user_id}")
 
     try:
-        streams = await stream_service.async_list_global_streams()
+        streams = await stream_service.list_global_streams()
         logger.info(f"list_global_streams complete - count={len(streams)}")
         return streams
 
@@ -272,7 +272,7 @@ async def set_stream_scope_global(
     logger.info(f"set_stream_scope_global - admin_user_id={current_user.user_id}, stream_id={stream_id}")
 
     try:
-        stream = await stream_service.async_set_stream_scope_global(stream_id)
+        stream = await stream_service.set_stream_scope_global(stream_id)
         logger.info(f"set_stream_scope_global complete - stream_id={stream_id}")
         return stream
 
@@ -300,7 +300,7 @@ async def delete_global_stream(
     logger.info(f"delete_global_stream - admin_user_id={current_user.user_id}, stream_id={stream_id}")
 
     try:
-        success = await stream_service.async_delete_global_stream(stream_id)
+        success = await stream_service.delete_global_stream(stream_id)
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -338,7 +338,7 @@ async def list_all_users(
     logger.info(f"list_all_users - admin_user_id={current_user.user_id}, org_id={org_id}, role={role}")
 
     try:
-        users, total = await user_service.async_list_users(
+        users, total = await user_service.list_users(
             org_id=org_id,
             role=role,
             is_active=is_active,
@@ -376,7 +376,7 @@ async def update_user_role(
     logger.info(f"update_user_role - admin_user_id={current_user.user_id}, user_id={user_id}, new_role={new_role}")
 
     try:
-        user = await user_service.async_update_role(user_id, new_role, current_user)
+        user = await user_service.update_role(user_id, new_role, current_user)
         logger.info(f"update_user_role complete - user_id={user_id}, new_role={new_role}")
         return UserSchema.model_validate(user)
 
@@ -404,7 +404,7 @@ async def delete_user(
     logger.info(f"delete_user - admin_user_id={current_user.user_id}, user_id={user_id}")
 
     try:
-        await user_service.async_delete_user(user_id, current_user)
+        await user_service.delete_user(user_id, current_user)
         logger.info(f"delete_user complete - user_id={user_id}")
 
     except HTTPException:
@@ -507,7 +507,7 @@ async def create_invitation(
 
     try:
         # Check if email already registered
-        existing_user = await user_service.async_get_user_by_email(invitation.email)
+        existing_user = await user_service.get_user_by_email(invitation.email)
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -590,14 +590,14 @@ async def create_user_directly(
 
     try:
         # Verify organization exists
-        org = await org_service.async_get_organization(user_data.org_id)
+        org = await org_service.get_organization(user_data.org_id)
         if not org:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Organization not found"
             )
 
-        user = await user_service.async_create_user(
+        user = await user_service.create_user(
             email=user_data.email,
             password=user_data.password,
             full_name=user_data.full_name,
@@ -634,7 +634,7 @@ async def list_org_global_stream_subscriptions(
     logger.info(f"list_org_global_stream_subscriptions - admin_user_id={current_user.user_id}, org_id={org_id}")
 
     try:
-        org = await org_service.async_get_organization(org_id)
+        org = await org_service.get_organization(org_id)
         if not org:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -672,14 +672,14 @@ async def subscribe_org_to_global_stream(
     logger.info(f"subscribe_org_to_global_stream - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}")
 
     try:
-        org = await org_service.async_get_organization(org_id)
+        org = await org_service.get_organization(org_id)
         if not org:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Organization not found"
             )
 
-        stream = await stream_service.async_get_global_stream(stream_id)
+        stream = await stream_service.get_global_stream(stream_id)
         if not stream:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -870,7 +870,7 @@ async def get_chat_config(
             ))
 
         # Get stream chat instructions (async)
-        streams_data = await stream_service.async_get_all_streams_with_chat_instructions()
+        streams_data = await stream_service.get_all_streams_with_chat_instructions()
         stream_instructions = [
             StreamInstructionsInfo(
                 stream_id=s["stream_id"],

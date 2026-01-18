@@ -46,7 +46,7 @@ class OperationsService:
 
     # Sync methods removed - use async_* versions instead
 
-    async def async_get_execution_queue(
+    async def get_execution_queue(
         self,
         user_id: int,
         execution_status: Optional[str] = None,
@@ -57,7 +57,7 @@ class OperationsService:
     ) -> Tuple[List[ExecutionQueueItem], int, List[StreamOption]]:
         """Get pipeline executions queue with optional filters (async)."""
         logger.info(
-            f"async_get_execution_queue - user_id={user_id}, "
+            f"get_execution_queue - user_id={user_id}, "
             f"execution_status={execution_status}, approval_status={approval_status}, stream_id={stream_id}"
         )
 
@@ -214,16 +214,16 @@ class OperationsService:
         )
         streams_list = [StreamOption(stream_id=s.stream_id, stream_name=s.stream_name) for s in streams_result.all()]
 
-        logger.info(f"async_get_execution_queue complete - user_id={user_id}, count={len(executions)}, total={total}")
+        logger.info(f"get_execution_queue complete - user_id={user_id}, count={len(executions)}, total={total}")
         return (executions, total, streams_list)
 
-    async def async_get_execution_detail(
+    async def get_execution_detail(
         self,
         execution_id: str,
         user_id: int
     ) -> ExecutionDetail:
         """Get full execution details for review (async)."""
-        logger.info(f"async_get_execution_detail - user_id={user_id}, execution_id={execution_id}")
+        logger.info(f"get_execution_detail - user_id={user_id}, execution_id={execution_id}")
 
         result = await self.db.execute(
             select(PipelineExecution).where(PipelineExecution.id == execution_id)
@@ -358,7 +358,7 @@ class OperationsService:
                 categories_list = list(categories_dict.values())
                 article_count = len(articles_list)
 
-        logger.info(f"async_get_execution_detail complete - user_id={user_id}, execution_id={execution_id}")
+        logger.info(f"get_execution_detail complete - user_id={user_id}, execution_id={execution_id}")
         return ExecutionDetail(
             execution_id=execution.id,
             stream_id=execution.stream_id,
@@ -387,12 +387,12 @@ class OperationsService:
         )
 
 
-    async def async_get_scheduled_streams(
+    async def get_scheduled_streams(
         self,
         user_id: int
     ) -> List[ScheduledStreamSummary]:
         """Get all streams with scheduling configuration and their last execution status (async)."""
-        logger.info(f"async_get_scheduled_streams - user_id={user_id}")
+        logger.info(f"get_scheduled_streams - user_id={user_id}")
 
         # Get all streams that have schedule_config (not null)
         result = await self.db.execute(
@@ -469,17 +469,17 @@ class OperationsService:
                 last_execution=last_exec
             ))
 
-        logger.info(f"async_get_scheduled_streams complete - user_id={user_id}, count={len(result_list)}")
+        logger.info(f"get_scheduled_streams complete - user_id={user_id}, count={len(result_list)}")
         return result_list
 
-    async def async_update_stream_schedule(
+    async def update_stream_schedule(
         self,
         stream_id: int,
         user_id: int,
         updates: dict
     ) -> ScheduledStreamSummary:
         """Update scheduling configuration for a stream (async)."""
-        logger.info(f"async_update_stream_schedule - user_id={user_id}, stream_id={stream_id}")
+        logger.info(f"update_stream_schedule - user_id={user_id}, stream_id={stream_id}")
 
         result = await self.db.execute(
             select(ResearchStream).where(ResearchStream.stream_id == stream_id)
@@ -523,7 +523,7 @@ class OperationsService:
             lookback_days=current_config.get('lookback_days')
         )
 
-        logger.info(f"async_update_stream_schedule complete - user_id={user_id}, stream_id={stream_id}")
+        logger.info(f"update_stream_schedule complete - user_id={user_id}, stream_id={stream_id}")
         return ScheduledStreamSummary(
             stream_id=stream.stream_id,
             stream_name=stream.stream_name,

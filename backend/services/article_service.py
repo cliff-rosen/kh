@@ -51,7 +51,7 @@ class ArticleService:
             }
         )
 
-    async def async_get_article_by_pmid(self, pmid: str) -> Optional[CanonicalResearchArticle]:
+    async def get_article_by_pmid(self, pmid: str) -> Optional[CanonicalResearchArticle]:
         """Get an article by its PMID (async)."""
         result = await self.db.execute(
             select(Article).where(Article.pmid == pmid)
@@ -63,7 +63,7 @@ class ArticleService:
 
         return self._to_canonical(article)
 
-    async def async_get_article_by_id(self, article_id: int) -> Optional[CanonicalResearchArticle]:
+    async def get_article_by_id(self, article_id: int) -> Optional[CanonicalResearchArticle]:
         """Get an article by its internal ID (async)."""
         result = await self.db.execute(
             select(Article).where(Article.article_id == article_id)

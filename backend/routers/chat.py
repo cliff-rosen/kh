@@ -73,7 +73,7 @@ async def list_chats(
     logger.info(f"list_chats - user_id={current_user.user_id}, app={app}, limit={limit}, offset={offset}")
 
     try:
-        chats = await service.async_get_user_chats(
+        chats = await service.get_user_chats(
             user_id=current_user.user_id,
             app=app,
             limit=limit,
@@ -113,12 +113,12 @@ async def get_chat(
     logger.info(f"get_chat - user_id={current_user.user_id}, chat_id={chat_id}")
 
     try:
-        chat = await service.async_get_chat(chat_id, current_user.user_id)
+        chat = await service.get_chat(chat_id, current_user.user_id)
         if not chat:
             logger.warning(f"get_chat - not found - user_id={current_user.user_id}, chat_id={chat_id}")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat not found")
 
-        messages = await service.async_get_messages(chat_id, current_user.user_id)
+        messages = await service.get_messages(chat_id, current_user.user_id)
 
         logger.info(f"get_chat complete - user_id={current_user.user_id}, chat_id={chat_id}, message_count={len(messages)}")
         return ChatWithMessagesResponse(
@@ -199,7 +199,7 @@ async def admin_list_chats(
     logger.info(f"admin_list_chats - admin_user_id={current_user.user_id}, filter_user_id={user_id}, limit={limit}, offset={offset}")
 
     try:
-        chats, total = await service.async_get_all_chats(
+        chats, total = await service.get_all_chats(
             limit=limit,
             offset=offset,
             user_id=user_id
@@ -237,7 +237,7 @@ async def admin_get_chat(
     logger.info(f"admin_get_chat - admin_user_id={current_user.user_id}, chat_id={chat_id}")
 
     try:
-        chat = await service.async_get_chat_with_messages(chat_id)
+        chat = await service.get_chat_with_messages(chat_id)
         if not chat:
             logger.warning(f"admin_get_chat - not found - admin_user_id={current_user.user_id}, chat_id={chat_id}")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat not found")

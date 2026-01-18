@@ -139,7 +139,7 @@ async def login_user(db: AsyncSession, email: str, password: str) -> Token:
     logger.info(f"Login attempt for: {email}")
 
     user_service = UserService(db)
-    user = await user_service.async_verify_credentials(email, password)
+    user = await user_service.verify_credentials(email, password)
 
     if not user:
         logger.warning(f"Failed login attempt for: {email}")
@@ -232,7 +232,7 @@ async def register_and_login_user(
             logger.warning(f"No default organization found for user {email}")
 
     user_service = UserService(db)
-    user = await user_service.async_create_user(
+    user = await user_service.create_user(
         email=email,
         password=password,
         role=role,
@@ -292,7 +292,7 @@ async def validate_token(
 
         # Get user from database (async)
         user_service = UserService(db)
-        user = await user_service.async_get_user_by_email(email)
+        user = await user_service.get_user_by_email(email)
         t_user = time.perf_counter()
         if user is None:
             logger.error(f"Token user not found: {email}")

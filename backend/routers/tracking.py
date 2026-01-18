@@ -69,7 +69,7 @@ async def track_event(
     - button_click: {button: 'star', pmid: '12345'}
     - page_view: {page: 'reports', report_id: 123}
     """
-    event = await service.async_track_frontend_event(
+    event = await service.track_frontend_event(
         user_id=current_user.user_id,
         event_type=request.event_type,
         event_data=request.event_data
@@ -110,7 +110,7 @@ async def get_events(
     # Calculate since time
     since = datetime.utcnow() - timedelta(hours=hours) if hours else None
 
-    events, total = await service.async_get_all_events(
+    events, total = await service.get_all_events(
         limit=limit,
         offset=offset,
         user_id=user_id,
@@ -136,4 +136,4 @@ async def get_event_types(
     if current_user.role != UserRole.PLATFORM_ADMIN:
         raise HTTPException(status_code=403, detail="Platform admin access required")
 
-    return await service.async_get_event_types()
+    return await service.get_event_types()

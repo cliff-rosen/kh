@@ -191,7 +191,7 @@ def execute_get_report_articles(
     async def _get_articles():
         async with AsyncSessionLocal() as async_db:
             service = ReportService(async_db)
-            return await service.async_get_report_articles_list(
+            return await service.get_report_articles_list(
                 report_id=report_id,
                 user_id=user_id,
                 include_abstract=(mode == "expanded")

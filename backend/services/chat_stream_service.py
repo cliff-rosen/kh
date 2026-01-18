@@ -296,7 +296,7 @@ class ChatStreamService:
             return None
 
         # Get all messages from this conversation
-        messages = await self.chat_service.async_get_messages(chat_id, self.user_id)
+        messages = await self.chat_service.get_messages(chat_id, self.user_id)
 
         manifest_entries = []
         for msg in messages:
@@ -342,15 +342,15 @@ class ChatStreamService:
             app = self._get_app_from_context(request.context)
 
             if chat_id:
-                chat = await self.chat_service.async_get_chat(chat_id, self.user_id)
+                chat = await self.chat_service.get_chat(chat_id, self.user_id)
                 if not chat:
                     chat_id = None
 
             if not chat_id:
-                chat = await self.chat_service.async_create_chat(self.user_id, app=app)
+                chat = await self.chat_service.create_chat(self.user_id, app=app)
                 chat_id = chat.id
 
-            await self.chat_service.async_add_message(
+            await self.chat_service.add_message(
                 chat_id=chat_id,
                 user_id=self.user_id,
                 role='user',
@@ -374,7 +374,7 @@ class ChatStreamService:
         if not chat_id:
             return
         try:
-            await self.chat_service.async_add_message(
+            await self.chat_service.add_message(
                 chat_id=chat_id,
                 user_id=self.user_id,
                 role='assistant',
@@ -405,7 +405,7 @@ class ChatStreamService:
 
         # Load history from database if we have a conversation
         if chat_id:
-            db_messages = await self.chat_service.async_get_messages(chat_id, self.user_id)
+            db_messages = await self.chat_service.get_messages(chat_id, self.user_id)
             for msg in db_messages:
                 if msg.role in ('user', 'assistant'):
                     history.append({"role": msg.role, "content": msg.content})
@@ -612,7 +612,7 @@ class ChatStreamService:
             return None
 
         # Load visible articles (excludes hidden) - association_service uses async
-        visible_associations = await self.association_service.async_get_visible_for_report(report_id)
+        visible_associations = await self.association_service.get_visible_for_report(report_id)
 
         articles_context = []
         for assoc in visible_associations:

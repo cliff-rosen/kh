@@ -41,7 +41,7 @@ async def get_article_by_pmid(
     This fetches from our stored articles, not from PubMed directly.
     """
     try:
-        article = await service.async_get_article_by_pmid(pmid)
+        article = await service.get_article_by_pmid(pmid)
 
         if not article:
             raise HTTPException(
