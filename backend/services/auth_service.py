@@ -416,7 +416,8 @@ async def validate_token(
             )
 
         # Get user from database (async)
-        user = await UserService.async_get_user_by_email(db, email)
+        user_service = UserService(db)
+        user = await user_service.async_get_user_by_email(email)
         t_user = time.perf_counter()
         if user is None:
             logger.error(f"Token user not found: {email}")

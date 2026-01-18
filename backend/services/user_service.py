@@ -150,16 +150,6 @@ class UserService:
         """Get user by email (sync)."""
         return self.db.query(UserModel).filter(UserModel.email == email).first()
 
-    # ==================== Async Methods ====================
-
-    @staticmethod
-    async def async_get_user_by_email(db: AsyncSession, email: str) -> Optional[UserModel]:
-        """Get user by email (async)."""
-        result = await db.execute(
-            select(UserModel).where(UserModel.email == email)
-        )
-        return result.scalars().first()
-
     # ==================== Sync Methods (continued) ====================
 
     def get_user_by_login_token(self, token: str) -> Optional[UserModel]:
