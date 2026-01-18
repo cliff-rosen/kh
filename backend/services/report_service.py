@@ -2173,7 +2173,6 @@ class ReportService:
 
             reports.append(ReportWithArticleCount(
                 report=report,
-                stream=stream,
                 article_count=article_count
             ))
 
@@ -2234,7 +2233,6 @@ class ReportService:
 
             reports.append(ReportWithArticleCount(
                 report=report,
-                stream=stream,
                 article_count=article_count
             ))
 
@@ -2262,14 +2260,14 @@ class ReportService:
         rows = result.all()
 
         articles = [
-            ReportArticleData(article=article, association=assoc)
+            ReportArticleInfo(article=article, association=assoc)
             for assoc, article in rows
         ]
 
         return ReportWithArticlesData(
             report=report,
-            stream=stream,
-            articles=articles
+            articles=articles,
+            article_count=len(articles)
         )
 
     async def async_delete_report(self, user: User, report_id: int) -> bool:
