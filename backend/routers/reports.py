@@ -6,27 +6,12 @@ import logging
 import time
 from dataclasses import asdict
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 
-from database import get_db, get_async_db
-from sqlalchemy.ext.asyncio import AsyncSession
 from models import User
 from schemas.report import Report, ReportWithArticles
-from services.report_service import (
-    ReportService,
-    async_get_recent_reports,
-    async_get_reports_for_stream,
-    async_get_report_with_articles,
-    async_delete_report,
-    async_update_article_notes,
-    async_update_article_enrichments,
-    async_get_article_metadata,
-    async_get_report_email_html,
-    async_store_report_email_html,
-    async_generate_report_email_html,
-)
+from services.report_service import ReportService, get_async_report_service
 from services.email_service import EmailService
 from services.user_tracking_service import track_endpoint
 from routers.auth import get_current_user
@@ -85,7 +70,7 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 @router.get("/recent", response_model=List[Report])
 async def get_recent_reports(
     limit: int = 5,
-    db: AsyncSession = Depends(get_async_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """Get recent reports across all streams for the current user (async)"""
@@ -93,8 +78,7 @@ async def get_recent_reports(
     logger.info(f"get_recent_reports - user_id={current_user.user_id}, limit={limit}")
 
     try:
-        # Use async function directly (no service instantiation needed)
-        results = await async_get_recent_reports(db, current_user, limit)
+        results = await service.async_get_recent_reports(current_user, limit)
         t_query = time.perf_counter()
 
         # Convert model + article_count + coverage dates to schema
@@ -131,14 +115,14 @@ async def get_recent_reports(
 @router.get("/stream/{stream_id}", response_model=List[Report])
 async def get_reports_for_stream(
     stream_id: int,
-    db: AsyncSession = Depends(get_async_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """Get all reports for a research stream (async)"""
     logger.info(f"get_reports_for_stream - user_id={current_user.user_id}, stream_id={stream_id}")
 
     try:
-        results = await async_get_reports_for_stream(db, current_user, stream_id)
+        results = await service.async_get_reports_for_stream(current_user, stream_id)
 
         # Convert model + article_count to schema
         reports = [
@@ -165,7 +149,7 @@ async def get_reports_for_stream(
 @track_endpoint("view_report")
 async def get_report_with_articles(
     report_id: int,
-    db: AsyncSession = Depends(get_async_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """Get a report with its associated articles (async)"""
@@ -176,7 +160,7 @@ async def get_report_with_articles(
         from models import PipelineExecution
         from sqlalchemy import select
 
-        result = await async_get_report_with_articles(db, current_user, report_id)
+        result = await service.async_get_report_with_articles(current_user, report_id)
 
         if not result:
             logger.warning(f"get_report_with_articles - not found - user_id={current_user.user_id}, report_id={report_id}")
@@ -188,7 +172,7 @@ async def get_report_with_articles(
         # Build retrieval_params from the linked PipelineExecution (async load)
         retrieval_params = {}
         if result.report.pipeline_execution_id:
-            exec_result = await db.execute(
+            exec_result = await service.db.execute(
                 select(PipelineExecution).where(
                     PipelineExecution.id == result.report.pipeline_execution_id
                 )
@@ -258,14 +242,14 @@ async def get_report_with_articles(
 @router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_report(
     report_id: int,
-    db: AsyncSession = Depends(get_async_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """Delete a report (async)"""
     logger.info(f"delete_report - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        deleted = await async_delete_report(db, current_user, report_id)
+        deleted = await service.async_delete_report(current_user, report_id)
 
         if not deleted:
             logger.warning(f"delete_report - not found - user_id={current_user.user_id}, report_id={report_id}")
@@ -291,15 +275,15 @@ async def update_article_notes(
     report_id: int,
     article_id: int,
     request: UpdateArticleNotesRequest,
-    db: AsyncSession = Depends(get_async_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """Update notes for an article within a report (async)"""
     logger.info(f"update_article_notes - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
 
     try:
-        result = await async_update_article_notes(
-            db, current_user, report_id, article_id, request.notes
+        result = await service.async_update_article_notes(
+            current_user, report_id, article_id, request.notes
         )
 
         if not result:
@@ -327,15 +311,15 @@ async def update_article_enrichments(
     report_id: int,
     article_id: int,
     request: UpdateArticleEnrichmentsRequest,
-    db: AsyncSession = Depends(get_async_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """Update AI enrichments for an article within a report (async)"""
     logger.info(f"update_article_enrichments - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
 
     try:
-        result = await async_update_article_enrichments(
-            db, current_user, report_id, article_id, request.ai_enrichments
+        result = await service.async_update_article_enrichments(
+            current_user, report_id, article_id, request.ai_enrichments
         )
 
         if not result:
@@ -362,14 +346,14 @@ async def update_article_enrichments(
 async def get_article_metadata(
     report_id: int,
     article_id: int,
-    db: AsyncSession = Depends(get_async_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """Get notes and AI enrichments for an article within a report (async)"""
     logger.info(f"get_article_metadata - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
 
     try:
-        result = await async_get_article_metadata(db, current_user, report_id, article_id)
+        result = await service.async_get_article_metadata(current_user, report_id, article_id)
 
         if not result:
             logger.warning(f"get_article_metadata - not found - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
@@ -394,7 +378,7 @@ async def get_article_metadata(
 @router.post("/{report_id}/email/generate", response_model=EmailPreviewResponse)
 async def generate_report_email(
     report_id: int,
-    db: AsyncSession = Depends(get_async_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -405,7 +389,7 @@ async def generate_report_email(
 
     try:
         # Generate email HTML (no storage)
-        html = await async_generate_report_email_html(db, current_user, report_id)
+        html = await service.async_generate_report_email_html(current_user, report_id)
 
         if not html:
             raise HTTPException(
@@ -414,7 +398,7 @@ async def generate_report_email(
             )
 
         # Get report name for response
-        report_data = await async_get_report_with_articles(db, current_user, report_id)
+        report_data = await service.async_get_report_with_articles(current_user, report_id)
         report_name = report_data.report.report_name if report_data else ''
 
         logger.info(f"generate_report_email complete - user_id={current_user.user_id}, report_id={report_id}")
@@ -434,7 +418,7 @@ async def generate_report_email(
 async def store_report_email(
     report_id: int,
     request: StoreReportEmailRequest,
-    db: AsyncSession = Depends(get_async_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -444,7 +428,7 @@ async def store_report_email(
 
     try:
         # Store the email HTML
-        success = await async_store_report_email_html(db, current_user, report_id, request.html)
+        success = await service.async_store_report_email_html(current_user, report_id, request.html)
 
         if not success:
             raise HTTPException(
@@ -453,7 +437,7 @@ async def store_report_email(
             )
 
         # Get report name for response
-        report_data = await async_get_report_with_articles(db, current_user, report_id)
+        report_data = await service.async_get_report_with_articles(current_user, report_id)
         report_name = report_data.report.report_name if report_data else ''
 
         logger.info(f"store_report_email complete - user_id={current_user.user_id}, report_id={report_id}")
@@ -472,7 +456,7 @@ async def store_report_email(
 @router.get("/{report_id}/email", response_model=EmailPreviewResponse)
 async def get_report_email(
     report_id: int,
-    db: AsyncSession = Depends(get_async_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -483,7 +467,7 @@ async def get_report_email(
 
     try:
         # Get stored email HTML
-        html = await async_get_report_email_html(db, current_user, report_id)
+        html = await service.async_get_report_email_html(current_user, report_id)
 
         if not html:
             raise HTTPException(
@@ -492,7 +476,7 @@ async def get_report_email(
             )
 
         # Get report name for response
-        report_data = await async_get_report_with_articles(db, current_user, report_id)
+        report_data = await service.async_get_report_with_articles(current_user, report_id)
         report_name = report_data.report.report_name if report_data else ''
 
         logger.info(f"get_report_email complete - user_id={current_user.user_id}, report_id={report_id}")
@@ -512,7 +496,7 @@ async def get_report_email(
 async def send_report_email(
     report_id: int,
     request: SendReportEmailRequest,
-    db: AsyncSession = Depends(get_async_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -523,11 +507,11 @@ async def send_report_email(
 
     try:
         # Try to get stored email HTML, otherwise generate it
-        html = await async_get_report_email_html(db, current_user, report_id)
+        html = await service.async_get_report_email_html(current_user, report_id)
 
         if not html:
             # Generate on the fly
-            html = await async_generate_report_email_html(db, current_user, report_id)
+            html = await service.async_generate_report_email_html(current_user, report_id)
 
         if not html:
             raise HTTPException(
@@ -536,7 +520,7 @@ async def send_report_email(
             )
 
         # Get report name
-        report = await async_get_report_with_articles(db, current_user, report_id)
+        report = await service.async_get_report_with_articles(current_user, report_id)
         if not report:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

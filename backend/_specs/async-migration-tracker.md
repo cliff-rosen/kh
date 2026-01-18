@@ -16,13 +16,14 @@ Migration from sync SQLAlchemy to async SQLAlchemy 2.0 with proper service class
 
 | Service File | Standalone Funcs | Class Async Methods | DI Provider | Standalone Removed | Status |
 |--------------|------------------|---------------------|-------------|-------------------|--------|
+| report_service.py | 0 | Yes (16) | Yes | Yes | **✅ Done** |
 | chat_service.py | 5 | No | No | No | **Needs Refactor** |
-| report_service.py | 16 | No | No | No | **Needs Refactor** |
 | research_stream_service.py | 8 | No | No | No | **Needs Refactor** |
 | operations_service.py | 4 | No | No | No | **Needs Refactor** |
 | user_service.py | 0 | No | No | N/A | **Not Started** |
 | wip_article_service.py | 0 | No | No | N/A | **Not Started** |
 | chat_stream_service.py | 0 | No | No | N/A | **Not Started** |
+| user_tracking_service.py | 0 | No | No | N/A | **Not Started** |
 
 **Legend:**
 - Standalone Funcs: Count of `async def async_*` standalone functions currently in file
@@ -36,8 +37,8 @@ Migration from sync SQLAlchemy to async SQLAlchemy 2.0 with proper service class
 
 | Router File | Total Endpoints | Using AsyncSession | Using Service DI | Fully Migrated | Status |
 |-------------|-----------------|-------------------|------------------|----------------|--------|
+| reports.py | 11 | 0 | 11 | Yes | **✅ Done** |
 | chat.py | 4 | 4 | 0 | No | **Needs Refactor** |
-| reports.py | 11 | 11 | 0 | No | **Needs Refactor** |
 | research_streams.py | 17 | 8 | 0 | No | **Partial** |
 | operations.py | 8 | 4 | 0 | No | **Partial** |
 | curation.py | 16 | 3 | 0 | No | **Partial** |
@@ -63,20 +64,20 @@ Migration from sync SQLAlchemy to async SQLAlchemy 2.0 with proper service class
 | admin_list_chats | GET /admin/all | Yes | No | Needs DI |
 | admin_get_chat | GET /admin/{id} | Yes | No | Needs DI |
 
-### reports.py (11 endpoints)
+### reports.py (11 endpoints) ✅ COMPLETE
 | Endpoint | Method | AsyncSession | Service DI | Status |
 |----------|--------|--------------|------------|--------|
-| get_recent_reports | GET / | Yes | No | Needs DI |
-| get_reports_for_stream | GET /stream/{id} | Yes | No | Needs DI |
-| get_report_with_articles | GET /{id} | Yes | No | Needs DI |
-| delete_report | DELETE /{id} | Yes | No | Needs DI |
-| get_article_association | GET /{id}/articles/{aid} | Yes | No | Needs DI |
-| update_article_notes | PATCH /{id}/articles/{aid}/notes | Yes | No | Needs DI |
-| update_article_enrichments | PATCH /{id}/articles/{aid}/enrichments | Yes | No | Needs DI |
-| get_article_metadata | GET /{id}/articles/{aid}/metadata | Yes | No | Needs DI |
-| get_report_email | GET /{id}/email | Yes | No | Needs DI |
-| store_report_email | POST /{id}/email/store | Yes | No | Needs DI |
-| generate_report_email | POST /{id}/email/generate | Yes | No | Needs DI |
+| get_recent_reports | GET /recent | No | Yes | ✅ Done |
+| get_reports_for_stream | GET /stream/{id} | No | Yes | ✅ Done |
+| get_report_with_articles | GET /{id} | No | Yes | ✅ Done |
+| delete_report | DELETE /{id} | No | Yes | ✅ Done |
+| update_article_notes | PATCH /{id}/articles/{aid}/notes | No | Yes | ✅ Done |
+| update_article_enrichments | PATCH /{id}/articles/{aid}/enrichments | No | Yes | ✅ Done |
+| get_article_metadata | GET /{id}/articles/{aid}/metadata | No | Yes | ✅ Done |
+| get_report_email | GET /{id}/email | No | Yes | ✅ Done |
+| store_report_email | POST /{id}/email/store | No | Yes | ✅ Done |
+| generate_report_email | POST /{id}/email/generate | No | Yes | ✅ Done |
+| send_report_email | POST /{id}/email/send | No | Yes | ✅ Done |
 
 ### research_streams.py (17 endpoints)
 | Endpoint | Method | AsyncSession | Service DI | Status |
@@ -170,8 +171,8 @@ Migration from sync SQLAlchemy to async SQLAlchemy 2.0 with proper service class
 
 | Category | Total | Completed | In Progress | Not Started |
 |----------|-------|-----------|-------------|-------------|
-| Service Files | 7 | 0 | 4 | 3 |
-| Router Files | 8 | 0 | 5 | 3 |
-| Total Endpoints | 66 | 4 | 26 | 36 |
+| Service Files | 8 | 1 | 3 | 4 |
+| Router Files | 8 | 1 | 4 | 3 |
+| Total Endpoints | 66 | 15 | 22 | 29 |
 
-**Last Updated:** 2025-01-17
+**Last Updated:** 2025-01-18

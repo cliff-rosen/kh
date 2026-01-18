@@ -24,12 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from models import User, UserRole
 from services import auth_service
-from services.report_service import (
-    ReportService,
-    async_approve_report,
-    async_reject_report,
-    async_get_curation_history,
-)
+from services.report_service import ReportService, get_async_report_service
 from services.wip_article_service import WipArticleService
 from services.email_service import EmailService
 from services.report_summary_service import ReportSummaryService
@@ -520,7 +515,7 @@ async def get_curation_view(
 @router.get("/{report_id}/curation/history", response_model=CurationHistoryResponse)
 async def get_curation_history(
     report_id: int,
-    db: AsyncSession = Depends(get_async_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -530,7 +525,7 @@ async def get_curation_history(
     logger.info(f"get_curation_history - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        data = await async_get_curation_history(db, report_id, current_user.user_id)
+        data = await service.async_get_curation_history(report_id, current_user.user_id)
 
         # Convert dataclass to response schema
         event_responses = [
@@ -896,7 +891,7 @@ async def send_approval_request(
 async def approve_report(
     report_id: int,
     request: Optional[ApproveReportRequest] = None,
-    db: AsyncSession = Depends(get_async_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -906,8 +901,7 @@ async def approve_report(
     logger.info(f"approve_report - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        result = await async_approve_report(
-            db=db,
+        result = await service.async_approve_report(
             report_id=report_id,
             user_id=current_user.user_id,
             notes=request.notes if request else None
@@ -929,7 +923,7 @@ async def approve_report(
 async def reject_report(
     report_id: int,
     request: RejectReportRequest,
-    db: AsyncSession = Depends(get_async_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -939,8 +933,7 @@ async def reject_report(
     logger.info(f"reject_report - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        result = await async_reject_report(
-            db=db,
+        result = await service.async_reject_report(
             report_id=report_id,
             user_id=current_user.user_id,
             reason=request.reason

@@ -12,10 +12,11 @@ from dataclasses import dataclass, field, asdict
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, func, select
-from typing import List, Optional, Dict, Any, Set
+from typing import List, Optional, Dict, Any, Set, Tuple
 from datetime import date, datetime
 from fastapi import HTTPException, status
 
+from fastapi import Depends
 from models import (
     Report, ReportArticleAssociation, Article, WipArticle,
     ResearchStream, User, UserRole, StreamScope,
@@ -23,6 +24,7 @@ from models import (
     ApprovalStatus
 )
 from config.settings import settings
+from database import get_async_db
 from services.user_service import UserService
 from services.email_template_service import (
     EmailTemplateService, EmailReportData, EmailCategory, EmailArticle
@@ -273,9 +275,12 @@ class ReportService:
 
     This is the single source of truth for Report table access.
     Only this service should write to the Report and ReportArticleAssociation tables.
+
+    Supports both sync (Session) and async (AsyncSession) database access.
+    Use sync methods for backwards compatibility, async methods for new code.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session | AsyncSession):
         self.db = db
         self._user_service: Optional[UserService] = None
         self._stream_service = None  # Lazy-loaded to avoid circular import
@@ -2068,655 +2073,584 @@ class ReportService:
         """Flush pending changes without committing."""
         self.db.flush()
 
+    # =========================================================================
+    # ASYNC Methods (for use with AsyncSession)
+    # =========================================================================
 
-# =============================================================================
-# Async Functions (for async endpoints - POC migration)
-# =============================================================================
+    async def async_get_accessible_stream_ids(self, user: User) -> Set[int]:
+        """Get all stream IDs the user can access reports for (async)."""
+        accessible_ids = set()
 
-async def async_get_accessible_stream_ids(db: AsyncSession, user: User) -> Set[int]:
-    """Get all stream IDs the user can access reports for (async version)."""
-    accessible_ids = set()
-
-    # Personal streams created by user
-    result = await db.execute(
-        select(ResearchStream.stream_id).where(
-            and_(
-                ResearchStream.scope == StreamScope.PERSONAL,
-                ResearchStream.user_id == user.user_id
+        # Personal streams created by user
+        result = await self.db.execute(
+            select(ResearchStream.stream_id).where(
+                and_(
+                    ResearchStream.scope == StreamScope.PERSONAL,
+                    ResearchStream.user_id == user.user_id
+                )
             )
         )
-    )
-    accessible_ids.update(row[0] for row in result.all())
+        accessible_ids.update(r[0] for r in result.all())
 
-    # Platform admins see all global streams
-    if user.role == UserRole.PLATFORM_ADMIN:
-        result = await db.execute(
+        # Organization streams user is subscribed to
+        if user.org_id:
+            result = await self.db.execute(
+                select(ResearchStream.stream_id).where(
+                    and_(
+                        ResearchStream.scope == StreamScope.ORGANIZATION,
+                        ResearchStream.org_id == user.org_id
+                    )
+                )
+            )
+            accessible_ids.update(r[0] for r in result.all())
+
+        # Global streams
+        result = await self.db.execute(
             select(ResearchStream.stream_id).where(
                 ResearchStream.scope == StreamScope.GLOBAL
             )
         )
-        accessible_ids.update(row[0] for row in result.all())
-    elif user.org_id:
-        # Org streams for user's org
-        result = await db.execute(
-            select(ResearchStream.stream_id).where(
-                and_(
-                    ResearchStream.scope == StreamScope.ORGANIZATION,
-                    ResearchStream.org_id == user.org_id
-                )
-            )
-        )
-        accessible_ids.update(row[0] for row in result.all())
+        accessible_ids.update(r[0] for r in result.all())
 
-        # Global streams the user's org is subscribed to
-        result = await db.execute(
-            select(OrgStreamSubscription.stream_id).where(
-                OrgStreamSubscription.org_id == user.org_id
-            )
-        )
-        accessible_ids.update(row[0] for row in result.all())
-
-        # Streams user is personally subscribed to
-        result = await db.execute(
+        # User subscriptions
+        result = await self.db.execute(
             select(UserStreamSubscription.stream_id).where(
                 UserStreamSubscription.user_id == user.user_id
             )
         )
-        accessible_ids.update(row[0] for row in result.all())
+        accessible_ids.update(r[0] for r in result.all())
 
-    return accessible_ids
+        # Org subscriptions
+        if user.org_id:
+            result = await self.db.execute(
+                select(OrgStreamSubscription.stream_id).where(
+                    OrgStreamSubscription.org_id == user.org_id
+                )
+            )
+            accessible_ids.update(r[0] for r in result.all())
 
+        return accessible_ids
 
-async def async_get_recent_reports(
-    db: AsyncSession,
-    user: User,
-    limit: int = 5
-) -> List[ReportWithArticleCount]:
-    """
-    Get the most recent reports across all accessible streams for a user (async version).
+    async def async_get_recent_reports(
+        self,
+        user: User,
+        limit: int = 20,
+        offset: int = 0,
+        stream_id: Optional[int] = None
+    ) -> List[ReportWithArticleCount]:
+        """Get recent reports the user has access to (async)."""
+        accessible_stream_ids = await self.async_get_accessible_stream_ids(user)
 
-    Args:
-        db: Async database session
-        user: Authenticated user
-        limit: Maximum number of reports to return
+        if not accessible_stream_ids:
+            return []
 
-    Returns:
-        List of ReportWithArticleCount dataclass instances
-    """
-    t_start = time.perf_counter()
+        # Build query
+        filters = [Report.research_stream_id.in_(accessible_stream_ids)]
+        if stream_id:
+            filters.append(Report.research_stream_id == stream_id)
 
-    # Get all accessible stream IDs
-    accessible_stream_ids = await async_get_accessible_stream_ids(db, user)
-    t_streams = time.perf_counter()
-
-    if not accessible_stream_ids:
-        logger.info(f"async_get_recent_reports - user_id={user.user_id}, no accessible streams, total={t_streams - t_start:.3f}s")
-        return []
-
-    # Build the query with subquery for article counts
-    # Note: For async, we use select() style instead of query() style
-
-    # Subquery for article counts (only visible articles)
-    article_count_subq = (
-        select(
-            ReportArticleAssociation.report_id,
-            func.count(ReportArticleAssociation.article_id).label('article_count')
+        stmt = (
+            select(Report, ResearchStream)
+            .join(ResearchStream, Report.research_stream_id == ResearchStream.stream_id)
+            .where(and_(*filters))
+            .order_by(Report.report_date.desc())
+            .offset(offset)
+            .limit(limit)
         )
-        .where(ReportArticleAssociation.is_hidden == False)  # noqa: E712
-        .group_by(ReportArticleAssociation.report_id)
-        .subquery()
-    )
 
-    # Main query: Report + PipelineExecution (LEFT JOIN) + article count (LEFT JOIN)
-    stmt = (
-        select(
-            Report,
-            PipelineExecution.start_date,
-            PipelineExecution.end_date,
-            func.coalesce(article_count_subq.c.article_count, 0).label('article_count')
-        )
-        .outerjoin(PipelineExecution, Report.pipeline_execution_id == PipelineExecution.id)
-        .outerjoin(article_count_subq, Report.report_id == article_count_subq.c.report_id)
-        .where(Report.research_stream_id.in_(accessible_stream_ids))
-    )
+        result = await self.db.execute(stmt)
+        rows = result.all()
 
-    # Non-admins can only see approved reports
-    if user.role != UserRole.PLATFORM_ADMIN:
-        stmt = stmt.where(Report.approval_status == ApprovalStatus.APPROVED)
+        reports = []
+        for report, stream in rows:
+            # Count articles
+            count_result = await self.db.execute(
+                select(func.count(ReportArticleAssociation.article_id)).where(
+                    ReportArticleAssociation.report_id == report.report_id
+                )
+            )
+            article_count = count_result.scalar() or 0
 
-    stmt = stmt.order_by(Report.created_at.desc()).limit(limit)
+            reports.append(ReportWithArticleCount(
+                report=report,
+                stream=stream,
+                article_count=article_count
+            ))
 
-    result = await db.execute(stmt)
-    rows = result.all()
-    t_query = time.perf_counter()
+        return reports
 
-    # Convert to result dataclass
-    reports = [
-        ReportWithArticleCount(
-            report=row[0],
-            article_count=row[3],
-            coverage_start_date=row[1],
-            coverage_end_date=row[2],
-        )
-        for row in rows
-    ]
-    t_end = time.perf_counter()
+    async def async_get_report_with_access(
+        self,
+        report_id: int,
+        user: User
+    ) -> Optional[Tuple[Report, ResearchStream]]:
+        """Get report if user has access, with stream info (async)."""
+        accessible_stream_ids = await self.async_get_accessible_stream_ids(user)
 
-    logger.info(
-        f"async_get_recent_reports - user_id={user.user_id}, count={len(reports)}, "
-        f"streams={t_streams - t_start:.3f}s, query={t_query - t_streams:.3f}s, "
-        f"total={t_end - t_start:.3f}s"
-    )
-
-    return reports
-
-
-async def async_get_report_with_access(
-    db: AsyncSession,
-    report_id: int,
-    user: User
-) -> Optional[tuple]:
-    """
-    Get report with user access verification (async version).
-
-    Returns:
-        Tuple of (report, stream) if found and accessible, None otherwise.
-    """
-    # Get report
-    result = await db.execute(
-        select(Report).where(Report.report_id == report_id)
-    )
-    report = result.scalars().first()
-    if not report:
-        return None
-
-    # Get stream
-    result = await db.execute(
-        select(ResearchStream).where(ResearchStream.stream_id == report.research_stream_id)
-    )
-    stream = result.scalars().first()
-    if not stream:
-        return None
-
-    # Check access using existing logic
-    accessible_ids = await async_get_accessible_stream_ids(db, user)
-    if stream.stream_id not in accessible_ids:
-        return None
-
-    return (report, stream)
-
-
-async def async_get_reports_for_stream(
-    db: AsyncSession,
-    user: User,
-    research_stream_id: int
-) -> List[ReportWithArticleCount]:
-    """Get all reports for a research stream that the user has access to (async)."""
-    # Check stream access
-    result = await db.execute(
-        select(ResearchStream).where(ResearchStream.stream_id == research_stream_id)
-    )
-    stream = result.scalars().first()
-    if not stream:
-        return []
-
-    accessible_ids = await async_get_accessible_stream_ids(db, user)
-    if research_stream_id not in accessible_ids:
-        return []
-
-    # Subquery for article counts
-    article_count_subq = (
-        select(
-            ReportArticleAssociation.report_id,
-            func.count(ReportArticleAssociation.article_id).label('article_count')
-        )
-        .where(ReportArticleAssociation.is_hidden == False)
-        .group_by(ReportArticleAssociation.report_id)
-        .subquery()
-    )
-
-    # Build query
-    stmt = (
-        select(Report, func.coalesce(article_count_subq.c.article_count, 0))
-        .outerjoin(article_count_subq, Report.report_id == article_count_subq.c.report_id)
-        .where(Report.research_stream_id == research_stream_id)
-    )
-
-    # Non-admins can only see approved reports
-    if user.role != UserRole.PLATFORM_ADMIN:
-        stmt = stmt.where(Report.approval_status == ApprovalStatus.APPROVED)
-
-    stmt = stmt.order_by(Report.report_date.desc())
-
-    result = await db.execute(stmt)
-    rows = result.all()
-
-    return [
-        ReportWithArticleCount(report=row[0], article_count=row[1])
-        for row in rows
-    ]
-
-
-async def async_get_report_with_articles(
-    db: AsyncSession,
-    user: User,
-    report_id: int
-) -> Optional[ReportWithArticlesData]:
-    """Get a report with its visible articles (async)."""
-    access_result = await async_get_report_with_access(db, report_id, user)
-    if not access_result:
-        return None
-    report, stream = access_result
-
-    # Get visible associations with articles
-    stmt = (
-        select(ReportArticleAssociation, Article)
-        .join(Article, ReportArticleAssociation.article_id == Article.article_id)
-        .where(
-            ReportArticleAssociation.report_id == report_id,
-            ReportArticleAssociation.is_hidden == False
-        )
-        .order_by(ReportArticleAssociation.ranking)
-    )
-    result = await db.execute(stmt)
-    rows = result.all()
-
-    articles = [
-        ReportArticleInfo(article=article, association=assoc)
-        for assoc, article in rows
-    ]
-
-    return ReportWithArticlesData(
-        report=report,
-        articles=articles,
-        article_count=len(articles)
-    )
-
-
-async def async_delete_report(
-    db: AsyncSession,
-    user: User,
-    report_id: int
-) -> bool:
-    """Delete a report (async). Returns True if deleted."""
-    # Find report owned by user
-    result = await db.execute(
-        select(Report).where(
-            Report.report_id == report_id,
-            Report.user_id == user.user_id
-        )
-    )
-    report = result.scalars().first()
-    if not report:
-        return False
-
-    # Delete wip_articles if pipeline execution exists
-    if report.pipeline_execution_id:
-        from models import WipArticle
-        await db.execute(
-            select(WipArticle).where(
-                WipArticle.pipeline_execution_id == report.pipeline_execution_id
+        stmt = (
+            select(Report, ResearchStream)
+            .join(ResearchStream, Report.research_stream_id == ResearchStream.stream_id)
+            .where(
+                Report.report_id == report_id,
+                Report.research_stream_id.in_(accessible_stream_ids)
             )
         )
-        # Note: For delete, we need to use delete() statement
-        from sqlalchemy import delete
-        await db.execute(
-            delete(WipArticle).where(
-                WipArticle.pipeline_execution_id == report.pipeline_execution_id
+        result = await self.db.execute(stmt)
+        row = result.first()
+
+        if not row:
+            return None
+        return (row[0], row[1])
+
+    async def async_get_reports_for_stream(
+        self,
+        user: User,
+        research_stream_id: int
+    ) -> List[ReportWithArticleCount]:
+        """Get all reports for a specific stream (async)."""
+        accessible_stream_ids = await self.async_get_accessible_stream_ids(user)
+
+        if research_stream_id not in accessible_stream_ids:
+            return []
+
+        stmt = (
+            select(Report, ResearchStream)
+            .join(ResearchStream, Report.research_stream_id == ResearchStream.stream_id)
+            .where(Report.research_stream_id == research_stream_id)
+            .order_by(Report.report_date.desc())
+        )
+
+        result = await self.db.execute(stmt)
+        rows = result.all()
+
+        reports = []
+        for report, stream in rows:
+            count_result = await self.db.execute(
+                select(func.count(ReportArticleAssociation.article_id)).where(
+                    ReportArticleAssociation.report_id == report.report_id
+                )
+            )
+            article_count = count_result.scalar() or 0
+
+            reports.append(ReportWithArticleCount(
+                report=report,
+                stream=stream,
+                article_count=article_count
+            ))
+
+        return reports
+
+    async def async_get_report_with_articles(
+        self,
+        user: User,
+        report_id: int
+    ) -> Optional[ReportWithArticlesData]:
+        """Get report with its articles (async)."""
+        access_result = await self.async_get_report_with_access(report_id, user)
+        if not access_result:
+            return None
+        report, stream = access_result
+
+        # Get articles with associations
+        stmt = (
+            select(ReportArticleAssociation, Article)
+            .join(Article, ReportArticleAssociation.article_id == Article.article_id)
+            .where(ReportArticleAssociation.report_id == report_id)
+            .order_by(ReportArticleAssociation.ranking)
+        )
+        result = await self.db.execute(stmt)
+        rows = result.all()
+
+        articles = [
+            ReportArticleData(article=article, association=assoc)
+            for assoc, article in rows
+        ]
+
+        return ReportWithArticlesData(
+            report=report,
+            stream=stream,
+            articles=articles
+        )
+
+    async def async_delete_report(self, user: User, report_id: int) -> bool:
+        """Delete a report if user has access (async)."""
+        access_result = await self.async_get_report_with_access(report_id, user)
+        if not access_result:
+            return False
+        report, _ = access_result
+
+        # Delete associations first
+        await self.db.execute(
+            ReportArticleAssociation.__table__.delete().where(
+                ReportArticleAssociation.report_id == report_id
             )
         )
 
-    # Delete article associations
-    from sqlalchemy import delete
-    await db.execute(
-        delete(ReportArticleAssociation).where(
-            ReportArticleAssociation.report_id == report_id
+        # Delete WIP articles if any
+        if report.pipeline_execution_id:
+            await self.db.execute(
+                WipArticle.__table__.delete().where(
+                    WipArticle.pipeline_execution_id == report.pipeline_execution_id
+                )
+            )
+
+        # Delete report
+        await self.db.execute(
+            Report.__table__.delete().where(Report.report_id == report_id)
         )
-    )
 
-    # Delete report
-    await db.execute(
-        delete(Report).where(Report.report_id == report_id)
-    )
-    await db.commit()
+        await self.db.commit()
+        return True
 
-    return True
+    async def async_get_article_association(
+        self,
+        user: User,
+        report_id: int,
+        article_id: int
+    ) -> Optional[ReportArticleAssociation]:
+        """Get article association if user has access (async)."""
+        access_result = await self.async_get_report_with_access(report_id, user)
+        if not access_result:
+            return None
 
-
-async def async_get_article_association(
-    db: AsyncSession,
-    user: User,
-    report_id: int,
-    article_id: int
-) -> Optional[ReportArticleAssociation]:
-    """Get a specific article association with access check (async)."""
-    access_result = await async_get_report_with_access(db, report_id, user)
-    if not access_result:
-        return None
-
-    result = await db.execute(
-        select(ReportArticleAssociation).where(
+        stmt = select(ReportArticleAssociation).where(
             ReportArticleAssociation.report_id == report_id,
             ReportArticleAssociation.article_id == article_id
         )
-    )
-    return result.scalars().first()
+        result = await self.db.execute(stmt)
+        return result.scalars().first()
 
+    async def async_update_article_notes(
+        self,
+        user: User,
+        report_id: int,
+        article_id: int,
+        notes: Optional[str]
+    ) -> Optional[NotesUpdateResult]:
+        """Update notes on an article association (async)."""
+        assoc = await self.async_get_article_association(user, report_id, article_id)
+        if not assoc:
+            return None
 
-async def async_update_article_notes(
-    db: AsyncSession,
-    user: User,
-    report_id: int,
-    article_id: int,
-    notes: Optional[str]
-) -> Optional[NotesUpdateResult]:
-    """Update notes for an article (async)."""
-    association = await async_get_article_association(db, user, report_id, article_id)
-    if not association:
-        return None
+        assoc.notes = notes
+        await self.db.commit()
 
-    association.notes = notes
-    await db.commit()
-    await db.refresh(association)
-
-    return NotesUpdateResult(notes=association.notes)
-
-
-async def async_update_article_enrichments(
-    db: AsyncSession,
-    user: User,
-    report_id: int,
-    article_id: int,
-    ai_enrichments: Dict[str, Any]
-) -> Optional[EnrichmentsUpdateResult]:
-    """Update AI enrichments for an article (async)."""
-    association = await async_get_article_association(db, user, report_id, article_id)
-    if not association:
-        return None
-
-    association.ai_enrichments = ai_enrichments
-    await db.commit()
-    await db.refresh(association)
-
-    return EnrichmentsUpdateResult(ai_enrichments=association.ai_enrichments)
-
-
-async def async_get_article_metadata(
-    db: AsyncSession,
-    user: User,
-    report_id: int,
-    article_id: int
-) -> Optional[ArticleMetadataResult]:
-    """Get notes and enrichments for an article (async)."""
-    association = await async_get_article_association(db, user, report_id, article_id)
-    if not association:
-        return None
-
-    return ArticleMetadataResult(
-        notes=association.notes,
-        ai_enrichments=association.ai_enrichments
-    )
-
-
-async def async_get_report_email_html(
-    db: AsyncSession,
-    user: User,
-    report_id: int
-) -> Optional[str]:
-    """Get stored email HTML for a report (async)."""
-    access_result = await async_get_report_with_access(db, report_id, user)
-    if not access_result:
-        return None
-    report, stream = access_result
-
-    enrichments = report.enrichments or {}
-    return enrichments.get('email_html')
-
-
-async def async_store_report_email_html(
-    db: AsyncSession,
-    user: User,
-    report_id: int,
-    html: str
-) -> bool:
-    """Store email HTML for a report (async)."""
-    access_result = await async_get_report_with_access(db, report_id, user)
-    if not access_result:
-        return False
-    report, stream = access_result
-
-    enrichments = report.enrichments or {}
-    enrichments['email_html'] = html
-    report.enrichments = enrichments
-    await db.commit()
-
-    return True
-
-
-async def async_generate_report_email_html(
-    db: AsyncSession,
-    user: User,
-    report_id: int
-) -> Optional[str]:
-    """Generate HTML email content for a report (async)."""
-    access_result = await async_get_report_with_access(db, report_id, user)
-    if not access_result:
-        return None
-    report, stream = access_result
-
-    # Get visible articles for the email
-    stmt = (
-        select(ReportArticleAssociation, Article)
-        .join(Article, ReportArticleAssociation.article_id == Article.article_id)
-        .where(
-            ReportArticleAssociation.report_id == report_id,
-            ReportArticleAssociation.is_hidden == False
+        return NotesUpdateResult(
+            report_id=report_id,
+            article_id=article_id,
+            notes=notes
         )
-        .order_by(ReportArticleAssociation.ranking)
-    )
-    result = await db.execute(stmt)
-    rows = result.all()
 
-    # Build email data
-    categories_dict: Dict[str, List[EmailArticle]] = {}
-    for assoc, article in rows:
-        cats = assoc.presentation_categories or ['Uncategorized']
-        for cat in cats:
-            if cat not in categories_dict:
-                categories_dict[cat] = []
-            categories_dict[cat].append(EmailArticle(
-                title=article.title or 'Untitled',
-                authors=', '.join(article.authors[:3]) + ('...' if len(article.authors or []) > 3 else '') if article.authors else '',
-                journal=article.journal or '',
-                year=str(article.year) if article.year else '',
-                summary=assoc.ai_summary or article.abstract[:300] + '...' if article.abstract and len(article.abstract) > 300 else (article.abstract or ''),
-                url=article.url or f"https://pubmed.ncbi.nlm.nih.gov/{article.pmid}/" if article.pmid else '',
-                relevance_rationale=assoc.relevance_rationale or ''
+    async def async_update_article_enrichments(
+        self,
+        user: User,
+        report_id: int,
+        article_id: int,
+        ai_enrichments: Dict[str, Any]
+    ) -> Optional[EnrichmentsUpdateResult]:
+        """Update AI enrichments on an article association (async)."""
+        assoc = await self.async_get_article_association(user, report_id, article_id)
+        if not assoc:
+            return None
+
+        assoc.ai_enrichments = ai_enrichments
+        await self.db.commit()
+
+        return EnrichmentsUpdateResult(
+            report_id=report_id,
+            article_id=article_id,
+            ai_enrichments=ai_enrichments
+        )
+
+    async def async_get_article_metadata(
+        self,
+        user: User,
+        report_id: int,
+        article_id: int
+    ) -> Optional[ArticleMetadataResult]:
+        """Get full article metadata (async)."""
+        assoc = await self.async_get_article_association(user, report_id, article_id)
+        if not assoc:
+            return None
+
+        stmt = select(Article).where(Article.article_id == article_id)
+        result = await self.db.execute(stmt)
+        article = result.scalars().first()
+
+        if not article:
+            return None
+
+        return ArticleMetadataResult(
+            article=article,
+            association=assoc
+        )
+
+    async def async_get_report_email_html(
+        self,
+        user: User,
+        report_id: int
+    ) -> Optional[str]:
+        """Get stored email HTML for a report (async)."""
+        access_result = await self.async_get_report_with_access(report_id, user)
+        if not access_result:
+            return None
+        report, _ = access_result
+
+        if not report.enrichments:
+            return None
+        return report.enrichments.get('email_html')
+
+    async def async_store_report_email_html(
+        self,
+        user: User,
+        report_id: int,
+        html: str
+    ) -> bool:
+        """Store email HTML for a report (async)."""
+        access_result = await self.async_get_report_with_access(report_id, user)
+        if not access_result:
+            return False
+        report, _ = access_result
+
+        enrichments = report.enrichments or {}
+        enrichments['email_html'] = html
+        report.enrichments = enrichments
+        await self.db.commit()
+
+        return True
+
+    async def async_generate_report_email_html(
+        self,
+        user: User,
+        report_id: int
+    ) -> Optional[str]:
+        """Generate HTML email content for a report (async)."""
+        access_result = await self.async_get_report_with_access(report_id, user)
+        if not access_result:
+            return None
+        report, stream = access_result
+
+        # Get visible articles for the email
+        stmt = (
+            select(ReportArticleAssociation, Article)
+            .join(Article, ReportArticleAssociation.article_id == Article.article_id)
+            .where(
+                ReportArticleAssociation.report_id == report_id,
+                ReportArticleAssociation.is_hidden == False
+            )
+            .order_by(ReportArticleAssociation.ranking)
+        )
+        result = await self.db.execute(stmt)
+        rows = result.all()
+
+        # Build email data
+        categories_dict: Dict[str, List[EmailArticle]] = {}
+        for assoc, article in rows:
+            cats = assoc.presentation_categories or ['Uncategorized']
+            for cat in cats:
+                if cat not in categories_dict:
+                    categories_dict[cat] = []
+                categories_dict[cat].append(EmailArticle(
+                    title=article.title or 'Untitled',
+                    authors=', '.join(article.authors[:3]) + ('...' if len(article.authors or []) > 3 else '') if article.authors else '',
+                    journal=article.journal or '',
+                    year=str(article.year) if article.year else '',
+                    summary=assoc.ai_summary or article.abstract[:300] + '...' if article.abstract and len(article.abstract) > 300 else (article.abstract or ''),
+                    url=article.url or f"https://pubmed.ncbi.nlm.nih.gov/{article.pmid}/" if article.pmid else '',
+                    relevance_rationale=assoc.relevance_rationale or ''
+                ))
+
+        email_categories = [
+            EmailCategory(name=name, articles=articles)
+            for name, articles in categories_dict.items()
+        ]
+
+        executive_summary = ''
+        if report.enrichments:
+            executive_summary = report.enrichments.get('executive_summary', '')
+
+        email_data = EmailReportData(
+            report_name=report.report_name,
+            stream_name=stream.stream_name,
+            report_date=report.report_date.strftime('%B %d, %Y') if report.report_date else '',
+            executive_summary=executive_summary,
+            categories=email_categories,
+            total_articles=len(rows)
+        )
+
+        # Generate HTML
+        template_service = EmailTemplateService()
+        return template_service.generate_report_email(email_data)
+
+    async def async_approve_report(
+        self,
+        report_id: int,
+        user_id: int,
+        notes: Optional[str] = None
+    ) -> ApproveReportResult:
+        """Approve a report for publication (async)."""
+        from models import CurationEvent
+
+        # Get report
+        result = await self.db.execute(
+            select(Report).where(Report.report_id == report_id)
+        )
+        report = result.scalars().first()
+
+        if not report:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+
+        # Count visible articles
+        count_result = await self.db.execute(
+            select(func.count(ReportArticleAssociation.article_id)).where(
+                ReportArticleAssociation.report_id == report_id,
+                ReportArticleAssociation.is_hidden == False
+            )
+        )
+        article_count = count_result.scalar() or 0
+
+        if article_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot approve report with no articles"
+            )
+
+        # Update approval status
+        report.approval_status = ApprovalStatus.APPROVED
+        report.approved_by = user_id
+        report.approved_at = datetime.utcnow()
+
+        # Create audit event
+        event = CurationEvent(
+            report_id=report_id,
+            event_type='approve_report',
+            notes=notes,
+            curator_id=user_id
+        )
+        self.db.add(event)
+
+        await self.db.commit()
+
+        return ApproveReportResult(
+            report_id=report_id,
+            approval_status='approved',
+            approved_by=user_id,
+            approved_at=report.approved_at.isoformat(),
+        )
+
+    async def async_reject_report(
+        self,
+        report_id: int,
+        user_id: int,
+        reason: str
+    ) -> RejectReportResult:
+        """Reject a report with a reason (async)."""
+        from models import CurationEvent
+
+        # Get report
+        result = await self.db.execute(
+            select(Report).where(Report.report_id == report_id)
+        )
+        report = result.scalars().first()
+
+        if not report:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+
+        # Update approval status
+        report.approval_status = ApprovalStatus.REJECTED
+        report.rejection_reason = reason
+        report.approved_by = user_id
+        report.approved_at = datetime.utcnow()
+
+        # Create audit event
+        event = CurationEvent(
+            report_id=report_id,
+            event_type='reject_report',
+            notes=reason,
+            curator_id=user_id
+        )
+        self.db.add(event)
+
+        await self.db.commit()
+
+        return RejectReportResult(
+            report_id=report_id,
+            approval_status='rejected',
+            rejection_reason=reason,
+            rejected_by=user_id,
+            rejected_at=report.approved_at.isoformat(),
+        )
+
+    async def async_get_curation_history(
+        self,
+        report_id: int,
+        user_id: int
+    ) -> CurationHistoryData:
+        """Get curation history for a report (async)."""
+        from models import CurationEvent
+
+        # Verify report exists
+        result = await self.db.execute(
+            select(Report).where(Report.report_id == report_id)
+        )
+        report = result.scalars().first()
+
+        if not report:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+
+        # Get curation events
+        events_result = await self.db.execute(
+            select(CurationEvent, User)
+            .outerjoin(User, CurationEvent.curator_id == User.user_id)
+            .where(CurationEvent.report_id == report_id)
+            .order_by(CurationEvent.created_at.desc())
+        )
+        rows = events_result.all()
+
+        events = []
+        for event, curator in rows:
+            # Get article title if applicable
+            article_title = None
+            if event.article_id:
+                article_result = await self.db.execute(
+                    select(Article.title).where(Article.article_id == event.article_id)
+                )
+                article_title = article_result.scalar()
+
+            events.append(CurationEventData(
+                id=event.id,
+                event_type=event.event_type,
+                field_name=event.field_name,
+                old_value=event.old_value,
+                new_value=event.new_value,
+                notes=event.notes,
+                article_id=event.article_id,
+                article_title=article_title,
+                curator_name=curator.full_name or curator.email if curator else "Unknown",
+                created_at=event.created_at.isoformat(),
             ))
 
-    email_categories = [
-        EmailCategory(name=name, articles=articles)
-        for name, articles in categories_dict.items()
-    ]
-
-    executive_summary = ''
-    if report.enrichments:
-        executive_summary = report.enrichments.get('executive_summary', '')
-
-    email_data = EmailReportData(
-        report_name=report.report_name,
-        stream_name=stream.stream_name,
-        report_date=report.report_date.strftime('%B %d, %Y') if report.report_date else '',
-        executive_summary=executive_summary,
-        categories=email_categories,
-        total_articles=len(rows)
-    )
-
-    # Generate HTML
-    template_service = EmailTemplateService()
-    return template_service.generate_report_email(email_data)
-
-
-async def async_approve_report(
-    db: AsyncSession,
-    report_id: int,
-    user_id: int,
-    notes: Optional[str] = None
-) -> ApproveReportResult:
-    """Approve a report for publication (async)."""
-    from models import CurationEvent
-
-    # Get report with access check
-    result = await db.execute(
-        select(Report).where(Report.report_id == report_id)
-    )
-    report = result.scalars().first()
-
-    if not report:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Report not found"
+        return CurationHistoryData(
+            events=events,
+            total_count=len(events),
         )
 
-    # Count visible articles
-    count_result = await db.execute(
-        select(func.count(ReportArticleAssociation.article_id)).where(
-            ReportArticleAssociation.report_id == report_id,
-            ReportArticleAssociation.is_hidden == False
-        )
-    )
-    article_count = count_result.scalar() or 0
 
-    if article_count == 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot approve report with no articles"
-        )
+# =============================================================================
+# Dependency Injection Provider
+# =============================================================================
 
-    # Update approval status
-    report.approval_status = ApprovalStatus.APPROVED
-    report.approved_by = user_id
-    report.approved_at = datetime.utcnow()
-
-    # Create audit event
-    event = CurationEvent(
-        report_id=report_id,
-        event_type='approve_report',
-        notes=notes,
-        curator_id=user_id
-    )
-    db.add(event)
-
-    await db.commit()
-
-    return ApproveReportResult(
-        report_id=report_id,
-        approval_status='approved',
-        approved_by=user_id,
-        approved_at=report.approved_at.isoformat(),
-    )
-
-
-async def async_reject_report(
-    db: AsyncSession,
-    report_id: int,
-    user_id: int,
-    reason: str
-) -> RejectReportResult:
-    """Reject a report with a reason (async)."""
-    from models import CurationEvent
-
-    # Get report
-    result = await db.execute(
-        select(Report).where(Report.report_id == report_id)
-    )
-    report = result.scalars().first()
-
-    if not report:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Report not found"
-        )
-
-    # Update approval status
-    report.approval_status = ApprovalStatus.REJECTED
-    report.rejection_reason = reason
-    report.approved_by = user_id
-    report.approved_at = datetime.utcnow()
-
-    # Create audit event
-    event = CurationEvent(
-        report_id=report_id,
-        event_type='reject_report',
-        notes=reason,
-        curator_id=user_id
-    )
-    db.add(event)
-
-    await db.commit()
-
-    return RejectReportResult(
-        report_id=report_id,
-        approval_status='rejected',
-        rejection_reason=reason,
-        rejected_by=user_id,
-        rejected_at=report.approved_at.isoformat(),
-    )
-
-
-async def async_get_curation_history(
-    db: AsyncSession,
-    report_id: int,
-    user_id: int
-) -> CurationHistoryData:
-    """Get curation history for a report (async)."""
-    from models import CurationEvent
-
-    # Verify report exists
-    result = await db.execute(
-        select(Report).where(Report.report_id == report_id)
-    )
-    report = result.scalars().first()
-
-    if not report:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Report not found"
-        )
-
-    # Get curation events
-    events_result = await db.execute(
-        select(CurationEvent, User)
-        .outerjoin(User, CurationEvent.curator_id == User.user_id)
-        .where(CurationEvent.report_id == report_id)
-        .order_by(CurationEvent.created_at.desc())
-    )
-    rows = events_result.all()
-
-    events = []
-    for event, curator in rows:
-        # Get article title if applicable
-        article_title = None
-        if event.article_id:
-            article_result = await db.execute(
-                select(Article.title).where(Article.article_id == event.article_id)
-            )
-            article_title = article_result.scalar()
-
-        events.append(CurationEventData(
-            id=event.id,
-            event_type=event.event_type,
-            field_name=event.field_name,
-            old_value=event.old_value,
-            new_value=event.new_value,
-            notes=event.notes,
-            article_id=event.article_id,
-            article_title=article_title,
-            curator_name=curator.full_name or curator.email if curator else "Unknown",
-            created_at=event.created_at.isoformat(),
-        ))
-
-    return CurationHistoryData(
-        events=events,
-        total_count=len(events),
-    )
+async def get_async_report_service(
+    db: AsyncSession = Depends(get_async_db)
+) -> ReportService:
+    """FastAPI dependency that provides a ReportService with AsyncSession."""
+    return ReportService(db)
