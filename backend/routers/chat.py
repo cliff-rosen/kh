@@ -6,11 +6,9 @@ Endpoints for chat persistence (CRUD operations on chats).
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
 from typing import Optional, List
 from pydantic import BaseModel
 
-from database import get_db
 from models import User, UserRole
 from services import auth_service
 from services.chat_service import (

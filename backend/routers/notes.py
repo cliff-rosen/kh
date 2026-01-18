@@ -3,14 +3,12 @@ Notes API endpoints for article notes with visibility control.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from typing import List
 import logging
 
-from database import get_db
 from models import User
 from services import auth_service
-from services.notes_service import NotesService
+from services.notes_service import NotesService, get_async_notes_service
 from schemas.organization import (
     ArticleNote, ArticleNoteCreate, ArticleNoteUpdate, ArticleNotesResponse
 )
@@ -18,13 +16,6 @@ from schemas.organization import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/notes", tags=["notes"])
-
-
-def get_current_user(
-    current_user: User = Depends(auth_service.validate_token)
-) -> User:
-    """Dependency to get the current authenticated user."""
-    return current_user
 
 
 @router.get(
@@ -35,8 +26,8 @@ def get_current_user(
 async def get_article_notes(
     report_id: int,
     article_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(auth_service.validate_token),
+    notes_service: NotesService = Depends(get_async_notes_service)
 ):
     """
     Get all visible notes for an article in a report.
@@ -45,8 +36,7 @@ async def get_article_notes(
     - User's own notes (personal and shared)
     - Shared notes from other users in the same organization
     """
-    service = NotesService(db)
-    notes = service.get_notes(report_id, article_id, current_user)
+    notes = await notes_service.async_get_notes(report_id, article_id, current_user)
 
     return ArticleNotesResponse(
         report_id=report_id,
@@ -66,8 +56,8 @@ async def create_article_note(
     report_id: int,
     article_id: int,
     note_data: ArticleNoteCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(auth_service.validate_token),
+    notes_service: NotesService = Depends(get_async_notes_service)
 ):
     """
     Create a new note on an article.
@@ -75,8 +65,7 @@ async def create_article_note(
     - **content**: The note text
     - **visibility**: "personal" (only you can see) or "shared" (org members can see)
     """
-    service = NotesService(db)
-    note = service.create_note(
+    note = await notes_service.async_create_note(
         report_id=report_id,
         article_id=article_id,
         user=current_user,
@@ -103,8 +92,8 @@ async def update_article_note(
     article_id: int,
     note_id: str,
     note_data: ArticleNoteUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(auth_service.validate_token),
+    notes_service: NotesService = Depends(get_async_notes_service)
 ):
     """
     Update an existing note. Only the author can update their note.
@@ -112,8 +101,7 @@ async def update_article_note(
     - **content**: New note text (optional)
     - **visibility**: New visibility setting (optional)
     """
-    service = NotesService(db)
-    note = service.update_note(
+    note = await notes_service.async_update_note(
         report_id=report_id,
         article_id=article_id,
         note_id=note_id,
@@ -140,12 +128,11 @@ async def delete_article_note(
     report_id: int,
     article_id: int,
     note_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(auth_service.validate_token),
+    notes_service: NotesService = Depends(get_async_notes_service)
 ):
     """Delete a note. Only the author can delete their note."""
-    service = NotesService(db)
-    success = service.delete_note(
+    success = await notes_service.async_delete_note(
         report_id=report_id,
         article_id=article_id,
         note_id=note_id,

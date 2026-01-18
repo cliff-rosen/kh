@@ -6,14 +6,12 @@ For platform operations, not platform admin.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sse_starlette.sse import EventSourceResponse
-from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import logging
 import httpx
 import json
 
-from database import get_db
 from models import User
 from services import auth_service
 from services.operations_service import (
@@ -35,11 +33,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/operations", tags=["operations"])
 
 
-def get_current_user(
-    current_user: User = Depends(auth_service.validate_token)
-) -> User:
-    """Dependency to get the current authenticated user."""
-    return current_user
 
 
 # ==================== API-Specific Models (request/response wrappers) ====================
@@ -103,7 +96,7 @@ async def get_execution_queue(
     stream_id: Optional[int] = None,
     limit: int = 50,
     offset: int = 0,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(auth_service.validate_token),
     service: OperationsService = Depends(get_async_operations_service)
 ):
     """
@@ -147,7 +140,7 @@ async def get_execution_queue(
 )
 async def get_execution_detail(
     execution_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(auth_service.validate_token),
     service: OperationsService = Depends(get_async_operations_service)
 ):
     """Get full execution details including report and WIP articles (async)."""
@@ -177,7 +170,7 @@ async def get_execution_detail(
     summary="Get all scheduled streams"
 )
 async def get_scheduled_streams(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(auth_service.validate_token),
     service: OperationsService = Depends(get_async_operations_service)
 ):
     """Get all streams with scheduling configuration and their last execution status (async)."""
@@ -207,7 +200,7 @@ async def get_scheduled_streams(
 async def update_stream_schedule(
     stream_id: int,
     request: UpdateScheduleRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(auth_service.validate_token),
     service: OperationsService = Depends(get_async_operations_service)
 ):
     """Update scheduling configuration for a stream (async)."""
@@ -242,7 +235,7 @@ async def update_stream_schedule(
 )
 async def trigger_run(
     request: TriggerRunRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(auth_service.validate_token),
 ):
     """
     Trigger a pipeline run for a stream.
@@ -299,7 +292,7 @@ async def trigger_run(
 )
 async def get_run_status(
     execution_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(auth_service.validate_token),
 ):
     """Get the status of a pipeline execution."""
     logger.info(f"get_run_status - user_id={current_user.user_id}, execution_id={execution_id}")
@@ -342,7 +335,7 @@ async def get_run_status(
 )
 async def stream_run_status(
     execution_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(auth_service.validate_token),
 ) -> EventSourceResponse:
     """
     Stream status updates for a running execution via SSE.
@@ -398,7 +391,7 @@ async def stream_run_status(
 )
 async def cancel_run(
     execution_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(auth_service.validate_token),
 ):
     """
     Request cancellation of a running job.

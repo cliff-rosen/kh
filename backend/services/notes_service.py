@@ -386,6 +386,49 @@ class NotesService:
 
         return new_note
 
+    async def async_update_note(
+        self,
+        report_id: int,
+        article_id: int,
+        note_id: str,
+        user: User,
+        content: Optional[str] = None,
+        visibility: Optional[str] = None
+    ) -> Optional[dict]:
+        """Update an existing note (async). Only the author can update their note."""
+        association = await self._async_get_article_association(report_id, article_id, user)
+        if not association:
+            return None
+
+        raw_notes = association.notes
+        existing_notes = _parse_notes(raw_notes)
+        if not existing_notes:
+            return None
+
+        for i, note in enumerate(existing_notes):
+            if not isinstance(note, dict):
+                continue
+
+            if note.get("id") == note_id:
+                # Only author can update
+                if note.get("user_id") != user.user_id:
+                    return None
+
+                # Update fields
+                if content is not None:
+                    note["content"] = content
+                if visibility is not None:
+                    note["visibility"] = visibility
+                note["updated_at"] = datetime.utcnow().isoformat()
+
+                existing_notes[i] = note
+                association.notes = _serialize_notes(existing_notes)
+                await self.db.commit()
+
+                return note
+
+        return None
+
     async def async_delete_note(
         self,
         report_id: int,
