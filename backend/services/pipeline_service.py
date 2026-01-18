@@ -180,11 +180,11 @@ class PipelineService:
         "executive_summary": {"model": "gpt-4.1", "temperature": 0.0},
     }
 
-    def _get_stage_llm_config(
+    def _get_stage_model_config(
         self, ctx: "PipelineContext", stage: str
-    ) -> Dict[str, Any]:
+    ) -> ModelConfig:
         """
-        Get LLM configuration for a specific pipeline stage.
+        Get ModelConfig for a specific pipeline stage.
 
         Args:
             ctx: Pipeline context with llm_config snapshot
@@ -192,14 +192,21 @@ class PipelineService:
                    category_summary, executive_summary
 
         Returns:
-            Dict with 'model' and either 'temperature' or 'reasoning_effort'
+            ModelConfig ready to pass to services
         """
+        # Get stage config, merging with defaults
         if ctx.llm_config and stage in ctx.llm_config:
             stage_config = ctx.llm_config[stage]
-            # Merge with defaults to ensure all required keys exist
-            return {**self.DEFAULT_MODEL_CONFIG.get(stage, {}), **stage_config}
-        return self.DEFAULT_MODEL_CONFIG.get(
-            stage, {"model": "gpt-4.1", "temperature": 0.3}
+            cfg = {**self.DEFAULT_MODEL_CONFIG.get(stage, {}), **stage_config}
+        else:
+            cfg = self.DEFAULT_MODEL_CONFIG.get(
+                stage, {"model": "gpt-4.1", "temperature": 0.0}
+            )
+
+        return ModelConfig(
+            model=cfg.get("model") or "gpt-4.1",
+            temperature=cfg.get("temperature") if cfg.get("temperature") is not None else 0.0,
+            reasoning_effort=cfg.get("reasoning_effort"),
         )
 
     # =========================================================================
@@ -484,10 +491,7 @@ class PipelineService:
         yield PipelineStatus("filter", "Applying semantic filters...")
 
         # Get model configuration for semantic filter stage
-        filter_model_cfg = self._get_stage_llm_config(ctx, "semantic_filter")
-        filter_model = filter_model_cfg.get("model")
-        filter_temp = filter_model_cfg.get("temperature")
-        filter_reasoning = filter_model_cfg.get("reasoning_effort")
+        model_config = self._get_stage_model_config(ctx, "semantic_filter")
 
         for query in ctx.queries:
             if not query.semantic_filter.enabled:
@@ -509,10 +513,8 @@ class PipelineService:
                     retrieval_unit_id=q.query_id,
                     filter_criteria=q.semantic_filter.criteria,
                     threshold=q.semantic_filter.threshold,
+                    model_config=model_config,
                     on_progress=on_progress,
-                    model=filter_model,
-                    temperature=filter_temp,
-                    reasoning_effort=filter_reasoning,
                 ),
                 stage="filter",
                 progress_msg_template="Filtering: {completed}/{total}",
@@ -583,7 +585,7 @@ class PipelineService:
         yield PipelineStatus("categorize", "Categorizing articles...")
 
         # Get LLM config for categorization
-        model_cfg = self._get_stage_llm_config(ctx, "categorization")
+        model_config = self._get_stage_model_config(ctx, "categorization")
 
         # Stream progress while categorizing
         result = None
@@ -591,8 +593,7 @@ class PipelineService:
             task_coro=lambda on_progress: self._categorize_articles(
                 report_id=ctx.report.report_id,
                 presentation_config=ctx.presentation_config,
-                model=model_cfg.get("model"),
-                temperature=model_cfg.get("temperature"),
+                model_config=model_config,
                 on_progress=on_progress,
             ),
             stage="categorize",
@@ -630,7 +631,7 @@ class PipelineService:
         enrichment_config = ctx.enrichment_config
 
         # Get LLM config for article summaries
-        model_cfg = self._get_stage_llm_config(ctx, "article_summary")
+        model_config = self._get_stage_model_config(ctx, "article_summary")
 
         yield PipelineStatus("article_summaries", "Generating article summaries...")
 
@@ -641,8 +642,7 @@ class PipelineService:
                 report_id=ctx.report.report_id,
                 stream=ctx.stream,
                 enrichment_config=enrichment_config,
-                model=model_cfg.get("model"),
-                temperature=model_cfg.get("temperature"),
+                model_config=model_config,
                 on_progress=on_progress,
             ),
             stage="article_summaries",
@@ -668,8 +668,7 @@ class PipelineService:
         report_id: int,
         stream: Any,
         enrichment_config: Optional[Dict[str, Any]],
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
+        model_config: ModelConfig,
         on_progress: Optional[ProgressCallback] = None,
     ) -> int:
         """
@@ -707,12 +706,6 @@ class PipelineService:
                 "stream_purpose": stream.purpose or "",
             })
 
-        # Build model config
-        model_config = ModelConfig(
-            model=model or "gpt-4.1",
-            temperature=temperature if temperature is not None else 0.3,
-        )
-
         # Call summary service
         results = await self.summary_service.generate_article_summary(
             items=items,
@@ -746,11 +739,7 @@ class PipelineService:
         yield PipelineStatus("category_summaries", f"Generating summaries for {len(ctx.categories)} categories...")
 
         # Get LLM config for category summaries
-        category_summary_cfg = self._get_stage_llm_config(ctx, "category_summary")
-        model_config = ModelConfig(
-            model=category_summary_cfg.get("model") or "gpt-4.1",
-            temperature=category_summary_cfg.get("temperature") if category_summary_cfg.get("temperature") is not None else 0.3,
-        )
+        model_config = self._get_stage_model_config(ctx, "category_summary")
 
         # Get associations - single source of truth for article data
         if not ctx.report:
@@ -857,11 +846,7 @@ class PipelineService:
         yield PipelineStatus("executive_summary", "Generating executive summary...")
 
         # Get LLM config for executive summary
-        executive_summary_cfg = self._get_stage_llm_config(ctx, "executive_summary")
-        model_config = ModelConfig(
-            model=executive_summary_cfg.get("model") or "gpt-4.1",
-            temperature=executive_summary_cfg.get("temperature") if executive_summary_cfg.get("temperature") is not None else 0.3,
-        )
+        model_config = self._get_stage_model_config(ctx, "executive_summary")
 
         # Get associations - single source of truth for article data
         if not ctx.report:
@@ -1190,10 +1175,8 @@ class PipelineService:
         retrieval_unit_id: str,
         filter_criteria: str,
         threshold: float,
+        model_config: ModelConfig,
         on_progress: Optional[callable] = None,
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        reasoning_effort: Optional[str] = None,
     ) -> Tuple[int, int, int]:
         """
         Apply semantic filter to articles in a retrieval unit (concept or broad query) using LLM in parallel batches.
@@ -1203,10 +1186,8 @@ class PipelineService:
             retrieval_unit_id: Retrieval unit ID (query_id)
             filter_criteria: Natural language filter criteria
             threshold: Minimum score (0-1) for article to pass
+            model_config: LLM model configuration
             on_progress: Optional async callback(completed, total) for progress updates
-            model: Optional LLM model to use (e.g., 'o4-mini', 'gpt-4.1')
-            temperature: Optional temperature for chat models
-            reasoning_effort: Optional reasoning effort for reasoning models
 
         Returns:
             Tuple of (passed_count, rejected_count, error_count)
@@ -1265,11 +1246,7 @@ Score from {min_value} to {max_value}."""
             min_value=0.0,
             max_value=1.0,
             include_reasoning=True,
-            model_config=ModelConfig(
-                model=model or "gpt-4.1",
-                temperature=temperature or 0.0,
-                reasoning_effort=reasoning_effort,
-            ),
+            model_config=model_config,
             options=LLMOptions(
                 max_concurrent=50,
                 on_progress=on_progress,
@@ -1386,8 +1363,7 @@ Score from {min_value} to {max_value}."""
         self,
         report_id: int,
         presentation_config: PresentationConfig,
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
+        model_config: ModelConfig,
         on_progress: Optional[callable] = None,
     ) -> Tuple[int, int]:
         """
@@ -1396,8 +1372,7 @@ Score from {min_value} to {max_value}."""
         Args:
             report_id: Report ID (report must already exist)
             presentation_config: Presentation configuration with categories
-            model: Optional model override
-            temperature: Optional temperature override
+            model_config: LLM model configuration
             on_progress: Optional async callback(completed, total) for progress updates
 
         Returns:
@@ -1439,12 +1414,6 @@ Score from {min_value} to {max_value}."""
         if not items:
             logger.info(f"No articles with data to categorize for report_id={report_id}")
             return 0, 0
-
-        # Build model config
-        model_config = ModelConfig(
-            model=model or "gpt-4.1",
-            temperature=temperature if temperature is not None else 0.0,
-        )
 
         # Call categorization service
         results = await self.categorization_service.categorize(
