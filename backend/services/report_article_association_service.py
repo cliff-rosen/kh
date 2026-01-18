@@ -10,6 +10,7 @@ from typing import List, Optional, Tuple, Union
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select, func
+from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status, Depends
 
 from models import ReportArticleAssociation
@@ -415,7 +416,9 @@ class ReportArticleAssociationService:
     async def async_get_visible_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
         """Get all visible associations for a report (async)."""
         result = await self.db.execute(
-            select(ReportArticleAssociation).where(
+            select(ReportArticleAssociation)
+            .options(selectinload(ReportArticleAssociation.article))
+            .where(
                 and_(
                     ReportArticleAssociation.report_id == report_id,
                     ReportArticleAssociation.is_hidden == False
@@ -427,7 +430,9 @@ class ReportArticleAssociationService:
     async def async_get_all_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
         """Get all associations for a report (async)."""
         result = await self.db.execute(
-            select(ReportArticleAssociation).where(
+            select(ReportArticleAssociation)
+            .options(selectinload(ReportArticleAssociation.article))
+            .where(
                 ReportArticleAssociation.report_id == report_id
             ).order_by(ReportArticleAssociation.ranking)
         )
