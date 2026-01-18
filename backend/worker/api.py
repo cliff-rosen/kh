@@ -13,14 +13,15 @@ import asyncio
 import json
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import select
 from pydantic import BaseModel
 from typing import Optional, List, AsyncGenerator
 from datetime import datetime
 import uuid
 
-from database import get_db
+from database import get_async_db
 from models import PipelineExecution, ResearchStream, ExecutionStatus, RunType
 from worker.status_broker import broker
 from worker.state import worker_state
@@ -73,7 +74,7 @@ class HealthResponse(BaseModel):
 @router.post("/runs", response_model=TriggerRunResponse)
 async def trigger_run(
     request: TriggerRunRequest,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Trigger a pipeline run for a stream.
@@ -90,9 +91,9 @@ async def trigger_run(
 
     try:
         # Get stream with all its configuration
-        stream = db.query(ResearchStream).filter(
-            ResearchStream.stream_id == request.stream_id
-        ).first()
+        stmt = select(ResearchStream).where(ResearchStream.stream_id == request.stream_id)
+        result = await db.execute(stmt)
+        stream = result.scalars().first()
 
         if not stream:
             logger.warning(f"trigger_run failed - stream {request.stream_id} not found")
@@ -145,7 +146,7 @@ async def trigger_run(
             llm_config=llm_config
         )
         db.add(execution)
-        db.commit()
+        await db.commit()
 
         # Wake up the scheduler immediately so it picks up this job
         worker_state.wake_scheduler()
@@ -163,7 +164,7 @@ async def trigger_run(
         raise
     except SQLAlchemyError as e:
         logger.error(f"trigger_run database error - stream_id={request.stream_id}: {e}", exc_info=True)
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error while creating execution"
@@ -180,20 +181,18 @@ async def trigger_run(
 async def list_runs(
     status_filter: Optional[str] = None,
     limit: int = 20,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """List recent pipeline executions"""
     logger.info(f"list_runs called - status_filter={status_filter}, limit={limit}")
 
     try:
-        query = db.query(PipelineExecution).order_by(
-            PipelineExecution.created_at.desc()
-        )
+        stmt = select(PipelineExecution).order_by(PipelineExecution.created_at.desc())
 
         if status_filter:
             try:
                 exec_status = ExecutionStatus(status_filter)
-                query = query.filter(PipelineExecution.status == exec_status)
+                stmt = stmt.where(PipelineExecution.status == exec_status)
             except ValueError:
                 logger.warning(f"list_runs invalid status filter: {status_filter}")
                 raise HTTPException(
@@ -201,7 +200,9 @@ async def list_runs(
                     detail=f"Invalid status: {status_filter}. Valid values: pending, running, completed, failed"
                 )
 
-        executions = query.limit(limit).all()
+        stmt = stmt.limit(limit)
+        result = await db.execute(stmt)
+        executions = list(result.scalars().all())
 
         logger.info(f"list_runs returning {len(executions)} executions")
 
@@ -237,15 +238,15 @@ async def list_runs(
 @router.get("/runs/{execution_id}", response_model=JobStatusResponse)
 async def get_run_status(
     execution_id: str,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Get status of a specific execution"""
     logger.debug(f"get_run_status called - execution_id={execution_id}")
 
     try:
-        execution = db.query(PipelineExecution).filter(
-            PipelineExecution.id == execution_id
-        ).first()
+        stmt = select(PipelineExecution).where(PipelineExecution.id == execution_id)
+        result = await db.execute(stmt)
+        execution = result.scalars().first()
 
         if not execution:
             logger.warning(f"get_run_status - execution {execution_id} not found")
@@ -283,7 +284,7 @@ async def get_run_status(
 @router.get("/runs/{execution_id}/stream")
 async def stream_run_status(
     execution_id: str,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Stream status updates for a running execution via SSE.
@@ -295,9 +296,9 @@ async def stream_run_status(
 
     # Verify execution exists
     try:
-        execution = db.query(PipelineExecution).filter(
-            PipelineExecution.id == execution_id
-        ).first()
+        stmt = select(PipelineExecution).where(PipelineExecution.id == execution_id)
+        result = await db.execute(stmt)
+        execution = result.scalars().first()
 
         if not execution:
             logger.warning(f"stream_run_status - execution {execution_id} not found")
@@ -383,7 +384,7 @@ async def stream_run_status(
 @router.delete("/runs/{execution_id}")
 async def cancel_run(
     execution_id: str,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Request cancellation of a running job.
@@ -393,9 +394,9 @@ async def cancel_run(
     logger.info(f"cancel_run called - execution_id={execution_id}")
 
     try:
-        execution = db.query(PipelineExecution).filter(
-            PipelineExecution.id == execution_id
-        ).first()
+        stmt = select(PipelineExecution).where(PipelineExecution.id == execution_id)
+        result = await db.execute(stmt)
+        execution = result.scalars().first()
 
         if not execution:
             logger.warning(f"cancel_run - execution {execution_id} not found")
@@ -416,7 +417,7 @@ async def cancel_run(
             execution.status = ExecutionStatus.FAILED
             execution.error = "Cancelled by user"
             execution.completed_at = datetime.utcnow()
-            db.commit()
+            await db.commit()
             logger.info(f"cancel_run - cancelled pending execution {execution_id}")
             return {"message": "Execution cancelled", "execution_id": execution_id}
 
@@ -432,7 +433,7 @@ async def cancel_run(
         raise
     except SQLAlchemyError as e:
         logger.error(f"cancel_run database error - execution_id={execution_id}: {e}", exc_info=True)
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error while cancelling execution"

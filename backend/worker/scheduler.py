@@ -9,9 +9,9 @@ Finds jobs that are ready to run:
 import logging
 from datetime import datetime
 from typing import List, Dict, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import and_
+from sqlalchemy import and_, select
 
 from models import ResearchStream, PipelineExecution, ExecutionStatus
 
@@ -21,19 +21,21 @@ logger = logging.getLogger('worker.scheduler')
 class JobDiscovery:
     """Discovers jobs ready to be executed"""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
 
-    def find_pending_executions(self) -> List[PipelineExecution]:
+    async def find_pending_executions(self) -> List[PipelineExecution]:
         """
         Find manually triggered executions waiting to be picked up.
 
         Returns executions with status='pending'.
         """
         try:
-            pending = self.db.query(PipelineExecution).filter(
+            stmt = select(PipelineExecution).where(
                 PipelineExecution.status == ExecutionStatus.PENDING
-            ).all()
+            )
+            result = await self.db.execute(stmt)
+            pending = list(result.scalars().all())
 
             return pending
 
@@ -44,7 +46,7 @@ class JobDiscovery:
             logger.error(f"Unexpected error finding pending executions: {e}", exc_info=True)
             raise
 
-    def find_scheduled_streams(self) -> List[ResearchStream]:
+    async def find_scheduled_streams(self) -> List[ResearchStream]:
         """
         Find streams due for scheduled execution.
 
@@ -56,13 +58,15 @@ class JobDiscovery:
             now = datetime.utcnow()
 
             # Query streams with scheduling enabled and due to run
-            due_streams = self.db.query(ResearchStream).filter(
+            stmt = select(ResearchStream).where(
                 and_(
                     ResearchStream.schedule_config.isnot(None),
                     ResearchStream.next_scheduled_run.isnot(None),
                     ResearchStream.next_scheduled_run <= now
                 )
-            ).all()
+            )
+            result = await self.db.execute(stmt)
+            due_streams = list(result.scalars().all())
 
             # Filter to only enabled schedules (JSON field check)
             enabled_streams = []
@@ -83,7 +87,7 @@ class JobDiscovery:
             logger.error(f"Unexpected error finding scheduled streams: {e}", exc_info=True)
             raise
 
-    def find_all_ready_jobs(self) -> Dict[str, Any]:
+    async def find_all_ready_jobs(self) -> Dict[str, Any]:
         """
         Find all jobs ready to execute.
 
@@ -99,14 +103,14 @@ class JobDiscovery:
         }
 
         try:
-            result['pending_executions'] = self.find_pending_executions()
+            result['pending_executions'] = await self.find_pending_executions()
             logger.debug(f"Found {len(result['pending_executions'])} pending executions")
         except Exception as e:
             logger.error(f"Failed to find pending executions: {e}")
             # Continue to check scheduled streams even if pending check fails
 
         try:
-            result['scheduled_streams'] = self.find_scheduled_streams()
+            result['scheduled_streams'] = await self.find_scheduled_streams()
             logger.debug(f"Found {len(result['scheduled_streams'])} scheduled streams due")
         except Exception as e:
             logger.error(f"Failed to find scheduled streams: {e}")

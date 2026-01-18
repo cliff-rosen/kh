@@ -20,9 +20,9 @@ from typing import Optional
 
 from fastapi import FastAPI
 import uvicorn
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import SessionLocal
+from database import AsyncSessionLocal
 from worker.scheduler import JobDiscovery
 from worker.dispatcher import JobDispatcher
 from worker.api import router as api_router
@@ -129,15 +129,44 @@ async def scheduler_loop():
     logger.info("Scheduler loop stopped")
 
 
+async def dispatcher_execute_pending(execution, execution_id: str):
+    """Execute a pending job with its own session."""
+    async with AsyncSessionLocal() as db:
+        dispatcher = JobDispatcher(db)
+        await dispatcher.execute_pending(execution)
+
+
+async def dispatcher_execute_scheduled(stream, job_key: str):
+    """Execute a scheduled job with its own session."""
+    async with AsyncSessionLocal() as db:
+        dispatcher = JobDispatcher(db)
+        await dispatcher.execute_scheduled(stream)
+
+
+async def run_job_safely(job_func, job_arg, job_id: str):
+    """
+    Wrapper to run a job with proper exception handling.
+    """
+    try:
+        logger.info(f"[{job_id}] Starting job")
+        await job_func(job_arg, job_id)
+        logger.info(f"[{job_id}] Job completed successfully")
+    except asyncio.CancelledError:
+        logger.warning(f"[{job_id}] Job was cancelled")
+        raise
+    except Exception as e:
+        logger.error(f"[{job_id}] Job failed: {e}", exc_info=True)
+        raise
+
+
 async def process_ready_jobs():
     """Check for and dispatch ready jobs"""
     logger.info("Polling for ready jobs...")
 
-    db = SessionLocal()
-    try:
+    async with AsyncSessionLocal() as db:
         discovery = JobDiscovery(db)
 
-        ready_jobs = discovery.find_all_ready_jobs()
+        ready_jobs = await discovery.find_all_ready_jobs()
         pending_count = len(ready_jobs['pending_executions'])
         scheduled_count = len(ready_jobs['scheduled_streams'])
 
@@ -171,10 +200,8 @@ async def process_ready_jobs():
 
             logger.info(f"Dispatching pending execution: {execution.id} for stream {execution.stream_id}")
             # Create a new DB session for the job (each job gets its own session)
-            job_db = SessionLocal()
-            dispatcher = JobDispatcher(job_db)
             task = asyncio.create_task(
-                run_job_safely(dispatcher.execute_pending, execution, execution.id, job_db)
+                run_job_safely(dispatcher_execute_pending, execution, execution.id)
             )
             worker_state.active_jobs[execution.id] = task
             active_count += 1
@@ -192,37 +219,11 @@ async def process_ready_jobs():
                 continue
 
             logger.info(f"Dispatching scheduled run for stream: {stream.stream_id} ({stream.stream_name})")
-            job_db = SessionLocal()
-            dispatcher = JobDispatcher(job_db)
             task = asyncio.create_task(
-                run_job_safely(dispatcher.execute_scheduled, stream, job_key, job_db)
+                run_job_safely(dispatcher_execute_scheduled, stream, job_key)
             )
             worker_state.active_jobs[job_key] = task
             active_count += 1
-
-    finally:
-        db.close()
-
-
-async def run_job_safely(job_func, job_arg, job_id: str, db: Session):
-    """
-    Wrapper to run a job with proper exception handling and cleanup.
-    """
-    try:
-        logger.info(f"[{job_id}] Starting job")
-        await job_func(job_arg)
-        logger.info(f"[{job_id}] Job completed successfully")
-    except asyncio.CancelledError:
-        logger.warning(f"[{job_id}] Job was cancelled")
-        raise
-    except Exception as e:
-        logger.error(f"[{job_id}] Job failed: {e}", exc_info=True)
-        raise
-    finally:
-        try:
-            db.close()
-        except Exception:
-            pass  # Ignore errors closing the session
 
 
 # ==================== FastAPI App ====================

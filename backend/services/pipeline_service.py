@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, select
 from datetime import date, datetime
 import asyncio
 import json
@@ -146,7 +146,7 @@ class PipelineService:
     # ENTITY LOOKUPS
     # =========================================================================
 
-    def get_execution_by_id(self, execution_id: str) -> PipelineExecution:
+    async def get_execution_by_id(self, execution_id: str) -> PipelineExecution:
         """
         Get a pipeline execution by ID, raising ValueError if not found.
 
@@ -159,11 +159,9 @@ class PipelineService:
         Raises:
             ValueError: if execution not found
         """
-        execution = (
-            self.db.query(PipelineExecution)
-            .filter(PipelineExecution.id == execution_id)
-            .first()
-        )
+        stmt = select(PipelineExecution).where(PipelineExecution.id == execution_id)
+        result = await self.db.execute(stmt)
+        execution = result.scalars().first()
         if not execution:
             raise ValueError(f"Pipeline execution {execution_id} not found")
         return execution
@@ -696,7 +694,7 @@ class PipelineService:
                 yield status
 
         # Stage commit
-        self.db.commit()
+        await self.db.commit()
 
         yield PipelineStatus(
             "article_summaries",
@@ -865,12 +863,12 @@ class PipelineService:
 
         # Save category summaries to report
         if ctx.report:
-            self.db.refresh(ctx.report)
+            await self.db.refresh(ctx.report)
             enrichments = ctx.report.enrichments or {}
             enrichments["category_summaries"] = ctx.category_summaries
             ctx.report.enrichments = enrichments
             flag_modified(ctx.report, "enrichments")
-            self.db.commit()
+            await self.db.commit()
 
         logger.info(f"Generated {len(ctx.category_summaries)} category summaries for report {ctx.report.report_id}")
 
@@ -952,14 +950,14 @@ class PipelineService:
 
         # Save executive summary to report and set original_enrichments
         if ctx.report:
-            self.db.refresh(ctx.report)
+            await self.db.refresh(ctx.report)
             enrichments = ctx.report.enrichments or {}
             enrichments["executive_summary"] = ctx.executive_summary
             ctx.report.enrichments = enrichments
             flag_modified(ctx.report, "enrichments")
             ctx.report.original_enrichments = ctx.report.enrichments.copy()
             flag_modified(ctx.report, "original_enrichments")
-            self.db.commit()
+            await self.db.commit()
 
         logger.info(f"Generated executive summary for report {ctx.report.report_id}")
 
@@ -1056,18 +1054,14 @@ class PipelineService:
             # Check for existing article
             existing_article = None
             if wip_article.doi:
-                existing_article = (
-                    self.db.query(Article)
-                    .filter(Article.doi == wip_article.doi)
-                    .first()
-                )
+                stmt = select(Article).where(Article.doi == wip_article.doi)
+                result = await self.db.execute(stmt)
+                existing_article = result.scalars().first()
 
             if not existing_article and wip_article.pmid:
-                existing_article = (
-                    self.db.query(Article)
-                    .filter(Article.pmid == wip_article.pmid)
-                    .first()
-                )
+                stmt = select(Article).where(Article.pmid == wip_article.pmid)
+                result = await self.db.execute(stmt)
+                existing_article = result.scalars().first()
 
             if existing_article:
                 article = existing_article
@@ -1092,7 +1086,7 @@ class PipelineService:
                     fetch_count=1,
                 )
                 self.db.add(article)
-                self.db.flush()
+                await self.db.flush()
 
             # Create bare association - categories and summaries populated in later stages
             association = ReportArticleAssociation(
@@ -1111,7 +1105,7 @@ class PipelineService:
         ctx.execution.report_id = report.report_id
 
         # Commit everything: Report, Articles, Associations, and execution.report_id
-        self.db.commit()
+        await self.db.commit()
 
         return report
 
@@ -1148,11 +1142,9 @@ class PipelineService:
             Number of articles retrieved and stored
         """
         # Get source from database
-        source = (
-            self.db.query(InformationSource)
-            .filter(InformationSource.source_name == source_id)
-            .first()
-        )
+        stmt = select(InformationSource).where(InformationSource.source_name == source_id)
+        result = await self.db.execute(stmt)
+        source = result.scalars().first()
 
         if not source:
             raise ValueError(f"Source '{source_id}' not found")
@@ -1484,7 +1476,7 @@ Score from {min_value} to {max_value}."""
         categorized = self.association_service.bulk_set_categories_from_pipeline(
             association_results
         )
-        self.db.commit()
+        await self.db.commit()
         logger.info(
             f"Categorization complete: {categorized} articles categorized, {error_count} errors"
         )
