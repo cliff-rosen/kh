@@ -31,7 +31,8 @@ export default function DashboardPage() {
     }, [loadResearchStreams]);
 
     // Get stream name by ID
-    const getStreamName = (streamId: number) => {
+    const getStreamName = (streamId: number | null) => {
+        if (streamId === null) return 'Unknown Stream';
         const stream = researchStreams.find(s => s.stream_id === streamId);
         return stream?.stream_name || 'Unknown Stream';
     };
@@ -154,7 +155,10 @@ export default function DashboardPage() {
                                                 Research Stream
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                                Date
+                                                Report Date
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                Coverage Period
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                                 Articles
@@ -162,34 +166,47 @@ export default function DashboardPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                        {recentReports.map((report) => (
-                                            <tr
-                                                key={report.report_id}
-                                                onClick={() => handleReportClick(report)}
-                                                className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
-                                            >
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                                        {report.report_name || `Report ${report.report_id}`}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="text-sm text-gray-600 dark:text-gray-300">
-                                                        {getStreamName(report.research_stream_id)}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                                                        {new Date(report.report_date).toLocaleDateString()}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                                        {report.article_count || 0} articles
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                        {recentReports.map((report) => {
+                                            const startDate = report.retrieval_params?.start_date;
+                                            const endDate = report.retrieval_params?.end_date;
+                                            const coveragePeriod = startDate && endDate
+                                                ? `${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`
+                                                : '-';
+
+                                            return (
+                                                <tr
+                                                    key={report.report_id}
+                                                    onClick={() => handleReportClick(report)}
+                                                    className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                                                >
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                                            {report.report_name || `Report ${report.report_id}`}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="text-sm text-gray-600 dark:text-gray-300">
+                                                            {getStreamName(report.research_stream_id)}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                            {new Date(report.report_date).toLocaleDateString()}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                            {coveragePeriod}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                                            {report.article_count || 0} articles
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
