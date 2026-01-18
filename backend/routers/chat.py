@@ -10,10 +10,18 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 from pydantic import BaseModel
 
-from database import get_db
+from database import get_db, get_async_db
+from sqlalchemy.ext.asyncio import AsyncSession
 from models import User, UserRole
 from services import auth_service
-from services.chat_service import ChatService
+from services.chat_service import (
+    ChatService,
+    async_get_user_chats,
+    async_get_chat,
+    async_get_messages,
+    async_get_all_chats,
+    async_get_chat_with_messages
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,15 +73,15 @@ async def list_chats(
     app: str = Query("kh", description="App identifier: kh, tablizer, trialscout"),
     limit: int = Query(50, le=100),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(auth_service.validate_token)
 ):
-    """List user's chats for a specific app."""
+    """List user's chats for a specific app (async)."""
     logger.info(f"list_chats - user_id={current_user.user_id}, app={app}, limit={limit}, offset={offset}")
 
     try:
-        service = ChatService(db)
-        chats = service.get_user_chats(
+        chats = await async_get_user_chats(
+            db=db,
             user_id=current_user.user_id,
             app=app,
             limit=limit,
@@ -106,20 +114,19 @@ async def list_chats(
 @router.get("/{chat_id}", response_model=ChatWithMessagesResponse)
 async def get_chat(
     chat_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(auth_service.validate_token)
 ):
-    """Get a chat with its messages."""
+    """Get a chat with its messages (async)."""
     logger.info(f"get_chat - user_id={current_user.user_id}, chat_id={chat_id}")
 
     try:
-        service = ChatService(db)
-        chat = service.get_chat(chat_id, current_user.user_id)
+        chat = await async_get_chat(db, chat_id, current_user.user_id)
         if not chat:
             logger.warning(f"get_chat - not found - user_id={current_user.user_id}, chat_id={chat_id}")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat not found")
 
-        messages = service.get_messages(chat_id, current_user.user_id)
+        messages = await async_get_messages(db, chat_id, current_user.user_id)
 
         logger.info(f"get_chat complete - user_id={current_user.user_id}, chat_id={chat_id}, message_count={len(messages)}")
         return ChatWithMessagesResponse(
@@ -189,10 +196,10 @@ async def admin_list_chats(
     user_id: Optional[int] = Query(None, description="Filter by user ID"),
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(auth_service.validate_token)
 ):
-    """List all chats (platform admin only)."""
+    """List all chats (platform admin only, async)."""
     if current_user.role != UserRole.PLATFORM_ADMIN:
         logger.warning(f"admin_list_chats - unauthorized - user_id={current_user.user_id}")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Platform admin access required")
@@ -200,8 +207,8 @@ async def admin_list_chats(
     logger.info(f"admin_list_chats - admin_user_id={current_user.user_id}, filter_user_id={user_id}, limit={limit}, offset={offset}")
 
     try:
-        service = ChatService(db)
-        chats, total = service.get_all_chats(
+        chats, total = await async_get_all_chats(
+            db=db,
             limit=limit,
             offset=offset,
             user_id=user_id
@@ -228,10 +235,10 @@ async def admin_list_chats(
 @router.get("/admin/{chat_id}", response_model=AdminChatDetailResponse)
 async def admin_get_chat(
     chat_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(auth_service.validate_token)
 ):
-    """Get full chat with messages (platform admin only)."""
+    """Get full chat with messages (platform admin only, async)."""
     if current_user.role != UserRole.PLATFORM_ADMIN:
         logger.warning(f"admin_get_chat - unauthorized - user_id={current_user.user_id}, chat_id={chat_id}")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Platform admin access required")
@@ -239,8 +246,7 @@ async def admin_get_chat(
     logger.info(f"admin_get_chat - admin_user_id={current_user.user_id}, chat_id={chat_id}")
 
     try:
-        service = ChatService(db)
-        chat = service.get_chat_with_messages(chat_id)
+        chat = await async_get_chat_with_messages(db, chat_id)
         if not chat:
             logger.warning(f"admin_get_chat - not found - admin_user_id={current_user.user_id}, chat_id={chat_id}")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat not found")

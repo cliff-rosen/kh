@@ -862,3 +862,289 @@ async def async_get_user_research_streams(
         )
         for stream, report_count, latest_report_date in rows
     ]
+
+
+async def async_get_research_stream(
+    db: AsyncSession,
+    user: User,
+    stream_id: int
+) -> Optional[ResearchStream]:
+    """
+    Get a specific research stream by ID with access check (async).
+
+    Returns:
+        ResearchStream model or None if not found/no access
+    """
+    # Check if user has access to this stream
+    accessible_ids = await async_get_accessible_stream_ids(db, user)
+
+    if stream_id not in accessible_ids:
+        return None
+
+    result = await db.execute(
+        select(ResearchStream).where(ResearchStream.stream_id == stream_id)
+    )
+    return result.scalars().first()
+
+
+async def async_create_research_stream(
+    db: AsyncSession,
+    user: User,
+    stream_name: str,
+    purpose: str,
+    scope: StreamScope,
+    semantic_space: Dict[str, Any],
+    retrieval_config: Dict[str, Any],
+    presentation_config: Dict[str, Any],
+    schedule_config: Optional[Dict[str, Any]] = None,
+    chat_instructions: Optional[str] = None,
+    org_id: Optional[int] = None,
+) -> ResearchStream:
+    """
+    Create a new research stream (async).
+
+    Args:
+        user: The user creating the stream
+        scope: StreamScope.PERSONAL (default), ORGANIZATION, or GLOBAL
+        org_id: Override org_id (for org streams, uses user's org_id by default)
+
+    Returns:
+        Created ResearchStream model
+    """
+    # Determine the correct user_id, org_id based on scope
+    stream_user_id = None
+    stream_org_id = org_id
+
+    if scope == StreamScope.PERSONAL:
+        stream_user_id = user.user_id
+        stream_org_id = user.org_id  # Personal streams use user's org
+    elif scope == StreamScope.ORGANIZATION:
+        stream_user_id = None  # Org streams have no owner
+        if not org_id:
+            stream_org_id = user.org_id  # Default to user's org
+    elif scope == StreamScope.GLOBAL:
+        stream_user_id = None
+        stream_org_id = None
+
+    # Serialize datetime objects in JSON fields
+    semantic_space = serialize_json_data(semantic_space)
+    retrieval_config = serialize_json_data(retrieval_config)
+    presentation_config = serialize_json_data(presentation_config)
+
+    stream = ResearchStream(
+        scope=scope,
+        org_id=stream_org_id,
+        user_id=stream_user_id,
+        created_by=user.user_id,  # Always track who created it
+        stream_name=stream_name,
+        purpose=purpose,
+        schedule_config=schedule_config,
+        chat_instructions=chat_instructions,
+        semantic_space=semantic_space,
+        retrieval_config=retrieval_config,
+        presentation_config=presentation_config,
+        is_active=True,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+
+    db.add(stream)
+    await db.commit()
+    await db.refresh(stream)
+
+    return stream
+
+
+async def async_delete_research_stream(
+    db: AsyncSession,
+    user: User,
+    stream_id: int
+) -> bool:
+    """
+    Delete a research stream (async). Only owner can delete.
+
+    Returns:
+        True if deleted, False if not found or not authorized
+    """
+    from sqlalchemy import delete as sql_delete
+
+    # Check ownership - user must own the stream
+    result = await db.execute(
+        select(ResearchStream).where(
+            ResearchStream.stream_id == stream_id,
+            ResearchStream.user_id == user.user_id
+        )
+    )
+    stream = result.scalars().first()
+
+    if not stream:
+        return False
+
+    # Delete associated reports first
+    await db.execute(
+        sql_delete(Report).where(Report.research_stream_id == stream_id)
+    )
+
+    # Delete the stream
+    await db.execute(
+        sql_delete(ResearchStream).where(ResearchStream.stream_id == stream_id)
+    )
+    await db.commit()
+
+    return True
+
+
+async def async_update_research_stream(
+    db: AsyncSession,
+    stream_id: int,
+    update_data: Dict[str, Any]
+) -> Optional[ResearchStream]:
+    """
+    Update an existing research stream (async).
+
+    Returns:
+        Updated ResearchStream model or None if not found
+    """
+    from sqlalchemy.orm.attributes import flag_modified
+
+    result = await db.execute(
+        select(ResearchStream).where(ResearchStream.stream_id == stream_id)
+    )
+    stream = result.scalars().first()
+
+    if not stream:
+        return None
+
+    # JSON fields that need datetime serialization
+    json_fields = [
+        'semantic_space',
+        'retrieval_config',
+        'presentation_config',
+        'workflow_config',
+        'scoring_config',
+        'categories',
+        'audience',
+        'intended_guidance',
+        'global_inclusion',
+        'global_exclusion'
+    ]
+
+    # Update fields
+    for field, value in update_data.items():
+        if hasattr(stream, field):
+            # Serialize datetime objects in JSON fields
+            if field in json_fields and value is not None:
+                value = serialize_json_data(value)
+
+            setattr(stream, field, value)
+
+            # Flag mutable fields as modified
+            if field in json_fields:
+                flag_modified(stream, field)
+
+    stream.updated_at = datetime.utcnow()
+
+    await db.commit()
+    await db.refresh(stream)
+    return stream
+
+
+async def async_update_broad_query(
+    db: AsyncSession,
+    stream_id: int,
+    query_index: int,
+    query_expression: str
+) -> Optional[ResearchStream]:
+    """
+    Update a specific broad query's expression (async).
+
+    Returns:
+        Updated ResearchStream model or None if not found
+    """
+    from sqlalchemy.orm.attributes import flag_modified
+
+    result = await db.execute(
+        select(ResearchStream).where(ResearchStream.stream_id == stream_id)
+    )
+    stream = result.scalars().first()
+
+    if not stream:
+        return None
+
+    # Get retrieval config
+    retrieval_config = stream.retrieval_config or {}
+    broad_search = retrieval_config.get("broad_search", {})
+    queries = broad_search.get("queries", [])
+
+    # Validate query index
+    if query_index < 0 or query_index >= len(queries):
+        raise ValueError(f"Query index {query_index} out of range (0-{len(queries)-1})")
+
+    # Update the query expression
+    queries[query_index]["query_expression"] = query_expression
+
+    # Save back to database
+    broad_search["queries"] = queries
+    retrieval_config["broad_search"] = broad_search
+    stream.retrieval_config = retrieval_config
+
+    # Mark as modified
+    flag_modified(stream, "retrieval_config")
+    stream.updated_at = datetime.utcnow()
+
+    await db.commit()
+    await db.refresh(stream)
+    return stream
+
+
+async def async_update_semantic_filter(
+    db: AsyncSession,
+    stream_id: int,
+    query_index: int,
+    enabled: bool,
+    criteria: str,
+    threshold: float
+) -> Optional[ResearchStream]:
+    """
+    Update semantic filter configuration for a specific broad query (async).
+
+    Returns:
+        Updated ResearchStream model or None if not found
+    """
+    from sqlalchemy.orm.attributes import flag_modified
+
+    result = await db.execute(
+        select(ResearchStream).where(ResearchStream.stream_id == stream_id)
+    )
+    stream = result.scalars().first()
+
+    if not stream:
+        return None
+
+    # Get retrieval config
+    retrieval_config = stream.retrieval_config or {}
+    broad_search = retrieval_config.get("broad_search", {})
+    queries = broad_search.get("queries", [])
+
+    # Validate query index
+    if query_index < 0 or query_index >= len(queries):
+        raise ValueError(f"Query index {query_index} out of range (0-{len(queries)-1})")
+
+    # Update the semantic filter
+    queries[query_index]["semantic_filter"] = {
+        "enabled": enabled,
+        "criteria": criteria,
+        "threshold": threshold
+    }
+
+    # Save back
+    broad_search["queries"] = queries
+    retrieval_config["broad_search"] = broad_search
+    stream.retrieval_config = retrieval_config
+
+    flag_modified(stream, "retrieval_config")
+    stream.updated_at = datetime.utcnow()
+
+    await db.commit()
+    await db.refresh(stream)
+    return stream

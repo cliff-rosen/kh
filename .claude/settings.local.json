@@ -30,7 +30,8 @@
       "WebFetch(domain:leapcell.io)",
       "WebFetch(domain:docs.sqlalchemy.org)",
       "Bash(netstat:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(sort:*)"
     ],
     "deny": [],
     "ask": [],

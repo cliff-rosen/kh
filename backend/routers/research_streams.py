@@ -35,7 +35,17 @@ from schemas.sources import INFORMATION_SOURCES, InformationSource
 from schemas.canonical_types import CanonicalResearchArticle
 
 
-from services.research_stream_service import ResearchStreamService, async_get_user_research_streams
+from services.research_stream_service import (
+    ResearchStreamService,
+    async_get_user_research_streams,
+    async_get_research_stream,
+    async_get_accessible_stream_ids,
+    async_create_research_stream,
+    async_update_research_stream,
+    async_update_broad_query,
+    async_update_semantic_filter,
+    async_delete_research_stream,
+)
 from services.retrieval_query_service import RetrievalQueryService
 from services.concept_proposal_service import ConceptProposalService
 from services.broad_search_service import BroadSearchService
@@ -163,19 +173,28 @@ async def get_research_streams(
 @track_endpoint("view_stream")
 async def get_research_stream(
     stream_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get a specific research stream by ID"""
+    """Get a specific research stream by ID (async)"""
     logger.info(f"get_research_stream - user_id={current_user.user_id}, stream_id={stream_id}")
 
     try:
-        service = ResearchStreamService(db)
-        # Service raises 404 if not found or not authorized
-        stream = service.get_research_stream(stream_id, current_user.user_id)
+        # Use async function for access check and retrieval
+        stream = await async_get_research_stream(db, current_user, stream_id)
+
+        if not stream:
+            logger.warning(f"get_research_stream - not found - user_id={current_user.user_id}, stream_id={stream_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found"
+            )
+
+        # Convert to Pydantic schema
+        result = ResearchStream.model_validate(stream)
 
         logger.info(f"get_research_stream complete - user_id={current_user.user_id}, stream_id={stream_id}")
-        return stream
+        return result
 
     except HTTPException:
         raise
@@ -190,11 +209,11 @@ async def get_research_stream(
 @router.post("", response_model=ResearchStream, status_code=status.HTTP_201_CREATED)
 async def create_research_stream(
     request: ResearchStreamCreateRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Create a new research stream with three-layer architecture.
+    Create a new research stream with three-layer architecture (async).
 
     Scope determines visibility:
     - personal: Only creator can see (any user)
@@ -204,8 +223,6 @@ async def create_research_stream(
     logger.info(f"create_research_stream - user_id={current_user.user_id}, stream_name={request.stream_name}, scope={request.scope}")
 
     try:
-        service = ResearchStreamService(db)
-
         # Parse and validate scope
         scope_str = (request.scope or "personal").lower()
         try:
@@ -236,26 +253,30 @@ async def create_research_stream(
                 )
 
         # Convert Pydantic models to dicts
-        semantic_space_dict = request.semantic_space.dict() if hasattr(request.semantic_space, 'dict') else request.semantic_space
-        retrieval_config_dict = request.retrieval_config.dict() if hasattr(request.retrieval_config, 'dict') else request.retrieval_config
-        presentation_config_dict = request.presentation_config.dict() if hasattr(request.presentation_config, 'dict') else request.presentation_config
-        schedule_config_dict = request.schedule_config.dict() if request.schedule_config and hasattr(request.schedule_config, 'dict') else request.schedule_config
+        semantic_space_dict = request.semantic_space.model_dump() if hasattr(request.semantic_space, 'model_dump') else request.semantic_space
+        retrieval_config_dict = request.retrieval_config.model_dump() if hasattr(request.retrieval_config, 'model_dump') else request.retrieval_config
+        presentation_config_dict = request.presentation_config.model_dump() if hasattr(request.presentation_config, 'model_dump') else request.presentation_config
+        schedule_config_dict = request.schedule_config.model_dump() if request.schedule_config and hasattr(request.schedule_config, 'model_dump') else request.schedule_config
 
-        stream = service.create_research_stream(
-            user_id=current_user.user_id,
+        stream = await async_create_research_stream(
+            db=db,
+            user=current_user,
             stream_name=request.stream_name,
             purpose=request.purpose,
-            schedule_config=schedule_config_dict,
-            chat_instructions=request.chat_instructions,
+            scope=scope,
             semantic_space=semantic_space_dict,
             retrieval_config=retrieval_config_dict,
             presentation_config=presentation_config_dict,
-            scope=scope,
+            schedule_config=schedule_config_dict,
+            chat_instructions=request.chat_instructions,
             org_id=current_user.org_id
         )
 
+        # Convert to Pydantic schema
+        result = ResearchStream.model_validate(stream)
+
         logger.info(f"create_research_stream complete - user_id={current_user.user_id}, stream_id={stream.stream_id}")
-        return stream
+        return result
 
     except HTTPException:
         raise
@@ -271,17 +292,15 @@ async def create_research_stream(
 async def update_research_stream(
     stream_id: int,
     request: ResearchStreamUpdateRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Update an existing research stream with Phase 1 support"""
+    """Update an existing research stream (async)"""
     logger.info(f"update_research_stream - user_id={current_user.user_id}, stream_id={stream_id}")
 
     try:
-        service = ResearchStreamService(db)
-
-        # Verify ownership
-        existing_stream = service.get_research_stream(stream_id, current_user.user_id)
+        # Verify access using async function
+        existing_stream = await async_get_research_stream(db, current_user, stream_id)
         if not existing_stream:
             logger.warning(f"update_research_stream - not found - user_id={current_user.user_id}, stream_id={stream_id}")
             raise HTTPException(
@@ -300,10 +319,18 @@ async def update_research_stream(
             if hasattr(update_data['scoring_config'], 'dict'):
                 update_data['scoring_config'] = update_data['scoring_config'].dict()
 
-        stream = service.update_research_stream(stream_id, update_data)
+        stream = await async_update_research_stream(db, stream_id, update_data)
+        if not stream:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found"
+            )
+
+        # Convert to Pydantic schema
+        result = ResearchStream.model_validate(stream)
 
         logger.info(f"update_research_stream complete - user_id={current_user.user_id}, stream_id={stream_id}")
-        return stream
+        return result
 
     except HTTPException:
         raise
@@ -318,17 +345,15 @@ async def update_research_stream(
 @router.delete("/{stream_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_research_stream(
     stream_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Delete a research stream"""
+    """Delete a research stream (async)"""
     logger.info(f"delete_research_stream - user_id={current_user.user_id}, stream_id={stream_id}")
 
     try:
-        service = ResearchStreamService(db)
-
-        # Verify ownership
-        existing_stream = service.get_research_stream(stream_id, current_user.user_id)
+        # Verify access using async function
+        existing_stream = await async_get_research_stream(db, current_user, stream_id)
         if not existing_stream:
             logger.warning(f"delete_research_stream - not found - user_id={current_user.user_id}, stream_id={stream_id}")
             raise HTTPException(
@@ -339,7 +364,12 @@ async def delete_research_stream(
         # Check if user can modify this stream (based on scope and role)
         _check_can_modify_stream(existing_stream, current_user)
 
-        service.delete_research_stream(stream_id)
+        deleted = await async_delete_research_stream(db, current_user, stream_id)
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found or not authorized"
+            )
 
         logger.info(f"delete_research_stream complete - user_id={current_user.user_id}, stream_id={stream_id}")
 
@@ -357,17 +387,15 @@ async def delete_research_stream(
 async def toggle_research_stream_status(
     stream_id: int,
     request: ToggleStatusRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Toggle research stream active status"""
+    """Toggle research stream active status (async)"""
     logger.info(f"toggle_research_stream_status - user_id={current_user.user_id}, stream_id={stream_id}, is_active={request.is_active}")
 
     try:
-        service = ResearchStreamService(db)
-
-        # Verify ownership
-        existing_stream = service.get_research_stream(stream_id, current_user.user_id)
+        # Verify access using async function
+        existing_stream = await async_get_research_stream(db, current_user, stream_id)
         if not existing_stream:
             logger.warning(f"toggle_research_stream_status - not found - user_id={current_user.user_id}, stream_id={stream_id}")
             raise HTTPException(
@@ -378,10 +406,18 @@ async def toggle_research_stream_status(
         # Check if user can modify this stream (based on scope and role)
         _check_can_modify_stream(existing_stream, current_user)
 
-        stream = service.update_research_stream(stream_id, {"is_active": request.is_active})
+        stream = await async_update_research_stream(db, stream_id, {"is_active": request.is_active})
+        if not stream:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found"
+            )
+
+        # Convert to Pydantic schema
+        result = ResearchStream.model_validate(stream)
 
         logger.info(f"toggle_research_stream_status complete - user_id={current_user.user_id}, stream_id={stream_id}, is_active={request.is_active}")
-        return stream
+        return result
 
     except HTTPException:
         raise
@@ -415,11 +451,11 @@ async def update_broad_query(
     stream_id: int,
     query_index: int,
     request: UpdateBroadQueryRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Update a specific broad query's expression.
+    Update a specific broad query's expression (async).
     Used by refinement workbench to apply tested queries back to stream config.
 
     Args:
@@ -433,23 +469,36 @@ async def update_broad_query(
     logger.info(f"update_broad_query - user_id={current_user.user_id}, stream_id={stream_id}, query_index={query_index}")
 
     try:
-        service = ResearchStreamService(db)
-
-        # Verify ownership (will raise if not found/unauthorized)
-        stream = service.get_research_stream(stream_id, current_user.user_id)
+        # Verify access using async function
+        stream = await async_get_research_stream(db, current_user, stream_id)
+        if not stream:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found"
+            )
 
         # Check if user can modify this stream (based on scope and role)
         _check_can_modify_stream(stream, current_user)
 
-        # Update via service
-        updated_stream = service.update_broad_query(
+        # Update via async function
+        updated_stream = await async_update_broad_query(
+            db=db,
             stream_id=stream_id,
             query_index=query_index,
             query_expression=request.query_expression
         )
 
+        if not updated_stream:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found"
+            )
+
+        # Convert to Pydantic schema
+        result = ResearchStream.model_validate(updated_stream)
+
         logger.info(f"update_broad_query complete - user_id={current_user.user_id}, stream_id={stream_id}, query_index={query_index}")
-        return updated_stream
+        return result
 
     except ValueError as e:
         logger.warning(f"update_broad_query validation error - user_id={current_user.user_id}, stream_id={stream_id}: {e}")
@@ -472,11 +521,11 @@ async def update_semantic_filter(
     stream_id: int,
     query_index: int,
     request: UpdateSemanticFilterRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Update semantic filter configuration for a specific broad query.
+    Update semantic filter configuration for a specific broad query (async).
     Used by refinement workbench to apply tested filters back to stream config.
 
     Args:
@@ -490,16 +539,20 @@ async def update_semantic_filter(
     logger.info(f"update_semantic_filter - user_id={current_user.user_id}, stream_id={stream_id}, query_index={query_index}")
 
     try:
-        service = ResearchStreamService(db)
-
-        # Verify ownership (will raise if not found/unauthorized)
-        stream = service.get_research_stream(stream_id, current_user.user_id)
+        # Verify access using async function
+        stream = await async_get_research_stream(db, current_user, stream_id)
+        if not stream:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found"
+            )
 
         # Check if user can modify this stream (based on scope and role)
         _check_can_modify_stream(stream, current_user)
 
-        # Update via service
-        updated_stream = service.update_semantic_filter(
+        # Update via async function
+        updated_stream = await async_update_semantic_filter(
+            db=db,
             stream_id=stream_id,
             query_index=query_index,
             enabled=request.enabled,
@@ -507,8 +560,17 @@ async def update_semantic_filter(
             threshold=request.threshold
         )
 
+        if not updated_stream:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research stream not found"
+            )
+
+        # Convert to Pydantic schema
+        result = ResearchStream.model_validate(updated_stream)
+
         logger.info(f"update_semantic_filter complete - user_id={current_user.user_id}, stream_id={stream_id}, query_index={query_index}")
-        return updated_stream
+        return result
 
     except ValueError as e:
         logger.warning(f"update_semantic_filter validation error - user_id={current_user.user_id}, stream_id={stream_id}: {e}")

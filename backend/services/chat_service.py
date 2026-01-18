@@ -5,10 +5,11 @@ Manages chat persistence (CRUD operations on chats and messages).
 """
 
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, select, func
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import Conversation, Message, User
 
@@ -315,3 +316,167 @@ class ChatService:
                 for msg in messages
             ]
         }
+
+
+# =============================================================================
+# Async Functions (for use with AsyncSession)
+# =============================================================================
+
+async def async_get_user_chats(
+    db: AsyncSession,
+    user_id: int,
+    app: str = "kh",
+    limit: int = 50,
+    offset: int = 0
+) -> List[Conversation]:
+    """Get chats for a user in a specific app (async)."""
+    stmt = (
+        select(Conversation)
+        .where(Conversation.user_id == user_id, Conversation.app == app)
+        .order_by(desc(Conversation.updated_at))
+        .offset(offset)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def async_get_chat(
+    db: AsyncSession,
+    chat_id: int,
+    user_id: int
+) -> Optional[Conversation]:
+    """Get a chat by ID, ensuring it belongs to the user (async)."""
+    stmt = select(Conversation).where(
+        Conversation.id == chat_id,
+        Conversation.user_id == user_id
+    )
+    result = await db.execute(stmt)
+    return result.scalars().first()
+
+
+async def async_get_messages(
+    db: AsyncSession,
+    chat_id: int,
+    user_id: int,
+    limit: int = 100
+) -> List[Message]:
+    """Get messages for a chat (async)."""
+    # Verify ownership first
+    chat = await async_get_chat(db, chat_id, user_id)
+    if not chat:
+        return []
+
+    stmt = (
+        select(Message)
+        .where(Message.conversation_id == chat_id)
+        .order_by(Message.created_at)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def async_get_all_chats(
+    db: AsyncSession,
+    limit: int = 100,
+    offset: int = 0,
+    user_id: Optional[int] = None
+) -> Tuple[List[Dict[str, Any]], int]:
+    """Get all chats with user info (admin view, async)."""
+    # Build base query
+    base_where = []
+    if user_id:
+        base_where.append(Conversation.user_id == user_id)
+
+    # Get total count
+    count_stmt = select(func.count(Conversation.id)).select_from(Conversation)
+    if base_where:
+        count_stmt = count_stmt.where(*base_where)
+    count_result = await db.execute(count_stmt)
+    total = count_result.scalar() or 0
+
+    # Get chats with user info
+    stmt = (
+        select(Conversation, User)
+        .join(User, User.user_id == Conversation.user_id)
+        .order_by(desc(Conversation.updated_at))
+        .offset(offset)
+        .limit(limit)
+    )
+    if base_where:
+        stmt = stmt.where(*base_where)
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    chats = []
+    for conv, user in rows:
+        # Get message count
+        msg_count_stmt = select(func.count(Message.id)).where(
+            Message.conversation_id == conv.id
+        )
+        msg_result = await db.execute(msg_count_stmt)
+        msg_count = msg_result.scalar() or 0
+
+        chats.append({
+            "id": conv.id,
+            "user_id": conv.user_id,
+            "user_email": user.email,
+            "user_name": user.full_name,
+            "title": conv.title,
+            "message_count": msg_count,
+            "created_at": conv.created_at.isoformat(),
+            "updated_at": conv.updated_at.isoformat()
+        })
+
+    return chats, total
+
+
+async def async_get_chat_with_messages(
+    db: AsyncSession,
+    chat_id: int
+) -> Optional[Dict[str, Any]]:
+    """Get full chat with all messages (admin view, async)."""
+    stmt = (
+        select(Conversation, User)
+        .join(User, User.user_id == Conversation.user_id)
+        .where(Conversation.id == chat_id)
+    )
+    result = await db.execute(stmt)
+    row = result.first()
+
+    if not row:
+        return None
+
+    conv, user = row
+
+    # Get messages
+    msg_stmt = (
+        select(Message)
+        .where(Message.conversation_id == chat_id)
+        .order_by(Message.created_at)
+    )
+    msg_result = await db.execute(msg_stmt)
+    messages = msg_result.scalars().all()
+
+    return {
+        "id": conv.id,
+        "user_id": conv.user_id,
+        "user_email": user.email,
+        "user_name": user.full_name,
+        "title": conv.title,
+        "created_at": conv.created_at.isoformat(),
+        "updated_at": conv.updated_at.isoformat(),
+        "messages": [
+            {
+                "id": msg.id,
+                "role": msg.role,
+                "content": msg.content,
+                "context": msg.context,
+                "extras": msg.extras,
+                "created_at": msg.created_at.isoformat()
+            }
+            for msg in messages
+        ]
+    }
