@@ -663,6 +663,33 @@ class WipArticleService:
             )
         ).order_by(WipArticle.curated_at.desc()).all()
 
+    async def async_get_articles_with_curation_notes_by_stream(
+        self,
+        stream_id: int
+    ) -> List[WipArticle]:
+        """
+        Get all WipArticles with curation notes for a stream (across all executions) - async version.
+
+        Args:
+            stream_id: Research stream ID
+
+        Returns:
+            List of WipArticle instances with curation notes, ordered by curated_at desc
+        """
+        from sqlalchemy.orm import selectinload
+        stmt = select(WipArticle).options(
+            selectinload(WipArticle.curator),
+            selectinload(WipArticle.execution)
+        ).where(
+            and_(
+                WipArticle.research_stream_id == stream_id,
+                WipArticle.curation_notes != None,
+                WipArticle.curation_notes != ""
+            )
+        ).order_by(WipArticle.curated_at.desc())
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
     # =========================================================================
     # DELETE Operations
     # =========================================================================

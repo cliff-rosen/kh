@@ -5,15 +5,13 @@ Articles API endpoints - fetches from local database
 import logging
 from typing import List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
 
-from database import get_db
 from models import User
 from schemas.canonical_types import CanonicalResearchArticle
-from services.article_service import ArticleService
+from services.article_service import ArticleService, get_async_article_service
 from services.pubmed_service import get_full_text_links
 from routers.auth import get_current_user
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +33,7 @@ class FullTextLinksResponse(BaseModel):
 @router.get("/{pmid}", response_model=CanonicalResearchArticle)
 async def get_article_by_pmid(
     pmid: str,
-    db: Session = Depends(get_db),
+    service: ArticleService = Depends(get_async_article_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -43,8 +41,7 @@ async def get_article_by_pmid(
     This fetches from our stored articles, not from PubMed directly.
     """
     try:
-        service = ArticleService(db)
-        article = service.get_article_by_pmid(pmid)
+        article = await service.async_get_article_by_pmid(pmid)
 
         if not article:
             raise HTTPException(

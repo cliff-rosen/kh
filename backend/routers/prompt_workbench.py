@@ -9,15 +9,19 @@ Provides endpoints for:
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field
 
-from database import get_db
+from database import get_async_db
 from models import User
 from schemas.research_stream import EnrichmentConfig, PromptTemplate
-from services.research_stream_service import ResearchStreamService
+from services.research_stream_service import (
+    ResearchStreamService,
+    get_async_research_stream_service
+)
 from services.prompt_workbench_service import PromptWorkbenchService
+from services.report_summary_service import DEFAULT_PROMPTS, AVAILABLE_SLUGS
 from routers.auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -72,43 +76,74 @@ class TestPromptResponse(BaseModel):
 # =============================================================================
 
 @router.get("/defaults", response_model=DefaultPromptsResponse)
-async def get_default_prompts(db: Session = Depends(get_db)):
+async def get_default_prompts():
     """Get the default prompts and available slugs for each prompt type"""
-    service = PromptWorkbenchService(db)
-    return service.get_defaults()
+    # No db needed - just return static defaults
+    prompts = {
+        key: PromptTemplate(
+            system_prompt=value["system_prompt"],
+            user_prompt_template=value["user_prompt_template"]
+        )
+        for key, value in DEFAULT_PROMPTS.items()
+    }
+    return DefaultPromptsResponse(
+        prompts=prompts,
+        available_slugs=AVAILABLE_SLUGS
+    )
 
 
 @router.get("/streams/{stream_id}/enrichment", response_model=EnrichmentConfigResponse)
 async def get_stream_enrichment_config(
     stream_id: int,
-    db: Session = Depends(get_db),
+    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """Get enrichment config for a stream (or defaults if not set)"""
-    # Verify ownership (raises 404 if not found/not authorized)
-    stream_service = ResearchStreamService(db)
-    stream_service.get_research_stream(stream_id, current_user.user_id)
+    # Verify ownership and get stream (raises 404 if not found/not authorized)
+    stream = await stream_service.async_get_research_stream(current_user, stream_id)
+    if not stream:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stream not found")
 
-    service = PromptWorkbenchService(db)
-    return service.get_enrichment_config(stream_id)
+    # Build response
+    enrichment_config = None
+    if stream.enrichment_config:
+        enrichment_config = EnrichmentConfig(**stream.enrichment_config)
+
+    defaults = {
+        key: PromptTemplate(
+            system_prompt=value["system_prompt"],
+            user_prompt_template=value["user_prompt_template"]
+        )
+        for key, value in DEFAULT_PROMPTS.items()
+    }
+
+    return EnrichmentConfigResponse(
+        enrichment_config=enrichment_config,
+        is_using_defaults=enrichment_config is None,
+        defaults=defaults
+    )
 
 
 @router.put("/streams/{stream_id}/enrichment")
 async def update_stream_enrichment_config(
     stream_id: int,
     request: UpdateEnrichmentConfigRequest,
-    db: Session = Depends(get_db),
+    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """Update enrichment config for a stream (set to null to reset to defaults)"""
     logger.info(f"Updating enrichment config for stream {stream_id}: {request.enrichment_config}")
 
     # Verify ownership (raises 404 if not found/not authorized)
-    stream_service = ResearchStreamService(db)
-    stream_service.get_research_stream(stream_id, current_user.user_id)
+    stream = await stream_service.async_get_research_stream(current_user, stream_id)
+    if not stream:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stream not found")
 
-    service = PromptWorkbenchService(db)
-    service.update_enrichment_config(stream_id, request.enrichment_config)
+    # Prepare enrichment config dict
+    config_dict = request.enrichment_config.dict() if request.enrichment_config else None
+
+    # Update via async method
+    await stream_service.async_update_research_stream(stream_id, {"enrichment_config": config_dict})
 
     logger.info(f"Enrichment config saved for stream {stream_id}")
     return {"status": "success", "message": "Enrichment config updated"}
@@ -117,7 +152,7 @@ async def update_stream_enrichment_config(
 @router.post("/test", response_model=TestPromptResponse)
 async def test_prompt(
     request: TestPromptRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """Test a prompt by rendering it with sample data and running it through the LLM"""

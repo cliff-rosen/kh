@@ -1148,6 +1148,98 @@ class ResearchStreamService:
         await self.db.refresh(stream)
         return stream
 
+    async def async_list_global_streams(self) -> List[ResearchStreamSchema]:
+        """Get all global streams (async). For platform admin use."""
+        result = await self.db.execute(
+            select(ResearchStream).where(ResearchStream.scope == StreamScope.GLOBAL)
+        )
+        streams = result.scalars().all()
+
+        logger.info(f"Listed {len(streams)} global streams")
+        return [ResearchStreamSchema.model_validate(s) for s in streams]
+
+    async def async_get_global_stream(self, stream_id: int) -> Optional[ResearchStreamSchema]:
+        """Get a specific global stream by ID (async). For platform admin use."""
+        result = await self.db.execute(
+            select(ResearchStream).where(
+                ResearchStream.stream_id == stream_id,
+                ResearchStream.scope == StreamScope.GLOBAL
+            )
+        )
+        stream = result.scalars().first()
+
+        if stream:
+            return ResearchStreamSchema.model_validate(stream)
+        return None
+
+    async def async_set_stream_scope_global(self, stream_id: int) -> ResearchStreamSchema:
+        """Change a stream's scope to global (async). For platform admin use."""
+        result = await self.db.execute(
+            select(ResearchStream).where(ResearchStream.stream_id == stream_id)
+        )
+        stream = result.scalars().first()
+
+        if not stream:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Stream not found"
+            )
+
+        stream.scope = StreamScope.GLOBAL
+        stream.org_id = None
+
+        await self.db.commit()
+        await self.db.refresh(stream)
+
+        logger.info(f"Set stream {stream_id} scope to global")
+        return ResearchStreamSchema.model_validate(stream)
+
+    async def async_delete_global_stream(self, stream_id: int) -> bool:
+        """Delete a global stream (async). For platform admin use."""
+        result = await self.db.execute(
+            select(ResearchStream).where(
+                ResearchStream.stream_id == stream_id,
+                ResearchStream.scope == StreamScope.GLOBAL
+            )
+        )
+        stream = result.scalars().first()
+
+        if not stream:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Global stream not found"
+            )
+
+        await self.db.delete(stream)
+        await self.db.commit()
+
+        logger.info(f"Deleted global stream {stream_id}")
+        return True
+
+    async def async_get_all_streams_with_chat_instructions(self) -> List[dict]:
+        """Get all streams with their chat instructions status (async). For admin chat config."""
+        result = await self.db.execute(
+            select(ResearchStream).order_by(ResearchStream.stream_name)
+        )
+        streams = result.scalars().all()
+
+        results = []
+        for stream in streams:
+            has_instr = stream.chat_instructions is not None and len(stream.chat_instructions.strip()) > 0
+            preview = None
+            if has_instr:
+                preview = stream.chat_instructions[:200] + "..." if len(stream.chat_instructions) > 200 else stream.chat_instructions
+
+            results.append({
+                "stream_id": stream.stream_id,
+                "stream_name": stream.stream_name,
+                "has_instructions": has_instr,
+                "instructions_preview": preview
+            })
+
+        logger.info(f"Got chat instructions status for {len(results)} streams")
+        return results
+
 
 # Dependency injection provider for async research stream service
 async def get_async_research_stream_service(

@@ -6,14 +6,15 @@ import logging
 from dataclasses import asdict
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 import json
 
 logger = logging.getLogger(__name__)
 
-from database import get_db
+from database import get_async_db
 from models import User, RunType, StreamScope, UserRole
 
 from schemas.research_stream import (
@@ -655,7 +656,8 @@ class ValidateConceptsResponse(BaseModel):
 @router.post("/{stream_id}/retrieval/propose-concepts", response_model=ProposeConceptsResponse)
 async def propose_retrieval_concepts(
     stream_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
+    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -668,12 +670,13 @@ async def propose_retrieval_concepts(
     - Volume-driven design (will be refined in later phases)
     """
     concept_service = ConceptProposalService(db, current_user.user_id)
-    stream_service = ResearchStreamService(db)
 
     try:
         # Get stream (raises 404 if not found or not authorized)
-        # Returns Pydantic schema with semantic_space already parsed
-        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+        # Returns model with semantic_space already parsed
+        stream = await stream_service.async_get_research_stream(current_user, stream_id)
+        if not stream:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
 
         # Propose concepts using parsed semantic_space
         result = await concept_service.propose_concepts(stream.semantic_space)
@@ -699,7 +702,8 @@ async def propose_retrieval_concepts(
 @router.post("/{stream_id}/retrieval/propose-broad-search", response_model=ProposeBroadSearchResponse)
 async def propose_broad_search(
     stream_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
+    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -716,11 +720,12 @@ async def propose_broad_search(
     - Leverage that weekly volumes are naturally limited
     """
     broad_search_service = BroadSearchService(db, current_user.user_id)
-    stream_service = ResearchStreamService(db)
 
     try:
         # Get stream (raises 404 if not found or not authorized)
-        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+        stream = await stream_service.async_get_research_stream(current_user, stream_id)
+        if not stream:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
 
         # Propose broad search using parsed semantic_space
         result = await broad_search_service.propose_broad_search(stream.semantic_space)
@@ -746,7 +751,8 @@ async def propose_broad_search(
 async def generate_broad_filter(
     stream_id: int,
     request: GenerateBroadFilterRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
+    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -756,11 +762,12 @@ async def generate_broad_filter(
     and search terms.
     """
     query_service = RetrievalQueryService(db)
-    stream_service = ResearchStreamService(db)
 
     try:
         # Get stream (raises 404 if not found or not authorized)
-        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+        stream = await stream_service.async_get_research_stream(current_user, stream_id)
+        if not stream:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
 
         # Generate filter using service
         criteria, threshold, reasoning = await query_service.generate_filter_for_broad_query(
@@ -788,7 +795,8 @@ async def generate_broad_filter(
 async def generate_concept_query(
     stream_id: int,
     request: GenerateConceptQueryRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
+    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -801,12 +809,13 @@ async def generate_concept_query(
     - Minimal exclusions
     """
     query_service = RetrievalQueryService(db)
-    stream_service = ResearchStreamService(db)
 
     try:
         # Get stream (raises 404 if not found or not authorized)
-        # Returns Pydantic schema with semantic_space already parsed
-        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+        # Returns model with semantic_space already parsed
+        stream = await stream_service.async_get_research_stream(current_user, stream_id)
+        if not stream:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
 
         # Validate source
         valid_sources = [src.source_id for src in INFORMATION_SOURCES]
@@ -842,7 +851,8 @@ async def generate_concept_query(
 async def generate_concept_filter(
     stream_id: int,
     request: GenerateConceptFilterRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
+    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -852,12 +862,13 @@ async def generate_concept_filter(
     entity pattern, and rationale.
     """
     query_service = RetrievalQueryService(db)
-    stream_service = ResearchStreamService(db)
 
     try:
         # Get stream (raises 404 if not found or not authorized)
-        # Returns Pydantic schema with semantic_space already parsed
-        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+        # Returns model with semantic_space already parsed
+        stream = await stream_service.async_get_research_stream(current_user, stream_id)
+        if not stream:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
 
         # Generate filter using service with concept from request and parsed semantic_space
         criteria, threshold, reasoning = await query_service.generate_filter_for_concept(
@@ -885,7 +896,7 @@ async def generate_concept_filter(
 async def validate_concepts(
     stream_id: int,
     request: ValidateConceptsRequest,
-    db: Session = Depends(get_db),
+    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -894,12 +905,12 @@ async def validate_concepts(
     Checks coverage, configuration status, and whether the retrieval
     config is ready to activate.
     """
-    stream_service = ResearchStreamService(db)
-
     try:
         # Get stream (raises 404 if not found or not authorized)
         # Returns Pydantic schema with semantic_space already parsed
-        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+        stream = await stream_service.async_get_research_stream(current_user, stream_id)
+        if not stream:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
 
         concepts = request.concepts
 
@@ -974,7 +985,7 @@ class QueryTestRequest(BaseModel):
 async def test_source_query(
     stream_id: int,
     request: QueryTestRequest,
-    db: Session = Depends(get_db),
+    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -987,11 +998,11 @@ async def test_source_query(
     from services.pubmed_service import PubMedService
     from datetime import datetime, timedelta
 
-    stream_service = ResearchStreamService(db)
-
     try:
         # Get stream (raises 404 if not found or not authorized)
-        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+        stream = await stream_service.async_get_research_stream(current_user, stream_id)
+        if not stream:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
 
         # Validate source
         valid_sources = [src.source_id for src in INFORMATION_SOURCES]
@@ -1066,7 +1077,8 @@ class ExecutePipelineRequest(BaseModel):
 async def execute_pipeline(
     stream_id: int,
     request: ExecutePipelineRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
+    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -1085,11 +1097,11 @@ async def execute_pipeline(
 
     The response is a stream of JSON objects, one per line, each representing a status update.
     """
-    stream_service = ResearchStreamService(db)
-
     try:
         # Verify stream exists and user has access
-        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+        stream = await stream_service.async_get_research_stream(current_user, stream_id)
+        if not stream:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
 
         # Check if user can run this stream (based on scope and role)
         _check_can_modify_stream(stream, current_user)
@@ -1216,7 +1228,7 @@ class CompareReportResponse(BaseModel):
 async def compare_report_to_pubmed_ids(
     report_id: int,
     request: CompareReportRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -1233,12 +1245,14 @@ async def compare_report_to_pubmed_ids(
     from sqlalchemy import and_
 
     # Verify report exists and user has access
-    report = db.query(Report).filter(
+    stmt = select(Report).where(
         and_(
             Report.report_id == report_id,
             Report.user_id == current_user.user_id
         )
-    ).first()
+    )
+    result = await db.execute(stmt)
+    report = result.scalars().first()
 
     if not report:
         raise HTTPException(
@@ -1253,17 +1267,22 @@ async def compare_report_to_pubmed_ids(
         )
 
     # Get all wip_articles for this execution
-    wip_articles = db.query(WipArticle).filter(
+    stmt = select(WipArticle).where(
         WipArticle.pipeline_execution_id == report.pipeline_execution_id
-    ).all()
+    )
+    result = await db.execute(stmt)
+    wip_articles = result.scalars().all()
 
     # Create PMID lookup map
     wip_by_pmid = {wip.pmid: wip for wip in wip_articles if wip.pmid}
 
     # Get all articles in the report
-    report_associations = db.query(ReportArticleAssociation).join(Article).filter(
+    from sqlalchemy.orm import selectinload
+    stmt = select(ReportArticleAssociation).options(selectinload(ReportArticleAssociation.article)).where(
         ReportArticleAssociation.report_id == report_id
-    ).all()
+    )
+    result = await db.execute(stmt)
+    report_associations = result.scalars().all()
 
     report_pmids = set()
     report_articles_map = {}
@@ -1376,7 +1395,7 @@ class StreamCurationNotesResponse(BaseModel):
 @router.get("/{stream_id}/curation-notes", response_model=StreamCurationNotesResponse)
 async def get_stream_curation_notes(
     stream_id: int,
-    db: Session = Depends(get_db),
+    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -1386,17 +1405,18 @@ async def get_stream_curation_notes(
     for this stream, ordered by most recent first.
     """
     from services.wip_article_service import WipArticleService
-    from models import PipelineExecution, Report
-
-    stream_service = ResearchStreamService(db)
-    wip_service = WipArticleService(db)
 
     try:
         # Get stream (raises 404 if not found or not authorized)
-        stream = stream_service.get_research_stream(stream_id, current_user.user_id)
+        stream = await stream_service.async_get_research_stream(current_user, stream_id)
+        if not stream:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
+
+        # Get wip service with same db session
+        wip_service = WipArticleService(stream_service.db)
 
         # Get all articles with curation notes for this stream
-        articles = wip_service.get_articles_with_curation_notes_by_stream(stream_id)
+        articles = await wip_service.async_get_articles_with_curation_notes_by_stream(stream_id)
 
         # Build response items with curator names and report IDs
         notes_list = []

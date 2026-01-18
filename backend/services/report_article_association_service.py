@@ -6,12 +6,14 @@ All association operations should go through this service.
 """
 
 import logging
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
-from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import and_, select, func
+from fastapi import HTTPException, status, Depends
 
 from models import ReportArticleAssociation
+from database import get_async_db
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +23,10 @@ class ReportArticleAssociationService:
     Service for ReportArticleAssociation operations.
 
     Provides atomic, reusable methods for managing report-article associations.
+    Supports both sync (Session) and async (AsyncSession) database access.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Union[Session, AsyncSession]):
         self.db = db
 
     # =========================================================================
@@ -382,3 +385,125 @@ class ReportArticleAssociationService:
         return self.db.query(ReportArticleAssociation).filter(
             ReportArticleAssociation.report_id == report_id
         ).delete()
+
+    # =========================================================================
+    # ASYNC Methods
+    # =========================================================================
+
+    async def async_find(self, report_id: int, article_id: int) -> Optional[ReportArticleAssociation]:
+        """Find an association by report and article ID (async)."""
+        result = await self.db.execute(
+            select(ReportArticleAssociation).where(
+                and_(
+                    ReportArticleAssociation.report_id == report_id,
+                    ReportArticleAssociation.article_id == article_id
+                )
+            )
+        )
+        return result.scalars().first()
+
+    async def async_get(self, report_id: int, article_id: int) -> ReportArticleAssociation:
+        """Get an association, raising 404 if not found (async)."""
+        association = await self.async_find(report_id, article_id)
+        if not association:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Article not found in report"
+            )
+        return association
+
+    async def async_get_visible_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
+        """Get all visible associations for a report (async)."""
+        result = await self.db.execute(
+            select(ReportArticleAssociation).where(
+                and_(
+                    ReportArticleAssociation.report_id == report_id,
+                    ReportArticleAssociation.is_hidden == False
+                )
+            ).order_by(ReportArticleAssociation.ranking)
+        )
+        return list(result.scalars().all())
+
+    async def async_get_all_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
+        """Get all associations for a report (async)."""
+        result = await self.db.execute(
+            select(ReportArticleAssociation).where(
+                ReportArticleAssociation.report_id == report_id
+            ).order_by(ReportArticleAssociation.ranking)
+        )
+        return list(result.scalars().all())
+
+    async def async_count_visible(self, report_id: int) -> int:
+        """Count visible articles in a report (async)."""
+        result = await self.db.execute(
+            select(func.count(ReportArticleAssociation.article_id)).where(
+                and_(
+                    ReportArticleAssociation.report_id == report_id,
+                    ReportArticleAssociation.is_hidden == False
+                )
+            )
+        )
+        return result.scalar() or 0
+
+    async def async_get_next_ranking(self, report_id: int) -> int:
+        """Get the next available ranking for a report (async)."""
+        result = await self.db.execute(
+            select(ReportArticleAssociation.ranking).where(
+                ReportArticleAssociation.report_id == report_id
+            ).order_by(ReportArticleAssociation.ranking.desc()).limit(1)
+        )
+        max_ranking = result.scalar()
+        return (max_ranking + 1) if max_ranking else 1
+
+    async def async_create(
+        self,
+        report_id: int,
+        article_id: int,
+        ranking: int,
+        presentation_categories: Optional[List[str]] = None,
+        ai_summary: Optional[str] = None,
+        relevance_score: Optional[float] = None,
+        curator_added: bool = False,
+        wip_article_id: Optional[int] = None
+    ) -> ReportArticleAssociation:
+        """Create a new association (async)."""
+        categories = presentation_categories or []
+
+        association = ReportArticleAssociation(
+            report_id=report_id,
+            article_id=article_id,
+            wip_article_id=wip_article_id,
+            ranking=ranking,
+            presentation_categories=categories,
+            original_presentation_categories=categories if not curator_added else [],
+            original_ranking=ranking if not curator_added else None,
+            ai_summary=ai_summary,
+            original_ai_summary=ai_summary if not curator_added else None,
+            relevance_score=relevance_score,
+            curator_added=curator_added,
+            is_hidden=False,
+            is_starred=False,
+            is_read=False
+        )
+        self.db.add(association)
+        return association
+
+    async def async_delete(self, association: ReportArticleAssociation) -> None:
+        """Delete an association (async)."""
+        await self.db.delete(association)
+
+    async def async_delete_by_ids(self, report_id: int, article_id: int) -> bool:
+        """Delete an association by IDs (async)."""
+        association = await self.async_find(report_id, article_id)
+        if association:
+            await self.db.delete(association)
+            return True
+        return False
+
+
+# Dependency injection provider for async association service
+async def get_async_association_service(
+    db: AsyncSession = Depends(get_async_db)
+) -> ReportArticleAssociationService:
+    """Get a ReportArticleAssociationService instance with async database session."""
+    return ReportArticleAssociationService(db)

@@ -8,9 +8,7 @@ import logging
 from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
 
-from database import get_db
 from schemas.lab import (
     QuestionRefinementRequest, QuestionRefinementResponse,
     StreamingGenerateAnswerRequest

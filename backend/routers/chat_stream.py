@@ -5,13 +5,11 @@ Handles streaming chat endpoint with LLM interaction and tool support.
 """
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional, Literal
+from typing import List, Dict, Any, Optional, Literal, Callable
 import logging
 
-from database import get_db
 from models import User
 from routers.auth import get_current_user
 from schemas.chat import (
@@ -20,7 +18,7 @@ from schemas.chat import (
     StreamEvent,
     ErrorEvent,
 )
-from services.chat_stream_service import ChatStreamService
+from services.chat_stream_service import ChatStreamService, get_chat_stream_service_factory
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +47,7 @@ class ChatRequest(BaseModel):
 )
 async def chat_stream(
     request: ChatRequest,
-    db: Session = Depends(get_db),
+    service_factory: Callable[[int], ChatStreamService] = Depends(get_chat_stream_service_factory),
     current_user: User = Depends(get_current_user)
 ) -> EventSourceResponse:
     """
@@ -67,7 +65,7 @@ async def chat_stream(
     async def event_generator():
         """Generate SSE events"""
         try:
-            service = ChatStreamService(db, current_user.user_id)
+            service = service_factory(current_user.user_id)
 
             # Stream typed events from the service
             async for event_json in service.stream_chat_message(request):

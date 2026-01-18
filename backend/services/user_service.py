@@ -893,6 +893,138 @@ class UserService:
         logger.info(f"Reactivated user {user_id}")
         return user
 
+    async def async_update_role(
+        self,
+        user_id: int,
+        new_role: UserRole,
+        updated_by: UserModel
+    ) -> UserModel:
+        """Update user's role (async)."""
+        # Permission check: only platform_admin can change roles
+        if updated_by.role != UserRoleModel.PLATFORM_ADMIN:
+            if updated_by.role == UserRoleModel.ORG_ADMIN:
+                user = await self.async_get_user_by_id(user_id)
+                if not user:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="User not found"
+                    )
+                if user.org_id != updated_by.org_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Cannot modify users outside your organization"
+                    )
+                if new_role == UserRole.PLATFORM_ADMIN:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Only platform admins can create platform admins"
+                    )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Insufficient permissions to change roles"
+                )
+
+        user = await self.async_get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        # Prevent removing the last platform admin
+        if user.role == UserRoleModel.PLATFORM_ADMIN and new_role != UserRole.PLATFORM_ADMIN:
+            result = await self.db.execute(
+                select(func.count(UserModel.user_id)).where(
+                    UserModel.role == UserRoleModel.PLATFORM_ADMIN
+                )
+            )
+            admin_count = result.scalar()
+            if admin_count <= 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot remove the last platform admin"
+                )
+
+        user.role = UserRoleModel(new_role.value)
+        await self.db.commit()
+        await self.db.refresh(user)
+
+        logger.info(f"Updated role for user {user_id} to {new_role.value}")
+        return user
+
+    async def async_assign_to_org(
+        self,
+        user_id: int,
+        org_id: int,
+        assigned_by: UserModel
+    ) -> UserModel:
+        """Assign user to an organization (async)."""
+        if assigned_by.role != UserRoleModel.PLATFORM_ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only platform admins can assign users to organizations"
+            )
+
+        # Validate org exists
+        result = await self.db.execute(
+            select(Organization).where(Organization.org_id == org_id)
+        )
+        org = result.scalars().first()
+        if not org:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Organization not found"
+            )
+
+        user = await self.async_get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        user.org_id = org_id
+        await self.db.commit()
+        await self.db.refresh(user)
+
+        logger.info(f"Assigned user {user_id} to org {org_id}")
+        return user
+
+    async def async_delete_user(self, user_id: int, deleted_by: UserModel) -> bool:
+        """Hard delete a user from the database (async)."""
+        if deleted_by.role != UserRoleModel.PLATFORM_ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only platform admins can delete users"
+            )
+
+        user = await self.async_get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        if user.user_id == deleted_by.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete yourself"
+            )
+
+        if user.role == UserRoleModel.PLATFORM_ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete another platform admin"
+            )
+
+        email = user.email
+        await self.db.delete(user)
+        await self.db.commit()
+
+        logger.info(f"Deleted user {user_id} ({email})")
+        return True
+
 
 # Dependency injection provider for async user service
 async def get_async_user_service(

@@ -558,6 +558,119 @@ class OrganizationService:
         logger.info(f"Removed user {user_id} from org {org_id}")
         return True
 
+    async def async_get_organization(self, org_id: int) -> Optional[Organization]:
+        """Get an organization by ID (async)."""
+        result = await self.db.execute(
+            select(Organization).where(Organization.org_id == org_id)
+        )
+        return result.scalars().first()
+
+    async def async_get_organization_with_stats(self, org_id: int) -> Optional[OrganizationWithStats]:
+        """Get organization with member, stream, and pending invitation counts (async)."""
+        org = await self.async_get_organization(org_id)
+        if not org:
+            return None
+
+        result = await self.db.execute(
+            select(func.count(User.user_id)).where(User.org_id == org_id)
+        )
+        member_count = result.scalar() or 0
+
+        result = await self.db.execute(
+            select(func.count(ResearchStream.stream_id)).where(
+                and_(
+                    ResearchStream.org_id == org_id,
+                    ResearchStream.scope == StreamScope.ORGANIZATION
+                )
+            )
+        )
+        stream_count = result.scalar() or 0
+
+        result = await self.db.execute(
+            select(func.count(Invitation.invitation_id)).where(
+                and_(
+                    Invitation.org_id == org_id,
+                    Invitation.accepted_at == None,
+                    Invitation.is_revoked == False,
+                    Invitation.expires_at > datetime.utcnow()
+                )
+            )
+        )
+        pending_invitation_count = result.scalar() or 0
+
+        return OrganizationWithStats(
+            org_id=org.org_id,
+            name=org.name,
+            is_active=org.is_active,
+            created_at=org.created_at,
+            updated_at=org.updated_at,
+            member_count=member_count,
+            stream_count=stream_count,
+            pending_invitation_count=pending_invitation_count
+        )
+
+    async def async_create_organization(self, data: OrganizationCreate) -> Organization:
+        """Create a new organization (async)."""
+        org = Organization(
+            name=data.name,
+            is_active=True
+        )
+        self.db.add(org)
+        await self.db.commit()
+        await self.db.refresh(org)
+        logger.info(f"Created organization: {org.org_id} - {org.name}")
+        return org
+
+    async def async_list_organizations(self, include_inactive: bool = False) -> List[OrganizationWithStats]:
+        """List all organizations (async)."""
+        if include_inactive:
+            result = await self.db.execute(
+                select(Organization).order_by(Organization.name)
+            )
+        else:
+            result = await self.db.execute(
+                select(Organization).where(Organization.is_active == True).order_by(Organization.name)
+            )
+        orgs = result.scalars().all()
+
+        results = []
+        for org in orgs:
+            stats = await self.async_get_organization_with_stats(org.org_id)
+            if stats:
+                results.append(stats)
+
+        return results
+
+    async def async_delete_organization(self, org_id: int) -> bool:
+        """Delete an organization (async). Fails if has members or is default org."""
+        org = await self.async_get_organization(org_id)
+        if not org:
+            return False
+
+        # Prevent deleting the default organization
+        if org.name == self.DEFAULT_ORG_NAME:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete the default organization."
+            )
+
+        # Check if org has members
+        result = await self.db.execute(
+            select(func.count(User.user_id)).where(User.org_id == org_id)
+        )
+        member_count = result.scalar() or 0
+
+        if member_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot delete organization with {member_count} members."
+            )
+
+        await self.db.delete(org)
+        await self.db.commit()
+        logger.info(f"Deleted organization: {org_id}")
+        return True
+
 
 # Dependency injection provider for async organization service
 async def get_async_organization_service(

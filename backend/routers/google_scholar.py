@@ -7,7 +7,7 @@ This module provides REST API endpoints for Google Scholar search functionality.
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 import asyncio
 import time
@@ -16,7 +16,7 @@ from config.timeout_settings import get_streaming_config
 
 logger = logging.getLogger(__name__)
 
-from database import get_db
+from database import get_async_db
 from models import User
 from schemas.canonical_types import CanonicalResearchArticle
 
@@ -78,30 +78,28 @@ class GoogleScholarStreamRequest(BaseModel):
 @router.post("/search", response_model=GoogleScholarSearchResponse)
 async def search_google_scholar(
     request: GoogleScholarSearchRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(validate_token)
 ):
     """
     Search Google Scholar for academic articles.
-    
+
     This endpoint provides access to Google Scholar search functionality,
     allowing users to find academic literature across all disciplines.
-    
+
     Args:
         request: Search parameters
-        db: Database session
         current_user: Authenticated user
-        
+
     Returns:
         GoogleScholarSearchResponse with articles and metadata
-        
+
     Raises:
         HTTPException: If search fails or parameters are invalid
     """
     try:
         # Get the service
         service = GoogleScholarService()
-        
+
         # Perform the search
         articles, search_metadata = service.search_articles(
             query=request.query,
@@ -112,13 +110,13 @@ async def search_google_scholar(
             start_index=request.start_index,
             enrich_summaries=bool(request.enrich_summaries)
         )
-        
+
         return GoogleScholarSearchResponse(
             articles=articles,
             metadata=search_metadata,
             success=True
         )
-        
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -134,12 +132,11 @@ async def search_google_scholar_get(
     sort_by: Optional[str] = Query("relevance", pattern="^(relevance|date)$", description="Sort order"),
     start_index: Optional[int] = Query(0, ge=0, description="Starting index for pagination"),
     enrich_summaries: Optional[bool] = Query(False, description="If true, attempt to enrich abstracts/summaries for returned results"),
-    db: Session = Depends(get_db),
     current_user: User = Depends(validate_token)
 ):
     """
     Search Google Scholar (GET method).
-    
+
     Same as POST /search but using query parameters.
     Useful for simple searches or browser testing.
     """
@@ -152,8 +149,8 @@ async def search_google_scholar_get(
         start_index=start_index,
         enrich_summaries=enrich_summaries
     )
-    
-    return await search_google_scholar(request, db, current_user)
+
+    return await search_google_scholar(request, current_user)
 
 
 @router.get("/test-connection")
@@ -162,19 +159,19 @@ async def test_google_scholar_connection(
 ):
     """
     Test Google Scholar/SerpAPI connection.
-    
+
     Verifies that the SerpAPI key is configured and the service is accessible.
     """
     try:
         service = GoogleScholarService()
-        
+
         # Check if API key is configured
         if not service.api_key:
             return {
                 "status": "error",
                 "message": "SerpAPI key not configured. Set SERPAPI_KEY environment variable."
             }
-        
+
         # Try a minimal search to test the connection
         try:
             articles, metadata = service.search_articles(
@@ -193,7 +190,7 @@ async def test_google_scholar_connection(
                 "message": f"Connection test failed: {str(e)}",
                 "api_configured": True
             }
-            
+
     except Exception as e:
         return {
             "status": "error",
@@ -205,7 +202,6 @@ async def test_google_scholar_connection(
 @router.post("/enrich", response_model=GoogleScholarEnrichResponse)
 async def enrich_article(
     request: GoogleScholarEnrichRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(validate_token)
 ):
     """
@@ -235,7 +231,7 @@ def _sse_format(data: dict) -> str:
 async def stream_google_scholar(
     request: GoogleScholarStreamRequest,
     req: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(validate_token)
 ):
     """
@@ -350,14 +346,14 @@ async def stream_google_scholar(
 
                     # Track completion event
                     tracker = EventTracker(db)
-                    tracker.track_event(
+                    await tracker.async_track_event(
                         user_id=user_id,
                         journey_id=journey_id,
                         event_type=EventType.SCHOLAR_ENRICH_COMPLETE,
                         event_data=completion_data
                     )
             except Exception as e:
-                print(f"[TRACKING ERROR] Failed to track Google Scholar completion event: {e}")
+                logger.warning(f"[TRACKING ERROR] Failed to track Google Scholar completion event: {e}")
 
     headers = {
         "Cache-Control": "no-cache",
@@ -377,7 +373,7 @@ async def stream_google_scholar_get(
     sort_by: Optional[str] = Query("relevance", pattern="^(relevance|date)$", description="Sort order"),
     start_index: Optional[int] = Query(0, ge=0, description="Starting index for pagination"),
     enrich_summaries: Optional[bool] = Query(False, description="If true, attempt to enrich abstracts/summaries for returned results"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(validate_token)
 ):
     req = GoogleScholarStreamRequest(

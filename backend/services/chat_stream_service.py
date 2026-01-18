@@ -5,9 +5,11 @@ Handles LLM streaming interaction for the chat system with tool support.
 Uses the agent_loop for agentic processing. Handles chat persistence automatically.
 """
 
-from typing import Dict, Any, AsyncGenerator, List, Optional, Tuple
+from typing import Dict, Any, AsyncGenerator, List, Optional, Tuple, Union
 from datetime import datetime
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 import anthropic
 import os
 import logging
@@ -53,9 +55,13 @@ MAX_TOOL_ITERATIONS = 5
 
 
 class ChatStreamService:
-    """Service for streaming chat interactions with tool support."""
+    """Service for streaming chat interactions with tool support.
 
-    def __init__(self, db: Session, user_id: int):
+    Supports both sync (Session) and async (AsyncSession) database access.
+    Use async methods when using AsyncSession.
+    """
+
+    def __init__(self, db: Union[Session, AsyncSession], user_id: int):
         self.db = db
         self.user_id = user_id
         self.async_client = anthropic.AsyncAnthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
@@ -92,7 +98,7 @@ class ChatStreamService:
             cancellation_token = CancellationToken()
 
         # Setup chat persistence
-        chat_id = self._setup_chat(request)
+        chat_id = await self._setup_chat(request)
 
         try:
             # Inject conversation_id into context for tools that need it
@@ -100,8 +106,8 @@ class ChatStreamService:
             context_with_chat["conversation_id"] = chat_id
 
             # Build prompts
-            system_prompt = self._build_system_prompt(context_with_chat, chat_id)
-            messages, conversation_history = self._build_messages(request, chat_id)
+            system_prompt = await self._build_system_prompt(context_with_chat, chat_id)
+            messages, conversation_history = await self._build_messages(request, chat_id)
 
             # Get tools for this page, tab, and subtab (global + page + tab + subtab)
             current_page = context_with_chat.get("current_page", "unknown")
@@ -217,7 +223,7 @@ class ChatStreamService:
             extras = {k: v for k, v in extras.items() if v is not None}
 
             # Persist assistant message
-            self._save_assistant_message(
+            await self._save_assistant_message(
                 chat_id,
                 parsed["message"],
                 request.context,
@@ -277,9 +283,9 @@ class ChatStreamService:
 
         return processed
 
-    def _build_payload_manifest(self, chat_id: Optional[int]) -> Optional[str]:
+    async def _build_payload_manifest(self, chat_id: Optional[int]) -> Optional[str]:
         """
-        Build a manifest of all payloads from the conversation history.
+        Build a manifest of all payloads from the conversation history (async).
 
         The manifest provides brief summaries of all payloads that have been
         generated during this conversation, allowing the LLM to reference
@@ -295,7 +301,7 @@ class ChatStreamService:
             return None
 
         # Get all messages from this conversation
-        messages = self.chat_service.get_messages(chat_id, self.user_id)
+        messages = await self.chat_service.async_get_messages(chat_id, self.user_id)
 
         manifest_entries = []
         for msg in messages:
@@ -330,9 +336,9 @@ class ChatStreamService:
             return "trialscout"
         return "kh"
 
-    def _setup_chat(self, request) -> Optional[int]:
+    async def _setup_chat(self, request) -> Optional[int]:
         """
-        Set up chat persistence and save user message.
+        Set up chat persistence and save user message (async).
 
         Returns chat_id or None if persistence fails.
         """
@@ -341,15 +347,15 @@ class ChatStreamService:
             app = self._get_app_from_context(request.context)
 
             if chat_id:
-                chat = self.chat_service.get_chat(chat_id, self.user_id)
+                chat = await self.chat_service.async_get_chat(chat_id, self.user_id)
                 if not chat:
                     chat_id = None
 
             if not chat_id:
-                chat = self.chat_service.create_chat(self.user_id, app=app)
+                chat = await self.chat_service.async_create_chat(self.user_id, app=app)
                 chat_id = chat.id
 
-            self.chat_service.add_message(
+            await self.chat_service.async_add_message(
                 chat_id=chat_id,
                 user_id=self.user_id,
                 role='user',
@@ -362,18 +368,18 @@ class ChatStreamService:
             logger.warning(f"Failed to persist user message: {e}")
             return None
 
-    def _save_assistant_message(
+    async def _save_assistant_message(
         self,
         chat_id: Optional[int],
         content: str,
         context: Dict[str, Any],
         extras: Optional[Dict[str, Any]] = None
     ) -> None:
-        """Save assistant message to chat history."""
+        """Save assistant message to chat history (async)."""
         if not chat_id:
             return
         try:
-            self.chat_service.add_message(
+            await self.chat_service.async_add_message(
                 chat_id=chat_id,
                 user_id=self.user_id,
                 role='assistant',
@@ -388,9 +394,9 @@ class ChatStreamService:
     # Message Building
     # =========================================================================
 
-    def _build_messages(self, request, chat_id: Optional[int] = None) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
+    async def _build_messages(self, request, chat_id: Optional[int] = None) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
         """
-        Build message history for LLM.
+        Build message history for LLM (async).
 
         Loads conversation history from database if chat_id is provided,
         otherwise starts fresh.
@@ -404,7 +410,7 @@ class ChatStreamService:
 
         # Load history from database if we have a conversation
         if chat_id:
-            db_messages = self.chat_service.get_messages(chat_id, self.user_id)
+            db_messages = await self.chat_service.async_get_messages(chat_id, self.user_id)
             for msg in db_messages:
                 if msg.role in ('user', 'assistant'):
                     history.append({"role": msg.role, "content": msg.content})
@@ -427,9 +433,9 @@ class ChatStreamService:
     # System Prompt Building
     # =========================================================================
 
-    def _build_system_prompt(self, context: Dict[str, Any], chat_id: Optional[int] = None) -> str:
+    async def _build_system_prompt(self, context: Dict[str, Any], chat_id: Optional[int] = None) -> str:
         """
-        Build system prompt with clean structure:
+        Build system prompt with clean structure (async).
         1. IDENTITY - Who the assistant is (page-specific or default)
         2. CONTEXT - Current page and loaded data
         3. PAYLOAD MANIFEST - Available payloads from conversation history (if any)
@@ -457,12 +463,12 @@ class ChatStreamService:
             )
 
         # 2. CONTEXT (page context + loaded data)
-        page_context = self._build_page_context(current_page, context)
+        page_context = await self._build_page_context(current_page, context)
         if page_context:
             sections.append(f"== CURRENT CONTEXT ==\n{page_context}")
 
         # 3. PAYLOAD MANIFEST (payloads from conversation history, if any)
-        payload_manifest = self._build_payload_manifest(chat_id)
+        payload_manifest = await self._build_payload_manifest(chat_id)
         if payload_manifest:
             sections.append(f"== CONVERSATION DATA ==\n{payload_manifest}")
 
@@ -472,7 +478,7 @@ class ChatStreamService:
             sections.append(f"== CAPABILITIES ==\n{capabilities}")
 
         # 5. CUSTOM INSTRUCTIONS (stream-specific, only if defined)
-        stream_instructions = self._load_stream_instructions(context)
+        stream_instructions = await self._load_stream_instructions(context)
         if stream_instructions:
             sections.append(f"== CUSTOM INSTRUCTIONS ==\n{stream_instructions}")
 
@@ -540,8 +546,8 @@ class ChatStreamService:
     # Context Loading
     # =========================================================================
 
-    def _build_page_context(self, current_page: str, context: Dict[str, Any]) -> str:
-        """Build page-specific context section of the prompt."""
+    async def _build_page_context(self, current_page: str, context: Dict[str, Any]) -> str:
+        """Build page-specific context section of the prompt (async)."""
         context_builder = get_context_builder(current_page)
 
         if context_builder:
@@ -553,7 +559,7 @@ class ChatStreamService:
         if current_page == "reports" and context.get("report_id"):
             report_id = context.get("report_id")
             try:
-                report_data = self._load_report_context(report_id, context)
+                report_data = await self._load_report_context(report_id, context)
                 if report_data:
                     base_context += "\n" + report_data
                 else:
@@ -564,48 +570,54 @@ class ChatStreamService:
 
         return base_context
 
-    def _load_stream_instructions(self, context: Dict[str, Any]) -> Optional[str]:
-        """Load stream-specific chat instructions based on stream_id in context."""
+    async def _load_stream_instructions(self, context: Dict[str, Any]) -> Optional[str]:
+        """Load stream-specific chat instructions based on stream_id in context (async)."""
         from models import ResearchStream, Report
 
         stream_id = context.get("stream_id")
 
         # Try to get stream_id from report_id if not directly provided
         if not stream_id and context.get("report_id"):
-            report = self.db.query(Report).filter(
+            stmt = select(Report).where(
                 Report.report_id == context.get("report_id"),
                 Report.user_id == self.user_id
-            ).first()
+            )
+            result = await self.db.execute(stmt)
+            report = result.scalars().first()
             if report:
                 stream_id = report.research_stream_id
 
         if not stream_id:
             return None
 
-        stream = self.db.query(ResearchStream).filter(
+        stmt = select(ResearchStream).where(
             ResearchStream.stream_id == stream_id,
             ResearchStream.user_id == self.user_id
-        ).first()
+        )
+        result = await self.db.execute(stmt)
+        stream = result.scalars().first()
 
         if not stream or not stream.chat_instructions:
             return None
 
         return stream.chat_instructions.strip()
 
-    def _load_report_context(self, report_id: int, context: Dict[str, Any]) -> Optional[str]:
-        """Load report data from database and format it for LLM context."""
+    async def _load_report_context(self, report_id: int, context: Dict[str, Any]) -> Optional[str]:
+        """Load report data from database and format it for LLM context (async)."""
         from models import Report
 
-        report = self.db.query(Report).filter(
+        stmt = select(Report).where(
             Report.report_id == report_id,
             Report.user_id == self.user_id
-        ).first()
+        )
+        result = await self.db.execute(stmt)
+        report = result.scalars().first()
 
         if not report:
             return None
 
-        # Load visible articles (excludes hidden)
-        visible_associations = self.association_service.get_visible_for_report(report_id)
+        # Load visible articles (excludes hidden) - association_service uses async
+        visible_associations = await self.association_service.async_get_visible_for_report(report_id)
 
         articles_context = []
         for assoc in visible_associations:
@@ -898,3 +910,36 @@ class ChatStreamService:
                     return text[:i + 1]
 
         return None
+
+
+# Dependency injection providers
+from fastapi import Depends
+from database import get_async_db
+
+
+async def get_async_chat_stream_service(
+    db: AsyncSession = Depends(get_async_db)
+) -> ChatStreamService:
+    """
+    Get a ChatStreamService instance with async database session.
+
+    Note: user_id is not available at DI time, so we return a partial service
+    that the endpoint must complete with user_id.
+    """
+    # Return a factory function since we need user_id at call time
+    raise NotImplementedError("Use get_chat_stream_service_factory instead")
+
+
+def get_chat_stream_service_factory(
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Get a factory for creating ChatStreamService instances.
+
+    Usage in endpoint:
+        factory = Depends(get_chat_stream_service_factory)
+        service = factory(current_user.user_id)
+    """
+    def create_service(user_id: int) -> ChatStreamService:
+        return ChatStreamService(db, user_id)
+    return create_service

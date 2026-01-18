@@ -4,10 +4,11 @@ Event Tracking Service for SmartSearch2
 Simple service for tracking user events in their search journey.
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 from uuid import uuid4
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, func
 
 from models import UserEvent, EventType
@@ -16,7 +17,7 @@ from models import UserEvent, EventType
 class EventTracker:
     """Service for tracking user events"""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Union[Session, AsyncSession]):
         """Initialize with database session"""
         self.db = db
         self.user_id: Optional[str] = None
@@ -51,6 +52,38 @@ class EventTracker:
 
         self.db.add(event)
         self.db.commit()
+
+        return event.event_id
+
+    async def async_track_event(
+        self,
+        user_id: str,
+        journey_id: str,
+        event_type: EventType,
+        event_data: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """
+        Track a single event (async version)
+
+        Args:
+            user_id: User identifier
+            journey_id: Journey identifier
+            event_type: Type of event from EventType enum
+            event_data: Optional event-specific data
+
+        Returns:
+            Event ID
+        """
+        event = UserEvent(
+            user_id=user_id,
+            journey_id=journey_id,
+            event_type=event_type,
+            event_data=event_data or {},
+            timestamp=datetime.utcnow()
+        )
+
+        self.db.add(event)
+        await self.db.commit()
 
         return event.event_id
 

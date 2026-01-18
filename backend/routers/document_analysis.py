@@ -5,12 +5,13 @@ Document Analysis API endpoints
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import get_db
+from database import get_async_db
 from models import User
 from services import auth_service
 from services.document_analysis_service import get_document_analysis_service
+from services.research_stream_service import ResearchStreamService, get_async_research_stream_service
 from schemas.document_analysis import (
     DocumentAnalysisRequest,
     DocumentAnalysisResult,
@@ -27,7 +28,6 @@ router = APIRouter(prefix="/api/tools/document-analysis", tags=["document-analys
 @router.post("/analyze", response_model=DocumentAnalysisResult)
 async def analyze_document(
     request: DocumentAnalysisRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(auth_service.validate_token)
 ):
     """
@@ -63,7 +63,6 @@ async def analyze_document(
 @router.post("/analyze-stream")
 async def analyze_document_stream(
     request: DocumentAnalysisRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(auth_service.validate_token)
 ):
     """
@@ -124,7 +123,7 @@ async def analyze_document_stream(
 @router.post("/analyze-stance", response_model=StanceAnalysisResult)
 async def analyze_article_stance(
     request: StanceAnalysisRequest,
-    db: Session = Depends(get_db),
+    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(auth_service.validate_token)
 ):
     """
@@ -134,14 +133,11 @@ async def analyze_article_stance(
     Requires a stream_id to load the stream's chat_instructions which define
     the classification criteria.
     """
-    from services.research_stream_service import ResearchStreamService
-
     logger.info(f"[STANCE] Endpoint entered - user_id={current_user.user_id}, stream_id={request.stream_id}")
 
     try:
         # Load the research stream via service (handles access control)
-        stream_service = ResearchStreamService(db)
-        stream = stream_service.get_research_stream(request.stream_id, current_user.user_id)
+        stream = await stream_service.async_get_research_stream(request.stream_id, current_user.user_id)
 
         logger.info(f"Stance analysis request from user {current_user.user_id} for stream {stream.stream_name}")
 

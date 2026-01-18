@@ -5,8 +5,10 @@ Service for testing and refining queries, filters, and categorization.
 Provides isolated testing capabilities for each pipeline component.
 """
 
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Union
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 import logging
 
 from models import ResearchStream
@@ -21,9 +23,12 @@ logger = logging.getLogger(__name__)
 
 
 class RefinementWorkbenchService:
-    """Service for refinement workbench operations"""
+    """Service for refinement workbench operations.
 
-    def __init__(self, db: Session):
+    Supports both sync (Session) and async (AsyncSession) database access.
+    """
+
+    def __init__(self, db: Union[Session, AsyncSession]):
         self.MAX_ARTICLES_PER_SOURCE = 500
         self.db = db
         self.pubmed_service = PubMedService()
@@ -49,10 +54,10 @@ class RefinementWorkbenchService:
         Returns:
             Tuple of (articles, metadata dict, all_matched_pmids)
         """
-        # Get stream from database
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == stream_id
-        ).first()
+        # Get stream from database (async)
+        stmt = select(ResearchStream).where(ResearchStream.stream_id == stream_id)
+        result = await self.db.execute(stmt)
+        stream = result.scalars().first()
 
         if not stream:
             raise ValueError(f"Stream {stream_id} not found")
@@ -331,10 +336,10 @@ class RefinementWorkbenchService:
         Returns:
             List of categorization result dicts with article and assigned_categories
         """
-        # Get stream from database
-        stream = self.db.query(ResearchStream).filter(
-            ResearchStream.stream_id == stream_id
-        ).first()
+        # Get stream from database (async)
+        stmt = select(ResearchStream).where(ResearchStream.stream_id == stream_id)
+        result = await self.db.execute(stmt)
+        stream = result.scalars().first()
 
         if not stream:
             raise ValueError(f"Stream {stream_id} not found")
@@ -440,3 +445,15 @@ class RefinementWorkbenchService:
             "precision": precision,
             "f1_score": f1_score
         }
+
+
+# Dependency injection provider for async refinement workbench service
+from fastapi import Depends
+from database import get_async_db
+
+
+async def get_async_refinement_workbench_service(
+    db: AsyncSession = Depends(get_async_db)
+) -> RefinementWorkbenchService:
+    """Get a RefinementWorkbenchService instance with async database session."""
+    return RefinementWorkbenchService(db)

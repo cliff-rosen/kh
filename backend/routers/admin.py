@@ -4,21 +4,19 @@ Requires platform_admin role for all operations.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 from datetime import datetime
 import logging
 
-from database import get_db
 from config.settings import settings
 from models import User, UserRole
 from services import auth_service
-from services.organization_service import OrganizationService
-from services.user_service import UserService
-from services.subscription_service import SubscriptionService
-from services.invitation_service import InvitationService
-from services.research_stream_service import ResearchStreamService
+from services.organization_service import OrganizationService, get_async_organization_service
+from services.user_service import UserService, get_async_user_service
+from services.subscription_service import SubscriptionService, get_async_subscription_service
+from services.invitation_service import InvitationService, get_async_invitation_service
+from services.research_stream_service import ResearchStreamService, get_async_research_stream_service
 from schemas.organization import (
     Organization as OrgSchema,
     OrganizationUpdate,
@@ -33,14 +31,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
-def get_current_user(
+def require_platform_admin(
     current_user: User = Depends(auth_service.validate_token)
 ) -> User:
-    """Dependency to get the current authenticated user."""
-    return current_user
-
-
-def require_platform_admin(current_user: User = Depends(get_current_user)) -> User:
     """Dependency that requires platform admin role."""
     if current_user.role != UserRole.PLATFORM_ADMIN:
         raise HTTPException(
@@ -59,22 +52,20 @@ def require_platform_admin(current_user: User = Depends(get_current_user)) -> Us
 )
 async def list_all_organizations(
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    org_service: OrganizationService = Depends(get_async_organization_service)
 ):
     """Get all organizations with member counts. Platform admin only."""
     logger.info(f"list_all_organizations - admin_user_id={current_user.user_id}")
 
     try:
-        service = OrganizationService(db)
-        orgs = service.list_organizations(include_inactive=True)
-
-        logger.info(f"list_all_organizations complete - admin_user_id={current_user.user_id}, count={len(orgs)}")
+        orgs = await org_service.async_list_organizations(include_inactive=True)
+        logger.info(f"list_all_organizations complete - count={len(orgs)}")
         return orgs
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"list_all_organizations failed - admin_user_id={current_user.user_id}: {e}", exc_info=True)
+        logger.error(f"list_all_organizations failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list organizations: {str(e)}"
@@ -90,23 +81,21 @@ async def list_all_organizations(
 async def create_organization(
     name: str,
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    org_service: OrganizationService = Depends(get_async_organization_service)
 ):
     """Create a new organization. Platform admin only."""
     logger.info(f"create_organization - admin_user_id={current_user.user_id}, name={name}")
 
     try:
         from schemas.organization import OrganizationCreate
-        service = OrganizationService(db)
-        org = service.create_organization(OrganizationCreate(name=name))
-
-        logger.info(f"create_organization complete - admin_user_id={current_user.user_id}, org_id={org.org_id}")
+        org = await org_service.async_create_organization(OrganizationCreate(name=name))
+        logger.info(f"create_organization complete - org_id={org.org_id}")
         return org
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"create_organization failed - admin_user_id={current_user.user_id}, name={name}: {e}", exc_info=True)
+        logger.error(f"create_organization failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create organization: {str(e)}"
@@ -121,29 +110,25 @@ async def create_organization(
 async def get_organization(
     org_id: int,
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    org_service: OrganizationService = Depends(get_async_organization_service)
 ):
     """Get organization details by ID. Platform admin only."""
     logger.info(f"get_organization - admin_user_id={current_user.user_id}, org_id={org_id}")
 
     try:
-        service = OrganizationService(db)
-        org = service.get_organization_with_stats(org_id)
-
+        org = await org_service.async_get_organization_with_stats(org_id)
         if not org:
-            logger.warning(f"get_organization - not found - admin_user_id={current_user.user_id}, org_id={org_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Organization not found"
             )
-
-        logger.info(f"get_organization complete - admin_user_id={current_user.user_id}, org_id={org_id}")
+        logger.info(f"get_organization complete - org_id={org_id}")
         return org
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"get_organization failed - admin_user_id={current_user.user_id}, org_id={org_id}: {e}", exc_info=True)
+        logger.error(f"get_organization failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get organization: {str(e)}"
@@ -159,29 +144,25 @@ async def update_organization(
     org_id: int,
     update_data: OrganizationUpdate,
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    org_service: OrganizationService = Depends(get_async_organization_service)
 ):
     """Update an organization. Platform admin only."""
     logger.info(f"update_organization - admin_user_id={current_user.user_id}, org_id={org_id}")
 
     try:
-        service = OrganizationService(db)
-        org = service.update_organization(org_id, update_data)
-
+        org = await org_service.async_update_organization(org_id, update_data)
         if not org:
-            logger.warning(f"update_organization - not found - admin_user_id={current_user.user_id}, org_id={org_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Organization not found"
             )
-
-        logger.info(f"update_organization complete - admin_user_id={current_user.user_id}, org_id={org_id}")
+        logger.info(f"update_organization complete - org_id={org_id}")
         return OrgSchema.model_validate(org)
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"update_organization failed - admin_user_id={current_user.user_id}, org_id={org_id}: {e}", exc_info=True)
+        logger.error(f"update_organization failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update organization: {str(e)}"
@@ -196,31 +177,24 @@ async def update_organization(
 async def delete_organization(
     org_id: int,
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    org_service: OrganizationService = Depends(get_async_organization_service)
 ):
-    """
-    Delete an organization. Platform admin only.
-    Will fail if organization has members.
-    """
+    """Delete an organization. Platform admin only."""
     logger.info(f"delete_organization - admin_user_id={current_user.user_id}, org_id={org_id}")
 
     try:
-        service = OrganizationService(db)
-        success = service.delete_organization(org_id)
-
+        success = await org_service.async_delete_organization(org_id)
         if not success:
-            logger.warning(f"delete_organization - cannot delete - admin_user_id={current_user.user_id}, org_id={org_id}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot delete organization. It may have members or not exist."
+                detail="Cannot delete organization."
             )
-
-        logger.info(f"delete_organization complete - admin_user_id={current_user.user_id}, org_id={org_id}")
+        logger.info(f"delete_organization complete - org_id={org_id}")
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"delete_organization failed - admin_user_id={current_user.user_id}, org_id={org_id}: {e}", exc_info=True)
+        logger.error(f"delete_organization failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete organization: {str(e)}"
@@ -235,22 +209,20 @@ async def assign_user_to_org(
     org_id: int,
     user_id: int,
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    user_service: UserService = Depends(get_async_user_service)
 ):
     """Assign a user to an organization. Platform admin only."""
     logger.info(f"assign_user_to_org - admin_user_id={current_user.user_id}, user_id={user_id}, org_id={org_id}")
 
     try:
-        user_service = UserService(db)
-        user = user_service.assign_to_org(user_id, org_id, current_user)
-
-        logger.info(f"assign_user_to_org complete - admin_user_id={current_user.user_id}, user_id={user_id}, org_id={org_id}")
+        user = await user_service.async_assign_to_org(user_id, org_id, current_user)
+        logger.info(f"assign_user_to_org complete - user_id={user_id}, org_id={org_id}")
         return {"status": "success", "user_id": user.user_id, "org_id": user.org_id}
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"assign_user_to_org failed - admin_user_id={current_user.user_id}, user_id={user_id}, org_id={org_id}: {e}", exc_info=True)
+        logger.error(f"assign_user_to_org failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to assign user to organization: {str(e)}"
@@ -266,22 +238,20 @@ async def assign_user_to_org(
 )
 async def list_global_streams(
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    stream_service: ResearchStreamService = Depends(get_async_research_stream_service)
 ):
     """Get all global streams. Platform admin only."""
     logger.info(f"list_global_streams - admin_user_id={current_user.user_id}")
 
     try:
-        service = ResearchStreamService(db)
-        streams = service.list_global_streams()
-
-        logger.info(f"list_global_streams complete - admin_user_id={current_user.user_id}, count={len(streams)}")
+        streams = await stream_service.async_list_global_streams()
+        logger.info(f"list_global_streams complete - count={len(streams)}")
         return streams
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"list_global_streams failed - admin_user_id={current_user.user_id}: {e}", exc_info=True)
+        logger.error(f"list_global_streams failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list global streams: {str(e)}"
@@ -296,32 +266,20 @@ async def list_global_streams(
 async def set_stream_scope_global(
     stream_id: int,
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    stream_service: ResearchStreamService = Depends(get_async_research_stream_service)
 ):
-    """
-    Change an existing stream's scope to global.
-    Platform admin only. Use this to promote any stream to global scope.
-    """
+    """Change a stream's scope to global. Platform admin only."""
     logger.info(f"set_stream_scope_global - admin_user_id={current_user.user_id}, stream_id={stream_id}")
 
     try:
-        service = ResearchStreamService(db)
-        stream = service.set_stream_scope_global(stream_id)
-
-        if not stream:
-            logger.warning(f"set_stream_scope_global - not found - admin_user_id={current_user.user_id}, stream_id={stream_id}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Stream not found"
-            )
-
-        logger.info(f"set_stream_scope_global complete - admin_user_id={current_user.user_id}, stream_id={stream_id}")
+        stream = await stream_service.async_set_stream_scope_global(stream_id)
+        logger.info(f"set_stream_scope_global complete - stream_id={stream_id}")
         return stream
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"set_stream_scope_global failed - admin_user_id={current_user.user_id}, stream_id={stream_id}: {e}", exc_info=True)
+        logger.error(f"set_stream_scope_global failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update stream scope: {str(e)}"
@@ -336,28 +294,24 @@ async def set_stream_scope_global(
 async def delete_global_stream(
     stream_id: int,
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    stream_service: ResearchStreamService = Depends(get_async_research_stream_service)
 ):
     """Delete a global stream. Platform admin only."""
     logger.info(f"delete_global_stream - admin_user_id={current_user.user_id}, stream_id={stream_id}")
 
     try:
-        service = ResearchStreamService(db)
-        success = service.delete_global_stream(stream_id)
-
+        success = await stream_service.async_delete_global_stream(stream_id)
         if not success:
-            logger.warning(f"delete_global_stream - not found - admin_user_id={current_user.user_id}, stream_id={stream_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Global stream not found"
             )
-
-        logger.info(f"delete_global_stream complete - admin_user_id={current_user.user_id}, stream_id={stream_id}")
+        logger.info(f"delete_global_stream complete - stream_id={stream_id}")
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"delete_global_stream failed - admin_user_id={current_user.user_id}, stream_id={stream_id}: {e}", exc_info=True)
+        logger.error(f"delete_global_stream failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete global stream: {str(e)}"
@@ -378,22 +332,20 @@ async def list_all_users(
     limit: int = 100,
     offset: int = 0,
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    user_service: UserService = Depends(get_async_user_service)
 ):
     """Get all users with optional filters. Platform admin only."""
-    logger.info(f"list_all_users - admin_user_id={current_user.user_id}, org_id={org_id}, role={role}, limit={limit}")
+    logger.info(f"list_all_users - admin_user_id={current_user.user_id}, org_id={org_id}, role={role}")
 
     try:
-        user_service = UserService(db)
-        users, total = user_service.list_users(
+        users, total = await user_service.async_list_users(
             org_id=org_id,
             role=role,
             is_active=is_active,
             limit=limit,
             offset=offset
         )
-
-        logger.info(f"list_all_users complete - admin_user_id={current_user.user_id}, total={total}, returned={len(users)}")
+        logger.info(f"list_all_users complete - total={total}, returned={len(users)}")
         return UserList(
             users=[UserSchema.model_validate(u) for u in users],
             total=total
@@ -402,7 +354,7 @@ async def list_all_users(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"list_all_users failed - admin_user_id={current_user.user_id}: {e}", exc_info=True)
+        logger.error(f"list_all_users failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list users: {str(e)}"
@@ -418,22 +370,20 @@ async def update_user_role(
     user_id: int,
     new_role: UserRoleSchema,
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    user_service: UserService = Depends(get_async_user_service)
 ):
     """Update any user's role. Platform admin only."""
     logger.info(f"update_user_role - admin_user_id={current_user.user_id}, user_id={user_id}, new_role={new_role}")
 
     try:
-        user_service = UserService(db)
-        user = user_service.update_role(user_id, new_role, current_user)
-
-        logger.info(f"update_user_role complete - admin_user_id={current_user.user_id}, user_id={user_id}, new_role={new_role}")
+        user = await user_service.async_update_role(user_id, new_role, current_user)
+        logger.info(f"update_user_role complete - user_id={user_id}, new_role={new_role}")
         return UserSchema.model_validate(user)
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"update_user_role failed - admin_user_id={current_user.user_id}, user_id={user_id}: {e}", exc_info=True)
+        logger.error(f"update_user_role failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update user role: {str(e)}"
@@ -448,24 +398,19 @@ async def update_user_role(
 async def delete_user(
     user_id: int,
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    user_service: UserService = Depends(get_async_user_service)
 ):
-    """
-    Permanently delete a user from the system.
-    Platform admin only. Cannot delete yourself or other platform admins.
-    """
+    """Delete a user. Platform admin only."""
     logger.info(f"delete_user - admin_user_id={current_user.user_id}, user_id={user_id}")
 
     try:
-        user_service = UserService(db)
-        user_service.delete_user(user_id, current_user)
-
-        logger.info(f"delete_user complete - admin_user_id={current_user.user_id}, user_id={user_id}")
+        await user_service.async_delete_user(user_id, current_user)
+        logger.info(f"delete_user complete - user_id={user_id}")
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"delete_user failed - admin_user_id={current_user.user_id}, user_id={user_id}: {e}", exc_info=True)
+        logger.error(f"delete_user failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete user: {str(e)}"
@@ -477,11 +422,8 @@ async def delete_user(
 class InvitationCreate(BaseModel):
     """Request schema for creating an invitation."""
     email: EmailStr = Field(description="Email address to invite")
-    org_id: Optional[int] = Field(default=None, description="Organization to assign user to (optional for platform_admin)")
-    role: UserRoleSchema = Field(
-        default=UserRoleSchema.MEMBER,
-        description="Role to assign (member, org_admin, or platform_admin)"
-    )
+    org_id: Optional[int] = Field(default=None, description="Organization to assign user to")
+    role: UserRoleSchema = Field(default=UserRoleSchema.MEMBER, description="Role to assign")
     expires_in_days: int = Field(default=7, ge=1, le=30, description="Days until expiration")
 
 
@@ -510,10 +452,7 @@ class CreateUserRequest(BaseModel):
     password: str = Field(min_length=5, description="User's password")
     full_name: Optional[str] = Field(default=None, description="User's full name")
     org_id: int = Field(description="Organization to assign user to")
-    role: UserRoleSchema = Field(
-        default=UserRoleSchema.MEMBER,
-        description="Role to assign"
-    )
+    role: UserRoleSchema = Field(default=UserRoleSchema.MEMBER, description="Role to assign")
 
 
 @router.get(
@@ -526,28 +465,25 @@ async def list_invitations(
     include_accepted: bool = False,
     include_expired: bool = False,
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    inv_service: InvitationService = Depends(get_async_invitation_service)
 ):
     """Get all invitations with optional filters. Platform admin only."""
     logger.info(f"list_invitations - admin_user_id={current_user.user_id}, org_id={org_id}")
 
     try:
-        service = InvitationService(db)
-        invitations = service.list_invitations(
+        invitations = await inv_service.async_list_invitations(
             org_id=org_id,
             include_accepted=include_accepted,
             include_expired=include_expired
         )
-
         result = [InvitationResponse(**inv) for inv in invitations]
-
-        logger.info(f"list_invitations complete - admin_user_id={current_user.user_id}, count={len(result)}")
+        logger.info(f"list_invitations complete - count={len(result)}")
         return result
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"list_invitations failed - admin_user_id={current_user.user_id}: {e}", exc_info=True)
+        logger.error(f"list_invitations failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list invitations: {str(e)}"
@@ -563,50 +499,42 @@ async def list_invitations(
 async def create_invitation(
     invitation: InvitationCreate,
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    user_service: UserService = Depends(get_async_user_service),
+    inv_service: InvitationService = Depends(get_async_invitation_service)
 ):
-    """
-    Create an invitation for a new user.
-    Returns an invitation token that can be used during registration.
-    Platform admin only.
-    """
-    logger.info(f"create_invitation - admin_user_id={current_user.user_id}, email={invitation.email}, org_id={invitation.org_id}")
+    """Create an invitation for a new user. Platform admin only."""
+    logger.info(f"create_invitation - admin_user_id={current_user.user_id}, email={invitation.email}")
 
     try:
-        user_service = UserService(db)
-
         # Check if email already registered
-        existing_user = user_service.get_user_by_email(invitation.email)
+        existing_user = await user_service.async_get_user_by_email(invitation.email)
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User with this email already exists"
             )
 
-        # Validate org_id based on role (non-platform_admin requires org)
+        # Validate org_id based on role
         if invitation.role != UserRoleSchema.PLATFORM_ADMIN and not invitation.org_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Organization is required for non-platform-admin roles"
             )
 
-        # Create invitation via service
-        invitation_service = InvitationService(db)
-        result = invitation_service.create_invitation(
+        result = await inv_service.async_create_invitation(
             email=invitation.email,
             role=invitation.role.value,
             invited_by=current_user.user_id,
             org_id=invitation.org_id,
             expires_in_days=invitation.expires_in_days
         )
-
-        logger.info(f"create_invitation complete - admin_user_id={current_user.user_id}, email={invitation.email}, org_id={invitation.org_id}")
+        logger.info(f"create_invitation complete - email={invitation.email}")
         return InvitationResponse(**result)
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"create_invitation failed - admin_user_id={current_user.user_id}, email={invitation.email}: {e}", exc_info=True)
+        logger.error(f"create_invitation failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create invitation: {str(e)}"
@@ -621,28 +549,24 @@ async def create_invitation(
 async def revoke_invitation(
     invitation_id: int,
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    inv_service: InvitationService = Depends(get_async_invitation_service)
 ):
     """Revoke an invitation. Platform admin only."""
     logger.info(f"revoke_invitation - admin_user_id={current_user.user_id}, invitation_id={invitation_id}")
 
     try:
-        service = InvitationService(db)
-        success = service.revoke_invitation(invitation_id)
-
+        success = await inv_service.async_revoke_invitation(invitation_id)
         if not success:
-            logger.warning(f"revoke_invitation - not found - admin_user_id={current_user.user_id}, invitation_id={invitation_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Invitation not found"
             )
-
-        logger.info(f"revoke_invitation complete - admin_user_id={current_user.user_id}, invitation_id={invitation_id}")
+        logger.info(f"revoke_invitation complete - invitation_id={invitation_id}")
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"revoke_invitation failed - admin_user_id={current_user.user_id}, invitation_id={invitation_id}: {e}", exc_info=True)
+        logger.error(f"revoke_invitation failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to revoke invitation: {str(e)}"
@@ -658,40 +582,35 @@ async def revoke_invitation(
 async def create_user_directly(
     user_data: CreateUserRequest,
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    org_service: OrganizationService = Depends(get_async_organization_service),
+    user_service: UserService = Depends(get_async_user_service)
 ):
-    """
-    Create a user directly without invitation.
-    Platform admin only.
-    """
-    logger.info(f"create_user_directly - admin_user_id={current_user.user_id}, email={user_data.email}, org_id={user_data.org_id}")
+    """Create a user directly without invitation. Platform admin only."""
+    logger.info(f"create_user_directly - admin_user_id={current_user.user_id}, email={user_data.email}")
 
     try:
         # Verify organization exists
-        org_service = OrganizationService(db)
-        org = org_service.get_organization(user_data.org_id)
+        org = await org_service.async_get_organization(user_data.org_id)
         if not org:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Organization not found"
             )
 
-        user_service = UserService(db)
-        user = user_service.create_user(
+        user = await user_service.async_create_user(
             email=user_data.email,
             password=user_data.password,
             full_name=user_data.full_name,
             role=user_data.role,
             org_id=user_data.org_id
         )
-
-        logger.info(f"create_user_directly complete - admin_user_id={current_user.user_id}, new_user_id={user.user_id}, email={user.email}")
+        logger.info(f"create_user_directly complete - new_user_id={user.user_id}")
         return UserSchema.model_validate(user)
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"create_user_directly failed - admin_user_id={current_user.user_id}, email={user_data.email}: {e}", exc_info=True)
+        logger.error(f"create_user_directly failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create user: {str(e)}"
@@ -708,35 +627,28 @@ async def create_user_directly(
 async def list_org_global_stream_subscriptions(
     org_id: int,
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    org_service: OrganizationService = Depends(get_async_organization_service),
+    sub_service: SubscriptionService = Depends(get_async_subscription_service)
 ):
-    """
-    Get all global streams with subscription status for the specified org.
-    Platform admin only.
-    """
+    """Get all global streams with subscription status for an org. Platform admin only."""
     logger.info(f"list_org_global_stream_subscriptions - admin_user_id={current_user.user_id}, org_id={org_id}")
 
     try:
-        # Verify organization exists
-        org_service = OrganizationService(db)
-        org = org_service.get_organization(org_id)
+        org = await org_service.async_get_organization(org_id)
         if not org:
-            logger.warning(f"list_org_global_stream_subscriptions - org not found - admin_user_id={current_user.user_id}, org_id={org_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Organization not found"
             )
 
-        sub_service = SubscriptionService(db)
-        result = sub_service.get_global_streams_for_org(org_id)
-
-        logger.info(f"list_org_global_stream_subscriptions complete - admin_user_id={current_user.user_id}, org_id={org_id}, count={len(result.streams)}")
+        result = await sub_service.async_get_global_streams_for_org(org_id)
+        logger.info(f"list_org_global_stream_subscriptions complete - org_id={org_id}")
         return result.streams
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"list_org_global_stream_subscriptions failed - admin_user_id={current_user.user_id}, org_id={org_id}: {e}", exc_info=True)
+        logger.error(f"list_org_global_stream_subscriptions failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list global stream subscriptions: {str(e)}"
@@ -752,45 +664,36 @@ async def subscribe_org_to_global_stream(
     org_id: int,
     stream_id: int,
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    org_service: OrganizationService = Depends(get_async_organization_service),
+    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
+    sub_service: SubscriptionService = Depends(get_async_subscription_service)
 ):
-    """
-    Subscribe an organization to a global stream.
-    Platform admin only.
-    """
+    """Subscribe an organization to a global stream. Platform admin only."""
     logger.info(f"subscribe_org_to_global_stream - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}")
 
     try:
-        # Verify organization exists
-        org_service = OrganizationService(db)
-        org = org_service.get_organization(org_id)
+        org = await org_service.async_get_organization(org_id)
         if not org:
-            logger.warning(f"subscribe_org_to_global_stream - org not found - admin_user_id={current_user.user_id}, org_id={org_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Organization not found"
             )
 
-        # Verify global stream exists
-        stream_service = ResearchStreamService(db)
-        stream = stream_service.get_global_stream(stream_id)
+        stream = await stream_service.async_get_global_stream(stream_id)
         if not stream:
-            logger.warning(f"subscribe_org_to_global_stream - stream not found - admin_user_id={current_user.user_id}, stream_id={stream_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Global stream not found"
             )
 
-        sub_service = SubscriptionService(db)
-        sub_service.subscribe_org_to_global_stream(org_id, stream_id, current_user.user_id)
-
-        logger.info(f"subscribe_org_to_global_stream complete - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}")
+        await sub_service.async_subscribe_org_to_global_stream(org_id, stream_id, current_user.user_id)
+        logger.info(f"subscribe_org_to_global_stream complete - org_id={org_id}, stream_id={stream_id}")
         return {"status": "subscribed", "org_id": org_id, "stream_id": stream_id}
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"subscribe_org_to_global_stream failed - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}: {e}", exc_info=True)
+        logger.error(f"subscribe_org_to_global_stream failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to subscribe to global stream: {str(e)}"
@@ -806,31 +709,24 @@ async def unsubscribe_org_from_global_stream(
     org_id: int,
     stream_id: int,
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    sub_service: SubscriptionService = Depends(get_async_subscription_service)
 ):
-    """
-    Unsubscribe an organization from a global stream.
-    Platform admin only.
-    """
+    """Unsubscribe an organization from a global stream. Platform admin only."""
     logger.info(f"unsubscribe_org_from_global_stream - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}")
 
     try:
-        sub_service = SubscriptionService(db)
-        success = sub_service.unsubscribe_org_from_global_stream(org_id, stream_id)
-
+        success = await sub_service.async_unsubscribe_org_from_global_stream(org_id, stream_id)
         if not success:
-            logger.warning(f"unsubscribe_org_from_global_stream - not found - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Subscription not found"
             )
-
-        logger.info(f"unsubscribe_org_from_global_stream complete - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}")
+        logger.info(f"unsubscribe_org_from_global_stream complete - org_id={org_id}, stream_id={stream_id}")
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"unsubscribe_org_from_global_stream failed - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}: {e}", exc_info=True)
+        logger.error(f"unsubscribe_org_from_global_stream failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to unsubscribe from global stream: {str(e)}"
@@ -894,7 +790,7 @@ class StreamInstructionsInfo(BaseModel):
     stream_id: int
     stream_name: str
     has_instructions: bool
-    instructions_preview: Optional[str] = None  # First 200 chars
+    instructions_preview: Optional[str] = None
 
 
 class ChatConfigResponse(BaseModel):
@@ -913,19 +809,14 @@ class ChatConfigResponse(BaseModel):
 )
 async def get_chat_config(
     current_user: User = Depends(require_platform_admin),
-    db: Session = Depends(get_db)
+    stream_service: ResearchStreamService = Depends(get_async_research_stream_service)
 ):
-    """
-    Get complete chat system configuration including all registered
-    payload types, tools, page configurations, and stream-specific
-    chat instructions. Platform admin only.
-    """
+    """Get complete chat system configuration. Platform admin only."""
     logger.info(f"get_chat_config - admin_user_id={current_user.user_id}")
 
     try:
         from schemas.payloads import get_all_payload_types
         from tools.registry import get_all_tools
-        from services.chat_page_config import get_page_config
         from services.chat_page_config.registry import _page_registry
 
         # Get all payload types
@@ -958,20 +849,17 @@ async def get_chat_config(
         for page_name, config in _page_registry.items():
             tabs_info = {}
             for tab_name, tab_config in config.tabs.items():
-                # Build subtabs info
                 subtabs_info = {}
                 for subtab_name, subtab_config in tab_config.subtabs.items():
                     subtabs_info[subtab_name] = SubTabConfigInfo(
                         payloads=subtab_config.payloads,
                         tools=subtab_config.tools
                     )
-
                 tabs_info[tab_name] = TabConfigInfo(
                     payloads=tab_config.payloads,
                     tools=tab_config.tools,
                     subtabs=subtabs_info
                 )
-
             pages.append(PageConfigInfo(
                 page=page_name,
                 has_context_builder=config.context_builder is not None,
@@ -981,9 +869,8 @@ async def get_chat_config(
                 client_actions=[ca.action for ca in config.client_actions]
             ))
 
-        # Get all streams with their chat instructions status
-        stream_service = ResearchStreamService(db)
-        streams_data = stream_service.get_all_streams_with_chat_instructions()
+        # Get stream chat instructions (async)
+        streams_data = await stream_service.async_get_all_streams_with_chat_instructions()
         stream_instructions = [
             StreamInstructionsInfo(
                 stream_id=s["stream_id"],
@@ -1008,7 +895,7 @@ async def get_chat_config(
             "streams_with_instructions": streams_with_instructions,
         }
 
-        logger.info(f"get_chat_config complete - admin_user_id={current_user.user_id}, payloads={len(payload_types)}, tools={len(tools)}, pages={len(pages)}")
+        logger.info(f"get_chat_config complete - payloads={len(payload_types)}, tools={len(tools)}, pages={len(pages)}")
         return ChatConfigResponse(
             payload_types=payload_types,
             tools=tools,
@@ -1020,7 +907,7 @@ async def get_chat_config(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"get_chat_config failed - admin_user_id={current_user.user_id}: {e}", exc_info=True)
+        logger.error(f"get_chat_config failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get chat config: {str(e)}"

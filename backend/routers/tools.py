@@ -7,12 +7,10 @@ Tablizer-specific endpoints (search, filter, extract) are in the tablizer router
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel, Field
 from datetime import datetime, timedelta
 
-from database import get_db
 from models import User
 from routers.auth import get_current_user
 from schemas.canonical_types import CanonicalResearchArticle
@@ -71,7 +69,6 @@ class PubMedIdCheckResponse(BaseModel):
 @router.post("/pubmed/test-query", response_model=PubMedQueryTestResponse)
 async def test_pubmed_query(
     request: PubMedQueryTestRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -115,7 +112,6 @@ async def test_pubmed_query(
 @router.post("/pubmed/check-ids", response_model=PubMedIdCheckResponse)
 async def check_pubmed_ids(
     request: PubMedIdCheckRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """

@@ -6,17 +6,18 @@ Endpoints for testing and refining queries, filters, and categorization.
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-from database import get_db
 from models import User
 from routers.auth import get_current_user
 from schemas.canonical_types import CanonicalResearchArticle
-from services.refinement_workbench_service import RefinementWorkbenchService
+from services.refinement_workbench_service import (
+    RefinementWorkbenchService,
+    get_async_refinement_workbench_service
+)
 
 router = APIRouter(prefix="/api/refinement-workbench", tags=["refinement-workbench"])
 
@@ -123,7 +124,7 @@ class ComparisonResult(BaseModel):
 @router.post("/source/run-query", response_model=SourceResponse)
 async def run_query(
     request: RunQueryRequest,
-    db: Session = Depends(get_db),
+    service: RefinementWorkbenchService = Depends(get_async_refinement_workbench_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -136,7 +137,6 @@ async def run_query(
         SourceResponse with retrieved articles and metadata
     """
     try:
-        service = RefinementWorkbenchService(db)
         articles, metadata, all_matched_pmids = await service.run_query(
             stream_id=request.stream_id,
             query_index=request.query_index,
@@ -160,7 +160,7 @@ async def run_query(
 @router.post("/source/test-custom-query", response_model=SourceResponse)
 async def test_custom_query(
     request: TestCustomQueryRequest,
-    db: Session = Depends(get_db),
+    service: RefinementWorkbenchService = Depends(get_async_refinement_workbench_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -175,7 +175,6 @@ async def test_custom_query(
         SourceResponse with retrieved articles and metadata
     """
     try:
-        service = RefinementWorkbenchService(db)
         articles, metadata, all_matched_pmids = await service.test_custom_query(
             query_expression=request.query_expression,
             start_date=request.start_date,
@@ -198,7 +197,7 @@ async def test_custom_query(
 @router.post("/source/manual-pmids", response_model=SourceResponse)
 async def fetch_manual_pmids(
     request: ManualPMIDsRequest,
-    db: Session = Depends(get_db),
+    service: RefinementWorkbenchService = Depends(get_async_refinement_workbench_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -211,7 +210,6 @@ async def fetch_manual_pmids(
         SourceResponse with retrieved articles
     """
     try:
-        service = RefinementWorkbenchService(db)
         articles, metadata, all_matched_pmids = await service.fetch_manual_pmids(pmids=request.pmids)
         return SourceResponse(
             articles=articles,
@@ -232,7 +230,7 @@ async def fetch_manual_pmids(
 @router.post("/filter", response_model=FilterResponse)
 async def filter_articles(
     request: FilterArticlesRequest,
-    db: Session = Depends(get_db),
+    service: RefinementWorkbenchService = Depends(get_async_refinement_workbench_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -245,7 +243,6 @@ async def filter_articles(
         FilterResponse with pass/fail results for each article
     """
     try:
-        service = RefinementWorkbenchService(db)
         results_list = await service.filter_articles(
             articles=request.articles,
             filter_criteria=request.filter_criteria,
@@ -280,7 +277,7 @@ async def filter_articles(
 @router.post("/categorize", response_model=CategorizeResponse)
 async def categorize_articles(
     request: CategorizeArticlesRequest,
-    db: Session = Depends(get_db),
+    service: RefinementWorkbenchService = Depends(get_async_refinement_workbench_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -293,7 +290,6 @@ async def categorize_articles(
         CategorizeResponse with category assignments for each article
     """
     try:
-        service = RefinementWorkbenchService(db)
         results_list = await service.categorize_articles(
             stream_id=request.stream_id,
             articles=request.articles
@@ -330,7 +326,7 @@ async def categorize_articles(
 @router.post("/compare", response_model=ComparisonResult)
 async def compare_pmids(
     request: ComparePMIDsRequest,
-    db: Session = Depends(get_db),
+    service: RefinementWorkbenchService = Depends(get_async_refinement_workbench_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -343,7 +339,6 @@ async def compare_pmids(
         ComparisonResult with match statistics (recall, precision, F1)
     """
     try:
-        service = RefinementWorkbenchService(db)
         result_dict = service.compare_pmid_lists(
             retrieved_pmids=request.retrieved_pmids,
             expected_pmids=request.expected_pmids

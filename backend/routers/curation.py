@@ -12,20 +12,19 @@ All endpoints are under /api/operations/reports/{report_id}/...
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from dataclasses import asdict
 from datetime import datetime
 import logging
 
-from database import get_db, get_async_db
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
+from database import get_async_db
 from models import User, UserRole
 from services import auth_service
 from services.report_service import ReportService, get_async_report_service
-from services.wip_article_service import WipArticleService
+from services.wip_article_service import WipArticleService, get_async_wip_article_service
 from services.email_service import EmailService
 from services.report_summary_service import ReportSummaryService
 
@@ -360,7 +359,7 @@ class RegenerateArticleSummaryResponse(BaseModel):
 @router.get("/{report_id}/curation", response_model=CurationViewResponse)
 async def get_curation_view(
     report_id: int,
-    db: Session = Depends(get_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -378,8 +377,7 @@ async def get_curation_view(
     logger.info(f"get_curation_view - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        service = ReportService(db)
-        data = service.get_curation_view(report_id, current_user.user_id)
+        data = await service.async_get_curation_view(report_id, current_user.user_id)
 
         # Build report data - enrichments are stored in JSON fields
         enrichments = data.report.enrichments or {}
@@ -519,7 +517,7 @@ async def get_curation_history(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get curation history (audit trail) for a report (async).
+    Get curation history (audit trail) for a report.
     Returns all curation events in reverse chronological order.
     """
     logger.info(f"get_curation_history - user_id={current_user.user_id}, report_id={report_id}")
@@ -552,15 +550,14 @@ async def get_curation_history(
 @router.get("/{report_id}/pipeline-analytics", response_model=PipelineAnalyticsResponse)
 async def get_pipeline_analytics(
     report_id: int,
-    db: Session = Depends(get_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """Get pipeline analytics for a report - detailed breakdown of filtering decisions."""
     logger.info(f"get_pipeline_analytics - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        service = ReportService(db)
-        result = service.get_pipeline_analytics(report_id, current_user.user_id)
+        result = await service.async_get_pipeline_analytics(report_id, current_user.user_id)
 
         logger.info(f"get_pipeline_analytics complete - user_id={current_user.user_id}, report_id={report_id}")
         return result
@@ -582,7 +579,7 @@ async def exclude_article(
     report_id: int,
     article_id: int,
     request: ExcludeArticleRequest,
-    db: Session = Depends(get_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -594,8 +591,7 @@ async def exclude_article(
     logger.info(f"exclude_article - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
 
     try:
-        service = ReportService(db)
-        result = service.exclude_article(
+        result = await service.async_exclude_article(
             report_id=report_id,
             article_id=article_id,
             user_id=current_user.user_id,
@@ -618,7 +614,7 @@ async def exclude_article(
 async def include_article(
     report_id: int,
     request: IncludeArticleRequest,
-    db: Session = Depends(get_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -631,8 +627,7 @@ async def include_article(
     logger.info(f"include_article - user_id={current_user.user_id}, report_id={report_id}, wip_article_id={request.wip_article_id}")
 
     try:
-        service = ReportService(db)
-        result = service.include_article(
+        result = await service.async_include_article(
             report_id=report_id,
             wip_article_id=request.wip_article_id,
             user_id=current_user.user_id,
@@ -656,7 +651,7 @@ async def include_article(
 async def reset_curation(
     report_id: int,
     wip_article_id: int,
-    db: Session = Depends(get_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -669,8 +664,7 @@ async def reset_curation(
     logger.info(f"reset_curation - user_id={current_user.user_id}, report_id={report_id}, wip_article_id={wip_article_id}")
 
     try:
-        service = ReportService(db)
-        result = service.reset_curation(
+        result = await service.async_reset_curation(
             report_id=report_id,
             wip_article_id=wip_article_id,
             user_id=current_user.user_id
@@ -693,7 +687,8 @@ async def update_wip_article_notes(
     report_id: int,
     wip_article_id: int,
     request: UpdateWipArticleNotesRequest,
-    db: Session = Depends(get_db),
+    service: ReportService = Depends(get_async_report_service),
+    wip_service: WipArticleService = Depends(get_async_wip_article_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -709,8 +704,7 @@ async def update_wip_article_notes(
 
     try:
         # Verify user has access to this report
-        report_service = ReportService(db)
-        result = report_service.get_report_with_access(report_id, current_user.user_id)
+        result = await service.async_get_report_with_access(report_id, current_user.user_id)
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -718,8 +712,7 @@ async def update_wip_article_notes(
             )
 
         # Update the WipArticle curation notes
-        wip_service = WipArticleService(db)
-        article = wip_service.update_curation_notes(
+        article = await wip_service.async_update_curation_notes(
             wip_article_id=wip_article_id,
             user_id=current_user.user_id,
             notes=request.curation_notes
@@ -746,7 +739,7 @@ async def update_article_in_report(
     report_id: int,
     article_id: int,
     request: UpdateArticleRequest,
-    db: Session = Depends(get_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -755,8 +748,7 @@ async def update_article_in_report(
     logger.info(f"update_article_in_report - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
 
     try:
-        service = ReportService(db)
-        result = service.update_article_in_report(
+        result = await service.async_update_article_in_report(
             report_id=report_id,
             article_id=article_id,
             user_id=current_user.user_id,
@@ -788,15 +780,14 @@ async def update_article_in_report(
 async def update_report_content(
     report_id: int,
     request: UpdateReportContentRequest,
-    db: Session = Depends(get_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """Update report content (title, executive summary, category summaries)."""
     logger.info(f"update_report_content - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        service = ReportService(db)
-        result = service.update_report_content(
+        result = await service.async_update_report_content(
             report_id=report_id,
             user_id=current_user.user_id,
             report_name=request.report_name,
@@ -822,7 +813,8 @@ async def update_report_content(
 async def send_approval_request(
     report_id: int,
     request: ApprovalRequestRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -831,8 +823,7 @@ async def send_approval_request(
     logger.info(f"send_approval_request - user_id={current_user.user_id}, report_id={report_id}, admin_id={request.admin_user_id}")
 
     try:
-        service = ReportService(db)
-        result = service.get_report_with_access(report_id, current_user.user_id)
+        result = await service.async_get_report_with_access(report_id, current_user.user_id)
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -841,10 +832,13 @@ async def send_approval_request(
         report, user, stream = result
 
         # Get admin user
-        admin = db.query(User).filter(
-            User.user_id == request.admin_user_id,
-            User.is_active == True
-        ).first()
+        admin_result = await db.execute(
+            select(User).where(
+                User.user_id == request.admin_user_id,
+                User.is_active == True
+            )
+        )
+        admin = admin_result.scalars().first()
 
         if not admin:
             raise HTTPException(
@@ -860,7 +854,7 @@ async def send_approval_request(
             )
 
         # Get article count
-        article_count = service.association_service.count_visible(report_id)
+        article_count = await service.association_service.async_count_visible(report_id)
 
         # Send the email
         email_service = EmailService()
@@ -895,7 +889,7 @@ async def approve_report(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Approve a report for distribution (async).
+    Approve a report for distribution.
     Only admins can approve reports.
     """
     logger.info(f"approve_report - user_id={current_user.user_id}, report_id={report_id}")
@@ -927,7 +921,7 @@ async def reject_report(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Reject a report with a reason (async).
+    Reject a report with a reason.
     Only admins can reject reports.
     """
     logger.info(f"reject_report - user_id={current_user.user_id}, report_id={report_id}")
@@ -956,7 +950,8 @@ async def reject_report(
 @router.post("/{report_id}/regenerate/executive-summary", response_model=RegenerateExecutiveSummaryResponse)
 async def regenerate_executive_summary(
     report_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -966,11 +961,10 @@ async def regenerate_executive_summary(
     logger.info(f"regenerate_executive_summary - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        report_service = ReportService(db)
         summary_service = ReportSummaryService()
 
-        # Get report and stream
-        curation_data = report_service.get_curation_view(report_id, current_user.user_id)
+        # Get report and stream via async curation view
+        curation_data = await service.async_get_curation_view(report_id, current_user.user_id)
         report = curation_data.report
         stream = curation_data.stream
 
@@ -978,9 +972,9 @@ async def regenerate_executive_summary(
         enrichment_config = stream.enrichment_config if stream else None
 
         # Get visible articles for the report
-        visible_associations = report_service.association_service.get_visible_for_report(report_id)
+        visible_associations = await service.association_service.async_get_visible_for_report(report_id)
 
-        # Build WIP article list from associations
+        # Build article list from associations
         wip_articles = []
         for assoc in visible_associations:
             if assoc.article:
@@ -1002,7 +996,7 @@ async def regenerate_executive_summary(
         # Save to report enrichments
         enrichments['executive_summary'] = new_summary
         report.enrichments = enrichments
-        db.commit()
+        await db.commit()
 
         logger.info(f"regenerate_executive_summary complete - user_id={current_user.user_id}, report_id={report_id}")
         return RegenerateExecutiveSummaryResponse(executive_summary=new_summary)
@@ -1021,7 +1015,8 @@ async def regenerate_executive_summary(
 async def regenerate_category_summary(
     report_id: int,
     category_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -1031,11 +1026,10 @@ async def regenerate_category_summary(
     logger.info(f"regenerate_category_summary - user_id={current_user.user_id}, report_id={report_id}, category_id={category_id}")
 
     try:
-        report_service = ReportService(db)
         summary_service = ReportSummaryService()
 
         # Get report and stream
-        curation_data = report_service.get_curation_view(report_id, current_user.user_id)
+        curation_data = await service.async_get_curation_view(report_id, current_user.user_id)
         report = curation_data.report
         stream = curation_data.stream
 
@@ -1057,7 +1051,7 @@ async def regenerate_category_summary(
             )
 
         # Get visible articles for this category
-        visible_associations = report_service.association_service.get_visible_for_report(report_id)
+        visible_associations = await service.association_service.async_get_visible_for_report(report_id)
         category_articles = []
         for assoc in visible_associations:
             if assoc.article and assoc.presentation_categories:
@@ -1094,7 +1088,7 @@ async def regenerate_category_summary(
         category_summaries[category_id] = new_summary
         enrichments['category_summaries'] = category_summaries
         report.enrichments = enrichments
-        db.commit()
+        await db.commit()
 
         logger.info(f"regenerate_category_summary complete - user_id={current_user.user_id}, report_id={report_id}, category_id={category_id}")
         return RegenerateCategorySummaryResponse(category_id=category_id, category_summary=new_summary)
@@ -1113,7 +1107,8 @@ async def regenerate_category_summary(
 async def regenerate_article_summary(
     report_id: int,
     article_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
+    service: ReportService = Depends(get_async_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -1123,18 +1118,17 @@ async def regenerate_article_summary(
     logger.info(f"regenerate_article_summary - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
 
     try:
-        report_service = ReportService(db)
         summary_service = ReportSummaryService()
 
         # Get report and stream
-        curation_data = report_service.get_curation_view(report_id, current_user.user_id)
+        curation_data = await service.async_get_curation_view(report_id, current_user.user_id)
         stream = curation_data.stream
 
         # Get enrichment config from stream
         enrichment_config = stream.enrichment_config if stream else None
 
         # Get the article association
-        association = report_service.association_service.get(report_id, article_id)
+        association = await service.association_service.async_get(report_id, article_id)
         if not association or not association.article:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -1153,7 +1147,7 @@ async def regenerate_article_summary(
 
         # Save to association
         association.ai_summary = new_summary
-        db.commit()
+        await db.commit()
 
         logger.info(f"regenerate_article_summary complete - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
         return RegenerateArticleSummaryResponse(article_id=article_id, ai_summary=new_summary)

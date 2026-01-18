@@ -17,9 +17,10 @@ Retrieval Strategy:
 - Note: Concept-based retrieval is not supported
 """
 
-from typing import AsyncGenerator, Dict, List, Optional, Tuple, Any, Callable, Coroutine
+from typing import AsyncGenerator, Dict, List, Optional, Tuple, Any, Callable, Coroutine, Union
 from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import and_, or_
 from datetime import date, datetime
@@ -130,7 +131,7 @@ class PipelineService:
     MAX_ARTICLES_PER_SOURCE = 1000
     MAX_TOTAL_ARTICLES = 1000
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Union[Session, AsyncSession]):
         self.db = db
         self.research_stream_service = ResearchStreamService(db)
         self.wip_article_service = WipArticleService(db)

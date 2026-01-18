@@ -7,15 +7,13 @@ Endpoints for:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 
-from database import get_db
 from models import User, UserRole, EventSource
 from services import auth_service
-from services.user_tracking_service import UserTrackingService
+from services.user_tracking_service import UserTrackingService, get_async_tracking_service
 
 router = APIRouter(prefix="/api/tracking", tags=["tracking"])
 
@@ -59,7 +57,7 @@ class EventsListResponse(BaseModel):
 @router.post("/events", response_model=TrackEventResponse)
 async def track_event(
     request: TrackEventRequest,
-    db: Session = Depends(get_db),
+    service: UserTrackingService = Depends(get_async_tracking_service),
     current_user: User = Depends(auth_service.validate_token)
 ):
     """
@@ -71,8 +69,7 @@ async def track_event(
     - button_click: {button: 'star', pmid: '12345'}
     - page_view: {page: 'reports', report_id: 123}
     """
-    service = UserTrackingService(db)
-    event = service.track_frontend_event(
+    event = await service.async_track_frontend_event(
         user_id=current_user.user_id,
         event_type=request.event_type,
         event_data=request.event_data
@@ -90,7 +87,7 @@ async def get_events(
     hours: Optional[int] = Query(24, description="Events from last N hours"),
     limit: int = Query(100, le=500),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
+    service: UserTrackingService = Depends(get_async_tracking_service),
     current_user: User = Depends(auth_service.validate_token)
 ):
     """
@@ -113,8 +110,7 @@ async def get_events(
     # Calculate since time
     since = datetime.utcnow() - timedelta(hours=hours) if hours else None
 
-    service = UserTrackingService(db)
-    events, total = service.get_all_events(
+    events, total = await service.async_get_all_events(
         limit=limit,
         offset=offset,
         user_id=user_id,
@@ -133,12 +129,11 @@ async def get_events(
 
 @router.get("/admin/event-types", response_model=List[str])
 async def get_event_types(
-    db: Session = Depends(get_db),
+    service: UserTrackingService = Depends(get_async_tracking_service),
     current_user: User = Depends(auth_service.validate_token)
 ):
     """Get distinct event types for filtering (platform admin only)."""
     if current_user.role != UserRole.PLATFORM_ADMIN:
         raise HTTPException(status_code=403, detail="Platform admin access required")
 
-    service = UserTrackingService(db)
-    return service.get_event_types()
+    return await service.async_get_event_types()

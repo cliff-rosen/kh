@@ -10,7 +10,8 @@ Default prompts are sourced from ReportSummaryService (single source of truth).
 
 import logging
 from sqlalchemy.orm import Session
-from typing import Dict, Any, Optional, List
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Dict, Any, Optional, List, Union
 
 from models import Report, WipArticle
 from schemas.research_stream import EnrichmentConfig, PromptTemplate, ResearchStream as ResearchStreamSchema
@@ -22,9 +23,12 @@ logger = logging.getLogger(__name__)
 
 
 class PromptWorkbenchService:
-    """Service for prompt workbench operations"""
+    """Service for prompt workbench operations.
 
-    def __init__(self, db: Session):
+    Supports both sync (Session) and async (AsyncSession) database access.
+    """
+
+    def __init__(self, db: Union[Session, AsyncSession]):
         self.db = db
         self._summary_service = None  # Lazy-loaded - only needed for testing prompts
         self.stream_service = ResearchStreamService(db)
@@ -325,3 +329,15 @@ class PromptWorkbenchService:
             ]
         )
         return response.choices[0].message.content
+
+
+# Dependency injection provider for async prompt workbench service
+from fastapi import Depends
+from database import get_async_db
+
+
+async def get_async_prompt_workbench_service(
+    db: AsyncSession = Depends(get_async_db)
+) -> PromptWorkbenchService:
+    """Get a PromptWorkbenchService instance with async database session."""
+    return PromptWorkbenchService(db)

@@ -482,6 +482,83 @@ class ChatService:
             ]
         }
 
+    async def async_create_chat(
+        self,
+        user_id: int,
+        app: str = "kh",
+        title: Optional[str] = None
+    ) -> Conversation:
+        """Create a new chat (async)."""
+        chat = Conversation(
+            user_id=user_id,
+            app=app,
+            title=title
+        )
+        self.db.add(chat)
+        await self.db.commit()
+        await self.db.refresh(chat)
+        logger.debug(f"Created chat {chat.id} for user {user_id} in app {app}")
+        return chat
+
+    async def async_add_message(
+        self,
+        chat_id: int,
+        user_id: int,
+        role: str,
+        content: str,
+        context: Optional[Dict[str, Any]] = None,
+        extras: Optional[Dict[str, Any]] = None
+    ) -> Optional[Message]:
+        """Add a message to a chat (async)."""
+        chat = await self.async_get_chat(chat_id, user_id)
+        if not chat:
+            return None
+
+        message = Message(
+            conversation_id=chat_id,
+            role=role,
+            content=content,
+            context=context,
+            extras=extras
+        )
+        self.db.add(message)
+
+        # Update chat's updated_at
+        chat.updated_at = datetime.utcnow()
+
+        # Auto-generate title from first user message if not set
+        if not chat.title and role == 'user':
+            chat.title = content[:50] + ('...' if len(content) > 50 else '')
+
+        await self.db.commit()
+        await self.db.refresh(message)
+
+        logger.debug(f"Added message to chat {chat_id}: role={role}")
+        return message
+
+    async def async_delete_chat(self, chat_id: int, user_id: int) -> bool:
+        """Delete a chat and all its messages (async)."""
+        chat = await self.async_get_chat(chat_id, user_id)
+        if chat:
+            await self.db.delete(chat)
+            await self.db.commit()
+            return True
+        return False
+
+    async def async_update_chat_title(
+        self,
+        chat_id: int,
+        user_id: int,
+        title: str
+    ) -> Optional[Conversation]:
+        """Update chat title (async)."""
+        chat = await self.async_get_chat(chat_id, user_id)
+        if chat:
+            chat.title = title
+            await self.db.commit()
+            await self.db.refresh(chat)
+        return chat
+
 
 # Dependency injection provider for async chat service
 async def get_async_chat_service(
