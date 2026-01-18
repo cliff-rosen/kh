@@ -9,7 +9,7 @@ service for report-related operations.
 import logging
 from dataclasses import dataclass, field, asdict
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, func
 from typing import List, Optional, Dict, Any, Set
 from datetime import date, datetime
 from fastapi import HTTPException, status
@@ -536,39 +536,46 @@ class ReportService:
         if not accessible_stream_ids:
             return []
 
-        # Build query for recent reports
-        query = self.db.query(Report).filter(
-            Report.research_stream_id.in_(accessible_stream_ids)
+        # Subquery for article counts (only visible articles)
+        article_count_subq = (
+            self.db.query(
+                ReportArticleAssociation.report_id,
+                func.count(ReportArticleAssociation.article_id).label('article_count')
+            )
+            .filter(ReportArticleAssociation.is_hidden == False)  # noqa: E712
+            .group_by(ReportArticleAssociation.report_id)
+            .subquery()
+        )
+
+        # Single query: Report + PipelineExecution (LEFT JOIN) + article count (LEFT JOIN)
+        query = (
+            self.db.query(
+                Report,
+                PipelineExecution.start_date,
+                PipelineExecution.end_date,
+                func.coalesce(article_count_subq.c.article_count, 0).label('article_count')
+            )
+            .outerjoin(PipelineExecution, Report.pipeline_execution_id == PipelineExecution.id)
+            .outerjoin(article_count_subq, Report.report_id == article_count_subq.c.report_id)
+            .filter(Report.research_stream_id.in_(accessible_stream_ids))
         )
 
         # Non-admins can only see approved reports
         if user.role != UserRole.PLATFORM_ADMIN:
             query = query.filter(Report.approval_status == ApprovalStatus.APPROVED)
 
-        reports = query.order_by(Report.created_at.desc()).limit(limit).all()
+        rows = query.order_by(Report.created_at.desc()).limit(limit).all()
 
-        # Fetch pipeline executions for coverage dates
-        execution_ids = [r.pipeline_execution_id for r in reports if r.pipeline_execution_id]
-        executions_map = {}
-        if execution_ids:
-            executions = self.db.query(PipelineExecution).filter(
-                PipelineExecution.id.in_(execution_ids)
-            ).all()
-            executions_map = {e.id: e for e in executions}
-
-        # Return dataclass with report model, article count, and coverage dates
-        result = []
-        for report in reports:
-            article_count = self.association_service.count_visible(report.report_id)
-            execution = executions_map.get(report.pipeline_execution_id) if report.pipeline_execution_id else None
-            result.append(ReportWithArticleCount(
-                report=report,
-                article_count=article_count,
-                coverage_start_date=execution.start_date if execution else None,
-                coverage_end_date=execution.end_date if execution else None,
-            ))
-
-        return result
+        # Convert to result dataclass
+        return [
+            ReportWithArticleCount(
+                report=row[0],
+                article_count=row[3],
+                coverage_start_date=row[1],
+                coverage_end_date=row[2],
+            )
+            for row in rows
+        ]
 
     def get_report_articles_list(
         self,
