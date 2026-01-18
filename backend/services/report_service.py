@@ -7,9 +7,11 @@ service for report-related operations.
 """
 
 import logging
+import time
 from dataclasses import dataclass, field, asdict
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import and_, or_, func, select
 from typing import List, Optional, Dict, Any, Set
 from datetime import date, datetime
 from fastapi import HTTPException, status
@@ -526,14 +528,20 @@ class ReportService:
 
     def get_recent_reports(self, user_id: int, limit: int = 5) -> List[ReportWithArticleCount]:
         """Get the most recent reports across all accessible streams for a user."""
+        t_start = time.perf_counter()
+
+        # TODO: get_user_by_id should raise NotFoundException if not found
         user = self.user_service.get_user_by_id(user_id)
         if not user:
             return []
+        t_user = time.perf_counter()
 
         # Get all accessible stream IDs
         accessible_stream_ids = self._get_accessible_stream_ids(user)
+        t_streams = time.perf_counter()
 
         if not accessible_stream_ids:
+            logger.info(f"get_recent_reports - user_id={user_id}, no accessible streams, total={t_streams - t_start:.3f}s")
             return []
 
         # Subquery for article counts (only visible articles)
@@ -565,9 +573,10 @@ class ReportService:
             query = query.filter(Report.approval_status == ApprovalStatus.APPROVED)
 
         rows = query.order_by(Report.created_at.desc()).limit(limit).all()
+        t_query = time.perf_counter()
 
         # Convert to result dataclass
-        return [
+        result = [
             ReportWithArticleCount(
                 report=row[0],
                 article_count=row[3],
@@ -576,6 +585,15 @@ class ReportService:
             )
             for row in rows
         ]
+        t_end = time.perf_counter()
+
+        logger.info(
+            f"get_recent_reports - user_id={user_id}, count={len(result)}, "
+            f"user={t_user - t_start:.3f}s, streams={t_streams - t_user:.3f}s, "
+            f"query={t_query - t_streams:.3f}s, total={t_end - t_start:.3f}s"
+        )
+
+        return result
 
     def get_report_articles_list(
         self,
@@ -2049,3 +2067,145 @@ class ReportService:
     def flush(self) -> None:
         """Flush pending changes without committing."""
         self.db.flush()
+
+
+# =============================================================================
+# Async Functions (for async endpoints - POC migration)
+# =============================================================================
+
+async def async_get_accessible_stream_ids(db: AsyncSession, user: User) -> Set[int]:
+    """Get all stream IDs the user can access reports for (async version)."""
+    accessible_ids = set()
+
+    # Personal streams created by user
+    result = await db.execute(
+        select(ResearchStream.stream_id).where(
+            and_(
+                ResearchStream.scope == StreamScope.PERSONAL,
+                ResearchStream.user_id == user.user_id
+            )
+        )
+    )
+    accessible_ids.update(row[0] for row in result.all())
+
+    # Platform admins see all global streams
+    if user.role == UserRole.PLATFORM_ADMIN:
+        result = await db.execute(
+            select(ResearchStream.stream_id).where(
+                ResearchStream.scope == StreamScope.GLOBAL
+            )
+        )
+        accessible_ids.update(row[0] for row in result.all())
+    elif user.org_id:
+        # Org streams for user's org
+        result = await db.execute(
+            select(ResearchStream.stream_id).where(
+                and_(
+                    ResearchStream.scope == StreamScope.ORGANIZATION,
+                    ResearchStream.org_id == user.org_id
+                )
+            )
+        )
+        accessible_ids.update(row[0] for row in result.all())
+
+        # Global streams the user's org is subscribed to
+        result = await db.execute(
+            select(OrgStreamSubscription.stream_id).where(
+                OrgStreamSubscription.org_id == user.org_id
+            )
+        )
+        accessible_ids.update(row[0] for row in result.all())
+
+        # Streams user is personally subscribed to
+        result = await db.execute(
+            select(UserStreamSubscription.stream_id).where(
+                UserStreamSubscription.user_id == user.user_id
+            )
+        )
+        accessible_ids.update(row[0] for row in result.all())
+
+    return accessible_ids
+
+
+async def async_get_recent_reports(
+    db: AsyncSession,
+    user: User,
+    limit: int = 5
+) -> List[ReportWithArticleCount]:
+    """
+    Get the most recent reports across all accessible streams for a user (async version).
+
+    Args:
+        db: Async database session
+        user: Authenticated user
+        limit: Maximum number of reports to return
+
+    Returns:
+        List of ReportWithArticleCount dataclass instances
+    """
+    t_start = time.perf_counter()
+
+    # Get all accessible stream IDs
+    accessible_stream_ids = await async_get_accessible_stream_ids(db, user)
+    t_streams = time.perf_counter()
+
+    if not accessible_stream_ids:
+        logger.info(f"async_get_recent_reports - user_id={user.user_id}, no accessible streams, total={t_streams - t_start:.3f}s")
+        return []
+
+    # Build the query with subquery for article counts
+    # Note: For async, we use select() style instead of query() style
+
+    # Subquery for article counts (only visible articles)
+    article_count_subq = (
+        select(
+            ReportArticleAssociation.report_id,
+            func.count(ReportArticleAssociation.article_id).label('article_count')
+        )
+        .where(ReportArticleAssociation.is_hidden == False)  # noqa: E712
+        .group_by(ReportArticleAssociation.report_id)
+        .subquery()
+    )
+
+    # Main query: Report + PipelineExecution (LEFT JOIN) + article count (LEFT JOIN)
+    stmt = (
+        select(
+            Report,
+            PipelineExecution.start_date,
+            PipelineExecution.end_date,
+            func.coalesce(article_count_subq.c.article_count, 0).label('article_count')
+        )
+        .outerjoin(PipelineExecution, Report.pipeline_execution_id == PipelineExecution.id)
+        .outerjoin(article_count_subq, Report.report_id == article_count_subq.c.report_id)
+        .where(Report.research_stream_id.in_(accessible_stream_ids))
+    )
+
+    # Non-admins can only see approved reports
+    if user.role != UserRole.PLATFORM_ADMIN:
+        stmt = stmt.where(Report.approval_status == ApprovalStatus.APPROVED)
+
+    stmt = stmt.order_by(Report.created_at.desc()).limit(limit)
+
+    result = await db.execute(stmt)
+    rows = result.all()
+    t_query = time.perf_counter()
+
+    # Convert to result dataclass
+    reports = [
+        ReportWithArticleCount(
+            report=row[0],
+            article_count=row[3],
+            coverage_start_date=row[1],
+            coverage_end_date=row[2],
+        )
+        for row in rows
+    ]
+    t_end = time.perf_counter()
+
+    logger.info(
+        f"async_get_recent_reports - user_id={user.user_id}, count={len(reports)}, "
+        f"streams={t_streams - t_start:.3f}s, query={t_query - t_streams:.3f}s, "
+        f"total={t_end - t_start:.3f}s"
+    )
+
+    return reports

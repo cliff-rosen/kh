@@ -3,16 +3,18 @@ Reports API endpoints
 """
 
 import logging
+import time
 from dataclasses import asdict
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 
-from database import get_db
+from database import get_db, get_async_db
+from sqlalchemy.ext.asyncio import AsyncSession
 from models import User
 from schemas.report import Report, ReportWithArticles
-from services.report_service import ReportService
+from services.report_service import ReportService, async_get_recent_reports
 from services.email_service import EmailService
 from services.user_tracking_service import track_endpoint
 from routers.auth import get_current_user
@@ -71,29 +73,37 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 @router.get("/recent", response_model=List[Report])
 async def get_recent_reports(
     limit: int = 5,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get recent reports across all streams for the current user"""
+    """Get recent reports across all streams for the current user (async)"""
+    t_start = time.perf_counter()
     logger.info(f"get_recent_reports - user_id={current_user.user_id}, limit={limit}")
 
     try:
-        service = ReportService(db)
-        results = service.get_recent_reports(current_user.user_id, limit)
+        # Use async function directly (no service instantiation needed)
+        results = await async_get_recent_reports(db, current_user, limit)
+        t_query = time.perf_counter()
 
         # Convert model + article_count + coverage dates to schema
-        reports = [
-            Report.model_validate(r.report, from_attributes=True).model_copy(
+        reports = []
+        for r in results:
+            validated = Report.model_validate(r.report, from_attributes=True)
+            updated = validated.model_copy(
                 update={
                     'article_count': r.article_count,
                     'coverage_start_date': r.coverage_start_date,
                     'coverage_end_date': r.coverage_end_date,
                 }
             )
-            for r in results
-        ]
+            reports.append(updated)
+        t_serialize = time.perf_counter()
 
-        logger.info(f"get_recent_reports complete - user_id={current_user.user_id}, count={len(reports)}")
+        logger.info(
+            f"get_recent_reports complete - user_id={current_user.user_id}, count={len(reports)}, "
+            f"query={t_query - t_start:.3f}s, serialize={t_serialize - t_query:.3f}s, "
+            f"total={t_serialize - t_start:.3f}s"
+        )
         return reports
 
     except HTTPException:

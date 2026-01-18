@@ -16,11 +16,12 @@ from passlib.context import CryptContext
 from fastapi import HTTPException, status, Depends, Security, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from models import User
 from schemas.user import Token
 from services.user_service import UserService
 from config.settings import settings
-from database import get_db
+from database import get_db, get_async_db
 import logging
 import time
 import traceback
@@ -246,7 +247,7 @@ async def login_user(db: Session, email: str, password: str) -> Token:
 async def validate_token(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Security(security),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ) -> User:
     """
     Validate JWT token and return user.
@@ -260,7 +261,7 @@ async def validate_token(
     Args:
         request: FastAPI request object (for storing refresh token)
         credentials: HTTP Authorization header with Bearer token
-        db: Database session
+        db: Async database session
 
     Returns:
         Authenticated User model
@@ -268,12 +269,14 @@ async def validate_token(
     Raises:
         HTTPException: If token invalid or user not found
     """
+    t_start = time.perf_counter()
     try:
         logger.debug("[AUTH] validate_token called")
         token = credentials.credentials
         logger.debug(f"Validating token: {token[:10]}...")
 
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        t_jwt = time.perf_counter()
 
         email: str = payload.get("sub")
         username: str = payload.get("username")
@@ -288,9 +291,9 @@ async def validate_token(
                 detail="Invalid token payload"
             )
 
-        # Get user from database
-        user_service = UserService(db)
-        user = user_service.get_user_by_email(email)
+        # Get user from database (async)
+        user = await UserService.async_get_user_by_email(db, email)
+        t_user = time.perf_counter()
         if user is None:
             logger.error(f"Token user not found: {email}")
             raise HTTPException(
@@ -356,7 +359,11 @@ async def validate_token(
             request.state.new_token = new_token
             logger.debug(f"Generated refresh token for {email}")
 
-        logger.debug(f"Token validated for: {email}")
+        t_end = time.perf_counter()
+        logger.info(
+            f"validate_token - email={email}, jwt={t_jwt - t_start:.3f}s, "
+            f"user_lookup={t_user - t_jwt:.3f}s, total={t_end - t_start:.3f}s"
+        )
         return user
 
     except ExpiredSignatureError:

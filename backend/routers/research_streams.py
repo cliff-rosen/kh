@@ -13,7 +13,8 @@ import json
 
 logger = logging.getLogger(__name__)
 
-from database import get_db
+from database import get_db, get_async_db
+from sqlalchemy.ext.asyncio import AsyncSession
 from models import User, RunType, StreamScope, UserRole
 
 from schemas.research_stream import (
@@ -34,7 +35,7 @@ from schemas.sources import INFORMATION_SOURCES, InformationSource
 from schemas.canonical_types import CanonicalResearchArticle
 
 
-from services.research_stream_service import ResearchStreamService
+from services.research_stream_service import ResearchStreamService, async_get_user_research_streams
 from services.retrieval_query_service import RetrievalQueryService
 from services.concept_proposal_service import ConceptProposalService
 from services.broad_search_service import BroadSearchService
@@ -127,15 +128,15 @@ class ToggleStatusRequest(BaseModel):
 
 @router.get("", response_model=List[ResearchStream])
 async def get_research_streams(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get all research streams for the current user"""
+    """Get all research streams for the current user (async)"""
     logger.info(f"get_research_streams - user_id={current_user.user_id}")
 
     try:
-        service = ResearchStreamService(db)
-        results = service.get_user_research_streams(current_user.user_id)
+        # Use async function directly (no service instantiation needed)
+        results = await async_get_user_research_streams(db, current_user)
 
         # Convert dataclasses to schemas at API boundary
         streams = [

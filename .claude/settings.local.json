@@ -26,7 +26,11 @@
       "WebSearch",
       "WebFetch(domain:clinicaltrials.gov)",
       "WebFetch(domain:biomcp.org)",
-      "Bash(copy \"C:\\\\code\\\\kh\\\\frontend\\\\src\\\\components\\\\tools\\\\TrialsTablizer\\\\TrialViewerModal.tsx\" \"C:\\\\code\\\\kh\\\\frontend\\\\src\\\\components\\\\tools\\\\TrialScoutTable\\\\TrialViewerModal.tsx\")"
+      "Bash(copy \"C:\\\\code\\\\kh\\\\frontend\\\\src\\\\components\\\\tools\\\\TrialsTablizer\\\\TrialViewerModal.tsx\" \"C:\\\\code\\\\kh\\\\frontend\\\\src\\\\components\\\\tools\\\\TrialScoutTable\\\\TrialViewerModal.tsx\")",
+      "WebFetch(domain:leapcell.io)",
+      "WebFetch(domain:docs.sqlalchemy.org)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": [],

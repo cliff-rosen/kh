@@ -5,7 +5,8 @@ Research Stream service for managing research streams
 import logging
 from dataclasses import dataclass
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func
+from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Dict, Any, Set
 from datetime import datetime, date
 from fastapi import HTTPException, status
@@ -721,3 +722,143 @@ class ResearchStreamService:
 
         logger.info(f"Got chat instructions status for {len(result)} streams")
         return result
+
+
+# =============================================================================
+# Async Functions for Dashboard (POC)
+# =============================================================================
+
+async def async_get_accessible_stream_ids(db: AsyncSession, user: User) -> Set[int]:
+    """
+    Get all stream IDs that a user can access (async version).
+
+    Access rules by role:
+    - PLATFORM_ADMIN: All global streams + own personal streams
+    - ORG_ADMIN: All org streams for their org + subscribed global streams + own personal
+    - MEMBER: Subscribed org streams + subscribed global streams (via org) + own personal
+    """
+    accessible_ids: Set[int] = set()
+
+    # 1. Personal streams (user owns) - same for all roles
+    result = await db.execute(
+        select(ResearchStream.stream_id).where(
+            and_(
+                ResearchStream.scope == StreamScope.PERSONAL,
+                ResearchStream.user_id == user.user_id
+            )
+        )
+    )
+    accessible_ids.update(row[0] for row in result.all())
+
+    # 2. Handle based on role
+    if user.role == UserRole.PLATFORM_ADMIN:
+        # Platform admins see ALL global streams
+        result = await db.execute(
+            select(ResearchStream.stream_id).where(
+                ResearchStream.scope == StreamScope.GLOBAL
+            )
+        )
+        accessible_ids.update(row[0] for row in result.all())
+
+    elif user.role == UserRole.ORG_ADMIN and user.org_id:
+        # Org admins see ALL org streams for their org
+        result = await db.execute(
+            select(ResearchStream.stream_id).where(
+                and_(
+                    ResearchStream.scope == StreamScope.ORGANIZATION,
+                    ResearchStream.org_id == user.org_id
+                )
+            )
+        )
+        accessible_ids.update(row[0] for row in result.all())
+
+        # Plus global streams their org is subscribed to
+        result = await db.execute(
+            select(OrgStreamSubscription.stream_id).where(
+                OrgStreamSubscription.org_id == user.org_id
+            )
+        )
+        accessible_ids.update(row[0] for row in result.all())
+
+    else:
+        # Regular members: subscribed org streams only
+        result = await db.execute(
+            select(UserStreamSubscription.stream_id)
+            .join(ResearchStream, ResearchStream.stream_id == UserStreamSubscription.stream_id)
+            .where(
+                and_(
+                    UserStreamSubscription.user_id == user.user_id,
+                    UserStreamSubscription.is_subscribed == True,
+                    ResearchStream.scope == StreamScope.ORGANIZATION
+                )
+            )
+        )
+        accessible_ids.update(row[0] for row in result.all())
+
+        # Plus global streams (org subscribed AND user not opted out)
+        if user.org_id:
+            result = await db.execute(
+                select(OrgStreamSubscription.stream_id).where(
+                    OrgStreamSubscription.org_id == user.org_id
+                )
+            )
+            org_subscribed_ids = {row[0] for row in result.all()}
+
+            # Get streams user has opted out of
+            result = await db.execute(
+                select(UserStreamSubscription.stream_id).where(
+                    and_(
+                        UserStreamSubscription.user_id == user.user_id,
+                        UserStreamSubscription.is_subscribed == False
+                    )
+                )
+            )
+            opted_out_ids = {row[0] for row in result.all()}
+
+            # Global streams = org subscribed - user opted out
+            accessible_ids.update(org_subscribed_ids - opted_out_ids)
+
+    return accessible_ids
+
+
+async def async_get_user_research_streams(
+    db: AsyncSession,
+    user: User
+) -> List[StreamWithStats]:
+    """
+    Get all research streams accessible to a user with report counts and latest report date (async version).
+
+    Returns:
+        List of StreamWithStats dataclasses containing stream model and stats
+    """
+    # Get accessible stream IDs
+    accessible_ids = await async_get_accessible_stream_ids(db, user)
+
+    if not accessible_ids:
+        return []
+
+    # Query streams with report counts and latest report date
+    stmt = (
+        select(
+            ResearchStream,
+            func.count(Report.report_id).label('report_count'),
+            func.max(Report.created_at).label('latest_report_date')
+        )
+        .outerjoin(Report, Report.research_stream_id == ResearchStream.stream_id)
+        .where(ResearchStream.stream_id.in_(accessible_ids))
+        .group_by(ResearchStream.stream_id)
+        .order_by(ResearchStream.scope, ResearchStream.stream_name)
+    )
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    # Return list of StreamWithStats dataclasses
+    return [
+        StreamWithStats(
+            stream=stream,
+            report_count=report_count,
+            latest_report_date=latest_report_date
+        )
+        for stream, report_count, latest_report_date in rows
+    ]

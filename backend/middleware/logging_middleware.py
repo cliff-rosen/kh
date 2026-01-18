@@ -142,7 +142,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         elif response.status_code >= 400:
             logger.warning(f"Response: {response.status_code} - {duration_ms:.2f}ms", extra=log_data)
         elif duration_ms > settings.LOG_PERFORMANCE_THRESHOLD_MS:
-            logger.warning(f"Slow response: {response.status_code} - {duration_ms:.2f}ms", extra=log_data)
+            logger.warning(f"Slow response: {request.method} {request.url.path} - {response.status_code} - {duration_ms:.2f}ms", extra=log_data)
         else:
             logger.info(f"Response: {response.status_code} - {duration_ms:.2f}ms", extra=log_data)
     

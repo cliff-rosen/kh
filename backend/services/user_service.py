@@ -11,8 +11,9 @@ Authentication (tokens, passwords) is handled by auth_service.
 """
 
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
-from typing import Optional, List, Dict, Any
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import and_, select
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from fastapi import HTTPException, status
 from passlib.context import CryptContext
@@ -142,8 +143,20 @@ class UserService:
             )
 
     def get_user_by_email(self, email: str) -> Optional[UserModel]:
-        """Get user by email."""
+        """Get user by email (sync)."""
         return self.db.query(UserModel).filter(UserModel.email == email).first()
+
+    # ==================== Async Methods ====================
+
+    @staticmethod
+    async def async_get_user_by_email(db: AsyncSession, email: str) -> Optional[UserModel]:
+        """Get user by email (async)."""
+        result = await db.execute(
+            select(UserModel).where(UserModel.email == email)
+        )
+        return result.scalars().first()
+
+    # ==================== Sync Methods (continued) ====================
 
     def get_user_by_login_token(self, token: str) -> Optional[UserModel]:
         """
