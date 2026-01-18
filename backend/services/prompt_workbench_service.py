@@ -9,9 +9,8 @@ Default prompts are sourced from ReportSummaryService (single source of truth).
 """
 
 import logging
-from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, List
 
 from models import Report, WipArticle
 from schemas.research_stream import EnrichmentConfig, PromptTemplate, ResearchStream as ResearchStreamSchema
@@ -23,12 +22,9 @@ logger = logging.getLogger(__name__)
 
 
 class PromptWorkbenchService:
-    """Service for prompt workbench operations.
+    """Service for prompt workbench operations."""
 
-    Supports both sync (Session) and async (AsyncSession) database access.
-    """
-
-    def __init__(self, db: Union[Session, AsyncSession]):
+    def __init__(self, db: AsyncSession):
         self.db = db
         self._summary_service = None  # Lazy-loaded - only needed for testing prompts
         self.stream_service = ResearchStreamService(db)
@@ -58,9 +54,9 @@ class PromptWorkbenchService:
             "available_slugs": AVAILABLE_SLUGS
         }
 
-    def get_enrichment_config(self, stream_id: int) -> Dict[str, Any]:
+    async def get_enrichment_config(self, stream_id: int) -> Dict[str, Any]:
         """Get enrichment config for a stream"""
-        raw_config = self.stream_service.get_enrichment_config(stream_id)
+        raw_config = await self.stream_service.async_get_enrichment_config(stream_id)
 
         enrichment_config = None
         if raw_config:
@@ -72,7 +68,7 @@ class PromptWorkbenchService:
             "defaults": self._convert_to_prompt_templates(DEFAULT_PROMPTS)
         }
 
-    def update_enrichment_config(
+    async def update_enrichment_config(
         self,
         stream_id: int,
         enrichment_config: Optional[EnrichmentConfig]
@@ -80,7 +76,7 @@ class PromptWorkbenchService:
         """Update enrichment config for a stream"""
         config_dict = enrichment_config.dict() if enrichment_config else None
         logger.info(f"PromptWorkbenchService.update_enrichment_config: stream_id={stream_id}, config_dict={config_dict}")
-        self.stream_service.update_enrichment_config(stream_id, config_dict)
+        await self.stream_service.async_update_enrichment_config(stream_id, config_dict)
 
     async def test_prompt(
         self,
