@@ -257,7 +257,7 @@ class ChatService:
 
 
 # Dependency injection provider for async chat service
-async def get_async_chat_service(
+async def get_chat_service(
     db: AsyncSession = Depends(get_async_db)
 ) -> ChatService:
     """Get a ChatService instance with async database session."""

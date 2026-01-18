@@ -198,7 +198,7 @@ class InvitationService:
 
 
 # Dependency injection provider for async invitation service
-async def get_async_invitation_service(
+async def get_invitation_service(
     db: AsyncSession = Depends(get_async_db)
 ) -> InvitationService:
     """Get an InvitationService instance with async database session."""

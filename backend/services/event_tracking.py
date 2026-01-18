@@ -327,7 +327,7 @@ from fastapi import Depends
 from database import get_async_db
 
 
-async def get_async_event_tracker(
+async def get_event_tracker(
     db: AsyncSession = Depends(get_async_db)
 ) -> EventTracker:
     """Get an EventTracker instance with async database session."""

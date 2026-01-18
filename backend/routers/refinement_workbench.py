@@ -16,7 +16,7 @@ from routers.auth import get_current_user
 from schemas.canonical_types import CanonicalResearchArticle
 from services.refinement_workbench_service import (
     RefinementWorkbenchService,
-    get_async_refinement_workbench_service
+    get_refinement_workbench_service
 )
 
 router = APIRouter(prefix="/api/refinement-workbench", tags=["refinement-workbench"])
@@ -124,7 +124,7 @@ class ComparisonResult(BaseModel):
 @router.post("/source/run-query", response_model=SourceResponse)
 async def run_query(
     request: RunQueryRequest,
-    service: RefinementWorkbenchService = Depends(get_async_refinement_workbench_service),
+    service: RefinementWorkbenchService = Depends(get_refinement_workbench_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -160,7 +160,7 @@ async def run_query(
 @router.post("/source/test-custom-query", response_model=SourceResponse)
 async def test_custom_query(
     request: TestCustomQueryRequest,
-    service: RefinementWorkbenchService = Depends(get_async_refinement_workbench_service),
+    service: RefinementWorkbenchService = Depends(get_refinement_workbench_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -197,7 +197,7 @@ async def test_custom_query(
 @router.post("/source/manual-pmids", response_model=SourceResponse)
 async def fetch_manual_pmids(
     request: ManualPMIDsRequest,
-    service: RefinementWorkbenchService = Depends(get_async_refinement_workbench_service),
+    service: RefinementWorkbenchService = Depends(get_refinement_workbench_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -230,7 +230,7 @@ async def fetch_manual_pmids(
 @router.post("/filter", response_model=FilterResponse)
 async def filter_articles(
     request: FilterArticlesRequest,
-    service: RefinementWorkbenchService = Depends(get_async_refinement_workbench_service),
+    service: RefinementWorkbenchService = Depends(get_refinement_workbench_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -277,7 +277,7 @@ async def filter_articles(
 @router.post("/categorize", response_model=CategorizeResponse)
 async def categorize_articles(
     request: CategorizeArticlesRequest,
-    service: RefinementWorkbenchService = Depends(get_async_refinement_workbench_service),
+    service: RefinementWorkbenchService = Depends(get_refinement_workbench_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -326,7 +326,7 @@ async def categorize_articles(
 @router.post("/compare", response_model=ComparisonResult)
 async def compare_pmids(
     request: ComparePMIDsRequest,
-    service: RefinementWorkbenchService = Depends(get_async_refinement_workbench_service),
+    service: RefinementWorkbenchService = Depends(get_refinement_workbench_service),
     current_user: User = Depends(get_current_user)
 ):
     """

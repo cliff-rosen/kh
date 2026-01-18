@@ -698,6 +698,8 @@ export default function ReportsPage() {
                         startDate={selectedReport.retrieval_params.start_date}
                         endDate={selectedReport.retrieval_params.end_date}
                         reportId={selectedReport.report_id}
+                        enrichmentConfig={selectedReport.retrieval_params.enrichment_config}
+                        llmConfig={selectedReport.retrieval_params.llm_config}
                         onClose={() => setShowExecutionConfig(false)}
                     />
                 )}

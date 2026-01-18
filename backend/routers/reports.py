@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from models import User
 from schemas.report import Report, ReportWithArticles
-from services.report_service import ReportService, get_async_report_service
+from services.report_service import ReportService, get_report_service
 from services.email_service import EmailService
 from services.user_tracking_service import track_endpoint
 from routers.auth import get_current_user
@@ -70,7 +70,7 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 @router.get("/recent", response_model=List[Report])
 async def get_recent_reports(
     limit: int = 5,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """Get recent reports across all streams for the current user (async)"""
@@ -115,7 +115,7 @@ async def get_recent_reports(
 @router.get("/stream/{stream_id}", response_model=List[Report])
 async def get_reports_for_stream(
     stream_id: int,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """Get all reports for a research stream (async)"""
@@ -149,7 +149,7 @@ async def get_reports_for_stream(
 @track_endpoint("view_report")
 async def get_report_with_articles(
     report_id: int,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """Get a report with its associated articles (async)"""
@@ -242,7 +242,7 @@ async def get_report_with_articles(
 @router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_report(
     report_id: int,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """Delete a report (async)"""
@@ -275,7 +275,7 @@ async def update_article_notes(
     report_id: int,
     article_id: int,
     request: UpdateArticleNotesRequest,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """Update notes for an article within a report (async)"""
@@ -311,7 +311,7 @@ async def update_article_enrichments(
     report_id: int,
     article_id: int,
     request: UpdateArticleEnrichmentsRequest,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """Update AI enrichments for an article within a report (async)"""
@@ -346,7 +346,7 @@ async def update_article_enrichments(
 async def get_article_metadata(
     report_id: int,
     article_id: int,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """Get notes and AI enrichments for an article within a report (async)"""
@@ -378,7 +378,7 @@ async def get_article_metadata(
 @router.post("/{report_id}/email/generate", response_model=EmailPreviewResponse)
 async def generate_report_email(
     report_id: int,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -418,7 +418,7 @@ async def generate_report_email(
 async def store_report_email(
     report_id: int,
     request: StoreReportEmailRequest,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -456,7 +456,7 @@ async def store_report_email(
 @router.get("/{report_id}/email", response_model=EmailPreviewResponse)
 async def get_report_email(
     report_id: int,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -496,7 +496,7 @@ async def get_report_email(
 async def send_report_email(
     report_id: int,
     request: SendReportEmailRequest,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """

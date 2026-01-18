@@ -23,8 +23,8 @@ import logging
 from database import get_async_db
 from models import User, UserRole
 from services import auth_service
-from services.report_service import ReportService, get_async_report_service
-from services.wip_article_service import WipArticleService, get_async_wip_article_service
+from services.report_service import ReportService, get_report_service
+from services.wip_article_service import WipArticleService, get_wip_article_service
 from services.email_service import EmailService
 from services.report_summary_service import ReportSummaryService
 
@@ -359,7 +359,7 @@ class RegenerateArticleSummaryResponse(BaseModel):
 @router.get("/{report_id}/curation", response_model=CurationViewResponse)
 async def get_curation_view(
     report_id: int,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -513,7 +513,7 @@ async def get_curation_view(
 @router.get("/{report_id}/curation/history", response_model=CurationHistoryResponse)
 async def get_curation_history(
     report_id: int,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -550,7 +550,7 @@ async def get_curation_history(
 @router.get("/{report_id}/pipeline-analytics", response_model=PipelineAnalyticsResponse)
 async def get_pipeline_analytics(
     report_id: int,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """Get pipeline analytics for a report - detailed breakdown of filtering decisions."""
@@ -579,7 +579,7 @@ async def exclude_article(
     report_id: int,
     article_id: int,
     request: ExcludeArticleRequest,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -614,7 +614,7 @@ async def exclude_article(
 async def include_article(
     report_id: int,
     request: IncludeArticleRequest,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -651,7 +651,7 @@ async def include_article(
 async def reset_curation(
     report_id: int,
     wip_article_id: int,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -687,8 +687,8 @@ async def update_wip_article_notes(
     report_id: int,
     wip_article_id: int,
     request: UpdateWipArticleNotesRequest,
-    service: ReportService = Depends(get_async_report_service),
-    wip_service: WipArticleService = Depends(get_async_wip_article_service),
+    service: ReportService = Depends(get_report_service),
+    wip_service: WipArticleService = Depends(get_wip_article_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -739,7 +739,7 @@ async def update_article_in_report(
     report_id: int,
     article_id: int,
     request: UpdateArticleRequest,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -780,7 +780,7 @@ async def update_article_in_report(
 async def update_report_content(
     report_id: int,
     request: UpdateReportContentRequest,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """Update report content (title, executive summary, category summaries)."""
@@ -814,7 +814,7 @@ async def send_approval_request(
     report_id: int,
     request: ApprovalRequestRequest,
     db: AsyncSession = Depends(get_async_db),
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -885,7 +885,7 @@ async def send_approval_request(
 async def approve_report(
     report_id: int,
     request: Optional[ApproveReportRequest] = None,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -917,7 +917,7 @@ async def approve_report(
 async def reject_report(
     report_id: int,
     request: RejectReportRequest,
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -951,7 +951,7 @@ async def reject_report(
 async def regenerate_executive_summary(
     report_id: int,
     db: AsyncSession = Depends(get_async_db),
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -1016,7 +1016,7 @@ async def regenerate_category_summary(
     report_id: int,
     category_id: str,
     db: AsyncSession = Depends(get_async_db),
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -1108,7 +1108,7 @@ async def regenerate_article_summary(
     report_id: int,
     article_id: int,
     db: AsyncSession = Depends(get_async_db),
-    service: ReportService = Depends(get_async_report_service),
+    service: ReportService = Depends(get_report_service),
     current_user: User = Depends(get_current_user)
 ):
     """

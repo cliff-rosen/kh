@@ -9,8 +9,8 @@ import logging
 
 from models import User, UserRole
 from services import auth_service
-from services.organization_service import OrganizationService, get_async_organization_service
-from services.subscription_service import SubscriptionService, get_async_subscription_service
+from services.organization_service import OrganizationService, get_organization_service
+from services.subscription_service import SubscriptionService, get_subscription_service
 from schemas.organization import (
     StreamSubscriptionStatus, GlobalStreamLibrary, OrgStreamList
 )
@@ -29,8 +29,8 @@ router = APIRouter(prefix="/api/subscriptions", tags=["subscriptions"])
 )
 async def list_global_streams_for_org(
     current_user: User = Depends(auth_service.validate_token),
-    org_service: OrganizationService = Depends(get_async_organization_service),
-    sub_service: SubscriptionService = Depends(get_async_subscription_service)
+    org_service: OrganizationService = Depends(get_organization_service),
+    sub_service: SubscriptionService = Depends(get_subscription_service)
 ):
     """
     Get all global streams with subscription status for the current org.
@@ -49,8 +49,8 @@ async def list_global_streams_for_org(
 async def subscribe_org_to_global_stream(
     stream_id: int,
     current_user: User = Depends(auth_service.validate_token),
-    org_service: OrganizationService = Depends(get_async_organization_service),
-    sub_service: SubscriptionService = Depends(get_async_subscription_service)
+    org_service: OrganizationService = Depends(get_organization_service),
+    sub_service: SubscriptionService = Depends(get_subscription_service)
 ):
     """Subscribe the current org to a global stream. Requires org admin role."""
     org_service.require_org_admin(current_user, current_user.org_id)
@@ -72,8 +72,8 @@ async def subscribe_org_to_global_stream(
 async def unsubscribe_org_from_global_stream(
     stream_id: int,
     current_user: User = Depends(auth_service.validate_token),
-    org_service: OrganizationService = Depends(get_async_organization_service),
-    sub_service: SubscriptionService = Depends(get_async_subscription_service)
+    org_service: OrganizationService = Depends(get_organization_service),
+    sub_service: SubscriptionService = Depends(get_subscription_service)
 ):
     """Unsubscribe the current org from a global stream. Requires org admin role."""
     org_service.require_org_admin(current_user, current_user.org_id)
@@ -99,7 +99,7 @@ async def unsubscribe_org_from_global_stream(
 )
 async def list_org_streams_for_user(
     current_user: User = Depends(auth_service.validate_token),
-    sub_service: SubscriptionService = Depends(get_async_subscription_service)
+    sub_service: SubscriptionService = Depends(get_subscription_service)
 ):
     """Get all org streams with subscription status for the current user."""
     return await sub_service.get_org_streams_for_user(current_user)
@@ -113,7 +113,7 @@ async def list_org_streams_for_user(
 async def subscribe_to_org_stream(
     stream_id: int,
     current_user: User = Depends(auth_service.validate_token),
-    sub_service: SubscriptionService = Depends(get_async_subscription_service)
+    sub_service: SubscriptionService = Depends(get_subscription_service)
 ):
     """Subscribe the current user to an org stream."""
     await sub_service.subscribe_user_to_org_stream(current_user, stream_id)
@@ -129,7 +129,7 @@ async def subscribe_to_org_stream(
 async def unsubscribe_from_org_stream(
     stream_id: int,
     current_user: User = Depends(auth_service.validate_token),
-    sub_service: SubscriptionService = Depends(get_async_subscription_service)
+    sub_service: SubscriptionService = Depends(get_subscription_service)
 ):
     """Unsubscribe the current user from an org stream."""
     success = await sub_service.unsubscribe_user_from_org_stream(current_user, stream_id)
@@ -150,7 +150,7 @@ async def unsubscribe_from_org_stream(
 )
 async def list_global_streams_for_user(
     current_user: User = Depends(auth_service.validate_token),
-    sub_service: SubscriptionService = Depends(get_async_subscription_service)
+    sub_service: SubscriptionService = Depends(get_subscription_service)
 ):
     """
     Get global streams available to the user (via org subscription).
@@ -167,7 +167,7 @@ async def list_global_streams_for_user(
 async def opt_out_of_global_stream(
     stream_id: int,
     current_user: User = Depends(auth_service.validate_token),
-    sub_service: SubscriptionService = Depends(get_async_subscription_service)
+    sub_service: SubscriptionService = Depends(get_subscription_service)
 ):
     """Opt out of a global stream that the user's org is subscribed to."""
     await sub_service.opt_out_of_global_stream(current_user, stream_id)
@@ -183,7 +183,7 @@ async def opt_out_of_global_stream(
 async def opt_back_into_global_stream(
     stream_id: int,
     current_user: User = Depends(auth_service.validate_token),
-    sub_service: SubscriptionService = Depends(get_async_subscription_service)
+    sub_service: SubscriptionService = Depends(get_subscription_service)
 ):
     """Opt back into a global stream (remove opt-out)."""
     await sub_service.opt_back_into_global_stream(current_user, stream_id)

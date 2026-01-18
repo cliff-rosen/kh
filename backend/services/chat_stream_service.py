@@ -912,7 +912,7 @@ from fastapi import Depends
 from database import get_async_db
 
 
-async def get_async_chat_stream_service(
+async def get_chat_stream_service(
     db: AsyncSession = Depends(get_async_db)
 ) -> ChatStreamService:
     """

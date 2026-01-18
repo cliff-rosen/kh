@@ -275,9 +275,7 @@ export default function ReportQueue() {
                                                 to={`/operations/executions/${exec.execution_id}`}
                                                 className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
                                             >
-                                                {exec.execution_status === 'completed' && exec.approval_status === 'awaiting_approval'
-                                                    ? 'Review →'
-                                                    : 'Details →'}
+                                                Run Detail →
                                             </Link>
                                         </td>
                                     </tr>

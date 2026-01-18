@@ -332,7 +332,7 @@ from fastapi import Depends
 from database import get_async_db
 
 
-async def get_async_prompt_workbench_service(
+async def get_prompt_workbench_service(
     db: AsyncSession = Depends(get_async_db)
 ) -> PromptWorkbenchService:
     """Get a PromptWorkbenchService instance with async database session."""

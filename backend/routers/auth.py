@@ -11,7 +11,7 @@ from schemas.user import Token
 from models import Invitation, Organization
 
 from services import auth_service
-from services.user_service import UserService, get_async_user_service
+from services.user_service import UserService, get_user_service
 from services.login_email_service import LoginEmailService
 
 logger = logging.getLogger(__name__)
@@ -182,7 +182,7 @@ async def login(
 )
 async def request_login_token(
     email: str = Form(..., description="User's email address"),
-    user_service: UserService = Depends(get_async_user_service)
+    user_service: UserService = Depends(get_user_service)
 ):
     """
     Request a one-time login token to be sent via email.
@@ -235,7 +235,7 @@ async def request_login_token(
 )
 async def login_with_token(
     token: str = Form(..., description="Login token from email"),
-    user_service: UserService = Depends(get_async_user_service)
+    user_service: UserService = Depends(get_user_service)
 ):
     """
     Authenticate using a one-time login token.
@@ -342,7 +342,7 @@ class PasswordReset(BaseModel):
 )
 async def request_password_reset(
     request: PasswordResetRequest,
-    user_service: UserService = Depends(get_async_user_service)
+    user_service: UserService = Depends(get_user_service)
 ):
     """
     Request a password reset email.
@@ -397,7 +397,7 @@ async def request_password_reset(
 )
 async def reset_password(
     request: PasswordReset,
-    user_service: UserService = Depends(get_async_user_service),
+    user_service: UserService = Depends(get_user_service),
     db: AsyncSession = Depends(get_async_db)
 ):
     """

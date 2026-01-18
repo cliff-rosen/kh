@@ -29,7 +29,9 @@ import {
     EnvelopeIcon,
     PaperAirplaneIcon,
     PencilSquareIcon,
+    Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
+import RetrievalConfigModal from '../shared/RetrievalConfigModal';
 import {
     getExecutionDetail,
 } from '../../lib/api/operationsApi';
@@ -54,6 +56,9 @@ export default function ExecutionDetail() {
     const [emailRecipient, setEmailRecipient] = useState('');
     const [sendingEmail, setSendingEmail] = useState(false);
     const [emailSendResult, setEmailSendResult] = useState<{ success: string[]; failed: string[] } | null>(null);
+
+    // Config modal state
+    const [showConfigModal, setShowConfigModal] = useState(false);
 
     // Fetch execution data
     useEffect(() => {
@@ -212,51 +217,83 @@ export default function ExecutionDetail() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <Link to="/operations" className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
-                        <ArrowLeftIcon className="h-5 w-5 text-gray-500" />
-                    </Link>
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                            {execution.report_name || `Execution: ${execution.stream_name}`}
-                        </h1>
-                        <p className="text-gray-600 dark:text-gray-400">
-                            {execution.stream_name} · {execution.article_count} articles · {execution.run_type}
-                        </p>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow px-6 py-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <Link to="/operations" className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+                            <ArrowLeftIcon className="h-5 w-5 text-gray-500" />
+                        </Link>
+                        <div>
+                            <div className="flex items-center gap-3">
+                                <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                                    {execution.report_name || `Execution: ${execution.stream_name}`}
+                                </h1>
+                                <ExecutionStatusBadge status={execution.execution_status} />
+                                {execution.report_id && execution.approval_status && (
+                                    <ApprovalStatusBadge status={execution.approval_status} />
+                                )}
+                            </div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                {execution.stream_name} · {execution.article_count} articles · {execution.run_type}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        {/* Utility buttons - icon only, subtle (matching ReportCuration layout) */}
+                        {execution.retrieval_config && (
+                            <button
+                                type="button"
+                                onClick={() => setShowConfigModal(true)}
+                                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                                title="View run configuration"
+                            >
+                                <Cog6ToothIcon className="h-5 w-5" />
+                            </button>
+                        )}
+                        {execution.report_id && (
+                            <button
+                                type="button"
+                                onClick={() => setShowEmailModal(true)}
+                                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                                title="Email report"
+                            >
+                                <EnvelopeIcon className="h-5 w-5" />
+                            </button>
+                        )}
+
+                        {/* Divider */}
+                        {execution.report_id && (
+                            <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2" />
+                        )}
+
+                        {/* Go to Curation button */}
+                        {execution.report_id && (
+                            <Link
+                                to={`/operations/reports/${execution.report_id}/curate`}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 font-medium"
+                            >
+                                <PencilSquareIcon className="h-5 w-5" />
+                                Review & Curate
+                            </Link>
+                        )}
                     </div>
                 </div>
-                {execution.report_id && (
-                    <Link
-                        to={`/operations/reports/${execution.report_id}/curate`}
-                        className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 font-medium"
-                    >
-                        <PencilSquareIcon className="h-5 w-5" />
-                        Go to Curation
-                    </Link>
-                )}
             </div>
 
             {/* Execution Details - Organized Layout */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-                {/* Top Row: Status, Timing, Metrics, Approval */}
+                {/* Top Row: Timing, Metrics, Approval Info */}
                 <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4 border-b border-gray-200 dark:border-gray-700">
-                    {/* Status & Type */}
+                    {/* Run Type & Approval Info */}
                     <div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Status</p>
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <ExecutionStatusBadge status={execution.execution_status} />
-                            {execution.report_id && execution.approval_status && (
-                                <>
-                                    <span className="text-gray-300 dark:text-gray-600">→</span>
-                                    <ApprovalStatusBadge status={execution.approval_status} />
-                                </>
-                            )}
-                            <span className="text-xs text-gray-500 capitalize">({execution.run_type})</span>
-                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Run Info</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white capitalize">
+                            {execution.run_type} run
+                        </p>
                         {execution.approved_by && (
-                            <p className="text-xs text-gray-400 mt-1">
-                                by {execution.approved_by}
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                {execution.approval_status === 'approved' ? 'Approved' : 'Rejected'} by {execution.approved_by}
                                 {execution.approved_at && ` on ${new Date(execution.approved_at).toLocaleDateString()}`}
                             </p>
                         )}
@@ -371,21 +408,12 @@ export default function ExecutionDetail() {
 
                 {/* Rejection reason */}
                 {execution.rejection_reason && (
-                    <div className="p-4 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800">
+                    <div className="p-4 bg-red-50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800">
                         <p className="text-sm text-red-700 dark:text-red-300">
                             <span className="font-medium">Rejection Reason:</span> {execution.rejection_reason}
                         </p>
                     </div>
                 )}
-
-                {/* Retrieval Configuration - Collapsible */}
-                <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-                    {execution.retrieval_config ? (
-                        <RetrievalConfigDisplay config={execution.retrieval_config} />
-                    ) : (
-                        <p className="text-sm text-gray-400 italic">No retrieval configuration stored for this execution</p>
-                    )}
-                </div>
             </div>
 
             {/* Section 1: Report Output (Primary) */}
@@ -407,33 +435,6 @@ export default function ExecutionDetail() {
                         </p>
                     ) : (
                         <div className="space-y-6">
-                            {/* Report Header */}
-                            <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                                            {execution.report_name}
-                                        </h2>
-                                        <div className="flex items-center gap-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                            <span>{execution.articles?.length || 0} articles</span>
-                                            {execution.start_date && execution.end_date && (
-                                                <span>Date range: {execution.start_date} to {execution.end_date}</span>
-                                            )}
-                                                </div>
-                                            </div>
-                                            <button
-                                                onClick={() => setShowEmailModal(true)}
-                                                className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition-colors flex items-center gap-2"
-                                                title="Email Report"
-                                            >
-                                                <EnvelopeIcon className="h-5 w-5" />
-                                                <span className="text-sm">Email</span>
-                                                {emailStored && (
-                                                    <CheckCircleIcon className="h-4 w-4 text-green-500" />
-                                                )}
-                                            </button>
-                                        </div>
-                                    </div>
 
                             {/* Executive Summary */}
                             {execution.executive_summary && (
@@ -753,6 +754,18 @@ export default function ExecutionDetail() {
                     </div>
                 </div>
             )}
+
+            {/* Config Modal */}
+            {showConfigModal && execution.retrieval_config && (
+                <RetrievalConfigModal
+                    subtitle={execution.report_name || execution.stream_name}
+                    config={execution.retrieval_config}
+                    startDate={execution.start_date}
+                    endDate={execution.end_date}
+                    reportId={execution.report_id || undefined}
+                    onClose={() => setShowConfigModal(false)}
+                />
+            )}
         </div>
     );
 }
@@ -890,167 +903,6 @@ function ApprovalStatusBadge({ status }: { status: string | null }) {
             {Icon && <Icon className="h-4 w-4" />}
             {label}
         </span>
-    );
-}
-
-// Display retrieval configuration - PubMed query and semantic filter
-interface RetrievalConfigProps {
-    config: Record<string, unknown>;
-}
-
-interface BroadQueryConfig {
-    query_id: string;
-    query_expression: string;
-    semantic_filter?: {
-        enabled: boolean;
-        criteria: string;
-        threshold?: number;
-    };
-}
-
-interface ConceptConfig {
-    concept_id: string;
-    name: string;
-    source_queries?: Record<string, { query_expression: string; enabled: boolean }>;
-    semantic_filter?: {
-        enabled: boolean;
-        criteria: string;
-        threshold?: number;
-    };
-}
-
-function RetrievalConfigDisplay({ config }: RetrievalConfigProps) {
-    const [showQuery, setShowQuery] = useState(false);
-    const [showFilter, setShowFilter] = useState(false);
-    const [showRaw, setShowRaw] = useState(false);
-
-    // Extract from broad_search (one retrieval method)
-    const broadSearch = config.broad_search as { queries: BroadQueryConfig[] } | undefined;
-    const broadQueries = broadSearch?.queries || [];
-
-    // Extract from concepts (alternative retrieval method)
-    const concepts = config.concepts as ConceptConfig[] | undefined;
-
-    // Get query expressions from broad_search
-    let pubmedQuery = broadQueries.map(q => q.query_expression).filter(Boolean).join('\n\nOR\n\n');
-
-    // If no broad_search, try to get queries from concepts
-    if (!pubmedQuery && concepts && concepts.length > 0) {
-        const conceptQueries = concepts
-            .filter(c => c.source_queries?.pubmed?.enabled && c.source_queries?.pubmed?.query_expression)
-            .map(c => `# ${c.name}\n${c.source_queries!.pubmed.query_expression}`)
-            .filter(Boolean);
-        pubmedQuery = conceptQueries.join('\n\n---\n\n');
-    }
-
-    // Get semantic filters from broad_search
-    let semanticFilter = broadQueries
-        .filter(q => q.semantic_filter?.enabled && q.semantic_filter?.criteria)
-        .map(q => q.semantic_filter!.criteria)
-        .join('\n\n---\n\n');
-
-    // If no broad_search filters, try to get filters from concepts
-    if (!semanticFilter && concepts && concepts.length > 0) {
-        const conceptFilters = concepts
-            .filter(c => c.semantic_filter?.enabled && c.semantic_filter?.criteria)
-            .map(c => `# ${c.name}\n${c.semantic_filter!.criteria}`)
-            .filter(Boolean);
-        semanticFilter = conceptFilters.join('\n\n---\n\n');
-    }
-
-    if (!pubmedQuery && !semanticFilter) {
-        return (
-            <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-400 italic">No query data available</span>
-                <button
-                    onClick={() => setShowRaw(!showRaw)}
-                    className="text-xs text-gray-400 hover:text-gray-600 underline"
-                >
-                    {showRaw ? 'Hide' : 'Show'} raw config
-                </button>
-                {showRaw && (
-                    <pre className="mt-2 text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded overflow-auto max-h-40 w-full">
-                        {JSON.stringify(config, null, 2)}
-                    </pre>
-                )}
-            </div>
-        );
-    }
-
-    return (
-        <div className="flex flex-wrap items-center gap-2">
-            {/* PubMed Query Button */}
-            {pubmedQuery && (
-                <button
-                    onClick={() => setShowQuery(!showQuery)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                        showQuery
-                            ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300'
-                            : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                >
-                    <DocumentTextIcon className="h-4 w-4" />
-                    PubMed Query
-                    {showQuery ? <ChevronDownIcon className="h-3 w-3" /> : <ChevronRightIcon className="h-3 w-3" />}
-                </button>
-            )}
-
-            {/* Semantic Filter Button */}
-            {semanticFilter && (
-                <button
-                    onClick={() => setShowFilter(!showFilter)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                        showFilter
-                            ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300'
-                            : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
-                >
-                    <FunnelIcon className="h-4 w-4" />
-                    Semantic Filter
-                    {showFilter ? <ChevronDownIcon className="h-3 w-3" /> : <ChevronRightIcon className="h-3 w-3" />}
-                </button>
-            )}
-
-            {/* Raw Config Link */}
-            <button
-                onClick={() => setShowRaw(!showRaw)}
-                className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline ml-2"
-            >
-                {showRaw ? 'Hide' : 'Show'} raw
-            </button>
-
-            {/* Expanded Content */}
-            {(showQuery || showFilter || showRaw) && (
-                <div className="w-full mt-3 space-y-3">
-                    {showQuery && (
-                        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
-                            <p className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-2">PubMed Query</p>
-                            <pre className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap font-mono">
-                                {pubmedQuery}
-                            </pre>
-                        </div>
-                    )}
-
-                    {showFilter && (
-                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                            <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-2">Semantic Filter Criteria</p>
-                            <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                                {semanticFilter}
-                            </p>
-                        </div>
-                    )}
-
-                    {showRaw && (
-                        <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Raw Configuration</p>
-                            <pre className="text-xs text-gray-700 dark:text-gray-300 overflow-auto max-h-60">
-                                {JSON.stringify(config, null, 2)}
-                            </pre>
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
     );
 }
 

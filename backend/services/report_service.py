@@ -1754,7 +1754,7 @@ class ReportService:
 # Dependency Injection Provider
 # =============================================================================
 
-async def get_async_report_service(
+async def get_report_service(
     db: AsyncSession = Depends(get_async_db)
 ) -> ReportService:
     """FastAPI dependency that provides a ReportService with AsyncSession."""

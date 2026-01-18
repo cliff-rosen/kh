@@ -448,7 +448,7 @@ from fastapi import Depends
 from database import get_async_db
 
 
-async def get_async_refinement_workbench_service(
+async def get_refinement_workbench_service(
     db: AsyncSession = Depends(get_async_db)
 ) -> RefinementWorkbenchService:
     """Get a RefinementWorkbenchService instance with async database session."""

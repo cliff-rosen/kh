@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from models import User, UserRole, EventSource
 from services import auth_service
-from services.user_tracking_service import UserTrackingService, get_async_tracking_service
+from services.user_tracking_service import UserTrackingService, get_tracking_service
 
 router = APIRouter(prefix="/api/tracking", tags=["tracking"])
 
@@ -57,7 +57,7 @@ class EventsListResponse(BaseModel):
 @router.post("/events", response_model=TrackEventResponse)
 async def track_event(
     request: TrackEventRequest,
-    service: UserTrackingService = Depends(get_async_tracking_service),
+    service: UserTrackingService = Depends(get_tracking_service),
     current_user: User = Depends(auth_service.validate_token)
 ):
     """
@@ -87,7 +87,7 @@ async def get_events(
     hours: Optional[int] = Query(24, description="Events from last N hours"),
     limit: int = Query(100, le=500),
     offset: int = Query(0, ge=0),
-    service: UserTrackingService = Depends(get_async_tracking_service),
+    service: UserTrackingService = Depends(get_tracking_service),
     current_user: User = Depends(auth_service.validate_token)
 ):
     """
@@ -129,7 +129,7 @@ async def get_events(
 
 @router.get("/admin/event-types", response_model=List[str])
 async def get_event_types(
-    service: UserTrackingService = Depends(get_async_tracking_service),
+    service: UserTrackingService = Depends(get_tracking_service),
     current_user: User = Depends(auth_service.validate_token)
 ):
     """Get distinct event types for filtering (platform admin only)."""

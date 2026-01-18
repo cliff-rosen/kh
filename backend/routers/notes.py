@@ -8,7 +8,7 @@ import logging
 
 from models import User
 from services import auth_service
-from services.notes_service import NotesService, get_async_notes_service
+from services.notes_service import NotesService, get_notes_service
 from schemas.organization import (
     ArticleNote, ArticleNoteCreate, ArticleNoteUpdate, ArticleNotesResponse
 )
@@ -27,7 +27,7 @@ async def get_article_notes(
     report_id: int,
     article_id: int,
     current_user: User = Depends(auth_service.validate_token),
-    notes_service: NotesService = Depends(get_async_notes_service)
+    notes_service: NotesService = Depends(get_notes_service)
 ):
     """
     Get all visible notes for an article in a report.
@@ -57,7 +57,7 @@ async def create_article_note(
     article_id: int,
     note_data: ArticleNoteCreate,
     current_user: User = Depends(auth_service.validate_token),
-    notes_service: NotesService = Depends(get_async_notes_service)
+    notes_service: NotesService = Depends(get_notes_service)
 ):
     """
     Create a new note on an article.
@@ -93,7 +93,7 @@ async def update_article_note(
     note_id: str,
     note_data: ArticleNoteUpdate,
     current_user: User = Depends(auth_service.validate_token),
-    notes_service: NotesService = Depends(get_async_notes_service)
+    notes_service: NotesService = Depends(get_notes_service)
 ):
     """
     Update an existing note. Only the author can update their note.
@@ -129,7 +129,7 @@ async def delete_article_note(
     article_id: int,
     note_id: str,
     current_user: User = Depends(auth_service.validate_token),
-    notes_service: NotesService = Depends(get_async_notes_service)
+    notes_service: NotesService = Depends(get_notes_service)
 ):
     """Delete a note. Only the author can delete their note."""
     success = await notes_service.delete_note(

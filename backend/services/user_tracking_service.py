@@ -122,7 +122,7 @@ class UserTrackingService:
 
 
 # Dependency injection provider for async tracking service
-async def get_async_tracking_service(
+async def get_tracking_service(
     db: AsyncSession = Depends(get_async_db)
 ) -> UserTrackingService:
     """Get a UserTrackingService instance with async database session."""

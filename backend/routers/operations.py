@@ -16,7 +16,7 @@ from models import User
 from services import auth_service
 from services.operations_service import (
     OperationsService,
-    get_async_operations_service,
+    get_operations_service,
 )
 from config.settings import settings
 
@@ -97,7 +97,7 @@ async def get_execution_queue(
     limit: int = 50,
     offset: int = 0,
     current_user: User = Depends(auth_service.validate_token),
-    service: OperationsService = Depends(get_async_operations_service)
+    service: OperationsService = Depends(get_operations_service)
 ):
     """
     Get pipeline executions with optional filters (async).
@@ -141,7 +141,7 @@ async def get_execution_queue(
 async def get_execution_detail(
     execution_id: str,
     current_user: User = Depends(auth_service.validate_token),
-    service: OperationsService = Depends(get_async_operations_service)
+    service: OperationsService = Depends(get_operations_service)
 ):
     """Get full execution details including report and WIP articles (async)."""
     logger.info(f"get_execution_detail - user_id={current_user.user_id}, execution_id={execution_id}")
@@ -171,7 +171,7 @@ async def get_execution_detail(
 )
 async def get_scheduled_streams(
     current_user: User = Depends(auth_service.validate_token),
-    service: OperationsService = Depends(get_async_operations_service)
+    service: OperationsService = Depends(get_operations_service)
 ):
     """Get all streams with scheduling configuration and their last execution status (async)."""
     logger.info(f"get_scheduled_streams - user_id={current_user.user_id}")
@@ -201,7 +201,7 @@ async def update_stream_schedule(
     stream_id: int,
     request: UpdateScheduleRequest,
     current_user: User = Depends(auth_service.validate_token),
-    service: OperationsService = Depends(get_async_operations_service)
+    service: OperationsService = Depends(get_operations_service)
 ):
     """Update scheduling configuration for a stream (async)."""
     logger.info(f"update_stream_schedule - user_id={current_user.user_id}, stream_id={stream_id}")

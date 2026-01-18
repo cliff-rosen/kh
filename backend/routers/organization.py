@@ -8,7 +8,7 @@ import logging
 
 from models import User, UserRole
 from services import auth_service
-from services.organization_service import OrganizationService, get_async_organization_service
+from services.organization_service import OrganizationService, get_organization_service
 from schemas.organization import (
     Organization, OrganizationUpdate, OrgMember, OrgMemberUpdate
 )
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api/org", tags=["organization"])
 )
 async def get_organization(
     current_user: User = Depends(auth_service.validate_token),
-    org_service: OrganizationService = Depends(get_async_organization_service)
+    org_service: OrganizationService = Depends(get_organization_service)
 ):
     """Get the current user's organization details."""
     org = await org_service.get_organization_for_user(current_user)
@@ -47,7 +47,7 @@ async def get_organization(
 async def update_organization(
     update_data: OrganizationUpdate,
     current_user: User = Depends(auth_service.validate_token),
-    org_service: OrganizationService = Depends(get_async_organization_service)
+    org_service: OrganizationService = Depends(get_organization_service)
 ):
     """Update the current user's organization. Requires org admin role."""
     org_service.require_org_admin(current_user, current_user.org_id)
@@ -69,7 +69,7 @@ async def update_organization(
 )
 async def list_members(
     current_user: User = Depends(auth_service.validate_token),
-    org_service: OrganizationService = Depends(get_async_organization_service)
+    org_service: OrganizationService = Depends(get_organization_service)
 ):
     """Get all members of the current user's organization."""
     if not current_user.org_id:
@@ -90,7 +90,7 @@ async def update_member_role(
     user_id: int,
     update_data: OrgMemberUpdate,
     current_user: User = Depends(auth_service.validate_token),
-    org_service: OrganizationService = Depends(get_async_organization_service)
+    org_service: OrganizationService = Depends(get_organization_service)
 ):
     """Update a member's role. Requires org admin role."""
     org_service.require_org_admin(current_user, current_user.org_id)
@@ -119,7 +119,7 @@ async def update_member_role(
 async def remove_member(
     user_id: int,
     current_user: User = Depends(auth_service.validate_token),
-    org_service: OrganizationService = Depends(get_async_organization_service)
+    org_service: OrganizationService = Depends(get_organization_service)
 ):
     """Remove a member from the organization. Requires org admin role."""
     org_service.require_org_admin(current_user, current_user.org_id)

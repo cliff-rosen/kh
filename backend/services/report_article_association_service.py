@@ -303,7 +303,7 @@ class ReportArticleAssociationService:
 
 
 # Dependency injection provider for async association service
-async def get_async_association_service(
+async def get_association_service(
     db: AsyncSession = Depends(get_async_db)
 ) -> ReportArticleAssociationService:
     """Get a ReportArticleAssociationService instance with async database session."""

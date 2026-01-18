@@ -459,7 +459,7 @@ class UserService:
 
 
 # Dependency injection provider for async user service
-async def get_async_user_service(
+async def get_user_service(
     db: AsyncSession = Depends(get_async_db)
 ) -> UserService:
     """Get a UserService instance with async database session."""

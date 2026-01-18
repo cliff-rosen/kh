@@ -14,7 +14,7 @@ from database import get_async_db
 from models import User, UserRole
 from schemas.user import User as UserSchema
 from services import auth_service
-from services.user_service import UserService, get_async_user_service
+from services.user_service import UserService, get_user_service
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ async def get_current_user(
 async def update_current_user(
     updates: UserUpdate,
     current_user: User = Depends(auth_service.validate_token),
-    user_service: UserService = Depends(get_async_user_service)
+    user_service: UserService = Depends(get_user_service)
 ):
     """
     Update the current user's profile.

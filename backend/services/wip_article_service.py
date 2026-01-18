@@ -547,7 +547,7 @@ class WipArticleService:
 
 
 # Dependency injection provider for async wip article service
-async def get_async_wip_article_service(
+async def get_wip_article_service(
     db: AsyncSession = Depends(get_async_db)
 ) -> WipArticleService:
     """Get a WipArticleService instance with async database session."""

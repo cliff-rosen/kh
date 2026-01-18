@@ -77,7 +77,7 @@ class ArticleService:
 
 
 # Dependency injection provider for async article service
-async def get_async_article_service(
+async def get_article_service(
     db: AsyncSession = Depends(get_async_db)
 ) -> ArticleService:
     """Get an ArticleService instance with async database session."""

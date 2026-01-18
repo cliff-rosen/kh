@@ -437,7 +437,7 @@ class SubscriptionService:
 
 
 # Dependency injection provider for async subscription service
-async def get_async_subscription_service(
+async def get_subscription_service(
     db: AsyncSession = Depends(get_async_db)
 ) -> SubscriptionService:
     """Get a SubscriptionService instance with async database session."""

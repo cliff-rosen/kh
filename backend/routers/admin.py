@@ -12,10 +12,10 @@ import logging
 from config.settings import settings
 from models import User, UserRole
 from services import auth_service
-from services.organization_service import OrganizationService, get_async_organization_service
-from services.user_service import UserService, get_async_user_service
-from services.subscription_service import SubscriptionService, get_async_subscription_service
-from services.invitation_service import InvitationService, get_async_invitation_service
+from services.organization_service import OrganizationService, get_organization_service
+from services.user_service import UserService, get_user_service
+from services.subscription_service import SubscriptionService, get_subscription_service
+from services.invitation_service import InvitationService, get_invitation_service
 from services.research_stream_service import ResearchStreamService, get_research_stream_service
 from schemas.organization import (
     Organization as OrgSchema,
@@ -52,7 +52,7 @@ def require_platform_admin(
 )
 async def list_all_organizations(
     current_user: User = Depends(require_platform_admin),
-    org_service: OrganizationService = Depends(get_async_organization_service)
+    org_service: OrganizationService = Depends(get_organization_service)
 ):
     """Get all organizations with member counts. Platform admin only."""
     logger.info(f"list_all_organizations - admin_user_id={current_user.user_id}")
@@ -81,7 +81,7 @@ async def list_all_organizations(
 async def create_organization(
     name: str,
     current_user: User = Depends(require_platform_admin),
-    org_service: OrganizationService = Depends(get_async_organization_service)
+    org_service: OrganizationService = Depends(get_organization_service)
 ):
     """Create a new organization. Platform admin only."""
     logger.info(f"create_organization - admin_user_id={current_user.user_id}, name={name}")
@@ -110,7 +110,7 @@ async def create_organization(
 async def get_organization(
     org_id: int,
     current_user: User = Depends(require_platform_admin),
-    org_service: OrganizationService = Depends(get_async_organization_service)
+    org_service: OrganizationService = Depends(get_organization_service)
 ):
     """Get organization details by ID. Platform admin only."""
     logger.info(f"get_organization - admin_user_id={current_user.user_id}, org_id={org_id}")
@@ -144,7 +144,7 @@ async def update_organization(
     org_id: int,
     update_data: OrganizationUpdate,
     current_user: User = Depends(require_platform_admin),
-    org_service: OrganizationService = Depends(get_async_organization_service)
+    org_service: OrganizationService = Depends(get_organization_service)
 ):
     """Update an organization. Platform admin only."""
     logger.info(f"update_organization - admin_user_id={current_user.user_id}, org_id={org_id}")
@@ -177,7 +177,7 @@ async def update_organization(
 async def delete_organization(
     org_id: int,
     current_user: User = Depends(require_platform_admin),
-    org_service: OrganizationService = Depends(get_async_organization_service)
+    org_service: OrganizationService = Depends(get_organization_service)
 ):
     """Delete an organization. Platform admin only."""
     logger.info(f"delete_organization - admin_user_id={current_user.user_id}, org_id={org_id}")
@@ -209,7 +209,7 @@ async def assign_user_to_org(
     org_id: int,
     user_id: int,
     current_user: User = Depends(require_platform_admin),
-    user_service: UserService = Depends(get_async_user_service)
+    user_service: UserService = Depends(get_user_service)
 ):
     """Assign a user to an organization. Platform admin only."""
     logger.info(f"assign_user_to_org - admin_user_id={current_user.user_id}, user_id={user_id}, org_id={org_id}")
@@ -332,7 +332,7 @@ async def list_all_users(
     limit: int = 100,
     offset: int = 0,
     current_user: User = Depends(require_platform_admin),
-    user_service: UserService = Depends(get_async_user_service)
+    user_service: UserService = Depends(get_user_service)
 ):
     """Get all users with optional filters. Platform admin only."""
     logger.info(f"list_all_users - admin_user_id={current_user.user_id}, org_id={org_id}, role={role}")
@@ -370,7 +370,7 @@ async def update_user_role(
     user_id: int,
     new_role: UserRoleSchema,
     current_user: User = Depends(require_platform_admin),
-    user_service: UserService = Depends(get_async_user_service)
+    user_service: UserService = Depends(get_user_service)
 ):
     """Update any user's role. Platform admin only."""
     logger.info(f"update_user_role - admin_user_id={current_user.user_id}, user_id={user_id}, new_role={new_role}")
@@ -398,7 +398,7 @@ async def update_user_role(
 async def delete_user(
     user_id: int,
     current_user: User = Depends(require_platform_admin),
-    user_service: UserService = Depends(get_async_user_service)
+    user_service: UserService = Depends(get_user_service)
 ):
     """Delete a user. Platform admin only."""
     logger.info(f"delete_user - admin_user_id={current_user.user_id}, user_id={user_id}")
@@ -465,7 +465,7 @@ async def list_invitations(
     include_accepted: bool = False,
     include_expired: bool = False,
     current_user: User = Depends(require_platform_admin),
-    inv_service: InvitationService = Depends(get_async_invitation_service)
+    inv_service: InvitationService = Depends(get_invitation_service)
 ):
     """Get all invitations with optional filters. Platform admin only."""
     logger.info(f"list_invitations - admin_user_id={current_user.user_id}, org_id={org_id}")
@@ -499,8 +499,8 @@ async def list_invitations(
 async def create_invitation(
     invitation: InvitationCreate,
     current_user: User = Depends(require_platform_admin),
-    user_service: UserService = Depends(get_async_user_service),
-    inv_service: InvitationService = Depends(get_async_invitation_service)
+    user_service: UserService = Depends(get_user_service),
+    inv_service: InvitationService = Depends(get_invitation_service)
 ):
     """Create an invitation for a new user. Platform admin only."""
     logger.info(f"create_invitation - admin_user_id={current_user.user_id}, email={invitation.email}")
@@ -549,7 +549,7 @@ async def create_invitation(
 async def revoke_invitation(
     invitation_id: int,
     current_user: User = Depends(require_platform_admin),
-    inv_service: InvitationService = Depends(get_async_invitation_service)
+    inv_service: InvitationService = Depends(get_invitation_service)
 ):
     """Revoke an invitation. Platform admin only."""
     logger.info(f"revoke_invitation - admin_user_id={current_user.user_id}, invitation_id={invitation_id}")
@@ -582,8 +582,8 @@ async def revoke_invitation(
 async def create_user_directly(
     user_data: CreateUserRequest,
     current_user: User = Depends(require_platform_admin),
-    org_service: OrganizationService = Depends(get_async_organization_service),
-    user_service: UserService = Depends(get_async_user_service)
+    org_service: OrganizationService = Depends(get_organization_service),
+    user_service: UserService = Depends(get_user_service)
 ):
     """Create a user directly without invitation. Platform admin only."""
     logger.info(f"create_user_directly - admin_user_id={current_user.user_id}, email={user_data.email}")
@@ -627,8 +627,8 @@ async def create_user_directly(
 async def list_org_global_stream_subscriptions(
     org_id: int,
     current_user: User = Depends(require_platform_admin),
-    org_service: OrganizationService = Depends(get_async_organization_service),
-    sub_service: SubscriptionService = Depends(get_async_subscription_service)
+    org_service: OrganizationService = Depends(get_organization_service),
+    sub_service: SubscriptionService = Depends(get_subscription_service)
 ):
     """Get all global streams with subscription status for an org. Platform admin only."""
     logger.info(f"list_org_global_stream_subscriptions - admin_user_id={current_user.user_id}, org_id={org_id}")
@@ -664,9 +664,9 @@ async def subscribe_org_to_global_stream(
     org_id: int,
     stream_id: int,
     current_user: User = Depends(require_platform_admin),
-    org_service: OrganizationService = Depends(get_async_organization_service),
+    org_service: OrganizationService = Depends(get_organization_service),
     stream_service: ResearchStreamService = Depends(get_research_stream_service),
-    sub_service: SubscriptionService = Depends(get_async_subscription_service)
+    sub_service: SubscriptionService = Depends(get_subscription_service)
 ):
     """Subscribe an organization to a global stream. Platform admin only."""
     logger.info(f"subscribe_org_to_global_stream - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}")
@@ -709,7 +709,7 @@ async def unsubscribe_org_from_global_stream(
     org_id: int,
     stream_id: int,
     current_user: User = Depends(require_platform_admin),
-    sub_service: SubscriptionService = Depends(get_async_subscription_service)
+    sub_service: SubscriptionService = Depends(get_subscription_service)
 ):
     """Unsubscribe an organization from a global stream. Platform admin only."""
     logger.info(f"unsubscribe_org_from_global_stream - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}")

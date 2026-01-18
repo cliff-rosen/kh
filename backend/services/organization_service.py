@@ -338,7 +338,7 @@ class OrganizationService:
 
 
 # Dependency injection provider for async organization service
-async def get_async_organization_service(
+async def get_organization_service(
     db: AsyncSession = Depends(get_async_db)
 ) -> OrganizationService:
     """Get an OrganizationService instance with async database session."""

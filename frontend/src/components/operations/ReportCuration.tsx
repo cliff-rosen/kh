@@ -487,31 +487,35 @@ export default function ReportCuration() {
                             <EnvelopeIcon className="h-5 w-5" />
                         </button>
 
-                        {/* Divider */}
-                        <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2" />
+                        {/* Primary actions - Reject and Approve (only shown when awaiting approval) */}
+                        {report.approval_status === 'awaiting_approval' && (
+                            <>
+                                {/* Divider */}
+                                <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2" />
 
-                        {/* Primary actions - Reject and Approve */}
-                        <button
-                            type="button"
-                            onClick={() => setShowRejectModal(true)}
-                            disabled={approving}
-                            className="px-4 py-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium disabled:opacity-50"
-                        >
-                            Reject
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleApprove}
-                            disabled={approving}
-                            className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center gap-2 disabled:opacity-50"
-                        >
-                            {approving ? (
-                                <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <CheckIcon className="h-4 w-4" />
-                            )}
-                            {approving ? 'Approving...' : 'Approve'}
-                        </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowRejectModal(true)}
+                                    disabled={approving}
+                                    className="px-4 py-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium disabled:opacity-50"
+                                >
+                                    Reject
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleApprove}
+                                    disabled={approving}
+                                    className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center gap-2 disabled:opacity-50"
+                                >
+                                    {approving ? (
+                                        <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <CheckIcon className="h-4 w-4" />
+                                    )}
+                                    {approving ? 'Approving...' : 'Approve'}
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>

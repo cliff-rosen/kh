@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from models import User
 from schemas.canonical_types import CanonicalResearchArticle
-from services.article_service import ArticleService, get_async_article_service
+from services.article_service import ArticleService, get_article_service
 from services.pubmed_service import get_full_text_links
 from routers.auth import get_current_user
 from pydantic import BaseModel
@@ -33,7 +33,7 @@ class FullTextLinksResponse(BaseModel):
 @router.get("/{pmid}", response_model=CanonicalResearchArticle)
 async def get_article_by_pmid(
     pmid: str,
-    service: ArticleService = Depends(get_async_article_service),
+    service: ArticleService = Depends(get_article_service),
     current_user: User = Depends(get_current_user)
 ):
     """

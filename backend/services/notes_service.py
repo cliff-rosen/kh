@@ -249,7 +249,7 @@ class NotesService:
 
 
 # Dependency injection provider for async notes service
-async def get_async_notes_service(
+async def get_notes_service(
     db: AsyncSession = Depends(get_async_db)
 ) -> NotesService:
     """Get a NotesService instance with async database session."""

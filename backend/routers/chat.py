@@ -13,7 +13,7 @@ from models import User, UserRole
 from services import auth_service
 from services.chat_service import (
     ChatService,
-    get_async_chat_service,
+    get_chat_service,
 )
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ async def list_chats(
     app: str = Query("kh", description="App identifier: kh, tablizer, trialscout"),
     limit: int = Query(50, le=100),
     offset: int = Query(0, ge=0),
-    service: ChatService = Depends(get_async_chat_service),
+    service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(auth_service.validate_token)
 ):
     """List user's chats for a specific app (async)."""
@@ -106,7 +106,7 @@ async def list_chats(
 @router.get("/{chat_id}", response_model=ChatWithMessagesResponse)
 async def get_chat(
     chat_id: int,
-    service: ChatService = Depends(get_async_chat_service),
+    service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(auth_service.validate_token)
 ):
     """Get a chat with its messages (async)."""
@@ -188,7 +188,7 @@ async def admin_list_chats(
     user_id: Optional[int] = Query(None, description="Filter by user ID"),
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
-    service: ChatService = Depends(get_async_chat_service),
+    service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(auth_service.validate_token)
 ):
     """List all chats (platform admin only, async)."""
@@ -226,7 +226,7 @@ async def admin_list_chats(
 @router.get("/admin/{chat_id}", response_model=AdminChatDetailResponse)
 async def admin_get_chat(
     chat_id: int,
-    service: ChatService = Depends(get_async_chat_service),
+    service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(auth_service.validate_token)
 ):
     """Get full chat with messages (platform admin only, async)."""

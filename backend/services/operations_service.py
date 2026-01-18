@@ -534,7 +534,7 @@ class OperationsService:
 
 
 # Dependency injection provider for async operations
-async def get_async_operations_service(
+async def get_operations_service(
     db: AsyncSession = Depends(get_async_db)
 ) -> OperationsService:
     """Get an OperationsService instance with async database session."""
