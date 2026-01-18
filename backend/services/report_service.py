@@ -908,8 +908,7 @@ class ReportService:
             stream_name=stream.stream_name,
             report_date=report.report_date.strftime('%B %d, %Y') if report.report_date else '',
             executive_summary=executive_summary,
-            categories=email_categories,
-            total_articles=len(rows)
+            categories=email_categories
         )
 
         # Generate HTML
