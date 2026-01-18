@@ -167,10 +167,8 @@ export default function DashboardPage() {
                                     </thead>
                                     <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                         {recentReports.map((report) => {
-                                            const startDate = report.retrieval_params?.start_date;
-                                            const endDate = report.retrieval_params?.end_date;
-                                            const coveragePeriod = startDate && endDate
-                                                ? `${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`
+                                            const coveragePeriod = report.coverage_start_date && report.coverage_end_date
+                                                ? `${new Date(report.coverage_start_date).toLocaleDateString()} - ${new Date(report.coverage_end_date).toLocaleDateString()}`
                                                 : '-';
 
                                             return (

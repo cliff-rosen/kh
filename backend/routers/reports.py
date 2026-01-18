@@ -81,10 +81,14 @@ async def get_recent_reports(
         service = ReportService(db)
         results = service.get_recent_reports(current_user.user_id, limit)
 
-        # Convert model + article_count to schema
+        # Convert model + article_count + coverage dates to schema
         reports = [
             Report.model_validate(r.report, from_attributes=True).model_copy(
-                update={'article_count': r.article_count}
+                update={
+                    'article_count': r.article_count,
+                    'coverage_start_date': r.coverage_start_date,
+                    'coverage_end_date': r.coverage_end_date,
+                }
             )
             for r in results
         ]

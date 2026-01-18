@@ -50,6 +50,9 @@ export interface Report {
     enrichments?: Record<string, any>;  // LLM-generated content: executive_summary, category_summaries
     pipeline_metrics?: Record<string, any>;  // Execution metadata: counts, timing, etc.
     pipeline_execution_id?: string | null;  // UUID linking to WIP data
+    // Coverage period (from pipeline_execution)
+    coverage_start_date?: string | null;  // YYYY-MM-DD
+    coverage_end_date?: string | null;  // YYYY-MM-DD
     // Approval workflow
     approval_status: ApprovalStatus;
     approved_by?: number | null;

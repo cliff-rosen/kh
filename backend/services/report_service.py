@@ -96,9 +96,11 @@ class PipelineAnalytics:
 
 @dataclass
 class ReportWithArticleCount:
-    """Report model with computed article count."""
+    """Report model with computed article count and coverage dates."""
     report: Report  # SQLAlchemy model
     article_count: int
+    coverage_start_date: Optional[str] = None  # From PipelineExecution
+    coverage_end_date: Optional[str] = None  # From PipelineExecution
 
 
 @dataclass
@@ -545,11 +547,26 @@ class ReportService:
 
         reports = query.order_by(Report.created_at.desc()).limit(limit).all()
 
-        # Return dataclass with report model and article count
+        # Fetch pipeline executions for coverage dates
+        execution_ids = [r.pipeline_execution_id for r in reports if r.pipeline_execution_id]
+        executions_map = {}
+        if execution_ids:
+            executions = self.db.query(PipelineExecution).filter(
+                PipelineExecution.id.in_(execution_ids)
+            ).all()
+            executions_map = {e.id: e for e in executions}
+
+        # Return dataclass with report model, article count, and coverage dates
         result = []
         for report in reports:
             article_count = self.association_service.count_visible(report.report_id)
-            result.append(ReportWithArticleCount(report=report, article_count=article_count))
+            execution = executions_map.get(report.pipeline_execution_id) if report.pipeline_execution_id else None
+            result.append(ReportWithArticleCount(
+                report=report,
+                article_count=article_count,
+                coverage_start_date=execution.start_date if execution else None,
+                coverage_end_date=execution.end_date if execution else None,
+            ))
 
         return result
 

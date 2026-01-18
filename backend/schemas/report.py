@@ -59,6 +59,9 @@ class Report(BaseModel):
     retrieval_params: Dict[str, Any] = {}  # Input parameters: start_date, end_date, etc.
     enrichments: Dict[str, Any] = {}  # LLM-generated content: executive_summary, category_summaries
     pipeline_metrics: Dict[str, Any] = {}  # Execution metadata: counts, timing, etc.
+    # Coverage period (from pipeline_execution)
+    coverage_start_date: Optional[str] = Field(None, description="Start date of coverage period (YYYY-MM-DD)")
+    coverage_end_date: Optional[str] = Field(None, description="End date of coverage period (YYYY-MM-DD)")
     # Approval workflow
     approval_status: ApprovalStatus = Field(default=ApprovalStatus.AWAITING_APPROVAL, description="Approval status of the report")
     approved_by: Optional[int] = Field(None, description="User ID of admin who approved/rejected")
