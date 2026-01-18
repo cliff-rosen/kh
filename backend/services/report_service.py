@@ -2555,3 +2555,168 @@ async def async_generate_report_email_html(
     # Generate HTML
     template_service = EmailTemplateService()
     return template_service.generate_report_email(email_data)
+
+
+async def async_approve_report(
+    db: AsyncSession,
+    report_id: int,
+    user_id: int,
+    notes: Optional[str] = None
+) -> ApproveReportResult:
+    """Approve a report for publication (async)."""
+    from models import CurationEvent
+
+    # Get report with access check
+    result = await db.execute(
+        select(Report).where(Report.report_id == report_id)
+    )
+    report = result.scalars().first()
+
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found"
+        )
+
+    # Count visible articles
+    count_result = await db.execute(
+        select(func.count(ReportArticleAssociation.article_id)).where(
+            ReportArticleAssociation.report_id == report_id,
+            ReportArticleAssociation.is_hidden == False
+        )
+    )
+    article_count = count_result.scalar() or 0
+
+    if article_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot approve report with no articles"
+        )
+
+    # Update approval status
+    report.approval_status = ApprovalStatus.APPROVED
+    report.approved_by = user_id
+    report.approved_at = datetime.utcnow()
+
+    # Create audit event
+    event = CurationEvent(
+        report_id=report_id,
+        event_type='approve_report',
+        notes=notes,
+        curator_id=user_id
+    )
+    db.add(event)
+
+    await db.commit()
+
+    return ApproveReportResult(
+        report_id=report_id,
+        approval_status='approved',
+        approved_by=user_id,
+        approved_at=report.approved_at.isoformat(),
+    )
+
+
+async def async_reject_report(
+    db: AsyncSession,
+    report_id: int,
+    user_id: int,
+    reason: str
+) -> RejectReportResult:
+    """Reject a report with a reason (async)."""
+    from models import CurationEvent
+
+    # Get report
+    result = await db.execute(
+        select(Report).where(Report.report_id == report_id)
+    )
+    report = result.scalars().first()
+
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found"
+        )
+
+    # Update approval status
+    report.approval_status = ApprovalStatus.REJECTED
+    report.rejection_reason = reason
+    report.approved_by = user_id
+    report.approved_at = datetime.utcnow()
+
+    # Create audit event
+    event = CurationEvent(
+        report_id=report_id,
+        event_type='reject_report',
+        notes=reason,
+        curator_id=user_id
+    )
+    db.add(event)
+
+    await db.commit()
+
+    return RejectReportResult(
+        report_id=report_id,
+        approval_status='rejected',
+        rejection_reason=reason,
+        rejected_by=user_id,
+        rejected_at=report.approved_at.isoformat(),
+    )
+
+
+async def async_get_curation_history(
+    db: AsyncSession,
+    report_id: int,
+    user_id: int
+) -> CurationHistoryData:
+    """Get curation history for a report (async)."""
+    from models import CurationEvent
+
+    # Verify report exists
+    result = await db.execute(
+        select(Report).where(Report.report_id == report_id)
+    )
+    report = result.scalars().first()
+
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found"
+        )
+
+    # Get curation events
+    events_result = await db.execute(
+        select(CurationEvent, User)
+        .outerjoin(User, CurationEvent.curator_id == User.user_id)
+        .where(CurationEvent.report_id == report_id)
+        .order_by(CurationEvent.created_at.desc())
+    )
+    rows = events_result.all()
+
+    events = []
+    for event, curator in rows:
+        # Get article title if applicable
+        article_title = None
+        if event.article_id:
+            article_result = await db.execute(
+                select(Article.title).where(Article.article_id == event.article_id)
+            )
+            article_title = article_result.scalar()
+
+        events.append(CurationEventData(
+            id=event.id,
+            event_type=event.event_type,
+            field_name=event.field_name,
+            old_value=event.old_value,
+            new_value=event.new_value,
+            notes=event.notes,
+            article_id=event.article_id,
+            article_title=article_title,
+            curator_name=curator.full_name or curator.email if curator else "Unknown",
+            created_at=event.created_at.isoformat(),
+        ))
+
+    return CurationHistoryData(
+        events=events,
+        total_count=len(events),
+    )

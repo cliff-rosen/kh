@@ -13,10 +13,17 @@ import logging
 import httpx
 import json
 
-from database import get_db
+from database import get_db, get_async_db
+from sqlalchemy.ext.asyncio import AsyncSession
 from models import User
 from services import auth_service
-from services.operations_service import OperationsService
+from services.operations_service import (
+    OperationsService,
+    async_get_execution_queue,
+    async_get_execution_detail,
+    async_get_scheduled_streams,
+    async_update_stream_schedule,
+)
 from config.settings import settings
 
 # Import domain types from schemas
@@ -101,10 +108,10 @@ async def get_execution_queue(
     limit: int = 50,
     offset: int = 0,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
-    Get pipeline executions with optional filters.
+    Get pipeline executions with optional filters (async).
 
     - execution_status: pending, running, completed, failed
     - approval_status: awaiting_approval, approved, rejected (only for completed)
@@ -115,8 +122,8 @@ async def get_execution_queue(
     )
 
     try:
-        service = OperationsService(db)
-        executions, total, streams = service.get_execution_queue(
+        executions, total, streams = await async_get_execution_queue(
+            db=db,
             user_id=current_user.user_id,
             execution_status=execution_status,
             approval_status=approval_status,
@@ -146,14 +153,13 @@ async def get_execution_queue(
 async def get_execution_detail(
     execution_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
-    """Get full execution details including report and WIP articles."""
+    """Get full execution details including report and WIP articles (async)."""
     logger.info(f"get_execution_detail - user_id={current_user.user_id}, execution_id={execution_id}")
 
     try:
-        service = OperationsService(db)
-        result = service.get_execution_detail(execution_id, current_user.user_id)
+        result = await async_get_execution_detail(db, execution_id, current_user.user_id)
 
         logger.info(f"get_execution_detail complete - user_id={current_user.user_id}, execution_id={execution_id}")
         return result
@@ -177,14 +183,13 @@ async def get_execution_detail(
 )
 async def get_scheduled_streams(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
-    """Get all streams with scheduling configuration and their last execution status."""
+    """Get all streams with scheduling configuration and their last execution status (async)."""
     logger.info(f"get_scheduled_streams - user_id={current_user.user_id}")
 
     try:
-        service = OperationsService(db)
-        result = service.get_scheduled_streams(current_user.user_id)
+        result = await async_get_scheduled_streams(db, current_user.user_id)
 
         logger.info(f"get_scheduled_streams complete - user_id={current_user.user_id}, count={len(result)}")
         return result
@@ -208,14 +213,14 @@ async def update_stream_schedule(
     stream_id: int,
     request: UpdateScheduleRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
-    """Update scheduling configuration for a stream."""
+    """Update scheduling configuration for a stream (async)."""
     logger.info(f"update_stream_schedule - user_id={current_user.user_id}, stream_id={stream_id}")
 
     try:
-        service = OperationsService(db)
-        result = service.update_stream_schedule(
+        result = await async_update_stream_schedule(
+            db=db,
             stream_id=stream_id,
             user_id=current_user.user_id,
             updates=request.model_dump(exclude_none=True)

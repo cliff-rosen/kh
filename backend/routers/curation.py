@@ -19,10 +19,17 @@ from dataclasses import asdict
 from datetime import datetime
 import logging
 
-from database import get_db
+from database import get_db, get_async_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from models import User, UserRole
 from services import auth_service
-from services.report_service import ReportService
+from services.report_service import (
+    ReportService,
+    async_approve_report,
+    async_reject_report,
+    async_get_curation_history,
+)
 from services.wip_article_service import WipArticleService
 from services.email_service import EmailService
 from services.report_summary_service import ReportSummaryService
@@ -513,18 +520,17 @@ async def get_curation_view(
 @router.get("/{report_id}/curation/history", response_model=CurationHistoryResponse)
 async def get_curation_history(
     report_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get curation history (audit trail) for a report.
+    Get curation history (audit trail) for a report (async).
     Returns all curation events in reverse chronological order.
     """
     logger.info(f"get_curation_history - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        service = ReportService(db)
-        data = service.get_curation_history(report_id, current_user.user_id)
+        data = await async_get_curation_history(db, report_id, current_user.user_id)
 
         # Convert dataclass to response schema
         event_responses = [
@@ -890,18 +896,18 @@ async def send_approval_request(
 async def approve_report(
     report_id: int,
     request: Optional[ApproveReportRequest] = None,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Approve a report for distribution.
+    Approve a report for distribution (async).
     Only admins can approve reports.
     """
     logger.info(f"approve_report - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        service = ReportService(db)
-        result = service.approve_report(
+        result = await async_approve_report(
+            db=db,
             report_id=report_id,
             user_id=current_user.user_id,
             notes=request.notes if request else None
@@ -923,18 +929,18 @@ async def approve_report(
 async def reject_report(
     report_id: int,
     request: RejectReportRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Reject a report with a reason.
+    Reject a report with a reason (async).
     Only admins can reject reports.
     """
     logger.info(f"reject_report - user_id={current_user.user_id}, report_id={report_id}")
 
     try:
-        service = ReportService(db)
-        result = service.reject_report(
+        result = await async_reject_report(
+            db=db,
             report_id=report_id,
             user_id=current_user.user_id,
             reason=request.reason
