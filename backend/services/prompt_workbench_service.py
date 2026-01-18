@@ -94,7 +94,7 @@ class PromptWorkbenchService:
         """Test a prompt with sample data or report data"""
         # Get context
         if report_id:
-            context = self._get_context_from_report(
+            context = await self._get_context_from_report(
                 report_id, user_id, prompt_type, category_id
             )
         elif sample_data:
@@ -115,7 +115,7 @@ class PromptWorkbenchService:
             "llm_response": llm_response
         }
 
-    def _get_context_from_report(
+    async def _get_context_from_report(
         self,
         report_id: int,
         user_id: int,
@@ -127,13 +127,13 @@ class PromptWorkbenchService:
 
         # Get the report with access check (raises HTTPException if not found or no access)
         try:
-            result = self.report_service.get_report_with_access(report_id, user_id, raise_on_not_found=True)
+            result = await self.report_service.async_get_report_with_access(report_id, user_id, raise_on_not_found=True)
             report, _, stream = result
         except HTTPException:
             raise PermissionError("You don't have access to this report")
 
         # Get articles that were included in the report
-        wip_articles = self.report_service.get_wip_articles_for_report(
+        wip_articles = await self.report_service.async_get_wip_articles_for_report(
             report_id, user_id, included_only=True
         )
 

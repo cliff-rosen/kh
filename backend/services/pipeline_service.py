@@ -1029,7 +1029,7 @@ class PipelineService:
             ctx.report_name if ctx.report_name else report_date_obj.strftime("%Y.%m.%d")
         )
 
-        report = self.report_service.create_report(
+        report = await self.report_service.async_create_report(
             user_id=ctx.user_id,
             research_stream_id=ctx.research_stream_id,
             report_date=report_date_obj,

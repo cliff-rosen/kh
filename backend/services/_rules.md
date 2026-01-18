@@ -139,7 +139,7 @@ stream = self.research_stream_service.get_stream_by_id(execution.stream_id)
 |---------|--------|---------|
 | `UserService` | `User` | `get_user(id)`, `get_user_or_404(id)` |
 | `ResearchStreamService` | `ResearchStream` | `get_stream_by_id(id)`, `get_stream_or_404(id)` |
-| `ReportService` | `Report` | `get_report_by_id(id)`, `get_report_or_404(id)` |
+| `ReportService` | `Report` | `async_get_report_with_access(id, user_id)` |
 | `WipArticleService` | `WipArticle` | `get_by_id(id)` |
 | `PipelineService` | `PipelineExecution` | `get_execution_by_id(id)` |
 

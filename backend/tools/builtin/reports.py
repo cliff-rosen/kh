@@ -175,6 +175,8 @@ def execute_get_report_articles(
     - condensed: Basic info (PMID, title, date, journal, categories)
     - expanded: Full info including abstract
     """
+    import asyncio
+    from database import AsyncSessionLocal
     from services.report_service import ReportService
 
     report_id = params.get("report_id") or context.get("report_id")
@@ -186,13 +188,17 @@ def execute_get_report_articles(
     if not report_id:
         return "Error: No report_id provided or available in context."
 
+    async def _get_articles():
+        async with AsyncSessionLocal() as async_db:
+            service = ReportService(async_db)
+            return await service.async_get_report_articles_list(
+                report_id=report_id,
+                user_id=user_id,
+                include_abstract=(mode == "expanded")
+            )
+
     try:
-        service = ReportService(db)
-        result = service.get_report_articles_list(
-            report_id=report_id,
-            user_id=user_id,
-            include_abstract=(mode == "expanded")
-        )
+        result = asyncio.run(_get_articles())
 
         if not result:
             return f"No report found with ID {report_id} or access denied."
