@@ -74,7 +74,7 @@ class ResearchStreamService:
     # Async Methods
     # =============================================================================
 
-    async def async_get_accessible_stream_ids(self, user: User) -> Set[int]:
+    async def get_accessible_stream_ids(self, user: User) -> Set[int]:
         """
         Get all stream IDs that a user can access (async version).
 
@@ -177,7 +177,7 @@ class ResearchStreamService:
             List of StreamWithStats dataclasses containing stream model and stats
         """
         # Get accessible stream IDs
-        accessible_ids = await self.async_get_accessible_stream_ids(user)
+        accessible_ids = await self.get_accessible_stream_ids(user)
 
         if not accessible_ids:
             return []
@@ -220,7 +220,7 @@ class ResearchStreamService:
             ResearchStream model or None if not found/no access
         """
         # Check if user has access to this stream
-        accessible_ids = await self.async_get_accessible_stream_ids(user)
+        accessible_ids = await self.get_accessible_stream_ids(user)
 
         if stream_id not in accessible_ids:
             return None

@@ -369,7 +369,7 @@ class ReportService:
     # ASYNC Methods (for use with AsyncSession)
     # =========================================================================
 
-    async def async_get_accessible_stream_ids(self, user: User) -> Set[int]:
+    async def get_accessible_stream_ids(self, user: User) -> Set[int]:
         """Get all stream IDs the user can access reports for (async)."""
         accessible_ids = set()
 
@@ -431,7 +431,7 @@ class ReportService:
         stream_id: Optional[int] = None
     ) -> List[ReportWithArticleCount]:
         """Get recent reports the user has access to (async)."""
-        accessible_stream_ids = await self.async_get_accessible_stream_ids(user)
+        accessible_stream_ids = await self.get_accessible_stream_ids(user)
 
         if not accessible_stream_ids:
             return []
@@ -527,7 +527,7 @@ class ReportService:
         stream = result.scalars().first()
 
         # Check access
-        accessible_stream_ids = await self.async_get_accessible_stream_ids(user)
+        accessible_stream_ids = await self.get_accessible_stream_ids(user)
         if not stream or stream.stream_id not in accessible_stream_ids:
             if raise_on_not_found:
                 raise HTTPException(
@@ -544,7 +544,7 @@ class ReportService:
         research_stream_id: int
     ) -> List[ReportWithArticleCount]:
         """Get all reports for a specific stream (async)."""
-        accessible_stream_ids = await self.async_get_accessible_stream_ids(user)
+        accessible_stream_ids = await self.get_accessible_stream_ids(user)
 
         if research_stream_id not in accessible_stream_ids:
             return []

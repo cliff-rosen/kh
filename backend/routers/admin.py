@@ -471,7 +471,7 @@ async def list_invitations(
     logger.info(f"list_invitations - admin_user_id={current_user.user_id}, org_id={org_id}")
 
     try:
-        invitations = await inv_service.async_list_invitations(
+        invitations = await inv_service.list_invitations(
             org_id=org_id,
             include_accepted=include_accepted,
             include_expired=include_expired
@@ -521,7 +521,7 @@ async def create_invitation(
                 detail="Organization is required for non-platform-admin roles"
             )
 
-        result = await inv_service.async_create_invitation(
+        result = await inv_service.create_invitation(
             email=invitation.email,
             role=invitation.role.value,
             invited_by=current_user.user_id,
@@ -555,7 +555,7 @@ async def revoke_invitation(
     logger.info(f"revoke_invitation - admin_user_id={current_user.user_id}, invitation_id={invitation_id}")
 
     try:
-        success = await inv_service.async_revoke_invitation(invitation_id)
+        success = await inv_service.revoke_invitation(invitation_id)
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -641,7 +641,7 @@ async def list_org_global_stream_subscriptions(
                 detail="Organization not found"
             )
 
-        result = await sub_service.async_get_global_streams_for_org(org_id)
+        result = await sub_service.get_global_streams_for_org(org_id)
         logger.info(f"list_org_global_stream_subscriptions complete - org_id={org_id}")
         return result.streams
 
@@ -686,7 +686,7 @@ async def subscribe_org_to_global_stream(
                 detail="Global stream not found"
             )
 
-        await sub_service.async_subscribe_org_to_global_stream(org_id, stream_id, current_user.user_id)
+        await sub_service.subscribe_org_to_global_stream(org_id, stream_id, current_user.user_id)
         logger.info(f"subscribe_org_to_global_stream complete - org_id={org_id}, stream_id={stream_id}")
         return {"status": "subscribed", "org_id": org_id, "stream_id": stream_id}
 
@@ -715,7 +715,7 @@ async def unsubscribe_org_from_global_stream(
     logger.info(f"unsubscribe_org_from_global_stream - admin_user_id={current_user.user_id}, org_id={org_id}, stream_id={stream_id}")
 
     try:
-        success = await sub_service.async_unsubscribe_org_from_global_stream(org_id, stream_id)
+        success = await sub_service.unsubscribe_org_from_global_stream(org_id, stream_id)
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
