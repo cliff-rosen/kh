@@ -48,6 +48,8 @@ export interface RetrievalConfigModalProps {
     llmConfig?: Record<string, unknown> | null;
     /** Articles with curation notes */
     articleCurationNotes?: ArticleCurationNote[];
+    /** Whether the config data is still loading */
+    loading?: boolean;
     /** Called when the modal should close */
     onClose: () => void;
 }
@@ -66,6 +68,7 @@ export default function RetrievalConfigModal({
     enrichmentConfig,
     llmConfig,
     articleCurationNotes,
+    loading = false,
     onClose,
 }: RetrievalConfigModalProps) {
     const [activeTab, setActiveTab] = useState<'config' | 'enrichment' | 'models' | 'history'>('config');
@@ -250,8 +253,18 @@ export default function RetrievalConfigModal({
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6">
+                    {/* Loading State */}
+                    {loading && (
+                        <div className="flex items-center justify-center h-64">
+                            <div className="text-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4" />
+                                <p className="text-gray-500 dark:text-gray-400">Loading configuration...</p>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Run Configuration Tab */}
-                    {activeTab === 'config' && (
+                    {!loading && activeTab === 'config' && (
                         <div className="space-y-6">
                             {/* Date Range Section */}
                             {hasDateRange && (
@@ -326,7 +339,7 @@ export default function RetrievalConfigModal({
                     )}
 
                     {/* Enhancement Config Tab */}
-                    {activeTab === 'enrichment' && (
+                    {!loading && activeTab === 'enrichment' && (
                         <div className="space-y-6">
                             <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
                                 <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-200 mb-2 flex items-center gap-2">
@@ -378,7 +391,7 @@ export default function RetrievalConfigModal({
                     )}
 
                     {/* Model Config Tab */}
-                    {activeTab === 'models' && (
+                    {!loading && activeTab === 'models' && (
                         <div className="space-y-6">
                             <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
                                 <h3 className="text-sm font-semibold text-orange-900 dark:text-orange-200 mb-2 flex items-center gap-2">
@@ -429,7 +442,7 @@ export default function RetrievalConfigModal({
                     )}
 
                     {/* Curation History Tab */}
-                    {activeTab === 'history' && (
+                    {!loading && activeTab === 'history' && (
                         <div className="space-y-6">
                             {/* Article Curation Notes Section */}
                             {articleCurationNotes && articleCurationNotes.filter(a => a.curation_notes).length > 0 && (

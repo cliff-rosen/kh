@@ -221,6 +221,27 @@ export async function getCurationHistory(reportId: number): Promise<CurationHist
 }
 
 /**
+ * Response for getReportConfig - lightweight config for settings modal.
+ */
+export interface ReportConfigResponse {
+    retrieval_config: Record<string, unknown> | null;
+    enrichment_config: Record<string, unknown> | null;
+    llm_config: Record<string, unknown> | null;
+    start_date: string | null;
+    end_date: string | null;
+    stream_name: string | null;
+}
+
+/**
+ * Get lightweight configuration for a report (for settings modal).
+ * Returns just the config data without all the article data.
+ */
+export async function getReportConfig(reportId: number): Promise<ReportConfigResponse> {
+    const response = await api.get<ReportConfigResponse>(`${BASE_PATH}/${reportId}/config`);
+    return response.data;
+}
+
+/**
  * Get pipeline analytics for a report.
  */
 export async function getPipelineAnalytics(reportId: number): Promise<PipelineAnalyticsResponse> {

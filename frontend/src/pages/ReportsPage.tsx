@@ -8,6 +8,7 @@ import { PayloadHandler } from '../types/chat';
 
 import { reportApi } from '../lib/api/reportApi';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
+import { getReportConfig, type ReportConfigResponse } from '../lib/api/curationApi';
 import { showErrorToast } from '../lib/errorToast';
 import { useResearchStream } from '../context/ResearchStreamContext';
 import { useAuth } from '../context/AuthContext';
@@ -57,6 +58,25 @@ export default function ReportsPage() {
     // Modal state
     const [showAnalytics, setShowAnalytics] = useState(false);
     const [showExecutionConfig, setShowExecutionConfig] = useState(false);
+    const [configData, setConfigData] = useState<ReportConfigResponse | null>(null);
+    const [configLoading, setConfigLoading] = useState(false);
+
+    // Function to open config modal and fetch data
+    const openConfigModal = async () => {
+        if (!selectedReport?.report_id) return;
+
+        setConfigLoading(true);
+        setShowExecutionConfig(true);
+
+        try {
+            const data = await getReportConfig(selectedReport.report_id);
+            setConfigData(data);
+        } catch (err) {
+            console.error('Failed to load config:', err);
+        } finally {
+            setConfigLoading(false);
+        }
+    };
 
     // Chat state
     const [isChatOpen, setIsChatOpen] = useState(false);
@@ -595,7 +615,7 @@ export default function ReportsPage() {
                                         onCardFormatChange={handleCardFormatChange}
                                         onShowExecutionConfig={() => {
                                             track('execution_config_open', { report_id: selectedReport.report_id });
-                                            setShowExecutionConfig(true);
+                                            openConfigModal();
                                         }}
                                         onShowAnalytics={() => {
                                             track('analytics_open', { report_id: selectedReport.report_id });
@@ -691,16 +711,20 @@ export default function ReportsPage() {
                 )}
 
                 {/* Execution Config Modal */}
-                {showExecutionConfig && selectedReport && selectedReport.retrieval_params && (
+                {showExecutionConfig && selectedReport && (
                     <RetrievalConfigModal
                         subtitle={selectedReport.report_name}
-                        config={selectedReport.retrieval_params.retrieval_config || {}}
-                        startDate={selectedReport.retrieval_params.start_date}
-                        endDate={selectedReport.retrieval_params.end_date}
+                        config={configData?.retrieval_config || {}}
+                        startDate={configData?.start_date}
+                        endDate={configData?.end_date}
                         reportId={selectedReport.report_id}
-                        enrichmentConfig={selectedReport.retrieval_params.enrichment_config}
-                        llmConfig={selectedReport.retrieval_params.llm_config}
-                        onClose={() => setShowExecutionConfig(false)}
+                        enrichmentConfig={configData?.enrichment_config}
+                        llmConfig={configData?.llm_config}
+                        loading={configLoading}
+                        onClose={() => {
+                            setShowExecutionConfig(false);
+                            setConfigData(null);
+                        }}
                     />
                 )}
 

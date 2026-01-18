@@ -178,6 +178,17 @@ class CurationViewData:
 
 
 @dataclass
+class ReportConfigData:
+    """Lightweight config data for settings modal."""
+    retrieval_config: Optional[Dict[str, Any]] = None
+    enrichment_config: Optional[Dict[str, Any]] = None
+    llm_config: Optional[Dict[str, Any]] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    stream_name: Optional[str] = None
+
+
+@dataclass
 class ReportContentUpdateResult:
     """Result of updating report content."""
     report_name: str
@@ -1098,6 +1109,54 @@ class ReportService:
                 detail="Report not found or access denied"
             )
         return result
+
+    async def get_report_config(self, report_id: int, user_id: int) -> ReportConfigData:
+        """
+        Get lightweight config data for a report (async).
+
+        Returns just the configuration needed for the settings modal:
+        - retrieval_config, enrichment_config, llm_config from execution
+        - Falls back to stream config if execution config is not available
+        """
+        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+
+        # Initialize with defaults
+        retrieval_config = None
+        enrichment_config = None
+        llm_config = None
+        start_date = None
+        end_date = None
+
+        # Fetch execution for config access
+        if report.pipeline_execution_id:
+            exec_result = await self.db.execute(
+                select(PipelineExecution).where(
+                    PipelineExecution.id == report.pipeline_execution_id
+                )
+            )
+            execution = exec_result.scalars().first()
+
+            if execution:
+                retrieval_config = execution.retrieval_config
+                enrichment_config = execution.enrichment_config
+                llm_config = execution.llm_config
+                start_date = execution.start_date
+                end_date = execution.end_date
+
+        # Fall back to stream config if execution config is not available
+        if not enrichment_config and stream:
+            enrichment_config = stream.enrichment_config
+        if not llm_config and stream:
+            llm_config = stream.llm_config
+
+        return ReportConfigData(
+            retrieval_config=retrieval_config,
+            enrichment_config=enrichment_config,
+            llm_config=llm_config,
+            start_date=start_date,
+            end_date=end_date,
+            stream_name=stream.stream_name if stream else None,
+        )
 
     async def get_curation_view(self, report_id: int, user_id: int) -> CurationViewData:
         """

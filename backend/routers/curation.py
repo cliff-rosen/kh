@@ -216,6 +216,16 @@ class CurationHistoryResponse(BaseModel):
     total_count: int
 
 
+class ReportConfigResponse(BaseModel):
+    """Lightweight response for report configuration (settings modal)"""
+    retrieval_config: Optional[Dict[str, Any]] = None
+    enrichment_config: Optional[Dict[str, Any]] = None
+    llm_config: Optional[Dict[str, Any]] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    stream_name: Optional[str] = None
+
+
 class ResetCurationResponse(BaseModel):
     """Response for reset_curation endpoint"""
     wip_article_id: int
@@ -544,6 +554,47 @@ async def get_curation_history(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get curation history: {str(e)}"
+        )
+
+
+@router.get("/{report_id}/config", response_model=ReportConfigResponse)
+async def get_report_config(
+    report_id: int,
+    service: ReportService = Depends(get_report_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get lightweight configuration for a report.
+
+    Returns just the configuration data needed for the settings modal:
+    - retrieval_config: PubMed query and semantic filter settings
+    - enrichment_config: Custom prompts for AI summaries
+    - llm_config: Model selection per pipeline stage
+    - start_date, end_date: Date range for the retrieval
+    - stream_name: Name of the research stream
+    """
+    logger.info(f"get_report_config - user_id={current_user.user_id}, report_id={report_id}")
+
+    try:
+        data = await service.get_report_config(report_id, current_user.user_id)
+
+        logger.info(f"get_report_config complete - user_id={current_user.user_id}, report_id={report_id}")
+        return ReportConfigResponse(
+            retrieval_config=data.retrieval_config,
+            enrichment_config=data.enrichment_config,
+            llm_config=data.llm_config,
+            start_date=data.start_date,
+            end_date=data.end_date,
+            stream_name=data.stream_name,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_report_config failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get report config: {str(e)}"
         )
 
 

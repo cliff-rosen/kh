@@ -35,6 +35,7 @@ import RetrievalConfigModal from '../shared/RetrievalConfigModal';
 import {
     getExecutionDetail,
 } from '../../lib/api/operationsApi';
+import { getReportConfig, type ReportConfigResponse } from '../../lib/api/curationApi';
 import { reportApi } from '../../lib/api/reportApi';
 import type { ExecutionStatus, WipArticle, ExecutionDetail } from '../../types/research-stream';
 import type { ReportArticle } from '../../types/report';
@@ -59,6 +60,25 @@ export default function ExecutionDetail() {
 
     // Config modal state
     const [showConfigModal, setShowConfigModal] = useState(false);
+    const [configData, setConfigData] = useState<ReportConfigResponse | null>(null);
+    const [configLoading, setConfigLoading] = useState(false);
+
+    // Function to open config modal and fetch data
+    const openConfigModal = async () => {
+        if (!execution?.report_id) return;
+
+        setConfigLoading(true);
+        setShowConfigModal(true);
+
+        try {
+            const data = await getReportConfig(execution.report_id);
+            setConfigData(data);
+        } catch (err) {
+            console.error('Failed to load config:', err);
+        } finally {
+            setConfigLoading(false);
+        }
+    };
 
     // Fetch execution data
     useEffect(() => {
@@ -241,14 +261,15 @@ export default function ExecutionDetail() {
 
                     <div className="flex items-center gap-2">
                         {/* Utility buttons - icon only, subtle (matching ReportCuration layout) */}
-                        {execution.retrieval_config && (
+                        {execution.report_id && (
                             <button
                                 type="button"
-                                onClick={() => setShowConfigModal(true)}
-                                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                                onClick={openConfigModal}
+                                disabled={configLoading}
+                                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg disabled:opacity-50"
                                 title="View run configuration"
                             >
-                                <Cog6ToothIcon className="h-5 w-5" />
+                                <Cog6ToothIcon className={`h-5 w-5 ${configLoading ? 'animate-spin' : ''}`} />
                             </button>
                         )}
                         {execution.report_id && (
@@ -756,14 +777,20 @@ export default function ExecutionDetail() {
             )}
 
             {/* Config Modal */}
-            {showConfigModal && execution.retrieval_config && (
+            {showConfigModal && (
                 <RetrievalConfigModal
                     subtitle={execution.report_name || execution.stream_name}
-                    config={execution.retrieval_config}
-                    startDate={execution.start_date}
-                    endDate={execution.end_date}
+                    config={configData?.retrieval_config || {}}
+                    startDate={configData?.start_date}
+                    endDate={configData?.end_date}
                     reportId={execution.report_id || undefined}
-                    onClose={() => setShowConfigModal(false)}
+                    enrichmentConfig={configData?.enrichment_config}
+                    llmConfig={configData?.llm_config}
+                    loading={configLoading}
+                    onClose={() => {
+                        setShowConfigModal(false);
+                        setConfigData(null);
+                    }}
                 />
             )}
         </div>
