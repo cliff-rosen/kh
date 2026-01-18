@@ -53,6 +53,7 @@ from services.report_summary_service import ReportSummaryService
 from services.wip_article_service import WipArticleService
 from services.report_service import ReportService
 from services.report_article_association_service import ReportArticleAssociationService
+from services.article_service import ArticleService
 
 
 @dataclass
@@ -136,6 +137,7 @@ class PipelineService:
         self.wip_article_service = WipArticleService(db)
         self.report_service = ReportService(db)
         self.association_service = ReportArticleAssociationService(db)
+        self.article_service = ArticleService(db)
         self.pubmed_service = PubMedService()
         self.eval_service = get_ai_evaluation_service()
         self.categorization_service = ArticleCategorizationService()
@@ -1050,42 +1052,8 @@ class PipelineService:
 
         # Create Article records and associations for included articles only
         for idx, wip_article in enumerate(wip_articles):
-            # Check for existing article
-            existing_article = None
-            if wip_article.doi:
-                stmt = select(Article).where(Article.doi == wip_article.doi)
-                result = await self.db.execute(stmt)
-                existing_article = result.scalars().first()
-
-            if not existing_article and wip_article.pmid:
-                stmt = select(Article).where(Article.pmid == wip_article.pmid)
-                result = await self.db.execute(stmt)
-                existing_article = result.scalars().first()
-
-            if existing_article:
-                article = existing_article
-            else:
-                article = Article(
-                    source_id=wip_article.source_id,
-                    title=wip_article.title,
-                    url=wip_article.url,
-                    authors=wip_article.authors,
-                    publication_date=wip_article.publication_date,
-                    summary=wip_article.summary,
-                    abstract=wip_article.abstract,
-                    full_text=wip_article.full_text,
-                    pmid=wip_article.pmid,
-                    doi=wip_article.doi,
-                    journal=wip_article.journal,
-                    volume=wip_article.volume,
-                    issue=wip_article.issue,
-                    pages=wip_article.pages,
-                    year=wip_article.year,
-                    article_metadata=wip_article.article_metadata,
-                    fetch_count=1,
-                )
-                self.db.add(article)
-                await self.db.flush()
+            # Find or create Article record (via ArticleService)
+            article = await self.article_service.find_or_create_from_wip(wip_article)
 
             # Create bare association - categories and summaries populated in later stages
             association = ReportArticleAssociation(

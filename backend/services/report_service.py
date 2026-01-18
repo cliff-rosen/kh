@@ -295,6 +295,7 @@ class ReportService:
         self._stream_service = None  # Lazy-loaded to avoid circular import
         self._wip_article_service = None  # Lazy-loaded
         self._association_service = None  # Lazy-loaded
+        self._article_service = None  # Lazy-loaded
 
     @property
     def user_service(self) -> UserService:
@@ -326,6 +327,14 @@ class ReportService:
             from services.report_article_association_service import ReportArticleAssociationService
             self._association_service = ReportArticleAssociationService(self.db)
         return self._association_service
+
+    @property
+    def article_service(self):
+        """Lazy-load ArticleService."""
+        if self._article_service is None:
+            from services.article_service import ArticleService
+            self._article_service = ArticleService(self.db)
+        return self._article_service
 
     # =========================================================================
     # ASYNC CREATE Operations
@@ -1450,8 +1459,8 @@ class ReportService:
                 detail="Article is already in the report"
             )
 
-        # Find or create Article record
-        article = await self._find_or_create_article_from_wip(wip_article)
+        # Find or create Article record (via ArticleService)
+        article = await self.article_service.find_or_create_from_wip(wip_article)
 
         # Check if association already exists
         existing_association = await self.association_service.find(report_id, article.article_id)
@@ -1496,43 +1505,6 @@ class ReportService:
             ranking=new_ranking,
             category=category,
         )
-
-    async def _find_or_create_article_from_wip(self, wip_article: WipArticle) -> Article:
-        """Find existing Article by PMID/DOI or create new one from WipArticle (async)."""
-        article = None
-        if wip_article.pmid:
-            result = await self.db.execute(
-                select(Article).where(Article.pmid == wip_article.pmid)
-            )
-            article = result.scalars().first()
-        if not article and wip_article.doi:
-            result = await self.db.execute(
-                select(Article).where(Article.doi == wip_article.doi)
-            )
-            article = result.scalars().first()
-
-        if not article:
-            article = Article(
-                source_id=wip_article.source_id,
-                title=wip_article.title,
-                url=wip_article.url,
-                authors=wip_article.authors,
-                publication_date=wip_article.publication_date,
-                summary=wip_article.summary,
-                abstract=wip_article.abstract,
-                article_metadata=wip_article.article_metadata,
-                pmid=wip_article.pmid,
-                doi=wip_article.doi,
-                journal=wip_article.journal,
-                volume=wip_article.volume,
-                issue=wip_article.issue,
-                pages=wip_article.pages,
-                year=wip_article.year,
-            )
-            self.db.add(article)
-            await self.db.flush()
-
-        return article
 
     async def reset_curation(
         self,
