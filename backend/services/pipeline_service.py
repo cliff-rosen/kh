@@ -172,13 +172,32 @@ class PipelineService:
     # =========================================================================
 
     # Default model configuration for each stage
-    DEFAULT_MODEL_CONFIG = {
-        "semantic_filter": {"model": "gpt-4.1", "temperature": 0.0},
-        "categorization": {"model": "gpt-4.1", "temperature": 0.0},
-        "article_summary": {"model": "gpt-4.1", "temperature": 0.0},
-        "category_summary": {"model": "gpt-4.1", "temperature": 0.0},
-        "executive_summary": {"model": "gpt-4.1", "temperature": 0.0},
+    DEFAULT_STAGE_CONFIG = {
+        "semantic_filter": {"model": "gpt-4.1", "temperature": 0.0, "max_concurrent": 50},
+        "categorization": {"model": "gpt-4.1", "temperature": 0.0, "max_concurrent": 50},
+        "article_summary": {"model": "gpt-4.1", "temperature": 0.0, "max_concurrent": 50},
+        "category_summary": {"model": "gpt-4.1", "temperature": 0.0, "max_concurrent": 50},
+        "executive_summary": {"model": "gpt-4.1", "temperature": 0.0, "max_concurrent": 50},
     }
+
+    def _get_stage_config(self, ctx: "PipelineContext", stage: str) -> Dict[str, Any]:
+        """
+        Get merged stage configuration (defaults + user overrides).
+
+        Args:
+            ctx: Pipeline context with llm_config snapshot
+            stage: One of: semantic_filter, categorization, article_summary,
+                   category_summary, executive_summary
+
+        Returns:
+            Dict with model, temperature, max_concurrent, and optionally reasoning_effort
+        """
+        defaults = self.DEFAULT_STAGE_CONFIG.get(
+            stage, {"model": "gpt-4.1", "temperature": 0.0, "max_concurrent": 50}
+        )
+        if ctx.llm_config and stage in ctx.llm_config:
+            return {**defaults, **ctx.llm_config[stage]}
+        return defaults
 
     def _get_stage_model_config(
         self, ctx: "PipelineContext", stage: str
@@ -194,19 +213,31 @@ class PipelineService:
         Returns:
             ModelConfig ready to pass to services
         """
-        # Get stage config, merging with defaults
-        if ctx.llm_config and stage in ctx.llm_config:
-            stage_config = ctx.llm_config[stage]
-            cfg = {**self.DEFAULT_MODEL_CONFIG.get(stage, {}), **stage_config}
-        else:
-            cfg = self.DEFAULT_MODEL_CONFIG.get(
-                stage, {"model": "gpt-4.1", "temperature": 0.0}
-            )
-
+        cfg = self._get_stage_config(ctx, stage)
         return ModelConfig(
             model=cfg.get("model") or "gpt-4.1",
             temperature=cfg.get("temperature") if cfg.get("temperature") is not None else 0.0,
             reasoning_effort=cfg.get("reasoning_effort"),
+        )
+
+    def _get_stage_llm_options(
+        self, ctx: "PipelineContext", stage: str, on_progress: Optional[callable] = None
+    ) -> LLMOptions:
+        """
+        Get LLMOptions for a specific pipeline stage.
+
+        Args:
+            ctx: Pipeline context with llm_config snapshot
+            stage: Stage name
+            on_progress: Optional progress callback
+
+        Returns:
+            LLMOptions ready to pass to services
+        """
+        cfg = self._get_stage_config(ctx, stage)
+        return LLMOptions(
+            max_concurrent=cfg.get("max_concurrent", 50),
+            on_progress=on_progress,
         )
 
     # =========================================================================
@@ -490,8 +521,10 @@ class PipelineService:
         """
         yield PipelineStatus("filter", "Applying semantic filters...")
 
-        # Get model configuration for semantic filter stage
+        # Get configuration for semantic filter stage
+        stage_cfg = self._get_stage_config(ctx, "semantic_filter")
         model_config = self._get_stage_model_config(ctx, "semantic_filter")
+        max_concurrent = stage_cfg.get("max_concurrent", 50)
 
         for query in ctx.queries:
             if not query.semantic_filter.enabled:
@@ -514,6 +547,7 @@ class PipelineService:
                     filter_criteria=q.semantic_filter.criteria,
                     threshold=q.semantic_filter.threshold,
                     model_config=model_config,
+                    max_concurrent=max_concurrent,
                     on_progress=on_progress,
                 ),
                 stage="filter",
@@ -584,8 +618,10 @@ class PipelineService:
         """
         yield PipelineStatus("categorize", "Categorizing articles...")
 
-        # Get LLM config for categorization
+        # Get configuration for categorization stage
+        stage_cfg = self._get_stage_config(ctx, "categorization")
         model_config = self._get_stage_model_config(ctx, "categorization")
+        max_concurrent = stage_cfg.get("max_concurrent", 50)
 
         # Stream progress while categorizing
         result = None
@@ -594,6 +630,7 @@ class PipelineService:
                 report_id=ctx.report.report_id,
                 presentation_config=ctx.presentation_config,
                 model_config=model_config,
+                max_concurrent=max_concurrent,
                 on_progress=on_progress,
             ),
             stage="categorize",
@@ -630,8 +667,10 @@ class PipelineService:
         # Use enrichment_config from execution snapshot
         enrichment_config = ctx.enrichment_config
 
-        # Get LLM config for article summaries
+        # Get configuration for article summary stage
+        stage_cfg = self._get_stage_config(ctx, "article_summary")
         model_config = self._get_stage_model_config(ctx, "article_summary")
+        max_concurrent = stage_cfg.get("max_concurrent", 50)
 
         yield PipelineStatus("article_summaries", "Generating article summaries...")
 
@@ -643,6 +682,7 @@ class PipelineService:
                 stream=ctx.stream,
                 enrichment_config=enrichment_config,
                 model_config=model_config,
+                max_concurrent=max_concurrent,
                 on_progress=on_progress,
             ),
             stage="article_summaries",
@@ -669,6 +709,7 @@ class PipelineService:
         stream: Any,
         enrichment_config: Optional[Dict[str, Any]],
         model_config: ModelConfig,
+        max_concurrent: int = 50,
         on_progress: Optional[ProgressCallback] = None,
     ) -> int:
         """
@@ -711,7 +752,7 @@ class PipelineService:
             items=items,
             enrichment_config=enrichment_config,
             model_config=model_config,
-            options=LLMOptions(max_concurrent=5, on_progress=on_progress),
+            options=LLMOptions(max_concurrent=max_concurrent, on_progress=on_progress),
         )
 
         # Build association updates from results
@@ -738,8 +779,10 @@ class PipelineService:
         """
         yield PipelineStatus("category_summaries", f"Generating summaries for {len(ctx.categories)} categories...")
 
-        # Get LLM config for category summaries
+        # Get configuration for category summary stage
+        stage_cfg = self._get_stage_config(ctx, "category_summary")
         model_config = self._get_stage_model_config(ctx, "category_summary")
+        max_concurrent = stage_cfg.get("max_concurrent", 50)
 
         # Get associations - single source of truth for article data
         if not ctx.report:
@@ -807,7 +850,7 @@ class PipelineService:
             items=items,
             enrichment_config=ctx.enrichment_config,
             model_config=model_config,
-            options=LLMOptions(max_concurrent=5),
+            options=LLMOptions(max_concurrent=max_concurrent),
         )
 
         # Build category summaries dict from results
@@ -1176,6 +1219,7 @@ class PipelineService:
         filter_criteria: str,
         threshold: float,
         model_config: ModelConfig,
+        max_concurrent: int = 50,
         on_progress: Optional[callable] = None,
     ) -> Tuple[int, int, int]:
         """
@@ -1187,6 +1231,7 @@ class PipelineService:
             filter_criteria: Natural language filter criteria
             threshold: Minimum score (0-1) for article to pass
             model_config: LLM model configuration
+            max_concurrent: Maximum concurrent LLM calls
             on_progress: Optional async callback(completed, total) for progress updates
 
         Returns:
@@ -1247,10 +1292,7 @@ Score from {min_value} to {max_value}."""
             max_value=1.0,
             include_reasoning=True,
             model_config=model_config,
-            options=LLMOptions(
-                max_concurrent=50,
-                on_progress=on_progress,
-            ),
+            options=LLMOptions(max_concurrent=max_concurrent, on_progress=on_progress),
         )
 
         # Update database with results using WipArticleService
@@ -1364,6 +1406,7 @@ Score from {min_value} to {max_value}."""
         report_id: int,
         presentation_config: PresentationConfig,
         model_config: ModelConfig,
+        max_concurrent: int = 50,
         on_progress: Optional[callable] = None,
     ) -> Tuple[int, int]:
         """
@@ -1373,6 +1416,7 @@ Score from {min_value} to {max_value}."""
             report_id: Report ID (report must already exist)
             presentation_config: Presentation configuration with categories
             model_config: LLM model configuration
+            max_concurrent: Maximum concurrent LLM calls
             on_progress: Optional async callback(completed, total) for progress updates
 
         Returns:
@@ -1419,7 +1463,7 @@ Score from {min_value} to {max_value}."""
         results = await self.categorization_service.categorize(
             items=items,
             model_config=model_config,
-            options=LLMOptions(max_concurrent=50, on_progress=on_progress),
+            options=LLMOptions(max_concurrent=max_concurrent, on_progress=on_progress),
         )
 
         # Map results back to associations: (Association, category_id)
