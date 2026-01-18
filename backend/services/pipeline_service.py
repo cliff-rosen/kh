@@ -54,6 +54,7 @@ from services.wip_article_service import WipArticleService
 from services.report_service import ReportService
 from services.report_article_association_service import ReportArticleAssociationService
 from services.article_service import ArticleService
+from services.execution_service import ExecutionService
 
 
 @dataclass
@@ -138,6 +139,7 @@ class PipelineService:
         self.report_service = ReportService(db)
         self.association_service = ReportArticleAssociationService(db)
         self.article_service = ArticleService(db)
+        self.execution_service = ExecutionService(db)
         self.pubmed_service = PubMedService()
         self.eval_service = get_ai_evaluation_service()
         self.categorization_service = ArticleCategorizationService()
@@ -160,12 +162,7 @@ class PipelineService:
         Raises:
             ValueError: if execution not found
         """
-        stmt = select(PipelineExecution).where(PipelineExecution.id == execution_id)
-        result = await self.db.execute(stmt)
-        execution = result.scalars().first()
-        if not execution:
-            raise ValueError(f"Pipeline execution {execution_id} not found")
-        return execution
+        return await self.execution_service.get_by_id_or_raise(execution_id)
 
     # =========================================================================
     # MODEL CONFIGURATION HELPERS

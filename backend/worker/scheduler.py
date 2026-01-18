@@ -14,6 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import and_, select
 
 from models import ResearchStream, PipelineExecution, ExecutionStatus
+from services.execution_service import ExecutionService
 
 logger = logging.getLogger('worker.scheduler')
 
@@ -23,6 +24,7 @@ class JobDiscovery:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.execution_service = ExecutionService(db)
 
     async def find_pending_executions(self) -> List[PipelineExecution]:
         """
@@ -31,13 +33,7 @@ class JobDiscovery:
         Returns executions with status='pending'.
         """
         try:
-            stmt = select(PipelineExecution).where(
-                PipelineExecution.status == ExecutionStatus.PENDING
-            )
-            result = await self.db.execute(stmt)
-            pending = list(result.scalars().all())
-
-            return pending
+            return await self.execution_service.find_pending()
 
         except SQLAlchemyError as e:
             logger.error(f"Database error finding pending executions: {e}", exc_info=True)

@@ -18,6 +18,7 @@ import uuid
 
 from models import ResearchStream, PipelineExecution, ExecutionStatus, RunType
 from services.pipeline_service import PipelineService
+from services.execution_service import ExecutionService
 from worker.status_broker import broker
 
 logger = logging.getLogger('worker.dispatcher')
@@ -29,6 +30,7 @@ class JobDispatcher:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.pipeline_service = PipelineService(db)
+        self.execution_service = ExecutionService(db)
         self._running_jobs: Dict[str, asyncio.Task] = {}
 
     async def execute_pending(self, execution: PipelineExecution) -> None:
@@ -42,17 +44,8 @@ class JobDispatcher:
         logger.info(f"Dispatching pending execution: {execution_id} for stream {execution.stream_id}")
 
         try:
-            # Re-query execution from our session (the passed object is from a different session)
-            stmt = select(PipelineExecution).where(PipelineExecution.id == execution_id)
-            result = await self.db.execute(stmt)
-            execution = result.scalars().first()
-
-            if not execution:
-                raise ValueError(f"Execution {execution_id} not found")
-
-            # Mark as running
-            execution.status = ExecutionStatus.RUNNING
-            execution.started_at = datetime.utcnow()
+            # Re-query and mark as running (via execution_service)
+            execution = await self.execution_service.mark_running(execution_id)
             await self.db.commit()
             logger.info(f"Execution {execution_id} marked as RUNNING")
 
@@ -64,14 +57,8 @@ class JobDispatcher:
                 logger.debug(f"[{execution_id}] {status.stage}: {status.message}")
                 await broker.publish(execution_id, status.stage, status.message)
 
-            # Re-query execution to get fresh state (pipeline may have set report_id)
-            stmt = select(PipelineExecution).where(PipelineExecution.id == execution_id)
-            result = await self.db.execute(stmt)
-            execution = result.scalars().first()
-
             # Mark as completed
-            execution.status = ExecutionStatus.COMPLETED
-            execution.completed_at = datetime.utcnow()
+            await self.execution_service.mark_completed(execution_id)
             await self.db.commit()
 
             logger.info(f"Execution {execution_id} completed successfully")
@@ -79,15 +66,11 @@ class JobDispatcher:
 
         except Exception as e:
             logger.error(f"Execution {execution_id} failed: {e}", exc_info=True)
-            # Re-query to ensure we have current state
-            stmt = select(PipelineExecution).where(PipelineExecution.id == execution_id)
-            result = await self.db.execute(stmt)
-            execution = result.scalars().first()
-            if execution:
-                execution.status = ExecutionStatus.FAILED
-                execution.completed_at = datetime.utcnow()
-                execution.error = str(e)
+            try:
+                await self.execution_service.mark_failed(execution_id, str(e))
                 await self.db.commit()
+            except Exception as inner_e:
+                logger.error(f"Failed to mark execution as failed: {inner_e}")
             await broker.publish_complete(execution_id, success=False, error=str(e))
 
     async def execute_scheduled(self, stream: ResearchStream) -> str:
@@ -100,8 +83,7 @@ class JobDispatcher:
         Returns the execution_id.
         """
         stream_id = stream.stream_id
-        execution_id = str(uuid.uuid4())
-        logger.info(f"Dispatching scheduled run for stream {stream_id}, execution_id={execution_id}")
+        logger.info(f"Dispatching scheduled run for stream {stream_id}")
 
         # Re-query stream from our session (the passed object is from a different session)
         stmt = select(ResearchStream).where(ResearchStream.stream_id == stream_id)
@@ -120,31 +102,19 @@ class JobDispatcher:
         end_date = today.strftime('%Y-%m-%d')
         start_date = (today - timedelta(days=lookback_days)).strftime('%Y-%m-%d')
 
-        # Snapshot ALL configuration from stream at trigger time
-        retrieval_config = stream.retrieval_config if stream.retrieval_config else {}
-        presentation_config = stream.presentation_config if stream.presentation_config else {}
-        enrichment_config = stream.enrichment_config if stream.enrichment_config else None
-        llm_config = stream.llm_config if stream.llm_config else None
-
-        # Create execution record with ALL configuration
-        execution = PipelineExecution(
-            id=execution_id,
-            stream_id=stream_id,
-            user_id=stream.user_id,
-            status=ExecutionStatus.RUNNING,
+        # Create execution (via execution_service) - starts as RUNNING for scheduled runs
+        execution = await self.execution_service.create_from_stream(
+            stream=stream,
             run_type=RunType.SCHEDULED,
-            started_at=datetime.utcnow(),
-            # Execution configuration (ALL determined now, pipeline reads from here)
             start_date=start_date,
             end_date=end_date,
             report_name=None,  # Auto-generated for scheduled runs
-            retrieval_config=retrieval_config,
-            presentation_config=presentation_config,
-            enrichment_config=enrichment_config,
-            llm_config=llm_config
+            status=ExecutionStatus.RUNNING
         )
-        self.db.add(execution)
+        execution_id = execution.id
         await self.db.commit()
+
+        logger.info(f"Created execution {execution_id} for stream {stream_id}")
 
         try:
             # Publish starting status
@@ -155,14 +125,8 @@ class JobDispatcher:
                 logger.debug(f"[{execution_id}] {status.stage}: {status.message}")
                 await broker.publish(execution_id, status.stage, status.message)
 
-            # Re-query execution to get fresh state (pipeline may have set report_id)
-            stmt = select(PipelineExecution).where(PipelineExecution.id == execution_id)
-            result = await self.db.execute(stmt)
-            execution = result.scalars().first()
-
             # Mark as completed
-            execution.status = ExecutionStatus.COMPLETED
-            execution.completed_at = datetime.utcnow()
+            await self.execution_service.mark_completed(execution_id)
 
             # Update next_scheduled_run on the stream
             self._update_next_scheduled_run(stream)
@@ -173,14 +137,10 @@ class JobDispatcher:
 
         except Exception as e:
             logger.error(f"Scheduled execution {execution_id} failed: {e}", exc_info=True)
-            # Re-query to get fresh state
-            stmt = select(PipelineExecution).where(PipelineExecution.id == execution_id)
-            result = await self.db.execute(stmt)
-            execution = result.scalars().first()
-            if execution:
-                execution.status = ExecutionStatus.FAILED
-                execution.completed_at = datetime.utcnow()
-                execution.error = str(e)
+            try:
+                await self.execution_service.mark_failed(execution_id, str(e))
+            except Exception as inner_e:
+                logger.error(f"Failed to mark execution as failed: {inner_e}")
 
             # Still update next_scheduled_run even on failure
             self._update_next_scheduled_run(stream)

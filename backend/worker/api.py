@@ -19,10 +19,10 @@ from sqlalchemy import select
 from pydantic import BaseModel
 from typing import Optional, List, AsyncGenerator
 from datetime import datetime
-import uuid
 
 from database import get_async_db
 from models import PipelineExecution, ResearchStream, ExecutionStatus, RunType
+from services.execution_service import ExecutionService
 from worker.status_broker import broker
 from worker.state import worker_state
 
@@ -120,32 +120,24 @@ async def trigger_run(
                 start_dt = today - timedelta(days=lookback_days)
                 start_date = start_dt.strftime('%Y-%m-%d')
 
-        # Snapshot ALL configuration from stream at trigger time
-        retrieval_config = stream.retrieval_config if stream.retrieval_config else {}
-        presentation_config = stream.presentation_config if stream.presentation_config else {}
-        enrichment_config = stream.enrichment_config if stream.enrichment_config else None
-        llm_config = stream.llm_config if stream.llm_config else None
-
-        # Create execution with ALL configuration
-        execution_id = str(uuid.uuid4())
+        # Create execution via service (snapshots all config from stream)
         run_type = RunType.TEST if request.run_type == "test" else RunType.MANUAL
+        execution_service = ExecutionService(db)
 
-        execution = PipelineExecution(
-            id=execution_id,
+        execution = await execution_service.create(
             stream_id=request.stream_id,
             user_id=stream.user_id,
-            status=ExecutionStatus.PENDING,
             run_type=run_type,
-            # Execution configuration (ALL determined now, pipeline reads from here)
             start_date=start_date,
             end_date=end_date,
             report_name=request.report_name,
-            retrieval_config=retrieval_config,
-            presentation_config=presentation_config,
-            enrichment_config=enrichment_config,
-            llm_config=llm_config
+            retrieval_config=stream.retrieval_config if stream.retrieval_config else {},
+            presentation_config=stream.presentation_config if stream.presentation_config else {},
+            enrichment_config=stream.enrichment_config if stream.enrichment_config else None,
+            llm_config=stream.llm_config if stream.llm_config else None,
+            status=ExecutionStatus.PENDING
         )
-        db.add(execution)
+        execution_id = execution.id
         await db.commit()
 
         # Wake up the scheduler immediately so it picks up this job
@@ -244,9 +236,8 @@ async def get_run_status(
     logger.debug(f"get_run_status called - execution_id={execution_id}")
 
     try:
-        stmt = select(PipelineExecution).where(PipelineExecution.id == execution_id)
-        result = await db.execute(stmt)
-        execution = result.scalars().first()
+        execution_service = ExecutionService(db)
+        execution = await execution_service.get_by_id(execution_id)
 
         if not execution:
             logger.warning(f"get_run_status - execution {execution_id} not found")
@@ -296,9 +287,8 @@ async def stream_run_status(
 
     # Verify execution exists
     try:
-        stmt = select(PipelineExecution).where(PipelineExecution.id == execution_id)
-        result = await db.execute(stmt)
-        execution = result.scalars().first()
+        execution_service = ExecutionService(db)
+        execution = await execution_service.get_by_id(execution_id)
 
         if not execution:
             logger.warning(f"stream_run_status - execution {execution_id} not found")
@@ -394,9 +384,8 @@ async def cancel_run(
     logger.info(f"cancel_run called - execution_id={execution_id}")
 
     try:
-        stmt = select(PipelineExecution).where(PipelineExecution.id == execution_id)
-        result = await db.execute(stmt)
-        execution = result.scalars().first()
+        execution_service = ExecutionService(db)
+        execution = await execution_service.get_by_id(execution_id)
 
         if not execution:
             logger.warning(f"cancel_run - execution {execution_id} not found")
@@ -414,9 +403,7 @@ async def cancel_run(
 
         # For pending jobs, we can just mark as failed
         if execution.status == ExecutionStatus.PENDING:
-            execution.status = ExecutionStatus.FAILED
-            execution.error = "Cancelled by user"
-            execution.completed_at = datetime.utcnow()
+            await execution_service.mark_failed(execution_id, "Cancelled by user")
             await db.commit()
             logger.info(f"cancel_run - cancelled pending execution {execution_id}")
             return {"message": "Execution cancelled", "execution_id": execution_id}
