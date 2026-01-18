@@ -886,16 +886,16 @@ class ReportService:
                     categories_dict[cat] = []
                 categories_dict[cat].append(EmailArticle(
                     title=article.title or 'Untitled',
-                    authors=', '.join(article.authors[:3]) + ('...' if len(article.authors or []) > 3 else '') if article.authors else '',
-                    journal=article.journal or '',
-                    year=str(article.year) if article.year else '',
-                    summary=assoc.ai_summary or article.abstract[:300] + '...' if article.abstract and len(article.abstract) > 300 else (article.abstract or ''),
-                    url=article.url or f"https://pubmed.ncbi.nlm.nih.gov/{article.pmid}/" if article.pmid else '',
-                    relevance_rationale=assoc.relevance_rationale or ''
+                    authors=article.authors[:3] if article.authors else None,
+                    journal=article.journal or None,
+                    publication_date=str(article.year) if article.year else None,
+                    summary=assoc.ai_summary or (article.abstract[:300] + '...' if article.abstract and len(article.abstract) > 300 else article.abstract),
+                    url=article.url or (f"https://pubmed.ncbi.nlm.nih.gov/{article.pmid}/" if article.pmid else None),
+                    pmid=article.pmid
                 ))
 
         email_categories = [
-            EmailCategory(name=name, articles=articles)
+            EmailCategory(id=name.lower().replace(' ', '_'), name=name, articles=articles)
             for name, articles in categories_dict.items()
         ]
 
