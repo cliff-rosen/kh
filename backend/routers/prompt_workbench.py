@@ -18,7 +18,7 @@ from models import User
 from schemas.research_stream import EnrichmentConfig, PromptTemplate
 from services.research_stream_service import (
     ResearchStreamService,
-    get_async_research_stream_service
+    get_research_stream_service
 )
 from services.prompt_workbench_service import PromptWorkbenchService
 from services.report_summary_service import DEFAULT_PROMPTS, AVAILABLE_SLUGS
@@ -95,7 +95,7 @@ async def get_default_prompts():
 @router.get("/streams/{stream_id}/enrichment", response_model=EnrichmentConfigResponse)
 async def get_stream_enrichment_config(
     stream_id: int,
-    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
+    stream_service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """Get enrichment config for a stream (or defaults if not set)"""
@@ -128,7 +128,7 @@ async def get_stream_enrichment_config(
 async def update_stream_enrichment_config(
     stream_id: int,
     request: UpdateEnrichmentConfigRequest,
-    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
+    stream_service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """Update enrichment config for a stream (set to null to reset to defaults)"""

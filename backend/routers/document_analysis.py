@@ -11,7 +11,7 @@ from database import get_async_db
 from models import User
 from services import auth_service
 from services.document_analysis_service import get_document_analysis_service
-from services.research_stream_service import ResearchStreamService, get_async_research_stream_service
+from services.research_stream_service import ResearchStreamService, get_research_stream_service
 from schemas.document_analysis import (
     DocumentAnalysisRequest,
     DocumentAnalysisResult,
@@ -123,7 +123,7 @@ async def analyze_document_stream(
 @router.post("/analyze-stance", response_model=StanceAnalysisResult)
 async def analyze_article_stance(
     request: StanceAnalysisRequest,
-    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
+    stream_service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(auth_service.validate_token)
 ):
     """

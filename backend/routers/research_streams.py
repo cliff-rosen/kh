@@ -37,7 +37,7 @@ from schemas.canonical_types import CanonicalResearchArticle
 
 from services.research_stream_service import (
     ResearchStreamService,
-    get_async_research_stream_service,
+    get_research_stream_service,
 )
 from services.retrieval_query_service import RetrievalQueryService
 from services.concept_proposal_service import ConceptProposalService
@@ -131,7 +131,7 @@ class ToggleStatusRequest(BaseModel):
 
 @router.get("", response_model=List[ResearchStream])
 async def get_research_streams(
-    service: ResearchStreamService = Depends(get_async_research_stream_service),
+    service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """Get all research streams for the current user (async)"""
@@ -166,7 +166,7 @@ async def get_research_streams(
 @track_endpoint("view_stream")
 async def get_research_stream(
     stream_id: int,
-    service: ResearchStreamService = Depends(get_async_research_stream_service),
+    service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """Get a specific research stream by ID (async)"""
@@ -202,7 +202,7 @@ async def get_research_stream(
 @router.post("", response_model=ResearchStream, status_code=status.HTTP_201_CREATED)
 async def create_research_stream(
     request: ResearchStreamCreateRequest,
-    service: ResearchStreamService = Depends(get_async_research_stream_service),
+    service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -284,7 +284,7 @@ async def create_research_stream(
 async def update_research_stream(
     stream_id: int,
     request: ResearchStreamUpdateRequest,
-    service: ResearchStreamService = Depends(get_async_research_stream_service),
+    service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """Update an existing research stream (async)"""
@@ -337,7 +337,7 @@ async def update_research_stream(
 @router.delete("/{stream_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_research_stream(
     stream_id: int,
-    service: ResearchStreamService = Depends(get_async_research_stream_service),
+    service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """Delete a research stream (async)"""
@@ -379,7 +379,7 @@ async def delete_research_stream(
 async def toggle_research_stream_status(
     stream_id: int,
     request: ToggleStatusRequest,
-    service: ResearchStreamService = Depends(get_async_research_stream_service),
+    service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """Toggle research stream active status (async)"""
@@ -443,7 +443,7 @@ async def update_broad_query(
     stream_id: int,
     query_index: int,
     request: UpdateBroadQueryRequest,
-    service: ResearchStreamService = Depends(get_async_research_stream_service),
+    service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -512,7 +512,7 @@ async def update_semantic_filter(
     stream_id: int,
     query_index: int,
     request: UpdateSemanticFilterRequest,
-    service: ResearchStreamService = Depends(get_async_research_stream_service),
+    service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -657,7 +657,7 @@ class ValidateConceptsResponse(BaseModel):
 async def propose_retrieval_concepts(
     stream_id: int,
     db: AsyncSession = Depends(get_async_db),
-    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
+    stream_service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -703,7 +703,7 @@ async def propose_retrieval_concepts(
 async def propose_broad_search(
     stream_id: int,
     db: AsyncSession = Depends(get_async_db),
-    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
+    stream_service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -752,7 +752,7 @@ async def generate_broad_filter(
     stream_id: int,
     request: GenerateBroadFilterRequest,
     db: AsyncSession = Depends(get_async_db),
-    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
+    stream_service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -796,7 +796,7 @@ async def generate_concept_query(
     stream_id: int,
     request: GenerateConceptQueryRequest,
     db: AsyncSession = Depends(get_async_db),
-    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
+    stream_service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -852,7 +852,7 @@ async def generate_concept_filter(
     stream_id: int,
     request: GenerateConceptFilterRequest,
     db: AsyncSession = Depends(get_async_db),
-    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
+    stream_service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -896,7 +896,7 @@ async def generate_concept_filter(
 async def validate_concepts(
     stream_id: int,
     request: ValidateConceptsRequest,
-    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
+    stream_service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -985,7 +985,7 @@ class QueryTestRequest(BaseModel):
 async def test_source_query(
     stream_id: int,
     request: QueryTestRequest,
-    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
+    stream_service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -1078,7 +1078,7 @@ async def execute_pipeline(
     stream_id: int,
     request: ExecutePipelineRequest,
     db: AsyncSession = Depends(get_async_db),
-    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
+    stream_service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -1395,7 +1395,7 @@ class StreamCurationNotesResponse(BaseModel):
 @router.get("/{stream_id}/curation-notes", response_model=StreamCurationNotesResponse)
 async def get_stream_curation_notes(
     stream_id: int,
-    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
+    stream_service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """

@@ -16,7 +16,7 @@ from services.organization_service import OrganizationService, get_async_organiz
 from services.user_service import UserService, get_async_user_service
 from services.subscription_service import SubscriptionService, get_async_subscription_service
 from services.invitation_service import InvitationService, get_async_invitation_service
-from services.research_stream_service import ResearchStreamService, get_async_research_stream_service
+from services.research_stream_service import ResearchStreamService, get_research_stream_service
 from schemas.organization import (
     Organization as OrgSchema,
     OrganizationUpdate,
@@ -238,7 +238,7 @@ async def assign_user_to_org(
 )
 async def list_global_streams(
     current_user: User = Depends(require_platform_admin),
-    stream_service: ResearchStreamService = Depends(get_async_research_stream_service)
+    stream_service: ResearchStreamService = Depends(get_research_stream_service)
 ):
     """Get all global streams. Platform admin only."""
     logger.info(f"list_global_streams - admin_user_id={current_user.user_id}")
@@ -266,7 +266,7 @@ async def list_global_streams(
 async def set_stream_scope_global(
     stream_id: int,
     current_user: User = Depends(require_platform_admin),
-    stream_service: ResearchStreamService = Depends(get_async_research_stream_service)
+    stream_service: ResearchStreamService = Depends(get_research_stream_service)
 ):
     """Change a stream's scope to global. Platform admin only."""
     logger.info(f"set_stream_scope_global - admin_user_id={current_user.user_id}, stream_id={stream_id}")
@@ -294,7 +294,7 @@ async def set_stream_scope_global(
 async def delete_global_stream(
     stream_id: int,
     current_user: User = Depends(require_platform_admin),
-    stream_service: ResearchStreamService = Depends(get_async_research_stream_service)
+    stream_service: ResearchStreamService = Depends(get_research_stream_service)
 ):
     """Delete a global stream. Platform admin only."""
     logger.info(f"delete_global_stream - admin_user_id={current_user.user_id}, stream_id={stream_id}")
@@ -665,7 +665,7 @@ async def subscribe_org_to_global_stream(
     stream_id: int,
     current_user: User = Depends(require_platform_admin),
     org_service: OrganizationService = Depends(get_async_organization_service),
-    stream_service: ResearchStreamService = Depends(get_async_research_stream_service),
+    stream_service: ResearchStreamService = Depends(get_research_stream_service),
     sub_service: SubscriptionService = Depends(get_async_subscription_service)
 ):
     """Subscribe an organization to a global stream. Platform admin only."""
@@ -809,7 +809,7 @@ class ChatConfigResponse(BaseModel):
 )
 async def get_chat_config(
     current_user: User = Depends(require_platform_admin),
-    stream_service: ResearchStreamService = Depends(get_async_research_stream_service)
+    stream_service: ResearchStreamService = Depends(get_research_stream_service)
 ):
     """Get complete chat system configuration. Platform admin only."""
     logger.info(f"get_chat_config - admin_user_id={current_user.user_id}")
