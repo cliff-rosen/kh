@@ -888,6 +888,10 @@ class PipelineService:
                     "abstract": (article.abstract or "")[:500],
                 })
 
+        # Gather AI-generated article summaries
+        article_summaries = [assoc.ai_summary for assoc in associations if assoc.ai_summary]
+        article_summaries_text = "\n\n".join([f"- {s}" for s in article_summaries[:30]])
+
         # Format category summaries
         category_summaries_text = "\n\n".join([
             f"**{cat_id}**: {summary}"
@@ -898,6 +902,7 @@ class PipelineService:
         item = {
             "articles_count": str(len(associations)),
             "articles_formatted": self.summary_service.format_articles_for_prompt(article_info, max_articles=20),
+            "articles_summaries": article_summaries_text,
             "categories_count": str(len(ctx.category_summaries)),
             "categories_summaries": category_summaries_text,
             "stream_name": ctx.stream.stream_name or "",

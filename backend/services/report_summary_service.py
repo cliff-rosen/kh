@@ -49,6 +49,9 @@ Write in a professional, analytical tone. Include only the summary with no headi
 # Category Summaries
 {categories_summaries}
 
+# AI-Generated Article Summaries
+{articles_summaries}
+
 # Sample Articles (representative of the full report)
 {articles_formatted}
 
@@ -77,6 +80,9 @@ Write in a professional, analytical tone.""",
 
 # Articles in This Category ({articles_count} total)
 {articles_formatted}
+
+# AI-Generated Article Summaries
+{articles_summaries}
 
 Generate a focused summary that captures the key insights from articles in this category."""
     },
@@ -107,69 +113,68 @@ Generate a concise summary that captures the key contributions and findings of t
     }
 }
 
-# Slug mappings for custom prompts - maps nested slugs to flat placeholders
-SLUG_MAPPINGS = {
-    "article_summary": {
-        "{stream.name}": "{stream_name}",
-        "{stream.purpose}": "{stream_purpose}",
-        "{article.title}": "{title}",
-        "{article.authors}": "{authors}",
-        "{article.journal}": "{journal}",
-        "{article.year}": "{year}",
-        "{article.abstract}": "{abstract}",
-        "{article.filter_reason}": "{filter_reason}",
-    },
-    "category_summary": {
-        "{stream.name}": "{stream_name}",
-        "{stream.purpose}": "{stream_purpose}",
-        "{category.name}": "{category_name}",
-        "{category.description}": "{category_description}",
-        "{category.topics}": "{category_topics}",
-        "{articles.count}": "{articles_count}",
-        "{articles.formatted}": "{articles_formatted}",
-        "{articles.summaries}": "{articles_summaries}",
-    },
-    "executive_summary": {
-        "{stream.name}": "{stream_name}",
-        "{stream.purpose}": "{stream_purpose}",
-        "{articles.count}": "{articles_count}",
-        "{articles.formatted}": "{articles_formatted}",
-        "{categories.count}": "{categories_count}",
-        "{categories.summaries}": "{categories_summaries}",
-    },
-}
+# =============================================================================
+# Single Source of Truth for Prompt Slugs
+# =============================================================================
+# Each entry: (frontend_slug, flat_key, description)
+# - frontend_slug: What users see in UI, e.g., "{stream.name}"
+# - flat_key: The key used in pipeline item dicts, e.g., "stream_name"
+# - description: Help text for UI
 
-# Available slugs documentation (for UI/help)
-AVAILABLE_SLUGS = {
-    "executive_summary": [
-        {"slug": "{stream.name}", "description": "Name of the research stream"},
-        {"slug": "{stream.purpose}", "description": "Purpose/description of the stream"},
-        {"slug": "{articles.count}", "description": "Total number of articles in the report"},
-        {"slug": "{articles.formatted}", "description": "Formatted list of articles"},
-        {"slug": "{categories.count}", "description": "Number of categories in the report"},
-        {"slug": "{categories.summaries}", "description": "Formatted category summaries"},
+PROMPT_SLUGS = {
+    "article_summary": [
+        ("{stream.name}", "stream_name", "Name of the research stream"),
+        ("{stream.purpose}", "stream_purpose", "Purpose/description of the stream"),
+        ("{article.title}", "title", "Title of the article"),
+        ("{article.authors}", "authors", "Authors of the article"),
+        ("{article.journal}", "journal", "Journal where published"),
+        ("{article.year}", "year", "Publication year"),
+        ("{article.abstract}", "abstract", "Article abstract"),
+        ("{article.filter_reason}", "filter_reason", "AI reasoning for semantic filter"),
     ],
     "category_summary": [
-        {"slug": "{stream.name}", "description": "Name of the research stream"},
-        {"slug": "{stream.purpose}", "description": "Purpose/description of the stream"},
-        {"slug": "{category.name}", "description": "Name of the current category"},
-        {"slug": "{category.description}", "description": "Description of what this category covers"},
-        {"slug": "{category.topics}", "description": "List of topics in this category"},
-        {"slug": "{articles.count}", "description": "Number of articles in this category"},
-        {"slug": "{articles.formatted}", "description": "Formatted list of articles in this category"},
-        {"slug": "{articles.summaries}", "description": "AI-generated summaries for articles"},
+        ("{stream.name}", "stream_name", "Name of the research stream"),
+        ("{stream.purpose}", "stream_purpose", "Purpose/description of the stream"),
+        ("{category.name}", "category_name", "Name of the current category"),
+        ("{category.description}", "category_description", "Description of what this category covers"),
+        ("{category.topics}", "category_topics", "List of topics in this category"),
+        ("{articles.count}", "articles_count", "Number of articles in this category"),
+        ("{articles.formatted}", "articles_formatted", "Formatted list of articles in this category"),
+        ("{articles.summaries}", "articles_summaries", "AI-generated summaries for articles"),
     ],
-    "article_summary": [
-        {"slug": "{stream.name}", "description": "Name of the research stream"},
-        {"slug": "{stream.purpose}", "description": "Purpose/description of the stream"},
-        {"slug": "{article.title}", "description": "Title of the article"},
-        {"slug": "{article.authors}", "description": "Authors of the article"},
-        {"slug": "{article.journal}", "description": "Journal where published"},
-        {"slug": "{article.year}", "description": "Publication year"},
-        {"slug": "{article.abstract}", "description": "Article abstract"},
-        {"slug": "{article.filter_reason}", "description": "AI reasoning for semantic filter"},
-    ]
+    "executive_summary": [
+        ("{stream.name}", "stream_name", "Name of the research stream"),
+        ("{stream.purpose}", "stream_purpose", "Purpose/description of the stream"),
+        ("{articles.count}", "articles_count", "Total number of articles in the report"),
+        ("{articles.formatted}", "articles_formatted", "Formatted list of articles"),
+        ("{articles.summaries}", "articles_summaries", "AI-generated summaries for articles"),
+        ("{categories.count}", "categories_count", "Number of categories in the report"),
+        ("{categories.summaries}", "categories_summaries", "Formatted category summaries"),
+    ],
 }
+
+
+def get_slug_mappings(prompt_type: str) -> Dict[str, str]:
+    """Get slug mappings for a prompt type: {frontend_slug} -> {flat_key}"""
+    slugs = PROMPT_SLUGS.get(prompt_type, [])
+    return {slug: f"{{{flat_key}}}" for slug, flat_key, _ in slugs}
+
+
+def get_available_slugs(prompt_type: str) -> List[Dict[str, str]]:
+    """Get available slugs for UI/help for a prompt type."""
+    slugs = PROMPT_SLUGS.get(prompt_type, [])
+    return [{"slug": slug, "description": desc} for slug, _, desc in slugs]
+
+
+def get_required_keys(prompt_type: str) -> List[str]:
+    """Get list of flat keys that must be supplied in pipeline items."""
+    slugs = PROMPT_SLUGS.get(prompt_type, [])
+    return [flat_key for _, flat_key, _ in slugs]
+
+
+# Derived constants for backward compatibility
+SLUG_MAPPINGS = {pt: get_slug_mappings(pt) for pt in PROMPT_SLUGS}
+AVAILABLE_SLUGS = {pt: get_available_slugs(pt) for pt in PROMPT_SLUGS}
 
 
 class ReportSummaryService:
