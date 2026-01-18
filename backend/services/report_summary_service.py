@@ -173,7 +173,12 @@ def get_required_keys(prompt_type: str) -> List[str]:
 
 
 # Derived constants for backward compatibility
+# SLUG_MAPPINGS: Used by _get_prompts() to convert custom prompt slugs to flat placeholders
+#   Structure: {"article_summary": {"{stream.name}": "{stream_name}", ...}, ...}
 SLUG_MAPPINGS = {pt: get_slug_mappings(pt) for pt in PROMPT_SLUGS}
+
+# AVAILABLE_SLUGS: Returned by API for frontend UI to show available placeholders
+#   Structure: {"article_summary": [{"slug": "{stream.name}", "description": "..."}, ...], ...}
 AVAILABLE_SLUGS = {pt: get_available_slugs(pt) for pt in PROMPT_SLUGS}
 
 
