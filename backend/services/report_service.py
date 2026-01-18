@@ -9,7 +9,6 @@ service for report-related operations.
 import logging
 import time
 from dataclasses import dataclass, field, asdict
-from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, func, select
 from typing import List, Optional, Dict, Any, Set, Tuple
@@ -276,11 +275,10 @@ class ReportService:
     This is the single source of truth for Report table access.
     Only this service should write to the Report and ReportArticleAssociation tables.
 
-    Supports both sync (Session) and async (AsyncSession) database access.
-    Use sync methods for backwards compatibility, async methods for new code.
+    Uses AsyncSession for all database operations.
     """
 
-    def __init__(self, db: Session | AsyncSession):
+    def __init__(self, db: AsyncSession):
         self.db = db
         self._user_service: Optional[UserService] = None
         self._stream_service = None  # Lazy-loaded to avoid circular import
