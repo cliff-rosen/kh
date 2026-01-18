@@ -9,13 +9,14 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Dict, Any, Set
 from datetime import datetime, date
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Depends
 
 from models import (
     ResearchStream, Report, User, UserRole, StreamScope,
     OrgStreamSubscription, UserStreamSubscription
 )
 from services.user_service import UserService
+from database import get_async_db
 
 logger = logging.getLogger(__name__)
 from schemas.research_stream import ResearchStream as ResearchStreamSchema
@@ -57,7 +58,12 @@ def serialize_json_data(data: Any) -> Any:
 
 
 class ResearchStreamService:
-    def __init__(self, db: Session):
+    """Service for managing research streams.
+
+    Supports both sync (Session) and async (AsyncSession) database access.
+    """
+
+    def __init__(self, db: Session | AsyncSession):
         self.db = db
         self._user_service: Optional[UserService] = None
 
@@ -724,427 +730,428 @@ class ResearchStreamService:
         return result
 
 
-# =============================================================================
-# Async Functions for Dashboard (POC)
-# =============================================================================
+    # =============================================================================
+    # Async Methods for Dashboard (POC)
+    # =============================================================================
 
-async def async_get_accessible_stream_ids(db: AsyncSession, user: User) -> Set[int]:
-    """
-    Get all stream IDs that a user can access (async version).
+    async def async_get_accessible_stream_ids(self, user: User) -> Set[int]:
+        """
+        Get all stream IDs that a user can access (async version).
 
-    Access rules by role:
-    - PLATFORM_ADMIN: All global streams + own personal streams
-    - ORG_ADMIN: All org streams for their org + subscribed global streams + own personal
-    - MEMBER: Subscribed org streams + subscribed global streams (via org) + own personal
-    """
-    accessible_ids: Set[int] = set()
+        Access rules by role:
+        - PLATFORM_ADMIN: All global streams + own personal streams
+        - ORG_ADMIN: All org streams for their org + subscribed global streams + own personal
+        - MEMBER: Subscribed org streams + subscribed global streams (via org) + own personal
+        """
+        accessible_ids: Set[int] = set()
 
-    # 1. Personal streams (user owns) - same for all roles
-    result = await db.execute(
-        select(ResearchStream.stream_id).where(
-            and_(
-                ResearchStream.scope == StreamScope.PERSONAL,
-                ResearchStream.user_id == user.user_id
-            )
-        )
-    )
-    accessible_ids.update(row[0] for row in result.all())
-
-    # 2. Handle based on role
-    if user.role == UserRole.PLATFORM_ADMIN:
-        # Platform admins see ALL global streams
-        result = await db.execute(
-            select(ResearchStream.stream_id).where(
-                ResearchStream.scope == StreamScope.GLOBAL
-            )
-        )
-        accessible_ids.update(row[0] for row in result.all())
-
-    elif user.role == UserRole.ORG_ADMIN and user.org_id:
-        # Org admins see ALL org streams for their org
-        result = await db.execute(
+        # 1. Personal streams (user owns) - same for all roles
+        result = await self.db.execute(
             select(ResearchStream.stream_id).where(
                 and_(
-                    ResearchStream.scope == StreamScope.ORGANIZATION,
-                    ResearchStream.org_id == user.org_id
+                    ResearchStream.scope == StreamScope.PERSONAL,
+                    ResearchStream.user_id == user.user_id
                 )
             )
         )
         accessible_ids.update(row[0] for row in result.all())
 
-        # Plus global streams their org is subscribed to
-        result = await db.execute(
-            select(OrgStreamSubscription.stream_id).where(
-                OrgStreamSubscription.org_id == user.org_id
-            )
-        )
-        accessible_ids.update(row[0] for row in result.all())
-
-    else:
-        # Regular members: subscribed org streams only
-        result = await db.execute(
-            select(UserStreamSubscription.stream_id)
-            .join(ResearchStream, ResearchStream.stream_id == UserStreamSubscription.stream_id)
-            .where(
-                and_(
-                    UserStreamSubscription.user_id == user.user_id,
-                    UserStreamSubscription.is_subscribed == True,
-                    ResearchStream.scope == StreamScope.ORGANIZATION
+        # 2. Handle based on role
+        if user.role == UserRole.PLATFORM_ADMIN:
+            # Platform admins see ALL global streams
+            result = await self.db.execute(
+                select(ResearchStream.stream_id).where(
+                    ResearchStream.scope == StreamScope.GLOBAL
                 )
             )
-        )
-        accessible_ids.update(row[0] for row in result.all())
+            accessible_ids.update(row[0] for row in result.all())
 
-        # Plus global streams (org subscribed AND user not opted out)
-        if user.org_id:
-            result = await db.execute(
+        elif user.role == UserRole.ORG_ADMIN and user.org_id:
+            # Org admins see ALL org streams for their org
+            result = await self.db.execute(
+                select(ResearchStream.stream_id).where(
+                    and_(
+                        ResearchStream.scope == StreamScope.ORGANIZATION,
+                        ResearchStream.org_id == user.org_id
+                    )
+                )
+            )
+            accessible_ids.update(row[0] for row in result.all())
+
+            # Plus global streams their org is subscribed to
+            result = await self.db.execute(
                 select(OrgStreamSubscription.stream_id).where(
                     OrgStreamSubscription.org_id == user.org_id
                 )
             )
-            org_subscribed_ids = {row[0] for row in result.all()}
+            accessible_ids.update(row[0] for row in result.all())
 
-            # Get streams user has opted out of
-            result = await db.execute(
-                select(UserStreamSubscription.stream_id).where(
+        else:
+            # Regular members: subscribed org streams only
+            result = await self.db.execute(
+                select(UserStreamSubscription.stream_id)
+                .join(ResearchStream, ResearchStream.stream_id == UserStreamSubscription.stream_id)
+                .where(
                     and_(
                         UserStreamSubscription.user_id == user.user_id,
-                        UserStreamSubscription.is_subscribed == False
+                        UserStreamSubscription.is_subscribed == True,
+                        ResearchStream.scope == StreamScope.ORGANIZATION
                     )
                 )
             )
-            opted_out_ids = {row[0] for row in result.all()}
+            accessible_ids.update(row[0] for row in result.all())
 
-            # Global streams = org subscribed - user opted out
-            accessible_ids.update(org_subscribed_ids - opted_out_ids)
+            # Plus global streams (org subscribed AND user not opted out)
+            if user.org_id:
+                result = await self.db.execute(
+                    select(OrgStreamSubscription.stream_id).where(
+                        OrgStreamSubscription.org_id == user.org_id
+                    )
+                )
+                org_subscribed_ids = {row[0] for row in result.all()}
 
-    return accessible_ids
+                # Get streams user has opted out of
+                result = await self.db.execute(
+                    select(UserStreamSubscription.stream_id).where(
+                        and_(
+                            UserStreamSubscription.user_id == user.user_id,
+                            UserStreamSubscription.is_subscribed == False
+                        )
+                    )
+                )
+                opted_out_ids = {row[0] for row in result.all()}
 
+                # Global streams = org subscribed - user opted out
+                accessible_ids.update(org_subscribed_ids - opted_out_ids)
 
-async def async_get_user_research_streams(
-    db: AsyncSession,
-    user: User
-) -> List[StreamWithStats]:
-    """
-    Get all research streams accessible to a user with report counts and latest report date (async version).
+        return accessible_ids
 
-    Returns:
-        List of StreamWithStats dataclasses containing stream model and stats
-    """
-    # Get accessible stream IDs
-    accessible_ids = await async_get_accessible_stream_ids(db, user)
+    async def async_get_user_research_streams(
+        self,
+        user: User
+    ) -> List[StreamWithStats]:
+        """
+        Get all research streams accessible to a user with report counts and latest report date (async version).
 
-    if not accessible_ids:
-        return []
+        Returns:
+            List of StreamWithStats dataclasses containing stream model and stats
+        """
+        # Get accessible stream IDs
+        accessible_ids = await self.async_get_accessible_stream_ids(user)
 
-    # Query streams with report counts and latest report date
-    stmt = (
-        select(
-            ResearchStream,
-            func.count(Report.report_id).label('report_count'),
-            func.max(Report.created_at).label('latest_report_date')
+        if not accessible_ids:
+            return []
+
+        # Query streams with report counts and latest report date
+        stmt = (
+            select(
+                ResearchStream,
+                func.count(Report.report_id).label('report_count'),
+                func.max(Report.created_at).label('latest_report_date')
+            )
+            .outerjoin(Report, Report.research_stream_id == ResearchStream.stream_id)
+            .where(ResearchStream.stream_id.in_(accessible_ids))
+            .group_by(ResearchStream.stream_id)
+            .order_by(ResearchStream.scope, ResearchStream.stream_name)
         )
-        .outerjoin(Report, Report.research_stream_id == ResearchStream.stream_id)
-        .where(ResearchStream.stream_id.in_(accessible_ids))
-        .group_by(ResearchStream.stream_id)
-        .order_by(ResearchStream.scope, ResearchStream.stream_name)
-    )
 
-    result = await db.execute(stmt)
-    rows = result.all()
+        result = await self.db.execute(stmt)
+        rows = result.all()
 
-    # Return list of StreamWithStats dataclasses
-    return [
-        StreamWithStats(
-            stream=stream,
-            report_count=report_count,
-            latest_report_date=latest_report_date
+        # Return list of StreamWithStats dataclasses
+        return [
+            StreamWithStats(
+                stream=stream,
+                report_count=report_count,
+                latest_report_date=latest_report_date
+            )
+            for stream, report_count, latest_report_date in rows
+        ]
+
+    async def async_get_research_stream(
+        self,
+        user: User,
+        stream_id: int
+    ) -> Optional[ResearchStream]:
+        """
+        Get a specific research stream by ID with access check (async).
+
+        Returns:
+            ResearchStream model or None if not found/no access
+        """
+        # Check if user has access to this stream
+        accessible_ids = await self.async_get_accessible_stream_ids(user)
+
+        if stream_id not in accessible_ids:
+            return None
+
+        result = await self.db.execute(
+            select(ResearchStream).where(ResearchStream.stream_id == stream_id)
         )
-        for stream, report_count, latest_report_date in rows
-    ]
+        return result.scalars().first()
 
+    async def async_create_research_stream(
+        self,
+        user: User,
+        stream_name: str,
+        purpose: str,
+        scope: StreamScope,
+        semantic_space: Dict[str, Any],
+        retrieval_config: Dict[str, Any],
+        presentation_config: Dict[str, Any],
+        schedule_config: Optional[Dict[str, Any]] = None,
+        chat_instructions: Optional[str] = None,
+        org_id: Optional[int] = None,
+    ) -> ResearchStream:
+        """
+        Create a new research stream (async).
 
-async def async_get_research_stream(
-    db: AsyncSession,
-    user: User,
-    stream_id: int
-) -> Optional[ResearchStream]:
-    """
-    Get a specific research stream by ID with access check (async).
+        Args:
+            user: The user creating the stream
+            scope: StreamScope.PERSONAL (default), ORGANIZATION, or GLOBAL
+            org_id: Override org_id (for org streams, uses user's org_id by default)
 
-    Returns:
-        ResearchStream model or None if not found/no access
-    """
-    # Check if user has access to this stream
-    accessible_ids = await async_get_accessible_stream_ids(db, user)
-
-    if stream_id not in accessible_ids:
-        return None
-
-    result = await db.execute(
-        select(ResearchStream).where(ResearchStream.stream_id == stream_id)
-    )
-    return result.scalars().first()
-
-
-async def async_create_research_stream(
-    db: AsyncSession,
-    user: User,
-    stream_name: str,
-    purpose: str,
-    scope: StreamScope,
-    semantic_space: Dict[str, Any],
-    retrieval_config: Dict[str, Any],
-    presentation_config: Dict[str, Any],
-    schedule_config: Optional[Dict[str, Any]] = None,
-    chat_instructions: Optional[str] = None,
-    org_id: Optional[int] = None,
-) -> ResearchStream:
-    """
-    Create a new research stream (async).
-
-    Args:
-        user: The user creating the stream
-        scope: StreamScope.PERSONAL (default), ORGANIZATION, or GLOBAL
-        org_id: Override org_id (for org streams, uses user's org_id by default)
-
-    Returns:
-        Created ResearchStream model
-    """
-    # Determine the correct user_id, org_id based on scope
-    stream_user_id = None
-    stream_org_id = org_id
-
-    if scope == StreamScope.PERSONAL:
-        stream_user_id = user.user_id
-        stream_org_id = user.org_id  # Personal streams use user's org
-    elif scope == StreamScope.ORGANIZATION:
-        stream_user_id = None  # Org streams have no owner
-        if not org_id:
-            stream_org_id = user.org_id  # Default to user's org
-    elif scope == StreamScope.GLOBAL:
+        Returns:
+            Created ResearchStream model
+        """
+        # Determine the correct user_id, org_id based on scope
         stream_user_id = None
-        stream_org_id = None
+        stream_org_id = org_id
 
-    # Serialize datetime objects in JSON fields
-    semantic_space = serialize_json_data(semantic_space)
-    retrieval_config = serialize_json_data(retrieval_config)
-    presentation_config = serialize_json_data(presentation_config)
+        if scope == StreamScope.PERSONAL:
+            stream_user_id = user.user_id
+            stream_org_id = user.org_id  # Personal streams use user's org
+        elif scope == StreamScope.ORGANIZATION:
+            stream_user_id = None  # Org streams have no owner
+            if not org_id:
+                stream_org_id = user.org_id  # Default to user's org
+        elif scope == StreamScope.GLOBAL:
+            stream_user_id = None
+            stream_org_id = None
 
-    stream = ResearchStream(
-        scope=scope,
-        org_id=stream_org_id,
-        user_id=stream_user_id,
-        created_by=user.user_id,  # Always track who created it
-        stream_name=stream_name,
-        purpose=purpose,
-        schedule_config=schedule_config,
-        chat_instructions=chat_instructions,
-        semantic_space=semantic_space,
-        retrieval_config=retrieval_config,
-        presentation_config=presentation_config,
-        is_active=True,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
-    )
+        # Serialize datetime objects in JSON fields
+        semantic_space = serialize_json_data(semantic_space)
+        retrieval_config = serialize_json_data(retrieval_config)
+        presentation_config = serialize_json_data(presentation_config)
 
-    db.add(stream)
-    await db.commit()
-    await db.refresh(stream)
-
-    return stream
-
-
-async def async_delete_research_stream(
-    db: AsyncSession,
-    user: User,
-    stream_id: int
-) -> bool:
-    """
-    Delete a research stream (async). Only owner can delete.
-
-    Returns:
-        True if deleted, False if not found or not authorized
-    """
-    from sqlalchemy import delete as sql_delete
-
-    # Check ownership - user must own the stream
-    result = await db.execute(
-        select(ResearchStream).where(
-            ResearchStream.stream_id == stream_id,
-            ResearchStream.user_id == user.user_id
+        stream = ResearchStream(
+            scope=scope,
+            org_id=stream_org_id,
+            user_id=stream_user_id,
+            created_by=user.user_id,  # Always track who created it
+            stream_name=stream_name,
+            purpose=purpose,
+            schedule_config=schedule_config,
+            chat_instructions=chat_instructions,
+            semantic_space=semantic_space,
+            retrieval_config=retrieval_config,
+            presentation_config=presentation_config,
+            is_active=True,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
         )
-    )
-    stream = result.scalars().first()
 
-    if not stream:
-        return False
+        self.db.add(stream)
+        await self.db.commit()
+        await self.db.refresh(stream)
 
-    # Delete associated reports first
-    await db.execute(
-        sql_delete(Report).where(Report.research_stream_id == stream_id)
-    )
+        return stream
 
-    # Delete the stream
-    await db.execute(
-        sql_delete(ResearchStream).where(ResearchStream.stream_id == stream_id)
-    )
-    await db.commit()
+    async def async_delete_research_stream(
+        self,
+        user: User,
+        stream_id: int
+    ) -> bool:
+        """
+        Delete a research stream (async). Only owner can delete.
 
-    return True
+        Returns:
+            True if deleted, False if not found or not authorized
+        """
+        from sqlalchemy import delete as sql_delete
+
+        # Check ownership - user must own the stream
+        result = await self.db.execute(
+            select(ResearchStream).where(
+                ResearchStream.stream_id == stream_id,
+                ResearchStream.user_id == user.user_id
+            )
+        )
+        stream = result.scalars().first()
+
+        if not stream:
+            return False
+
+        # Delete associated reports first
+        await self.db.execute(
+            sql_delete(Report).where(Report.research_stream_id == stream_id)
+        )
+
+        # Delete the stream
+        await self.db.execute(
+            sql_delete(ResearchStream).where(ResearchStream.stream_id == stream_id)
+        )
+        await self.db.commit()
+
+        return True
+
+    async def async_update_research_stream(
+        self,
+        stream_id: int,
+        update_data: Dict[str, Any]
+    ) -> Optional[ResearchStream]:
+        """
+        Update an existing research stream (async).
+
+        Returns:
+            Updated ResearchStream model or None if not found
+        """
+        from sqlalchemy.orm.attributes import flag_modified
+
+        result = await self.db.execute(
+            select(ResearchStream).where(ResearchStream.stream_id == stream_id)
+        )
+        stream = result.scalars().first()
+
+        if not stream:
+            return None
+
+        # JSON fields that need datetime serialization
+        json_fields = [
+            'semantic_space',
+            'retrieval_config',
+            'presentation_config',
+            'workflow_config',
+            'scoring_config',
+            'categories',
+            'audience',
+            'intended_guidance',
+            'global_inclusion',
+            'global_exclusion'
+        ]
+
+        # Update fields
+        for field, value in update_data.items():
+            if hasattr(stream, field):
+                # Serialize datetime objects in JSON fields
+                if field in json_fields and value is not None:
+                    value = serialize_json_data(value)
+
+                setattr(stream, field, value)
+
+                # Flag mutable fields as modified
+                if field in json_fields:
+                    flag_modified(stream, field)
+
+        stream.updated_at = datetime.utcnow()
+
+        await self.db.commit()
+        await self.db.refresh(stream)
+        return stream
+
+    async def async_update_broad_query(
+        self,
+        stream_id: int,
+        query_index: int,
+        query_expression: str
+    ) -> Optional[ResearchStream]:
+        """
+        Update a specific broad query's expression (async).
+
+        Returns:
+            Updated ResearchStream model or None if not found
+        """
+        from sqlalchemy.orm.attributes import flag_modified
+
+        result = await self.db.execute(
+            select(ResearchStream).where(ResearchStream.stream_id == stream_id)
+        )
+        stream = result.scalars().first()
+
+        if not stream:
+            return None
+
+        # Get retrieval config
+        retrieval_config = stream.retrieval_config or {}
+        broad_search = retrieval_config.get("broad_search", {})
+        queries = broad_search.get("queries", [])
+
+        # Validate query index
+        if query_index < 0 or query_index >= len(queries):
+            raise ValueError(f"Query index {query_index} out of range (0-{len(queries)-1})")
+
+        # Update the query expression
+        queries[query_index]["query_expression"] = query_expression
+
+        # Save back to database
+        broad_search["queries"] = queries
+        retrieval_config["broad_search"] = broad_search
+        stream.retrieval_config = retrieval_config
+
+        # Mark as modified
+        flag_modified(stream, "retrieval_config")
+        stream.updated_at = datetime.utcnow()
+
+        await self.db.commit()
+        await self.db.refresh(stream)
+        return stream
+
+    async def async_update_semantic_filter(
+        self,
+        stream_id: int,
+        query_index: int,
+        enabled: bool,
+        criteria: str,
+        threshold: float
+    ) -> Optional[ResearchStream]:
+        """
+        Update semantic filter configuration for a specific broad query (async).
+
+        Returns:
+            Updated ResearchStream model or None if not found
+        """
+        from sqlalchemy.orm.attributes import flag_modified
+
+        result = await self.db.execute(
+            select(ResearchStream).where(ResearchStream.stream_id == stream_id)
+        )
+        stream = result.scalars().first()
+
+        if not stream:
+            return None
+
+        # Get retrieval config
+        retrieval_config = stream.retrieval_config or {}
+        broad_search = retrieval_config.get("broad_search", {})
+        queries = broad_search.get("queries", [])
+
+        # Validate query index
+        if query_index < 0 or query_index >= len(queries):
+            raise ValueError(f"Query index {query_index} out of range (0-{len(queries)-1})")
+
+        # Update the semantic filter
+        queries[query_index]["semantic_filter"] = {
+            "enabled": enabled,
+            "criteria": criteria,
+            "threshold": threshold
+        }
+
+        # Save back
+        broad_search["queries"] = queries
+        retrieval_config["broad_search"] = broad_search
+        stream.retrieval_config = retrieval_config
+
+        flag_modified(stream, "retrieval_config")
+        stream.updated_at = datetime.utcnow()
+
+        await self.db.commit()
+        await self.db.refresh(stream)
+        return stream
 
 
-async def async_update_research_stream(
-    db: AsyncSession,
-    stream_id: int,
-    update_data: Dict[str, Any]
-) -> Optional[ResearchStream]:
-    """
-    Update an existing research stream (async).
-
-    Returns:
-        Updated ResearchStream model or None if not found
-    """
-    from sqlalchemy.orm.attributes import flag_modified
-
-    result = await db.execute(
-        select(ResearchStream).where(ResearchStream.stream_id == stream_id)
-    )
-    stream = result.scalars().first()
-
-    if not stream:
-        return None
-
-    # JSON fields that need datetime serialization
-    json_fields = [
-        'semantic_space',
-        'retrieval_config',
-        'presentation_config',
-        'workflow_config',
-        'scoring_config',
-        'categories',
-        'audience',
-        'intended_guidance',
-        'global_inclusion',
-        'global_exclusion'
-    ]
-
-    # Update fields
-    for field, value in update_data.items():
-        if hasattr(stream, field):
-            # Serialize datetime objects in JSON fields
-            if field in json_fields and value is not None:
-                value = serialize_json_data(value)
-
-            setattr(stream, field, value)
-
-            # Flag mutable fields as modified
-            if field in json_fields:
-                flag_modified(stream, field)
-
-    stream.updated_at = datetime.utcnow()
-
-    await db.commit()
-    await db.refresh(stream)
-    return stream
-
-
-async def async_update_broad_query(
-    db: AsyncSession,
-    stream_id: int,
-    query_index: int,
-    query_expression: str
-) -> Optional[ResearchStream]:
-    """
-    Update a specific broad query's expression (async).
-
-    Returns:
-        Updated ResearchStream model or None if not found
-    """
-    from sqlalchemy.orm.attributes import flag_modified
-
-    result = await db.execute(
-        select(ResearchStream).where(ResearchStream.stream_id == stream_id)
-    )
-    stream = result.scalars().first()
-
-    if not stream:
-        return None
-
-    # Get retrieval config
-    retrieval_config = stream.retrieval_config or {}
-    broad_search = retrieval_config.get("broad_search", {})
-    queries = broad_search.get("queries", [])
-
-    # Validate query index
-    if query_index < 0 or query_index >= len(queries):
-        raise ValueError(f"Query index {query_index} out of range (0-{len(queries)-1})")
-
-    # Update the query expression
-    queries[query_index]["query_expression"] = query_expression
-
-    # Save back to database
-    broad_search["queries"] = queries
-    retrieval_config["broad_search"] = broad_search
-    stream.retrieval_config = retrieval_config
-
-    # Mark as modified
-    flag_modified(stream, "retrieval_config")
-    stream.updated_at = datetime.utcnow()
-
-    await db.commit()
-    await db.refresh(stream)
-    return stream
-
-
-async def async_update_semantic_filter(
-    db: AsyncSession,
-    stream_id: int,
-    query_index: int,
-    enabled: bool,
-    criteria: str,
-    threshold: float
-) -> Optional[ResearchStream]:
-    """
-    Update semantic filter configuration for a specific broad query (async).
-
-    Returns:
-        Updated ResearchStream model or None if not found
-    """
-    from sqlalchemy.orm.attributes import flag_modified
-
-    result = await db.execute(
-        select(ResearchStream).where(ResearchStream.stream_id == stream_id)
-    )
-    stream = result.scalars().first()
-
-    if not stream:
-        return None
-
-    # Get retrieval config
-    retrieval_config = stream.retrieval_config or {}
-    broad_search = retrieval_config.get("broad_search", {})
-    queries = broad_search.get("queries", [])
-
-    # Validate query index
-    if query_index < 0 or query_index >= len(queries):
-        raise ValueError(f"Query index {query_index} out of range (0-{len(queries)-1})")
-
-    # Update the semantic filter
-    queries[query_index]["semantic_filter"] = {
-        "enabled": enabled,
-        "criteria": criteria,
-        "threshold": threshold
-    }
-
-    # Save back
-    broad_search["queries"] = queries
-    retrieval_config["broad_search"] = broad_search
-    stream.retrieval_config = retrieval_config
-
-    flag_modified(stream, "retrieval_config")
-    stream.updated_at = datetime.utcnow()
-
-    await db.commit()
-    await db.refresh(stream)
-    return stream
+# Dependency injection provider for async research stream service
+async def get_async_research_stream_service(
+    db: AsyncSession = Depends(get_async_db)
+) -> ResearchStreamService:
+    """Get a ResearchStreamService instance with async database session."""
+    return ResearchStreamService(db)

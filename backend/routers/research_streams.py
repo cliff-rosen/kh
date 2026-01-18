@@ -13,8 +13,7 @@ import json
 
 logger = logging.getLogger(__name__)
 
-from database import get_db, get_async_db
-from sqlalchemy.ext.asyncio import AsyncSession
+from database import get_db
 from models import User, RunType, StreamScope, UserRole
 
 from schemas.research_stream import (
@@ -37,14 +36,7 @@ from schemas.canonical_types import CanonicalResearchArticle
 
 from services.research_stream_service import (
     ResearchStreamService,
-    async_get_user_research_streams,
-    async_get_research_stream,
-    async_get_accessible_stream_ids,
-    async_create_research_stream,
-    async_update_research_stream,
-    async_update_broad_query,
-    async_update_semantic_filter,
-    async_delete_research_stream,
+    get_async_research_stream_service,
 )
 from services.retrieval_query_service import RetrievalQueryService
 from services.concept_proposal_service import ConceptProposalService
@@ -138,15 +130,15 @@ class ToggleStatusRequest(BaseModel):
 
 @router.get("", response_model=List[ResearchStream])
 async def get_research_streams(
-    db: AsyncSession = Depends(get_async_db),
+    service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """Get all research streams for the current user (async)"""
     logger.info(f"get_research_streams - user_id={current_user.user_id}")
 
     try:
-        # Use async function directly (no service instantiation needed)
-        results = await async_get_user_research_streams(db, current_user)
+        # Use async method on service
+        results = await service.async_get_user_research_streams(current_user)
 
         # Convert dataclasses to schemas at API boundary
         streams = [
@@ -173,15 +165,15 @@ async def get_research_streams(
 @track_endpoint("view_stream")
 async def get_research_stream(
     stream_id: int,
-    db: AsyncSession = Depends(get_async_db),
+    service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """Get a specific research stream by ID (async)"""
     logger.info(f"get_research_stream - user_id={current_user.user_id}, stream_id={stream_id}")
 
     try:
-        # Use async function for access check and retrieval
-        stream = await async_get_research_stream(db, current_user, stream_id)
+        # Use async method for access check and retrieval
+        stream = await service.async_get_research_stream(current_user, stream_id)
 
         if not stream:
             logger.warning(f"get_research_stream - not found - user_id={current_user.user_id}, stream_id={stream_id}")
@@ -209,7 +201,7 @@ async def get_research_stream(
 @router.post("", response_model=ResearchStream, status_code=status.HTTP_201_CREATED)
 async def create_research_stream(
     request: ResearchStreamCreateRequest,
-    db: AsyncSession = Depends(get_async_db),
+    service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -258,8 +250,7 @@ async def create_research_stream(
         presentation_config_dict = request.presentation_config.model_dump() if hasattr(request.presentation_config, 'model_dump') else request.presentation_config
         schedule_config_dict = request.schedule_config.model_dump() if request.schedule_config and hasattr(request.schedule_config, 'model_dump') else request.schedule_config
 
-        stream = await async_create_research_stream(
-            db=db,
+        stream = await service.async_create_research_stream(
             user=current_user,
             stream_name=request.stream_name,
             purpose=request.purpose,
@@ -292,15 +283,15 @@ async def create_research_stream(
 async def update_research_stream(
     stream_id: int,
     request: ResearchStreamUpdateRequest,
-    db: AsyncSession = Depends(get_async_db),
+    service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """Update an existing research stream (async)"""
     logger.info(f"update_research_stream - user_id={current_user.user_id}, stream_id={stream_id}")
 
     try:
-        # Verify access using async function
-        existing_stream = await async_get_research_stream(db, current_user, stream_id)
+        # Verify access using async method
+        existing_stream = await service.async_get_research_stream(current_user, stream_id)
         if not existing_stream:
             logger.warning(f"update_research_stream - not found - user_id={current_user.user_id}, stream_id={stream_id}")
             raise HTTPException(
@@ -319,7 +310,7 @@ async def update_research_stream(
             if hasattr(update_data['scoring_config'], 'dict'):
                 update_data['scoring_config'] = update_data['scoring_config'].dict()
 
-        stream = await async_update_research_stream(db, stream_id, update_data)
+        stream = await service.async_update_research_stream(stream_id, update_data)
         if not stream:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -345,15 +336,15 @@ async def update_research_stream(
 @router.delete("/{stream_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_research_stream(
     stream_id: int,
-    db: AsyncSession = Depends(get_async_db),
+    service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """Delete a research stream (async)"""
     logger.info(f"delete_research_stream - user_id={current_user.user_id}, stream_id={stream_id}")
 
     try:
-        # Verify access using async function
-        existing_stream = await async_get_research_stream(db, current_user, stream_id)
+        # Verify access using async method
+        existing_stream = await service.async_get_research_stream(current_user, stream_id)
         if not existing_stream:
             logger.warning(f"delete_research_stream - not found - user_id={current_user.user_id}, stream_id={stream_id}")
             raise HTTPException(
@@ -364,7 +355,7 @@ async def delete_research_stream(
         # Check if user can modify this stream (based on scope and role)
         _check_can_modify_stream(existing_stream, current_user)
 
-        deleted = await async_delete_research_stream(db, current_user, stream_id)
+        deleted = await service.async_delete_research_stream(current_user, stream_id)
         if not deleted:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -387,15 +378,15 @@ async def delete_research_stream(
 async def toggle_research_stream_status(
     stream_id: int,
     request: ToggleStatusRequest,
-    db: AsyncSession = Depends(get_async_db),
+    service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """Toggle research stream active status (async)"""
     logger.info(f"toggle_research_stream_status - user_id={current_user.user_id}, stream_id={stream_id}, is_active={request.is_active}")
 
     try:
-        # Verify access using async function
-        existing_stream = await async_get_research_stream(db, current_user, stream_id)
+        # Verify access using async method
+        existing_stream = await service.async_get_research_stream(current_user, stream_id)
         if not existing_stream:
             logger.warning(f"toggle_research_stream_status - not found - user_id={current_user.user_id}, stream_id={stream_id}")
             raise HTTPException(
@@ -406,7 +397,7 @@ async def toggle_research_stream_status(
         # Check if user can modify this stream (based on scope and role)
         _check_can_modify_stream(existing_stream, current_user)
 
-        stream = await async_update_research_stream(db, stream_id, {"is_active": request.is_active})
+        stream = await service.async_update_research_stream(stream_id, {"is_active": request.is_active})
         if not stream:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -451,7 +442,7 @@ async def update_broad_query(
     stream_id: int,
     query_index: int,
     request: UpdateBroadQueryRequest,
-    db: AsyncSession = Depends(get_async_db),
+    service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -469,8 +460,8 @@ async def update_broad_query(
     logger.info(f"update_broad_query - user_id={current_user.user_id}, stream_id={stream_id}, query_index={query_index}")
 
     try:
-        # Verify access using async function
-        stream = await async_get_research_stream(db, current_user, stream_id)
+        # Verify access using async method
+        stream = await service.async_get_research_stream(current_user, stream_id)
         if not stream:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -480,9 +471,8 @@ async def update_broad_query(
         # Check if user can modify this stream (based on scope and role)
         _check_can_modify_stream(stream, current_user)
 
-        # Update via async function
-        updated_stream = await async_update_broad_query(
-            db=db,
+        # Update via async method
+        updated_stream = await service.async_update_broad_query(
             stream_id=stream_id,
             query_index=query_index,
             query_expression=request.query_expression
@@ -521,7 +511,7 @@ async def update_semantic_filter(
     stream_id: int,
     query_index: int,
     request: UpdateSemanticFilterRequest,
-    db: AsyncSession = Depends(get_async_db),
+    service: ResearchStreamService = Depends(get_async_research_stream_service),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -539,8 +529,8 @@ async def update_semantic_filter(
     logger.info(f"update_semantic_filter - user_id={current_user.user_id}, stream_id={stream_id}, query_index={query_index}")
 
     try:
-        # Verify access using async function
-        stream = await async_get_research_stream(db, current_user, stream_id)
+        # Verify access using async method
+        stream = await service.async_get_research_stream(current_user, stream_id)
         if not stream:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -550,9 +540,8 @@ async def update_semantic_filter(
         # Check if user can modify this stream (based on scope and role)
         _check_can_modify_stream(stream, current_user)
 
-        # Update via async function
-        updated_stream = await async_update_semantic_filter(
-            db=db,
+        # Update via async method
+        updated_stream = await service.async_update_semantic_filter(
             stream_id=stream_id,
             query_index=query_index,
             enabled=request.enabled,
