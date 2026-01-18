@@ -12,7 +12,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from schemas.semantic_space import SemanticSpace, Topic, Entity
 from schemas.research_stream import Concept, VolumeStatus, SourceQuery, SemanticFilter, RelationshipEdge, ConceptEntity
@@ -45,7 +45,7 @@ class ConceptProposalResult:
 class ConceptProposalService:
     """Service for generating concept proposals from semantic space analysis"""
 
-    def __init__(self, db: Session, user_id: int):
+    def __init__(self, db: AsyncSession, user_id: int):
         self.db = db
         self.user_id = user_id
 

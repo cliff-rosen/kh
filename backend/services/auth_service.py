@@ -15,13 +15,12 @@ from jose import JWTError, ExpiredSignatureError, jwt
 from passlib.context import CryptContext
 from fastapi import HTTPException, status, Depends, Security, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from models import User
 from schemas.user import Token
 from services.user_service import UserService
 from config.settings import settings
-from database import get_db, get_async_db
+from database import get_async_db
 import logging
 import time
 import traceback
@@ -120,131 +119,7 @@ def _create_token_for_user(user: User) -> Token:
     )
 
 
-async def register_and_login_user(
-    db: Session,
-    email: str,
-    password: str,
-    invitation_token: Optional[str] = None
-) -> Token:
-    """
-    Register a new user and automatically log them in.
-
-    Args:
-        db: Database session
-        email: User's email address
-        password: User's password
-        invitation_token: Optional invitation token for org assignment
-
-    Returns:
-        Token with JWT and user info
-
-    Raises:
-        HTTPException: If email already exists or invitation invalid
-    """
-    from services.user_service import UserService
-    from models import Invitation, Organization, UserRole as UserRoleModel
-    from schemas.user import UserRole
-    from datetime import datetime
-
-    logger.info(f"Registering new user: {email}")
-
-    # Determine org_id and role from invitation or default
-    org_id = None
-    role = UserRole.MEMBER
-
-    if invitation_token:
-        # Validate invitation
-        invitation = db.query(Invitation).filter(
-            Invitation.token == invitation_token,
-            Invitation.is_revoked == False,
-            Invitation.accepted_at == None
-        ).first()
-
-        if not invitation:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid or expired invitation"
-            )
-
-        if invitation.expires_at < datetime.utcnow():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invitation has expired"
-            )
-
-        if invitation.email.lower() != email.lower():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email does not match invitation"
-            )
-
-        # Use invitation settings
-        org_id = invitation.org_id
-        role = UserRole(invitation.role)
-
-        # Mark invitation as accepted
-        invitation.accepted_at = datetime.utcnow()
-        db.commit()
-
-        logger.info(f"User {email} registered via invitation to org {org_id}")
-    else:
-        # No invitation - assign to default organization
-        default_org = db.query(Organization).filter(
-            Organization.name == "Default Organization"
-        ).first()
-
-        if default_org:
-            org_id = default_org.org_id
-            logger.info(f"User {email} assigned to default organization (id={org_id})")
-        else:
-            logger.warning(f"No default organization found for user {email}")
-
-    user_service = UserService(db)
-    user = user_service.create_user(
-        email=email,
-        password=password,
-        role=role,
-        org_id=org_id
-    )
-
-    logger.info(f"Successfully registered user: {email}")
-    return _create_token_for_user(user)
-
-
-async def login_user(db: Session, email: str, password: str) -> Token:
-    """
-    Authenticate user and return JWT token (sync db version).
-
-    Args:
-        db: Database session
-        email: User's email
-        password: User's password
-
-    Returns:
-        Token with JWT and user info
-
-    Raises:
-        HTTPException: If credentials invalid or user inactive
-    """
-    from services.user_service import UserService
-
-    logger.info(f"Login attempt for: {email}")
-
-    user_service = UserService(db)
-    user = user_service.verify_credentials(email, password)
-
-    if not user:
-        logger.warning(f"Failed login attempt for: {email}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password"
-        )
-
-    logger.info(f"Successful login for: {email}")
-    return _create_token_for_user(user)
-
-
-async def async_login_user(db: AsyncSession, email: str, password: str) -> Token:
+async def login_user(db: AsyncSession, email: str, password: str) -> Token:
     """
     Authenticate user and return JWT token (async).
 
@@ -277,14 +152,14 @@ async def async_login_user(db: AsyncSession, email: str, password: str) -> Token
     return _create_token_for_user(user)
 
 
-async def async_register_and_login_user(
+async def register_and_login_user(
     db: AsyncSession,
     email: str,
     password: str,
     invitation_token: Optional[str] = None
 ) -> Token:
     """
-    Register a new user and automatically log them in (async).
+    Register a new user and automatically log them in.
 
     Args:
         db: Async database session

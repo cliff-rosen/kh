@@ -15,7 +15,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from schemas.semantic_space import SemanticSpace, Topic
 from schemas.research_stream import BroadQuery, BroadSearchStrategy
@@ -43,7 +43,7 @@ class BroadSearchProposalResult:
 class BroadSearchService:
     """Service for generating broad search strategies from semantic space"""
 
-    def __init__(self, db: Session, user_id: int):
+    def __init__(self, db: AsyncSession, user_id: int):
         self.db = db
         self.user_id = user_id
 

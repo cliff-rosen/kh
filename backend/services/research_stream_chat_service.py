@@ -3,7 +3,7 @@ Research Stream Chat Service for AI-guided research stream creation
 Handles the interview flow and LLM integration
 """
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, List, Optional, AsyncGenerator
 import anthropic
 import os
@@ -15,7 +15,7 @@ STREAM_CHAT_MODEL = "claude-sonnet-4-20250514"
 STREAM_CHAT_MAX_TOKENS = 2000
 
 class ResearchStreamChatService:
-    def __init__(self, db: Session, user_id: int):
+    def __init__(self, db: AsyncSession, user_id: int):
         self.db = db
         self.user_id = user_id
         self.client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))

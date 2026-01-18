@@ -13,7 +13,6 @@ import aiohttp
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urlparse, urljoin
-from sqlalchemy.orm import Session
 
 from config.settings import settings
 from schemas.canonical_types import CanonicalWebpage

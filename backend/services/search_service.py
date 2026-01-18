@@ -10,7 +10,6 @@ from datetime import datetime
 import logging
 import asyncio
 import aiohttp
-from sqlalchemy.orm import Session
 
 from config.settings import settings
 from schemas.canonical_types import CanonicalSearchResult

@@ -7,7 +7,7 @@ This replaces the old channel-based query generation with topic-based generation
 
 import logging
 from typing import List, Dict, Any, Tuple, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from schemas.semantic_space import Topic, Entity, Relationship, SemanticSpace, SemanticContext
 from schemas.sources import INFORMATION_SOURCES
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class RetrievalQueryService:
     """Service for generating retrieval queries from semantic space topics"""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
         self.stream_service = ResearchStreamService(db)
 

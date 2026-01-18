@@ -67,7 +67,7 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_async_db)):
     If an invitation token is provided, user is assigned to the organization and role
     specified in the invitation.
     """
-    return await auth_service.async_register_and_login_user(
+    return await auth_service.register_and_login_user(
         db, user.email, user.password, user.invitation_token
     )
 
@@ -161,7 +161,7 @@ async def login(
     - **username**: user's username
     """
     try:
-        token = await auth_service.async_login_user(db, username, password)
+        token = await auth_service.login_user(db, username, password)
         return token
     except HTTPException as e:
         raise e

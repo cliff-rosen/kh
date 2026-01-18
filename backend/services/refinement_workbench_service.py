@@ -5,8 +5,7 @@ Service for testing and refining queries, filters, and categorization.
 Provides isolated testing capabilities for each pipeline component.
 """
 
-from typing import List, Dict, Tuple, Union
-from sqlalchemy.orm import Session
+from typing import List, Dict, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import logging
@@ -23,12 +22,9 @@ logger = logging.getLogger(__name__)
 
 
 class RefinementWorkbenchService:
-    """Service for refinement workbench operations.
+    """Service for refinement workbench operations."""
 
-    Supports both sync (Session) and async (AsyncSession) database access.
-    """
-
-    def __init__(self, db: Union[Session, AsyncSession]):
+    def __init__(self, db: AsyncSession):
         self.MAX_ARTICLES_PER_SOURCE = 500
         self.db = db
         self.pubmed_service = PubMedService()

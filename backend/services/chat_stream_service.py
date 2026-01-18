@@ -5,9 +5,8 @@ Handles LLM streaming interaction for the chat system with tool support.
 Uses the agent_loop for agentic processing. Handles chat persistence automatically.
 """
 
-from typing import Dict, Any, AsyncGenerator, List, Optional, Tuple, Union
+from typing import Dict, Any, AsyncGenerator, List, Optional, Tuple
 from datetime import datetime
-from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import anthropic
@@ -55,13 +54,9 @@ MAX_TOOL_ITERATIONS = 5
 
 
 class ChatStreamService:
-    """Service for streaming chat interactions with tool support.
+    """Service for streaming chat interactions with tool support."""
 
-    Supports both sync (Session) and async (AsyncSession) database access.
-    Use async methods when using AsyncSession.
-    """
-
-    def __init__(self, db: Union[Session, AsyncSession], user_id: int):
+    def __init__(self, db: AsyncSession, user_id: int):
         self.db = db
         self.user_id = user_id
         self.async_client = anthropic.AsyncAnthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))

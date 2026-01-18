@@ -4,12 +4,11 @@ Event Tracking Service for SmartSearch2
 Simple service for tracking user events in their search journey.
 """
 
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from uuid import uuid4
-from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, select
 
 from models import UserEvent, EventType
 
@@ -17,13 +16,13 @@ from models import UserEvent, EventType
 class EventTracker:
     """Service for tracking user events"""
 
-    def __init__(self, db: Union[Session, AsyncSession]):
-        """Initialize with database session"""
+    def __init__(self, db: AsyncSession):
+        """Initialize with async database session"""
         self.db = db
         self.user_id: Optional[str] = None
         self.journey_id: Optional[str] = None
 
-    def track_event(
+    async def track_event(
         self,
         user_id: str,
         journey_id: str,
@@ -51,43 +50,11 @@ class EventTracker:
         )
 
         self.db.add(event)
-        self.db.commit()
-
-        return event.event_id
-
-    async def async_track_event(
-        self,
-        user_id: str,
-        journey_id: str,
-        event_type: EventType,
-        event_data: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """
-        Track a single event (async version)
-
-        Args:
-            user_id: User identifier
-            journey_id: Journey identifier
-            event_type: Type of event from EventType enum
-            event_data: Optional event-specific data
-
-        Returns:
-            Event ID
-        """
-        event = UserEvent(
-            user_id=user_id,
-            journey_id=journey_id,
-            event_type=event_type,
-            event_data=event_data or {},
-            timestamp=datetime.utcnow()
-        )
-
-        self.db.add(event)
         await self.db.commit()
 
         return event.event_id
 
-    def track(
+    async def track(
         self,
         event_type: EventType,
         event_data: Optional[Dict[str, Any]] = None
@@ -105,14 +72,14 @@ class EventTracker:
         if not self.user_id or not self.journey_id:
             raise ValueError("user_id and journey_id must be set before tracking")
 
-        return self.track_event(
+        return await self.track_event(
             user_id=self.user_id,
             journey_id=self.journey_id,
             event_type=event_type,
             event_data=event_data
         )
 
-    def start_journey(
+    async def start_journey(
         self,
         user_id: str,
         source: str = "pubmed",
@@ -131,7 +98,7 @@ class EventTracker:
         """
         journey_id = str(uuid4())
 
-        self.track_event(
+        await self.track_event(
             user_id=user_id,
             journey_id=journey_id,
             event_type=EventType.JOURNEY_START,
@@ -143,21 +110,21 @@ class EventTracker:
 
         return journey_id
 
-    def complete_journey(
+    async def complete_journey(
         self,
         user_id: str,
         journey_id: str,
         total_articles: int = 0
     ) -> None:
         """Mark a journey as completed"""
-        self.track_event(
+        await self.track_event(
             user_id=user_id,
             journey_id=journey_id,
             event_type=EventType.JOURNEY_COMPLETE,
             event_data={"total_articles": total_articles}
         )
 
-    def get_journey_events(
+    async def get_journey_events(
         self,
         journey_id: str,
         event_type: Optional[EventType] = None
@@ -172,16 +139,18 @@ class EventTracker:
         Returns:
             List of events ordered by timestamp
         """
-        query = self.db.query(UserEvent).filter(
+        stmt = select(UserEvent).where(
             UserEvent.journey_id == journey_id
         )
 
         if event_type:
-            query = query.filter(UserEvent.event_type == event_type)
+            stmt = stmt.where(UserEvent.event_type == event_type)
 
-        return query.order_by(UserEvent.timestamp).all()
+        stmt = stmt.order_by(UserEvent.timestamp)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
 
-    def get_user_journeys(
+    async def get_user_journeys(
         self,
         user_id: str,
         limit: int = 10
@@ -198,19 +167,22 @@ class EventTracker:
         """
         # Get distinct journey IDs with their first event times
         # Since we don't always have JOURNEY_START events, use the earliest event per journey
-        journeys = self.db.query(
+        stmt = select(
             UserEvent.journey_id,
             func.min(UserEvent.timestamp).label('start_time'),
             func.max(UserEvent.timestamp).label('last_time'),
             func.count(UserEvent.event_id).label('event_count'),
             func.max(UserEvent.event_type).label('last_event_type')
-        ).filter(
+        ).where(
             UserEvent.user_id == user_id
         ).group_by(
             UserEvent.journey_id
         ).order_by(
             func.min(UserEvent.timestamp).desc()
-        ).limit(limit).all()
+        ).limit(limit)
+
+        result = await self.db.execute(stmt)
+        journeys = result.all()
 
         journey_summaries = []
         for journey_id, start_time, last_time, event_count, last_event_type in journeys:
@@ -229,7 +201,7 @@ class EventTracker:
 
         return journey_summaries
 
-    def get_all_user_journeys(
+    async def get_all_user_journeys(
         self,
         limit: int = 50
     ) -> List[Dict[str, Any]]:
@@ -246,7 +218,7 @@ class EventTracker:
 
         # Get distinct journey IDs with their first event times and user info
         # Since we don't always have JOURNEY_START events, use the earliest event per journey
-        journeys = self.db.query(
+        stmt = select(
             UserEvent.journey_id,
             UserEvent.user_id,
             func.min(UserEvent.timestamp).label('start_time'),
@@ -260,7 +232,10 @@ class EventTracker:
             UserEvent.journey_id, UserEvent.user_id, User.email
         ).order_by(
             func.min(UserEvent.timestamp).desc()
-        ).limit(limit).all()
+        ).limit(limit)
+
+        result = await self.db.execute(stmt)
+        journeys = result.all()
 
         journey_summaries = []
         for journey_id, user_id, start_time, last_time, event_count, last_event_type, email in journeys:
@@ -281,7 +256,7 @@ class EventTracker:
 
         return journey_summaries
 
-    def get_journey_analytics(
+    async def get_journey_analytics(
         self,
         journey_id: str
     ) -> Dict[str, Any]:
@@ -294,7 +269,7 @@ class EventTracker:
         Returns:
             Analytics dictionary with funnel, timeline, and metrics
         """
-        events = self.get_journey_events(journey_id)
+        events = await self.get_journey_events(journey_id)
 
         if not events:
             return {"error": "Journey not found"}
@@ -345,3 +320,15 @@ class EventTracker:
                 "is_complete": funnel_steps["journey_complete"]
             }
         }
+
+
+# Dependency injection provider
+from fastapi import Depends
+from database import get_async_db
+
+
+async def get_async_event_tracker(
+    db: AsyncSession = Depends(get_async_db)
+) -> EventTracker:
+    """Get an EventTracker instance with async database session."""
+    return EventTracker(db)
