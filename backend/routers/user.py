@@ -4,16 +4,17 @@ Accessed via the profile icon in the top nav.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from pydantic import BaseModel, Field
 from typing import Optional
 import logging
 
-from database import get_db
+from database import get_async_db
 from models import User, UserRole
 from schemas.user import User as UserSchema
 from services import auth_service
-from services.user_service import UserService
+from services.user_service import UserService, get_async_user_service
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +43,7 @@ class PasswordChange(BaseModel):
     summary="Get current user profile"
 )
 async def get_current_user(
-    current_user: User = Depends(auth_service.validate_token),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(auth_service.validate_token)
 ):
     """
     Get the current user's profile information.
@@ -60,7 +60,7 @@ async def get_current_user(
 async def update_current_user(
     updates: UserUpdate,
     current_user: User = Depends(auth_service.validate_token),
-    db: Session = Depends(get_db)
+    user_service: UserService = Depends(get_async_user_service)
 ):
     """
     Update the current user's profile.
@@ -69,17 +69,14 @@ async def update_current_user(
     - full_name: User's display name
     - job_title: User's job title
     """
-    user_service = UserService(db)
-
     update_dict = updates.model_dump(exclude_unset=True)
     if not update_dict:
         # No updates provided, return current user
         return UserSchema.model_validate(current_user)
 
-    updated_user = user_service.update_user(
+    updated_user = await user_service.async_update_user(
         user_id=current_user.user_id,
-        updates=update_dict,
-        updated_by=current_user
+        updates=update_dict
     )
 
     return UserSchema.model_validate(updated_user)
@@ -92,7 +89,7 @@ async def update_current_user(
 async def change_password(
     password_data: PasswordChange,
     current_user: User = Depends(auth_service.validate_token),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Change the current user's password.
@@ -111,7 +108,7 @@ async def change_password(
     # Hash and save new password
     new_hashed_password = auth_service.get_password_hash(password_data.new_password)
     current_user.password = new_hashed_password
-    db.commit()
+    await db.commit()
 
     logger.info(f"Password changed for user {current_user.user_id}")
 
@@ -134,27 +131,33 @@ class AdminUserResponse(BaseModel):
 )
 async def get_admin_users(
     current_user: User = Depends(auth_service.validate_token),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Get list of admin users who can approve reports.
     Returns platform admins and organization admins for the user's organization.
     """
     # Get platform admins
-    platform_admins = db.query(User).filter(
-        User.role == UserRole.PLATFORM_ADMIN,
-        User.is_active == True
-    ).all()
+    platform_admins_result = await db.execute(
+        select(User).where(
+            User.role == UserRole.PLATFORM_ADMIN,
+            User.is_active == True
+        )
+    )
+    platform_admins = list(platform_admins_result.scalars().all())
 
     # Get org admins for user's organization
     org_admins = []
     if current_user.org_id:
-        org_admins = db.query(User).filter(
-            User.org_id == current_user.org_id,
-            User.role == UserRole.ORG_ADMIN,
-            User.is_active == True,
-            User.user_id != current_user.user_id  # Exclude self
-        ).all()
+        org_admins_result = await db.execute(
+            select(User).where(
+                User.org_id == current_user.org_id,
+                User.role == UserRole.ORG_ADMIN,
+                User.is_active == True,
+                User.user_id != current_user.user_id  # Exclude self
+            )
+        )
+        org_admins = list(org_admins_result.scalars().all())
 
     # Combine and deduplicate
     admin_ids = set()

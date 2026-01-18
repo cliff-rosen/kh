@@ -12,24 +12,28 @@ Authentication (tokens, passwords) is handled by auth_service.
 
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, select
-from typing import Optional, List, Dict, Any, Union
+from sqlalchemy import and_, select, func
+from typing import Optional, List, Dict, Any, Union, Tuple
 from datetime import datetime
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Depends
 from passlib.context import CryptContext
 import logging
 
 from models import User as UserModel, Organization, UserRole as UserRoleModel
 from schemas.user import UserRole, OrgMember
+from database import get_async_db
 
 logger = logging.getLogger(__name__)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class UserService:
-    """Service for user management operations."""
+    """Service for user management operations.
 
-    def __init__(self, db: Session):
+    Supports both sync (Session) and async (AsyncSession) database access.
+    """
+
+    def __init__(self, db: Session | AsyncSession):
         self.db = db
 
     # ==================== Create Operations ====================
@@ -627,3 +631,282 @@ class UserService:
                 return True
 
         return False
+
+    # ==================== Async Methods ====================
+
+    async def async_get_user_by_id(self, user_id: int) -> Optional[UserModel]:
+        """Get user by ID (async). Returns None if not found."""
+        result = await self.db.execute(
+            select(UserModel).where(UserModel.user_id == user_id)
+        )
+        return result.scalars().first()
+
+    async def async_get_user_by_email(self, email: str) -> Optional[UserModel]:
+        """Get user by email (async)."""
+        result = await self.db.execute(
+            select(UserModel).where(UserModel.email == email)
+        )
+        return result.scalars().first()
+
+    async def async_get_user_by_login_token(self, token: str) -> Optional[UserModel]:
+        """Get user by valid (non-expired) login token (async)."""
+        result = await self.db.execute(
+            select(UserModel).where(
+                UserModel.login_token == token,
+                UserModel.login_token_expires > datetime.utcnow()
+            )
+        )
+        return result.scalars().first()
+
+    async def async_get_user_by_password_reset_token(self, token: str) -> Optional[UserModel]:
+        """Get user by valid (non-expired) password reset token (async)."""
+        result = await self.db.execute(
+            select(UserModel).where(
+                UserModel.password_reset_token == token,
+                UserModel.password_reset_token_expires > datetime.utcnow()
+            )
+        )
+        return result.scalars().first()
+
+    async def async_list_users(
+        self,
+        org_id: Optional[int] = None,
+        role: Optional[UserRole] = None,
+        is_active: Optional[bool] = None,
+        limit: int = 100,
+        offset: int = 0
+    ) -> Tuple[List[UserModel], int]:
+        """List users with optional filters (async)."""
+        # Build where clauses
+        where_clauses = []
+        if org_id is not None:
+            where_clauses.append(UserModel.org_id == org_id)
+        if role is not None:
+            where_clauses.append(UserModel.role == UserRoleModel(role.value))
+        if is_active is not None:
+            where_clauses.append(UserModel.is_active == is_active)
+
+        # Get total count
+        count_stmt = select(func.count(UserModel.user_id))
+        if where_clauses:
+            count_stmt = count_stmt.where(*where_clauses)
+        count_result = await self.db.execute(count_stmt)
+        total = count_result.scalar() or 0
+
+        # Get users
+        stmt = select(UserModel).order_by(UserModel.user_id).offset(offset).limit(limit)
+        if where_clauses:
+            stmt = stmt.where(*where_clauses)
+        result = await self.db.execute(stmt)
+        users = list(result.scalars().all())
+
+        return users, total
+
+    async def async_get_org_members(self, org_id: int) -> List[OrgMember]:
+        """Get all members of an organization (async)."""
+        result = await self.db.execute(
+            select(UserModel)
+            .where(UserModel.org_id == org_id)
+            .order_by(UserModel.full_name, UserModel.email)
+        )
+        users = result.scalars().all()
+
+        return [
+            OrgMember(
+                user_id=u.user_id,
+                email=u.email,
+                full_name=u.full_name,
+                role=UserRole(u.role.value),
+                joined_at=u.created_at
+            )
+            for u in users
+        ]
+
+    async def async_create_user(
+        self,
+        email: str,
+        password: str,
+        full_name: Optional[str] = None,
+        role: UserRole = UserRole.MEMBER,
+        org_id: Optional[int] = None
+    ) -> UserModel:
+        """Create a new user (async)."""
+        # Check for existing email
+        existing = await self.async_get_user_by_email(email)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+
+        # Validate org_id if provided
+        if org_id:
+            org_result = await self.db.execute(
+                select(Organization).where(Organization.org_id == org_id)
+            )
+            org = org_result.scalars().first()
+            if not org:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Organization not found"
+                )
+
+        # Create user
+        hashed_password = pwd_context.hash(password)
+        user = UserModel(
+            email=email,
+            password=hashed_password,
+            full_name=full_name,
+            role=UserRoleModel(role.value),
+            org_id=org_id
+        )
+
+        self.db.add(user)
+        await self.db.commit()
+        await self.db.refresh(user)
+
+        logger.info(f"Created user: {email} (id={user.user_id})")
+        return user
+
+    async def async_update_user(
+        self,
+        user_id: int,
+        updates: Dict[str, Any]
+    ) -> UserModel:
+        """Update user fields (async)."""
+        user = await self.async_get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        # Only allow updating specific fields
+        allowed_fields = {'full_name', 'job_title', 'is_active'}
+        for field, value in updates.items():
+            if field in allowed_fields and value is not None:
+                setattr(user, field, value)
+
+        await self.db.commit()
+        await self.db.refresh(user)
+
+        logger.info(f"Updated user {user_id}: {list(updates.keys())}")
+        return user
+
+    async def async_update_login_token(
+        self,
+        user_id: int,
+        token: Optional[str],
+        expires_at: Optional[datetime]
+    ) -> UserModel:
+        """Update user's login token (async)."""
+        user = await self.async_get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        user.login_token = token
+        user.login_token_expires = expires_at
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user
+
+    async def async_clear_login_token(self, user_id: int) -> UserModel:
+        """Clear user's login token after use (async)."""
+        return await self.async_update_login_token(user_id, None, None)
+
+    async def async_update_password_reset_token(
+        self,
+        user_id: int,
+        token: Optional[str],
+        expires_at: Optional[datetime]
+    ) -> UserModel:
+        """Update user's password reset token (async)."""
+        user = await self.async_get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        user.password_reset_token = token
+        user.password_reset_token_expires = expires_at
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user
+
+    async def async_clear_password_reset_token(self, user_id: int) -> UserModel:
+        """Clear user's password reset token after use (async)."""
+        return await self.async_update_password_reset_token(user_id, None, None)
+
+    async def async_verify_credentials(self, email: str, password: str) -> Optional[UserModel]:
+        """Verify user credentials (async)."""
+        user = await self.async_get_user_by_email(email)
+        if not user:
+            return None
+
+        if not pwd_context.verify(password, user.password):
+            return None
+
+        if not user.is_active:
+            return None
+
+        return user
+
+    async def async_deactivate_user(self, user_id: int, deactivated_by: UserModel) -> UserModel:
+        """Deactivate a user (async)."""
+        if deactivated_by.role != UserRoleModel.PLATFORM_ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only platform admins can deactivate users"
+            )
+
+        user = await self.async_get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        if user.user_id == deactivated_by.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot deactivate yourself"
+            )
+
+        user.is_active = False
+        await self.db.commit()
+        await self.db.refresh(user)
+
+        logger.info(f"Deactivated user {user_id}")
+        return user
+
+    async def async_reactivate_user(self, user_id: int, reactivated_by: UserModel) -> UserModel:
+        """Reactivate a deactivated user (async)."""
+        if reactivated_by.role != UserRoleModel.PLATFORM_ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only platform admins can reactivate users"
+            )
+
+        user = await self.async_get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        user.is_active = True
+        await self.db.commit()
+        await self.db.refresh(user)
+
+        logger.info(f"Reactivated user {user_id}")
+        return user
+
+
+# Dependency injection provider for async user service
+async def get_async_user_service(
+    db: AsyncSession = Depends(get_async_db)
+) -> UserService:
+    """Get a UserService instance with async database session."""
+    return UserService(db)

@@ -213,7 +213,7 @@ async def register_and_login_user(
 
 async def login_user(db: Session, email: str, password: str) -> Token:
     """
-    Authenticate user and return JWT token.
+    Authenticate user and return JWT token (sync db version).
 
     Args:
         db: Database session
@@ -241,6 +241,130 @@ async def login_user(db: Session, email: str, password: str) -> Token:
         )
 
     logger.info(f"Successful login for: {email}")
+    return _create_token_for_user(user)
+
+
+async def async_login_user(db: AsyncSession, email: str, password: str) -> Token:
+    """
+    Authenticate user and return JWT token (async).
+
+    Args:
+        db: Async database session
+        email: User's email
+        password: User's password
+
+    Returns:
+        Token with JWT and user info
+
+    Raises:
+        HTTPException: If credentials invalid or user inactive
+    """
+    from services.user_service import UserService
+
+    logger.info(f"Login attempt for: {email}")
+
+    user_service = UserService(db)
+    user = await user_service.async_verify_credentials(email, password)
+
+    if not user:
+        logger.warning(f"Failed login attempt for: {email}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password"
+        )
+
+    logger.info(f"Successful login for: {email}")
+    return _create_token_for_user(user)
+
+
+async def async_register_and_login_user(
+    db: AsyncSession,
+    email: str,
+    password: str,
+    invitation_token: Optional[str] = None
+) -> Token:
+    """
+    Register a new user and automatically log them in (async).
+
+    Args:
+        db: Async database session
+        email: User's email address
+        password: User's password
+        invitation_token: Optional invitation token for org assignment
+
+    Returns:
+        Token with JWT and user info
+
+    Raises:
+        HTTPException: If email already exists or invitation invalid
+    """
+    from services.user_service import UserService
+    from models import Invitation, Organization, UserRole as UserRoleModel
+    from schemas.user import UserRole
+    from datetime import datetime
+    from sqlalchemy import select
+
+    logger.info(f"Registering new user: {email}")
+
+    org_id = None
+    role = UserRole.MEMBER
+
+    if invitation_token:
+        result = await db.execute(
+            select(Invitation).where(
+                Invitation.token == invitation_token,
+                Invitation.is_revoked == False,
+                Invitation.accepted_at == None
+            )
+        )
+        invitation = result.scalars().first()
+
+        if not invitation:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired invitation"
+            )
+
+        if invitation.expires_at < datetime.utcnow():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invitation has expired"
+            )
+
+        if invitation.email.lower() != email.lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email does not match invitation"
+            )
+
+        org_id = invitation.org_id
+        role = UserRole(invitation.role)
+
+        invitation.accepted_at = datetime.utcnow()
+        await db.commit()
+
+        logger.info(f"User {email} registered via invitation to org {org_id}")
+    else:
+        result = await db.execute(
+            select(Organization).where(Organization.name == "Default Organization")
+        )
+        default_org = result.scalars().first()
+
+        if default_org:
+            org_id = default_org.org_id
+            logger.info(f"User {email} assigned to default organization (id={org_id})")
+        else:
+            logger.warning(f"No default organization found for user {email}")
+
+    user_service = UserService(db)
+    user = await user_service.async_create_user(
+        email=email,
+        password=password,
+        role=role,
+        org_id=org_id
+    )
+
+    logger.info(f"Successfully registered user: {email}")
     return _create_token_for_user(user)
 
 

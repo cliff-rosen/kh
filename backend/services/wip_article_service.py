@@ -8,10 +8,12 @@ All other services should use this service for WipArticle operations.
 import logging
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
-from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import and_, or_, select
+from fastapi import HTTPException, status, Depends
 
 from models import WipArticle
+from database import get_async_db
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +24,11 @@ class WipArticleService:
 
     This is the single source of truth for WipArticle table access.
     Only this service should write to the WipArticle table.
+
+    Supports both sync (Session) and async (AsyncSession) database access.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session | AsyncSession):
         self.db = db
 
     # =========================================================================
@@ -689,3 +693,234 @@ class WipArticleService:
     def flush(self) -> None:
         """Flush pending changes without committing."""
         self.db.flush()
+
+    # =========================================================================
+    # ASYNC Operations
+    # =========================================================================
+
+    async def async_get_by_id(self, wip_article_id: int) -> WipArticle:
+        """Get a WipArticle by ID (async), raising ValueError if not found."""
+        result = await self.db.execute(
+            select(WipArticle).where(WipArticle.id == wip_article_id)
+        )
+        article = result.scalars().first()
+        if not article:
+            raise ValueError(f"WipArticle {wip_article_id} not found")
+        return article
+
+    async def async_get_by_id_or_404(self, wip_article_id: int) -> WipArticle:
+        """Get a WipArticle by ID (async), raising HTTPException 404 if not found."""
+        try:
+            return await self.async_get_by_id(wip_article_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="WIP article not found"
+            )
+
+    async def async_get_by_execution_id(
+        self,
+        execution_id: str,
+        included_only: bool = False
+    ) -> List[WipArticle]:
+        """Get all WipArticles for a pipeline execution (async)."""
+        if included_only:
+            result = await self.db.execute(
+                select(WipArticle).where(
+                    WipArticle.pipeline_execution_id == execution_id,
+                    WipArticle.included_in_report == True
+                )
+            )
+        else:
+            result = await self.db.execute(
+                select(WipArticle).where(
+                    WipArticle.pipeline_execution_id == execution_id
+                )
+            )
+        return list(result.scalars().all())
+
+    async def async_get_for_filtering(
+        self,
+        execution_id: str,
+        retrieval_group_id: str
+    ) -> List[WipArticle]:
+        """Get articles ready for semantic filtering (async)."""
+        result = await self.db.execute(
+            select(WipArticle).where(
+                and_(
+                    WipArticle.pipeline_execution_id == execution_id,
+                    WipArticle.retrieval_group_id == retrieval_group_id,
+                    WipArticle.is_duplicate == False,
+                    WipArticle.passed_semantic_filter == None
+                )
+            )
+        )
+        return list(result.scalars().all())
+
+    async def async_get_for_deduplication(self, execution_id: str) -> List[WipArticle]:
+        """Get articles ready for cross-group deduplication (async)."""
+        result = await self.db.execute(
+            select(WipArticle).where(
+                and_(
+                    WipArticle.pipeline_execution_id == execution_id,
+                    WipArticle.is_duplicate == False,
+                    or_(
+                        WipArticle.passed_semantic_filter == True,
+                        WipArticle.passed_semantic_filter == None
+                    )
+                )
+            )
+        )
+        return list(result.scalars().all())
+
+    async def async_get_included_articles(self, execution_id: str) -> List[WipArticle]:
+        """Get articles marked for report inclusion (async)."""
+        result = await self.db.execute(
+            select(WipArticle).where(
+                and_(
+                    WipArticle.pipeline_execution_id == execution_id,
+                    WipArticle.included_in_report == True
+                )
+            )
+        )
+        return list(result.scalars().all())
+
+    async def async_get_article_by_pmid(
+        self,
+        execution_id: str,
+        pmid: str
+    ) -> Optional[WipArticle]:
+        """Find a WipArticle by PMID within an execution (async)."""
+        result = await self.db.execute(
+            select(WipArticle).where(
+                and_(
+                    WipArticle.pipeline_execution_id == execution_id,
+                    WipArticle.pmid == pmid
+                )
+            )
+        )
+        return result.scalars().first()
+
+    async def async_get_all_articles_by_status(
+        self,
+        execution_id: str
+    ) -> Dict[str, List[WipArticle]]:
+        """Get all articles for an execution grouped by status (async)."""
+        result = await self.db.execute(
+            select(WipArticle).where(
+                WipArticle.pipeline_execution_id == execution_id
+            )
+        )
+        all_articles = list(result.scalars().all())
+
+        grouped = {
+            'included': [],
+            'filtered_out': [],
+            'duplicate': []
+        }
+
+        for article in all_articles:
+            if article.is_duplicate:
+                grouped['duplicate'].append(article)
+            elif article.passed_semantic_filter == False:
+                grouped['filtered_out'].append(article)
+            elif article.included_in_report:
+                grouped['included'].append(article)
+            else:
+                grouped['filtered_out'].append(article)
+
+        return grouped
+
+    async def async_get_curated_articles(self, execution_id: str) -> List[WipArticle]:
+        """Get articles with curator overrides for an execution (async)."""
+        result = await self.db.execute(
+            select(WipArticle).where(
+                and_(
+                    WipArticle.pipeline_execution_id == execution_id,
+                    or_(
+                        WipArticle.curator_included == True,
+                        WipArticle.curator_excluded == True
+                    )
+                )
+            )
+        )
+        return list(result.scalars().all())
+
+    async def async_update_curation_notes(
+        self,
+        wip_article_id: int,
+        user_id: int,
+        notes: str
+    ) -> WipArticle:
+        """Update curation notes for a WipArticle (async)."""
+        from datetime import datetime
+
+        article = await self.async_get_by_id_or_404(wip_article_id)
+        article.curation_notes = notes
+        article.curated_by = user_id
+        article.curated_at = datetime.utcnow()
+
+        await self.db.commit()
+
+        return article
+
+    async def async_get_by_execution_and_identifiers(
+        self,
+        execution_id: str,
+        pmid: Optional[str] = None,
+        doi: Optional[str] = None
+    ) -> Optional[WipArticle]:
+        """Find a WipArticle by PMID or DOI within an execution (async)."""
+        if pmid:
+            result = await self.db.execute(
+                select(WipArticle).where(
+                    and_(
+                        WipArticle.pipeline_execution_id == execution_id,
+                        WipArticle.pmid == pmid
+                    )
+                )
+            )
+            article = result.scalars().first()
+            if article:
+                return article
+
+        if doi:
+            result = await self.db.execute(
+                select(WipArticle).where(
+                    and_(
+                        WipArticle.pipeline_execution_id == execution_id,
+                        WipArticle.doi == doi
+                    )
+                )
+            )
+            article = result.scalars().first()
+            if article:
+                return article
+
+        return None
+
+    async def async_delete_by_execution_id(self, execution_id: str) -> int:
+        """Delete all WipArticles for a pipeline execution (async)."""
+        from sqlalchemy import delete
+        result = await self.db.execute(
+            delete(WipArticle).where(
+                WipArticle.pipeline_execution_id == execution_id
+            )
+        )
+        return result.rowcount
+
+    async def async_commit(self) -> None:
+        """Commit pending changes to the database (async)."""
+        await self.db.commit()
+
+    async def async_flush(self) -> None:
+        """Flush pending changes without committing (async)."""
+        await self.db.flush()
+
+
+# Dependency injection provider for async wip article service
+async def get_async_wip_article_service(
+    db: AsyncSession = Depends(get_async_db)
+) -> WipArticleService:
+    """Get a WipArticleService instance with async database session."""
+    return WipArticleService(db)

@@ -1,18 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Form
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from pydantic import BaseModel, EmailStr, Field
 from typing import Annotated
 from datetime import datetime
 import logging
 
-from database import get_db
+from database import get_async_db
 from schemas.user import Token
-from models import Invitation, Organization, EventSource
+from models import Invitation, Organization
 
 from services import auth_service
-from services.user_service import UserService
+from services.user_service import UserService, get_async_user_service
 from services.login_email_service import LoginEmailService
-from services.user_tracking_service import UserTrackingService
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ router = APIRouter()
     response_model=Token,
     summary="Register a new user and automatically log them in"
 )
-async def register(user: UserCreate, db: Session = Depends(get_db)):
+async def register(user: UserCreate, db: AsyncSession = Depends(get_async_db)):
     """
     Register a new user and automatically log them in with:
     - **email**: valid email address
@@ -67,7 +67,7 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
     If an invitation token is provided, user is assigned to the organization and role
     specified in the invitation.
     """
-    return await auth_service.register_and_login_user(
+    return await auth_service.async_register_and_login_user(
         db, user.email, user.password, user.invitation_token
     )
 
@@ -77,7 +77,7 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
     response_model=InvitationValidation,
     summary="Validate an invitation token"
 )
-async def validate_invitation(token: str, db: Session = Depends(get_db)):
+async def validate_invitation(token: str, db: AsyncSession = Depends(get_async_db)):
     """
     Validate an invitation token and return invitation details.
     This is a public endpoint (no authentication required).
@@ -90,9 +90,10 @@ async def validate_invitation(token: str, db: Session = Depends(get_db)):
     - **expires_at**: When the invitation expires
     - **error**: Error message if invalid
     """
-    invitation = db.query(Invitation).filter(
-        Invitation.token == token
-    ).first()
+    result = await db.execute(
+        select(Invitation).where(Invitation.token == token)
+    )
+    invitation = result.scalars().first()
 
     if not invitation:
         return InvitationValidation(valid=False, error="Invitation not found")
@@ -107,7 +108,10 @@ async def validate_invitation(token: str, db: Session = Depends(get_db)):
         return InvitationValidation(valid=False, error="Invitation has expired")
 
     # Get organization name
-    org = db.query(Organization).filter(Organization.org_id == invitation.org_id).first()
+    org_result = await db.execute(
+        select(Organization).where(Organization.org_id == invitation.org_id)
+    )
+    org = org_result.scalars().first()
     org_name = org.name if org else "Unknown Organization"
 
     return InvitationValidation(
@@ -143,7 +147,7 @@ async def validate_invitation(token: str, db: Session = Depends(get_db)):
 async def login(
     username: Annotated[str, Form(description="User's email address")],
     password: Annotated[str, Form(description="User's password")],
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Login with email and password to get a JWT token.
@@ -157,7 +161,7 @@ async def login(
     - **username**: user's username
     """
     try:
-        token = await auth_service.login_user(db, username, password)
+        token = await auth_service.async_login_user(db, username, password)
         return token
     except HTTPException as e:
         raise e
@@ -178,20 +182,18 @@ async def login(
 )
 async def request_login_token(
     email: str = Form(..., description="User's email address"),
-    db: Session = Depends(get_db)
+    user_service: UserService = Depends(get_async_user_service)
 ):
     """
     Request a one-time login token to be sent via email.
-    
+
     - **email**: User's email address
-    
+
     The token will be sent to the email address and expires in 30 minutes.
     """
     try:
-        user_service = UserService(db)
-
         # Find user by email
-        user = user_service.get_user_by_email(email)
+        user = await user_service.async_get_user_by_email(email)
         if not user:
             # For security, don't reveal if email exists or not
             return {"message": "If an account with this email exists, a login link has been sent."}
@@ -201,21 +203,21 @@ async def request_login_token(
         token, expires_at = email_service.generate_login_token()
 
         # Store token in database
-        user_service.update_login_token(user.user_id, token, expires_at)
+        await user_service.async_update_login_token(user.user_id, token, expires_at)
 
         # Send email
         success = await email_service.send_login_token(email, token)
 
         if not success:
             # Clear token if email failed
-            user_service.clear_login_token(user.user_id)
+            await user_service.async_clear_login_token(user.user_id)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to send login email. Please try again."
             )
 
         return {"message": "If an account with this email exists, a login link has been sent."}
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -233,21 +235,19 @@ async def request_login_token(
 )
 async def login_with_token(
     token: str = Form(..., description="Login token from email"),
-    db: Session = Depends(get_db)
+    user_service: UserService = Depends(get_async_user_service)
 ):
     """
     Authenticate using a one-time login token.
-    
+
     - **token**: Login token received via email
-    
+
     Returns JWT access token and session information.
     The login token can only be used once and expires after 30 minutes.
     """
     try:
-        user_service = UserService(db)
-
         # Find user by login token
-        user = user_service.get_user_by_login_token(token)
+        user = await user_service.async_get_user_by_login_token(token)
 
         if not user:
             raise HTTPException(
@@ -256,7 +256,7 @@ async def login_with_token(
             )
 
         # Clear the login token (one-time use)
-        user_service.clear_login_token(user.user_id)
+        await user_service.async_clear_login_token(user.user_id)
 
         # Extract username from email
         username = user.email.split('@')[0]
@@ -284,7 +284,7 @@ async def login_with_token(
             org_id=user.org_id,
             email=user.email
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -342,7 +342,7 @@ class PasswordReset(BaseModel):
 )
 async def request_password_reset(
     request: PasswordResetRequest,
-    db: Session = Depends(get_db)
+    user_service: UserService = Depends(get_async_user_service)
 ):
     """
     Request a password reset email.
@@ -353,10 +353,8 @@ async def request_password_reset(
     The link expires in 1 hour.
     """
     try:
-        user_service = UserService(db)
-
         # Find user by email
-        user = user_service.get_user_by_email(request.email)
+        user = await user_service.async_get_user_by_email(request.email)
         if not user:
             # For security, don't reveal if email exists or not
             return {"message": "If an account with this email exists, a password reset link has been sent."}
@@ -366,22 +364,20 @@ async def request_password_reset(
         token, expires_at = email_service.generate_password_reset_token()
 
         # Store token in database
-        user_service.update_password_reset_token(user.user_id, token, expires_at)
+        await user_service.async_update_password_reset_token(user.user_id, token, expires_at)
 
         # Send email
         success = await email_service.send_password_reset_token(request.email, token)
 
         if not success:
             # Clear token if email failed
-            user_service.clear_password_reset_token(user.user_id)
+            await user_service.async_clear_password_reset_token(user.user_id)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to send password reset email. Please try again."
             )
 
-        # Track password reset request
-        tracking_service = UserTrackingService(db)
-        tracking_service.track_event(user.user_id, EventSource.BACKEND, "password_reset_request")
+        # TODO: Add async tracking when UserTrackingService has async methods
 
         return {"message": "If an account with this email exists, a password reset link has been sent."}
 
@@ -401,7 +397,8 @@ async def request_password_reset(
 )
 async def reset_password(
     request: PasswordReset,
-    db: Session = Depends(get_db)
+    user_service: UserService = Depends(get_async_user_service),
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Reset password using a token from the password reset email.
@@ -412,10 +409,8 @@ async def reset_password(
     The token can only be used once and expires after 1 hour.
     """
     try:
-        user_service = UserService(db)
-
         # Find user by password reset token
-        user = user_service.get_user_by_password_reset_token(request.token)
+        user = await user_service.async_get_user_by_password_reset_token(request.token)
 
         if not user:
             raise HTTPException(
@@ -428,11 +423,12 @@ async def reset_password(
         user.password = new_hashed_password
 
         # Clear the password reset token (one-time use)
-        user_service.clear_password_reset_token(user.user_id)
+        await user_service.async_clear_password_reset_token(user.user_id)
 
-        # Track password reset completion
-        tracking_service = UserTrackingService(db)
-        tracking_service.track_event(user.user_id, EventSource.BACKEND, "password_reset_complete")
+        # Commit password change
+        await db.commit()
+
+        # TODO: Add async tracking when UserTrackingService has async methods
 
         logger.info(f"Password reset successfully for user {user.email}")
 
