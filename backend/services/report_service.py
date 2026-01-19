@@ -733,6 +733,13 @@ class ReportService:
             return False
         report, _, _ = access_result
 
+        # Clear report_id reference in pipeline_executions (FK constraint)
+        await self.db.execute(
+            PipelineExecution.__table__.update()
+            .where(PipelineExecution.report_id == report_id)
+            .values(report_id=None)
+        )
+
         # Delete associations first
         await self.db.execute(
             ReportArticleAssociation.__table__.delete().where(
