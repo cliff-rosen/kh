@@ -130,8 +130,10 @@ DEFAULT_PIPELINE_CONFIG = {
 |-----------|---------|----------|
 | Type definitions | `schemas/llm.py` | `types/llm.ts` |
 | Model list endpoint | `routers/llm.py` | `lib/api/llmApi.ts` |
-| Configuration UI | - | `components/stream/ModelConfigForm.tsx` |
+| Configuration UI | - | `components/stream/PhaseConfigForm.tsx` |
 | Pipeline usage | `services/pipeline_service.py` | - |
+
+Note: Import LLM types directly from `schemas/llm` (backend) or `types/llm` (frontend). Avoid re-exports.
 
 ## Backwards Compatibility
 

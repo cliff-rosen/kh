@@ -14,9 +14,6 @@ export interface PubMedTableProps {
     onColumnsChange?: (aiColumns: Array<{ name: string; type: string; filterActive?: boolean }>) => void;
 }
 
-// Re-export types for consumers
-export type { TableColumn, TablizerRef as PubMedTableRef };
-
 // ============================================================================
 // Column Definitions
 // ============================================================================

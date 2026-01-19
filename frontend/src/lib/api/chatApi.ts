@@ -147,19 +147,3 @@ export const chatApi = {
         }
     }
 };
-
-
-// ============================================================================
-// Re-exports for convenience
-// ============================================================================
-
-export type {
-    Conversation,
-    ConversationWithMessages,
-    StreamEvent,
-    ChatResponsePayload,
-    SuggestedValue,
-    SuggestedAction,
-    CustomPayload,
-    ToolHistoryEntry,
-};

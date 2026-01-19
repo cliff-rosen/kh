@@ -28,13 +28,13 @@ const STAGE_LABELS: Record<PipelineStage, { name: string; description: string }>
     executive_summary: { name: 'Executive Summary', description: 'Generates overall report summary' },
 };
 
-interface ModelConfigFormProps {
+interface PhaseConfigFormProps {
     stream: ResearchStream;
     onConfigUpdate?: () => void;
     canModify?: boolean;
 }
 
-export default function ModelConfigForm({ stream, onConfigUpdate, canModify = true }: ModelConfigFormProps) {
+export default function PhaseConfigForm({ stream, onConfigUpdate, canModify = true }: PhaseConfigFormProps) {
     const [config, setConfig] = useState<PipelineLLMConfig>(stream.llm_config || DEFAULT_PIPELINE_CONFIG);
     const [isSaving, setIsSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
@@ -63,7 +63,8 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
         setHasChanges(false);
     }, [stream.stream_id, stream.llm_config]);
 
-    const isReasoningModel = (modelId: string) => {
+    const isReasoningModel = (modelId: string | undefined) => {
+        if (!modelId) return false;
         const model = models.find(m => m.model_id === modelId);
         return model?.supports_reasoning_effort ?? false;
     };
@@ -98,13 +99,13 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
             await researchStreamApi.updateResearchStream(stream.stream_id, {
                 llm_config: config
             });
-            showSuccessToast('Model configuration saved');
+            showSuccessToast('Phase configuration saved');
             setHasChanges(false);
             if (onConfigUpdate) {
                 onConfigUpdate();
             }
         } catch (error) {
-            showErrorToast(error, 'Failed to save model configuration');
+            showErrorToast(error, 'Failed to save phase configuration');
         } finally {
             setIsSaving(false);
         }
@@ -130,7 +131,8 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
                     <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">{name}</h4>
                     <p className="text-xs text-gray-500 dark:text-gray-400">{description}</p>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4">
+                    {/* Model Selection */}
                     <div>
                         <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Model
@@ -166,6 +168,8 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
                             )}
                         </select>
                     </div>
+
+                    {/* Temperature or Reasoning Effort */}
                     <div>
                         {isReasoning ? (
                             <>
@@ -199,12 +203,14 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
                                     value={stageConfig.temperature ?? 0.0}
                                     onChange={(e) => updateStageConfig(stage, { temperature: parseFloat(e.target.value) })}
                                     disabled={!canModify}
-                                    className="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer
+                                    className="w-full h-2 mt-3 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer
                                                disabled:opacity-50 disabled:cursor-not-allowed"
                                 />
                             </>
                         )}
                     </div>
+
+                    {/* Max Tokens */}
                     <div>
                         <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Max Tokens
@@ -226,6 +232,27 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
                                        placeholder:text-gray-400"
                         />
                     </div>
+
+                    {/* Max Concurrent */}
+                    <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Concurrency
+                        </label>
+                        <input
+                            type="number"
+                            min="1"
+                            max="50"
+                            value={stageConfig.max_concurrent || 10}
+                            onChange={(e) => updateStageConfig(stage, {
+                                max_concurrent: e.target.value ? parseInt(e.target.value, 10) : undefined
+                            })}
+                            disabled={!canModify}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md
+                                       bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                                       focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                                       disabled:opacity-50 disabled:cursor-not-allowed"
+                        />
+                    </div>
                 </div>
             </div>
         );
@@ -236,10 +263,10 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
             {/* Header */}
             <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
                 <h3 className="text-sm font-semibold text-orange-900 dark:text-orange-200 mb-2">
-                    Model Configuration
+                    Phase Configuration
                 </h3>
                 <p className="text-sm text-orange-800 dark:text-orange-300">
-                    Configure which AI models to use for each pipeline stage. Reasoning models use "reasoning effort" instead of temperature.
+                    Configure AI model and concurrency settings for each pipeline phase.
                 </p>
             </div>
 

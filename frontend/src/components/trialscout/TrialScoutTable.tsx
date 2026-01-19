@@ -12,9 +12,6 @@ export interface TrialScoutTableProps {
     onFetchMoreForAI?: () => Promise<CanonicalClinicalTrial[]>;
 }
 
-// Re-export TableColumn type for consumers
-export type { TableColumn };
-
 // ============================================================================
 // Column Definitions
 // ============================================================================

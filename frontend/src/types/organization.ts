@@ -2,8 +2,6 @@
  * Organization and multi-tenancy types for Knowledge Horizon
  */
 
-// Re-export user types that are also used in organization context
-export type { UserRole, OrgMember } from './user';
 import type { UserRole } from './user';
 
 // Stream scope

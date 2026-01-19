@@ -18,7 +18,6 @@ export interface ReportArticleTableProps {
     onRowClick?: (articles: ReportArticle[], index: number, isFiltered: boolean) => void;
 }
 
-// Re-export types for consumers
 export type { TablizerRef as ReportArticleTableRef };
 
 // ============================================================================

@@ -32,9 +32,6 @@ export interface EnrichmentConfigResponse {
     defaults: Record<string, PromptTemplate>;
 }
 
-// Re-export for convenience
-export type { ModelConfig };
-
 export interface TestSummaryPromptRequest {
     prompt_type: string;
     prompt: PromptTemplate;
