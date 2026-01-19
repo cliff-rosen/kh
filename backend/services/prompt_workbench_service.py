@@ -93,31 +93,66 @@ class PromptWorkbenchService:
         article_index: Optional[int] = 0,
         llm_config: Optional[ModelConfig] = None
     ) -> Dict[str, Any]:
-        """Test a summary prompt (executive, category, or article) with sample data or report data"""
-        # Get context
+        """Test a summary prompt (executive, category, or article) with sample data or report data.
+
+        Uses the same code path as the actual pipeline by calling the summary service methods.
+        """
+        # Build flat item dict (same format as pipeline)
         if report_id:
-            context = await self._get_context_from_report(
+            item = await self._get_flat_item_from_report(
                 report_id, user_id, prompt_type, category_id, article_index
             )
         elif sample_data:
-            context = sample_data
+            # sample_data should already be flat format
+            item = sample_data
         else:
             raise ValueError("Either sample_data or report_id must be provided")
 
-        # Render prompts
-        rendered_system = self._render_prompt(prompt.system_prompt, context)
-        rendered_user = self._render_prompt(prompt.user_prompt_template, context)
+        # Build enrichment_config with custom prompt
+        enrichment_config = {
+            "prompts": {
+                prompt_type: {
+                    "system_prompt": prompt.system_prompt,
+                    "user_prompt_template": prompt.user_prompt_template
+                }
+            }
+        }
 
-        # Run through LLM
-        llm_response = await self._run_prompt_through_llm(rendered_system, rendered_user, llm_config)
+        # Call appropriate summary service method (same path as pipeline)
+        if prompt_type == "article_summary":
+            result = await self.summary_service.generate_article_summary(
+                items=item,
+                enrichment_config=enrichment_config,
+                model_config=llm_config,
+            )
+        elif prompt_type == "category_summary":
+            result = await self.summary_service.generate_category_summary(
+                items=item,
+                enrichment_config=enrichment_config,
+                model_config=llm_config,
+            )
+        elif prompt_type == "executive_summary":
+            result = await self.summary_service.generate_executive_summary(
+                items=item,
+                enrichment_config=enrichment_config,
+                model_config=llm_config,
+            )
+        else:
+            raise ValueError(f"Unknown prompt type: {prompt_type}")
+
+        # For display, render prompts with nested slugs for user readability
+        nested_context = self._flat_to_nested_context(item, prompt_type)
+        rendered_system = self._render_prompt(prompt.system_prompt, nested_context)
+        rendered_user = self._render_prompt(prompt.user_prompt_template, nested_context)
 
         return {
             "rendered_system_prompt": rendered_system,
             "rendered_user_prompt": rendered_user,
-            "llm_response": llm_response
+            "llm_response": result.data if result.ok else None,
+            "error": result.error if not result.ok else None
         }
 
-    async def _get_context_from_report(
+    async def _get_flat_item_from_report(
         self,
         report_id: int,
         user_id: int,
@@ -125,10 +160,10 @@ class PromptWorkbenchService:
         category_id: Optional[str] = None,
         article_index: Optional[int] = 0
     ) -> Dict[str, Any]:
-        """Get context data from an existing report"""
+        """Get flat item dict from report (same format as pipeline passes to summary service)."""
         from fastapi import HTTPException
 
-        # Get the report with access check (raises HTTPException if not found or no access)
+        # Get the report with access check
         try:
             result = await self.report_service.get_report_with_access(report_id, user_id, raise_on_not_found=True)
             report, _, stream = result
@@ -141,23 +176,23 @@ class PromptWorkbenchService:
         )
 
         if prompt_type == "executive_summary":
-            return self._build_executive_summary_context(stream, wip_articles, report)
+            return self._build_executive_summary_item(stream, wip_articles, report)
         elif prompt_type == "category_summary":
             if not category_id:
                 raise ValueError("category_id is required for category_summary prompt type")
-            return self._build_category_summary_context(stream, wip_articles, category_id)
+            return self._build_category_summary_item(stream, wip_articles, category_id)
         elif prompt_type == "article_summary":
-            return self._build_article_summary_context(stream, wip_articles, article_index or 0)
+            return self._build_article_summary_item(stream, wip_articles, article_index or 0)
         else:
             raise ValueError(f"Unknown prompt type: {prompt_type}")
 
-    def _build_executive_summary_context(
+    def _build_executive_summary_item(
         self,
         stream: ResearchStreamSchema,
         wip_articles: List[WipArticle],
         report: Report
     ) -> Dict[str, Any]:
-        """Build context for executive summary prompt"""
+        """Build flat item dict for executive summary (matches pipeline format)."""
         articles_formatted = self._format_articles([
             {
                 "title": a.title,
@@ -168,6 +203,12 @@ class PromptWorkbenchService:
             }
             for a in wip_articles[:20]
         ])
+
+        # Build article summaries text
+        articles_summaries = ""
+        summaries = [a.summary for a in wip_articles if a.summary]
+        if summaries:
+            articles_summaries = "\n\n".join(summaries[:20])
 
         category_summaries = ""
         if report.enrichments and report.enrichments.get("category_summaries"):
@@ -181,28 +222,24 @@ class PromptWorkbenchService:
         if stream.presentation_config:
             category_count = len(stream.presentation_config.categories)
 
+        # Return flat keys matching PROMPT_SLUGS for executive_summary
         return {
-            "stream": {
-                "name": stream.stream_name,
-                "purpose": stream.purpose
-            },
-            "articles": {
-                "count": len(wip_articles),
-                "formatted": articles_formatted
-            },
-            "categories": {
-                "count": category_count,
-                "summaries": category_summaries
-            }
+            "stream_name": stream.stream_name or "",
+            "stream_purpose": stream.purpose or "",
+            "articles_count": str(len(wip_articles)),
+            "articles_formatted": articles_formatted,
+            "articles_summaries": articles_summaries,
+            "categories_count": str(category_count),
+            "categories_summaries": category_summaries,
         }
 
-    def _build_category_summary_context(
+    def _build_category_summary_item(
         self,
         stream: ResearchStreamSchema,
         wip_articles: List[WipArticle],
         category_id: str
     ) -> Dict[str, Any]:
-        """Build context for category summary prompt"""
+        """Build flat item dict for category summary (matches pipeline format)."""
         # presentation_config is a Pydantic model, categories is a list of Category objects
         categories = stream.presentation_config.categories if stream.presentation_config else []
         category = next((c for c in categories if c.id == category_id), None)
@@ -225,29 +262,31 @@ class PromptWorkbenchService:
             for a in category_articles[:15]
         ])
 
+        # Build article summaries text
+        articles_summaries = ""
+        summaries = [a.summary for a in category_articles if a.summary]
+        if summaries:
+            articles_summaries = "\n\n".join(summaries[:15])
+
+        # Return flat keys matching PROMPT_SLUGS for category_summary
         return {
-            "stream": {
-                "name": stream.stream_name,
-                "purpose": stream.purpose
-            },
-            "category": {
-                "name": category.name,
-                "description": ", ".join(category.topics),
-                "topics": category.topics
-            },
-            "articles": {
-                "count": len(category_articles),
-                "formatted": articles_formatted
-            }
+            "stream_name": stream.stream_name or "",
+            "stream_purpose": stream.purpose or "",
+            "category_name": category.name,
+            "category_description": ", ".join(category.topics) if category.topics else "",
+            "category_topics": ", ".join(category.topics) if category.topics else "",
+            "articles_count": str(len(category_articles)),
+            "articles_formatted": articles_formatted,
+            "articles_summaries": articles_summaries,
         }
 
-    def _build_article_summary_context(
+    def _build_article_summary_item(
         self,
         stream: ResearchStreamSchema,
         wip_articles: List[WipArticle],
         article_index: int = 0
     ) -> Dict[str, Any]:
-        """Build context for article summary prompt (uses specified article by index)"""
+        """Build flat item dict for article summary (matches pipeline format)."""
         if not wip_articles:
             raise ValueError("No articles available for testing")
 
@@ -257,7 +296,7 @@ class PromptWorkbenchService:
 
         test_article = wip_articles[article_index]
 
-        # Format authors
+        # Format authors (same as pipeline does via summary_service.format_authors)
         authors = test_article.authors if test_article.authors else []
         if isinstance(authors, list):
             if len(authors) > 3:
@@ -267,18 +306,16 @@ class PromptWorkbenchService:
         else:
             authors_str = str(authors) if authors else "Unknown"
 
+        # Return flat keys matching PROMPT_SLUGS for article_summary
         return {
-            "stream": {
-                "name": stream.stream_name,
-                "purpose": stream.purpose
-            },
-            "article": {
-                "title": test_article.title or "Untitled",
-                "authors": authors_str or "Unknown",
-                "journal": test_article.journal or "Unknown",
-                "year": str(test_article.year) if test_article.year else "Unknown",
-                "abstract": test_article.abstract or ""
-            }
+            "stream_name": stream.stream_name or "",
+            "stream_purpose": stream.purpose or "",
+            "title": test_article.title or "Untitled",
+            "authors": authors_str or "Unknown",
+            "journal": test_article.journal or "Unknown",
+            "year": str(test_article.year) if test_article.year else "Unknown",
+            "abstract": test_article.abstract or "",
+            "filter_reason": test_article.filter_score_reason or "",
         }
 
     def _format_articles(self, articles: List[Dict]) -> str:
@@ -321,29 +358,61 @@ class PromptWorkbenchService:
 
         return result
 
-    async def _run_prompt_through_llm(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        llm_config: Optional[ModelConfig] = None
-    ) -> str:
-        """Run a prompt through the LLM"""
-        # Use provided config or fall back to defaults
-        config = llm_config or DEFAULT_MODEL_CONFIG
-        model = config.model_id or self.summary_service.model
-        temperature = config.temperature if config.temperature is not None else DEFAULT_MODEL_CONFIG.temperature
-        max_tokens = config.max_tokens or DEFAULT_MODEL_CONFIG.max_tokens
+    def _flat_to_nested_context(self, flat_item: Dict[str, Any], prompt_type: str) -> Dict[str, Any]:
+        """Convert flat item dict to nested context for rendering display prompts.
 
-        response = await self.summary_service.client.chat.completions.create(
-            model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-        )
-        return response.choices[0].message.content
+        Maps flat keys (used by pipeline) back to nested slugs (used in UI).
+        """
+        if prompt_type == "article_summary":
+            return {
+                "stream": {
+                    "name": flat_item.get("stream_name", ""),
+                    "purpose": flat_item.get("stream_purpose", ""),
+                },
+                "article": {
+                    "title": flat_item.get("title", ""),
+                    "authors": flat_item.get("authors", ""),
+                    "journal": flat_item.get("journal", ""),
+                    "year": flat_item.get("year", ""),
+                    "abstract": flat_item.get("abstract", ""),
+                    "filter_reason": flat_item.get("filter_reason", ""),
+                }
+            }
+        elif prompt_type == "category_summary":
+            return {
+                "stream": {
+                    "name": flat_item.get("stream_name", ""),
+                    "purpose": flat_item.get("stream_purpose", ""),
+                },
+                "category": {
+                    "name": flat_item.get("category_name", ""),
+                    "description": flat_item.get("category_description", ""),
+                    "topics": flat_item.get("category_topics", ""),
+                },
+                "articles": {
+                    "count": flat_item.get("articles_count", ""),
+                    "formatted": flat_item.get("articles_formatted", ""),
+                    "summaries": flat_item.get("articles_summaries", ""),
+                }
+            }
+        elif prompt_type == "executive_summary":
+            return {
+                "stream": {
+                    "name": flat_item.get("stream_name", ""),
+                    "purpose": flat_item.get("stream_purpose", ""),
+                },
+                "articles": {
+                    "count": flat_item.get("articles_count", ""),
+                    "formatted": flat_item.get("articles_formatted", ""),
+                    "summaries": flat_item.get("articles_summaries", ""),
+                },
+                "categories": {
+                    "count": flat_item.get("categories_count", ""),
+                    "summaries": flat_item.get("categories_summaries", ""),
+                }
+            }
+        else:
+            return flat_item
 
     # =========================================================================
     # Categorization Prompt Testing
@@ -382,6 +451,8 @@ class PromptWorkbenchService:
             sample_data = await self._get_categorization_context_from_report(
                 report_id, user_id, article_index
             )
+
+        assert sample_data is not None  # Validated above
 
         # Render prompts
         rendered_system = prompt.system_prompt
