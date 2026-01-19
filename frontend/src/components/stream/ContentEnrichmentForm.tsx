@@ -458,9 +458,9 @@ export default function ContentEnrichmentForm({
 
     return (
         <>
-            <div className="space-y-4">
+            <div className="h-full flex flex-col">
                 {/* Header */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-shrink-0">
                     <div>
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                             <SparklesIcon className="h-5 w-5 text-purple-500" />
@@ -510,13 +510,13 @@ export default function ContentEnrichmentForm({
                 </div>
 
                 {error && (
-                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-800 dark:text-red-200 text-sm">
+                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-800 dark:text-red-200 text-sm flex-shrink-0 mt-4">
                         {error}
                     </div>
                 )}
 
                 {/* Prompt Type Tabs */}
-                <div className="border-b border-gray-200 dark:border-gray-700">
+                <div className="border-b border-gray-200 dark:border-gray-700 mt-4 flex-shrink-0">
                     <nav className="-mb-px flex space-x-8">
                         <button
                             type="button"
@@ -555,7 +555,7 @@ export default function ContentEnrichmentForm({
                 </div>
 
                 {/* Three-Panel Layout */}
-                <div className="flex gap-4">
+                <div className="flex gap-4 flex-1 min-h-0 mt-4">
                     {/* Left: Slugs Panel (collapsible) */}
                     {slugsPaneCollapsed ? (
                         <div className="flex items-start">
@@ -569,8 +569,8 @@ export default function ContentEnrichmentForm({
                             </button>
                         </div>
                     ) : (
-                        <div className="w-64 flex-shrink-0">
-                            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 h-full">
+                        <div className="w-64 flex-shrink-0 flex flex-col min-h-0">
+                            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 flex-1 flex flex-col min-h-0">
                                 <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                                         Available Slugs
@@ -584,7 +584,7 @@ export default function ContentEnrichmentForm({
                                         <ChevronLeftIcon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                                     </button>
                                 </div>
-                                <div className="p-3 space-y-2 max-h-[500px] overflow-y-auto">
+                                <div className="p-3 space-y-2 flex-1 overflow-y-auto">
                                     {currentSlugs.map((slug) => (
                                         <div
                                             key={slug.slug}
@@ -612,36 +612,36 @@ export default function ContentEnrichmentForm({
                     )}
 
                     {/* Center: Prompt Editors */}
-                    <div className="flex-1 space-y-4 min-w-0">
-                        {/* System Prompt */}
-                        <div className="flex flex-col">
+                    <div className="flex-1 min-w-0 flex flex-col min-h-0 overflow-y-auto">
+                        {/* System Prompt - fixed height */}
+                        <div className="flex flex-col flex-shrink-0 mb-4">
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 System Prompt
                             </label>
                             <textarea
                                 value={currentPrompt?.system_prompt || ''}
                                 onChange={(e) => updatePrompt(activePromptType, 'system_prompt', e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-purple-500 focus:border-transparent min-h-[150px]"
+                                className="w-full h-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                 placeholder="Define the LLM's role and guidelines..."
                             />
                         </div>
 
-                        {/* User Prompt Template */}
-                        <div className="flex flex-col flex-1">
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        {/* User Prompt Template - expands to fill */}
+                        <div className="flex flex-col flex-1 min-h-0 mb-4">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex-shrink-0">
                                 User Prompt Template
                                 <span className="text-gray-400 font-normal ml-2">(Use slugs like {'{stream.purpose}'})</span>
                             </label>
                             <textarea
                                 value={currentPrompt?.user_prompt_template || ''}
                                 onChange={(e) => updatePrompt(activePromptType, 'user_prompt_template', e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-purple-500 focus:border-transparent min-h-[250px]"
+                                className="flex-1 min-h-[200px] w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                 placeholder="Write the prompt template with slugs..."
                             />
                         </div>
 
                         {/* Testing Section */}
-                        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 flex-shrink-0">
                             <div className="flex items-center justify-between mb-4">
                                 <h4 className="text-md font-medium text-gray-900 dark:text-white flex items-center gap-2">
                                     <BeakerIcon className="h-5 w-5 text-blue-500" />
@@ -740,8 +740,8 @@ export default function ContentEnrichmentForm({
                             </button>
                         </div>
                     ) : resultsPaneMode === 'side' ? (
-                        <div className="w-96 flex-shrink-0 h-[600px]">
-                            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 h-full flex flex-col">
+                        <div className="w-96 flex-shrink-0 flex flex-col min-h-0">
+                            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 flex-1 flex flex-col min-h-0">
                                 <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <DocumentTextIcon className="h-4 w-4 text-green-500" />

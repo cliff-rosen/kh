@@ -958,16 +958,19 @@ export default function EditStreamPage() {
 
                     {/* Layer 4: Content Enrichment Tab - outside form, has own save */}
                     {activeTab === 'enrichment' && stream && (
-                        <ContentEnrichmentForm
-                            streamId={parseInt(streamId!)}
-                            appliedSuggestions={appliedPromptSuggestions}
-                            onSuggestionsApplied={handlePromptSuggestionsApplied}
-                        />
+                        <div className="flex-1 min-h-0 flex flex-col">
+                            <ContentEnrichmentForm
+                                streamId={parseInt(streamId!)}
+                                appliedSuggestions={appliedPromptSuggestions}
+                                onSuggestionsApplied={handlePromptSuggestionsApplied}
+                            />
+                        </div>
                     )}
 
                     {/* Control Panel Tab - outside form, has own controls */}
                     {activeTab === 'execute' && stream && (
-                        <TestRefineTab
+                        <div className="flex-1 min-h-0 flex flex-col">
+                            <TestRefineTab
                             streamId={parseInt(streamId!)}
                             stream={stream}
                             onStreamUpdate={() => loadResearchStream(parseInt(streamId!))}
@@ -978,7 +981,8 @@ export default function EditStreamPage() {
                             onQueryUpdateApplied={() => setPendingQueryUpdate(null)}
                             pendingFilterUpdate={pendingFilterUpdate}
                             onFilterUpdateApplied={() => setPendingFilterUpdate(null)}
-                        />
+                            />
+                        </div>
                     )}
                 </div>
             </div>
