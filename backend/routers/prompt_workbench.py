@@ -14,13 +14,13 @@ from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field
 
 from database import get_async_db
-from models import User, Report, ReportArticleAssociation
+from models import User
 from schemas.research_stream import EnrichmentConfig, PromptTemplate, CategorizationPrompt
 from services.research_stream_service import (
     ResearchStreamService,
     get_research_stream_service
 )
-from services.prompt_workbench_service import PromptWorkbenchService
+from services.prompt_workbench_service import PromptWorkbenchService, get_prompt_workbench_service
 from services.report_summary_service import DEFAULT_PROMPTS, AVAILABLE_SLUGS
 from services.article_categorization_service import ArticleCategorizationService
 from routers.auth import get_current_user
@@ -317,14 +317,10 @@ async def update_stream_categorization_config(
 @router.post("/categorization/test", response_model=TestCategorizationPromptResponse)
 async def test_categorization_prompt(
     request: TestCategorizationPromptRequest,
-    db: AsyncSession = Depends(get_async_db),
-    stream_service: ResearchStreamService = Depends(get_research_stream_service),
+    service: PromptWorkbenchService = Depends(get_prompt_workbench_service),
     current_user: User = Depends(get_current_user)
 ):
-    """Test a categorization prompt by rendering it with sample data and optionally running it through the LLM"""
-    import json
-    from sqlalchemy import select
-
+    """Test a categorization prompt by rendering it with sample data and running it through the LLM"""
     if not request.sample_data and not request.report_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -332,91 +328,19 @@ async def test_categorization_prompt(
         )
 
     try:
-        # Prepare sample data
-        sample_data: Dict[str, Any] = request.sample_data or {}
-        categories_for_context = []
-
-        if request.report_id:
-            # Get article from report
-            report_result = await db.execute(
-                select(Report).where(Report.report_id == request.report_id)
-            )
-            report = report_result.scalar_one_or_none()
-            if not report:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
-
-            # Verify access to stream
-            stream = await stream_service.get_research_stream(current_user, report.research_stream_id)
-            if not stream:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this report")
-
-            # Get articles from report
-            articles_result = await db.execute(
-                select(ReportArticleAssociation).where(ReportArticleAssociation.report_id == request.report_id)
-            )
-            articles = articles_result.scalars().all()
-
-            if not articles:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Report has no articles")
-
-            # Get the requested article (default to first)
-            article_index = request.article_index or 0
-            if article_index >= len(articles):
-                article_index = 0
-
-            article = articles[article_index]
-
-            # Get categories from stream presentation_config
-            if stream.presentation_config and isinstance(stream.presentation_config, dict):
-                categories = stream.presentation_config.get("categories", [])
-                categories_for_context = ArticleCategorizationService.prepare_category_definitions(
-                    [type('Category', (), cat) for cat in categories]
-                ) if categories else []
-
-            # Build sample data from article
-            sample_data = {
-                "title": article.title or "",
-                "abstract": article.abstract or "",
-                "journal": article.journal or "",
-                "year": str(article.publication_year) if article.publication_year else "",
-                "categories_json": json.dumps(categories_for_context, indent=2)
-            }
-
-        # Render prompts
-        rendered_system = request.prompt.system_prompt
-        rendered_user = request.prompt.user_prompt_template
-
-        for key, value in sample_data.items():
-            rendered_user = rendered_user.replace(f"{{{key}}}", str(value))
-
-        # Call LLM for actual categorization
-        service = ArticleCategorizationService()
-        result = await service.categorize(
-            items=sample_data,
-            custom_prompt=request.prompt
+        result = await service.test_categorization_prompt(
+            prompt=request.prompt,
+            user_id=current_user.user_id,
+            sample_data=request.sample_data,
+            report_id=request.report_id,
+            article_index=request.article_index or 0
         )
+        return TestCategorizationPromptResponse(**result)
 
-        # Extract response
-        llm_response = None
-        parsed_category_id = None
-        error = None
-
-        if result.error:
-            error = result.error
-        elif result.data:
-            parsed_category_id = result.data.get("category_id")
-            llm_response = json.dumps(result.data, indent=2)
-
-        return TestCategorizationPromptResponse(
-            rendered_system_prompt=rendered_system,
-            rendered_user_prompt=rendered_user,
-            llm_response=llm_response,
-            parsed_category_id=parsed_category_id,
-            error=error
-        )
-
-    except HTTPException:
-        raise
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
         logger.error(f"Error testing categorization prompt: {e}", exc_info=True)
         return TestCategorizationPromptResponse(

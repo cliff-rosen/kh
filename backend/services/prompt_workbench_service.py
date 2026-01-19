@@ -12,11 +12,12 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Optional, List
 
-from models import Report, WipArticle
-from schemas.research_stream import EnrichmentConfig, PromptTemplate, ResearchStream as ResearchStreamSchema
+from models import Report, WipArticle, ReportArticleAssociation
+from schemas.research_stream import EnrichmentConfig, PromptTemplate, CategorizationPrompt, ResearchStream as ResearchStreamSchema
 from services.report_summary_service import ReportSummaryService, DEFAULT_PROMPTS, AVAILABLE_SLUGS
 from services.research_stream_service import ResearchStreamService
 from services.report_service import ReportService
+from services.article_categorization_service import ArticleCategorizationService
 
 logger = logging.getLogger(__name__)
 
@@ -325,6 +326,143 @@ class PromptWorkbenchService:
             ]
         )
         return response.choices[0].message.content
+
+    # =========================================================================
+    # Categorization Prompt Testing
+    # =========================================================================
+
+    async def test_categorization_prompt(
+        self,
+        prompt: CategorizationPrompt,
+        user_id: int,
+        sample_data: Optional[Dict[str, Any]] = None,
+        report_id: Optional[int] = None,
+        article_index: int = 0
+    ) -> Dict[str, Any]:
+        """
+        Test a categorization prompt with sample data or an article from a report.
+
+        Args:
+            prompt: The categorization prompt to test
+            user_id: User ID for access verification
+            sample_data: Optional sample data with title, abstract, journal, year, categories_json
+            report_id: Optional report ID to get an article from
+            article_index: Which article to use from the report (default: first)
+
+        Returns:
+            Dict with rendered_system_prompt, rendered_user_prompt, llm_response,
+            parsed_category_id, and error (if any)
+        """
+        import json
+
+        if not sample_data and not report_id:
+            raise ValueError("Either sample_data or report_id must be provided")
+
+        # Get sample data from report if needed
+        if report_id:
+            sample_data = await self._get_categorization_context_from_report(
+                report_id, user_id, article_index
+            )
+
+        # Render prompts
+        rendered_system = prompt.system_prompt
+        rendered_user = prompt.user_prompt_template
+        for key, value in sample_data.items():
+            rendered_user = rendered_user.replace(f"{{{key}}}", str(value))
+
+        # Call categorization service
+        categorization_service = ArticleCategorizationService()
+        result = await categorization_service.categorize(
+            items=sample_data,
+            custom_prompt=prompt
+        )
+
+        # Extract response
+        llm_response = None
+        parsed_category_id = None
+        error = None
+
+        if result.error:
+            error = result.error
+        elif result.data:
+            parsed_category_id = result.data.get("category_id")
+            llm_response = json.dumps(result.data, indent=2)
+
+        return {
+            "rendered_system_prompt": rendered_system,
+            "rendered_user_prompt": rendered_user,
+            "llm_response": llm_response,
+            "parsed_category_id": parsed_category_id,
+            "error": error
+        }
+
+    async def _get_categorization_context_from_report(
+        self,
+        report_id: int,
+        user_id: int,
+        article_index: int = 0
+    ) -> Dict[str, Any]:
+        """
+        Get categorization context data from an existing report.
+
+        Args:
+            report_id: Report ID
+            user_id: User ID for access verification
+            article_index: Which article to use (0-indexed)
+
+        Returns:
+            Dict with title, abstract, journal, year, categories_json
+        """
+        import json
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+
+        # Get the report with access check
+        try:
+            result = await self.report_service.get_report_with_access(
+                report_id, user_id, raise_on_not_found=True
+            )
+            report, _, stream = result
+        except Exception:
+            raise PermissionError("You don't have access to this report")
+
+        # Get articles from report associations
+        query = (
+            select(ReportArticleAssociation)
+            .options(selectinload(ReportArticleAssociation.article))
+            .where(ReportArticleAssociation.report_id == report_id)
+            .where(ReportArticleAssociation.is_hidden == False)
+        )
+        assoc_result = await self.db.execute(query)
+        associations = assoc_result.scalars().all()
+
+        if not associations:
+            raise ValueError("Report has no articles")
+
+        # Get the requested article
+        if article_index >= len(associations):
+            article_index = 0
+
+        assoc = associations[article_index]
+        article = assoc.article
+
+        if not article:
+            raise ValueError("Article not found")
+
+        # Get categories from stream presentation_config
+        categories_for_context = []
+        if stream.presentation_config and hasattr(stream.presentation_config, 'categories'):
+            categories_for_context = ArticleCategorizationService.prepare_category_definitions(
+                stream.presentation_config.categories
+            )
+
+        return {
+            "title": article.title or "",
+            "abstract": article.abstract or "",
+            "journal": article.journal or "",
+            "year": str(article.year) if article.year else "",
+            "categories_json": json.dumps(categories_for_context, indent=2)
+        }
 
 
 # Dependency injection provider for async prompt workbench service
