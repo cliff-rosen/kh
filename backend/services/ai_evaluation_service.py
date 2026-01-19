@@ -336,7 +336,7 @@ class AIEvaluationService:
             model_config = self._get_default_model_config()
 
         # Call LLM
-        logger.info(f"filter - items={len(items_list)}, model={model_config.model}")
+        logger.info(f"filter - items={len(items_list)}, model={model_config.model_id}")
 
         results = await call_llm(
             system_message=system_message,
@@ -443,7 +443,7 @@ class AIEvaluationService:
             model_config = self._get_default_model_config()
 
         # Call LLM
-        logger.info(f"score - items={len(items_list)}, range=[{min_value}, {max_value}], model={model_config.model}")
+        logger.info(f"score - items={len(items_list)}, range=[{min_value}, {max_value}], model={model_config.model_id}")
 
         results = await call_llm(
             system_message=system_message,
@@ -558,7 +558,7 @@ class AIEvaluationService:
             model_config = self._get_default_model_config()
 
         # Call LLM
-        logger.info(f"extract - items={len(items_list)}, output_type={output_type}, model={model_config.model}")
+        logger.info(f"extract - items={len(items_list)}, output_type={output_type}, model={model_config.model_id}")
 
         results = await call_llm(
             system_message=system_message,
@@ -673,7 +673,7 @@ class AIEvaluationService:
             model_config = self._get_default_model_config()
 
         # Call LLM
-        logger.info(f"extract_fields - items={len(items_list)}, model={model_config.model}")
+        logger.info(f"extract_fields - items={len(items_list)}, model={model_config.model_id}")
 
         results = await call_llm(
             system_message=system_message,

@@ -35,7 +35,7 @@ import {
 } from '../../lib/api/promptWorkbenchApi';
 import { reportApi } from '../../lib/api/reportApi';
 import { llmApi } from '../../lib/api/llmApi';
-import { Report, ResearchStream, ModelInfo } from '../../types';
+import { Report, ResearchStream, ModelInfo, ModelConfig, DEFAULT_MODEL_CONFIG } from '../../types';
 import { copyToClipboard } from '../../lib/utils/clipboard';
 import { showErrorToast, showSuccessToast } from '../../lib/errorToast';
 
@@ -72,7 +72,7 @@ export default function CategorizationPromptForm({ streamId, stream }: Categoriz
     const [pastedData, setPastedData] = useState('');
     const [isTesting, setIsTesting] = useState(false);
     const [useStreamModel, setUseStreamModel] = useState(true);
-    const [customModel, setCustomModel] = useState<string>('gpt-4.1');
+    const [customModelConfig, setCustomModelConfig] = useState<ModelConfig>({ ...DEFAULT_MODEL_CONFIG });
     const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
 
     // History state for time travel
@@ -246,10 +246,8 @@ export default function CategorizationPromptForm({ streamId, stream }: Categoriz
             if (useStreamModel && stream?.llm_config?.categorization) {
                 request.llm_config = stream.llm_config.categorization;
             } else if (!useStreamModel) {
-                request.llm_config = {
-                    model: customModel,
-                    temperature: 0.0  // Categorization typically uses low temperature
-                };
+                // Use custom model config
+                request.llm_config = customModelConfig;
             }
 
             const result = await promptWorkbenchApi.testCategorizationPrompt(request);
@@ -700,19 +698,56 @@ export default function CategorizationPromptForm({ streamId, stream }: Categoriz
                                             Use stream model
                                         </label>
                                         {!useStreamModel && (
-                                            <select
-                                                value={customModel}
-                                                onChange={(e) => setCustomModel(e.target.value)}
-                                                className="px-2 py-1 text-xs text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
-                                            >
-                                                {availableModels.map(m => (
-                                                    <option key={m.id} value={m.id}>{m.name}</option>
-                                                ))}
-                                            </select>
+                                            <>
+                                                <select
+                                                    value={customModelConfig.model_id}
+                                                    onChange={(e) => setCustomModelConfig(prev => ({ ...prev, model_id: e.target.value }))}
+                                                    className="px-2 py-1 text-xs text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+                                                >
+                                                    {availableModels.map(m => (
+                                                        <option key={m.model_id} value={m.model_id}>{m.display_name}</option>
+                                                    ))}
+                                                </select>
+                                                {/* Temperature or Reasoning Effort based on model */}
+                                                {availableModels.find(m => m.model_id === customModelConfig.model_id)?.supports_reasoning_effort ? (
+                                                    <select
+                                                        value={customModelConfig.reasoning_effort || 'medium'}
+                                                        onChange={(e) => setCustomModelConfig(prev => ({ ...prev, reasoning_effort: e.target.value as any, temperature: undefined }))}
+                                                        className="px-2 py-1 text-xs text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+                                                        title="Reasoning Effort"
+                                                    >
+                                                        <option value="minimal">Minimal</option>
+                                                        <option value="low">Low</option>
+                                                        <option value="medium">Medium</option>
+                                                        <option value="high">High</option>
+                                                    </select>
+                                                ) : (
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max="2"
+                                                        step="0.1"
+                                                        value={customModelConfig.temperature ?? 0}
+                                                        onChange={(e) => setCustomModelConfig(prev => ({ ...prev, temperature: parseFloat(e.target.value), reasoning_effort: undefined }))}
+                                                        className="w-16 px-2 py-1 text-xs text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+                                                        title="Temperature"
+                                                    />
+                                                )}
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    max="16000"
+                                                    placeholder="Max tokens"
+                                                    value={customModelConfig.max_tokens || ''}
+                                                    onChange={(e) => setCustomModelConfig(prev => ({ ...prev, max_tokens: e.target.value ? parseInt(e.target.value, 10) : undefined }))}
+                                                    className="w-24 px-2 py-1 text-xs text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 placeholder:text-gray-400"
+                                                    title="Max Tokens"
+                                                />
+                                            </>
                                         )}
                                         {useStreamModel && stream?.llm_config?.categorization && (
                                             <span className="text-xs text-gray-400">
-                                                ({stream.llm_config.categorization.model})
+                                                ({stream.llm_config.categorization.model_id})
                                             </span>
                                         )}
                                     </div>

@@ -1,32 +1,41 @@
 from fastapi import APIRouter
-from typing import Dict, Any
+from typing import List
+from pydantic import BaseModel
+
 from config.llm_models import MODEL_CONFIGS
+from schemas.llm import ModelInfo
 
 router = APIRouter(prefix="/llm", tags=["llm"])
 
 
-@router.get("/models")
-async def get_models() -> Dict[str, Any]:
+class ModelsResponse(BaseModel):
+    """Response from /api/llm/models endpoint."""
+    models: List[ModelInfo]
+    default_model: str
+
+
+@router.get("/models", response_model=ModelsResponse)
+async def get_models() -> ModelsResponse:
     """
     Get all available models and their configurations.
     Returns model data with capabilities for frontend model selection.
     """
     models = []
     for model_id, capabilities in MODEL_CONFIGS.items():
-        models.append({
-            "id": model_id,
-            "name": _format_model_name(model_id),
-            "supports_reasoning_effort": capabilities.supports_reasoning_effort,
-            "reasoning_effort_levels": capabilities.reasoning_effort_levels,
-            "supports_temperature": capabilities.supports_temperature,
-            "max_tokens": capabilities.max_tokens,
-            "supports_vision": capabilities.supports_vision,
-        })
+        models.append(ModelInfo(
+            model_id=model_id,
+            display_name=_format_model_name(model_id),
+            supports_reasoning_effort=capabilities.supports_reasoning_effort,
+            reasoning_effort_levels=capabilities.reasoning_effort_levels,
+            supports_temperature=capabilities.supports_temperature,
+            max_tokens=capabilities.max_tokens,
+            supports_vision=capabilities.supports_vision,
+        ))
 
-    return {
-        "models": models,
-        "default_model": "gpt-4.1",
-    }
+    return ModelsResponse(
+        models=models,
+        default_model="gpt-4.1",
+    )
 
 
 def _format_model_name(model_id: str) -> str:

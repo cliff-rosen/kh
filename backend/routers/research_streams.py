@@ -28,7 +28,7 @@ from schemas.research_stream import (
     BroadQuery,
     BroadSearchStrategy,
     ScheduleConfig,
-    LLMConfig
+    PipelineLLMConfig
 )
 from schemas.semantic_space import SemanticSpace
 from schemas.sources import INFORMATION_SOURCES, InformationSource
@@ -123,7 +123,7 @@ class ResearchStreamUpdateRequest(BaseModel):
     retrieval_config: Optional[RetrievalConfig] = None
     presentation_config: Optional[PresentationConfig] = None
     # Control Panel: LLM configuration
-    llm_config: Optional[LLMConfig] = Field(None, description="LLM configuration for pipeline stages")
+    llm_config: Optional[PipelineLLMConfig] = Field(None, description="LLM configuration for pipeline stages")
 
 class ToggleStatusRequest(BaseModel):
     is_active: bool

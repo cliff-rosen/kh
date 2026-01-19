@@ -13,7 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Optional, List
 
 from models import Report, WipArticle
-from schemas.research_stream import EnrichmentConfig, PromptTemplate, CategorizationPrompt, ResearchStream as ResearchStreamSchema, StageModelConfig
+from schemas.research_stream import EnrichmentConfig, PromptTemplate, CategorizationPrompt, ResearchStream as ResearchStreamSchema
+from schemas.llm import ModelConfig, DEFAULT_MODEL_CONFIG
 from services.report_summary_service import ReportSummaryService, DEFAULT_PROMPTS, AVAILABLE_SLUGS
 from services.research_stream_service import ResearchStreamService
 from services.report_service import ReportService
@@ -90,7 +91,7 @@ class PromptWorkbenchService:
         report_id: Optional[int] = None,
         category_id: Optional[str] = None,
         article_index: Optional[int] = 0,
-        llm_config: Optional[StageModelConfig] = None
+        llm_config: Optional[ModelConfig] = None
     ) -> Dict[str, Any]:
         """Test a summary prompt (executive, category, or article) with sample data or report data"""
         # Get context
@@ -324,13 +325,14 @@ class PromptWorkbenchService:
         self,
         system_prompt: str,
         user_prompt: str,
-        llm_config: Optional[StageModelConfig] = None
+        llm_config: Optional[ModelConfig] = None
     ) -> str:
         """Run a prompt through the LLM"""
         # Use provided config or fall back to defaults
-        model = llm_config.model if llm_config and llm_config.model else self.summary_service.model
-        temperature = llm_config.temperature if llm_config and llm_config.temperature is not None else 0.3
-        max_tokens = llm_config.max_tokens if llm_config and llm_config.max_tokens else 2000
+        config = llm_config or DEFAULT_MODEL_CONFIG
+        model = config.model_id or self.summary_service.model
+        temperature = config.temperature if config.temperature is not None else DEFAULT_MODEL_CONFIG.temperature
+        max_tokens = config.max_tokens or DEFAULT_MODEL_CONFIG.max_tokens
 
         response = await self.summary_service.client.chat.completions.create(
             model=model,
@@ -354,7 +356,7 @@ class PromptWorkbenchService:
         sample_data: Optional[Dict[str, Any]] = None,
         report_id: Optional[int] = None,
         article_index: int = 0,
-        llm_config: Optional[StageModelConfig] = None
+        llm_config: Optional[ModelConfig] = None
     ) -> Dict[str, Any]:
         """
         Test a categorization prompt with sample data or an article from a report.
@@ -388,22 +390,11 @@ class PromptWorkbenchService:
             rendered_user = rendered_user.replace(f"{{{key}}}", str(value))
 
         # Call categorization service
-        from agents.prompts.llm import ModelConfig
         categorization_service = ArticleCategorizationService()
-
-        # Convert StageModelConfig to ModelConfig if provided
-        model_config = None
-        if llm_config:
-            model_config = ModelConfig(
-                model=llm_config.model,
-                temperature=llm_config.temperature if llm_config.temperature is not None else 0.0,
-                max_tokens=llm_config.max_tokens,
-                reasoning_effort=llm_config.reasoning_effort.value if llm_config.reasoning_effort else None
-            )
 
         result = await categorization_service.categorize(
             items=sample_data,
-            model_config=model_config,
+            model_config=llm_config,
             custom_prompt=prompt
         )
 

@@ -12,13 +12,13 @@ import logging
 
 from models import ResearchStream
 from schemas.canonical_types import CanonicalResearchArticle
-from schemas.research_stream import StageModelConfig
+from schemas.llm import ModelConfig
 from typing import Optional
 from schemas.research_article_converters import legacy_article_to_canonical_pubmed, pubmed_to_research_article
 from services.pubmed_service import PubMedService, fetch_articles_by_ids
 from services.ai_evaluation_service import get_ai_evaluation_service
 from services.article_categorization_service import ArticleCategorizationService
-from agents.prompts.llm import ModelConfig, LLMOptions
+from agents.prompts.llm import LLMOptions
 
 logger = logging.getLogger(__name__)
 
@@ -233,7 +233,7 @@ class RefinementWorkbenchService:
         filter_criteria: str,
         threshold: float,
         output_type: str = "boolean",
-        llm_config: Optional[StageModelConfig] = None
+        llm_config: Optional[ModelConfig] = None
     ) -> List[Dict]:
         """
         Apply semantic filtering to articles in parallel.
@@ -325,7 +325,7 @@ class RefinementWorkbenchService:
         self,
         stream_id: int,
         articles: List[CanonicalResearchArticle],
-        llm_config: Optional[StageModelConfig] = None
+        llm_config: Optional[ModelConfig] = None
     ) -> List[Dict]:
         """
         Categorize articles using stream's Layer 3 categories in parallel.
@@ -369,17 +369,8 @@ class RefinementWorkbenchService:
                 "categories_json": categories_json,
             })
 
-        # Convert StageModelConfig to ModelConfig if provided
-        model_config = None
-        if llm_config:
-            model_config = ModelConfig(
-                model=llm_config.model,
-                temperature=llm_config.temperature if llm_config.temperature is not None else 0.3,
-                max_tokens=llm_config.max_tokens,
-                reasoning_effort=llm_config.reasoning_effort.value if llm_config.reasoning_effort else None
-            )
-        else:
-            model_config = ModelConfig(model="gpt-4.1", temperature=0.3)
+        # Use provided config or default
+        model_config = llm_config or ModelConfig(model="gpt-4.1", temperature=0.3)
 
         # Call categorization service
         llm_results = await self.categorization_service.categorize(

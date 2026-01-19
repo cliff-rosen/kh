@@ -3,6 +3,7 @@
  */
 
 import { api } from './index';
+import type { ModelConfig } from '../../types';
 
 const API_BASE = '/api/prompt-workbench';
 
@@ -31,11 +32,8 @@ export interface EnrichmentConfigResponse {
     defaults: Record<string, PromptTemplate>;
 }
 
-export interface StageModelConfig {
-    model: string;
-    temperature?: number;
-    reasoning_effort?: 'low' | 'medium' | 'high';
-}
+// Re-export for convenience
+export type { ModelConfig };
 
 export interface TestSummaryPromptRequest {
     prompt_type: string;
@@ -44,7 +42,7 @@ export interface TestSummaryPromptRequest {
     report_id?: number;
     category_id?: string;
     article_index?: number;
-    llm_config?: StageModelConfig;
+    llm_config?: ModelConfig;
 }
 
 export interface TestSummaryPromptResponse {
@@ -71,7 +69,7 @@ export interface TestCategorizationPromptRequest {
     sample_data?: Record<string, any>;
     report_id?: number;
     article_index?: number;
-    llm_config?: StageModelConfig;
+    llm_config?: ModelConfig;
 }
 
 export interface TestCategorizationPromptResponse {

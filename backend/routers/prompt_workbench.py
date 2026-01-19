@@ -15,7 +15,8 @@ from pydantic import BaseModel, Field
 
 from database import get_async_db
 from models import User
-from schemas.research_stream import EnrichmentConfig, PromptTemplate, CategorizationPrompt, StageModelConfig
+from schemas.research_stream import EnrichmentConfig, PromptTemplate, CategorizationPrompt
+from schemas.llm import ModelConfig
 from services.research_stream_service import (
     ResearchStreamService,
     get_research_stream_service
@@ -63,7 +64,7 @@ class TestSummaryPromptRequest(BaseModel):
     report_id: Optional[int] = Field(None, description="Reference to an existing report to use as test data")
     category_id: Optional[str] = Field(None, description="Category ID for category_summary test")
     article_index: Optional[int] = Field(0, description="Article index for article_summary test (0-based)")
-    llm_config: Optional[StageModelConfig] = Field(None, description="LLM model configuration (uses defaults if not provided)")
+    llm_config: Optional[ModelConfig] = Field(None, description="LLM model configuration (uses defaults if not provided)")
 
 
 class TestSummaryPromptResponse(BaseModel):
@@ -105,7 +106,7 @@ class TestCategorizationPromptRequest(BaseModel):
     )
     report_id: Optional[int] = Field(None, description="Reference to an existing report to get an article from")
     article_index: Optional[int] = Field(0, description="Which article to use from the report (default: first)")
-    llm_config: Optional[StageModelConfig] = Field(None, description="LLM model configuration (uses defaults if not provided)")
+    llm_config: Optional[ModelConfig] = Field(None, description="LLM model configuration (uses defaults if not provided)")
 
 
 class TestCategorizationPromptResponse(BaseModel):

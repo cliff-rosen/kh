@@ -121,7 +121,7 @@ class ArticleCategorizationService:
         system_prompt = custom_prompt.system_prompt if custom_prompt else SYSTEM_PROMPT
         user_prompt = custom_prompt.user_prompt_template if custom_prompt else USER_PROMPT_TEMPLATE
 
-        logger.info(f"categorize - items={len(items_list)}, model={model_config.model}, custom_prompt={custom_prompt is not None}")
+        logger.info(f"categorize - items={len(items_list)}, model={model_config.model_id}, custom_prompt={custom_prompt is not None}")
 
         # Call LLM with structured response
         results = await call_llm(

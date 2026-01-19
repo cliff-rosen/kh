@@ -1,5 +1,14 @@
 import { useState, useEffect } from 'react';
-import { ResearchStream, LLMConfig, StageModelConfig, ReasoningEffort, ModelInfo } from '../../types';
+import {
+    ResearchStream,
+    PipelineLLMConfig,
+    PipelineStage,
+    StageConfig,
+    ReasoningEffort,
+    ModelInfo,
+    DEFAULT_PIPELINE_CONFIG,
+    getStageConfig
+} from '../../types';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
 import { llmApi } from '../../lib/api/llmApi';
 import { showErrorToast, showSuccessToast } from '../../lib/errorToast';
@@ -11,16 +20,7 @@ const REASONING_EFFORT_OPTIONS: { value: ReasoningEffort; label: string }[] = [
     { value: 'high', label: 'High' },
 ];
 
-// Default configurations
-const DEFAULT_LLM_CONFIG: LLMConfig = {
-    semantic_filter: { model: 'gpt-4.1', temperature: 0.0 },
-    categorization: { model: 'gpt-4.1', temperature: 0.0 },
-    article_summary: { model: 'gpt-4.1', temperature: 0.0 },
-    category_summary: { model: 'gpt-4.1', temperature: 0.0 },
-    executive_summary: { model: 'gpt-4.1', temperature: 0.0 },
-};
-
-const STAGE_LABELS: Record<keyof LLMConfig, { name: string; description: string }> = {
+const STAGE_LABELS: Record<PipelineStage, { name: string; description: string }> = {
     semantic_filter: { name: 'Semantic Filter', description: 'Evaluates article relevance during retrieval' },
     categorization: { name: 'Article Categorization', description: 'Assigns articles to presentation categories' },
     article_summary: { name: 'Article Summaries', description: 'Generates per-article AI summaries' },
@@ -35,7 +35,7 @@ interface ModelConfigFormProps {
 }
 
 export default function ModelConfigForm({ stream, onConfigUpdate, canModify = true }: ModelConfigFormProps) {
-    const [config, setConfig] = useState<LLMConfig>(stream.llm_config || DEFAULT_LLM_CONFIG);
+    const [config, setConfig] = useState<PipelineLLMConfig>(stream.llm_config || DEFAULT_PIPELINE_CONFIG);
     const [isSaving, setIsSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
     const [models, setModels] = useState<ModelInfo[]>([]);
@@ -59,30 +59,30 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
 
     // Reset when stream changes
     useEffect(() => {
-        setConfig(stream.llm_config || DEFAULT_LLM_CONFIG);
+        setConfig(stream.llm_config || DEFAULT_PIPELINE_CONFIG);
         setHasChanges(false);
     }, [stream.stream_id, stream.llm_config]);
 
     const isReasoningModel = (modelId: string) => {
-        const model = models.find(m => m.id === modelId);
+        const model = models.find(m => m.model_id === modelId);
         return model?.supports_reasoning_effort ?? false;
     };
 
     const updateStageConfig = (
-        stage: keyof LLMConfig,
-        updates: Partial<StageModelConfig>
+        stage: PipelineStage,
+        updates: Partial<StageConfig>
     ) => {
         setConfig(prev => {
-            const currentStage = prev[stage] || (DEFAULT_LLM_CONFIG[stage] as StageModelConfig);
+            const currentStage = getStageConfig(prev, stage);
             const newStageConfig = { ...currentStage, ...updates };
 
             // If changing to a reasoning model, set default reasoning_effort and remove temperature
-            if (updates.model && isReasoningModel(updates.model)) {
+            if (updates.model_id && isReasoningModel(updates.model_id)) {
                 newStageConfig.reasoning_effort = newStageConfig.reasoning_effort || 'medium';
                 delete newStageConfig.temperature;
             }
             // If changing to a non-reasoning model, set default temperature and remove reasoning_effort
-            else if (updates.model && !isReasoningModel(updates.model)) {
+            else if (updates.model_id && !isReasoningModel(updates.model_id)) {
                 newStageConfig.temperature = newStageConfig.temperature ?? 0.0;
                 delete newStageConfig.reasoning_effort;
             }
@@ -111,7 +111,7 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
     };
 
     const handleResetToDefaults = () => {
-        setConfig(DEFAULT_LLM_CONFIG);
+        setConfig(DEFAULT_PIPELINE_CONFIG);
         setHasChanges(true);
     };
 
@@ -119,10 +119,10 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
     const chatModels = models.filter(m => m.supports_temperature && !m.supports_reasoning_effort);
     const reasoningModels = models.filter(m => m.supports_reasoning_effort);
 
-    const renderStageConfig = (stage: keyof LLMConfig) => {
-        const stageConfig = config[stage] || (DEFAULT_LLM_CONFIG[stage] as StageModelConfig);
+    const renderStageConfig = (stage: PipelineStage) => {
+        const stageConfig = getStageConfig(config, stage);
         const { name, description } = STAGE_LABELS[stage];
-        const isReasoning = isReasoningModel(stageConfig.model);
+        const isReasoning = isReasoningModel(stageConfig.model_id);
 
         return (
             <div key={stage} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
@@ -130,14 +130,14 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
                     <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">{name}</h4>
                     <p className="text-xs text-gray-500 dark:text-gray-400">{description}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                     <div>
                         <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Model
                         </label>
                         <select
-                            value={stageConfig.model}
-                            onChange={(e) => updateStageConfig(stage, { model: e.target.value })}
+                            value={stageConfig.model_id}
+                            onChange={(e) => updateStageConfig(stage, { model_id: e.target.value })}
                             disabled={!canModify || isLoadingModels}
                             className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md
                                        bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
@@ -151,14 +151,14 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
                                     {chatModels.length > 0 && (
                                         <optgroup label="Chat Models (Temperature)">
                                             {chatModels.map(m => (
-                                                <option key={m.id} value={m.id}>{m.name}</option>
+                                                <option key={m.model_id} value={m.model_id}>{m.display_name}</option>
                                             ))}
                                         </optgroup>
                                     )}
                                     {reasoningModels.length > 0 && (
                                         <optgroup label="Reasoning Models (Reasoning Effort)">
                                             {reasoningModels.map(m => (
-                                                <option key={m.id} value={m.id}>{m.name}</option>
+                                                <option key={m.model_id} value={m.model_id}>{m.display_name}</option>
                                             ))}
                                         </optgroup>
                                     )}
@@ -205,6 +205,27 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
                             </>
                         )}
                     </div>
+                    <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Max Tokens
+                        </label>
+                        <input
+                            type="number"
+                            min="1"
+                            max="16000"
+                            placeholder="Default"
+                            value={stageConfig.max_tokens || ''}
+                            onChange={(e) => updateStageConfig(stage, {
+                                max_tokens: e.target.value ? parseInt(e.target.value, 10) : undefined
+                            })}
+                            disabled={!canModify}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md
+                                       bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                                       focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                                       disabled:opacity-50 disabled:cursor-not-allowed
+                                       placeholder:text-gray-400"
+                        />
+                    </div>
                 </div>
             </div>
         );
@@ -224,7 +245,7 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
 
             {/* Stage Configurations */}
             <div className="space-y-4">
-                {(Object.keys(STAGE_LABELS) as Array<keyof LLMConfig>).map(stage => renderStageConfig(stage))}
+                {(Object.keys(STAGE_LABELS) as PipelineStage[]).map(stage => renderStageConfig(stage))}
             </div>
 
             {/* Actions */}

@@ -39,6 +39,7 @@ import logging
 from agents.prompts.base_prompt_caller import BasePromptCaller
 from config.llm_models import supports_reasoning_effort
 from schemas.llm import ChatMessage, MessageRole
+from schemas.llm import ModelConfig
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -47,14 +48,6 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # Data Classes
 # =============================================================================
-
-class ModelConfig(BaseModel):
-    """LLM model configuration."""
-    model: str = "gpt-4.1"
-    temperature: float = 0.0
-    max_tokens: Optional[int] = None
-    reasoning_effort: Optional[str] = None  # For o1/o3 models: "low", "medium", "high"
-
 
 class LLMUsage(BaseModel):
     """Token usage from LLM call."""
@@ -190,9 +183,9 @@ async def _call_llm_single(
             response_model=response_schema,
             system_message=rendered_system,
             messages_placeholder=True,
-            model=config.model,
+            model=config.model_id,
             temperature=config.temperature,
-            reasoning_effort=config.reasoning_effort if supports_reasoning_effort(config.model) else None,
+            reasoning_effort=config.reasoning_effort if supports_reasoning_effort(config.model_id) else None,
         )
 
         # Build user message

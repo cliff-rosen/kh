@@ -379,65 +379,17 @@ class EnrichmentConfig(BaseModel):
 # Model Configuration - LLM Selection per Pipeline Stage
 # ============================================================================
 
-class ReasoningEffort(str, Enum):
-    """Reasoning effort levels for reasoning models (o3, o3-mini, o4-mini)"""
-    MINIMAL = "minimal"
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-
-
-class StageModelConfig(BaseModel):
-    """Configuration for a single pipeline stage's LLM"""
-    model: str = Field(description="Model identifier (e.g., 'gpt-4.1', 'o4-mini')")
-    temperature: Optional[float] = Field(
-        None,
-        ge=0.0,
-        le=2.0,
-        description="Temperature (0.0-2.0) for flagship_chat models. Not supported by reasoning models."
-    )
-    reasoning_effort: Optional[ReasoningEffort] = Field(
-        None,
-        description="Reasoning effort level for reasoning models (o3, o3-mini, o4-mini). Not supported by chat models."
-    )
-
-
-class LLMConfig(BaseModel):
-    """
-    Control Panel: LLM configuration for each pipeline stage.
-
-    Pipeline stages:
-    - semantic_filter: Evaluates article relevance (default: o4-mini with medium reasoning)
-    - categorization: Assigns articles to categories (default: gpt-4.1)
-    - article_summary: Generates per-article AI summaries (default: gpt-4.1)
-    - category_summary: Generates category-level summaries (default: gpt-4.1)
-    - executive_summary: Generates overall report summary (default: gpt-4.1)
-
-    Model families:
-    - reasoning: o3, o3-mini, o4-mini - Support reasoning_effort, fixed temperature
-    - flagship_chat: gpt-4.1, gpt-4o, gpt-4.5-preview - Support temperature
-    - cost_optimized: gpt-4.1-nano - Limited parameters
-    """
-    semantic_filter: Optional[StageModelConfig] = Field(
-        None,
-        description="Model for semantic filtering (evaluating article relevance)"
-    )
-    categorization: Optional[StageModelConfig] = Field(
-        None,
-        description="Model for article categorization"
-    )
-    article_summary: Optional[StageModelConfig] = Field(
-        None,
-        description="Model for generating article AI summaries"
-    )
-    category_summary: Optional[StageModelConfig] = Field(
-        None,
-        description="Model for generating category summaries"
-    )
-    executive_summary: Optional[StageModelConfig] = Field(
-        None,
-        description="Model for generating executive summary"
-    )
+# Import LLM types from the canonical source
+from schemas.llm import (
+    ModelConfig,
+    StageConfig,
+    ReasoningEffort,
+    PipelineLLMConfig,
+    DEFAULT_MODEL_CONFIG,
+    DEFAULT_STAGE_CONFIG,
+    DEFAULT_PIPELINE_CONFIG,
+    get_stage_config,
+)
 
 
 class PipelineExecution(BaseModel):
@@ -460,7 +412,7 @@ class PipelineExecution(BaseModel):
         None,
         description="Snapshot of custom prompts at execution time"
     )
-    llm_config: Optional[LLMConfig] = Field(
+    llm_config: Optional[PipelineLLMConfig] = Field(
         None,
         description="Snapshot of LLM configuration at execution time"
     )
@@ -498,7 +450,7 @@ class ResearchStream(BaseModel):
     )
 
     # CONTROL PANEL: LLM configuration - which LLMs to use per pipeline stage
-    llm_config: Optional[LLMConfig] = Field(
+    llm_config: Optional[PipelineLLMConfig] = Field(
         None,
         description="LLM configuration for pipeline stages (None = use defaults)"
     )

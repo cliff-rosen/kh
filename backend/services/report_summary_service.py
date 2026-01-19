@@ -286,7 +286,7 @@ class ReportSummaryService:
         if options is None:
             options = LLMOptions(max_concurrent=5)
 
-        logger.info(f"generate_article_summary - items={len(items_list)}, model={model_config.model}")
+        logger.info(f"generate_article_summary - items={len(items_list)}, model={model_config.model_id}")
 
         # Call LLM (text mode - no response_schema)
         results = await call_llm(
@@ -350,7 +350,7 @@ class ReportSummaryService:
         if options is None:
             options = LLMOptions(max_concurrent=5)
 
-        logger.info(f"generate_category_summary - items={len(items_list)}, model={model_config.model}")
+        logger.info(f"generate_category_summary - items={len(items_list)}, model={model_config.model_id}")
 
         # Call LLM (text mode - no response_schema)
         results = await call_llm(
@@ -408,7 +408,7 @@ class ReportSummaryService:
         if model_config is None:
             model_config = self._get_default_model_config()
 
-        logger.info(f"generate_executive_summary - items={len(items_list)}, model={model_config.model}")
+        logger.info(f"generate_executive_summary - items={len(items_list)}, model={model_config.model_id}")
 
         # Call LLM (text mode - no response_schema)
         results = await call_llm(

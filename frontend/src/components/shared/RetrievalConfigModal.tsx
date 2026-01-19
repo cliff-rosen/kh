@@ -413,7 +413,7 @@ export default function RetrievalConfigModal({
                                             <div className="space-y-1 text-sm">
                                                 <div className="flex justify-between">
                                                     <span className="text-gray-500 dark:text-gray-400">Model:</span>
-                                                    <span className="font-medium text-gray-900 dark:text-white">{stageConfig.model || 'Default'}</span>
+                                                    <span className="font-medium text-gray-900 dark:text-white">{stageConfig.model_id || 'Default'}</span>
                                                 </div>
                                                 {stageConfig.temperature !== undefined && (
                                                     <div className="flex justify-between">
