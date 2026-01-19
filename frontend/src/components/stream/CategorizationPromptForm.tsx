@@ -133,17 +133,29 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
         setIsUsingDefaults(false);
     };
 
+    // Check if current prompt matches defaults
+    const isUsingDefaultPrompt = () => {
+        if (!prompt || !defaults) return true;
+        return prompt.system_prompt === defaults.system_prompt &&
+               prompt.user_prompt_template === defaults.user_prompt_template;
+    };
+
     const handleSave = async () => {
         if (!prompt) return;
         setSaving(true);
         try {
-            await promptWorkbenchApi.updateStreamCategorizationConfig(streamId, prompt);
+            // Save null if using defaults, otherwise save the custom prompt
+            const usingDefault = isUsingDefaultPrompt();
+            await promptWorkbenchApi.updateStreamCategorizationConfig(
+                streamId,
+                usingDefault ? null : prompt
+            );
             // Update saved state
             setSavedPrompt(prompt);
-            setSavedIsUsingDefaults(false);
+            setSavedIsUsingDefaults(usingDefault);
             setHasChanges(false);
-            setIsUsingDefaults(false);
-            showSuccessToast('Categorization prompt saved');
+            setIsUsingDefaults(usingDefault);
+            showSuccessToast(usingDefault ? 'Reset to default prompt' : 'Categorization prompt saved');
         } catch (err) {
             showErrorToast(err, 'Failed to save categorization prompt');
         } finally {
@@ -156,23 +168,13 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
         setShowResetConfirm(true);
     };
 
-    const confirmResetToDefaults = async () => {
+    const confirmResetToDefaults = () => {
         if (!defaults) return;
         setShowResetConfirm(false);
-        setSaving(true);
-        try {
-            await promptWorkbenchApi.updateStreamCategorizationConfig(streamId, null);
-            setPrompt(defaults);
-            setSavedPrompt(defaults);
-            setSavedIsUsingDefaults(true);
-            setHasChanges(false);
-            setIsUsingDefaults(true);
-            showSuccessToast('Reset to default prompts');
-        } catch (err) {
-            showErrorToast(err, 'Failed to reset to defaults');
-        } finally {
-            setSaving(false);
-        }
+        // Just update local form - user must save to persist
+        setPrompt(defaults);
+        setHasChanges(true);
+        setIsUsingDefaults(true);
     };
 
     // Reset to last saved version
@@ -453,16 +455,14 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
                             Discard Changes
                         </button>
                     )}
-                    {!isUsingDefaults && (
-                        <button
-                            type="button"
-                            onClick={handleResetToDefaults}
-                            disabled={saving}
-                            className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-                        >
-                            Reset to Defaults
-                        </button>
-                    )}
+                    <button
+                        type="button"
+                        onClick={handleResetToDefaults}
+                        disabled={saving || isUsingDefaultPrompt()}
+                        className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Reset to Default
+                    </button>
                     <button
                         type="button"
                         onClick={handleSave}
@@ -886,15 +886,15 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
                 </div>
             )}
 
-            {/* Reset to Defaults Confirmation Dialog */}
+            {/* Reset to Default Confirmation Dialog */}
             {showResetConfirm && (
                 <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                            Reset to Defaults?
+                            Reset to Default?
                         </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                            This will replace your custom categorization prompt with the default prompt. This action will be saved immediately.
+                            This will replace your custom categorization prompt with the default. You will need to save to apply this change.
                         </p>
                         <div className="flex justify-end gap-3">
                             <button
@@ -909,7 +909,7 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
                                 onClick={confirmResetToDefaults}
                                 className="px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700"
                             >
-                                Reset to Defaults
+                                Reset to Default
                             </button>
                         </div>
                     </div>

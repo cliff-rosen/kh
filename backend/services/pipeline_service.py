@@ -414,10 +414,10 @@ class PipelineService:
                 yield status
             async for status in self._stage_generate_report(ctx):
                 yield status  # Creates bare associations
-            async for status in self._stage_categorize(ctx):
-                yield status  # Writes categories to associations
             async for status in self._stage_generate_article_summaries(ctx):
-                yield status  # Writes ai_summary to associations
+                yield status  # Writes ai_summary to associations (needed for categorization)
+            async for status in self._stage_categorize(ctx):
+                yield status  # Writes categories to associations (can use ai_summary)
             async for status in self._stage_generate_category_summaries(ctx):
                 yield status  # Category summaries
             async for status in self._stage_generate_executive_summary(ctx):
@@ -1405,6 +1405,7 @@ Score from {min_value} to {max_value}."""
                 items.append({
                     "title": article.title or "Untitled",
                     "abstract": article.abstract or "",
+                    "ai_summary": assoc.ai_summary or "",  # Use AI summary if available
                     "journal": article.journal or "Unknown",
                     "year": str(article.year) if article.year else "Unknown",
                     "categories_json": categories_json,

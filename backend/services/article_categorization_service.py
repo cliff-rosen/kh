@@ -153,6 +153,7 @@ class ArticleCategorizationService:
         return [
             {"slug": "{title}", "description": "Article title"},
             {"slug": "{abstract}", "description": "Article abstract"},
+            {"slug": "{ai_summary}", "description": "AI-generated summary of the article (if available)"},
             {"slug": "{journal}", "description": "Journal name"},
             {"slug": "{year}", "description": "Publication year"},
             {"slug": "{categories_json}", "description": "JSON array of available categories with id, name, topics, and specific_inclusions"},

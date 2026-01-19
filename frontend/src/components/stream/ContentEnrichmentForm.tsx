@@ -221,37 +221,57 @@ export default function ContentEnrichmentForm({
         setIsUsingDefaults(false);
     }, []);
 
-    // Reset to defaults (with confirmation)
+    // Check if a specific prompt matches its default
+    const isPromptUsingDefault = useCallback((promptType: PromptType) => {
+        const current = prompts[promptType];
+        const defaultPrompt = defaults[promptType];
+        if (!current || !defaultPrompt) return true;
+        return current.system_prompt === defaultPrompt.system_prompt &&
+               current.user_prompt_template === defaultPrompt.user_prompt_template;
+    }, [prompts, defaults]);
+
+    // Check if all prompts are using defaults
+    const allPromptsUsingDefaults = useCallback(() => {
+        return (['executive_summary', 'category_summary', 'article_summary'] as PromptType[])
+            .every(pt => isPromptUsingDefault(pt));
+    }, [isPromptUsingDefault]);
+
+    // Reset current prompt to defaults (with confirmation)
     const handleResetToDefaults = useCallback(() => {
         setShowResetConfirm(true);
     }, []);
 
     const confirmResetToDefaults = useCallback(() => {
-        setPrompts(defaults);
-        setIsUsingDefaults(true);
+        // Only reset the active prompt type, not all prompts
+        setPrompts(prev => ({
+            ...prev,
+            [activePromptType]: defaults[activePromptType]
+        }));
         setHasChanges(true);
         setShowResetConfirm(false);
-    }, [defaults]);
+    }, [defaults, activePromptType]);
 
     // Reset to last saved version
     const resetToSaved = useCallback(() => {
         setPrompts(savedPrompts);
-        setIsUsingDefaults(savedIsUsingDefaults);
         setHasChanges(false);
-    }, [savedPrompts, savedIsUsingDefaults]);
+    }, [savedPrompts]);
 
     // Save changes
     const handleSave = async () => {
         setSaving(true);
         setError(null);
         try {
-            const config: EnrichmentConfig | null = isUsingDefaults ? null : { prompts };
-            console.log('Saving enrichment config:', { isUsingDefaults, config, prompts });
+            // If all prompts match defaults, save null to use defaults
+            const allDefaults = allPromptsUsingDefaults();
+            const config: EnrichmentConfig | null = allDefaults ? null : { prompts };
+            console.log('Saving enrichment config:', { allDefaults, config, prompts });
             await promptWorkbenchApi.updateStreamEnrichmentConfig(streamId, config);
             console.log('Save successful');
             // Update saved state
             setSavedPrompts(prompts);
-            setSavedIsUsingDefaults(isUsingDefaults);
+            setIsUsingDefaults(allDefaults);
+            setSavedIsUsingDefaults(allDefaults);
             setHasChanges(false);
             onSave?.();
         } catch (err: any) {
@@ -514,10 +534,10 @@ export default function ContentEnrichmentForm({
                         </p>
                     </div>
                     <div className="flex items-center gap-3">
-                        {isUsingDefaults && (
+                        {isPromptUsingDefault(activePromptType) && (
                             <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
                                 <CheckIcon className="h-4 w-4" />
-                                Using defaults
+                                Using default
                             </span>
                         )}
                         {hasChanges && (
@@ -538,10 +558,10 @@ export default function ContentEnrichmentForm({
                         <button
                             type="button"
                             onClick={handleResetToDefaults}
-                            disabled={isUsingDefaults}
+                            disabled={isPromptUsingDefault(activePromptType)}
                             className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            Reset to Defaults
+                            Reset to Default
                         </button>
                         <button
                             type="button"
@@ -945,10 +965,12 @@ export default function ContentEnrichmentForm({
                 <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                            Reset to Defaults?
+                            Reset {activePromptType === 'executive_summary' ? 'Executive Summary' :
+                                   activePromptType === 'category_summary' ? 'Category Summary' :
+                                   'Article Summary'} to Default?
                         </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                            This will replace all custom prompts with the default prompts. Any unsaved changes will be lost.
+                            This will replace the current prompt with the default. Other prompts will not be affected.
                         </p>
                         <div className="flex justify-end gap-3">
                             <button
@@ -963,7 +985,7 @@ export default function ContentEnrichmentForm({
                                 onClick={confirmResetToDefaults}
                                 className="px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700"
                             >
-                                Reset to Defaults
+                                Reset to Default
                             </button>
                         </div>
                     </div>

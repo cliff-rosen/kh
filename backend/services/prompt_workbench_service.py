@@ -462,6 +462,7 @@ class PromptWorkbenchService:
         return {
             "title": article.title or "",
             "abstract": article.abstract or "",
+            "ai_summary": assoc.ai_summary or "",  # Include AI summary if available
             "journal": article.journal or "",
             "year": str(article.year) if article.year else "",
             "categories_json": json.dumps(categories_for_context, indent=2)
