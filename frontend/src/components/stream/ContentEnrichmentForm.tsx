@@ -33,7 +33,7 @@ import {
     PromptTemplate,
     SlugInfo,
     EnrichmentConfig,
-    TestPromptResponse
+    TestSummaryPromptResponse
 } from '../../lib/api/promptWorkbenchApi';
 import { reportApi } from '../../lib/api/reportApi';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
@@ -77,7 +77,7 @@ interface HistoryEntry {
     promptType: PromptType;
     prompts: PromptTemplate;
     dataSource: { type: 'report'; reportId: number; categoryId?: string } | { type: 'paste' };
-    result: TestPromptResponse;
+    result: TestSummaryPromptResponse;
 }
 
 export default function ContentEnrichmentForm({

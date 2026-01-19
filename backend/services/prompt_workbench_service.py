@@ -81,7 +81,7 @@ class PromptWorkbenchService:
         logger.info(f"PromptWorkbenchService.update_enrichment_config: stream_id={stream_id}, config_dict={config_dict}")
         await self.stream_service.update_enrichment_config(stream_id, config_dict)
 
-    async def test_prompt(
+    async def test_summary_prompt(
         self,
         prompt_type: str,
         prompt: PromptTemplate,
@@ -92,7 +92,7 @@ class PromptWorkbenchService:
         article_index: Optional[int] = 0,
         llm_config: Optional[StageModelConfig] = None
     ) -> Dict[str, Any]:
-        """Test a prompt with sample data or report data"""
+        """Test a summary prompt (executive, category, or article) with sample data or report data"""
         # Get context
         if report_id:
             context = await self._get_context_from_report(

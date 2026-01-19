@@ -55,8 +55,8 @@ class UpdateEnrichmentConfigRequest(BaseModel):
     )
 
 
-class TestPromptRequest(BaseModel):
-    """Request to test a prompt"""
+class TestSummaryPromptRequest(BaseModel):
+    """Request to test a summary prompt (executive, category, or article)"""
     prompt_type: str = Field(..., description="'executive_summary', 'category_summary', or 'article_summary'")
     prompt: PromptTemplate = Field(..., description="The prompt to test")
     sample_data: Optional[Dict[str, Any]] = Field(None, description="Sample data with articles and context")
@@ -66,8 +66,8 @@ class TestPromptRequest(BaseModel):
     llm_config: Optional[StageModelConfig] = Field(None, description="LLM model configuration (uses defaults if not provided)")
 
 
-class TestPromptResponse(BaseModel):
-    """Response from testing a prompt"""
+class TestSummaryPromptResponse(BaseModel):
+    """Response from testing a summary prompt"""
     rendered_system_prompt: str
     rendered_user_prompt: str
     llm_response: Optional[str] = None
@@ -195,9 +195,9 @@ async def update_stream_enrichment_config(
     return {"status": "success", "message": "Enrichment config updated"}
 
 
-@router.post("/test-summary", response_model=TestPromptResponse)
+@router.post("/test-summary", response_model=TestSummaryPromptResponse)
 async def test_summary_prompt(
-    request: TestPromptRequest,
+    request: TestSummaryPromptRequest,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -211,7 +211,7 @@ async def test_summary_prompt(
     service = PromptWorkbenchService(db)
 
     try:
-        result = await service.test_prompt(
+        result = await service.test_summary_prompt(
             prompt_type=request.prompt_type,
             prompt=request.prompt,
             user_id=current_user.user_id,
@@ -221,7 +221,7 @@ async def test_summary_prompt(
             article_index=request.article_index,
             llm_config=request.llm_config
         )
-        return TestPromptResponse(**result)
+        return TestSummaryPromptResponse(**result)
 
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -229,7 +229,7 @@ async def test_summary_prompt(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
         logger.error(f"Error testing prompt: {e}", exc_info=True)
-        return TestPromptResponse(
+        return TestSummaryPromptResponse(
             rendered_system_prompt=request.prompt.system_prompt,
             rendered_user_prompt=request.prompt.user_prompt_template,
             error=str(e)

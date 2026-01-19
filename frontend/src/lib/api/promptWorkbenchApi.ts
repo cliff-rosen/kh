@@ -37,7 +37,7 @@ export interface StageModelConfig {
     reasoning_effort?: 'low' | 'medium' | 'high';
 }
 
-export interface TestPromptRequest {
+export interface TestSummaryPromptRequest {
     prompt_type: string;
     prompt: PromptTemplate;
     sample_data?: Record<string, any>;
@@ -47,7 +47,7 @@ export interface TestPromptRequest {
     llm_config?: StageModelConfig;
 }
 
-export interface TestPromptResponse {
+export interface TestSummaryPromptResponse {
     rendered_system_prompt: string;
     rendered_user_prompt: string;
     llm_response?: string;
@@ -114,7 +114,7 @@ export const promptWorkbenchApi = {
     /**
      * Test a summary prompt (executive, category, or article) with sample data or a report
      */
-    async testSummaryPrompt(request: TestPromptRequest): Promise<TestPromptResponse> {
+    async testSummaryPrompt(request: TestSummaryPromptRequest): Promise<TestSummaryPromptResponse> {
         const response = await api.post(`${API_BASE}/test-summary`, request);
         return response.data;
     },
