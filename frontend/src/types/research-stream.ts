@@ -293,8 +293,25 @@ export interface Category {
     specific_inclusions: string[]; // Category-specific inclusion criteria
 }
 
+/**
+ * A customizable prompt template with slug support.
+ * Used for both enrichment prompts and categorization prompts.
+ */
+export interface PromptTemplate {
+    system_prompt: string;  // System prompt defining the LLM's role and guidelines
+    user_prompt_template: string;  // User prompt template with slugs
+}
+
+/**
+ * Custom prompt for article categorization.
+ * Extends PromptTemplate with the same structure.
+ * Slugs available: {title}, {abstract}, {journal}, {year}, {categories_json}
+ */
+export type CategorizationPrompt = PromptTemplate;
+
 export interface PresentationConfig {
     categories: Category[];    // How to organize results in reports
+    categorization_prompt?: CategorizationPrompt | null;  // Custom prompt for article categorization (null = use defaults)
 }
 
 // ============================================================================

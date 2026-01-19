@@ -46,6 +46,33 @@ export interface TestPromptResponse {
     error?: string;
 }
 
+// Categorization prompt types
+export interface CategorizationDefaultsResponse {
+    prompt: PromptTemplate;
+    available_slugs: SlugInfo[];
+}
+
+export interface CategorizationConfigResponse {
+    categorization_prompt: PromptTemplate | null;
+    is_using_defaults: boolean;
+    defaults: PromptTemplate;
+}
+
+export interface TestCategorizationPromptRequest {
+    prompt: PromptTemplate;
+    sample_data?: Record<string, any>;
+    report_id?: number;
+    article_index?: number;
+}
+
+export interface TestCategorizationPromptResponse {
+    rendered_system_prompt: string;
+    rendered_user_prompt: string;
+    llm_response?: string;
+    parsed_category_id?: string;
+    error?: string;
+}
+
 export const promptWorkbenchApi = {
     /**
      * Get default prompts and available slugs
@@ -81,6 +108,49 @@ export const promptWorkbenchApi = {
      */
     async testPrompt(request: TestPromptRequest): Promise<TestPromptResponse> {
         const response = await api.post(`${API_BASE}/test`, request);
+        return response.data;
+    },
+
+    // =========================================================================
+    // Categorization Prompts
+    // =========================================================================
+
+    /**
+     * Get default categorization prompt and available slugs
+     */
+    async getCategorizationDefaults(): Promise<CategorizationDefaultsResponse> {
+        const response = await api.get(`${API_BASE}/categorization/defaults`);
+        return response.data;
+    },
+
+    /**
+     * Get categorization prompt for a stream
+     */
+    async getStreamCategorizationConfig(streamId: number): Promise<CategorizationConfigResponse> {
+        const response = await api.get(`${API_BASE}/streams/${streamId}/categorization`);
+        return response.data;
+    },
+
+    /**
+     * Update categorization prompt for a stream
+     */
+    async updateStreamCategorizationConfig(
+        streamId: number,
+        categorizationPrompt: PromptTemplate | null
+    ): Promise<void> {
+        await api.put(
+            `${API_BASE}/streams/${streamId}/categorization`,
+            { categorization_prompt: categorizationPrompt }
+        );
+    },
+
+    /**
+     * Test a categorization prompt with sample data or report article
+     */
+    async testCategorizationPrompt(
+        request: TestCategorizationPromptRequest
+    ): Promise<TestCategorizationPromptResponse> {
+        const response = await api.post(`${API_BASE}/categorization/test`, request);
         return response.data;
     }
 };

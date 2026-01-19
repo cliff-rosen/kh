@@ -105,6 +105,7 @@ export default function ContentEnrichmentForm({
     const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
     const [resultsPaneMode, setResultsPaneMode] = useState<ResultsPaneMode>('collapsed');
     const [showRenderedPrompts, setShowRenderedPrompts] = useState(false);
+    const [isMaximized, setIsMaximized] = useState(false);
 
     // Load initial data
     useEffect(() => {
@@ -456,9 +457,14 @@ export default function ContentEnrichmentForm({
         );
     };
 
+    // Wrapper class for normal vs maximized mode
+    const wrapperClass = isMaximized
+        ? "fixed inset-0 z-50 bg-white dark:bg-gray-900 p-6"
+        : "h-full";
+
     return (
         <>
-            <div className="h-full flex flex-col">
+            <div className={`${wrapperClass} flex flex-col`}>
                 {/* Header */}
                 <div className="flex items-center justify-between flex-shrink-0">
                     <div>
@@ -504,6 +510,18 @@ export default function ContentEnrichmentForm({
                                 </>
                             ) : (
                                 'Save Changes'
+                            )}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setIsMaximized(!isMaximized)}
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                            title={isMaximized ? 'Exit maximize' : 'Maximize'}
+                        >
+                            {isMaximized ? (
+                                <ArrowsPointingInIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                            ) : (
+                                <ArrowsPointingOutIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                             )}
                         </button>
                     </div>

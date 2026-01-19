@@ -13,7 +13,7 @@ import json
 import logging
 
 from agents.prompts.llm import call_llm, ModelConfig, LLMOptions, LLMResult
-from schemas.research_stream import Category
+from schemas.research_stream import Category, CategorizationPrompt
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +78,7 @@ class ArticleCategorizationService:
         items: Union[Dict[str, Any], List[Dict[str, Any]]],
         model_config: Optional[ModelConfig] = None,
         options: Optional[LLMOptions] = None,
+        custom_prompt: Optional[CategorizationPrompt] = None,
     ) -> Union[LLMResult, List[LLMResult]]:
         """
         Categorize article(s) into presentation categories.
@@ -91,6 +92,7 @@ class ArticleCategorizationService:
                 - categories_json: JSON string of available categories
             model_config: Model configuration (model, temperature)
             options: Call options (max_concurrent, on_progress)
+            custom_prompt: Optional custom prompt (uses defaults if None)
 
         Returns:
             Single item: LLMResult with .data containing {"category_id": "..."}
@@ -115,12 +117,16 @@ class ArticleCategorizationService:
         if options is None:
             options = LLMOptions(max_concurrent=10)
 
-        logger.info(f"categorize - items={len(items_list)}, model={model_config.model}")
+        # Use custom prompt or defaults
+        system_prompt = custom_prompt.system_prompt if custom_prompt else SYSTEM_PROMPT
+        user_prompt = custom_prompt.user_prompt_template if custom_prompt else USER_PROMPT_TEMPLATE
+
+        logger.info(f"categorize - items={len(items_list)}, model={model_config.model}, custom_prompt={custom_prompt is not None}")
 
         # Call LLM with structured response
         results = await call_llm(
-            system_message=SYSTEM_PROMPT,
-            user_message=USER_PROMPT_TEMPLATE,
+            system_message=system_prompt,
+            user_message=user_prompt,
             values=items_list[0] if is_single else items_list,
             model_config=model_config,
             response_schema=RESPONSE_SCHEMA,
@@ -132,6 +138,25 @@ class ArticleCategorizationService:
     # =========================================================================
     # Helper Methods
     # =========================================================================
+
+    @staticmethod
+    def get_default_prompts() -> Dict[str, str]:
+        """Get the default system and user prompts."""
+        return {
+            "system_prompt": SYSTEM_PROMPT,
+            "user_prompt_template": USER_PROMPT_TEMPLATE,
+        }
+
+    @staticmethod
+    def get_available_slugs() -> List[Dict[str, str]]:
+        """Get available slugs for categorization prompts."""
+        return [
+            {"slug": "{title}", "description": "Article title"},
+            {"slug": "{abstract}", "description": "Article abstract"},
+            {"slug": "{journal}", "description": "Journal name"},
+            {"slug": "{year}", "description": "Publication year"},
+            {"slug": "{categories_json}", "description": "JSON array of available categories with id, name, topics, and specific_inclusions"},
+        ]
 
     @staticmethod
     def prepare_category_definitions(categories: List[Category]) -> List[Dict]:

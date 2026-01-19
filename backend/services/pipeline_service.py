@@ -1415,11 +1415,15 @@ Score from {min_value} to {max_value}."""
             logger.info(f"No articles with data to categorize for report_id={report_id}")
             return 0, 0
 
+        # Get custom categorization prompt if configured
+        custom_prompt = presentation_config.categorization_prompt if hasattr(presentation_config, 'categorization_prompt') else None
+
         # Call categorization service
         results = await self.categorization_service.categorize(
             items=items,
             model_config=model_config,
             options=LLMOptions(max_concurrent=max_concurrent, on_progress=on_progress),
+            custom_prompt=custom_prompt,
         )
 
         # Map results back to associations: (Association, category_id)

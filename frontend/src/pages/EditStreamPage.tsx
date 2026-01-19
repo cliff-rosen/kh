@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeftIcon, CogIcon, ArrowRightIcon, UserIcon, BuildingOfficeIcon, GlobeAltIcon, ArrowUpIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 
@@ -17,7 +17,7 @@ import {
 import { useResearchStream } from '../context/ResearchStreamContext';
 import { useAuth } from '../context/AuthContext';
 import { adminApi } from '../lib/api/adminApi';
-import { showErrorToast } from '../lib/errorToast';
+import { showErrorToast, showSuccessToast } from '../lib/errorToast';
 
 // Scope badge component (same as in StreamsPage)
 const ScopeBadge = ({ scope }: { scope: string }) => {
@@ -54,6 +54,7 @@ import RetrievalConfigForm from '../components/stream/RetrievalConfigForm';
 import TestRefineTab, { ExecuteSubTab } from '../components/stream/TestRefineTab';
 import { WorkbenchState } from '../components/stream/QueryRefinementWorkbench';
 import ContentEnrichmentForm from '../components/stream/ContentEnrichmentForm';
+import CategorizationPromptForm from '../components/stream/CategorizationPromptForm';
 import ChatTray from '../components/chat/ChatTray';
 import { promptWorkbenchApi, PromptTemplate, SlugInfo } from '../lib/api/promptWorkbenchApi';
 import SchemaProposalCard from '../components/chat/SchemaProposalCard';
@@ -64,6 +65,7 @@ import QuerySuggestionCard from '../components/chat/QuerySuggestionCard';
 import FilterSuggestionCard from '../components/chat/FilterSuggestionCard';
 
 type TabType = 'semantic' | 'retrieval' | 'presentation' | 'enrichment' | 'execute';
+type PresentationSubTab = 'categories' | 'categorization-prompt';
 
 interface PromptSuggestion {
     target: 'system_prompt' | 'user_prompt_template';
@@ -85,6 +87,7 @@ export default function EditStreamPage() {
     const { user, isPlatformAdmin, isOrgAdmin } = useAuth();
 
     const [stream, setStream] = useState<any>(null);
+    const formInitializedRef = useRef(false);
 
     // Check if user can modify this stream (edit/delete/run)
     const canModifyStream = (streamToCheck: ResearchStream | null): boolean => {
@@ -133,6 +136,7 @@ export default function EditStreamPage() {
     // Check URL params for initial tab
     const initialTab = (searchParams.get('tab') as TabType) || 'semantic';
     const [activeTab, setActiveTab] = useState<TabType>(initialTab);
+    const [presentationSubTab, setPresentationSubTab] = useState<PresentationSubTab>('categories');
     const [form, setForm] = useState({
         stream_name: '',
         schedule_config: {
@@ -216,39 +220,48 @@ export default function EditStreamPage() {
         loadResearchStreams();
     }, [loadResearchStreams]);
 
+    // Reset form initialization flag when streamId changes (navigating to different stream)
+    useEffect(() => {
+        formInitializedRef.current = false;
+    }, [streamId]);
+
     useEffect(() => {
         if (streamId && researchStreams.length > 0) {
             const foundStream = researchStreams.find(s => s.stream_id === Number(streamId));
             if (foundStream) {
+                // Always update the stream reference for permission checks
                 setStream(foundStream);
 
-                // Use current three-layer architecture
-                setForm({
-                    stream_name: foundStream.stream_name,
-                    schedule_config: foundStream.schedule_config || {
-                        enabled: false,
-                        frequency: ReportFrequency.WEEKLY,
-                        anchor_day: null,
-                        preferred_time: '08:00',
-                        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-                        lookback_days: null
-                    },
-                    is_active: foundStream.is_active,
-                    chat_instructions: foundStream.chat_instructions || '',
-                    semantic_space: foundStream.semantic_space,
-                    retrieval_config: foundStream.retrieval_config || {
-                        concepts: [],
-                        article_limit_per_week: 10
-                    },
-                    categories: foundStream.presentation_config.categories.length > 0
-                        ? foundStream.presentation_config.categories
-                        : [{
-                            id: '',
-                            name: '',
-                            topics: [],
-                            specific_inclusions: []
-                        }]
-                });
+                // Only initialize form once to avoid overwriting user edits after save
+                if (!formInitializedRef.current) {
+                    formInitializedRef.current = true;
+                    setForm({
+                        stream_name: foundStream.stream_name,
+                        schedule_config: foundStream.schedule_config || {
+                            enabled: false,
+                            frequency: ReportFrequency.WEEKLY,
+                            anchor_day: null,
+                            preferred_time: '08:00',
+                            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+                            lookback_days: null
+                        },
+                        is_active: foundStream.is_active,
+                        chat_instructions: foundStream.chat_instructions || '',
+                        semantic_space: foundStream.semantic_space,
+                        retrieval_config: foundStream.retrieval_config || {
+                            concepts: [],
+                            article_limit_per_week: 10
+                        },
+                        categories: foundStream.presentation_config.categories.length > 0
+                            ? foundStream.presentation_config.categories
+                            : [{
+                                id: '',
+                                name: '',
+                                topics: [],
+                                specific_inclusions: []
+                            }]
+                    });
+                }
             }
         }
     }, [streamId, researchStreams]);
@@ -318,7 +331,7 @@ export default function EditStreamPage() {
 
         try {
             await updateResearchStream(Number(streamId), updates);
-            navigate('/streams');
+            showSuccessToast('Changes saved successfully');
         } catch (err) {
             showErrorToast(err, 'Failed to save changes');
         }
@@ -948,11 +961,45 @@ export default function EditStreamPage() {
 
                         {/* Layer 3: Presentation Taxonomy Tab */}
                         {activeTab === 'presentation' && (
-                            <div className="flex-1 min-h-0 overflow-y-auto">
-                                <PresentationForm
-                                    categories={form.categories}
-                                    onChange={(updated) => setForm({ ...form, categories: updated })}
-                                />
+                            <div className="flex-1 min-h-0 flex flex-col">
+                                {/* Presentation Subtabs */}
+                                <div className="flex gap-4 border-b border-gray-200 dark:border-gray-700 mb-4 flex-shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPresentationSubTab('categories')}
+                                        className={`pb-2 text-sm font-medium transition-colors ${
+                                            presentationSubTab === 'categories'
+                                                ? 'text-green-600 dark:text-green-400 border-b-2 border-green-500'
+                                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                                        }`}
+                                    >
+                                        Categories
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPresentationSubTab('categorization-prompt')}
+                                        className={`pb-2 text-sm font-medium transition-colors ${
+                                            presentationSubTab === 'categorization-prompt'
+                                                ? 'text-green-600 dark:text-green-400 border-b-2 border-green-500'
+                                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                                        }`}
+                                    >
+                                        Categorization Prompt
+                                    </button>
+                                </div>
+
+                                {/* Subtab Content */}
+                                {presentationSubTab === 'categories' && (
+                                    <div className="flex-1 min-h-0 overflow-y-auto">
+                                        <PresentationForm
+                                            categories={form.categories}
+                                            onChange={(updated) => setForm({ ...form, categories: updated })}
+                                        />
+                                    </div>
+                                )}
+                                {presentationSubTab === 'categorization-prompt' && streamId && (
+                                    <CategorizationPromptForm streamId={parseInt(streamId)} />
+                                )}
                             </div>
                         )}
 
@@ -1014,12 +1061,16 @@ export default function EditStreamPage() {
                         >
                             {canModify ? 'Cancel' : 'Back to Streams'}
                         </button>
-                        {/* Hide main save button on enrichment tab - it has its own controls */}
+                        {/* Hide main save button on enrichment tab and categorization prompt subtab - they have their own controls */}
                         {/* Also hide save button if user can't modify this stream */}
-                        {canModify && activeTab !== 'enrichment' && (
+                        {canModify && activeTab !== 'enrichment' && !(activeTab === 'presentation' && presentationSubTab === 'categorization-prompt') && (
                             <button
-                                type="submit"
-                                form="edit-stream-form"
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleSubmit(e as any);
+                                }}
                                 disabled={isLoading}
                                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                             >

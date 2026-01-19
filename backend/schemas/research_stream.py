@@ -309,9 +309,21 @@ class RetrievalConfig(BaseModel):
         }
 
 
+class CategorizationPrompt(BaseModel):
+    """Custom prompt for article categorization"""
+    system_prompt: str = Field(description="System prompt defining the LLM's role for categorization")
+    user_prompt_template: str = Field(
+        description="User prompt template with slugs: {title}, {abstract}, {journal}, {year}, {categories_json}"
+    )
+
+
 class PresentationConfig(BaseModel):
     """Layer 3: Configuration for organizing and presenting results"""
     categories: List[Category] = Field(description="How to organize results in reports")
+    categorization_prompt: Optional[CategorizationPrompt] = Field(
+        None,
+        description="Custom prompt for article categorization (None = use defaults)"
+    )
 
 
 # ============================================================================
