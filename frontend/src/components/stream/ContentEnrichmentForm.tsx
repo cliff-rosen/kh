@@ -37,8 +37,16 @@ import {
 } from '../../lib/api/promptWorkbenchApi';
 import { reportApi } from '../../lib/api/reportApi';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
-import { Report, Category } from '../../types';
+import { Report, Category, ResearchStream, StageModelConfig } from '../../types';
 import { copyToClipboard } from '../../lib/utils/clipboard';
+
+// Available models for testing
+const AVAILABLE_MODELS = [
+    { value: 'gpt-4.1', label: 'GPT-4.1 (Flagship)' },
+    { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini (Fast)' },
+    { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano (Cost-optimized)' },
+    { value: 'o4-mini', label: 'o4-mini (Reasoning)' },
+];
 
 interface PromptSuggestion {
     target: 'system_prompt' | 'user_prompt_template';
@@ -54,6 +62,7 @@ interface AppliedPromptSuggestions {
 
 interface ContentEnrichmentFormProps {
     streamId: number;
+    stream?: ResearchStream;  // Stream object to access llm_config for default model
     onSave?: () => void;
     appliedSuggestions?: AppliedPromptSuggestions | null;
     onSuggestionsApplied?: () => void;
@@ -73,6 +82,7 @@ interface HistoryEntry {
 
 export default function ContentEnrichmentForm({
     streamId,
+    stream,
     onSave,
     appliedSuggestions,
     onSuggestionsApplied
@@ -93,8 +103,11 @@ export default function ContentEnrichmentForm({
     const [categories, setCategories] = useState<Category[]>([]); // Stream categories for dropdown
     const [selectedReportId, setSelectedReportId] = useState<number | null>(null);
     const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+    const [selectedArticleIndex, setSelectedArticleIndex] = useState<number>(0);
     const [pastedData, setPastedData] = useState('');
     const [isTesting, setIsTesting] = useState(false);
+    const [useStreamModel, setUseStreamModel] = useState(true);  // Use stream's configured model
+    const [customModel, setCustomModel] = useState<string>('gpt-4.1');
 
     // History state for time travel
     const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -304,6 +317,9 @@ export default function ContentEnrichmentForm({
                     request.category_id = selectedCategoryId;
                     dataSource.categoryId = selectedCategoryId;
                 }
+                if (activePromptType === 'article_summary') {
+                    request.article_index = selectedArticleIndex;
+                }
             } else if (testMode === 'paste' && pastedData) {
                 try {
                     request.sample_data = JSON.parse(pastedData);
@@ -319,7 +335,22 @@ export default function ContentEnrichmentForm({
                 return;
             }
 
-            const result = await promptWorkbenchApi.testPrompt(request);
+            // Add LLM config
+            if (useStreamModel && stream?.llm_config) {
+                // Use stream's configured model for this prompt type
+                const stageConfig = stream.llm_config[activePromptType as keyof typeof stream.llm_config];
+                if (stageConfig) {
+                    request.llm_config = stageConfig;
+                }
+            } else if (!useStreamModel) {
+                // Use custom selected model
+                request.llm_config = {
+                    model: customModel,
+                    temperature: 0.3
+                };
+            }
+
+            const result = await promptWorkbenchApi.testSummaryPrompt(request);
 
             // Add to history
             const newEntry: HistoryEntry = {
@@ -802,6 +833,54 @@ export default function ContentEnrichmentForm({
                                                 </select>
                                             </div>
                                         )}
+                                        {activePromptType === 'article_summary' && selectedReportId && (
+                                            <div>
+                                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Article Index</label>
+                                                <select
+                                                    value={selectedArticleIndex}
+                                                    onChange={(e) => setSelectedArticleIndex(Number(e.target.value))}
+                                                    className="px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-32"
+                                                >
+                                                    {(() => {
+                                                        const selectedReport = reports.find(r => r.report_id === selectedReportId);
+                                                        const articleCount = selectedReport?.article_count || 10;
+                                                        return Array.from({ length: Math.min(articleCount, 50) }, (_, i) => (
+                                                            <option key={i} value={i}>
+                                                                Article {i + 1}
+                                                            </option>
+                                                        ));
+                                                    })()}
+                                                </select>
+                                            </div>
+                                        )}
+                                        {/* Model Selection */}
+                                        <div className="flex items-center gap-2 ml-4 pl-4 border-l border-gray-300 dark:border-gray-600">
+                                            <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={useStreamModel}
+                                                    onChange={(e) => setUseStreamModel(e.target.checked)}
+                                                    className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                Use stream model
+                                            </label>
+                                            {!useStreamModel && (
+                                                <select
+                                                    value={customModel}
+                                                    onChange={(e) => setCustomModel(e.target.value)}
+                                                    className="px-2 py-1 text-xs text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+                                                >
+                                                    {AVAILABLE_MODELS.map(m => (
+                                                        <option key={m.value} value={m.value}>{m.label}</option>
+                                                    ))}
+                                                </select>
+                                            )}
+                                            {useStreamModel && stream?.llm_config && (
+                                                <span className="text-xs text-gray-400">
+                                                    ({stream.llm_config[activePromptType as keyof typeof stream.llm_config]?.model || 'default'})
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 ) : (
                                     <div>

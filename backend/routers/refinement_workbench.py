@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 from models import User
 from routers.auth import get_current_user
 from schemas.canonical_types import CanonicalResearchArticle
+from schemas.research_stream import StageModelConfig
 from services.refinement_workbench_service import (
     RefinementWorkbenchService,
     get_refinement_workbench_service
@@ -61,6 +62,7 @@ class FilterArticlesRequest(BaseModel):
     filter_criteria: str = Field(..., description="Natural language filter criteria")
     threshold: float = Field(0.7, ge=0.0, le=1.0, description="Minimum score to pass (0.0-1.0)")
     output_type: str = Field("boolean", description="Expected output type: 'boolean' (yes/no), 'number' (score), or 'text' (classification)")
+    llm_config: Optional[StageModelConfig] = Field(None, description="LLM model configuration (uses defaults if not provided)")
 
 
 class FilterResult(BaseModel):
@@ -83,6 +85,7 @@ class CategorizeArticlesRequest(BaseModel):
     """Request to categorize articles using stream's Layer 3 categories"""
     stream_id: int = Field(..., description="Research stream ID (to get categories)")
     articles: List[CanonicalResearchArticle] = Field(..., description="Articles to categorize")
+    llm_config: Optional[StageModelConfig] = Field(None, description="LLM model configuration (uses defaults if not provided)")
 
 
 class CategoryAssignment(BaseModel):
@@ -247,7 +250,8 @@ async def filter_articles(
             articles=request.articles,
             filter_criteria=request.filter_criteria,
             threshold=request.threshold,
-            output_type=request.output_type
+            output_type=request.output_type,
+            llm_config=request.llm_config
         )
 
         # Convert dicts to FilterResult models
@@ -292,7 +296,8 @@ async def categorize_articles(
     try:
         results_list = await service.categorize_articles(
             stream_id=request.stream_id,
-            articles=request.articles
+            articles=request.articles,
+            llm_config=request.llm_config
         )
 
         # Convert dicts to CategoryAssignment models

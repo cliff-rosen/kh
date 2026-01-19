@@ -1011,6 +1011,7 @@ export default function EditStreamPage() {
                         <div className="flex-1 min-h-0 flex flex-col">
                             <ContentEnrichmentForm
                                 streamId={parseInt(streamId!)}
+                                stream={stream}
                                 appliedSuggestions={appliedPromptSuggestions}
                                 onSuggestionsApplied={handlePromptSuggestionsApplied}
                             />

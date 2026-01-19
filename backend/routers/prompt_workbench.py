@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from database import get_async_db
 from models import User
-from schemas.research_stream import EnrichmentConfig, PromptTemplate, CategorizationPrompt
+from schemas.research_stream import EnrichmentConfig, PromptTemplate, CategorizationPrompt, StageModelConfig
 from services.research_stream_service import (
     ResearchStreamService,
     get_research_stream_service
@@ -57,11 +57,13 @@ class UpdateEnrichmentConfigRequest(BaseModel):
 
 class TestPromptRequest(BaseModel):
     """Request to test a prompt"""
-    prompt_type: str = Field(..., description="'executive_summary' or 'category_summary'")
+    prompt_type: str = Field(..., description="'executive_summary', 'category_summary', or 'article_summary'")
     prompt: PromptTemplate = Field(..., description="The prompt to test")
     sample_data: Optional[Dict[str, Any]] = Field(None, description="Sample data with articles and context")
     report_id: Optional[int] = Field(None, description="Reference to an existing report to use as test data")
     category_id: Optional[str] = Field(None, description="Category ID for category_summary test")
+    article_index: Optional[int] = Field(0, description="Article index for article_summary test (0-based)")
+    llm_config: Optional[StageModelConfig] = Field(None, description="LLM model configuration (uses defaults if not provided)")
 
 
 class TestPromptResponse(BaseModel):
@@ -103,6 +105,7 @@ class TestCategorizationPromptRequest(BaseModel):
     )
     report_id: Optional[int] = Field(None, description="Reference to an existing report to get an article from")
     article_index: Optional[int] = Field(0, description="Which article to use from the report (default: first)")
+    llm_config: Optional[StageModelConfig] = Field(None, description="LLM model configuration (uses defaults if not provided)")
 
 
 class TestCategorizationPromptResponse(BaseModel):
@@ -192,13 +195,13 @@ async def update_stream_enrichment_config(
     return {"status": "success", "message": "Enrichment config updated"}
 
 
-@router.post("/test", response_model=TestPromptResponse)
-async def test_prompt(
+@router.post("/test-summary", response_model=TestPromptResponse)
+async def test_summary_prompt(
     request: TestPromptRequest,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Test a prompt by rendering it with sample data and running it through the LLM"""
+    """Test a summary prompt (executive, category, or article) with sample data or report data"""
     if not request.sample_data and not request.report_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -214,7 +217,9 @@ async def test_prompt(
             user_id=current_user.user_id,
             sample_data=request.sample_data,
             report_id=request.report_id,
-            category_id=request.category_id
+            category_id=request.category_id,
+            article_index=request.article_index,
+            llm_config=request.llm_config
         )
         return TestPromptResponse(**result)
 
@@ -333,7 +338,8 @@ async def test_categorization_prompt(
             user_id=current_user.user_id,
             sample_data=request.sample_data,
             report_id=request.report_id,
-            article_index=request.article_index or 0
+            article_index=request.article_index or 0,
+            llm_config=request.llm_config
         )
         return TestCategorizationPromptResponse(**result)
 

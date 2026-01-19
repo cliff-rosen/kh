@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { ArrowPathIcon, DocumentTextIcon, CheckCircleIcon, XCircleIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, DocumentTextIcon, CheckCircleIcon, XCircleIcon, ArrowTopRightOnSquareIcon, ClipboardIcon, ArrowDownTrayIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { researchStreamApi, CurationNoteItem } from '../../lib/api/researchStreamApi';
+import { copyToClipboard } from '../../lib/utils/clipboard';
 
 interface CurationNotesTabProps {
     streamId: number;
@@ -11,6 +12,7 @@ export default function CurationNotesTab({ streamId }: CurationNotesTabProps) {
     const [error, setError] = useState<string | null>(null);
     const [notes, setNotes] = useState<CurationNoteItem[]>([]);
     const [totalCount, setTotalCount] = useState(0);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         loadCurationNotes();
@@ -35,6 +37,60 @@ export default function CurationNotesTab({ streamId }: CurationNotesTabProps) {
         if (!dateStr) return '';
         const date = new Date(dateStr);
         return date.toLocaleString();
+    };
+
+    const formatNotesForExport = (): string => {
+        if (notes.length === 0) return '';
+
+        const lines: string[] = [
+            `# Curation Notes (${totalCount} total)`,
+            `Exported: ${new Date().toLocaleString()}`,
+            '',
+            '---',
+            ''
+        ];
+
+        notes.forEach((note, index) => {
+            const action = note.curator_included ? '[INCLUDED]' : note.curator_excluded ? '[EXCLUDED]' : '';
+            lines.push(`## ${index + 1}. ${note.title}`);
+            if (action) lines.push(`**Action:** ${action}`);
+            if (note.pmid) lines.push(`**PMID:** ${note.pmid} (https://pubmed.ncbi.nlm.nih.gov/${note.pmid})`);
+            if (note.curator_name) lines.push(`**Curator:** ${note.curator_name}`);
+            if (note.curated_at) lines.push(`**Date:** ${formatDate(note.curated_at)}`);
+            if (note.report_id) lines.push(`**Report:** #${note.report_id}`);
+            lines.push('');
+            lines.push('**Note:**');
+            lines.push(note.curation_notes);
+            lines.push('');
+            lines.push('---');
+            lines.push('');
+        });
+
+        return lines.join('\n');
+    };
+
+    const handleCopyToClipboard = async () => {
+        const text = formatNotesForExport();
+        const result = await copyToClipboard(text);
+        if (result.success) {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } else {
+            console.error('Failed to copy to clipboard:', result.error);
+        }
+    };
+
+    const handleExport = () => {
+        const text = formatNotesForExport();
+        const blob = new Blob([text], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `curation-notes-stream-${streamId}.md`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     };
 
     if (loading) {
@@ -70,23 +126,50 @@ export default function CurationNotesTab({ streamId }: CurationNotesTabProps) {
     }
 
     return (
-        <div className="space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between">
+        <div className="flex flex-col h-full min-h-0">
+            {/* Header - fixed */}
+            <div className="flex-shrink-0 flex items-center justify-between pb-4">
                 <h3 className="text-sm font-medium text-gray-900 dark:text-white">
                     Curation Notes ({totalCount})
                 </h3>
-                <button
-                    onClick={loadCurationNotes}
-                    className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-1"
-                >
-                    <ArrowPathIcon className="h-4 w-4" />
-                    Refresh
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleCopyToClipboard}
+                        className="text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300 flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                        title="Copy to clipboard"
+                    >
+                        {copied ? (
+                            <>
+                                <CheckIcon className="h-4 w-4 text-green-600" />
+                                <span className="text-green-600">Copied!</span>
+                            </>
+                        ) : (
+                            <>
+                                <ClipboardIcon className="h-4 w-4" />
+                                Copy
+                            </>
+                        )}
+                    </button>
+                    <button
+                        onClick={handleExport}
+                        className="text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300 flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                        title="Export as Markdown"
+                    >
+                        <ArrowDownTrayIcon className="h-4 w-4" />
+                        Export
+                    </button>
+                    <button
+                        onClick={loadCurationNotes}
+                        className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-1 px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                    >
+                        <ArrowPathIcon className="h-4 w-4" />
+                        Refresh
+                    </button>
+                </div>
             </div>
 
-            {/* Notes List */}
-            <div className="space-y-3">
+            {/* Notes List - scrollable */}
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-3">
                 {notes.map((note) => (
                     <div
                         key={note.wip_article_id}

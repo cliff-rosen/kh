@@ -12,6 +12,8 @@ import logging
 
 from models import ResearchStream
 from schemas.canonical_types import CanonicalResearchArticle
+from schemas.research_stream import StageModelConfig
+from typing import Optional
 from schemas.research_article_converters import legacy_article_to_canonical_pubmed, pubmed_to_research_article
 from services.pubmed_service import PubMedService, fetch_articles_by_ids
 from services.ai_evaluation_service import get_ai_evaluation_service
@@ -230,7 +232,8 @@ class RefinementWorkbenchService:
         articles: List[CanonicalResearchArticle],
         filter_criteria: str,
         threshold: float,
-        output_type: str = "boolean"
+        output_type: str = "boolean",
+        llm_config: Optional[StageModelConfig] = None
     ) -> List[Dict]:
         """
         Apply semantic filtering to articles in parallel.
@@ -240,6 +243,7 @@ class RefinementWorkbenchService:
             filter_criteria: Natural language filter criteria
             threshold: Minimum score to pass (0.0-1.0)
             output_type: Expected output type ('boolean', 'number', or 'text')
+            llm_config: Optional LLM configuration (uses defaults if not provided)
 
         Returns:
             List of filter result dicts with article, passed, score, reasoning
@@ -320,7 +324,8 @@ class RefinementWorkbenchService:
     async def categorize_articles(
         self,
         stream_id: int,
-        articles: List[CanonicalResearchArticle]
+        articles: List[CanonicalResearchArticle],
+        llm_config: Optional[StageModelConfig] = None
     ) -> List[Dict]:
         """
         Categorize articles using stream's Layer 3 categories in parallel.
@@ -328,6 +333,7 @@ class RefinementWorkbenchService:
         Args:
             stream_id: Research stream ID (to get categories)
             articles: List of articles to categorize
+            llm_config: Optional LLM configuration (uses defaults if not provided)
 
         Returns:
             List of categorization result dicts with article and assigned_categories
@@ -363,10 +369,22 @@ class RefinementWorkbenchService:
                 "categories_json": categories_json,
             })
 
+        # Convert StageModelConfig to ModelConfig if provided
+        model_config = None
+        if llm_config:
+            model_config = ModelConfig(
+                model=llm_config.model,
+                temperature=llm_config.temperature if llm_config.temperature is not None else 0.3,
+                max_tokens=llm_config.max_tokens,
+                reasoning_effort=llm_config.reasoning_effort.value if llm_config.reasoning_effort else None
+            )
+        else:
+            model_config = ModelConfig(model="gpt-4.1", temperature=0.3)
+
         # Call categorization service
         llm_results = await self.categorization_service.categorize(
             items=items,
-            model_config=ModelConfig(model="gpt-4.1", temperature=0.3),
+            model_config=model_config,
             options=LLMOptions(max_concurrent=10),
         )
 

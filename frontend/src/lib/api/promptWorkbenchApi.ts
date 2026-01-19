@@ -31,12 +31,20 @@ export interface EnrichmentConfigResponse {
     defaults: Record<string, PromptTemplate>;
 }
 
+export interface StageModelConfig {
+    model: string;
+    temperature?: number;
+    reasoning_effort?: 'low' | 'medium' | 'high';
+}
+
 export interface TestPromptRequest {
     prompt_type: string;
     prompt: PromptTemplate;
     sample_data?: Record<string, any>;
     report_id?: number;
     category_id?: string;
+    article_index?: number;
+    llm_config?: StageModelConfig;
 }
 
 export interface TestPromptResponse {
@@ -104,10 +112,10 @@ export const promptWorkbenchApi = {
     },
 
     /**
-     * Test a prompt with sample data or a report
+     * Test a summary prompt (executive, category, or article) with sample data or a report
      */
-    async testPrompt(request: TestPromptRequest): Promise<TestPromptResponse> {
-        const response = await api.post(`${API_BASE}/test`, request);
+    async testSummaryPrompt(request: TestPromptRequest): Promise<TestPromptResponse> {
+        const response = await api.post(`${API_BASE}/test-summary`, request);
         return response.data;
     },
 
