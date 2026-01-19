@@ -22,6 +22,47 @@ export default function SemanticSpaceForm({ semanticSpace, onChange }: SemanticS
     const [entitiesExpanded, setEntitiesExpanded] = useState(false);
     const [relationshipsExpanded, setRelationshipsExpanded] = useState(false);
 
+    // Collapse state for individual items within sections
+    const [expandedTopics, setExpandedTopics] = useState<Set<number>>(new Set());
+    const [expandedEntities, setExpandedEntities] = useState<Set<number>>(new Set());
+    const [expandedRelationships, setExpandedRelationships] = useState<Set<number>>(new Set());
+
+    const toggleTopicExpanded = (index: number) => {
+        setExpandedTopics(prev => {
+            const next = new Set(prev);
+            if (next.has(index)) {
+                next.delete(index);
+            } else {
+                next.add(index);
+            }
+            return next;
+        });
+    };
+
+    const toggleEntityExpanded = (index: number) => {
+        setExpandedEntities(prev => {
+            const next = new Set(prev);
+            if (next.has(index)) {
+                next.delete(index);
+            } else {
+                next.add(index);
+            }
+            return next;
+        });
+    };
+
+    const toggleRelationshipExpanded = (index: number) => {
+        setExpandedRelationships(prev => {
+            const next = new Set(prev);
+            if (next.has(index)) {
+                next.delete(index);
+            } else {
+                next.add(index);
+            }
+            return next;
+        });
+    };
+
     if (!semanticSpace) return null;
 
     const updateField = (path: string[], value: any) => {
@@ -174,86 +215,111 @@ export default function SemanticSpaceForm({ semanticSpace, onChange }: SemanticS
                 </div>
 
                 {topicsExpanded && (
-                    <>
+                    <div className="space-y-2">
                         {semanticSpace.topics.length === 0 && (
-                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <div className="text-center py-6 text-gray-500 dark:text-gray-400 text-sm">
                                 No topics defined yet. Click "Add Topic" to get started.
                             </div>
                         )}
 
-                        {semanticSpace.topics.map((topic, index) => (
-                    <div key={topic.topic_id} className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                            <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                                Topic {index + 1}
-                            </h4>
-                            <button
-                                type="button"
-                                onClick={() => removeTopic(index)}
-                                className="text-red-600 dark:text-red-400 hover:text-red-700"
-                            >
-                                <TrashIcon className="h-5 w-5" />
-                            </button>
-                        </div>
+                        {semanticSpace.topics.map((topic, index) => {
+                            const isExpanded = expandedTopics.has(index);
+                            const hasDescription = topic.description?.trim();
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Topic Name
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="e.g., Asbestos-Related Disease Mechanisms"
-                                    value={topic.name}
-                                    onChange={(e) => updateTopic(index, 'name', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                />
-                            </div>
+                            return (
+                                <div key={topic.topic_id} className="border border-gray-300 dark:border-gray-600 rounded-lg p-3">
+                                    {/* Topic header row */}
+                                    <div className="flex items-center gap-3">
+                                        {/* Expand/collapse button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleTopicExpanded(index)}
+                                            className="flex-shrink-0 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                                        >
+                                            {isExpanded ? (
+                                                <ChevronDownIcon className="h-4 w-4 text-gray-500" />
+                                            ) : (
+                                                <ChevronRightIcon className="h-4 w-4 text-gray-500" />
+                                            )}
+                                        </button>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Importance
-                                </label>
-                                <select
-                                    value={topic.importance}
-                                    onChange={(e) => updateTopic(index, 'importance', e.target.value as ImportanceLevel)}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                >
-                                    <option value={ImportanceLevel.HIGH}>High</option>
-                                    <option value={ImportanceLevel.MEDIUM}>Medium</option>
-                                    <option value={ImportanceLevel.LOW}>Low</option>
-                                </select>
-                            </div>
-                        </div>
+                                        {/* Topic name input */}
+                                        <input
+                                            type="text"
+                                            placeholder="Topic name"
+                                            value={topic.name}
+                                            onChange={(e) => updateTopic(index, 'name', e.target.value)}
+                                            className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                        />
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Description
-                            </label>
-                            <textarea
-                                placeholder="What this topic encompasses"
-                                rows={2}
-                                value={topic.description}
-                                onChange={(e) => updateTopic(index, 'description', e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                            />
-                        </div>
+                                        {/* Importance badge */}
+                                        <select
+                                            value={topic.importance}
+                                            onChange={(e) => updateTopic(index, 'importance', e.target.value as ImportanceLevel)}
+                                            className={`flex-shrink-0 px-2 py-1 text-xs rounded border-0 ${
+                                                topic.importance === ImportanceLevel.HIGH
+                                                    ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                                                    : topic.importance === ImportanceLevel.MEDIUM
+                                                    ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                                            }`}
+                                        >
+                                            <option value={ImportanceLevel.HIGH}>High</option>
+                                            <option value={ImportanceLevel.MEDIUM}>Medium</option>
+                                            <option value={ImportanceLevel.LOW}>Low</option>
+                                        </select>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Rationale
-                            </label>
-                            <input
-                                type="text"
-                                placeholder="Why this topic matters"
-                                value={topic.rationale}
-                                onChange={(e) => updateTopic(index, 'rationale', e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                            />
-                        </div>
+                                        {/* Description indicator when collapsed */}
+                                        {hasDescription && !isExpanded && (
+                                            <span className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-[150px]">
+                                                {topic.description}
+                                            </span>
+                                        )}
+
+                                        {/* Delete button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => removeTopic(index)}
+                                            className="flex-shrink-0 text-red-600 dark:text-red-400 hover:text-red-700 p-1"
+                                        >
+                                            <TrashIcon className="h-4 w-4" />
+                                        </button>
+                                    </div>
+
+                                    {/* Expanded content */}
+                                    {isExpanded && (
+                                        <div className="mt-3 ml-9 space-y-3">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                    Description
+                                                </label>
+                                                <textarea
+                                                    placeholder="What this topic encompasses"
+                                                    rows={2}
+                                                    value={topic.description}
+                                                    onChange={(e) => updateTopic(index, 'description', e.target.value)}
+                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                    Rationale
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Why this topic matters"
+                                                    value={topic.rationale}
+                                                    onChange={(e) => updateTopic(index, 'rationale', e.target.value)}
+                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
-                        ))}
-                    </>
                 )}
             </div>
 
@@ -292,93 +358,104 @@ export default function SemanticSpaceForm({ semanticSpace, onChange }: SemanticS
                 </div>
 
                 {entitiesExpanded && (
-                    <>
+                    <div className="space-y-2">
                         {semanticSpace.entities.length === 0 && (
-                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <div className="text-center py-6 text-gray-500 dark:text-gray-400 text-sm">
                                 No entities defined yet. Click "Add Entity" to get started.
                             </div>
                         )}
 
-                        {semanticSpace.entities.map((entity, index) => (
-                    <div key={entity.entity_id} className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                            <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                                Entity {index + 1}
-                            </h4>
-                            <button
-                                type="button"
-                                onClick={() => removeEntity(index)}
-                                className="text-red-600 dark:text-red-400 hover:text-red-700"
-                            >
-                                <TrashIcon className="h-5 w-5" />
-                            </button>
-                        </div>
+                        {semanticSpace.entities.map((entity, index) => {
+                            const isExpanded = expandedEntities.has(index);
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Entity Name
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="e.g., Mesothelioma"
-                                    value={entity.name}
-                                    onChange={(e) => updateEntity(index, 'name', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                />
-                            </div>
+                            return (
+                                <div key={entity.entity_id} className="border border-gray-300 dark:border-gray-600 rounded-lg p-3">
+                                    {/* Entity header row */}
+                                    <div className="flex items-center gap-3">
+                                        {/* Expand/collapse button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleEntityExpanded(index)}
+                                            className="flex-shrink-0 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                                        >
+                                            {isExpanded ? (
+                                                <ChevronDownIcon className="h-4 w-4 text-gray-500" />
+                                            ) : (
+                                                <ChevronRightIcon className="h-4 w-4 text-gray-500" />
+                                            )}
+                                        </button>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Entity Type
-                                </label>
-                                <select
-                                    value={entity.entity_type}
-                                    onChange={(e) => updateEntity(index, 'entity_type', e.target.value as EntityType)}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                >
-                                    <option value={EntityType.DISEASE}>Disease</option>
-                                    <option value={EntityType.DRUG}>Drug</option>
-                                    <option value={EntityType.SUBSTANCE}>Substance</option>
-                                    <option value={EntityType.CHEMICAL}>Chemical</option>
-                                    <option value={EntityType.ORGANIZATION}>Organization</option>
-                                    <option value={EntityType.REGULATION}>Regulation</option>
-                                    <option value={EntityType.BIOMARKER}>Biomarker</option>
-                                    <option value={EntityType.GENE}>Gene</option>
-                                    <option value={EntityType.PROTEIN}>Protein</option>
-                                    <option value={EntityType.PATHWAY}>Pathway</option>
-                                </select>
-                            </div>
-                        </div>
+                                        {/* Entity name input */}
+                                        <input
+                                            type="text"
+                                            placeholder="Entity name"
+                                            value={entity.name}
+                                            onChange={(e) => updateEntity(index, 'name', e.target.value)}
+                                            className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                        />
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Context
-                            </label>
-                            <textarea
-                                placeholder="Why this entity matters"
-                                rows={2}
-                                value={entity.context}
-                                onChange={(e) => updateEntity(index, 'context', e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                            />
-                        </div>
+                                        {/* Entity type badge */}
+                                        <select
+                                            value={entity.entity_type}
+                                            onChange={(e) => updateEntity(index, 'entity_type', e.target.value as EntityType)}
+                                            className="flex-shrink-0 px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded border-0"
+                                        >
+                                            <option value={EntityType.DISEASE}>Disease</option>
+                                            <option value={EntityType.DRUG}>Drug</option>
+                                            <option value={EntityType.SUBSTANCE}>Substance</option>
+                                            <option value={EntityType.CHEMICAL}>Chemical</option>
+                                            <option value={EntityType.ORGANIZATION}>Organization</option>
+                                            <option value={EntityType.REGULATION}>Regulation</option>
+                                            <option value={EntityType.BIOMARKER}>Biomarker</option>
+                                            <option value={EntityType.GENE}>Gene</option>
+                                            <option value={EntityType.PROTEIN}>Protein</option>
+                                            <option value={EntityType.PATHWAY}>Pathway</option>
+                                        </select>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Canonical Forms (comma-separated)
-                            </label>
-                            <input
-                                type="text"
-                                placeholder="e.g., mesothelioma, malignant mesothelioma"
-                                value={entity.canonical_forms.join(', ')}
-                                onChange={(e) => updateEntity(index, 'canonical_forms', e.target.value.split(',').map(s => s.trim()).filter(s => s))}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                            />
-                        </div>
+                                        {/* Delete button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => removeEntity(index)}
+                                            className="flex-shrink-0 text-red-600 dark:text-red-400 hover:text-red-700 p-1"
+                                        >
+                                            <TrashIcon className="h-4 w-4" />
+                                        </button>
+                                    </div>
+
+                                    {/* Expanded content */}
+                                    {isExpanded && (
+                                        <div className="mt-3 ml-9 space-y-3">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                    Context
+                                                </label>
+                                                <textarea
+                                                    placeholder="Why this entity matters"
+                                                    rows={2}
+                                                    value={entity.context}
+                                                    onChange={(e) => updateEntity(index, 'context', e.target.value)}
+                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                    Canonical Forms (comma-separated)
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g., mesothelioma, malignant mesothelioma"
+                                                    value={entity.canonical_forms.join(', ')}
+                                                    onChange={(e) => updateEntity(index, 'canonical_forms', e.target.value.split(',').map(s => s.trim()).filter(s => s))}
+                                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
-                        ))}
-                    </>
                 )}
             </div>
 
@@ -417,37 +494,48 @@ export default function SemanticSpaceForm({ semanticSpace, onChange }: SemanticS
                 </div>
 
                 {relationshipsExpanded && (
-                    <>
+                    <div className="space-y-2">
                         {semanticSpace.relationships.length === 0 && (
-                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <div className="text-center py-6 text-gray-500 dark:text-gray-400 text-sm">
                                 No relationships defined yet. Click "Add Relationship" to get started.
                             </div>
                         )}
 
-                        {semanticSpace.relationships.map((relationship, index) => (
-                            <div key={relationship.relationship_id} className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                                        Relationship {index + 1}
-                                    </h4>
-                                    <button
-                                        type="button"
-                                        onClick={() => removeRelationship(index)}
-                                        className="text-red-600 dark:text-red-400 hover:text-red-700"
-                                    >
-                                        <TrashIcon className="h-5 w-5" />
-                                    </button>
-                                </div>
+                        {semanticSpace.relationships.map((relationship, index) => {
+                            const isExpanded = expandedRelationships.has(index);
+                            const summary = `${relationship.subject} → ${relationship.object}`;
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                            Type
-                                        </label>
+                            return (
+                                <div key={relationship.relationship_id} className="border border-gray-300 dark:border-gray-600 rounded-lg p-3">
+                                    {/* Relationship header row */}
+                                    <div className="flex items-center gap-3">
+                                        {/* Expand/collapse button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleRelationshipExpanded(index)}
+                                            className="flex-shrink-0 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                                        >
+                                            {isExpanded ? (
+                                                <ChevronDownIcon className="h-4 w-4 text-gray-500" />
+                                            ) : (
+                                                <ChevronRightIcon className="h-4 w-4 text-gray-500" />
+                                            )}
+                                        </button>
+
+                                        {/* Subject input */}
+                                        <input
+                                            type="text"
+                                            placeholder="Subject"
+                                            value={relationship.subject}
+                                            onChange={(e) => updateRelationship(index, 'subject', e.target.value)}
+                                            className="w-32 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                        />
+
+                                        {/* Type badge */}
                                         <select
                                             value={relationship.type}
                                             onChange={(e) => updateRelationship(index, 'type', e.target.value as RelationshipType)}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                            className="flex-shrink-0 px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded border-0"
                                         >
                                             <option value={RelationshipType.CAUSAL}>Causal</option>
                                             <option value={RelationshipType.CORRELATIONAL}>Correlational</option>
@@ -459,65 +547,62 @@ export default function SemanticSpaceForm({ semanticSpace, onChange }: SemanticS
                                             <option value={RelationshipType.INHIBITORY}>Inhibitory</option>
                                             <option value={RelationshipType.INTERACTIVE}>Interactive</option>
                                         </select>
-                                    </div>
 
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                            Subject (topic/entity ID)
-                                        </label>
+                                        {/* Object input */}
                                         <input
                                             type="text"
-                                            placeholder="e.g., topic_1 or entity_1"
-                                            value={relationship.subject}
-                                            onChange={(e) => updateRelationship(index, 'subject', e.target.value)}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                            Object (topic/entity ID)
-                                        </label>
-                                        <input
-                                            type="text"
-                                            placeholder="e.g., topic_2 or entity_2"
+                                            placeholder="Object"
                                             value={relationship.object}
                                             onChange={(e) => updateRelationship(index, 'object', e.target.value)}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                            className="w-32 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                                         />
+
+                                        {/* Strength badge */}
+                                        <select
+                                            value={relationship.strength}
+                                            onChange={(e) => updateRelationship(index, 'strength', e.target.value as RelationshipStrength)}
+                                            className={`flex-shrink-0 px-2 py-1 text-xs rounded border-0 ${
+                                                relationship.strength === 'strong'
+                                                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                                                    : relationship.strength === 'moderate'
+                                                    ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                                            }`}
+                                        >
+                                            <option value="strong">Strong</option>
+                                            <option value="moderate">Moderate</option>
+                                            <option value="weak">Weak</option>
+                                        </select>
+
+                                        {/* Delete button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => removeRelationship(index)}
+                                            className="flex-shrink-0 text-red-600 dark:text-red-400 hover:text-red-700 p-1"
+                                        >
+                                            <TrashIcon className="h-4 w-4" />
+                                        </button>
                                     </div>
-                                </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                        Description
-                                    </label>
-                                    <textarea
-                                        placeholder="Describe the relationship"
-                                        rows={2}
-                                        value={relationship.description}
-                                        onChange={(e) => updateRelationship(index, 'description', e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                    />
+                                    {/* Expanded content */}
+                                    {isExpanded && (
+                                        <div className="mt-3 ml-9">
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                Description
+                                            </label>
+                                            <textarea
+                                                placeholder="Describe the relationship"
+                                                rows={2}
+                                                value={relationship.description}
+                                                onChange={(e) => updateRelationship(index, 'description', e.target.value)}
+                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                            />
+                                        </div>
+                                    )}
                                 </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                        Strength
-                                    </label>
-                                    <select
-                                        value={relationship.strength}
-                                        onChange={(e) => updateRelationship(index, 'strength', e.target.value as RelationshipStrength)}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                    >
-                                        <option value="strong">Strong</option>
-                                        <option value="moderate">Moderate</option>
-                                        <option value="weak">Weak</option>
-                                    </select>
-                                </div>
-                            </div>
-                        ))}
-                    </>
+                            );
+                        })}
+                    </div>
                 )}
             </div>
 
