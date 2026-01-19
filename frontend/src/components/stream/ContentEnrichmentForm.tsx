@@ -37,19 +37,9 @@ import {
 } from '../../lib/api/promptWorkbenchApi';
 import { reportApi } from '../../lib/api/reportApi';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
-import { Report, Category, ResearchStream, StageModelConfig } from '../../types';
+import { Report, Category, ResearchStream, StageModelConfig, ModelInfo } from '../../types';
 import { copyToClipboard } from '../../lib/utils/clipboard';
 import { api } from '../../lib/api';
-
-// Type for model data from backend (matches ModelConfigForm)
-interface ModelInfo {
-    id: string;
-    name: string;
-    supports_reasoning_effort: boolean;
-    reasoning_effort_levels: string[] | null;
-    supports_temperature: boolean;
-    max_tokens: number | null;
-}
 
 interface PromptSuggestion {
     target: 'system_prompt' | 'user_prompt_template';

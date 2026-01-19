@@ -34,20 +34,10 @@ import {
     TestCategorizationPromptResponse,
 } from '../../lib/api/promptWorkbenchApi';
 import { reportApi } from '../../lib/api/reportApi';
-import { Report, ResearchStream } from '../../types';
+import { Report, ResearchStream, ModelInfo } from '../../types';
 import { copyToClipboard } from '../../lib/utils/clipboard';
 import { showErrorToast, showSuccessToast } from '../../lib/errorToast';
 import { api } from '../../lib/api';
-
-// Type for model data from backend (matches ModelConfigForm)
-interface ModelInfo {
-    id: string;
-    name: string;
-    supports_reasoning_effort: boolean;
-    reasoning_effort_levels: string[] | null;
-    supports_temperature: boolean;
-    max_tokens: number | null;
-}
 
 interface CategorizationPromptFormProps {
     streamId: number;

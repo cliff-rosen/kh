@@ -1,18 +1,8 @@
 import { useState, useEffect } from 'react';
-import { ResearchStream, LLMConfig, StageModelConfig, ReasoningEffort } from '../../types';
+import { ResearchStream, LLMConfig, StageModelConfig, ReasoningEffort, ModelInfo } from '../../types';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
 import { showErrorToast, showSuccessToast } from '../../lib/errorToast';
 import { api } from '../../lib/api';
-
-// Type for model data from backend
-interface ModelInfo {
-    id: string;
-    name: string;
-    supports_reasoning_effort: boolean;
-    reasoning_effort_levels: string[] | null;
-    supports_temperature: boolean;
-    max_tokens: number | null;
-}
 
 interface ModelsResponse {
     models: ModelInfo[];

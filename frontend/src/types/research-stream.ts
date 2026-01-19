@@ -333,6 +333,18 @@ export interface StageModelConfig {
 }
 
 /**
+ * Model information returned from /api/llm/models endpoint
+ */
+export interface ModelInfo {
+    id: string;
+    name: string;
+    supports_reasoning_effort: boolean;
+    reasoning_effort_levels: string[] | null;
+    supports_temperature: boolean;
+    max_tokens: number | null;
+}
+
+/**
  * LLM configuration for each pipeline stage.
  *
  * Pipeline stages:
