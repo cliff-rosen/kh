@@ -552,6 +552,40 @@ _To be documented: unit tests, integration tests, mocking services_
 - Only define NEW types when the API shape is genuinely different (e.g., paginated wrapper, combined response)
 - Do NOT create duplicates of domain types - import them
 
+#### All API Calls Must Go Through Dedicated API Files
+
+**Components must NEVER import `api` directly to make raw API calls.** Every backend endpoint must have a corresponding method in a dedicated API file.
+
+```typescript
+// ❌ WRONG - Direct api call in component
+import { api } from '../../lib/api';
+
+useEffect(() => {
+    const response = await api.get('/api/llm/models');
+    setModels(response.data.models);
+}, []);
+
+// ✅ CORRECT - Use dedicated API file
+import { llmApi } from '../../lib/api/llmApi';
+
+useEffect(() => {
+    const response = await llmApi.getModels();
+    setModels(response.models);
+}, []);
+```
+
+**If an endpoint doesn't have an API file, create one:**
+1. Create `lib/api/{domain}Api.ts` (e.g., `llmApi.ts`, `reportApi.ts`)
+2. Define request/response types in the API file
+3. Export the API object with methods for each endpoint
+4. Import and use from components
+
+This ensures:
+- Centralized API logic (error handling, response transformation)
+- Single source of truth for endpoint URLs
+- Easier refactoring when endpoints change
+- Better discoverability of available API methods
+
 #### API Request Methods
 
 **Standard requests** - Use the `api` instance from `index.ts`:
