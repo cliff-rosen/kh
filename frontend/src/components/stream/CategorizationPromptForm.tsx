@@ -534,7 +534,7 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
                         <textarea
                             value={prompt?.system_prompt || ''}
                             onChange={(e) => updatePrompt('system_prompt', e.target.value)}
-                            className="w-full h-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            className="w-full h-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-green-500 focus:border-transparent"
                             placeholder="Define the LLM's role for categorization..."
                         />
                     </div>
@@ -548,7 +548,7 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
                         <textarea
                             value={prompt?.user_prompt_template || ''}
                             onChange={(e) => updatePrompt('user_prompt_template', e.target.value)}
-                            className="flex-1 min-h-[200px] w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            className="flex-1 min-h-[200px] w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-green-500 focus:border-transparent"
                             placeholder="Write the categorization prompt template with slugs..."
                         />
                     </div>

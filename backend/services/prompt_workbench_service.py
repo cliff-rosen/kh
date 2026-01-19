@@ -12,11 +12,12 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Optional, List
 
-from models import Report, WipArticle, ReportArticleAssociation
+from models import Report, WipArticle
 from schemas.research_stream import EnrichmentConfig, PromptTemplate, CategorizationPrompt, ResearchStream as ResearchStreamSchema
 from services.report_summary_service import ReportSummaryService, DEFAULT_PROMPTS, AVAILABLE_SLUGS
 from services.research_stream_service import ResearchStreamService
 from services.report_service import ReportService
+from services.report_article_association_service import ReportArticleAssociationService
 from services.article_categorization_service import ArticleCategorizationService
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ class PromptWorkbenchService:
         self._summary_service = None  # Lazy-loaded - only needed for testing prompts
         self.stream_service = ResearchStreamService(db)
         self.report_service = ReportService(db)
+        self.association_service = ReportArticleAssociationService(db)
 
     @property
     def summary_service(self) -> ReportSummaryService:
@@ -414,27 +416,18 @@ class PromptWorkbenchService:
             Dict with title, abstract, journal, year, categories_json
         """
         import json
-        from sqlalchemy import select
-        from sqlalchemy.orm import selectinload
 
-        # Get the report with access check
+        # Get the report with access check (returns report, user, stream)
         try:
             result = await self.report_service.get_report_with_access(
                 report_id, user_id, raise_on_not_found=True
             )
-            report, _, stream = result
+            _, _, stream = result
         except Exception:
             raise PermissionError("You don't have access to this report")
 
-        # Get articles from report associations
-        query = (
-            select(ReportArticleAssociation)
-            .options(selectinload(ReportArticleAssociation.article))
-            .where(ReportArticleAssociation.report_id == report_id)
-            .where(ReportArticleAssociation.is_hidden == False)
-        )
-        assoc_result = await self.db.execute(query)
-        associations = assoc_result.scalars().all()
+        # Get visible articles via the association service
+        associations = await self.association_service.get_visible_for_report(report_id)
 
         if not associations:
             raise ValueError("Report has no articles")

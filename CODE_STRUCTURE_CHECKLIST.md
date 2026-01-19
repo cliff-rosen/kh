@@ -251,9 +251,15 @@ if existing:
 association = self.association_service.get(report_id, article_id)  # Raises if not found
 ```
 
-#### Service Boundaries - No Cross-Service Inline Queries
+#### Service Boundaries - NEVER Query Tables You Don't Own
 
-Each domain entity has an owning service. Services MUST use other services for tables they don't own.
+**This is a critical rule.** Each domain entity has an owning service. Services MUST use other services for tables they don't own. **NEVER write `self.db.query(SomeModel)` for a model your service doesn't own.**
+
+Why this matters:
+- Encapsulation: The owning service may have specific loading strategies, filters, or business logic
+- Eager loading: The owning service knows which relationships need to be loaded
+- Consistency: All access to a table goes through one service, making it easy to add logging, caching, or access control
+- Testability: You can mock the service instead of the database
 
 ```python
 # ❌ WRONG - ReportService writing inline queries for WipArticle
@@ -261,21 +267,33 @@ class ReportService:
     def get_articles(self, execution_id: str):
         return self.db.query(WipArticle).filter(...).all()  # NO!
 
-# ✅ CORRECT - ReportService uses WipArticleService
+# ❌ WRONG - Any service querying ReportArticleAssociation directly
+class SomeOtherService:
+    def get_associations(self, report_id: int):
+        return self.db.query(ReportArticleAssociation).filter(...).all()  # NO!
+
+# ✅ CORRECT - Use the owning service
 class ReportService:
     def get_articles(self, execution_id: str):
         return self.wip_article_service.get_by_execution_id(execution_id)
+
+# ✅ CORRECT - Use ReportArticleAssociationService
+class SomeOtherService:
+    def get_associations(self, report_id: int):
+        return self.association_service.get_visible_for_report(report_id)
 ```
 
 **Service ownership:**
-| Table | Owning Service |
-|-------|----------------|
-| `Report` | `ReportService` |
-| `WipArticle` | `WipArticleService` |
-| `ReportArticleAssociation` | `ReportArticleAssociationService` |
-| `Article` | `ArticleService` |
-| `User` | `UserService` |
-| `ResearchStream` | `ResearchStreamService` |
+| Table | Owning Service | Other services MUST use |
+|-------|----------------|-------------------------|
+| `Report` | `ReportService` | `report_service.get_report()` |
+| `WipArticle` | `WipArticleService` | `wip_article_service.get_by_*()` |
+| `ReportArticleAssociation` | `ReportArticleAssociationService` | `association_service.get_*()` |
+| `Article` | `ArticleService` | `article_service.get_*()` |
+| `User` | `UserService` | `user_service.get_*()` |
+| `ResearchStream` | `ResearchStreamService` | `stream_service.get_*()` |
+
+**If you find yourself writing `self.db.query(ModelYouDontOwn)`, STOP and use the owning service instead.**
 
 ### `models/` - Database Layer
 - SQLAlchemy ORM models (table definitions)
