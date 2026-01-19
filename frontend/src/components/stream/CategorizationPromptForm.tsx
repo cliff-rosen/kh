@@ -37,14 +37,17 @@ import { reportApi } from '../../lib/api/reportApi';
 import { Report, ResearchStream } from '../../types';
 import { copyToClipboard } from '../../lib/utils/clipboard';
 import { showErrorToast, showSuccessToast } from '../../lib/errorToast';
+import { api } from '../../lib/api';
 
-// Available models for testing
-const AVAILABLE_MODELS = [
-    { value: 'gpt-4.1', label: 'GPT-4.1 (Flagship)' },
-    { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini (Fast)' },
-    { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano (Cost-optimized)' },
-    { value: 'o4-mini', label: 'o4-mini (Reasoning)' },
-];
+// Type for model data from backend (matches ModelConfigForm)
+interface ModelInfo {
+    id: string;
+    name: string;
+    supports_reasoning_effort: boolean;
+    reasoning_effort_levels: string[] | null;
+    supports_temperature: boolean;
+    max_tokens: number | null;
+}
 
 interface CategorizationPromptFormProps {
     streamId: number;
@@ -80,6 +83,7 @@ export default function CategorizationPromptForm({ streamId, stream }: Categoriz
     const [isTesting, setIsTesting] = useState(false);
     const [useStreamModel, setUseStreamModel] = useState(true);
     const [customModel, setCustomModel] = useState<string>('gpt-4.1');
+    const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
 
     // History state for time travel
     const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -101,6 +105,19 @@ export default function CategorizationPromptForm({ streamId, stream }: Categoriz
     useEffect(() => {
         loadData();
     }, [streamId]);
+
+    // Fetch available models from backend
+    useEffect(() => {
+        const fetchModels = async () => {
+            try {
+                const response = await api.get<{ models: ModelInfo[] }>('/api/llm/models');
+                setAvailableModels(response.data.models);
+            } catch (error) {
+                console.error('Failed to fetch models:', error);
+            }
+        };
+        fetchModels();
+    }, []);
 
     const loadData = async () => {
         setLoading(true);
@@ -698,8 +715,8 @@ export default function CategorizationPromptForm({ streamId, stream }: Categoriz
                                                 onChange={(e) => setCustomModel(e.target.value)}
                                                 className="px-2 py-1 text-xs text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
                                             >
-                                                {AVAILABLE_MODELS.map(m => (
-                                                    <option key={m.value} value={m.value}>{m.label}</option>
+                                                {availableModels.map(m => (
+                                                    <option key={m.id} value={m.id}>{m.name}</option>
                                                 ))}
                                             </select>
                                         )}
