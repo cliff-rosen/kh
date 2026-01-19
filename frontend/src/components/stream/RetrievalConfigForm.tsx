@@ -41,7 +41,7 @@ export default function RetrievalConfigForm({
             covered_topics: [],
             estimated_weekly_volume: null,
             semantic_filter: {
-                enabled: false,
+                enabled: true,
                 criteria: '',
                 threshold: 0.7
             }
@@ -86,9 +86,9 @@ export default function RetrievalConfigForm({
     const hasNoQueries = !retrievalConfig.broad_search || queries.length === 0;
 
     return (
-        <div className="space-y-6">
+        <div className="flex flex-col h-full min-h-[500px]">
             {/* Header with Wizard button */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-shrink-0 mb-4">
                 <div>
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                         Search Queries
@@ -97,22 +97,7 @@ export default function RetrievalConfigForm({
                         Define PubMed queries and semantic filtering for article retrieval
                     </p>
                 </div>
-                <button
-                    type="button"
-                    onClick={() => navigate(`/streams/${id}/retrieval-wizard`)}
-                    className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-colors"
-                >
-                    <SparklesIcon className="h-4 w-4" />
-                    Launch Wizard
-                </button>
-            </div>
-
-            {/* Queries Section */}
-            <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Queries {queries.length > 0 && `(${queries.length})`}
-                    </p>
+                <div className="flex items-center gap-2">
                     <button
                         type="button"
                         onClick={addBroadQuery}
@@ -121,10 +106,21 @@ export default function RetrievalConfigForm({
                         <PlusIcon className="h-4 w-4" />
                         Add Query
                     </button>
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/streams/${id}/retrieval-wizard`)}
+                        className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-colors"
+                    >
+                        <SparklesIcon className="h-4 w-4" />
+                        Launch Wizard
+                    </button>
                 </div>
+            </div>
 
+            {/* Queries Section - fills remaining space */}
+            <div className="flex-1 overflow-y-auto space-y-4">
                 {hasNoQueries && (
-                    <div className="text-center py-8 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+                    <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
                         <p className="mb-4">No queries defined yet.</p>
                         <button
                             type="button"
@@ -141,8 +137,8 @@ export default function RetrievalConfigForm({
                 )}
 
                 {queries.map((query, index) => (
-                    <div key={query.query_id} className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 space-y-4">
-                        <div className="flex items-center justify-between">
+                    <div key={query.query_id} className="border border-gray-300 dark:border-gray-600 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-4">
                             <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
                                 Query {index + 1}
                             </h4>
@@ -155,93 +151,96 @@ export default function RetrievalConfigForm({
                             </button>
                         </div>
 
-                        {/* Query Expression */}
-                        <div>
+                        {/* Query Expression - compact */}
+                        <div className="mb-4">
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Query Expression
                             </label>
                             <textarea
                                 placeholder="e.g., (asbestos[Title/Abstract] OR mesothelioma[Title/Abstract]) AND humans[MeSH]"
-                                rows={3}
+                                rows={2}
                                 value={query.query_expression}
                                 onChange={(e) => updateBroadQuery(index, 'query_expression', e.target.value)}
                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm font-mono"
                             />
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                Use PubMed query syntax with field tags and boolean operators
-                            </p>
                         </div>
 
-                        {/* Semantic Filter */}
-                        <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-                            <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                                Semantic Filter
-                            </h5>
-                            <div className="space-y-3">
-                                <div>
-                                    <label className="flex items-center space-x-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={query.semantic_filter.enabled}
+                        {/* Semantic Filter - always visible, more prominent */}
+                        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Semantic Filter
+                                </h5>
+                                <label className="flex items-center space-x-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={query.semantic_filter.enabled}
+                                        onChange={(e) => updateBroadQuery(index, 'semantic_filter', {
+                                            ...query.semantic_filter,
+                                            enabled: e.target.checked
+                                        })}
+                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span className="text-sm text-gray-700 dark:text-gray-300">Enabled</span>
+                                </label>
+                            </div>
+
+                            {query.semantic_filter.enabled && (
+                                <div className="space-y-4">
+                                    {/* Filter Criteria - 4x the space of query expression */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Filter Criteria
+                                        </label>
+                                        <textarea
+                                            placeholder="Describe what makes an article relevant to include in the report. Be specific about:
+- What types of studies to include (clinical trials, case studies, reviews, etc.)
+- What populations or subjects are relevant
+- What outcomes or findings matter
+- What should be explicitly excluded
+
+Example:
+Include articles that discuss clinical outcomes of asbestos exposure in human patients.
+Focus on epidemiological studies, case-control studies, and cohort studies.
+Exclude animal studies, in-vitro research, and review articles unless they present novel meta-analyses."
+                                            rows={8}
+                                            value={query.semantic_filter.criteria}
                                             onChange={(e) => updateBroadQuery(index, 'semantic_filter', {
                                                 ...query.semantic_filter,
-                                                enabled: e.target.checked
+                                                criteria: e.target.value
                                             })}
-                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                                         />
-                                        <span className="text-sm text-gray-700 dark:text-gray-300">Enable semantic filtering</span>
-                                    </label>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">
-                                        Use AI to filter articles based on criteria beyond keyword matching
-                                    </p>
-                                </div>
+                                    </div>
 
-                                {query.semantic_filter.enabled && (
-                                    <>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                Filter Criteria
-                                            </label>
-                                            <textarea
-                                                placeholder="Describe what makes an article relevant. E.g., 'Include only articles that discuss clinical outcomes in human patients. Exclude animal studies, reviews, and case reports.'"
-                                                rows={3}
-                                                value={query.semantic_filter.criteria}
+                                    {/* Confidence Threshold */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Confidence Threshold
+                                        </label>
+                                        <div className="flex items-center gap-3">
+                                            <input
+                                                type="range"
+                                                min="0"
+                                                max="1"
+                                                step="0.05"
+                                                value={query.semantic_filter.threshold}
                                                 onChange={(e) => updateBroadQuery(index, 'semantic_filter', {
                                                     ...query.semantic_filter,
-                                                    criteria: e.target.value
+                                                    threshold: parseFloat(e.target.value)
                                                 })}
-                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                className="flex-1"
                                             />
+                                            <span className="text-sm font-medium text-gray-900 dark:text-white w-12 text-right">
+                                                {query.semantic_filter.threshold.toFixed(2)}
+                                            </span>
                                         </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                Confidence Threshold
-                                            </label>
-                                            <div className="flex items-center gap-3">
-                                                <input
-                                                    type="range"
-                                                    min="0"
-                                                    max="1"
-                                                    step="0.05"
-                                                    value={query.semantic_filter.threshold}
-                                                    onChange={(e) => updateBroadQuery(index, 'semantic_filter', {
-                                                        ...query.semantic_filter,
-                                                        threshold: parseFloat(e.target.value)
-                                                    })}
-                                                    className="flex-1"
-                                                />
-                                                <span className="text-sm font-medium text-gray-900 dark:text-white w-12 text-right">
-                                                    {query.semantic_filter.threshold.toFixed(2)}
-                                                </span>
-                                            </div>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                Higher threshold = stricter filtering (fewer articles pass)
-                                            </p>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                            Higher = stricter filtering (fewer articles pass)
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 ))}

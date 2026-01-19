@@ -33,13 +33,10 @@ export default function PresentationForm({ categories, onChange }: PresentationF
         onChange(updated);
     };
 
-    const handleTopicsChange = (index: number, value: string) => {
-        const topics = value.split(',').map(s => s.trim()).filter(s => s);
-        updateCategory(index, 'topics', topics);
-    };
-
     const handleSpecificInclusionsChange = (index: number, value: string) => {
-        const inclusions = value.split('\n').map(s => s.trim()).filter(s => s);
+        // Don't trim during editing - preserve user input including spaces
+        // Split by newlines but keep the raw text to preserve typing experience
+        const inclusions = value.split('\n');
         updateCategory(index, 'specific_inclusions', inclusions);
     };
 
@@ -58,100 +55,80 @@ export default function PresentationForm({ categories, onChange }: PresentationF
     };
 
     return (
-        <div className="space-y-6">
-            {/* Categories */}
-            <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Presentation Categories *
-                    </label>
-                    <button
-                        type="button"
-                        onClick={addCategory}
-                        className="flex items-center gap-1 px-3 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-md transition-colors"
-                    >
-                        <PlusIcon className="h-4 w-4" />
-                        Add Category
-                    </button>
-                </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Categories organize results for user consumption and decision-making
-                </p>
-
-                {categories.map((category, index) => (
-                    <div key={index} className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 space-y-4">
-                        <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                                Category {index + 1}
-                            </h3>
-                            {categories.length > 1 && (
-                                <button
-                                    type="button"
-                                    onClick={() => removeCategory(index)}
-                                    className="text-red-600 dark:text-red-400 hover:text-red-700"
-                                >
-                                    <TrashIcon className="h-5 w-5" />
-                                </button>
-                            )}
-                        </div>
-
-                        {/* Category Name */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Category Name *
-                            </label>
-                            <input
-                                type="text"
-                                placeholder="e.g., Medical & Health Sciences"
-                                value={category.name}
-                                onChange={(e) => handleCategoryNameChange(index, e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                required
-                            />
-                            {category.id && (
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    ID: {category.id}
-                                </p>
-                            )}
-                        </div>
-
-                        {/* Topics */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Topics *
-                            </label>
-                            <input
-                                type="text"
-                                placeholder="e.g., Mesothelioma research, Lung cancer research, Disease pathology"
-                                value={category.topics.join(', ')}
-                                onChange={(e) => handleTopicsChange(index, e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                required
-                            />
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                Topics covered by this category (comma-separated)
-                            </p>
-                        </div>
-
-                        {/* Specific Inclusions */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Specific Inclusion Criteria
-                            </label>
-                            <textarea
-                                placeholder="One criterion per line, e.g.:\nAny peer-reviewed research on disease mechanisms\nPopulation-based exposure studies"
-                                rows={3}
-                                value={category.specific_inclusions.join('\n')}
-                                onChange={(e) => handleSpecificInclusionsChange(index, e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                            />
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                Category-specific inclusion rules (one per line)
-                            </p>
-                        </div>
-                    </div>
-                ))}
+        <div className="space-y-4">
+            {/* Categories Header */}
+            <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Presentation Categories
+                </label>
+                <button
+                    type="button"
+                    onClick={addCategory}
+                    className="flex items-center gap-1 px-3 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-md transition-colors"
+                >
+                    <PlusIcon className="h-4 w-4" />
+                    Add Category
+                </button>
             </div>
+
+            {categories.map((category, index) => (
+                <div key={index} className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                            Category {index + 1}
+                        </h3>
+                        {categories.length > 1 && (
+                            <button
+                                type="button"
+                                onClick={() => removeCategory(index)}
+                                className="text-red-600 dark:text-red-400 hover:text-red-700"
+                            >
+                                <TrashIcon className="h-5 w-5" />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Category Name */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Category Name *
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="e.g., Medical & Health Sciences"
+                            value={category.name}
+                            onChange={(e) => handleCategoryNameChange(index, e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            required
+                        />
+                        {category.id && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                ID: {category.id}
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Specific Inclusions */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Inclusion Criteria
+                        </label>
+                        <textarea
+                            placeholder="Describe what articles belong in this category (one criterion per line):
+
+Example criteria:
+- Any peer-reviewed research on disease mechanisms
+- Population-based exposure studies
+- Clinical trials involving human subjects
+- Epidemiological studies with outcome data"
+                            rows={6}
+                            value={category.specific_inclusions.join('\n')}
+                            onChange={(e) => handleSpecificInclusionsChange(index, e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        />
+                    </div>
+                </div>
+            ))}
         </div>
     );
 }
