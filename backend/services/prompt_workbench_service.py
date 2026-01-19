@@ -449,12 +449,22 @@ class PromptWorkbenchService:
         if not article:
             raise ValueError("Article not found")
 
-        # Get categories from stream presentation_config
+        # Get categories from stream presentation_config (it's a dict from JSON column)
         categories_for_context = []
-        if stream.presentation_config and hasattr(stream.presentation_config, 'categories'):
-            categories_for_context = ArticleCategorizationService.prepare_category_definitions(
-                stream.presentation_config.categories
-            )
+        if stream.presentation_config and isinstance(stream.presentation_config, dict):
+            categories = stream.presentation_config.get("categories", [])
+            if categories:
+                # Categories are already dicts with id, name, topics, specific_inclusions
+                # Just extract the fields we need for the LLM context
+                categories_for_context = [
+                    {
+                        "id": cat.get("id", ""),
+                        "name": cat.get("name", ""),
+                        "topics": cat.get("topics", []),
+                        "specific_inclusions": cat.get("specific_inclusions", []),
+                    }
+                    for cat in categories
+                ]
 
         return {
             "title": article.title or "",
