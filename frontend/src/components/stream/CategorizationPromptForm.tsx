@@ -55,9 +55,11 @@ interface HistoryEntry {
 export default function CategorizationPromptForm({ streamId }: CategorizationPromptFormProps) {
     // State for prompts
     const [prompt, setPrompt] = useState<PromptTemplate | null>(null);
+    const [savedPrompt, setSavedPrompt] = useState<PromptTemplate | null>(null); // Last saved version
     const [defaults, setDefaults] = useState<PromptTemplate | null>(null);
     const [availableSlugs, setAvailableSlugs] = useState<SlugInfo[]>([]);
     const [isUsingDefaults, setIsUsingDefaults] = useState(true);
+    const [savedIsUsingDefaults, setSavedIsUsingDefaults] = useState(true); // Last saved state
     const [hasChanges, setHasChanges] = useState(false);
 
     // State for testing
@@ -82,6 +84,7 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
     const [resultsPaneMode, setResultsPaneMode] = useState<ResultsPaneMode>('collapsed');
     const [showRenderedPrompts, setShowRenderedPrompts] = useState(false);
     const [isMaximized, setIsMaximized] = useState(false);
+    const [showResetConfirm, setShowResetConfirm] = useState(false);
 
     // Load data on mount
     useEffect(() => {
@@ -102,13 +105,14 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
             setDefaults(defaultsRes.prompt);
             setAvailableSlugs(defaultsRes.available_slugs);
 
-            if (configRes.categorization_prompt) {
-                setPrompt(configRes.categorization_prompt);
-                setIsUsingDefaults(false);
-            } else {
-                setPrompt(defaultsRes.prompt);
-                setIsUsingDefaults(true);
-            }
+            // Track saved state
+            const usingDefaults = !configRes.categorization_prompt;
+            const currentPrompt = configRes.categorization_prompt || defaultsRes.prompt;
+
+            setPrompt(currentPrompt);
+            setSavedPrompt(currentPrompt);
+            setIsUsingDefaults(usingDefaults);
+            setSavedIsUsingDefaults(usingDefaults);
 
             setReports(streamReports);
             if (streamReports.length > 0) {
@@ -134,6 +138,9 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
         setSaving(true);
         try {
             await promptWorkbenchApi.updateStreamCategorizationConfig(streamId, prompt);
+            // Update saved state
+            setSavedPrompt(prompt);
+            setSavedIsUsingDefaults(false);
             setHasChanges(false);
             setIsUsingDefaults(false);
             showSuccessToast('Categorization prompt saved');
@@ -144,12 +151,20 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
         }
     };
 
-    const handleResetToDefaults = async () => {
+    // Reset to defaults (with confirmation)
+    const handleResetToDefaults = () => {
+        setShowResetConfirm(true);
+    };
+
+    const confirmResetToDefaults = async () => {
         if (!defaults) return;
+        setShowResetConfirm(false);
         setSaving(true);
         try {
             await promptWorkbenchApi.updateStreamCategorizationConfig(streamId, null);
             setPrompt(defaults);
+            setSavedPrompt(defaults);
+            setSavedIsUsingDefaults(true);
             setHasChanges(false);
             setIsUsingDefaults(true);
             showSuccessToast('Reset to default prompts');
@@ -157,6 +172,15 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
             showErrorToast(err, 'Failed to reset to defaults');
         } finally {
             setSaving(false);
+        }
+    };
+
+    // Reset to last saved version
+    const resetToSaved = () => {
+        if (savedPrompt) {
+            setPrompt(savedPrompt);
+            setIsUsingDefaults(savedIsUsingDefaults);
+            setHasChanges(false);
         }
     };
 
@@ -281,7 +305,8 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
     }
 
     // Results panel content (shared between side and full modes)
-    const ResultsContent = ({ isFullMode = false }: { isFullMode?: boolean }) => {
+    // Using a render function instead of inline component to prevent focus loss on re-render
+    const renderResultsContent = (isFullMode = false) => {
         const entry = currentHistoryEntry;
         const testResult = entry?.result;
 
@@ -392,8 +417,9 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
         );
     };
 
-    // Main content component (used in both normal and maximized mode)
-    const MainContent = () => (
+    // Main content JSX (used in both normal and maximized mode)
+    // Using a variable instead of inline component to prevent focus loss on re-render
+    const mainContent = (
         <div className="h-full flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between flex-shrink-0 mb-4">
@@ -417,6 +443,15 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
                             <ExclamationTriangleIcon className="h-4 w-4" />
                             Unsaved changes
                         </span>
+                    )}
+                    {hasChanges && (
+                        <button
+                            type="button"
+                            onClick={resetToSaved}
+                            className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                        >
+                            Discard Changes
+                        </button>
                     )}
                     {!isUsingDefaults && (
                         <button
@@ -710,7 +745,7 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
                                 </div>
                             </div>
                             <div className="p-3 flex-1 overflow-y-auto">
-                                <ResultsContent />
+                                {renderResultsContent()}
                             </div>
                         </div>
                     </div>
@@ -724,7 +759,7 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
         return (
             <div className="fixed inset-0 z-50 bg-white dark:bg-gray-900">
                 <div className="h-full p-6">
-                    <MainContent />
+                    {mainContent}
                 </div>
 
                 {/* Full Screen Results Modal */}
@@ -779,7 +814,7 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
                                 </div>
                             </div>
                             <div className="p-6 overflow-y-auto flex-1">
-                                <ResultsContent isFullMode />
+                                {renderResultsContent(true)}
                             </div>
                         </div>
                     </div>
@@ -791,7 +826,7 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
     // Normal mode
     return (
         <>
-            <MainContent />
+            {mainContent}
 
             {/* Full Screen Results Modal */}
             {resultsPaneMode === 'full' && (
@@ -845,7 +880,37 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
                             </div>
                         </div>
                         <div className="p-6 overflow-y-auto flex-1">
-                            <ResultsContent isFullMode />
+                            {renderResultsContent(true)}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Reset to Defaults Confirmation Dialog */}
+            {showResetConfirm && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                            Reset to Defaults?
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                            This will replace your custom categorization prompt with the default prompt. This action will be saved immediately.
+                        </p>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setShowResetConfirm(false)}
+                                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmResetToDefaults}
+                                className="px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700"
+                            >
+                                Reset to Defaults
+                            </button>
                         </div>
                     </div>
                 </div>

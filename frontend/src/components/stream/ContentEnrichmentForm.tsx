@@ -36,7 +36,8 @@ import {
     TestPromptResponse
 } from '../../lib/api/promptWorkbenchApi';
 import { reportApi } from '../../lib/api/reportApi';
-import { Report } from '../../types';
+import { researchStreamApi } from '../../lib/api/researchStreamApi';
+import { Report, Category } from '../../types';
 import { copyToClipboard } from '../../lib/utils/clipboard';
 
 interface PromptSuggestion {
@@ -79,14 +80,17 @@ export default function ContentEnrichmentForm({
     // State for prompts
     const [activePromptType, setActivePromptType] = useState<PromptType>('executive_summary');
     const [prompts, setPrompts] = useState<Record<string, PromptTemplate>>({});
+    const [savedPrompts, setSavedPrompts] = useState<Record<string, PromptTemplate>>({}); // Last saved version
     const [defaults, setDefaults] = useState<Record<string, PromptTemplate>>({});
     const [availableSlugs, setAvailableSlugs] = useState<Record<string, SlugInfo[]>>({});
     const [isUsingDefaults, setIsUsingDefaults] = useState(true);
+    const [savedIsUsingDefaults, setSavedIsUsingDefaults] = useState(true); // Last saved state
     const [hasChanges, setHasChanges] = useState(false);
 
     // State for testing
     const [testMode, setTestMode] = useState<'report' | 'paste'>('report');
     const [reports, setReports] = useState<Report[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]); // Stream categories for dropdown
     const [selectedReportId, setSelectedReportId] = useState<number | null>(null);
     const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
     const [pastedData, setPastedData] = useState('');
@@ -106,6 +110,7 @@ export default function ContentEnrichmentForm({
     const [resultsPaneMode, setResultsPaneMode] = useState<ResultsPaneMode>('collapsed');
     const [showRenderedPrompts, setShowRenderedPrompts] = useState(false);
     const [isMaximized, setIsMaximized] = useState(false);
+    const [showResetConfirm, setShowResetConfirm] = useState(false);
 
     // Load initial data
     useEffect(() => {
@@ -114,32 +119,48 @@ export default function ContentEnrichmentForm({
             setError(null);
             try {
                 // Load all data in parallel
-                const [defaultsResponse, configResponse, streamReports] = await Promise.all([
+                const [defaultsResponse, configResponse, streamReports, stream] = await Promise.all([
                     promptWorkbenchApi.getDefaults(),
                     promptWorkbenchApi.getStreamEnrichmentConfig(streamId),
-                    reportApi.getReportsForStream(streamId)
+                    reportApi.getReportsForStream(streamId),
+                    researchStreamApi.getResearchStream(streamId)
                 ]);
 
                 // Apply defaults and slugs
                 setDefaults(defaultsResponse.prompts);
                 setAvailableSlugs(defaultsResponse.available_slugs);
 
-                // Apply enrichment config
-                setIsUsingDefaults(configResponse.is_using_defaults);
+                // Apply enrichment config and track saved state
+                const usingDefaults = configResponse.is_using_defaults;
+                setIsUsingDefaults(usingDefaults);
+                setSavedIsUsingDefaults(usingDefaults);
+
+                let currentPrompts: Record<string, PromptTemplate>;
                 if (configResponse.enrichment_config?.prompts) {
                     // Merge with defaults for any missing prompt types
-                    setPrompts({
+                    currentPrompts = {
                         ...defaultsResponse.prompts,
                         ...configResponse.enrichment_config.prompts
-                    });
+                    };
                 } else {
-                    setPrompts(defaultsResponse.prompts);
+                    currentPrompts = defaultsResponse.prompts;
                 }
+                setPrompts(currentPrompts);
+                setSavedPrompts(currentPrompts);
 
                 // Apply reports
                 setReports(streamReports);
                 if (streamReports.length > 0) {
                     setSelectedReportId(streamReports[0].report_id);
+                }
+
+                // Apply stream categories for category summary testing
+                if (stream.presentation_config?.categories) {
+                    setCategories(stream.presentation_config.categories);
+                    // Auto-select first category if available
+                    if (stream.presentation_config.categories.length > 0) {
+                        setSelectedCategoryId(stream.presentation_config.categories[0].id);
+                    }
                 }
             } catch (err: any) {
                 console.error('Error loading enrichment config:', err);
@@ -200,12 +221,24 @@ export default function ContentEnrichmentForm({
         setIsUsingDefaults(false);
     }, []);
 
-    // Reset to defaults
-    const resetToDefaults = useCallback(() => {
+    // Reset to defaults (with confirmation)
+    const handleResetToDefaults = useCallback(() => {
+        setShowResetConfirm(true);
+    }, []);
+
+    const confirmResetToDefaults = useCallback(() => {
         setPrompts(defaults);
         setIsUsingDefaults(true);
         setHasChanges(true);
+        setShowResetConfirm(false);
     }, [defaults]);
+
+    // Reset to last saved version
+    const resetToSaved = useCallback(() => {
+        setPrompts(savedPrompts);
+        setIsUsingDefaults(savedIsUsingDefaults);
+        setHasChanges(false);
+    }, [savedPrompts, savedIsUsingDefaults]);
 
     // Save changes
     const handleSave = async () => {
@@ -216,6 +249,9 @@ export default function ContentEnrichmentForm({
             console.log('Saving enrichment config:', { isUsingDefaults, config, prompts });
             await promptWorkbenchApi.updateStreamEnrichmentConfig(streamId, config);
             console.log('Save successful');
+            // Update saved state
+            setSavedPrompts(prompts);
+            setSavedIsUsingDefaults(isUsingDefaults);
             setHasChanges(false);
             onSave?.();
         } catch (err: any) {
@@ -350,7 +386,8 @@ export default function ContentEnrichmentForm({
     const currentSlugs = availableSlugs[activePromptType] || [];
 
     // Results panel content (shared between side and full modes)
-    const ResultsContent = ({ isFullMode = false }: { isFullMode?: boolean }) => {
+    // Using a render function instead of inline component to prevent focus loss on re-render
+    const renderResultsContent = (isFullMode = false) => {
         const entry = currentHistoryEntry;
         const testResult = entry?.result;
 
@@ -489,9 +526,18 @@ export default function ContentEnrichmentForm({
                                 Unsaved changes
                             </span>
                         )}
+                        {hasChanges && (
+                            <button
+                                type="button"
+                                onClick={resetToSaved}
+                                className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                            >
+                                Discard Changes
+                            </button>
+                        )}
                         <button
                             type="button"
-                            onClick={resetToDefaults}
+                            onClick={handleResetToDefaults}
                             disabled={isUsingDefaults}
                             className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
@@ -718,14 +764,22 @@ export default function ContentEnrichmentForm({
                                         </div>
                                         {activePromptType === 'category_summary' && (
                                             <div>
-                                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Category ID</label>
-                                                <input
-                                                    type="text"
+                                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Category</label>
+                                                <select
                                                     value={selectedCategoryId}
                                                     onChange={(e) => setSelectedCategoryId(e.target.value)}
-                                                    placeholder="e.g., clinical_outcomes"
-                                                    className="px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-48 placeholder-gray-400 dark:placeholder-gray-500"
-                                                />
+                                                    className="px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-48"
+                                                >
+                                                    {categories.length === 0 ? (
+                                                        <option value="">No categories configured</option>
+                                                    ) : (
+                                                        categories.map(category => (
+                                                            <option key={category.id} value={category.id}>
+                                                                {category.name}
+                                                            </option>
+                                                        ))
+                                                    )}
+                                                </select>
                                             </div>
                                         )}
                                     </div>
@@ -813,7 +867,7 @@ export default function ContentEnrichmentForm({
                                     </div>
                                 </div>
                                 <div className="p-3 flex-1 overflow-y-auto">
-                                    <ResultsContent />
+                                    {renderResultsContent()}
                                 </div>
                             </div>
                         </div>
@@ -880,7 +934,37 @@ export default function ContentEnrichmentForm({
                         </div>
                         {/* Modal Content */}
                         <div className="p-6 overflow-y-auto flex-1">
-                            <ResultsContent isFullMode />
+                            {renderResultsContent(true)}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Reset to Defaults Confirmation Dialog */}
+            {showResetConfirm && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                            Reset to Defaults?
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                            This will replace all custom prompts with the default prompts. Any unsaved changes will be lost.
+                        </p>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setShowResetConfirm(false)}
+                                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmResetToDefaults}
+                                className="px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700"
+                            >
+                                Reset to Defaults
+                            </button>
                         </div>
                     </div>
                 </div>
