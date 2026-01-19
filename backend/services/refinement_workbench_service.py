@@ -256,10 +256,8 @@ class RefinementWorkbenchService:
 
         options = LLMOptions(max_concurrent=50)
 
-        # Use AIEvaluationService based on output type
-        # Note: filter_criteria is embedded directly in the prompt template
-        if output_type == "boolean":
-            prompt_template = f"""## Article
+        # Base prompt template - filter_criteria is embedded directly
+        prompt_template = f"""## Article
 Title: {{title}}
 Abstract: {{abstract}}
 Authors: {{authors}}
@@ -267,43 +265,32 @@ Journal: {{journal}}
 
 ## Task
 {filter_criteria}"""
+
+        # Use AIEvaluationService based on output type
+        if output_type == "boolean":
             eval_results = await self.eval_service.filter(
                 items=items,
                 prompt_template=prompt_template,
                 include_reasoning=True,
+                model_config=llm_config,
                 options=options
             )
         elif output_type == "number":
-            prompt_template = f"""## Article
-Title: {{title}}
-Abstract: {{abstract}}
-Authors: {{authors}}
-Journal: {{journal}}
-
-## Task
-{filter_criteria}
-
-Score from {{min_value}} to {{max_value}}."""
+            score_template = prompt_template + "\n\nScore from {min_value} to {max_value}."
             eval_results = await self.eval_service.score(
                 items=items,
-                prompt_template=prompt_template,
+                prompt_template=score_template,
                 include_reasoning=True,
+                model_config=llm_config,
                 options=options
             )
         else:  # "text"
-            prompt_template = f"""## Article
-Title: {{title}}
-Abstract: {{abstract}}
-Authors: {{authors}}
-Journal: {{journal}}
-
-## Task
-{filter_criteria}"""
             eval_results = await self.eval_service.extract(
                 items=items,
                 prompt_template=prompt_template,
                 output_type="text",
                 include_reasoning=True,
+                model_config=llm_config,
                 options=options
             )
 
