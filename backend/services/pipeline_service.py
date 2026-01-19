@@ -501,7 +501,7 @@ class PipelineService:
             )
 
         # Stage commit
-        self.wip_article_service.commit()
+        await self.wip_article_service.commit()
 
         yield PipelineStatus(
             "retrieval",
@@ -567,7 +567,7 @@ class PipelineService:
             )
 
         # Stage commit
-        self.wip_article_service.commit()
+        await self.wip_article_service.commit()
 
         yield PipelineStatus(
             "filter", "Semantic filtering complete", {"stats": ctx.filter_stats}
@@ -596,7 +596,7 @@ class PipelineService:
         ctx.included_count = await self._mark_articles_for_report(ctx.execution_id)
 
         # Stage commit
-        self.wip_article_service.commit()
+        await self.wip_article_service.commit()
 
         yield PipelineStatus(
             "dedup_global",
@@ -1045,7 +1045,7 @@ class PipelineService:
         report.original_enrichments = enrichments.copy()
 
         # Get only INCLUDED articles (included_in_report=True)
-        wip_articles = self.wip_article_service.get_included_articles(ctx.execution_id)
+        wip_articles = await self.wip_article_service.get_included_articles(ctx.execution_id)
 
         # Create Article records and associations for included articles only
         for idx, wip_article in enumerate(wip_articles):
@@ -1166,7 +1166,7 @@ class PipelineService:
                 source_specific_id=article.id,
             )
 
-        self.wip_article_service.commit()
+        await self.wip_article_service.commit()
         return len(articles)
 
     async def _apply_semantic_filter(
@@ -1195,7 +1195,7 @@ class PipelineService:
             Tuple of (passed_count, rejected_count, error_count)
         """
         # Get all non-duplicate articles for this unit that haven't been filtered yet
-        articles = self.wip_article_service.get_for_filtering(
+        articles = await self.wip_article_service.get_for_filtering(
             execution_id, retrieval_unit_id
         )
 
@@ -1286,7 +1286,7 @@ Score from {min_value} to {max_value}."""
             else:
                 rejected += 1
 
-        self.wip_article_service.commit()
+        await self.wip_article_service.commit()
         logger.info(
             f"Filtering complete: {passed} passed, {rejected} rejected, {errors} errors out of {len(articles)} total"
         )
@@ -1307,7 +1307,7 @@ Score from {min_value} to {max_value}."""
             Number of duplicates found
         """
         # Get all articles that passed filtering and aren't already marked as duplicates
-        articles = self.wip_article_service.get_for_deduplication(execution_id)
+        articles = await self.wip_article_service.get_for_deduplication(execution_id)
 
         duplicates_found = 0
         seen_dois = {}
@@ -1336,7 +1336,7 @@ Score from {min_value} to {max_value}."""
                 else:
                     seen_titles[title_normalized] = article.pmid or str(article.id)
 
-        self.wip_article_service.commit()
+        await self.wip_article_service.commit()
         return duplicates_found
 
     async def _mark_articles_for_report(self, execution_id: str) -> int:
@@ -1353,9 +1353,10 @@ Score from {min_value} to {max_value}."""
         Returns:
             Number of articles marked for inclusion
         """
-        articles = self.wip_article_service.get_for_inclusion(execution_id)
+        # Get non-duplicate articles that passed filtering (same criteria as deduplication input)
+        articles = await self.wip_article_service.get_for_deduplication(execution_id)
         self.wip_article_service.mark_all_for_inclusion(articles)
-        self.wip_article_service.commit()
+        await self.wip_article_service.commit()
         return len(articles)
 
     async def _categorize_articles(
