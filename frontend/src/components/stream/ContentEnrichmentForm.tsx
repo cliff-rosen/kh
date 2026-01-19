@@ -86,8 +86,6 @@ export default function ContentEnrichmentForm({
     const [savedPrompts, setSavedPrompts] = useState<Record<string, PromptTemplate>>({}); // Last saved version
     const [defaults, setDefaults] = useState<Record<string, PromptTemplate>>({});
     const [availableSlugs, setAvailableSlugs] = useState<Record<string, SlugInfo[]>>({});
-    const [isUsingDefaults, setIsUsingDefaults] = useState(true);
-    const [savedIsUsingDefaults, setSavedIsUsingDefaults] = useState(true); // Last saved state
     const [hasChanges, setHasChanges] = useState(false);
 
     // State for testing
@@ -136,11 +134,6 @@ export default function ContentEnrichmentForm({
                 // Apply defaults and slugs
                 setDefaults(defaultsResponse.prompts);
                 setAvailableSlugs(defaultsResponse.available_slugs);
-
-                // Apply enrichment config and track saved state
-                const usingDefaults = configResponse.is_using_defaults;
-                setIsUsingDefaults(usingDefaults);
-                setSavedIsUsingDefaults(usingDefaults);
 
                 let currentPrompts: Record<string, PromptTemplate>;
                 if (configResponse.enrichment_config?.prompts) {
@@ -219,7 +212,6 @@ export default function ContentEnrichmentForm({
             });
 
             setHasChanges(true);
-            setIsUsingDefaults(false);
 
             // Notify parent that suggestions have been applied
             if (onSuggestionsApplied) {
@@ -238,7 +230,6 @@ export default function ContentEnrichmentForm({
             }
         }));
         setHasChanges(true);
-        setIsUsingDefaults(false);
     }, []);
 
     // Check if a specific prompt matches its default
@@ -290,8 +281,6 @@ export default function ContentEnrichmentForm({
             console.log('Save successful');
             // Update saved state
             setSavedPrompts(prompts);
-            setIsUsingDefaults(allDefaults);
-            setSavedIsUsingDefaults(allDefaults);
             setHasChanges(false);
             onSave?.();
         } catch (err: any) {
@@ -424,7 +413,6 @@ export default function ContentEnrichmentForm({
         }));
         setActivePromptType(entry.promptType);
         setHasChanges(true);
-        setIsUsingDefaults(false);
     };
 
     // Format timestamp for display
