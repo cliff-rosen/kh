@@ -151,7 +151,7 @@ export default function RetrievalConfigForm({
                                     </button>
                                 </div>
 
-                                {/* Query Expression - 1 part */}
+                                {/* Query Expression */}
                                 <div className="flex-shrink-0 mb-4">
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         Query Expression
@@ -160,7 +160,7 @@ export default function RetrievalConfigForm({
                                         placeholder="e.g., (asbestos[Title/Abstract] OR mesothelioma[Title/Abstract]) AND humans[MeSH]"
                                         value={query.query_expression}
                                         onChange={(e) => updateBroadQuery(index, 'query_expression', e.target.value)}
-                                        className="w-full h-16 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm font-mono resize-none"
+                                        className="w-full min-h-[80px] px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm font-mono resize-y"
                                     />
                                 </div>
 

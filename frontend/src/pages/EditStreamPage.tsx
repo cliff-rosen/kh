@@ -891,6 +891,8 @@ export default function EditStreamPage() {
                         </nav>
                     </div>
 
+                    {/* Form for Layers 1-3 */}
+                    {(activeTab === 'semantic' || activeTab === 'retrieval' || activeTab === 'presentation') && (
                     <form id="edit-stream-form" onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col overflow-hidden">
                         {/* Layer 1: Semantic Space Tab */}
                         {activeTab === 'semantic' && (
@@ -955,6 +957,7 @@ export default function EditStreamPage() {
                         )}
 
                     </form>
+                    )}
 
                     {/* Layer 4: Content Enrichment Tab - outside form, has own save */}
                     {activeTab === 'enrichment' && stream && (

@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Category } from '../../types';
-import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
 interface PresentationFormProps {
     categories: Category[];
@@ -7,6 +8,21 @@ interface PresentationFormProps {
 }
 
 export default function PresentationForm({ categories, onChange }: PresentationFormProps) {
+    // Track which categories have expanded inclusion criteria
+    const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
+
+    const toggleExpanded = (index: number) => {
+        setExpandedCategories(prev => {
+            const next = new Set(prev);
+            if (next.has(index)) {
+                next.delete(index);
+            } else {
+                next.add(index);
+            }
+            return next;
+        });
+    };
+
     const addCategory = () => {
         onChange([
             ...categories,
@@ -35,7 +51,6 @@ export default function PresentationForm({ categories, onChange }: PresentationF
 
     const handleSpecificInclusionsChange = (index: number, value: string) => {
         // Don't trim during editing - preserve user input including spaces
-        // Split by newlines but keep the raw text to preserve typing experience
         const inclusions = value.split('\n');
         updateCategory(index, 'specific_inclusions', inclusions);
     };
@@ -55,7 +70,7 @@ export default function PresentationForm({ categories, onChange }: PresentationF
     };
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-3">
             {/* Categories Header */}
             <div className="flex items-center justify-between">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -71,64 +86,81 @@ export default function PresentationForm({ categories, onChange }: PresentationF
                 </button>
             </div>
 
-            {categories.map((category, index) => (
-                <div key={index} className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                            Category {index + 1}
-                        </h3>
-                        {categories.length > 1 && (
+            {categories.map((category, index) => {
+                const isExpanded = expandedCategories.has(index);
+                const hasInclusions = category.specific_inclusions.filter(s => s.trim()).length > 0;
+
+                return (
+                    <div key={index} className="border border-gray-300 dark:border-gray-600 rounded-lg p-3">
+                        {/* Category header row */}
+                        <div className="flex items-center gap-3">
+                            {/* Expand/collapse button */}
                             <button
                                 type="button"
-                                onClick={() => removeCategory(index)}
-                                className="text-red-600 dark:text-red-400 hover:text-red-700"
+                                onClick={() => toggleExpanded(index)}
+                                className="flex-shrink-0 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                             >
-                                <TrashIcon className="h-5 w-5" />
+                                {isExpanded ? (
+                                    <ChevronDownIcon className="h-4 w-4 text-gray-500" />
+                                ) : (
+                                    <ChevronRightIcon className="h-4 w-4 text-gray-500" />
+                                )}
                             </button>
-                        )}
-                    </div>
 
-                    {/* Category Name */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Category Name *
-                        </label>
-                        <input
-                            type="text"
-                            placeholder="e.g., Medical & Health Sciences"
-                            value={category.name}
-                            onChange={(e) => handleCategoryNameChange(index, e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                            required
-                        />
+                            {/* Category name input */}
+                            <input
+                                type="text"
+                                placeholder="Category name"
+                                value={category.name}
+                                onChange={(e) => handleCategoryNameChange(index, e.target.value)}
+                                className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                required
+                            />
+
+                            {/* Inclusion count badge */}
+                            {hasInclusions && !isExpanded && (
+                                <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
+                                    {category.specific_inclusions.filter(s => s.trim()).length} criteria
+                                </span>
+                            )}
+
+                            {/* Delete button */}
+                            {categories.length > 1 && (
+                                <button
+                                    type="button"
+                                    onClick={() => removeCategory(index)}
+                                    className="flex-shrink-0 text-red-600 dark:text-red-400 hover:text-red-700 p-1"
+                                >
+                                    <TrashIcon className="h-4 w-4" />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* ID display */}
                         {category.id && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 ml-9 mt-1">
                                 ID: {category.id}
                             </p>
                         )}
-                    </div>
 
-                    {/* Specific Inclusions */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Inclusion Criteria
-                        </label>
-                        <textarea
-                            placeholder="Describe what articles belong in this category (one criterion per line):
-
-Example criteria:
-- Any peer-reviewed research on disease mechanisms
-- Population-based exposure studies
-- Clinical trials involving human subjects
-- Epidemiological studies with outcome data"
-                            rows={6}
-                            value={category.specific_inclusions.join('\n')}
-                            onChange={(e) => handleSpecificInclusionsChange(index, e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                        />
+                        {/* Expanded content - Inclusion Criteria */}
+                        {isExpanded && (
+                            <div className="mt-3 ml-9">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Inclusion Criteria
+                                </label>
+                                <textarea
+                                    placeholder="What articles belong in this category (one criterion per line)"
+                                    rows={4}
+                                    value={category.specific_inclusions.join('\n')}
+                                    onChange={(e) => handleSpecificInclusionsChange(index, e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                />
+                            </div>
+                        )}
                     </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 }
