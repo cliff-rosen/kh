@@ -97,9 +97,7 @@ class PipelineContext:
         return {
             "report_id": self.report.report_id if self.report else None,
             "total_retrieved": self.total_retrieved,
-            "final_article_count": (
-                len(self.report.article_associations) if self.report else 0
-            ),
+            "final_article_count": self.included_count,  # Use tracked count to avoid lazy load
             "filter_stats": self.filter_stats,
             "global_duplicates": self.global_duplicates,
             "included_count": self.included_count,
@@ -994,7 +992,7 @@ class PipelineService:
             f"Report created successfully",
             {
                 "report_id": ctx.report.report_id,
-                "article_count": len(ctx.report.article_associations),
+                "article_count": ctx.included_count,  # Use tracked count to avoid lazy load
             },
         )
 
