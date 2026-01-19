@@ -272,8 +272,7 @@ class AIEvaluationService:
     async def filter(
         self,
         items: Union[Dict[str, Any], List[Dict[str, Any]]],
-        user_message: str,
-        criteria: str,
+        prompt_template: str,
         include_reasoning: bool = True,
         model_config: Optional[ModelConfig] = None,
         options: Optional[LLMOptions] = None,
@@ -283,9 +282,9 @@ class AIEvaluationService:
 
         Args:
             items: Single item dict or list of item dicts to evaluate
-            user_message: Template for the user message with {field} placeholders.
-                          Should include {criteria} and item fields.
-            criteria: Natural language criteria text
+            prompt_template: Template containing the evaluation criteria and item field
+                            placeholders like {title}, {abstract}. The criteria/instructions
+                            should be embedded directly in this template.
             include_reasoning: Whether to include explanation in result
             model_config: Model configuration (model, temperature, max_tokens, reasoning_effort)
             options: Call options (max_concurrent, on_progress, log_prompt)
@@ -295,17 +294,17 @@ class AIEvaluationService:
             List of items: List[LLMResult] in same order as input
 
         Example:
-            user_msg = '''## Article
+            prompt = '''## Article
             Title: {title}
             Abstract: {abstract}
 
-            ## Criteria
-            {criteria}'''
+            ## Task
+            Determine if this article is about cancer research.
+            Return true if yes, false if no.'''
 
             result = await service.filter(
                 items={"id": "1", "title": "...", "abstract": "..."},
-                user_message=user_msg,
-                criteria="Is this about cancer research?",
+                prompt_template=prompt,
             )
             if result.ok:
                 passed = result.data["value"]  # True or False
@@ -321,15 +320,8 @@ class AIEvaluationService:
         system_message = SYSTEM_MESSAGE_FILTER if include_reasoning else SYSTEM_MESSAGE_FILTER_NO_REASONING
         response_schema = get_filter_response_schema(include_reasoning)
 
-        # Build values list for call_llm
-        # criteria comes FIRST so that any {field} placeholders in criteria get substituted
-        values_list = []
-        for item in items_list:
-            values = {
-                "criteria": criteria,
-                **item,  # Item fields LAST so they substitute into criteria
-            }
-            values_list.append(values)
+        # Build values list for call_llm - just item fields
+        values_list = [item for item in items_list]
 
         # Apply default model config if not provided
         if model_config is None:
@@ -340,7 +332,7 @@ class AIEvaluationService:
 
         results = await call_llm(
             system_message=system_message,
-            user_message=user_message,
+            user_message=prompt_template,
             values=values_list if not is_single else values_list[0],
             model_config=model_config,
             response_schema=response_schema,
@@ -368,8 +360,7 @@ class AIEvaluationService:
     async def score(
         self,
         items: Union[Dict[str, Any], List[Dict[str, Any]]],
-        user_message: str,
-        criteria: str,
+        prompt_template: str,
         min_value: float = 0,
         max_value: float = 1,
         interval: Optional[float] = None,
@@ -382,9 +373,10 @@ class AIEvaluationService:
 
         Args:
             items: Single item dict or list of item dicts to evaluate
-            user_message: Template for the user message with {field} placeholders.
-                          Should include {criteria}, {min_value}, {max_value} and item fields.
-            criteria: Natural language scoring criteria text
+            prompt_template: Template containing the scoring criteria and item field
+                            placeholders like {title}, {abstract}. May also include
+                            {min_value} and {max_value} placeholders which will be
+                            substituted from the method parameters.
             min_value: Lower bound of score range (default: 0)
             max_value: Upper bound of score range (default: 1)
             interval: Optional step size (e.g., 0.5 for discrete steps)
@@ -397,19 +389,19 @@ class AIEvaluationService:
             List of items: List[LLMResult] in same order as input
 
         Example:
-            user_msg = '''## Article
+            prompt = '''## Article
             Title: {title}
             Abstract: {abstract}
 
-            ## Criteria
-            {criteria}
-
+            ## Task
+            Rate how relevant this article is to cancer research.
             Score from {min_value} to {max_value}.'''
 
             result = await service.score(
                 items={"id": "1", "title": "...", "abstract": "..."},
-                user_message=user_msg,
-                criteria="Rate relevance to cancer research",
+                prompt_template=prompt,
+                min_value=0,
+                max_value=10,
             )
             if result.ok:
                 score = result.data["value"]
@@ -426,15 +418,13 @@ class AIEvaluationService:
         response_schema = get_score_response_schema(min_value, max_value, interval, include_reasoning)
 
         # Build values list for call_llm
-        # criteria, min_value, max_value come FIRST so that any {field}
-        # placeholders in criteria get substituted when item fields are processed
+        # min_value, max_value are method parameters that get substituted into template
         values_list = []
         for item in items_list:
             values = {
-                "criteria": criteria,
                 "min_value": min_value,
                 "max_value": max_value,
-                **item,  # Item fields LAST so they substitute into criteria
+                **item,
             }
             values_list.append(values)
 
@@ -447,7 +437,7 @@ class AIEvaluationService:
 
         results = await call_llm(
             system_message=system_message,
-            user_message=user_message,
+            user_message=prompt_template,
             values=values_list if not is_single else values_list[0],
             model_config=model_config,
             response_schema=response_schema,
@@ -476,8 +466,7 @@ class AIEvaluationService:
     async def extract(
         self,
         items: Union[Dict[str, Any], List[Dict[str, Any]]],
-        user_message: str,
-        instruction: str,
+        prompt_template: str,
         output_type: ExtractOutputType = "text",
         enum_values: Optional[List[str]] = None,
         include_reasoning: bool = True,
@@ -489,9 +478,9 @@ class AIEvaluationService:
 
         Args:
             items: Single item dict or list of item dicts to extract from
-            user_message: Template for the user message with {field} placeholders.
-                          Should include {instruction} and item fields.
-            instruction: Natural language instruction text
+            prompt_template: Template containing the extraction instructions and item field
+                            placeholders like {title}, {abstract}. For enum types, include
+                            the valid values in the prompt.
             output_type: Expected type - "text", "number", "boolean", or "enum"
             enum_values: Required list of valid values if output_type is "enum"
             include_reasoning: Whether to include explanation in result
@@ -503,17 +492,16 @@ class AIEvaluationService:
             List of items: List[LLMResult] in same order as input
 
         Example:
-            user_msg = '''## Article
+            prompt = '''## Article
             Title: {title}
             Abstract: {abstract}
 
-            ## Instruction
-            {instruction}'''
+            ## Task
+            Extract the primary disease studied in this article.'''
 
             result = await service.extract(
                 items={"id": "1", "title": "...", "abstract": "..."},
-                user_message=user_msg,
-                instruction="Extract the primary disease studied",
+                prompt_template=prompt,
                 output_type="text",
             )
             if result.ok:
@@ -534,24 +522,8 @@ class AIEvaluationService:
         system_message = SYSTEM_MESSAGE_EXTRACT if include_reasoning else SYSTEM_MESSAGE_EXTRACT_NO_REASONING
         response_schema = get_extract_response_schema(output_type, enum_values, include_reasoning)
 
-        # Build type hint to include in instruction
-        type_hint = ""
-        if output_type == "number":
-            type_hint = "\n\nRespond with a numeric value."
-        elif output_type == "boolean":
-            type_hint = "\n\nRespond with true or false."
-        elif output_type == "enum":
-            type_hint = f"\n\nRespond with one of: {', '.join(enum_values)}"
-        full_instruction = instruction + type_hint
-
-        # Build values list for call_llm
-        values_list = []
-        for item in items_list:
-            values = {
-                "instruction": full_instruction,
-                **item,  # Item fields LAST so they substitute into instruction
-            }
-            values_list.append(values)
+        # Build values list for call_llm - just item fields
+        values_list = [item for item in items_list]
 
         # Apply default model config if not provided
         if model_config is None:
@@ -562,7 +534,7 @@ class AIEvaluationService:
 
         results = await call_llm(
             system_message=system_message,
-            user_message=user_message,
+            user_message=prompt_template,
             values=values_list if not is_single else values_list[0],
             model_config=model_config,
             response_schema=response_schema,
@@ -590,8 +562,7 @@ class AIEvaluationService:
     async def extract_fields(
         self,
         items: Union[Dict[str, Any], List[Dict[str, Any]]],
-        user_message: str,
-        instructions: str,
+        prompt_template: str,
         schema: Dict[str, Any],
         field_instructions: Optional[Dict[str, str]] = None,
         include_reasoning: bool = True,
@@ -603,11 +574,12 @@ class AIEvaluationService:
 
         Args:
             items: Single item dict or list of item dicts to extract from
-            user_message: Template for the user message with {field} placeholders.
-                          Should include {instructions} and item fields.
-            instructions: Overall context/instructions text
+            prompt_template: Template containing the extraction instructions and item field
+                            placeholders like {title}, {abstract}. May include
+                            {field_instructions} placeholder for per-field guidance.
             schema: JSON schema defining the output structure
-            field_instructions: Optional per-field instructions
+            field_instructions: Optional per-field instructions dict, substituted into
+                               {field_instructions} placeholder if present.
                                e.g., {"study_type": "Classify as RCT, cohort, etc."}
             include_reasoning: Whether to include overall reasoning about the extraction
             model_config: Model configuration (model, temperature, max_tokens, reasoning_effort)
@@ -618,12 +590,14 @@ class AIEvaluationService:
             List of items: List[LLMResult] in same order as input
 
         Example:
-            user_msg = '''## Article
+            prompt = '''## Article
             Title: {title}
             Abstract: {abstract}
 
-            ## Instructions
-            {instructions}'''
+            ## Task
+            Extract study metadata from this article.
+
+            {field_instructions}'''
 
             schema = {
                 "type": "object",
@@ -635,9 +609,9 @@ class AIEvaluationService:
 
             result = await service.extract_fields(
                 items={"id": "1", "title": "...", "abstract": "..."},
-                user_message=user_msg,
-                instructions="Extract study metadata",
+                prompt_template=prompt,
                 schema=schema,
+                field_instructions={"study_type": "Classify as RCT, cohort, case-control, etc."}
             )
             if result.ok:
                 fields = result.data["fields"]
@@ -653,18 +627,18 @@ class AIEvaluationService:
         system_message = SYSTEM_MESSAGE_EXTRACT_FIELDS if include_reasoning else SYSTEM_MESSAGE_EXTRACT_FIELDS_NO_REASONING
         response_schema = get_extract_fields_response_schema(schema, include_reasoning)
 
-        # Build full instructions with field-level guidance if provided
-        full_instructions = instructions
+        # Build field instructions string if provided
+        field_instructions_str = ""
         if field_instructions:
             field_lines = [f"- {field}: {instr}" for field, instr in field_instructions.items()]
-            full_instructions += f"\n\n## Field Instructions\n" + "\n".join(field_lines)
+            field_instructions_str = "## Field Instructions\n" + "\n".join(field_lines)
 
         # Build values list for call_llm
         values_list = []
         for item in items_list:
             values = {
-                "instructions": full_instructions,
-                **item,  # Item fields LAST so they substitute into instructions
+                "field_instructions": field_instructions_str,
+                **item,
             }
             values_list.append(values)
 
@@ -677,7 +651,7 @@ class AIEvaluationService:
 
         results = await call_llm(
             system_message=system_message,
-            user_message=user_message,
+            user_message=prompt_template,
             values=values_list if not is_single else values_list[0],
             model_config=model_config,
             response_schema=response_schema,

@@ -8,7 +8,7 @@ NOTE: The primary extraction usage is via /api/tablizer/extract endpoint.
 These endpoints are kept for potential direct API usage.
 """
 
-from typing import Optional, List, Dict, Any
+from typing import List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 import logging
@@ -81,22 +81,23 @@ async def extract_fields_batch(
     try:
         eval_service = get_ai_evaluation_service()
 
-        extraction_results = await eval_service.extract_fields_batch(
+        # extract_fields handles both single and batch - returns List[LLMResult] for list input
+        extraction_results = await eval_service.extract_fields(
             items=request.items,
-            schema=request.result_schema,
-            instructions=request.instructions,
-            id_field="id"  # Callers should include "id" field in items
+            result_schema=request.result_schema,
+            prompt_template=request.instructions,
         )
 
-        # Convert results to API format
+        # Convert LLMResult list to API format
         results = []
         successful = 0
         failed = 0
 
-        for result in extraction_results:
+        for i, result in enumerate(extraction_results):
+            item_id = request.items[i].get("id", str(i)) if i < len(request.items) else str(i)
             api_result = {
-                "item_id": result.item_id,
-                "fields": result.fields
+                "item_id": item_id,
+                "fields": result.data if result.ok else {}
             }
 
             if result.error:
@@ -129,7 +130,7 @@ async def extract_fields_batch(
 
 
 @router.post("/extract-fields", response_model=SingleFieldsExtractionResponse)
-async def extract_fields(
+async def extract_fields_single(
     request: SingleFieldsExtractionRequest,
     current_user: User = Depends(validate_token)
 ):
@@ -148,26 +149,27 @@ async def extract_fields(
     try:
         eval_service = get_ai_evaluation_service()
 
+        # extract_fields handles single item when passed a dict - returns single LLMResult
         extraction_result = await eval_service.extract_fields(
-            item=request.item,
-            schema=request.result_schema,
-            instructions=request.instructions,
-            id_field="id"  # Callers should include "id" field in item
+            items=request.item,
+            result_schema=request.result_schema,
+            prompt_template=request.instructions,
         )
 
+        item_id = request.item.get("id", "unknown")
         api_result = {
-            "item_id": extraction_result.item_id,
-            "fields": extraction_result.fields
+            "item_id": item_id,
+            "fields": extraction_result.data if extraction_result.ok else {}
         }
 
         if extraction_result.error:
             api_result["error"] = extraction_result.error
 
-        logger.info(f"extract_fields complete - user_id={current_user.user_id}, success={extraction_result.error is None}")
+        logger.info(f"extract_fields complete - user_id={current_user.user_id}, success={extraction_result.ok}")
 
         return SingleFieldsExtractionResponse(
             result=api_result,
-            success=extraction_result.error is None
+            success=extraction_result.ok
         )
 
     except HTTPException:
@@ -191,24 +193,23 @@ async def test_extraction_service(
     try:
         eval_service = get_ai_evaluation_service()
 
-        # Simple test extraction
+        # Simple test extraction using filter (boolean output)
         test_item = {"id": "test", "title": "Test Article", "content": "This is a test about machine learning."}
-        test_result = await eval_service.extract(
-            item=test_item,
-            instruction="Is this article about technology?",
-            id_field="id",
-            output_type="boolean"
+        test_result = await eval_service.filter(
+            items=test_item,
+            prompt_template="Title: {title}\nContent: {content}\n\nIs this article about technology?",
         )
 
         logger.info(f"test_extraction_service complete - user_id={current_user.user_id}")
 
+        data = test_result.data or {}
         return {
             "status": "success",
             "message": "Extraction service is operational",
             "test_result": {
-                "extraction_successful": test_result.error is None,
-                "value": test_result.value,
-                "confidence": test_result.confidence,
+                "extraction_successful": test_result.ok,
+                "value": data.get("value"),
+                "confidence": data.get("confidence"),
                 "error": test_result.error
             }
         }

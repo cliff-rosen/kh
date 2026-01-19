@@ -254,46 +254,67 @@ class RefinementWorkbenchService:
         # Convert articles to dicts for evaluation
         items = [article.model_dump() for article in articles]
 
+        options = LLMOptions(max_concurrent=50)
+
         # Use AIEvaluationService based on output type
-        # CanonicalResearchArticle uses "pmid" as the ID field
+        # Note: filter_criteria is embedded directly in the prompt template
         if output_type == "boolean":
-            eval_results = await self.eval_service.filter_batch(
+            prompt_template = f"""## Article
+Title: {{title}}
+Abstract: {{abstract}}
+Authors: {{authors}}
+Journal: {{journal}}
+
+## Task
+{filter_criteria}"""
+            eval_results = await self.eval_service.filter(
                 items=items,
-                criteria=filter_criteria,
-                id_field="pmid",
+                prompt_template=prompt_template,
                 include_reasoning=True,
-                include_source_data=True,  # Include full article data for LLM context
-                max_concurrent=50
+                options=options
             )
         elif output_type == "number":
-            eval_results = await self.eval_service.score_batch(
+            prompt_template = f"""## Article
+Title: {{title}}
+Abstract: {{abstract}}
+Authors: {{authors}}
+Journal: {{journal}}
+
+## Task
+{filter_criteria}
+
+Score from {{min_value}} to {{max_value}}."""
+            eval_results = await self.eval_service.score(
                 items=items,
-                criteria=filter_criteria,
-                id_field="pmid",
+                prompt_template=prompt_template,
                 include_reasoning=True,
-                include_source_data=True,  # Include full article data for LLM context
-                max_concurrent=50
+                options=options
             )
         else:  # "text"
-            eval_results = await self.eval_service.extract_batch(
+            prompt_template = f"""## Article
+Title: {{title}}
+Abstract: {{abstract}}
+Authors: {{authors}}
+Journal: {{journal}}
+
+## Task
+{filter_criteria}"""
+            eval_results = await self.eval_service.extract(
                 items=items,
-                instruction=filter_criteria,
-                id_field="pmid",
+                prompt_template=prompt_template,
                 output_type="text",
                 include_reasoning=True,
-                include_source_data=True,  # Include full article data for LLM context
-                max_concurrent=50
+                options=options
             )
 
-        # Build a map from item_id to result for correlation
-        result_map = {r.item_id: r for r in eval_results}
+        # Ensure results is a list
+        if not isinstance(eval_results, list):
+            eval_results = [eval_results]
 
-        # Convert results to expected format
+        # Convert results to expected format (results are in same order as input)
         results = []
-        for article in articles:
-            result = result_map.get(article.pmid)
-            if not result:
-                # Shouldn't happen, but handle gracefully
+        for i, article in enumerate(articles):
+            if i >= len(eval_results):
                 results.append({
                     "article": article,
                     "passed": False,
@@ -302,21 +323,34 @@ class RefinementWorkbenchService:
                 })
                 continue
 
+            result = eval_results[i]
+            data = result.data or {}
+
+            if result.error:
+                results.append({
+                    "article": article,
+                    "passed": False,
+                    "score": 0.0,
+                    "reasoning": result.error
+                })
+                continue
+
             if output_type == "boolean":
-                passed = result.value is True
-                score = result.confidence
+                passed = data.get("value") is True
+                score = float(data.get("confidence", 0.0) or 0.0)
             elif output_type == "number":
-                passed = (result.value or 0) >= threshold
-                score = result.value if result.value is not None else 0.0
+                raw_value = data.get("value")
+                score = float(raw_value) if raw_value is not None else 0.0
+                passed = score >= threshold
             else:  # "text"
-                passed = result.value is not None
-                score = result.confidence
+                passed = data.get("value") is not None
+                score = float(data.get("confidence", 0.0) or 0.0)
 
             results.append({
                 "article": article,
                 "passed": passed,
                 "score": score,
-                "reasoning": result.reasoning or result.error or ""
+                "reasoning": str(data.get("reasoning", "") or "")
             })
 
         return results

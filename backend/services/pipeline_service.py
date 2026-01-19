@@ -1231,19 +1231,19 @@ class PipelineService:
             f"Filtering {len(articles)} articles for retrieval_unit_id={retrieval_unit_id}, threshold={threshold}"
         )
 
-        # User message template for semantic filtering
-        # All {field} placeholders are substituted by call_llm
-        user_message = """## Article
-Title: {title}
-Abstract: {abstract}
-AI Summary: {summary}
-Journal: {journal}
-Authors: {authors}
+        # Prompt template for semantic filtering
+        # filter_criteria is embedded directly; item fields use {field} placeholders
+        prompt_template = f"""## Article
+Title: {{title}}
+Abstract: {{abstract}}
+AI Summary: {{summary}}
+Journal: {{journal}}
+Authors: {{authors}}
 
-## Criteria
-{criteria}
+## Task
+{filter_criteria}
 
-Score from {min_value} to {max_value}."""
+Score from {{min_value}} to {{max_value}}."""
 
         # Convert WipArticle objects to dicts for evaluation
         items = []
@@ -1265,8 +1265,7 @@ Score from {min_value} to {max_value}."""
         # Use AIEvaluationService score to get relevance scores
         results = await self.eval_service.score(
             items=items,
-            user_message=user_message,
-            criteria=filter_criteria,
+            prompt_template=prompt_template,
             min_value=0.0,
             max_value=1.0,
             include_reasoning=True,

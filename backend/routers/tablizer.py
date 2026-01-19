@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from models import User
 from routers.auth import get_current_user
 from schemas.canonical_types import CanonicalResearchArticle, CanonicalClinicalTrial
+from agents.prompts.llm import LLMOptions
 
 logger = logging.getLogger(__name__)
 
@@ -305,45 +306,66 @@ async def filter_items(
         # Prepare items - normalizes to use "id" field
         prepared_items = [_prepare_item_for_evaluation(item, request.item_type) for item in request.items]
 
+        options = LLMOptions(max_concurrent=50)
+
         # Run evaluation based on output type
+        # request.criteria IS the complete prompt template with item field placeholders
         if request.output_type == "boolean":
-            eval_results = await service.filter_batch(
+            eval_results = await service.filter(
                 items=prepared_items,
-                criteria=request.criteria,
-                id_field="id",
+                prompt_template=request.criteria,
                 include_reasoning=True,
-                max_concurrent=50
+                options=options
             )
         else:  # "number" (score)
-            eval_results = await service.score_batch(
+            # Append score range info to ensure LLM knows the expected range
+            prompt_template = request.criteria + "\n\nProvide a score from {min_value} to {max_value}."
+            eval_results = await service.score(
                 items=prepared_items,
-                criteria=request.criteria,
-                id_field="id",
+                prompt_template=prompt_template,
                 min_value=request.min_value,
                 max_value=request.max_value,
                 interval=request.interval,
                 include_reasoning=True,
-                max_concurrent=50
+                options=options
             )
 
-        # Convert results - each result has item_id
+        # Ensure results is a list
+        if not isinstance(eval_results, list):
+            eval_results = [eval_results]
+
+        # Convert results - match by position (results are in same order as input)
         results = []
-        for result in eval_results:
+        for i, result in enumerate(eval_results):
+            item_id = prepared_items[i]["id"] if i < len(prepared_items) else ""
+
+            if result.error:
+                results.append(FilterResultItem(
+                    id=item_id,
+                    passed=False,
+                    value=0.0,
+                    confidence=0.0,
+                    reasoning=result.error
+                ))
+                continue
+
+            data = result.data or {}
             if request.output_type == "boolean":
-                passed = result.value is True
+                passed = data.get("value") is True
                 value = 1.0 if passed else 0.0
-                confidence = result.confidence
+                confidence = float(data.get("confidence", 0.0) or 0.0)
             else:  # "number"
-                value = result.value if result.value is not None else 0.0
+                raw_value = data.get("value")
+                value = float(raw_value) if raw_value is not None else 0.0
                 passed = value >= request.threshold
-                confidence = result.confidence
+                confidence = float(data.get("confidence", 0.0) or 0.0)
 
             results.append(FilterResultItem(
-                id=result.item_id,
+                id=item_id,
                 passed=passed,
                 value=value,
                 confidence=confidence,
-                reasoning=result.reasoning or result.error or ""
+                reasoning=str(data.get("reasoning", "") or "")
             ))
 
         passed_count = sum(1 for r in results if r.passed)
@@ -413,37 +435,46 @@ async def extract_from_items(
         # Prepare items as dicts
         prepared_items = [_prepare_item_for_evaluation(item, request.item_type) for item in request.items]
 
+        options = LLMOptions(max_concurrent=50)
+
         # Run extraction
-        eval_results = await service.extract_batch(
+        # request.prompt IS the complete prompt template with item field placeholders
+        eval_results = await service.extract(
             items=prepared_items,
-            instruction=request.prompt,
-            id_field="id",  # _prepare_item_for_evaluation normalizes to "id"
+            prompt_template=request.prompt,
             output_type="text",
             include_reasoning=True,
-            max_concurrent=50
+            options=options
         )
 
-        # Convert results - each result has item_id
+        # Ensure results is a list
+        if not isinstance(eval_results, list):
+            eval_results = [eval_results]
+
+        # Convert results - match by position (results are in same order as input)
         results = []
         succeeded = 0
         failed = 0
 
-        for result in eval_results:
+        for i, result in enumerate(eval_results):
+            item_id = prepared_items[i]["id"] if i < len(prepared_items) else ""
+
             if result.error:
                 failed += 1
                 results.append(ExtractResultItem(
-                    id=result.item_id,
+                    id=item_id,
                     text_value="[Extraction failed]",
                     confidence=0.0,
                     reasoning=result.error
                 ))
             else:
                 succeeded += 1
+                data = result.data or {}
                 results.append(ExtractResultItem(
-                    id=result.item_id,
-                    text_value=str(result.value) if result.value else "",
-                    confidence=result.confidence,
-                    reasoning=result.reasoning or ""
+                    id=item_id,
+                    text_value=str(data.get("value", "")) if data.get("value") else "",
+                    confidence=data.get("confidence", 0.0),
+                    reasoning=data.get("reasoning", "")
                 ))
 
         logger.info(f"extract_from_items complete - user_id={current_user.user_id}, succeeded={succeeded}, failed={failed}")
