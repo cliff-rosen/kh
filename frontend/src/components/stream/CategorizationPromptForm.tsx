@@ -34,10 +34,10 @@ import {
     TestCategorizationPromptResponse,
 } from '../../lib/api/promptWorkbenchApi';
 import { reportApi } from '../../lib/api/reportApi';
+import { llmApi } from '../../lib/api/llmApi';
 import { Report, ResearchStream, ModelInfo } from '../../types';
 import { copyToClipboard } from '../../lib/utils/clipboard';
 import { showErrorToast, showSuccessToast } from '../../lib/errorToast';
-import { api } from '../../lib/api';
 
 interface CategorizationPromptFormProps {
     streamId: number;
@@ -100,8 +100,8 @@ export default function CategorizationPromptForm({ streamId, stream }: Categoriz
     useEffect(() => {
         const fetchModels = async () => {
             try {
-                const response = await api.get<{ models: ModelInfo[] }>('/api/llm/models');
-                setAvailableModels(response.data.models);
+                const response = await llmApi.getModels();
+                setAvailableModels(response.models);
             } catch (error) {
                 console.error('Failed to fetch models:', error);
             }

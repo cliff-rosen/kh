@@ -1,13 +1,8 @@
 import { useState, useEffect } from 'react';
 import { ResearchStream, LLMConfig, StageModelConfig, ReasoningEffort, ModelInfo } from '../../types';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
+import { llmApi } from '../../lib/api/llmApi';
 import { showErrorToast, showSuccessToast } from '../../lib/errorToast';
-import { api } from '../../lib/api';
-
-interface ModelsResponse {
-    models: ModelInfo[];
-    default_model: string;
-}
 
 const REASONING_EFFORT_OPTIONS: { value: ReasoningEffort; label: string }[] = [
     { value: 'minimal', label: 'Minimal' },
@@ -50,8 +45,8 @@ export default function ModelConfigForm({ stream, onConfigUpdate, canModify = tr
     useEffect(() => {
         const fetchModels = async () => {
             try {
-                const response = await api.get<ModelsResponse>('/api/llm/models');
-                setModels(response.data.models);
+                const response = await llmApi.getModels();
+                setModels(response.models);
             } catch (error) {
                 console.error('Failed to fetch models:', error);
                 showErrorToast(error, 'Failed to load model options');

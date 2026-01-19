@@ -37,9 +37,9 @@ import {
 } from '../../lib/api/promptWorkbenchApi';
 import { reportApi } from '../../lib/api/reportApi';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
+import { llmApi } from '../../lib/api/llmApi';
 import { Report, Category, ResearchStream, StageModelConfig, ModelInfo } from '../../types';
 import { copyToClipboard } from '../../lib/utils/clipboard';
-import { api } from '../../lib/api';
 
 interface PromptSuggestion {
     target: 'system_prompt' | 'user_prompt_template';
@@ -177,8 +177,8 @@ export default function ContentEnrichmentForm({
     useEffect(() => {
         const fetchModels = async () => {
             try {
-                const response = await api.get<{ models: ModelInfo[] }>('/api/llm/models');
-                setAvailableModels(response.data.models);
+                const response = await llmApi.getModels();
+                setAvailableModels(response.models);
             } catch (error) {
                 console.error('Failed to fetch models:', error);
             }
