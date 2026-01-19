@@ -175,7 +175,10 @@ class ReportArticleAssociationService:
         """Get all visible associations for a report (async)."""
         result = await self.db.execute(
             select(ReportArticleAssociation)
-            .options(selectinload(ReportArticleAssociation.article))
+            .options(
+                selectinload(ReportArticleAssociation.article),
+                selectinload(ReportArticleAssociation.wip_article)
+            )
             .where(
                 and_(
                     ReportArticleAssociation.report_id == report_id,
@@ -189,7 +192,10 @@ class ReportArticleAssociationService:
         """Get all associations for a report (async)."""
         result = await self.db.execute(
             select(ReportArticleAssociation)
-            .options(selectinload(ReportArticleAssociation.article))
+            .options(
+                selectinload(ReportArticleAssociation.article),
+                selectinload(ReportArticleAssociation.wip_article)
+            )
             .where(
                 ReportArticleAssociation.report_id == report_id
             ).order_by(ReportArticleAssociation.ranking)
@@ -267,7 +273,10 @@ class ReportArticleAssociationService:
         """Get hidden associations for a report (async)."""
         result = await self.db.execute(
             select(ReportArticleAssociation)
-            .options(selectinload(ReportArticleAssociation.article))
+            .options(
+                selectinload(ReportArticleAssociation.article),
+                selectinload(ReportArticleAssociation.wip_article)
+            )
             .where(
                 and_(
                     ReportArticleAssociation.report_id == report_id,
@@ -281,7 +290,10 @@ class ReportArticleAssociationService:
         """Get curator-added associations for a report (async)."""
         result = await self.db.execute(
             select(ReportArticleAssociation)
-            .options(selectinload(ReportArticleAssociation.article))
+            .options(
+                selectinload(ReportArticleAssociation.article),
+                selectinload(ReportArticleAssociation.wip_article)
+            )
             .where(
                 and_(
                     ReportArticleAssociation.report_id == report_id,
