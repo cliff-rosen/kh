@@ -71,6 +71,7 @@ export interface TestCategorizationPromptRequest {
     sample_data?: Record<string, any>;
     report_id?: number;
     article_index?: number;
+    llm_config?: StageModelConfig;
 }
 
 export interface TestCategorizationPromptResponse {

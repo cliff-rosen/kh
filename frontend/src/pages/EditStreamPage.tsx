@@ -998,7 +998,7 @@ export default function EditStreamPage() {
                                     </div>
                                 )}
                                 {presentationSubTab === 'categorization-prompt' && streamId && (
-                                    <CategorizationPromptForm streamId={parseInt(streamId)} />
+                                    <CategorizationPromptForm streamId={parseInt(streamId)} stream={stream} />
                                 )}
                             </div>
                         )}

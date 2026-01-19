@@ -34,12 +34,21 @@ import {
     TestCategorizationPromptResponse,
 } from '../../lib/api/promptWorkbenchApi';
 import { reportApi } from '../../lib/api/reportApi';
-import { Report } from '../../types';
+import { Report, ResearchStream } from '../../types';
 import { copyToClipboard } from '../../lib/utils/clipboard';
 import { showErrorToast, showSuccessToast } from '../../lib/errorToast';
 
+// Available models for testing
+const AVAILABLE_MODELS = [
+    { value: 'gpt-4.1', label: 'GPT-4.1 (Flagship)' },
+    { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini (Fast)' },
+    { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano (Cost-optimized)' },
+    { value: 'o4-mini', label: 'o4-mini (Reasoning)' },
+];
+
 interface CategorizationPromptFormProps {
     streamId: number;
+    stream?: ResearchStream;
 }
 
 type ResultsPaneMode = 'collapsed' | 'side' | 'full';
@@ -52,7 +61,7 @@ interface HistoryEntry {
     result: TestCategorizationPromptResponse;
 }
 
-export default function CategorizationPromptForm({ streamId }: CategorizationPromptFormProps) {
+export default function CategorizationPromptForm({ streamId, stream }: CategorizationPromptFormProps) {
     // State for prompts
     const [prompt, setPrompt] = useState<PromptTemplate | null>(null);
     const [savedPrompt, setSavedPrompt] = useState<PromptTemplate | null>(null); // Last saved version
@@ -69,6 +78,8 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
     const [selectedArticleIndex, setSelectedArticleIndex] = useState<number>(0);
     const [pastedData, setPastedData] = useState('');
     const [isTesting, setIsTesting] = useState(false);
+    const [useStreamModel, setUseStreamModel] = useState(true);
+    const [customModel, setCustomModel] = useState<string>('gpt-4.1');
 
     // History state for time travel
     const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -222,6 +233,16 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
                 setError('Please select a report or paste sample data');
                 setIsTesting(false);
                 return;
+            }
+
+            // Add LLM config
+            if (useStreamModel && stream?.llm_config?.categorization) {
+                request.llm_config = stream.llm_config.categorization;
+            } else if (!useStreamModel) {
+                request.llm_config = {
+                    model: customModel,
+                    temperature: 0.0  // Categorization typically uses low temperature
+                };
             }
 
             const result = await promptWorkbenchApi.testCategorizationPrompt(request);
@@ -659,6 +680,34 @@ export default function CategorizationPromptForm({ streamId }: CategorizationPro
                                             onChange={(e) => setSelectedArticleIndex(Number(e.target.value))}
                                             className="px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 w-24"
                                         />
+                                    </div>
+                                    {/* Model Selection */}
+                                    <div className="flex items-center gap-2 ml-4 pl-4 border-l border-gray-300 dark:border-gray-600">
+                                        <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                            <input
+                                                type="checkbox"
+                                                checked={useStreamModel}
+                                                onChange={(e) => setUseStreamModel(e.target.checked)}
+                                                className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            Use stream model
+                                        </label>
+                                        {!useStreamModel && (
+                                            <select
+                                                value={customModel}
+                                                onChange={(e) => setCustomModel(e.target.value)}
+                                                className="px-2 py-1 text-xs text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+                                            >
+                                                {AVAILABLE_MODELS.map(m => (
+                                                    <option key={m.value} value={m.value}>{m.label}</option>
+                                                ))}
+                                            </select>
+                                        )}
+                                        {useStreamModel && stream?.llm_config?.categorization && (
+                                            <span className="text-xs text-gray-400">
+                                                ({stream.llm_config.categorization.model})
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             ) : (
