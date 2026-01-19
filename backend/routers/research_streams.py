@@ -1106,8 +1106,8 @@ async def execute_pipeline(
         # Check if user can run this stream (based on scope and role)
         _check_can_modify_stream(stream, current_user)
 
-        # Parse run type
-        run_type_value = RunType.MANUAL
+        # Parse run type (defaults to TEST for direct execution)
+        run_type_value = RunType.TEST
         if request.run_type:
             try:
                 run_type_value = RunType(request.run_type.lower())
@@ -1140,8 +1140,12 @@ async def execute_pipeline(
         async def event_generator():
             """Generate SSE events from pipeline status updates"""
             try:
-                async for status in pipeline_service.run_pipeline(
-                    research_stream_id=stream_id,
+                # Use run_pipeline_direct which:
+                # 1. Creates execution record with RUNNING status (worker ignores it)
+                # 2. Runs pipeline directly in this process
+                # 3. Marks execution completed/failed
+                async for status in pipeline_service.run_pipeline_direct(
+                    stream_id=stream_id,
                     user_id=user_id,
                     run_type=run_type_value,
                     start_date=start_date,

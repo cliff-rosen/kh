@@ -370,6 +370,89 @@ class PipelineService:
             llm_config=llm_config,
         )
 
+    async def run_pipeline_direct(
+        self,
+        stream_id: int,
+        user_id: int,
+        run_type: RunType = RunType.TEST,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        report_name: Optional[str] = None,
+    ) -> AsyncGenerator[PipelineStatus, None]:
+        """
+        Execute the pipeline directly (bypassing worker) with SSE streaming.
+
+        Creates a PipelineExecution record with status=RUNNING so the worker
+        won't pick it up, then runs the pipeline in the current process.
+
+        This is the "test run" flow for synchronous execution with real-time
+        progress updates via SSE.
+
+        Args:
+            stream_id: Research stream ID
+            user_id: User triggering the run
+            run_type: Type of run (defaults to TEST)
+            start_date: Start date for retrieval (YYYY-MM-DD or YYYY/MM/DD)
+            end_date: End date for retrieval (YYYY-MM-DD or YYYY/MM/DD)
+            report_name: Optional custom report name
+
+        Yields:
+            PipelineStatus: Status updates at each stage
+        """
+        from models import ExecutionStatus
+
+        yield PipelineStatus("init", "Creating execution record...")
+
+        # Load stream to get configuration
+        stream = await self.research_stream_service.get_stream_by_id(stream_id)
+        if not stream:
+            raise ValueError(f"Stream {stream_id} not found")
+
+        # Normalize date format (accept both YYYY/MM/DD and YYYY-MM-DD)
+        if start_date:
+            start_date = start_date.replace("/", "-")
+        if end_date:
+            end_date = end_date.replace("/", "-")
+
+        # Create execution with RUNNING status (worker only picks up PENDING)
+        execution = await self.execution_service.create_from_stream(
+            stream=stream,
+            run_type=run_type,
+            start_date=start_date,
+            end_date=end_date,
+            report_name=report_name,
+            status=ExecutionStatus.RUNNING  # Worker ignores RUNNING executions
+        )
+        await self.db.commit()
+
+        execution_id = execution.id
+        logger.info(f"Created direct execution {execution_id} for stream {stream_id}")
+
+        yield PipelineStatus(
+            "init",
+            f"Execution {execution_id} created",
+            {"execution_id": execution_id, "stream_id": stream_id}
+        )
+
+        try:
+            # Run the pipeline
+            async for status in self.run_pipeline(execution_id):
+                yield status
+
+            # Mark as completed
+            await self.execution_service.mark_completed(execution_id)
+            await self.db.commit()
+
+        except Exception as e:
+            # Mark as failed
+            logger.error(f"Direct pipeline execution {execution_id} failed: {e}", exc_info=True)
+            try:
+                await self.execution_service.mark_failed(execution_id, str(e))
+                await self.db.commit()
+            except Exception as inner_e:
+                logger.error(f"Failed to mark execution as failed: {inner_e}")
+            raise
+
     async def run_pipeline(
         self, execution_id: str
     ) -> AsyncGenerator[PipelineStatus, None]:
