@@ -275,12 +275,20 @@ class PromptTestingService:
             articles_summaries = "\n\n".join(summaries[:15])
 
         # Return flat keys matching PROMPT_SLUGS for category_summary
+        category_name = category.get("name", "")
         category_topics = category.get("topics", []) or []
+        category_inclusions = category.get("specific_inclusions", []) or []
+
+        # Build category description matching report_summary_service format
+        category_description = f"{category_name}. "
+        if category_inclusions:
+            category_description += "Includes: " + ", ".join(category_inclusions)
+
         return {
             "stream_name": stream.stream_name or "",
             "stream_purpose": stream.purpose or "",
-            "category_name": category.get("name", ""),
-            "category_description": ", ".join(category_topics),
+            "category_name": category_name,
+            "category_description": category_description,
             "category_topics": ", ".join(category_topics),
             "articles_count": str(len(category_associations)),
             "articles_formatted": articles_formatted,
