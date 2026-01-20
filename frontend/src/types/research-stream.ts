@@ -1,7 +1,26 @@
-// Research Stream domain types - Channel-based structure
+/**
+ * Research Stream types for Knowledge Horizon
+ *
+ * Organized to mirror backend schemas/research_stream.py for easy cross-reference.
+ * Section order:
+ *   1. Enums
+ *   2. Scheduling
+ *   3. Layer 2: Retrieval Config
+ *   4. Layer 3: Presentation Config
+ *   5. Layer 4: Enrichment Config
+ *   6. Pipeline Execution
+ *   7. Research Stream (main type)
+ *   8. Derived Types (views, summaries, queue items)
+ *   9. Information Sources
+ */
 
 import { SemanticSpace } from './semantic-space';
 import type { ReportArticle } from './report';
+import type { PipelineLLMConfig } from './llm';
+
+// ============================================================================
+// ENUMS
+// ============================================================================
 
 export enum StreamType {
     COMPETITIVE = 'competitive',
@@ -19,18 +38,142 @@ export enum ReportFrequency {
     MONTHLY = 'monthly'
 }
 
-// Execution status for pipeline runs
 export type ExecutionStatus = 'pending' | 'running' | 'completed' | 'failed';
 
-// Run type for pipeline executions
 export type RunType = 'scheduled' | 'manual' | 'test';
 
+export enum VolumeStatus {
+    TOO_BROAD = 'too_broad',      // > 1000 results/week
+    APPROPRIATE = 'appropriate',  // 10-1000 results/week
+    TOO_NARROW = 'too_narrow',    // < 10 results/week
+    UNKNOWN = 'unknown'           // Not yet tested
+}
+
+// ============================================================================
+// SCHEDULING
+// ============================================================================
+
+export interface ScheduleConfig {
+    enabled: boolean;
+    frequency: ReportFrequency;
+    anchor_day?: string | null;  // 'monday'-'sunday' for weekly, or '1'-'31' for monthly
+    preferred_time: string;  // HH:MM in user's timezone
+    timezone: string;  // e.g., 'America/New_York'
+    lookback_days?: number | null;  // Days of articles to fetch
+}
+
+// ============================================================================
+// LAYER 2: RETRIEVAL CONFIG
+// ============================================================================
+
+export interface SourceQuery {
+    query_expression: string;
+    enabled: boolean;
+}
+
+export interface SemanticFilter {
+    enabled: boolean;
+    criteria: string;
+    threshold: number;  // 0.0 to 1.0
+}
+
+export interface ConceptEntity {
+    entity_id: string;
+    name: string;
+    entity_type: string;
+    canonical_forms: string[];
+    rationale: string;
+    semantic_space_ref: string | null;
+}
+
+export interface RelationshipEdge {
+    from_entity_id: string;
+    to_entity_id: string;
+    relation_type: string;
+}
+
+export interface Concept {
+    concept_id: string;
+    name: string;
+    entity_pattern: string[];
+    relationship_edges: RelationshipEdge[];
+    relationship_description: string;
+    relationship_pattern?: string | null;  // DEPRECATED
+    covered_topics: string[];
+    vocabulary_terms: Record<string, string[]>;
+    expected_volume: number | null;
+    volume_status: VolumeStatus;
+    last_volume_check: string | null;
+    source_queries: Record<string, SourceQuery>;
+    semantic_filter: SemanticFilter;
+    exclusions: string[];
+    exclusion_rationale: string | null;
+    rationale: string;
+    human_edited: boolean;
+}
+
+export interface BroadQuery {
+    query_id: string;
+    search_terms: string[];
+    query_expression: string;
+    rationale: string;
+    covered_topics: string[];
+    estimated_weekly_volume: number | null;
+    semantic_filter: SemanticFilter;
+}
+
+export interface BroadSearchStrategy {
+    queries: BroadQuery[];
+    strategy_rationale: string;
+    coverage_analysis: Record<string, any>;
+}
+
+export interface RetrievalConfig {
+    concepts?: Concept[] | null;
+    broad_search?: BroadSearchStrategy | null;
+    article_limit_per_week?: number;
+}
+
+// ============================================================================
+// LAYER 3: PRESENTATION CONFIG
+// ============================================================================
+
+export interface Category {
+    id: string;
+    name: string;
+    topics: string[];
+    specific_inclusions: string[];
+}
+
 /**
- * Pipeline execution record - tracks each run attempt.
- * This is the single source of truth for execution state.
+ * A customizable prompt template with slug support.
  */
+export interface PromptTemplate {
+    system_prompt: string;
+    user_prompt_template: string;
+}
+
+export type CategorizationPrompt = PromptTemplate;
+
+export interface PresentationConfig {
+    categories: Category[];
+    categorization_prompt?: CategorizationPrompt | null;
+}
+
+// ============================================================================
+// LAYER 4: ENRICHMENT CONFIG
+// ============================================================================
+
+export interface EnrichmentConfig {
+    prompts: Record<string, PromptTemplate>;  // 'article_summary', 'category_summary', 'executive_summary'
+}
+
+// ============================================================================
+// PIPELINE EXECUTION
+// ============================================================================
+
 export interface PipelineExecution {
-    id: string;                    // UUID
+    id: string;
     stream_id: number;
     status: ExecutionStatus;
     run_type: RunType;
@@ -41,10 +184,6 @@ export interface PipelineExecution {
     created_at: string;
 }
 
-/**
- * Work-in-progress article during pipeline execution.
- * Represents an article before it's finalized into a report.
- */
 export interface WipArticle {
     id: number;
     title: string;
@@ -59,32 +198,80 @@ export interface WipArticle {
     filter_score: number | null;
     filter_score_reason: string | null;
     included_in_report: boolean;
-    // Curator override fields (audit trail)
     curator_included: boolean;
     curator_excluded: boolean;
     curation_notes: string | null;
 }
 
+// ============================================================================
+// RESEARCH STREAM (Main Type)
+// ============================================================================
+
 /**
- * Simplified stream option for dropdowns/filters.
+ * Research stream configuration.
+ *
+ * Organized into sections that mirror the backend Pydantic schema
+ * for easy cross-reference between frontend and backend code.
  */
+export interface ResearchStream {
+    // === CORE IDENTITY ===
+    stream_id: number;
+    stream_name: string;
+    purpose: string;
+
+    // === SCOPE & OWNERSHIP ===
+    scope?: 'personal' | 'organization' | 'global';
+    org_id?: number | null;
+    user_id?: number | null;
+    created_by?: number | null;
+
+    // === FOUR-LAYER ARCHITECTURE ===
+    // Layer 1: SEMANTIC SPACE (imported from semantic-space.ts)
+    semantic_space: SemanticSpace;
+    // Layer 2: RETRIEVAL CONFIG
+    retrieval_config: RetrievalConfig;
+    // Layer 3: PRESENTATION CONFIG
+    presentation_config: PresentationConfig;
+    // Layer 4: ENRICHMENT CONFIG
+    enrichment_config?: EnrichmentConfig | null;
+
+    // === CONTROL PANEL ===
+    llm_config?: PipelineLLMConfig | null;
+
+    // === CHAT ===
+    chat_instructions?: string | null;
+
+    // === SCHEDULING ===
+    schedule_config?: ScheduleConfig | null;
+    next_scheduled_run?: string | null;
+    last_execution_id?: string | null;
+    last_execution?: PipelineExecution | null;
+
+    // === METADATA ===
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+
+    // === AGGREGATED DATA ===
+    report_count?: number;
+    latest_report_date?: string | null;
+}
+
+// ============================================================================
+// DERIVED TYPES (Views, Summaries, Queue Items)
+// ============================================================================
+
 export interface StreamOption {
     stream_id: number;
     stream_name: string;
 }
 
-/**
- * Category summary with article count (for report views).
- */
 export interface CategoryCount {
     id: string;
     name: string;
     article_count: number;
 }
 
-/**
- * Last execution summary for scheduler views.
- */
 export interface LastExecution {
     id: string;
     stream_id: number;
@@ -98,9 +285,6 @@ export interface LastExecution {
     article_count: number | null;
 }
 
-/**
- * Execution queue item - pipeline execution with associated report info.
- */
 export interface ExecutionQueueItem {
     execution_id: string;
     stream_id: number;
@@ -111,7 +295,6 @@ export interface ExecutionQueueItem {
     completed_at: string | null;
     error: string | null;
     created_at: string;
-    // Report info (only for completed executions)
     report_id: number | null;
     report_name: string | null;
     approval_status: string | null;
@@ -119,15 +302,11 @@ export interface ExecutionQueueItem {
     approved_by: string | null;
     approved_at: string | null;
     rejection_reason: string | null;
-    // Curation info (for approval queue)
     filtered_out_count: number | null;
     has_curation_edits: boolean | null;
     last_curated_by: string | null;
 }
 
-/**
- * Full execution details for review.
- */
 export interface ExecutionDetail {
     execution_id: string;
     stream_id: number;
@@ -139,11 +318,9 @@ export interface ExecutionDetail {
     error: string | null;
     created_at: string;
     wip_articles: WipArticle[];
-    // Retrieval configuration
     start_date: string | null;
     end_date: string | null;
     retrieval_config: Record<string, unknown> | null;
-    // Report info (only for completed executions)
     report_id: number | null;
     report_name: string | null;
     approval_status: string | null;
@@ -157,9 +334,6 @@ export interface ExecutionDetail {
     rejection_reason: string | null;
 }
 
-/**
- * Scheduled stream with configuration and last execution.
- */
 export interface ScheduledStream {
     stream_id: number;
     stream_name: string;
@@ -168,217 +342,8 @@ export interface ScheduledStream {
     last_execution: LastExecution | null;
 }
 
-/**
- * Complete scheduling configuration for a research stream.
- * This is the single source of truth for all scheduling settings.
- */
-export interface ScheduleConfig {
-    enabled: boolean;
-    frequency: ReportFrequency;  // How often to run
-    anchor_day?: string | null;  // 'monday'-'sunday' for weekly, or '1'-'31' for monthly
-    preferred_time: string;  // HH:MM in user's timezone
-    timezone: string;  // e.g., 'America/New_York'
-    lookback_days?: number | null;  // Days of articles to fetch, derived from frequency if not set
-}
-
-
 // ============================================================================
-// Retrieval Configuration - Concept-Based
-// ============================================================================
-
-
-export interface SemanticFilter {
-    enabled: boolean;
-    criteria: string;  // Text description of what should pass/fail
-    threshold: number;  // 0.0 to 1.0 confidence threshold
-}
-
-export interface SourceQuery {
-    query_expression: string;  // Source-specific query expression
-    enabled: boolean;  // Whether this source is active
-}
-
-export enum VolumeStatus {
-    TOO_BROAD = 'too_broad',      // > 1000 results/week
-    APPROPRIATE = 'appropriate',  // 10-1000 results/week
-    TOO_NARROW = 'too_narrow',    // < 10 results/week
-    UNKNOWN = 'unknown'           // Not yet tested
-}
-
-export interface ConceptEntity {
-    entity_id: string;  // Unique identifier (e.g., 'c_e1', 'c_e2')
-    name: string;  // Entity name
-    entity_type: string;  // Type: methodology, biomarker, disease, treatment, etc.
-    canonical_forms: string[];  // Search terms for this entity
-    rationale: string;  // Why this entity is needed for topic coverage
-    semantic_space_ref: string | null;  // Reference to semantic space entity_id if applicable
-}
-
-export interface RelationshipEdge {
-    from_entity_id: string;  // Source entity_id from entity_pattern
-    to_entity_id: string;    // Target entity_id from entity_pattern
-    relation_type: string;   // Type of relationship (e.g., 'causes', 'measures', 'detects')
-}
-
-export interface Concept {
-    concept_id: string;  // Unique identifier for this concept
-    name: string;  // Descriptive name for this concept
-
-    // Core pattern (entities and their relationships)
-    entity_pattern: string[];  // List of entity_ids from phase1_analysis that form this pattern (1-3 entities)
-
-    // RIGOROUS relationship graph (machine-parseable)
-    relationship_edges: RelationshipEdge[];  // Directed edges defining how entities connect
-
-    // HUMAN-READABLE relationship description
-    relationship_description: string;  // Natural language description of entity relationships
-
-    // DEPRECATED: Kept for backward compatibility
-    relationship_pattern?: string | null;  // Old field - use relationship_edges and relationship_description instead
-
-    // Coverage (many-to-many with topics)
-    covered_topics: string[];  // List of topic_ids from semantic space this concept covers
-
-    // Vocabulary expansion (built from phase1 entity definitions)
-    vocabulary_terms: Record<string, string[]>;  // Map: entity_id -> list of synonym terms (from ConceptEntity.canonical_forms)
-
-    // Volume tracking and refinement
-    expected_volume: number | null;  // Estimated weekly article count
-    volume_status: VolumeStatus;  // Assessment of query volume
-    last_volume_check: string | null;  // ISO 8601 datetime when volume was last checked
-
-    // Queries per source
-    source_queries: Record<string, SourceQuery>;  // Map: source_id -> SourceQuery configuration
-
-    // Semantic filtering (per concept)
-    semantic_filter: SemanticFilter;  // Semantic filtering for this concept
-
-    // Exclusions (use sparingly!)
-    exclusions: string[];  // Terms to exclude (last resort only)
-    exclusion_rationale: string | null;  // Why exclusions are necessary and safe
-
-    // Metadata
-    rationale: string;  // Why this concept pattern covers these topics
-    human_edited: boolean;  // Whether human has modified LLM-generated concept
-}
-
-export interface BroadQuery {
-    query_id: string;  // Unique identifier for this query
-    search_terms: string[];  // Core search terms (e.g., ['asbestos', 'mesothelioma'])
-    query_expression: string;  // Boolean query expression usable as-is for PubMed (e.g., '(asbestos OR mesothelioma)')
-    rationale: string;  // Why these terms capture all relevant literature
-    covered_topics: string[];  // List of topic_ids this query covers
-    estimated_weekly_volume: number | null;  // Estimated number of articles per week
-
-    // Optional semantic filtering
-    semantic_filter: SemanticFilter;  // Optional semantic filtering for this broad query
-}
-
-export interface BroadSearchStrategy {
-    queries: BroadQuery[];  // Usually 1-3 broad queries that together cover all topics
-    strategy_rationale: string;  // Overall explanation of why this broad approach covers the domain
-    coverage_analysis: Record<string, any>;  // Analysis of how queries cover topics
-}
-
-export interface RetrievalConfig {
-    concepts?: Concept[] | null;  // Concept-based retrieval (mutually exclusive with broad_search)
-    broad_search?: BroadSearchStrategy | null;  // Broad search retrieval (mutually exclusive with concepts)
-    article_limit_per_week?: number;  // Maximum articles per week
-}
-
-export interface Category {
-    id: string; // Unique identifier for this category (e.g., 'medical_health')
-    name: string; // Display name for the category
-    topics: string[]; // List of topic_ids from semantic space covered by this category
-    specific_inclusions: string[]; // Category-specific inclusion criteria
-}
-
-/**
- * A customizable prompt template with slug support.
- * Used for both enrichment prompts and categorization prompts.
- */
-export interface PromptTemplate {
-    system_prompt: string;  // System prompt defining the LLM's role and guidelines
-    user_prompt_template: string;  // User prompt template with slugs
-}
-
-/**
- * Custom prompt for article categorization.
- * Extends PromptTemplate with the same structure.
- * Slugs available: {title}, {abstract}, {journal}, {year}, {categories_json}
- */
-export type CategorizationPrompt = PromptTemplate;
-
-export interface PresentationConfig {
-    categories: Category[];    // How to organize results in reports
-    categorization_prompt?: CategorizationPrompt | null;  // Custom prompt for article categorization (null = use defaults)
-}
-
-/**
- * Layer 4: Content Enrichment Configuration
- * Custom prompts for AI-generated summaries (article, category, executive).
- * When null/undefined, system defaults are used.
- */
-export interface EnrichmentConfig {
-    prompts: Record<string, PromptTemplate>;  // Keyed by prompt type: 'article_summary', 'category_summary', 'executive_summary'
-}
-
-// LLM types are now in ./llm.ts - import from there or from types index
-import type { PipelineLLMConfig } from './llm';
-
-
-/**
- * Research stream configuration.
- *
- * Organized into sections that mirror the backend Pydantic schema
- * for easy cross-reference between frontend and backend code.
- */
-export interface ResearchStream {
-    // === CORE IDENTITY ===
-    stream_id: number;
-    stream_name: string;
-    purpose: string;  // High-level "why this stream exists"
-
-    // === SCOPE & OWNERSHIP ===
-    scope?: 'personal' | 'organization' | 'global';  // Stream visibility scope
-    org_id?: number | null;  // Organization ID (null for global streams)
-    user_id?: number | null;  // Owner user ID (only for personal streams)
-    created_by?: number | null;  // User who created this stream
-
-    // === FOUR-LAYER ARCHITECTURE ===
-    // Layer 1: SEMANTIC SPACE - What information matters (source-agnostic ground truth)
-    semantic_space: SemanticSpace;
-    // Layer 2: RETRIEVAL CONFIG - How to find & filter content
-    retrieval_config: RetrievalConfig;
-    // Layer 3: PRESENTATION CONFIG - How to organize results for users
-    presentation_config: PresentationConfig;
-    // Layer 4: ENRICHMENT CONFIG - Custom prompts for AI-generated content (null = use defaults)
-    enrichment_config?: EnrichmentConfig | null;
-
-    // === CONTROL PANEL ===
-    llm_config?: PipelineLLMConfig | null;  // LLM configuration for pipeline stages
-
-    // === CHAT ===
-    chat_instructions?: string | null;  // Stream-specific instructions for the chat assistant
-
-    // === SCHEDULING ===
-    schedule_config?: ScheduleConfig | null;  // Scheduling configuration
-    next_scheduled_run?: string | null;  // Pre-calculated next run time (ISO 8601)
-    last_execution_id?: string | null;  // UUID of most recent pipeline execution
-    last_execution?: PipelineExecution | null;  // Denormalized last execution
-
-    // === METADATA ===
-    is_active: boolean;
-    created_at: string;  // ISO 8601 datetime
-    updated_at: string;  // ISO 8601 datetime
-
-    // === AGGREGATED DATA ===
-    report_count?: number;  // Number of reports generated
-    latest_report_date?: string | null;  // ISO 8601 date string of latest report
-}
-
-// ============================================================================
-// Information Sources
+// INFORMATION SOURCES
 // ============================================================================
 
 export enum SourceType {

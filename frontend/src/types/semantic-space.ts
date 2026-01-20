@@ -1,11 +1,22 @@
 /**
  * Semantic Space types for Knowledge Horizon
+ *
  * Based on three-layer architecture: Layer 1 (Semantic Space) is the canonical,
  * source-agnostic representation of the information space the user cares about.
+ *
+ * Organized to mirror backend schemas/semantic_space.py for easy cross-reference.
+ * Section order:
+ *   1. Enums
+ *   2. Core Semantic Elements
+ *   3. Signal Types and Coverage
+ *   4. Boundaries
+ *   5. Context and Metadata
+ *   6. Main Semantic Space
+ *   7. Helper/Utility Types (frontend-only)
  */
 
 // ============================================================================
-// Enums
+// ENUMS
 // ============================================================================
 
 export enum EntityType {
@@ -40,9 +51,9 @@ export enum RelationshipType {
 }
 
 export enum ImportanceLevel {
-    HIGH = 'high',
-    MEDIUM = 'medium',
-    LOW = 'low'
+    CRITICAL = 'critical',
+    IMPORTANT = 'important',
+    RELEVANT = 'relevant'
 }
 
 export enum PriorityLevel {
@@ -56,7 +67,7 @@ export type EdgeCaseResolution = 'include' | 'exclude' | 'conditional';
 export type DerivationMethod = 'ai_generated' | 'manual' | 'hybrid';
 
 // ============================================================================
-// Core Semantic Elements
+// CORE SEMANTIC ELEMENTS
 // ============================================================================
 
 export interface Topic {
@@ -86,7 +97,7 @@ export interface Relationship {
 }
 
 // ============================================================================
-// Signal Types and Coverage
+// SIGNAL TYPES AND COVERAGE
 // ============================================================================
 
 export interface SignalType {
@@ -116,7 +127,7 @@ export interface QualityCriteria {
 }
 
 // ============================================================================
-// Boundaries
+// BOUNDARIES
 // ============================================================================
 
 export interface InclusionCriterion {
@@ -145,7 +156,7 @@ export interface EdgeCase {
 }
 
 // ============================================================================
-// Context and Metadata
+// CONTEXT AND METADATA
 // ============================================================================
 
 export interface SemanticContext {
@@ -183,7 +194,7 @@ export interface Domain {
 }
 
 // ============================================================================
-// Main Semantic Space Interface
+// MAIN SEMANTIC SPACE
 // ============================================================================
 
 export interface SemanticSpace {
@@ -209,7 +220,7 @@ export interface SemanticSpace {
 }
 
 // ============================================================================
-// Helper/Utility Types
+// HELPER/UTILITY TYPES
 // ============================================================================
 
 export interface SemanticSpaceValidation {

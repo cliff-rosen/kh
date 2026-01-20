@@ -82,7 +82,7 @@ export default function SemanticSpaceForm({ semanticSpace, onChange }: SemanticS
             topic_id: `topic_${Date.now()}`,
             name: '',
             description: '',
-            importance: ImportanceLevel.MEDIUM,
+            importance: ImportanceLevel.IMPORTANT,
             rationale: ''
         };
         updateField(['topics'], [...semanticSpace.topics, newTopic]);
@@ -257,16 +257,16 @@ export default function SemanticSpaceForm({ semanticSpace, onChange }: SemanticS
                                             value={topic.importance}
                                             onChange={(e) => updateTopic(index, 'importance', e.target.value as ImportanceLevel)}
                                             className={`flex-shrink-0 px-2 py-1 text-xs rounded border-0 ${
-                                                topic.importance === ImportanceLevel.HIGH
+                                                topic.importance === ImportanceLevel.CRITICAL
                                                     ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                                                    : topic.importance === ImportanceLevel.MEDIUM
+                                                    : topic.importance === ImportanceLevel.IMPORTANT
                                                     ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
                                                     : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
                                             }`}
                                         >
-                                            <option value={ImportanceLevel.HIGH}>High</option>
-                                            <option value={ImportanceLevel.MEDIUM}>Medium</option>
-                                            <option value={ImportanceLevel.LOW}>Low</option>
+                                            <option value={ImportanceLevel.CRITICAL}>Critical</option>
+                                            <option value={ImportanceLevel.IMPORTANT}>Important</option>
+                                            <option value={ImportanceLevel.RELEVANT}>Relevant</option>
                                         </select>
 
                                         {/* Description indicator when collapsed */}

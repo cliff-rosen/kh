@@ -1,13 +1,28 @@
 """
 Semantic Space schemas for Knowledge Horizon
+
 Based on three-layer architecture: Layer 1 (Semantic Space) is the canonical,
 source-agnostic representation of the information space the user cares about.
+
+Organized to mirror frontend types/semantic-space.ts for easy cross-reference.
+Section order:
+  1. Enums
+  2. Core Semantic Elements
+  3. Signal Types and Coverage
+  4. Boundaries
+  5. Context and Metadata
+  6. Main Semantic Space (main type)
 """
 
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any, Literal
+from typing import List, Optional, Literal
 from datetime import datetime
 from enum import Enum
+
+
+# ============================================================================
+# ENUMS
+# ============================================================================
 
 
 class EntityType(str, Enum):
@@ -57,6 +72,11 @@ class PriorityLevel(str, Enum):
     NICE_TO_HAVE = "nice_to_have"
 
 
+# ============================================================================
+# CORE SEMANTIC ELEMENTS
+# ============================================================================
+
+
 class Topic(BaseModel):
     """A topic within the semantic space"""
     topic_id: str = Field(description="Unique identifier for this topic")
@@ -84,6 +104,11 @@ class Relationship(BaseModel):
     object: str = Field(description="Object topic_id or entity_id")
     description: str = Field(description="Description of the relationship")
     strength: Literal["strong", "moderate", "weak"] = Field(description="Strength of relationship")
+
+
+# ============================================================================
+# SIGNAL TYPES AND COVERAGE
+# ============================================================================
 
 
 class SignalType(BaseModel):
@@ -132,6 +157,11 @@ class QualityCriteria(BaseModel):
     )
 
 
+# ============================================================================
+# BOUNDARIES
+# ============================================================================
+
+
 class InclusionCriterion(BaseModel):
     """Criterion for what's in scope"""
     criterion_id: str = Field(description="Unique identifier")
@@ -169,6 +199,11 @@ class EdgeCase(BaseModel):
     )
     conditions: Optional[str] = Field(None, description="Conditions for conditional resolution")
     rationale: str = Field(description="Reasoning for this resolution")
+
+
+# ============================================================================
+# CONTEXT AND METADATA
+# ============================================================================
 
 
 class SemanticContext(BaseModel):
@@ -224,6 +259,11 @@ class Domain(BaseModel):
     """High-level domain definition"""
     name: str = Field(description="Domain name")
     description: str = Field(description="High-level description of the domain")
+
+
+# ============================================================================
+# MAIN SEMANTIC SPACE
+# ============================================================================
 
 
 class SemanticSpace(BaseModel):
