@@ -217,10 +217,11 @@ class PromptTestingService:
                 for cat_id, summary in report.enrichments["category_summaries"].items()
             ])
 
-        # Get category count from presentation_config (which is a Pydantic model)
+        # Get category count from presentation_config (stored as JSON dict in SQLAlchemy model)
         category_count = 0
         if stream.presentation_config:
-            category_count = len(stream.presentation_config.categories)
+            categories = stream.presentation_config.get("categories", [])
+            category_count = len(categories)
 
         # Return flat keys matching PROMPT_SLUGS for executive_summary
         return {
@@ -240,9 +241,9 @@ class PromptTestingService:
         category_id: str
     ) -> Dict[str, Any]:
         """Build flat item dict for category summary (matches pipeline format)."""
-        # presentation_config is a Pydantic model, categories is a list of Category objects
-        categories = stream.presentation_config.categories if stream.presentation_config else []
-        category = next((c for c in categories if c.id == category_id), None)
+        # presentation_config is stored as JSON dict in SQLAlchemy model
+        categories = stream.presentation_config.get("categories", []) if stream.presentation_config else []
+        category = next((c for c in categories if c.get("id") == category_id), None)
         if not category:
             raise ValueError(f"Category {category_id} not found in stream")
 
@@ -269,12 +270,13 @@ class PromptTestingService:
             articles_summaries = "\n\n".join(summaries[:15])
 
         # Return flat keys matching PROMPT_SLUGS for category_summary
+        category_topics = category.get("topics", []) or []
         return {
             "stream_name": stream.stream_name or "",
             "stream_purpose": stream.purpose or "",
-            "category_name": category.name,
-            "category_description": ", ".join(category.topics) if category.topics else "",
-            "category_topics": ", ".join(category.topics) if category.topics else "",
+            "category_name": category.get("name", ""),
+            "category_description": ", ".join(category_topics),
+            "category_topics": ", ".join(category_topics),
             "articles_count": str(len(category_articles)),
             "articles_formatted": articles_formatted,
             "articles_summaries": articles_summaries,
