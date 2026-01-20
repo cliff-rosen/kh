@@ -26,7 +26,7 @@ interface PipelineAnalytics {
         passed_filter: number;
         included: number;
     }>;
-    rejection_reasons: Record<string, number>;
+    filter_reasons: Record<string, number>;
     category_counts: Record<string, number>;
     wip_articles: Array<{
         id: number;
@@ -306,13 +306,13 @@ export default function PipelineAnalyticsModal({ reportId, onClose }: PipelineAn
                             )}
 
                             {/* Category Distribution */}
-                            {Object.keys(analytics.category_counts).length > 0 && (
+                            {Object.keys(analytics.category_counts || {}).length > 0 && (
                                 <div>
                                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
                                         Category Distribution
                                     </h3>
                                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                        {Object.entries(analytics.category_counts).map(([category, count]) => (
+                                        {Object.entries(analytics.category_counts || {}).map(([category, count]) => (
                                             <div key={category} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                                                 <p className="text-sm text-gray-600 dark:text-gray-400">{category}</p>
                                                 <p className="text-2xl font-bold text-gray-900 dark:text-white">{count}</p>
@@ -372,10 +372,10 @@ export default function PipelineAnalyticsModal({ reportId, onClose }: PipelineAn
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
                                 Why Articles Were Filtered Out
                             </h3>
-                            {Object.keys(analytics.rejection_reasons).length === 0 ? (
+                            {Object.keys(analytics.filter_reasons || {}).length === 0 ? (
                                 <p className="text-gray-500 dark:text-gray-400">No rejections (all articles passed filters)</p>
                             ) : (
-                                Object.entries(analytics.rejection_reasons)
+                                Object.entries(analytics.filter_reasons || {})
                                     .sort((a, b) => b[1] - a[1])
                                     .map(([reason, count]) => (
                                         <div key={reason} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
