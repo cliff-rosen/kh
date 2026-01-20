@@ -1294,3 +1294,225 @@ async def regenerate_summaries_with_prompt(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to regenerate summaries: {str(e)}"
         )
+
+
+# ==================== Article Summary Preview & Batch Update ====================
+
+class CurrentArticleSummaryItem(BaseModel):
+    """Current article summary info."""
+    article_id: int
+    association_id: int
+    title: str
+    pmid: Optional[str] = None
+    journal: Optional[str] = None
+    year: Optional[int] = None
+    current_summary: Optional[str] = None
+
+
+class CurrentArticleSummariesResponse(BaseModel):
+    """Response for fetching current article summaries."""
+    report_id: int
+    report_name: str
+    total_articles: int
+    articles: List[CurrentArticleSummaryItem]
+
+
+@router.get("/{report_id}/summaries/current", response_model=CurrentArticleSummariesResponse)
+async def get_current_article_summaries(
+    report_id: int,
+    service: ReportService = Depends(get_report_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get current article summaries for a report (no generation).
+
+    Fetches all current article summaries for display in a review modal
+    before generating new summaries.
+    """
+    logger.info(f"get_current_article_summaries - user_id={current_user.user_id}, report_id={report_id}")
+
+    try:
+        result = await service.get_current_article_summaries(
+            report_id=report_id,
+            user_id=current_user.user_id,
+        )
+
+        logger.info(f"get_current_article_summaries complete - user_id={current_user.user_id}, report_id={report_id}, count={result.total_articles}")
+
+        return CurrentArticleSummariesResponse(
+            report_id=result.report_id,
+            report_name=result.report_name,
+            total_articles=result.total_articles,
+            articles=[
+                CurrentArticleSummaryItem(
+                    article_id=a.article_id,
+                    association_id=a.association_id,
+                    title=a.title,
+                    pmid=a.pmid,
+                    journal=a.journal,
+                    year=a.year,
+                    current_summary=a.current_summary,
+                )
+                for a in result.articles
+            ],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_current_article_summaries failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch summaries: {str(e)}"
+        )
+
+
+class PreviewArticleSummariesRequest(BaseModel):
+    """Request schema for previewing article summary regeneration."""
+    prompt: PromptTemplate
+    llm_config: Optional[RegenerateSummariesLLMConfig] = None
+
+
+class ArticleSummaryPreviewItem(BaseModel):
+    """Preview of a single article's summary regeneration."""
+    article_id: int
+    association_id: int
+    title: str
+    pmid: Optional[str] = None
+    current_summary: Optional[str] = None
+    new_summary: Optional[str] = None
+    error: Optional[str] = None
+
+
+class PreviewArticleSummariesResponse(BaseModel):
+    """Response for article summary preview."""
+    report_id: int
+    total_articles: int
+    previews: List[ArticleSummaryPreviewItem]
+
+
+class BatchUpdateSummaryItem(BaseModel):
+    """A single article summary to update."""
+    article_id: int
+    ai_summary: str
+
+
+class BatchUpdateSummariesRequest(BaseModel):
+    """Request for batch updating article summaries."""
+    updates: List[BatchUpdateSummaryItem]
+
+
+class BatchUpdateSummariesResponse(BaseModel):
+    """Response for batch summary update."""
+    report_id: int
+    updated_count: int
+    message: str
+    statistics: Dict[str, int]
+
+
+@router.post("/{report_id}/summaries/preview", response_model=PreviewArticleSummariesResponse)
+async def preview_article_summaries(
+    report_id: int,
+    request: PreviewArticleSummariesRequest,
+    service: ReportService = Depends(get_report_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Preview article summary regeneration without saving.
+
+    Generates new summaries using the provided prompt and returns both
+    current and new summaries for comparison. Does NOT save to database.
+    """
+    logger.info(f"preview_article_summaries - user_id={current_user.user_id}, report_id={report_id}")
+
+    try:
+        llm_config = None
+        if request.llm_config:
+            llm_config = {
+                "model_id": request.llm_config.model_id,
+                "temperature": request.llm_config.temperature,
+                "max_tokens": request.llm_config.max_tokens,
+                "reasoning_effort": request.llm_config.reasoning_effort,
+            }
+
+        result = await service.preview_article_summaries(
+            report_id=report_id,
+            user_id=current_user.user_id,
+            system_prompt=request.prompt.system_prompt,
+            user_prompt_template=request.prompt.user_prompt_template,
+            llm_config=llm_config,
+        )
+
+        logger.info(f"preview_article_summaries complete - user_id={current_user.user_id}, report_id={report_id}, count={result.total_articles}")
+
+        return PreviewArticleSummariesResponse(
+            report_id=result.report_id,
+            total_articles=result.total_articles,
+            previews=[
+                ArticleSummaryPreviewItem(
+                    article_id=p.article_id,
+                    association_id=p.association_id,
+                    title=p.title,
+                    pmid=p.pmid,
+                    current_summary=p.current_summary,
+                    new_summary=p.new_summary,
+                    error=p.error,
+                )
+                for p in result.previews
+            ],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"preview_article_summaries failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to preview summaries: {str(e)}"
+        )
+
+
+@router.post("/{report_id}/summaries/batch-update", response_model=BatchUpdateSummariesResponse)
+async def batch_update_article_summaries(
+    report_id: int,
+    request: BatchUpdateSummariesRequest,
+    service: ReportService = Depends(get_report_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Batch update selected article summaries.
+
+    Updates only the specified articles with new summaries.
+    Records a CurationEvent for audit trail.
+    """
+    logger.info(f"batch_update_article_summaries - user_id={current_user.user_id}, report_id={report_id}, count={len(request.updates)}")
+
+    try:
+        updates = [
+            {"article_id": u.article_id, "ai_summary": u.ai_summary}
+            for u in request.updates
+        ]
+
+        result = await service.batch_update_article_summaries(
+            report_id=report_id,
+            user_id=current_user.user_id,
+            updates=updates,
+        )
+
+        logger.info(f"batch_update_article_summaries complete - user_id={current_user.user_id}, report_id={report_id}, updated={result.updated_count}")
+
+        return BatchUpdateSummariesResponse(
+            report_id=result.report_id,
+            updated_count=result.updated_count,
+            message=result.message,
+            statistics=result.statistics,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"batch_update_article_summaries failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update summaries: {str(e)}"
+        )

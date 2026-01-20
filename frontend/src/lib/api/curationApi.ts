@@ -470,3 +470,116 @@ export async function regenerateSummariesWithPrompt(
     );
     return response.data;
 }
+
+// ==================== Current Article Summaries ====================
+
+export interface CurrentArticleSummaryItem {
+    article_id: number;
+    association_id: number;
+    title: string;
+    pmid: string | null;
+    journal: string | null;
+    year: number | null;
+    current_summary: string | null;
+}
+
+export interface CurrentArticleSummariesResponse {
+    report_id: number;
+    report_name: string;
+    total_articles: number;
+    articles: CurrentArticleSummaryItem[];
+}
+
+/**
+ * Get current article summaries for a report (no generation).
+ * Fetches all current article summaries for display before regeneration.
+ *
+ * @param reportId - The report to fetch summaries for
+ */
+export async function getCurrentArticleSummaries(
+    reportId: number
+): Promise<CurrentArticleSummariesResponse> {
+    const response = await api.get<CurrentArticleSummariesResponse>(
+        `${BASE_PATH}/${reportId}/summaries/current`
+    );
+    return response.data;
+}
+
+// ==================== Article Summary Preview & Batch Update ====================
+
+export interface ArticleSummaryPreviewItem {
+    article_id: number;
+    association_id: number;
+    title: string;
+    pmid: string | null;
+    current_summary: string | null;
+    new_summary: string | null;
+    error: string | null;
+}
+
+export interface PreviewArticleSummariesRequest {
+    prompt: PromptTemplate;
+    llm_config?: RegenerateSummariesLLMConfig;
+}
+
+export interface PreviewArticleSummariesResponse {
+    report_id: number;
+    total_articles: number;
+    previews: ArticleSummaryPreviewItem[];
+}
+
+export interface BatchUpdateSummaryItem {
+    article_id: number;
+    ai_summary: string;
+}
+
+export interface BatchUpdateSummariesRequest {
+    updates: BatchUpdateSummaryItem[];
+}
+
+export interface BatchUpdateSummariesResponse {
+    report_id: number;
+    updated_count: number;
+    message: string;
+    statistics: {
+        provided: number;
+        updated: number;
+        not_found: number;
+    };
+}
+
+/**
+ * Preview article summary regeneration without saving.
+ * Generates new summaries and returns both current and new for comparison.
+ *
+ * @param reportId - The report to preview summaries for
+ * @param request - The prompt and optional LLM config
+ */
+export async function previewArticleSummaries(
+    reportId: number,
+    request: PreviewArticleSummariesRequest
+): Promise<PreviewArticleSummariesResponse> {
+    const response = await api.post<PreviewArticleSummariesResponse>(
+        `${BASE_PATH}/${reportId}/summaries/preview`,
+        request
+    );
+    return response.data;
+}
+
+/**
+ * Batch update selected article summaries.
+ * Only updates the articles specified in the request.
+ *
+ * @param reportId - The report to update
+ * @param request - List of article_id and ai_summary pairs to update
+ */
+export async function batchUpdateArticleSummaries(
+    reportId: number,
+    request: BatchUpdateSummariesRequest
+): Promise<BatchUpdateSummariesResponse> {
+    const response = await api.post<BatchUpdateSummariesResponse>(
+        `${BASE_PATH}/${reportId}/summaries/batch-update`,
+        request
+    );
+    return response.data;
+}

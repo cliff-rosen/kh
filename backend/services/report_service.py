@@ -337,7 +337,56 @@ class CompareReportResultData:
     """Result of comparing a report to supplied PubMed IDs."""
     supplied_articles: List[SuppliedArticleStatusData]
     report_only_articles: List[ReportOnlyArticleData]
+
+
+@dataclass
+class ArticleSummaryPreviewItem:
+    """Preview of an article summary regeneration."""
+    article_id: int
+    association_id: int
+    title: str
+    pmid: Optional[str]
+    current_summary: Optional[str]
+    new_summary: Optional[str]
+    error: Optional[str] = None
+
+
+@dataclass
+class ArticleSummaryPreviewResult:
+    """Result of previewing article summary regeneration."""
+    report_id: int
+    total_articles: int
+    previews: List[ArticleSummaryPreviewItem]
+
+
+@dataclass
+class BatchSummaryUpdateResult:
+    """Result of batch updating article summaries."""
+    report_id: int
+    updated_count: int
+    message: str
     statistics: Dict[str, int]
+
+
+@dataclass
+class CurrentArticleSummaryItem:
+    """Current article summary info for display."""
+    article_id: int
+    association_id: int
+    title: str
+    pmid: Optional[str]
+    journal: Optional[str]
+    year: Optional[int]
+    current_summary: Optional[str]
+
+
+@dataclass
+class CurrentArticleSummariesResult:
+    """Result of fetching current article summaries."""
+    report_id: int
+    report_name: str
+    total_articles: int
+    articles: List[CurrentArticleSummaryItem]
 
 
 class ReportService:
@@ -2197,6 +2246,257 @@ class ReportService:
             updated_count=updated_count,
             message=f"Successfully regenerated {updated_count} {prompt_type.replace('_', ' ')}(s)",
             prompt_type=prompt_type,
+        )
+
+    async def get_current_article_summaries(
+        self,
+        report_id: int,
+        user_id: int,
+    ) -> CurrentArticleSummariesResult:
+        """
+        Get current article summaries for a report (no generation).
+
+        Fetches the current state of all article summaries in the report
+        for display in a modal before regeneration.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID (for access verification)
+
+        Returns:
+            CurrentArticleSummariesResult with all current article summaries
+        """
+        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+
+        # Get all articles in the report
+        stmt = (
+            select(ReportArticleAssociation)
+            .options(joinedload(ReportArticleAssociation.article))
+            .where(ReportArticleAssociation.report_id == report_id)
+            .order_by(ReportArticleAssociation.ranking.asc().nullslast())
+        )
+        result = await self.db.execute(stmt)
+        associations = result.unique().scalars().all()
+
+        articles = []
+        for assoc in associations:
+            articles.append(CurrentArticleSummaryItem(
+                article_id=assoc.article_id,
+                association_id=assoc.id,
+                title=assoc.article.title or "Untitled",
+                pmid=assoc.article.pmid,
+                journal=assoc.article.journal,
+                year=assoc.article.year,
+                current_summary=assoc.ai_summary,
+            ))
+
+        return CurrentArticleSummariesResult(
+            report_id=report_id,
+            report_name=report.report_name or f"Report {report_id}",
+            total_articles=len(articles),
+            articles=articles,
+        )
+
+    async def preview_article_summaries(
+        self,
+        report_id: int,
+        user_id: int,
+        system_prompt: str,
+        user_prompt_template: str,
+        llm_config: Optional[Dict[str, Any]] = None,
+    ) -> ArticleSummaryPreviewResult:
+        """
+        Preview article summary regeneration without saving.
+
+        Generates new summaries using the provided prompt and returns both
+        current and new summaries for comparison.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID (for access verification)
+            system_prompt: The system prompt to use
+            user_prompt_template: The user prompt template to use
+            llm_config: Optional LLM configuration
+
+        Returns:
+            ArticleSummaryPreviewResult with previews for each article
+        """
+        from services.report_summary_service import ReportSummaryService
+        from agents.prompts.llm import ModelConfig as LLMModelConfig
+
+        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+
+        # Check approval status
+        if report.approval_status == ApprovalStatus.APPROVED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot modify approved reports"
+            )
+
+        # Build enrichment_config
+        enrichment_config = {
+            "prompts": {
+                "article_summary": {
+                    "system_prompt": system_prompt,
+                    "user_prompt_template": user_prompt_template,
+                }
+            }
+        }
+
+        # Build model_config
+        model_config = None
+        if llm_config and llm_config.get("model_id"):
+            model_config = LLMModelConfig(
+                model_id=llm_config.get("model_id"),
+                temperature=llm_config.get("temperature"),
+                max_tokens=llm_config.get("max_tokens"),
+                reasoning_effort=llm_config.get("reasoning_effort"),
+            )
+        elif stream and stream.llm_config:
+            stage_config = stream.llm_config.get("article_summary")
+            if stage_config and (stage_config.get("model_id") or stage_config.get("model")):
+                model_config = LLMModelConfig(
+                    model_id=stage_config.get("model_id") or stage_config.get("model"),
+                    temperature=stage_config.get("temperature"),
+                    max_tokens=stage_config.get("max_tokens"),
+                    reasoning_effort=stage_config.get("reasoning_effort"),
+                )
+
+        # Get visible associations with articles
+        associations = await self.association_service.get_visible_for_report(report_id)
+
+        if not associations:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No articles in report"
+            )
+
+        # Filter to articles with abstracts
+        articles_with_abstracts = [a for a in associations if a.article and a.article.abstract]
+
+        if not articles_with_abstracts:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No articles with abstracts to summarize"
+            )
+
+        summary_service = ReportSummaryService()
+
+        # Build items for generation
+        items = summary_service.build_article_summary_items(articles_with_abstracts, stream)
+
+        # Generate new summaries
+        results = await summary_service.generate_article_summary(
+            items=items,
+            enrichment_config=enrichment_config,
+            model_config=model_config,
+        )
+
+        # Build preview list
+        previews = []
+        for i, assoc in enumerate(articles_with_abstracts):
+            result = results[i]
+            previews.append(ArticleSummaryPreviewItem(
+                article_id=assoc.article_id,
+                association_id=assoc.id,
+                title=assoc.article.title or "Untitled",
+                pmid=assoc.article.pmid,
+                current_summary=assoc.ai_summary,
+                new_summary=result.data if result.ok else None,
+                error=result.error if not result.ok else None,
+            ))
+
+        return ArticleSummaryPreviewResult(
+            report_id=report_id,
+            total_articles=len(previews),
+            previews=previews,
+        )
+
+    async def batch_update_article_summaries(
+        self,
+        report_id: int,
+        user_id: int,
+        updates: List[Dict[str, Any]],
+    ) -> BatchSummaryUpdateResult:
+        """
+        Batch update article summaries.
+
+        Updates only the specified articles with new summaries.
+        Records a CurationEvent for audit trail.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID (for access verification and audit)
+            updates: List of dicts with 'article_id' and 'ai_summary'
+
+        Returns:
+            BatchSummaryUpdateResult with count of updated articles
+        """
+        from models import CurationEvent
+
+        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+
+        # Check approval status
+        if report.approval_status == ApprovalStatus.APPROVED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot modify approved reports"
+            )
+
+        if not updates:
+            return BatchSummaryUpdateResult(
+                report_id=report_id,
+                updated_count=0,
+                message="No updates provided",
+                statistics={"provided": 0, "updated": 0, "not_found": 0}
+            )
+
+        updated_count = 0
+        not_found_count = 0
+
+        for update in updates:
+            article_id = update.get("article_id")
+            new_summary = update.get("ai_summary")
+
+            if article_id is None:
+                continue
+
+            # Get the association
+            assoc = await self.association_service.find(report_id, article_id)
+            if assoc:
+                assoc.ai_summary = new_summary
+                updated_count += 1
+            else:
+                not_found_count += 1
+
+        # Record CurationEvent
+        event = CurationEvent(
+            report_id=report_id,
+            event_type='batch_update_summaries',
+            field_name='article_summary',
+            old_value=f"{len(updates)} summaries selected",
+            new_value=f"Updated {updated_count} article summaries",
+            notes="Applied custom prompt from Layer 4 testing (selective)",
+            curator_id=user_id,
+        )
+        self.db.add(event)
+
+        # Update curation tracking
+        report.has_curation_edits = True
+        report.last_curated_by = user_id
+        report.last_curated_at = datetime.utcnow()
+
+        await self.db.commit()
+
+        return BatchSummaryUpdateResult(
+            report_id=report_id,
+            updated_count=updated_count,
+            message=f"Updated {updated_count} of {len(updates)} article summaries",
+            statistics={
+                "provided": len(updates),
+                "updated": updated_count,
+                "not_found": not_found_count,
+            }
         )
 
 
