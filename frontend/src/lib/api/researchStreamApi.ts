@@ -1,18 +1,11 @@
 import { api } from './index';
-import { ResearchStream, InformationSource, Concept, RetrievalConfig, SemanticSpace, PresentationConfig, BroadQuery, ScheduleConfig, PipelineLLMConfig } from '../../types';
+import { ResearchStream, InformationSource, Concept, RetrievalConfig, SemanticSpace, PresentationConfig, BroadQuery, ScheduleConfig, PipelineLLMConfig, EnrichmentConfig, PromptTemplate } from '../../types';
 
 // ============================================================================
-// Enrichment & Categorization Config Types
+// Enrichment & Categorization Config Response Types (API-specific)
 // ============================================================================
 
-export interface PromptTemplate {
-    system_prompt: string;
-    user_prompt_template: string;
-}
-
-export interface EnrichmentConfig {
-    prompts: Record<string, PromptTemplate>;
-}
+// EnrichmentConfig and PromptTemplate imported from types/research-stream.ts
 
 export interface EnrichmentConfigResponse {
     enrichment_config: EnrichmentConfig | null;

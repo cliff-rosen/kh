@@ -10,7 +10,7 @@
 
 import { api } from './index';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
-import type { ModelConfig } from '../../types';
+import type { ModelConfig, PromptTemplate } from '../../types';
 
 const API_BASE = '/api/prompt-testing';
 
@@ -18,10 +18,8 @@ const API_BASE = '/api/prompt-testing';
 // Types
 // ============================================================================
 
-export interface PromptTemplate {
-    system_prompt: string;
-    user_prompt_template: string;
-}
+// PromptTemplate imported from types/research-stream.ts
+export type { PromptTemplate };  // Re-export for consumers of this API
 
 export interface SlugInfo {
     slug: string;

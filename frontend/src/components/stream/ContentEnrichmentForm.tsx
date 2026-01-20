@@ -36,10 +36,10 @@ import {
     TestSummaryPromptResponse
 } from '../../lib/api/promptTestingApi';
 import { reportApi } from '../../lib/api/reportApi';
-import { researchStreamApi, EnrichmentConfig } from '../../lib/api/researchStreamApi';
+import { researchStreamApi } from '../../lib/api/researchStreamApi';
 import { llmApi } from '../../lib/api/llmApi';
 import { regenerateSummariesWithPrompt, RegenerateSummariesRequest } from '../../lib/api/curationApi';
-import { Report, Category, ResearchStream, ModelConfig, ModelInfo, DEFAULT_MODEL_CONFIG } from '../../types';
+import { Report, Category, ResearchStream, ModelConfig, ModelInfo, DEFAULT_MODEL_CONFIG, EnrichmentConfig } from '../../types';
 import { copyToClipboard } from '../../lib/utils/clipboard';
 import { showSuccessToast, showErrorToast } from '../../lib/errorToast';
 

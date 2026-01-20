@@ -314,6 +314,15 @@ export interface PresentationConfig {
     categorization_prompt?: CategorizationPrompt | null;  // Custom prompt for article categorization (null = use defaults)
 }
 
+/**
+ * Layer 4: Content Enrichment Configuration
+ * Custom prompts for AI-generated summaries (article, category, executive).
+ * When null/undefined, system defaults are used.
+ */
+export interface EnrichmentConfig {
+    prompts: Record<string, PromptTemplate>;  // Keyed by prompt type: 'article_summary', 'category_summary', 'executive_summary'
+}
+
 // LLM types are now in ./llm.ts - import from there or from types index
 import type { PipelineLLMConfig } from './llm';
 
@@ -325,7 +334,7 @@ export interface ResearchStream {
     stream_name: string;
     purpose: string;  // High-level "why this stream exists"
 
-    // === THREE-LAYER ARCHITECTURE ===
+    // === FOUR-LAYER ARCHITECTURE ===
 
     // Layer 1: SEMANTIC SPACE - What information matters (source-agnostic ground truth)
     semantic_space: SemanticSpace;
@@ -335,6 +344,9 @@ export interface ResearchStream {
 
     // Layer 3: PRESENTATION CONFIG - How to organize results for users
     presentation_config: PresentationConfig;
+
+    // Layer 4: ENRICHMENT CONFIG - Custom prompts for AI-generated content (null = use defaults)
+    enrichment_config?: EnrichmentConfig | null;
 
     // === CONTROL PANEL ===
     // LLM configuration - which LLMs to use per pipeline stage
