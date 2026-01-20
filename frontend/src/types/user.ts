@@ -2,7 +2,17 @@
  * User types for Knowledge Horizon
  *
  * Core user types. Request schemas are in the API files.
+ *
+ * Organized to mirror backend schemas/user.py for easy cross-reference.
+ * Section order:
+ *   1. Enums
+ *   2. User Types
+ *   3. Auth Types
  */
+
+// ============================================================================
+// ENUMS
+// ============================================================================
 
 /**
  * User roles (matches backend UserRole enum)
@@ -13,6 +23,10 @@
  * - member: org_id required. Regular user in an organization.
  */
 export type UserRole = 'platform_admin' | 'org_admin' | 'member';
+
+// ============================================================================
+// USER TYPES
+// ============================================================================
 
 /**
  * Full user type returned from API
@@ -58,6 +72,10 @@ export interface UserList {
   users: User[];
   total: number;
 }
+
+// ============================================================================
+// AUTH TYPES
+// ============================================================================
 
 /**
  * Authentication token response

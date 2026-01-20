@@ -1,6 +1,24 @@
+/**
+ * Report types for Knowledge Horizon
+ *
+ * Organized to mirror backend schemas/report.py for easy cross-reference.
+ * Section order:
+ *   1. Enums
+ *   2. Article Types
+ *   3. Report (main type)
+ */
+
 import { StanceAnalysisResult } from './document_analysis';
 
+// ============================================================================
+// ENUMS
+// ============================================================================
+
 export type ApprovalStatus = 'awaiting_approval' | 'approved' | 'rejected';
+
+// ============================================================================
+// ARTICLE TYPES
+// ============================================================================
 
 export interface ArticleEnrichments {
     stance_analysis?: StanceAnalysisResult;
@@ -30,6 +48,10 @@ export interface ReportArticle {
     ai_summary?: string | null;  // AI-generated summary from pipeline
     ai_enrichments?: ArticleEnrichments | null;
 }
+
+// ============================================================================
+// REPORT (Main Type)
+// ============================================================================
 
 export interface Report {
     report_id: number;

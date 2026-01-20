@@ -1,6 +1,7 @@
 """
 Article schemas for Knowledge Horizon
-Matches the Article model in models.py
+
+Organized to mirror frontend types/article.ts for easy cross-reference.
 """
 
 from pydantic import BaseModel

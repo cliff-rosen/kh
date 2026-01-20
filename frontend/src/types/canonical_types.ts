@@ -1,14 +1,24 @@
 /**
  * Canonical Types for Frontend
- * 
+ *
  * This file contains all canonical type definitions and support methods.
- * It must be kept in sync with backend/schemas/canonical_types.py
+ *
+ * Organized to mirror backend schemas/canonical_types.py for easy cross-reference.
+ * Section order:
+ *   1. Feature Definitions
+ *   2. Canonical Type Interfaces
+ *   3. Clinical Trial Types
+ *   4. Type Registry
+ *   5. Schema Derivation
+ *   6. Utility Functions
  */
 
 import { SchemaType } from './base';
 import { ArticleEnrichments } from './report';
 
-// --- Canonical Type Interfaces ---
+// ============================================================================
+// FEATURE DEFINITIONS
+// ============================================================================
 
 export interface CanonicalFeatureDefinition {
     id: string;
@@ -22,7 +32,11 @@ export interface CanonicalFeatureDefinition {
 export type CanonicalFeatureValue = boolean | string | number;
 // - boolean: for 'boolean' type features
 // - string: for 'text' type features
-// - number: for 'score' and 'number' type featuress
+// - number: for 'score' and 'number' type features
+
+// ============================================================================
+// CANONICAL TYPE INTERFACES
+// ============================================================================
 
 export interface CanonicalResearchArticle {
     // Core identification
@@ -175,7 +189,9 @@ export interface CanonicalScholarArticle {
     metadata?: Record<string, any>;
 }
 
-// --- Clinical Trial Types ---
+// ============================================================================
+// CLINICAL TRIAL TYPES
+// ============================================================================
 
 export interface CanonicalTrialIntervention {
     type: string;           // DRUG, BIOLOGICAL, DEVICE, PROCEDURE, etc.
@@ -269,7 +285,9 @@ export interface CanonicalClinicalTrial {
     retrieved_at?: string;
 }
 
-// --- Type Registry ---
+// ============================================================================
+// TYPE REGISTRY
+// ============================================================================
 
 export type CanonicalType =
     | 'email'
@@ -290,7 +308,9 @@ export const CANONICAL_TYPES: Record<CanonicalType, string> = {
     scholar_article: 'Google Scholar Article'
 };
 
-// --- Schema Derivation (Auto-generated from interfaces) ---
+// ============================================================================
+// SCHEMA DERIVATION
+// ============================================================================
 
 /**
  * Get the schema definition for a canonical type
@@ -444,9 +464,9 @@ export function getCanonicalTypeSchema(type: CanonicalType): SchemaType {
     }
 }
 
-
-
-// --- Utility Functions ---
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
 
 /**
  * Check if a type is a canonical type

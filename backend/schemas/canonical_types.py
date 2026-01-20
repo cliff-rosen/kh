@@ -5,8 +5,14 @@ This module serves as the single source of truth for all custom data types
 used throughout the system. Tools, handlers, and application code should
 reference these canonical schemas instead of defining their own.
 
-This ensures consistency, maintainability, and type safety across the entire
-codebase.
+Organized to mirror frontend types/canonical_types.ts for easy cross-reference.
+Section order:
+  1. Feature Definitions
+  2. Canonical Type Interfaces
+  3. Clinical Trial Types
+  4. Backend-Only Types
+  5. Type Registry
+  6. Utility Functions
 """
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
@@ -15,7 +21,11 @@ from datetime import datetime
 from schemas.base import SchemaType
 import hashlib
 
-# --- Registry of Canonical Schemas ---
+
+# ============================================================================
+# FEATURE DEFINITIONS
+# ============================================================================
+
 
 class CanonicalFeatureDefinition(BaseModel):
     """
@@ -38,6 +48,12 @@ Type for extracted feature values:
 - int: for 'number' type features (discrete values)
 - float: for 'score' type features (continuous values)
 """
+
+
+# ============================================================================
+# CANONICAL TYPE INTERFACES
+# ============================================================================
+
 
 class CanonicalResearchArticle(BaseModel):
     """
@@ -117,17 +133,6 @@ class CanonicalResearchArticle(BaseModel):
             self.id = hashlib.md5(content.encode()).hexdigest()[:16]
         return self
 
-class CanonicalExtractedFeature(BaseModel):
-    """
-    Canonical Extracted Feature schema - the definitive structure for extracted
-    feature values across the entire system.
-    """
-    feature_id: str = Field(description="ID of the feature definition")
-    value: Any = Field(description="Extracted feature value")
-    confidence: Optional[float] = Field(None, description="Extraction confidence (0-1)")
-    extraction_method: Literal['ai', 'manual', 'computed'] = Field(description="How the feature was extracted")
-    extracted_at: str = Field(description="ISO timestamp when feature was extracted")
-    error_message: Optional[str] = Field(None, description="Error message if extraction failed")
 
 class CanonicalEmail(BaseModel):
     """
@@ -208,6 +213,11 @@ class CanonicalScholarArticle(BaseModel):
     year: Optional[int] = Field(default=None, description="Publication year")
     position: int = Field(description="Position in search results")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional Scholar metadata")
+
+
+# ============================================================================
+# CLINICAL TRIAL TYPES
+# ============================================================================
 
 
 class CanonicalTrialIntervention(BaseModel):
@@ -311,6 +321,26 @@ class CanonicalClinicalTrial(BaseModel):
     # Timestamps
     retrieved_at: Optional[str] = Field(default=None, description="When trial was retrieved")
 
+
+# ============================================================================
+# BACKEND-ONLY TYPES
+# ============================================================================
+
+
+class CanonicalExtractedFeature(BaseModel):
+    """
+    Canonical Extracted Feature schema - the definitive structure for extracted
+    feature values across the entire system.
+    (Backend-only: used for internal processing)
+    """
+    feature_id: str = Field(description="ID of the feature definition")
+    value: Any = Field(description="Extracted feature value")
+    confidence: Optional[float] = Field(None, description="Extraction confidence (0-1)")
+    extraction_method: Literal['ai', 'manual', 'computed'] = Field(description="How the feature was extracted")
+    extracted_at: str = Field(description="ISO timestamp when feature was extracted")
+    error_message: Optional[str] = Field(None, description="Error message if extraction failed")
+
+
 class CanonicalPubMedExtraction(BaseModel):
     """
     Canonical PubMed Extraction schema - the definitive structure for extracted features from articles.
@@ -359,7 +389,10 @@ class CanonicalDailyNewsletterRecap(BaseModel):
     statistics: Optional[Dict[str, Any]] = Field(default=None, description="Processing statistics")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional recap metadata")
 
-# --- Schema Type Definitions ---
+
+# ============================================================================
+# SCHEMA TYPE DEFINITIONS
+# ============================================================================
 
 def _pydantic_field_to_schema_type(field_info, field_name: str) -> SchemaType:
     """
@@ -454,7 +487,11 @@ def get_canonical_schema(type_name: str) -> SchemaType:
         fields=fields
     )
 
-# --- Utility Functions ---
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
 
 def get_canonical_model(type_name: str) -> type[BaseModel]:
     """

@@ -1,5 +1,11 @@
 """
-Report-related schemas for Knowledge Horizon
+Report schemas for Knowledge Horizon
+
+Organized to mirror frontend types/report.ts for easy cross-reference.
+Section order:
+  1. Enums
+  2. Article Types
+  3. Report (main type)
 """
 
 from pydantic import BaseModel, Field
@@ -8,11 +14,21 @@ from datetime import datetime, date
 from enum import Enum
 
 
+# ============================================================================
+# ENUMS
+# ============================================================================
+
+
 class ApprovalStatus(str, Enum):
     """Approval status for reports"""
     AWAITING_APPROVAL = "awaiting_approval"  # Report complete, awaiting admin review
     APPROVED = "approved"                     # Approved and visible to subscribers
     REJECTED = "rejected"                     # Rejected by admin
+
+
+# ============================================================================
+# ARTICLE TYPES
+# ============================================================================
 
 
 class ReportArticle(BaseModel):
@@ -37,6 +53,11 @@ class ReportArticle(BaseModel):
     presentation_categories: List[str] = []  # List of category IDs
     ai_summary: Optional[str] = None  # AI-generated summary from pipeline
     ai_enrichments: Optional[Dict[str, Any]] = None  # AI-generated enrichments (stance analysis, etc.)
+
+
+# ============================================================================
+# REPORT (Main Type)
+# ============================================================================
 
 
 class Report(BaseModel):

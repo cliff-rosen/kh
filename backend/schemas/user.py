@@ -1,17 +1,24 @@
 """
-User schemas - Core user types.
+User schemas for Knowledge Horizon
 
-This module defines the canonical user-related Pydantic models:
-- User identity and roles
-- Authentication tokens
+Core user types. Request schemas (UserCreate, UserUpdate, etc.) are in the routers.
 
-Request schemas (UserCreate, UserUpdate, etc.) are defined in the routers.
+Organized to mirror frontend types/user.ts for easy cross-reference.
+Section order:
+  1. Enums
+  2. User Types
+  3. Auth Types
 """
 
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
+
+
+# ============================================================================
+# ENUMS
+# ============================================================================
 
 
 class UserRole(str, Enum):
@@ -29,6 +36,11 @@ class UserRole(str, Enum):
     PLATFORM_ADMIN = "platform_admin"
     ORG_ADMIN = "org_admin"
     MEMBER = "member"
+
+
+# ============================================================================
+# USER TYPES
+# ============================================================================
 
 
 class User(BaseModel):
@@ -80,7 +92,10 @@ class UserList(BaseModel):
     total: int
 
 
-# ============== Auth Schemas ==============
+# ============================================================================
+# AUTH TYPES
+# ============================================================================
+
 
 class Token(BaseModel):
     """Authentication response with JWT token."""

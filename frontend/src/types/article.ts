@@ -1,5 +1,8 @@
-// Article types for Knowledge Horizon
-// Matches backend/schemas/article.py
+/**
+ * Article types for Knowledge Horizon
+ *
+ * Organized to mirror backend schemas/article.py for easy cross-reference.
+ */
 
 export interface Article {
     article_id: number;
