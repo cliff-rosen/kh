@@ -26,7 +26,8 @@ import {
     SparklesIcon,
     ArrowsPointingOutIcon,
     ArrowsPointingInIcon,
-    XMarkIcon
+    XMarkIcon,
+    TrashIcon
 } from '@heroicons/react/24/outline';
 import {
     promptTestingApi,
@@ -100,10 +101,22 @@ export default function ContentEnrichmentForm({
     const [customModelConfig, setCustomModelConfig] = useState<ModelConfig>({ ...DEFAULT_MODEL_CONFIG });
     const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
 
-    // History state for time travel
-    const [history, setHistory] = useState<HistoryEntry[]>([]);
-    const [historyIndex, setHistoryIndex] = useState<number>(-1); // -1 means no history yet
+    // History state for time travel - separate history per prompt type
+    const [historyByType, setHistoryByType] = useState<Record<PromptType, HistoryEntry[]>>({
+        executive_summary: [],
+        category_summary: [],
+        article_summary: []
+    });
+    const [historyIndexByType, setHistoryIndexByType] = useState<Record<PromptType, number>>({
+        executive_summary: -1,
+        category_summary: -1,
+        article_summary: -1
+    });
     const [nextHistoryId, setNextHistoryId] = useState(1);
+
+    // Get history for current prompt type
+    const history = historyByType[activePromptType];
+    const historyIndex = historyIndexByType[activePromptType];
 
     // UI state
     const [loading, setLoading] = useState(true);
@@ -344,7 +357,7 @@ export default function ContentEnrichmentForm({
 
             const result = await promptTestingApi.testSummaryPrompt(request);
 
-            // Add to history
+            // Add to history for this prompt type
             const newEntry: HistoryEntry = {
                 id: nextHistoryId,
                 timestamp: new Date(),
@@ -354,8 +367,16 @@ export default function ContentEnrichmentForm({
                 result
             };
 
-            setHistory(prev => [...prev, newEntry]);
-            setHistoryIndex(history.length); // Point to the new entry
+            const currentHistory = historyByType[activePromptType];
+            setHistoryByType(prev => ({
+                ...prev,
+                [activePromptType]: [...prev[activePromptType], newEntry]
+            }));
+            // Point to the new entry (which will be at the end of the updated array)
+            setHistoryIndexByType(prev => ({
+                ...prev,
+                [activePromptType]: currentHistory.length // This will be the index of the new entry after it's added
+            }));
             setNextHistoryId(prev => prev + 1);
 
             // Auto-expand to side panel when results arrive
@@ -389,14 +410,31 @@ export default function ContentEnrichmentForm({
 
     const navigatePrev = () => {
         if (canNavigatePrev) {
-            setHistoryIndex(prev => prev - 1);
+            setHistoryIndexByType(prev => ({
+                ...prev,
+                [activePromptType]: prev[activePromptType] - 1
+            }));
         }
     };
 
     const navigateNext = () => {
         if (canNavigateNext) {
-            setHistoryIndex(prev => prev + 1);
+            setHistoryIndexByType(prev => ({
+                ...prev,
+                [activePromptType]: prev[activePromptType] + 1
+            }));
         }
+    };
+
+    const clearHistory = () => {
+        setHistoryByType(prev => ({
+            ...prev,
+            [activePromptType]: []
+        }));
+        setHistoryIndexByType(prev => ({
+            ...prev,
+            [activePromptType]: -1
+        }));
     };
 
     const isViewingLatest = historyIndex === history.length - 1;
@@ -434,7 +472,7 @@ export default function ContentEnrichmentForm({
         const testResult = entry?.result;
 
         return (
-            <div className={`space-y-4 ${isFullMode ? 'max-w-4xl mx-auto' : ''}`}>
+            <div className={`space-y-4 ${isFullMode ? 'max-w-6xl mx-auto' : ''}`}>
                 {!entry ? (
                     <div className="text-center text-gray-500 dark:text-gray-400 py-8">
                         <BeakerIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
@@ -939,7 +977,7 @@ export default function ContentEnrichmentForm({
                             </button>
                         </div>
                     ) : resultsPaneMode === 'side' ? (
-                        <div className="w-96 flex-shrink-0 flex flex-col min-h-0">
+                        <div className={`${isMaximized ? 'w-[700px]' : 'w-96'} flex-shrink-0 flex flex-col min-h-0`}>
                             <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 flex-1 flex flex-col min-h-0">
                                 <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                                     <div className="flex items-center gap-2">
@@ -975,6 +1013,16 @@ export default function ContentEnrichmentForm({
                                         )}
                                     </div>
                                     <div className="flex items-center gap-1">
+                                        {history.length > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={clearHistory}
+                                                className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                                title="Clear results"
+                                            >
+                                                <TrashIcon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                                            </button>
+                                        )}
                                         <button
                                             type="button"
                                             onClick={() => setResultsPaneMode('full')}
@@ -1005,13 +1053,17 @@ export default function ContentEnrichmentForm({
             {/* Full Screen Modal */}
             {resultsPaneMode === 'full' && (
                 <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+                    <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-7xl max-h-[90vh] flex flex-col">
                         {/* Modal Header */}
                         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
                             <div className="flex items-center gap-3">
                                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                                     <DocumentTextIcon className="h-5 w-5 text-green-500" />
                                     Test Results
+                                    <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
+                                        ({activePromptType === 'executive_summary' ? 'Executive Summary' :
+                                          activePromptType === 'category_summary' ? 'Category Summary' : 'Article Summary'})
+                                    </span>
                                 </h3>
                                 {/* History navigation */}
                                 {history.length > 0 && (
@@ -1041,6 +1093,16 @@ export default function ContentEnrichmentForm({
                                 )}
                             </div>
                             <div className="flex items-center gap-2">
+                                {history.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={clearHistory}
+                                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                        title="Clear results"
+                                    >
+                                        <TrashIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                                    </button>
+                                )}
                                 <button
                                     type="button"
                                     onClick={() => setResultsPaneMode('side')}
