@@ -24,11 +24,11 @@ Tracking alignment between frontend TypeScript types (`frontend/src/types/`) and
 | `chat.ts` | `chat.py` | ✅ Aligned | Already well organized |
 | `document_analysis.ts` | `document_analysis.py` | ✅ Aligned | Backend has extra LLM Response Schemas |
 | `entity-extraction.ts` | `entity_extraction.py` | ✅ Aligned | Backend has extra StudyType, ArticleArchetype types |
-| `workbench.ts` | `workbench.py` | ✅ Aligned | Still in use; already well organized |
+| `workbench.ts` | `workbench.py` | 🗑️ Deleted | Was dead code - nothing imported these files |
 | `canonical-study.ts` | `canonical_study.py` | ✅ Aligned | |
 
 ## Frontend Only (no backend match)
-- `articleCollection.ts`
+- `articleCollection.ts` - 🗑️ Deleted (was dead code)
 - `base.ts`
 - `result.ts`
 - `unifiedSearch.ts`
@@ -69,5 +69,5 @@ Tracking alignment between frontend TypeScript types (`frontend/src/types/`) and
 - ✅ Aligned `chat.ts` / `chat.py` - added cross-reference headers
 - ✅ Aligned `document_analysis.ts` / `document_analysis.py` - added cross-reference headers
 - ✅ Aligned `entity-extraction.ts` / `entity_extraction.py` - added section headers
-- ✅ Verified `workbench.ts` / `workbench.py` - still in use, already aligned
+- 🗑️ Deleted `workbench.ts`, `workbench.py`, `articleCollection.ts` - dead code, nothing imported these
 - ✅ Aligned `canonical-study.ts` / `canonical_study.py` - added cross-reference headers
