@@ -19,7 +19,7 @@ from models import User
 from schemas.research_stream import PromptTemplate, CategorizationPrompt
 from schemas.canonical_types import CanonicalResearchArticle
 from schemas.llm import ModelConfig
-from services.prompt_workbench_service import PromptWorkbenchService, get_prompt_workbench_service
+from services.prompt_testing_service import PromptTestingService, get_prompt_testing_service
 from services.report_summary_service import DEFAULT_PROMPTS, AVAILABLE_SLUGS
 from services.article_categorization_service import ArticleCategorizationService
 from services.retrieval_testing_service import (
@@ -157,7 +157,7 @@ async def test_summary_prompt(
             detail="Either sample_data or report_id must be provided"
         )
 
-    service = PromptWorkbenchService(db)
+    service = PromptTestingService(db)
 
     try:
         result = await service.test_summary_prompt(
@@ -188,7 +188,7 @@ async def test_summary_prompt(
 @router.post("/test-categorization-prompt", response_model=TestCategorizationPromptResponse)
 async def test_categorization_prompt(
     request: TestCategorizationPromptRequest,
-    service: PromptWorkbenchService = Depends(get_prompt_workbench_service),
+    service: PromptTestingService = Depends(get_prompt_testing_service),
     current_user: User = Depends(get_current_user)
 ):
     """Test a categorization prompt by rendering it with sample data and running it through the LLM"""

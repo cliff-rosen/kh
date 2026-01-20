@@ -1,9 +1,9 @@
 """
-Prompt Workbench Service
+Prompt Testing Service
 
 Handles business logic for:
-- Stream enrichment config management
 - Prompt testing with sample data or reports
+- Categorization testing
 
 Default prompts are sourced from ReportSummaryService (single source of truth).
 """
@@ -24,7 +24,7 @@ from services.article_categorization_service import ArticleCategorizationService
 logger = logging.getLogger(__name__)
 
 
-class PromptWorkbenchService:
+class PromptTestingService:
     """Service for prompt workbench operations."""
 
     def __init__(self, db: AsyncSession):
@@ -79,7 +79,7 @@ class PromptWorkbenchService:
     ) -> None:
         """Update enrichment config for a stream"""
         config_dict = enrichment_config.dict() if enrichment_config else None
-        logger.info(f"PromptWorkbenchService.update_enrichment_config: stream_id={stream_id}, config_dict={config_dict}")
+        logger.info(f"PromptTestingService.update_enrichment_config: stream_id={stream_id}, config_dict={config_dict}")
         await self.stream_service.update_enrichment_config(stream_id, config_dict)
 
     async def test_summary_prompt(
@@ -559,13 +559,13 @@ class PromptWorkbenchService:
         }
 
 
-# Dependency injection provider for async prompt workbench service
+# Dependency injection provider for prompt testing service
 from fastapi import Depends
 from database import get_async_db
 
 
-async def get_prompt_workbench_service(
+async def get_prompt_testing_service(
     db: AsyncSession = Depends(get_async_db)
-) -> PromptWorkbenchService:
-    """Get a PromptWorkbenchService instance with async database session."""
-    return PromptWorkbenchService(db)
+) -> PromptTestingService:
+    """Get a PromptTestingService instance with async database session."""
+    return PromptTestingService(db)
