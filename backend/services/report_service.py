@@ -1859,16 +1859,29 @@ class ReportService:
             }
         }
 
-        # Build model_config if provided
+        # Build model_config - use provided config or fall back to stream's config for this stage
         model_config = None
-        if llm_config:
-            from agents.prompts.llm import ModelConfig as LLMModelConfig
+        from agents.prompts.llm import ModelConfig as LLMModelConfig
+
+        if llm_config and llm_config.get("model_id"):
+            # User provided explicit model config
             model_config = LLMModelConfig(
-                model_id=llm_config.get("model_id", ""),
+                model_id=llm_config.get("model_id"),
                 temperature=llm_config.get("temperature"),
                 max_tokens=llm_config.get("max_tokens"),
                 reasoning_effort=llm_config.get("reasoning_effort"),
             )
+        elif stream and stream.llm_config:
+            # Fall back to stream's configured model for this prompt type
+            stage_config = stream.llm_config.get(prompt_type)
+            if stage_config and (stage_config.get("model_id") or stage_config.get("model")):
+                model_config = LLMModelConfig(
+                    model_id=stage_config.get("model_id") or stage_config.get("model"),
+                    temperature=stage_config.get("temperature"),
+                    max_tokens=stage_config.get("max_tokens"),
+                    reasoning_effort=stage_config.get("reasoning_effort"),
+                )
+        # If still None, ReportSummaryService will use its default
 
         # RETRIEVE: Get visible associations
         associations = await self.association_service.get_visible_for_report(report_id)

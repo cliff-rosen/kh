@@ -5,6 +5,7 @@
  */
 
 import { api } from './index';
+import { PromptTemplate } from '../../types/research-stream';
 
 // ==================== Types ====================
 
@@ -431,13 +432,10 @@ export async function regenerateArticleSummary(
 
 // ==================== Regenerate with Custom Prompt ====================
 
-export interface PromptTemplate {
-    system_prompt: string;
-    user_prompt_template: string;
-}
+// PromptTemplate imported from types/research-stream.ts
 
-export interface ModelConfig {
-    model_id: string;
+export interface RegenerateSummariesLLMConfig {
+    model_id?: string;  // Optional - backend uses stream default if not provided
     temperature?: number;
     max_tokens?: number;
     reasoning_effort?: string;
@@ -446,7 +444,7 @@ export interface ModelConfig {
 export interface RegenerateSummariesRequest {
     prompt_type: 'article_summary' | 'category_summary' | 'executive_summary';
     prompt: PromptTemplate;
-    llm_config?: ModelConfig;
+    llm_config?: RegenerateSummariesLLMConfig;
 }
 
 export interface RegenerateSummariesResponse {

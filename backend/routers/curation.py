@@ -27,6 +27,7 @@ from services.report_service import ReportService, get_report_service
 from services.wip_article_service import WipArticleService, get_wip_article_service
 from services.email_service import EmailService
 from services.report_summary_service import ReportSummaryService
+from schemas.research_stream import PromptTemplate
 
 logger = logging.getLogger(__name__)
 
@@ -88,15 +89,11 @@ class UpdateWipArticleNotesRequest(BaseModel):
     curation_notes: str
 
 
-class PromptTemplate(BaseModel):
-    """Prompt template for summary generation"""
-    system_prompt: str
-    user_prompt_template: str
+class RegenerateSummariesLLMConfig(BaseModel):
+    """LLM configuration for regenerate summaries request. All fields optional - service uses defaults."""
+    model_config = {"protected_namespaces": ()}  # Allow model_id field
 
-
-class ModelConfig(BaseModel):
-    """LLM model configuration"""
-    model_id: str
+    model_id: Optional[str] = None
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
     reasoning_effort: Optional[str] = None
@@ -105,8 +102,8 @@ class ModelConfig(BaseModel):
 class RegenerateSummariesRequest(BaseModel):
     """Request to regenerate summaries using a custom prompt"""
     prompt_type: str  # 'article_summary', 'category_summary', 'executive_summary'
-    prompt: PromptTemplate
-    llm_config: Optional[ModelConfig] = None
+    prompt: PromptTemplate  # Imported from schemas.research_stream
+    llm_config: Optional[RegenerateSummariesLLMConfig] = None
 
 
 class RegenerateSummariesResponse(BaseModel):
