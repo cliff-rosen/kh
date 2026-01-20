@@ -1,6 +1,9 @@
 """
 Schemas for Document Analysis Tool - hierarchical summarization,
 entity extraction, and claim/argument extraction.
+
+Organized to mirror frontend types/document_analysis.ts for easy cross-reference.
+Note: This file has additional LLM Response Schemas section.
 """
 
 from typing import List, Dict, Any, Optional, Literal

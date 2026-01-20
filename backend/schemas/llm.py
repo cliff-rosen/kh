@@ -4,6 +4,9 @@ LLM types for AI model interactions
 These types are used across the application for structuring messages to LLMs
 (OpenAI, Anthropic, etc.). Used by agents, prompts, and services that call LLMs.
 
+Organized to mirror frontend types/llm.ts for easy cross-reference.
+Note: This file has additional Message Types section for LLM infrastructure.
+
 NOT for user-facing chat - see schemas/chat.py for user chat types.
 """
 

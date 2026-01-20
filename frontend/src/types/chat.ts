@@ -1,6 +1,8 @@
 /**
  * Chat domain types for user-facing chat feature
  *
+ * Organized to mirror backend schemas/chat.py for easy cross-reference.
+ *
  * This module contains:
  * - Core types: MessageRole, Message, Conversation (matching backend schemas/chat.py)
  * - Interaction types: SuggestedValue, SuggestedAction, etc.

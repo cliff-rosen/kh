@@ -1,6 +1,13 @@
 /**
  * Types for entity relationship extraction
+ *
+ * Organized to mirror backend schemas/entity_extraction.py for easy cross-reference.
+ * Note: Backend has additional types (StudyType, ArticleArchetype, ArticleArchetypeRequest)
  */
+
+// ============================================================================
+// ENUMS
+// ============================================================================
 
 export type EntityType =
   | 'medical_condition'
@@ -34,6 +41,10 @@ export type PatternComplexity = 'SIMPLE' | 'COMPLEX';
 
 export type RelationshipStrength = 'strong' | 'moderate' | 'weak';
 
+// ============================================================================
+// ENTITY TYPES
+// ============================================================================
+
 export interface Entity {
   id: string;
   name: string;
@@ -62,6 +73,10 @@ export interface EntityRelationshipAnalysis {
   entity_count?: number;
   relationship_count?: number;
 }
+
+// ============================================================================
+// RESPONSE TYPES
+// ============================================================================
 
 export interface EntityExtractionResponse {
   article_id: string;

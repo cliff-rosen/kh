@@ -1,6 +1,9 @@
 /**
  * LLM types for AI model configuration and pipeline stages.
  *
+ * Organized to mirror backend schemas/llm.py for easy cross-reference.
+ * Note: Backend has additional Message Types section for LLM infrastructure.
+ *
  * Type hierarchy:
  * - ModelConfig: Base configuration for model selection
  * - StageConfig: Extends ModelConfig with concurrency settings for pipeline stages

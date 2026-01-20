@@ -1,5 +1,8 @@
 """
 Schemas for entity relationship extraction from research articles
+
+Organized to mirror frontend types/entity-extraction.ts for easy cross-reference.
+Note: This file has additional types (StudyType, ArticleArchetype, ArticleArchetypeRequest)
 """
 
 from typing import List, Dict, Any, Optional, Literal

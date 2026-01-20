@@ -1,6 +1,8 @@
 /**
  * Document Analysis Types
- * Mirrors backend Pydantic schemas
+ *
+ * Organized to mirror backend schemas/document_analysis.py for easy cross-reference.
+ * Note: Backend has additional LLM Response Schemas section.
  */
 
 // ============================================================================

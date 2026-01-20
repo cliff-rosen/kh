@@ -1,5 +1,12 @@
 """
 Organization and subscription schemas for multi-tenancy support.
+
+Organized to mirror frontend types/organization.ts for easy cross-reference.
+Section order:
+  1. Organization Types
+  2. Member Types
+  3. Subscription Types
+  4. Notes Types
 """
 
 from pydantic import BaseModel, Field
@@ -10,7 +17,9 @@ from enum import Enum
 from models import UserRole, StreamScope
 
 
-# ============== Organization Schemas ==============
+# ============================================================================
+# ORGANIZATION TYPES
+# ============================================================================
 
 class OrganizationBase(BaseModel):
     """Base organization fields."""
@@ -46,7 +55,9 @@ class OrganizationWithStats(Organization):
     pending_invitation_count: int = 0
 
 
-# ============== Member Schemas ==============
+# ============================================================================
+# MEMBER TYPES
+# ============================================================================
 
 class OrgMember(BaseModel):
     """Organization member info."""
@@ -71,7 +82,9 @@ class OrgMemberInvite(BaseModel):
     role: UserRole = Field(default=UserRole.MEMBER, description="Role to assign")
 
 
-# ============== Subscription Schemas ==============
+# ============================================================================
+# SUBSCRIPTION TYPES
+# ============================================================================
 
 class OrgStreamSubscriptionCreate(BaseModel):
     """Schema for subscribing org to a global stream."""
@@ -113,8 +126,6 @@ class UserStreamOptOut(BaseModel):
     stream_id: int
 
 
-# ============== Stream with Subscription Info ==============
-
 class StreamSubscriptionStatus(BaseModel):
     """Stream with subscription status for display."""
     stream_id: int
@@ -144,7 +155,9 @@ class OrgStreamList(BaseModel):
     total_count: int
 
 
-# ============== Notes Schema (for JSON notes) ==============
+# ============================================================================
+# NOTES TYPES
+# ============================================================================
 
 class ArticleNote(BaseModel):
     """Individual note on an article."""

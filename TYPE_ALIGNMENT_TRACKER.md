@@ -19,13 +19,13 @@ Tracking alignment between frontend TypeScript types (`frontend/src/types/`) and
 | `canonical_types.ts` | `canonical_types.py` | ✅ Aligned | Backend has extra types: CanonicalExtractedFeature, CanonicalPubMedExtraction, CanonicalScoredArticle |
 | `user.ts` | `user.py` | ✅ Aligned | Frontend has AuthUser (client-only), backend has TokenData (server-only) |
 | `article.ts` | `article.py` | ✅ Aligned | Simple single-type files |
-| `llm.ts` | `llm.py` | ⏳ Needs Review | |
-| `organization.ts` | `organization.py` | ⚠️ Has Issues | TS errors: UserRole/OrgMember not exported |
-| `chat.ts` | `chat.py` | ⏳ Needs Review | |
-| `document_analysis.ts` | `document_analysis.py` | ⏳ Needs Review | |
-| `entity-extraction.ts` | `entity_extraction.py` | ⏳ Needs Review | |
-| `workbench.ts` | `workbench.py` | ❓ Possibly Unused | May be dead code - verify before aligning |
-| `canonical-study.ts` | `canonical_study.py` | ⏳ Needs Review | |
+| `llm.ts` | `llm.py` | ✅ Aligned | Backend has extra Message Types section |
+| `organization.ts` | `organization.py` | ✅ Aligned | Fixed exports; re-exports UserRole/OrgMember from user.ts |
+| `chat.ts` | `chat.py` | ✅ Aligned | Already well organized |
+| `document_analysis.ts` | `document_analysis.py` | ✅ Aligned | Backend has extra LLM Response Schemas |
+| `entity-extraction.ts` | `entity_extraction.py` | ✅ Aligned | Backend has extra StudyType, ArticleArchetype types |
+| `workbench.ts` | `workbench.py` | ✅ Aligned | Still in use; already well organized |
+| `canonical-study.ts` | `canonical_study.py` | ✅ Aligned | |
 
 ## Frontend Only (no backend match)
 - `articleCollection.ts`
@@ -63,3 +63,11 @@ Tracking alignment between frontend TypeScript types (`frontend/src/types/`) and
 - ✅ Aligned `canonical_types.ts` / `canonical_types.py` - standardized section headers
 - ✅ Aligned `user.ts` / `user.py` - added section headers
 - ✅ Aligned `article.ts` / `article.py` - added file header comments
+- ✅ Fixed `organization.ts` - re-exports UserRole/OrgMember for backwards compatibility
+- ✅ Aligned `organization.ts` / `organization.py` - standardized section headers
+- ✅ Aligned `llm.ts` / `llm.py` - added cross-reference headers
+- ✅ Aligned `chat.ts` / `chat.py` - added cross-reference headers
+- ✅ Aligned `document_analysis.ts` / `document_analysis.py` - added cross-reference headers
+- ✅ Aligned `entity-extraction.ts` / `entity_extraction.py` - added section headers
+- ✅ Verified `workbench.ts` / `workbench.py` - still in use, already aligned
+- ✅ Aligned `canonical-study.ts` / `canonical_study.py` - added cross-reference headers

@@ -1,5 +1,7 @@
 """
 Schemas for canonical study representation combining archetype and entity-relationship graph.
+
+Organized to mirror frontend types/canonical-study.ts for easy cross-reference.
 """
 
 from typing import Optional, Dict, Any

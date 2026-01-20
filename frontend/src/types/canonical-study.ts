@@ -1,7 +1,9 @@
 /**
  * Canonical Study Representation Types
- * 
- * Unified representation combining archetype and entity-relationship analysis
+ *
+ * Unified representation combining archetype and entity-relationship analysis.
+ *
+ * Organized to mirror backend schemas/canonical_study.py for easy cross-reference.
  */
 
 import { EntityRelationshipAnalysis } from './entity-extraction';

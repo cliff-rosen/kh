@@ -1,6 +1,8 @@
 """
 Chat domain types for user-facing chat feature
 
+Organized to mirror frontend types/chat.ts for easy cross-reference.
+
 This module contains:
 - Core types: Conversation, Message, MessageRole (matching models.py)
 - Stream event types for SSE streaming

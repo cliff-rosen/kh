@@ -1,8 +1,26 @@
 /**
  * Organization and multi-tenancy types for Knowledge Horizon
+ *
+ * Organized to mirror backend schemas/organization.py for easy cross-reference.
+ * Section order:
+ *   1. Re-exports (for backwards compatibility)
+ *   2. Organization Types
+ *   3. Member Types
+ *   4. Subscription Types
+ *   5. Notes Types
+ *   6. Invitation Types
  */
 
-import type { UserRole } from './user';
+// ============================================================================
+// RE-EXPORTS (for backwards compatibility)
+// ============================================================================
+
+// Re-export user types that are commonly imported from organization.ts
+export type { UserRole, OrgMember, User as AdminUser, UserList } from './user';
+
+// ============================================================================
+// ORGANIZATION TYPES
+// ============================================================================
 
 // Stream scope
 export type StreamScope = 'global' | 'organization' | 'personal';
@@ -15,6 +33,10 @@ export interface Organization {
   created_at: string;
   updated_at?: string;
 }
+
+// ============================================================================
+// MEMBER TYPES
+// ============================================================================
 
 export interface OrganizationWithStats extends Organization {
   member_count: number;
@@ -29,10 +51,13 @@ export interface OrganizationUpdate {
 
 // Member update
 export interface OrgMemberUpdate {
-  role: UserRole;
+  role: import('./user').UserRole;
 }
 
-// Subscriptions
+// ============================================================================
+// SUBSCRIPTION TYPES
+// ============================================================================
+
 export interface StreamSubscriptionStatus {
   stream_id: number;
   stream_name: string;
@@ -54,7 +79,10 @@ export interface OrgStreamList {
   total_count: number;
 }
 
-// Notes
+// ============================================================================
+// NOTES TYPES
+// ============================================================================
+
 export interface ArticleNote {
   id: string;
   user_id: number;
@@ -82,10 +110,10 @@ export interface ArticleNotesResponse {
   total_count: number;
 }
 
-// Admin types - use User from user.ts for full user data
-export type { User as AdminUser, UserList } from './user';
+// ============================================================================
+// INVITATION TYPES
+// ============================================================================
 
-// Invitation
 export interface Invitation {
   invitation_id: number;
   email: string;
