@@ -327,52 +327,54 @@ export interface EnrichmentConfig {
 import type { PipelineLLMConfig } from './llm';
 
 
+/**
+ * Research stream configuration.
+ *
+ * Organized into sections that mirror the backend Pydantic schema
+ * for easy cross-reference between frontend and backend code.
+ */
 export interface ResearchStream {
     // === CORE IDENTITY ===
     stream_id: number;
-    user_id: number;
     stream_name: string;
     purpose: string;  // High-level "why this stream exists"
 
-    // === FOUR-LAYER ARCHITECTURE ===
+    // === SCOPE & OWNERSHIP ===
+    scope?: 'personal' | 'organization' | 'global';  // Stream visibility scope
+    org_id?: number | null;  // Organization ID (null for global streams)
+    user_id?: number | null;  // Owner user ID (only for personal streams)
+    created_by?: number | null;  // User who created this stream
 
+    // === FOUR-LAYER ARCHITECTURE ===
     // Layer 1: SEMANTIC SPACE - What information matters (source-agnostic ground truth)
     semantic_space: SemanticSpace;
-
     // Layer 2: RETRIEVAL CONFIG - How to find & filter content
     retrieval_config: RetrievalConfig;
-
     // Layer 3: PRESENTATION CONFIG - How to organize results for users
     presentation_config: PresentationConfig;
-
     // Layer 4: ENRICHMENT CONFIG - Custom prompts for AI-generated content (null = use defaults)
     enrichment_config?: EnrichmentConfig | null;
 
     // === CONTROL PANEL ===
-    // LLM configuration - which LLMs to use per pipeline stage
-    llm_config?: PipelineLLMConfig | null;
+    llm_config?: PipelineLLMConfig | null;  // LLM configuration for pipeline stages
 
-    // === CHAT CONFIGURATION ===
-    chat_instructions?: string | null;  // Stream-specific instructions for the AI chat assistant
+    // === CHAT ===
+    chat_instructions?: string | null;  // Stream-specific instructions for the chat assistant
+
+    // === SCHEDULING ===
+    schedule_config?: ScheduleConfig | null;  // Scheduling configuration
+    next_scheduled_run?: string | null;  // Pre-calculated next run time (ISO 8601)
+    last_execution_id?: string | null;  // UUID of most recent pipeline execution
+    last_execution?: PipelineExecution | null;  // Denormalized last execution
 
     // === METADATA ===
     is_active: boolean;
-    created_at: string;  // ISO 8601 datetime string
-    updated_at: string;  // ISO 8601 datetime string
-
-    // === SCOPE & ORGANIZATION ===
-    scope?: 'personal' | 'organization' | 'global';  // Stream visibility scope
-    org_id?: number | null;  // Organization ID for organization-scoped streams
-
-    // === SCHEDULING ===
-    schedule_config?: ScheduleConfig | null;  // Automated scheduling configuration
-    next_scheduled_run?: string | null;  // ISO 8601 datetime when this stream will run next (pre-calculated)
-    last_execution_id?: string | null;  // UUID of most recent pipeline execution
-    last_execution?: PipelineExecution | null;  // Denormalized last execution (when included)
+    created_at: string;  // ISO 8601 datetime
+    updated_at: string;  // ISO 8601 datetime
 
     // === AGGREGATED DATA ===
-    report_count?: number;
-    latest_report_date?: string | null;  // ISO 8601 date string
+    report_count?: number;  // Number of reports generated
+    latest_report_date?: string | null;  // ISO 8601 date string of latest report
 }
 
 // ============================================================================

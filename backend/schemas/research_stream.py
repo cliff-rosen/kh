@@ -422,56 +422,49 @@ class PipelineExecution(BaseModel):
 
 
 class ResearchStream(BaseModel):
-    """Research stream with clean three-layer architecture"""
+    """
+    Research stream configuration.
+
+    Organized into sections that mirror the frontend TypeScript type
+    for easy cross-reference between backend and frontend code.
+    """
     # === CORE IDENTITY ===
     stream_id: int
+    stream_name: str
+    purpose: str = Field(description="High-level why this stream exists")
+
+    # === SCOPE & OWNERSHIP ===
     scope: StreamScope = Field(default=StreamScope.PERSONAL, description="Stream visibility scope")
     org_id: Optional[int] = Field(None, description="Organization ID (NULL for global streams)")
     user_id: Optional[int] = Field(None, description="Owner user ID (only for personal streams)")
     created_by: Optional[int] = Field(None, description="User who created this stream")
-    stream_name: str
-    purpose: str = Field(description="High-level why this stream exists")
 
-    # === THREE-LAYER ARCHITECTURE ===
-
+    # === FOUR-LAYER ARCHITECTURE ===
     # Layer 1: SEMANTIC SPACE - What information matters (source-agnostic ground truth)
-    semantic_space: SemanticSpace = Field(description="Layer 1: Semantic space definition (ground truth)")
-
+    semantic_space: SemanticSpace = Field(description="Layer 1: Semantic space definition")
     # Layer 2: RETRIEVAL CONFIG - How to find & filter content
-    retrieval_config: RetrievalConfig = Field(description="Layer 2: Content retrieval and filtering configuration")
-
+    retrieval_config: RetrievalConfig = Field(description="Layer 2: Content retrieval and filtering")
     # Layer 3: PRESENTATION CONFIG - How to organize results for users
-    presentation_config: PresentationConfig = Field(description="Layer 3: Result organization and presentation")
+    presentation_config: PresentationConfig = Field(description="Layer 3: Result organization")
+    # Layer 4: ENRICHMENT CONFIG - Custom prompts for AI-generated content (null = use defaults)
+    enrichment_config: Optional[EnrichmentConfig] = Field(None, description="Layer 4: Custom prompts for summaries")
 
-    # Layer 4: ENRICHMENT CONFIG - Custom prompts for content generation (optional)
-    enrichment_config: Optional[EnrichmentConfig] = Field(
-        None,
-        description="Layer 4: Custom prompts for summaries (None = use defaults)"
-    )
+    # === CONTROL PANEL ===
+    llm_config: Optional[PipelineLLMConfig] = Field(None, description="LLM configuration for pipeline stages")
 
-    # CONTROL PANEL: LLM configuration - which LLMs to use per pipeline stage
-    llm_config: Optional[PipelineLLMConfig] = Field(
-        None,
-        description="LLM configuration for pipeline stages (None = use defaults)"
-    )
+    # === CHAT ===
+    chat_instructions: Optional[str] = Field(None, description="Stream-specific instructions for the chat assistant")
 
-    # === CHAT CONFIGURATION ===
-    chat_instructions: Optional[str] = Field(
-        None,
-        description="Stream-specific instructions for the chat assistant (e.g., classification rules, domain expertise)"
-    )
+    # === SCHEDULING ===
+    schedule_config: Optional[ScheduleConfig] = Field(None, description="Scheduling configuration")
+    next_scheduled_run: Optional[datetime] = Field(None, description="Pre-calculated next run time")
+    last_execution_id: Optional[str] = Field(None, description="UUID of most recent pipeline execution")
+    last_execution: Optional[PipelineExecution] = Field(None, description="Denormalized last execution")
 
     # === METADATA ===
     is_active: bool = True
     created_at: datetime = Field(description="ISO 8601 datetime")
     updated_at: datetime = Field(description="ISO 8601 datetime")
-
-    # === SCHEDULING ===
-    schedule_config: Optional[ScheduleConfig] = Field(None, description="Scheduling configuration (frequency, timing, etc.)")
-    next_scheduled_run: Optional[datetime] = Field(None, description="Pre-calculated next run time")
-    last_execution_id: Optional[str] = Field(None, description="UUID of most recent pipeline execution")
-    last_execution: Optional[PipelineExecution] = Field(None, description="Denormalized last execution (when included)")
-
 
     # === AGGREGATED DATA ===
     report_count: Optional[int] = Field(0, description="Number of reports generated")
