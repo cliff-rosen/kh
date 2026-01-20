@@ -107,13 +107,6 @@ class ReportWithArticleCount:
 
 
 @dataclass
-class ArticleMetadataResult:
-    """Article metadata (notes and enrichments)."""
-    notes: Optional[str]
-    ai_enrichments: Optional[Dict[str, Any]]
-
-
-@dataclass
 class NotesUpdateResult:
     """Result of updating notes."""
     report_id: int
@@ -905,22 +898,6 @@ class ReportService:
             report_id=report_id,
             article_id=article_id,
             ai_enrichments=ai_enrichments
-        )
-
-    async def get_article_metadata(
-        self,
-        user: User,
-        report_id: int,
-        article_id: int
-    ) -> Optional[ArticleMetadataResult]:
-        """Get notes and AI enrichments for an article in a report (async)."""
-        assoc = await self.get_article_association(user, report_id, article_id)
-        if not assoc:
-            return None
-
-        return ArticleMetadataResult(
-            notes=assoc.notes,
-            ai_enrichments=assoc.ai_enrichments
         )
 
     async def get_report_email_html(

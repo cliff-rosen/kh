@@ -1,11 +1,6 @@
 import { api } from './index';
 import { Report, ReportWithArticles, ArticleEnrichments } from '../../types';
 
-export interface ArticleMetadata {
-    notes: string | null;
-    ai_enrichments: ArticleEnrichments | null;
-}
-
 export const reportApi = {
     /**
      * Get recent reports across all streams
@@ -47,14 +42,6 @@ export const reportApi = {
      */
     async deleteReport(reportId: number): Promise<void> {
         await api.delete(`/api/reports/${reportId}`);
-    },
-
-    /**
-     * Get article metadata (notes and stance analysis) for an article in a report
-     */
-    async getArticleMetadata(reportId: number, articleId: number): Promise<ArticleMetadata> {
-        const response = await api.get(`/api/reports/${reportId}/articles/${articleId}/metadata`);
-        return response.data;
     },
 
     /**
