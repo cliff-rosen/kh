@@ -12,7 +12,7 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Optional, List
 
-from models import Report, WipArticle
+from models import Report, WipArticle, ReportArticleAssociation
 from schemas.research_stream import EnrichmentConfig, PromptTemplate, CategorizationPrompt, ResearchStream as ResearchStreamSchema
 from schemas.llm import ModelConfig, DEFAULT_MODEL_CONFIG
 from services.report_summary_service import ReportSummaryService, DEFAULT_PROMPTS, AVAILABLE_SLUGS
@@ -180,7 +180,9 @@ class PromptTestingService:
         elif prompt_type == "category_summary":
             if not category_id:
                 raise ValueError("category_id is required for category_summary prompt type")
-            return self._build_category_summary_item(stream, wip_articles, category_id)
+            # For category summary, we need associations which have presentation_categories
+            associations = await self.association_service.get_visible_for_report(report_id)
+            return self._build_category_summary_item(stream, associations, category_id)
         elif prompt_type == "article_summary":
             return self._build_article_summary_item(stream, wip_articles, article_index or 0)
         else:
@@ -237,7 +239,7 @@ class PromptTestingService:
     def _build_category_summary_item(
         self,
         stream: ResearchStreamSchema,
-        wip_articles: List[WipArticle],
+        associations: List[ReportArticleAssociation],
         category_id: str
     ) -> Dict[str, Any]:
         """Build flat item dict for category summary (matches pipeline format)."""
@@ -247,25 +249,28 @@ class PromptTestingService:
         if not category:
             raise ValueError(f"Category {category_id} not found in stream")
 
-        category_articles = [
-            a for a in wip_articles
-            if a.presentation_categories and category_id in a.presentation_categories
+        # Filter associations by category (presentation_categories is on the association)
+        category_associations = [
+            assoc for assoc in associations
+            if assoc.presentation_categories and category_id in assoc.presentation_categories
         ]
 
+        # Build article info from associations (article is loaded via relationship)
         articles_formatted = self._format_articles([
             {
-                "title": a.title,
-                "authors": a.authors[:3] if a.authors else [],
-                "journal": a.journal,
-                "year": a.year,
-                "abstract": a.abstract[:400] if a.abstract else None
+                "title": assoc.article.title if assoc.article else "",
+                "authors": (assoc.article.authors[:3] if assoc.article and assoc.article.authors else []),
+                "journal": assoc.article.journal if assoc.article else "",
+                "year": assoc.article.year if assoc.article else "",
+                "abstract": (assoc.article.abstract[:400] if assoc.article and assoc.article.abstract else None)
             }
-            for a in category_articles[:15]
+            for assoc in category_associations[:15]
+            if assoc.article
         ])
 
-        # Build article summaries text
+        # Build article summaries text (ai_summary is on the association)
         articles_summaries = ""
-        summaries = [a.summary for a in category_articles if a.summary]
+        summaries = [assoc.ai_summary for assoc in category_associations if assoc.ai_summary]
         if summaries:
             articles_summaries = "\n\n".join(summaries[:15])
 
@@ -277,7 +282,7 @@ class PromptTestingService:
             "category_name": category.get("name", ""),
             "category_description": ", ".join(category_topics),
             "category_topics": ", ".join(category_topics),
-            "articles_count": str(len(category_articles)),
+            "articles_count": str(len(category_associations)),
             "articles_formatted": articles_formatted,
             "articles_summaries": articles_summaries,
         }
