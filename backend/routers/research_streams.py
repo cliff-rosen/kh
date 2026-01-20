@@ -40,6 +40,12 @@ from services.research_stream_service import (
     ResearchStreamService,
     get_research_stream_service,
 )
+from services.report_service import (
+    ReportService,
+    SuppliedArticleStatusData,
+    ReportOnlyArticleData,
+    CompareReportResultData,
+)
 from services.retrieval_query_service import RetrievalQueryService
 from services.concept_proposal_service import ConceptProposalService
 from services.broad_search_service import BroadSearchService
@@ -1228,127 +1234,36 @@ async def compare_report_to_pubmed_ids(
 
     Also returns articles in the report that weren't in the supplied list.
     """
-    from models import Report, WipArticle, ReportArticleAssociation, Article
-    from sqlalchemy import and_
-
-    # Verify report exists and user has access
-    stmt = select(Report).where(
-        and_(
-            Report.report_id == report_id,
-            Report.user_id == current_user.user_id
-        )
+    report_service = ReportService(db)
+    result = await report_service.compare_to_pubmed_ids(
+        report_id=report_id,
+        user_id=current_user.user_id,
+        pubmed_ids=request.pubmed_ids
     )
-    result = await db.execute(stmt)
-    report = result.scalars().first()
 
-    if not report:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Report not found"
-        )
-
-    if not report.pipeline_execution_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Report does not have pipeline execution data"
-        )
-
-    # Get all wip_articles for this execution
-    stmt = select(WipArticle).where(
-        WipArticle.pipeline_execution_id == report.pipeline_execution_id
-    )
-    result = await db.execute(stmt)
-    wip_articles = result.scalars().all()
-
-    # Create PMID lookup map
-    wip_by_pmid = {wip.pmid: wip for wip in wip_articles if wip.pmid}
-
-    # Get all articles in the report
-    from sqlalchemy.orm import selectinload
-    stmt = select(ReportArticleAssociation).options(selectinload(ReportArticleAssociation.article)).where(
-        ReportArticleAssociation.report_id == report_id
-    )
-    result = await db.execute(stmt)
-    report_associations = result.scalars().all()
-
-    report_pmids = set()
-    report_articles_map = {}
-    for assoc in report_associations:
-        if assoc.article.pmid:
-            report_pmids.add(assoc.article.pmid)
-            report_articles_map[assoc.article.pmid] = assoc.article
-
-    # Analyze each supplied PMID
-    supplied_articles = []
-    for pmid in request.pubmed_ids:
-        pmid = pmid.strip()
-        if not pmid:
-            continue
-
-        wip = wip_by_pmid.get(pmid)
-
-        if not wip:
-            # Not found in search results
-            supplied_articles.append(SuppliedArticleStatus(
-                pmid=pmid,
-                status="not_found"
-            ))
-        elif wip.passed_semantic_filter == False:
-            # Found but filtered out
-            supplied_articles.append(SuppliedArticleStatus(
-                pmid=pmid,
-                status="filtered_out",
-                article_title=wip.title,
-                retrieval_unit_id=wip.retrieval_group_id,
-                filter_score=wip.filter_score,
-                filter_score_reason=wip.filter_score_reason
-            ))
-        elif pmid in report_pmids:
-            # Found and included in report
-            supplied_articles.append(SuppliedArticleStatus(
-                pmid=pmid,
-                status="included",
-                article_title=wip.title,
-                retrieval_unit_id=wip.retrieval_group_id
-            ))
-        else:
-            # Found in search but not in report (duplicate or other reason)
-            supplied_articles.append(SuppliedArticleStatus(
-                pmid=pmid,
-                status="not_included",
-                article_title=wip.title,
-                retrieval_unit_id=wip.retrieval_group_id
-            ))
-
-    # Find articles in report but not in supplied list
-    supplied_pmids_set = set(pmid.strip() for pmid in request.pubmed_ids if pmid.strip())
-    report_only_articles = []
-
-    for pmid in report_pmids:
-        if pmid not in supplied_pmids_set:
-            article = report_articles_map[pmid]
-            wip = wip_by_pmid.get(pmid)
-            report_only_articles.append(ReportOnlyArticle(
-                pmid=pmid,
-                title=article.title,
-                retrieval_unit_id=wip.retrieval_group_id if wip else "unknown",
-                url=article.url
-            ))
-
-    # Calculate statistics
-    stats = {
-        "total_supplied": len([a for a in supplied_articles if a.pmid]),
-        "not_found": len([a for a in supplied_articles if a.status == "not_found"]),
-        "filtered_out": len([a for a in supplied_articles if a.status == "filtered_out"]),
-        "included": len([a for a in supplied_articles if a.status == "included"]),
-        "not_included": len([a for a in supplied_articles if a.status == "not_included"]),
-        "report_only": len(report_only_articles)
-    }
-
+    # Convert dataclasses to Pydantic models for response
     return CompareReportResponse(
-        supplied_articles=supplied_articles,
-        report_only_articles=report_only_articles,
-        statistics=stats
+        supplied_articles=[
+            SuppliedArticleStatus(
+                pmid=a.pmid,
+                status=a.status,
+                article_title=a.article_title,
+                retrieval_unit_id=a.retrieval_unit_id,
+                filter_score=a.filter_score,
+                filter_score_reason=a.filter_score_reason
+            )
+            for a in result.supplied_articles
+        ],
+        report_only_articles=[
+            ReportOnlyArticle(
+                pmid=a.pmid,
+                title=a.title,
+                retrieval_unit_id=a.retrieval_unit_id,
+                url=a.url
+            )
+            for a in result.report_only_articles
+        ],
+        statistics=result.statistics
     )
 
 

@@ -5,9 +5,8 @@ Accessed via the profile icon in the top nav.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import List, Optional
 import logging
 
 from database import get_async_db
@@ -131,44 +130,22 @@ class AdminUserResponse(BaseModel):
 )
 async def get_admin_users(
     current_user: User = Depends(auth_service.validate_token),
-    db: AsyncSession = Depends(get_async_db)
+    user_service: UserService = Depends(get_user_service)
 ):
     """
     Get list of admin users who can approve reports.
     Returns platform admins and organization admins for the user's organization.
     """
-    # Get platform admins
-    platform_admins_result = await db.execute(
-        select(User).where(
-            User.role == UserRole.PLATFORM_ADMIN,
-            User.is_active == True
-        )
+    admins = await user_service.get_admin_users_for_approval(
+        org_id=current_user.org_id,
+        exclude_user_id=current_user.user_id
     )
-    platform_admins = list(platform_admins_result.scalars().all())
 
-    # Get org admins for user's organization
-    org_admins = []
-    if current_user.org_id:
-        org_admins_result = await db.execute(
-            select(User).where(
-                User.org_id == current_user.org_id,
-                User.role == UserRole.ORG_ADMIN,
-                User.is_active == True,
-                User.user_id != current_user.user_id  # Exclude self
-            )
+    return [
+        AdminUserResponse(
+            user_id=admin.user_id,
+            email=admin.email,
+            display_name=admin.full_name or admin.email
         )
-        org_admins = list(org_admins_result.scalars().all())
-
-    # Combine and deduplicate
-    admin_ids = set()
-    result = []
-    for admin in platform_admins + org_admins:
-        if admin.user_id not in admin_ids:
-            admin_ids.add(admin.user_id)
-            result.append(AdminUserResponse(
-                user_id=admin.user_id,
-                email=admin.email,
-                display_name=admin.full_name or admin.email
-            ))
-
-    return result
+        for admin in admins
+    ]

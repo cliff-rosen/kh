@@ -138,6 +138,7 @@ class ReportWithArticlesData:
     report: Report
     articles: List[ReportArticleInfo]
     article_count: int
+    retrieval_params: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -285,6 +286,34 @@ class RegenerateSummariesResult:
     updated_count: int
     message: str
     prompt_type: str
+
+
+@dataclass
+class SuppliedArticleStatusData:
+    """Status of a supplied PubMed ID in the pipeline."""
+    pmid: str
+    status: str  # not_found, filtered_out, included, not_included
+    article_title: Optional[str] = None
+    retrieval_unit_id: Optional[str] = None
+    filter_score: Optional[float] = None
+    filter_score_reason: Optional[str] = None
+
+
+@dataclass
+class ReportOnlyArticleData:
+    """Article that was in the report but not in supplied PMIDs."""
+    pmid: str
+    title: str
+    retrieval_unit_id: str
+    url: Optional[str] = None
+
+
+@dataclass
+class CompareReportResultData:
+    """Result of comparing a report to supplied PubMed IDs."""
+    supplied_articles: List[SuppliedArticleStatusData]
+    report_only_articles: List[ReportOnlyArticleData]
+    statistics: Dict[str, int]
 
 
 class ReportService:
@@ -629,10 +658,28 @@ class ReportService:
             for assoc, article in rows
         ]
 
+        # Get retrieval_params from pipeline execution
+        retrieval_params = None
+        if report.pipeline_execution_id:
+            exec_result = await self.db.execute(
+                select(PipelineExecution).where(
+                    PipelineExecution.id == report.pipeline_execution_id
+                )
+            )
+            exec_obj = exec_result.scalars().first()
+            if exec_obj:
+                retrieval_params = {
+                    'start_date': exec_obj.start_date,
+                    'end_date': exec_obj.end_date,
+                    'retrieval_config': exec_obj.retrieval_config,
+                    'presentation_config': exec_obj.presentation_config,
+                }
+
         return ReportWithArticlesData(
             report=report,
             articles=articles,
-            article_count=len(articles)
+            article_count=len(articles),
+            retrieval_params=retrieval_params
         )
 
     async def get_report_articles_list(
@@ -1792,6 +1839,140 @@ class ReportService:
             filter_reasons=filter_reasons,
             category_counts=category_counts,
             wip_articles=wip_articles_data,
+        )
+
+    async def compare_to_pubmed_ids(
+        self,
+        report_id: int,
+        user_id: int,
+        pubmed_ids: List[str]
+    ) -> CompareReportResultData:
+        """
+        Compare a pipeline report to a supplied set of PubMed IDs.
+
+        For each supplied PMID, determines:
+        - Was it retrieved in the search?
+        - Did it pass the semantic filter?
+        - Was it included in the report?
+
+        Also returns articles in the report that weren't in the supplied list.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID (for access verification)
+            pubmed_ids: List of PubMed IDs to compare
+
+        Returns:
+            CompareReportResultData with supplied article statuses, report-only articles, and stats
+
+        Raises:
+            HTTPException: If report not found, access denied, or no pipeline data
+        """
+        # Get report with access verification
+        result = await self.get_report_with_access(report_id, user_id, raise_on_not_found=True)
+        report, _, _ = result
+
+        if not report.pipeline_execution_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Report does not have pipeline execution data"
+            )
+
+        # Get all wip_articles for this execution
+        wip_articles = await self.wip_article_service.get_by_execution_id(
+            report.pipeline_execution_id
+        )
+
+        # Create PMID lookup map
+        wip_by_pmid = {wip.pmid: wip for wip in wip_articles if wip.pmid}
+
+        # Get all articles in the report with their associations
+        associations = await self.association_service.get_all_for_report(report_id)
+
+        # Build lookup of report PMIDs to articles
+        report_pmids = set()
+        report_articles_map = {}
+        for assoc in associations:
+            # Need to get the article's PMID
+            article_result = await self.db.execute(
+                select(Article).where(Article.article_id == assoc.article_id)
+            )
+            article = article_result.scalars().first()
+            if article and article.pmid:
+                report_pmids.add(article.pmid)
+                report_articles_map[article.pmid] = article
+
+        # Analyze each supplied PMID
+        supplied_articles = []
+        for pmid in pubmed_ids:
+            pmid = pmid.strip()
+            if not pmid:
+                continue
+
+            wip = wip_by_pmid.get(pmid)
+
+            if not wip:
+                # Not found in search results
+                supplied_articles.append(SuppliedArticleStatusData(
+                    pmid=pmid,
+                    status="not_found"
+                ))
+            elif wip.passed_semantic_filter == False:
+                # Found but filtered out
+                supplied_articles.append(SuppliedArticleStatusData(
+                    pmid=pmid,
+                    status="filtered_out",
+                    article_title=wip.title,
+                    retrieval_unit_id=wip.retrieval_group_id,
+                    filter_score=wip.filter_score,
+                    filter_score_reason=wip.filter_score_reason
+                ))
+            elif pmid in report_pmids:
+                # Found and included in report
+                supplied_articles.append(SuppliedArticleStatusData(
+                    pmid=pmid,
+                    status="included",
+                    article_title=wip.title,
+                    retrieval_unit_id=wip.retrieval_group_id
+                ))
+            else:
+                # Found in search but not in report (duplicate or other reason)
+                supplied_articles.append(SuppliedArticleStatusData(
+                    pmid=pmid,
+                    status="not_included",
+                    article_title=wip.title,
+                    retrieval_unit_id=wip.retrieval_group_id
+                ))
+
+        # Find articles in report but not in supplied list
+        supplied_pmids_set = set(pmid.strip() for pmid in pubmed_ids if pmid.strip())
+        report_only_articles = []
+
+        for pmid in report_pmids:
+            if pmid not in supplied_pmids_set:
+                article = report_articles_map[pmid]
+                wip = wip_by_pmid.get(pmid)
+                report_only_articles.append(ReportOnlyArticleData(
+                    pmid=pmid,
+                    title=article.title,
+                    retrieval_unit_id=wip.retrieval_group_id if wip else "unknown",
+                    url=article.url
+                ))
+
+        # Calculate statistics
+        stats = {
+            "total_supplied": len([a for a in supplied_articles if a.pmid]),
+            "not_found": len([a for a in supplied_articles if a.status == "not_found"]),
+            "filtered_out": len([a for a in supplied_articles if a.status == "filtered_out"]),
+            "included": len([a for a in supplied_articles if a.status == "included"]),
+            "not_included": len([a for a in supplied_articles if a.status == "not_included"]),
+            "report_only": len(report_only_articles)
+        }
+
+        return CompareReportResultData(
+            supplied_articles=supplied_articles,
+            report_only_articles=report_only_articles,
+            statistics=stats
         )
 
     async def regenerate_summaries_with_prompt(

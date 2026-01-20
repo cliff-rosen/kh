@@ -1,18 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Form
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from pydantic import BaseModel, EmailStr, Field
-from typing import Annotated
+from typing import Annotated, Optional
 from datetime import datetime
 import logging
 
 from database import get_async_db
 from schemas.user import Token
-from models import Invitation, Organization
 
 from services import auth_service
 from services.user_service import UserService, get_user_service
 from services.login_email_service import LoginEmailService
+from services.invitation_service import InvitationService, get_invitation_service, InvitationValidationResult
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +76,10 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_async_db)):
     response_model=InvitationValidation,
     summary="Validate an invitation token"
 )
-async def validate_invitation(token: str, db: AsyncSession = Depends(get_async_db)):
+async def validate_invitation(
+    token: str,
+    invitation_service: InvitationService = Depends(get_invitation_service)
+):
     """
     Validate an invitation token and return invitation details.
     This is a public endpoint (no authentication required).
@@ -90,36 +92,16 @@ async def validate_invitation(token: str, db: AsyncSession = Depends(get_async_d
     - **expires_at**: When the invitation expires
     - **error**: Error message if invalid
     """
-    result = await db.execute(
-        select(Invitation).where(Invitation.token == token)
-    )
-    invitation = result.scalars().first()
+    result = await invitation_service.validate_invitation_token(token)
 
-    if not invitation:
-        return InvitationValidation(valid=False, error="Invitation not found")
-
-    if invitation.is_revoked:
-        return InvitationValidation(valid=False, error="Invitation has been revoked")
-
-    if invitation.accepted_at:
-        return InvitationValidation(valid=False, error="Invitation has already been used")
-
-    if invitation.expires_at < datetime.utcnow():
-        return InvitationValidation(valid=False, error="Invitation has expired")
-
-    # Get organization name
-    org_result = await db.execute(
-        select(Organization).where(Organization.org_id == invitation.org_id)
-    )
-    org = org_result.scalars().first()
-    org_name = org.name if org else "Unknown Organization"
-
+    # Convert service dataclass to Pydantic response model
     return InvitationValidation(
-        valid=True,
-        email=invitation.email,
-        org_name=org_name,
-        role=invitation.role,
-        expires_at=invitation.expires_at
+        valid=result.valid,
+        email=result.email,
+        org_name=result.org_name,
+        role=result.role,
+        expires_at=result.expires_at,
+        error=result.error
     )
 
 

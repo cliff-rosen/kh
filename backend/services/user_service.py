@@ -144,6 +144,60 @@ class UserService:
             for u in users
         ]
 
+    async def get_admin_users_for_approval(
+        self,
+        org_id: Optional[int] = None,
+        exclude_user_id: Optional[int] = None
+    ) -> List[UserModel]:
+        """
+        Get admin users who can approve reports.
+
+        Returns platform admins and organization admins for the given organization.
+
+        Args:
+            org_id: If provided, also returns org admins for this organization.
+            exclude_user_id: If provided, excludes this user from the results.
+
+        Returns:
+            List of admin User objects, deduplicated.
+        """
+        from models import UserRole as UserRoleModel
+
+        # Get platform admins
+        platform_admins_result = await self.db.execute(
+            select(UserModel).where(
+                UserModel.role == UserRoleModel.PLATFORM_ADMIN,
+                UserModel.is_active == True
+            )
+        )
+        platform_admins = list(platform_admins_result.scalars().all())
+
+        # Get org admins for user's organization
+        org_admins = []
+        if org_id:
+            where_clauses = [
+                UserModel.org_id == org_id,
+                UserModel.role == UserRoleModel.ORG_ADMIN,
+                UserModel.is_active == True
+            ]
+            if exclude_user_id:
+                where_clauses.append(UserModel.user_id != exclude_user_id)
+
+            org_admins_result = await self.db.execute(
+                select(UserModel).where(*where_clauses)
+            )
+            org_admins = list(org_admins_result.scalars().all())
+
+        # Combine and deduplicate
+        admin_ids = set()
+        result = []
+        for admin in platform_admins + org_admins:
+            if admin.user_id not in admin_ids:
+                admin_ids.add(admin.user_id)
+                result.append(admin)
+
+        return result
+
     async def create_user(
         self,
         email: str,

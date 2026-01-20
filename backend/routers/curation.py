@@ -907,16 +907,16 @@ async def send_approval_request(
             )
         report, user, stream = result
 
-        # Get admin user
-        admin_result = await db.execute(
-            select(User).where(
-                User.user_id == request.admin_user_id,
-                User.is_active == True
-            )
-        )
-        admin = admin_result.scalars().first()
+        # Get admin user using service
+        admin = await service.user_service.get_user_by_id(request.admin_user_id)
 
         if not admin:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Admin user not found"
+            )
+
+        if not admin.is_active:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Admin user not found"

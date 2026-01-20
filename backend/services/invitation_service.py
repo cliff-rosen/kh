@@ -5,6 +5,7 @@ Handles invitation CRUD operations for platform admins.
 
 import logging
 import secrets
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,17 @@ from config.settings import settings
 from database import get_async_db
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class InvitationValidationResult:
+    """Result of invitation token validation."""
+    valid: bool
+    error: Optional[str] = None
+    email: Optional[str] = None
+    org_name: Optional[str] = None
+    role: Optional[str] = None
+    expires_at: Optional[datetime] = None
 
 
 class InvitationService:
@@ -195,6 +207,47 @@ class InvitationService:
             select(Invitation).where(Invitation.invitation_id == invitation_id)
         )
         return result.scalars().first()
+
+    async def validate_invitation_token(
+        self,
+        token: str
+    ) -> InvitationValidationResult:
+        """
+        Validate an invitation token.
+
+        Returns InvitationValidationResult with validation status and details.
+        """
+        result = await self.db.execute(
+            select(Invitation).where(Invitation.token == token)
+        )
+        invitation = result.scalars().first()
+
+        if not invitation:
+            return InvitationValidationResult(valid=False, error="Invitation not found")
+
+        if invitation.is_revoked:
+            return InvitationValidationResult(valid=False, error="Invitation has been revoked")
+
+        if invitation.accepted_at:
+            return InvitationValidationResult(valid=False, error="Invitation has already been used")
+
+        if invitation.expires_at < datetime.utcnow():
+            return InvitationValidationResult(valid=False, error="Invitation has expired")
+
+        # Get organization name
+        org_result = await self.db.execute(
+            select(Organization).where(Organization.org_id == invitation.org_id)
+        )
+        org = org_result.scalars().first()
+        org_name = org.name if org else "Unknown Organization"
+
+        return InvitationValidationResult(
+            valid=True,
+            email=invitation.email,
+            org_name=org_name,
+            role=invitation.role,
+            expires_at=invitation.expires_at
+        )
 
 
 # Dependency injection provider for async invitation service

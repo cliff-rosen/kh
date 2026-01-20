@@ -69,8 +69,8 @@ async def get_report(
 ### `services/` - Business Logic Layer
 - All business logic lives here
 - Database queries (via SQLAlchemy)
-- Returns **SQLAlchemy Models** (from `models/`), NOT Pydantic schemas
-- Routers convert Models to Schemas at the API boundary
+- Returns **typed data**: SQLAlchemy Models, Pydantic schemas, or dataclasses
+- **NEVER returns `Dict[str, Any]`** - always use typed structures
 - Does NOT define API-specific types
 
 #### Service Constructor and Dependencies
@@ -109,41 +109,89 @@ def get_report_analytics(self, report_id: int) -> PipelineAnalytics:
     ...
 ```
 
-#### Services Return Models, Routers Convert to Schemas
-
-**This is a hard rule.** Services work with SQLAlchemy models internally. Routers convert to Pydantic schemas at the API boundary.
-
-```python
-# ✅ CORRECT - Service returns Model
-class ReportService:
-    def get_report(self, report_id: int, user_id: int) -> Report:  # SQLAlchemy model
-        return self.db.query(Report).filter(...).first()
-
-# ✅ CORRECT - Router converts to Schema
-@router.get("/{report_id}", response_model=ReportSchema)
-async def get_report(report_id: int, ...):
-    report = service.get_report(report_id, user_id)  # Model
-    return ReportSchema.from_orm(report)             # Schema
-
-# ❌ WRONG - Service returns Schema
-class ReportService:
-    def get_report(self, ...) -> ReportSchema:  # NO!
-        report = self.db.query(Report).filter(...).first()
-        return ReportSchema.from_orm(report)  # Conversion belongs in router
-```
-
 #### Service Return Types
 
-| Data type | Service returns | Router conversion |
-|-----------|-----------------|-------------------|
-| Database entity | SQLAlchemy Model | `Schema.from_orm(model)` |
-| Model + computed data | Dataclass containing Model | Manual field mapping |
-| Computed/aggregated data (no Model) | Dataclass | `Schema(**asdict(dataclass))` |
-| Never return | `dict`, Pydantic schema | - |
+Services should return **typed data structures**. The choice depends on what the service is producing:
+
+| What the service produces | Return type | Example |
+|---------------------------|-------------|---------|
+| Single database entity | SQLAlchemy Model | `get_report() -> Report` |
+| List of database entities | `List[Model]` | `get_reports() -> List[Report]` |
+| Aggregated/computed view | Pydantic schema | `get_execution_queue() -> List[ExecutionQueueItem]` |
+| Model + computed fields | Pydantic schema or dataclass | `get_report_with_stats() -> ReportWithStats` |
+| External API data | Pydantic schema | `search_pubmed() -> List[CanonicalResearchArticle]` |
+
+**The key rule: NEVER return `Dict[str, Any]`.** Always use a typed structure.
+
+```python
+# ✅ CORRECT - Entity CRUD returns Model
+class ReportService:
+    def get_report(self, report_id: int, user_id: int) -> Report:
+        return self.db.query(Report).filter(...).first()
+
+# ✅ CORRECT - Aggregated view returns Pydantic schema
+class OperationsService:
+    def get_execution_queue(self, ...) -> List[ExecutionQueueItem]:
+        # Combines data from multiple tables into a typed view
+        return [ExecutionQueueItem(...) for execution in executions]
+
+# ✅ CORRECT - External API data returns Pydantic schema
+class PubMedService:
+    def search_articles(self, query: str) -> List[CanonicalResearchArticle]:
+        # Converts external API response to our canonical type
+        return [CanonicalResearchArticle(...) for article in results]
+
+# ❌ WRONG - Returning untyped dict
+class InvitationService:
+    def list_invitations(self) -> List[Dict[str, Any]]:  # NO!
+        return [{"id": inv.id, "email": inv.email, ...}]  # Use a typed schema instead
+```
+
+#### Router Conversion
+
+When a service returns a SQLAlchemy Model, the router converts it to a Pydantic schema:
+
+```python
+@router.get("/{report_id}", response_model=ReportSchema)
+async def get_report(report_id: int, ...):
+    report = service.get_report(report_id, user_id)  # Returns Model
+    return ReportSchema.from_orm(report)             # Convert to Schema
+```
+
+When a service returns a Pydantic schema (for aggregated views), the router can return it directly:
+
+```python
+@router.get("/queue", response_model=ExecutionQueueResponse)
+async def get_queue(...):
+    items = service.get_execution_queue(...)  # Returns List[ExecutionQueueItem]
+    return ExecutionQueueResponse(items=items, total=len(items))
+```
 
 #### Computed Data Patterns
 
-**Case 1: Model + computed data**
+**Option 1: Service returns a Pydantic schema directly**
+
+For aggregated views that combine data from multiple sources, define the schema in `schemas/` and return it from the service:
+
+```python
+# In schemas/research_stream.py
+class ExecutionQueueItem(BaseModel):
+    execution_id: str
+    stream_name: str
+    status: ExecutionStatus
+    article_count: Optional[int]
+    # ... other fields
+
+# In service
+class OperationsService:
+    def get_execution_queue(self, ...) -> List[ExecutionQueueItem]:
+        # Query multiple tables, aggregate data
+        return [ExecutionQueueItem(...) for execution in executions]
+```
+
+**Option 2: Service returns a dataclass (for internal use)**
+
+For computed data used internally or when you want to avoid schema dependencies in services:
 
 ```python
 # In service file
@@ -161,60 +209,10 @@ class ReportService:
         return ReportWithCount(report=report, article_count=count)
 ```
 
-```python
-# In router file
-@router.get("/{report_id}", response_model=ReportWithCountResponse)
-async def get_report(...):
-    result = service.get_report_with_count(report_id)
-    return ReportWithCountResponse(
-        **ReportSchema.from_orm(result.report).dict(),  # Spread model fields
-        article_count=result.article_count               # Add computed field
-    )
-```
-
-**Case 2: Computed/aggregated data with no Model equivalent**
-
-When the API needs a custom shape that doesn't map to any Model (e.g., analytics, aggregations, transformations), define dataclasses in the service file:
-
-```python
-# In service file
-from dataclasses import dataclass, asdict
-
-@dataclass
-class GroupAnalytics:
-    group_id: str
-    total: int
-    duplicates: int
-
-@dataclass
-class PipelineAnalytics:
-    report_id: int
-    summary: PipelineAnalyticsSummary
-    by_group: List[GroupAnalytics]
-
-class ReportService:
-    def get_pipeline_analytics(self, report_id: int) -> PipelineAnalytics:
-        # ... compute analytics ...
-        return PipelineAnalytics(report_id=report_id, summary=..., by_group=...)
-```
-
-```python
-# In router file - define matching response schemas
-class GroupAnalyticsResponse(BaseModel):
-    group_id: str
-    total: int
-    duplicates: int
-
-class PipelineAnalyticsResponse(BaseModel):
-    report_id: int
-    summary: PipelineAnalyticsSummaryResponse
-    by_group: List[GroupAnalyticsResponse]
-
-@router.get("/{report_id}/analytics", response_model=PipelineAnalyticsResponse)
-async def get_analytics(...):
-    analytics = service.get_pipeline_analytics(report_id)  # Returns dataclass
-    return PipelineAnalyticsResponse(**asdict(analytics))  # Convert to schema
-```
+**Choosing between Pydantic schema and dataclass:**
+- Use **Pydantic schema** when the type is shared/reusable across the codebase
+- Use **dataclass** for service-internal computed results that need router transformation
+- **Never use `Dict[str, Any]`** - always choose one of the above
 
 #### Entity Lookups: `find()` vs `get()`
 

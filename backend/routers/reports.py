@@ -157,8 +157,6 @@ async def get_report_with_articles(
 
     try:
         from schemas.report import ReportArticle as ReportArticleSchema
-        from models import PipelineExecution
-        from sqlalchemy import select
 
         result = await service.get_report_with_articles(current_user, report_id)
 
@@ -169,28 +167,11 @@ async def get_report_with_articles(
                 detail="Report not found"
             )
 
-        # Build retrieval_params from the linked PipelineExecution (async load)
-        retrieval_params = {}
-        if result.report.pipeline_execution_id:
-            exec_result = await service.db.execute(
-                select(PipelineExecution).where(
-                    PipelineExecution.id == result.report.pipeline_execution_id
-                )
-            )
-            exec = exec_result.scalars().first()
-            if exec:
-                retrieval_params = {
-                    'start_date': exec.start_date,
-                    'end_date': exec.end_date,
-                    'retrieval_config': exec.retrieval_config,
-                    'presentation_config': exec.presentation_config,
-                }
-
-        # Convert model to schema
+        # Convert model to schema - retrieval_params now comes from the service
         report_schema = Report.model_validate(result.report, from_attributes=True).model_copy(
             update={
                 'article_count': result.article_count,
-                'retrieval_params': retrieval_params,
+                'retrieval_params': result.retrieval_params or {},
             }
         )
 
