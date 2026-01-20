@@ -5,17 +5,15 @@ Research Streams API endpoints
 import logging
 from dataclasses import asdict
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
-import json
 
 logger = logging.getLogger(__name__)
 
 from database import get_async_db
-from models import User, RunType, StreamScope, UserRole
+from models import User, StreamScope, UserRole
 
 from schemas.research_stream import (
     ResearchStream,
@@ -28,7 +26,10 @@ from schemas.research_stream import (
     BroadQuery,
     BroadSearchStrategy,
     ScheduleConfig,
-    PipelineLLMConfig
+    PipelineLLMConfig,
+    EnrichmentConfig,
+    PromptTemplate,
+    CategorizationPrompt
 )
 from schemas.semantic_space import SemanticSpace
 from schemas.sources import INFORMATION_SOURCES, InformationSource
@@ -42,8 +43,9 @@ from services.research_stream_service import (
 from services.retrieval_query_service import RetrievalQueryService
 from services.concept_proposal_service import ConceptProposalService
 from services.broad_search_service import BroadSearchService
-from services.pipeline_service import PipelineService
 from services.user_tracking_service import track_endpoint
+from services.report_summary_service import DEFAULT_PROMPTS
+from services.article_categorization_service import ArticleCategorizationService
 
 from routers.auth import get_current_user
 
@@ -579,6 +581,211 @@ async def update_semantic_filter(
 
 
 # ============================================================================
+# Enrichment and Categorization Configuration Endpoints
+# ============================================================================
+
+class EnrichmentConfigResponse(BaseModel):
+    """Response containing stream's enrichment config or defaults"""
+    enrichment_config: Optional[EnrichmentConfig]
+    is_using_defaults: bool
+    defaults: Dict[str, PromptTemplate]
+
+
+class UpdateEnrichmentConfigRequest(BaseModel):
+    """Request to update enrichment config"""
+    enrichment_config: Optional[EnrichmentConfig] = Field(
+        None,
+        description="Set to null to reset to defaults"
+    )
+
+
+class CategorizationPromptResponse(BaseModel):
+    """Response containing stream's categorization prompt or defaults"""
+    categorization_prompt: Optional[CategorizationPrompt]
+    is_using_defaults: bool
+    defaults: CategorizationPrompt
+
+
+class UpdateCategorizationPromptRequest(BaseModel):
+    """Request to update categorization prompt"""
+    categorization_prompt: Optional[CategorizationPrompt] = Field(
+        None,
+        description="Set to null to reset to defaults"
+    )
+
+
+@router.get("/{stream_id}/enrichment-config", response_model=EnrichmentConfigResponse)
+async def get_stream_enrichment_config(
+    stream_id: int,
+    service: ResearchStreamService = Depends(get_research_stream_service),
+    current_user: User = Depends(get_current_user)
+):
+    """Get enrichment config for a stream (or defaults if not set)"""
+    logger.info(f"get_enrichment_config - user_id={current_user.user_id}, stream_id={stream_id}")
+
+    try:
+        # Verify ownership and get stream
+        stream = await service.get_research_stream(current_user, stream_id)
+        if not stream:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stream not found")
+
+        # Build response
+        enrichment_config = None
+        if stream.enrichment_config:
+            enrichment_config = EnrichmentConfig(**stream.enrichment_config)
+
+        defaults = {
+            key: PromptTemplate(
+                system_prompt=value["system_prompt"],
+                user_prompt_template=value["user_prompt_template"]
+            )
+            for key, value in DEFAULT_PROMPTS.items()
+        }
+
+        return EnrichmentConfigResponse(
+            enrichment_config=enrichment_config,
+            is_using_defaults=enrichment_config is None,
+            defaults=defaults
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_enrichment_config failed - user_id={current_user.user_id}, stream_id={stream_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get enrichment config: {str(e)}"
+        )
+
+
+@router.put("/{stream_id}/enrichment-config")
+async def update_stream_enrichment_config(
+    stream_id: int,
+    request: UpdateEnrichmentConfigRequest,
+    service: ResearchStreamService = Depends(get_research_stream_service),
+    current_user: User = Depends(get_current_user)
+):
+    """Update enrichment config for a stream (set to null to reset to defaults)"""
+    logger.info(f"update_enrichment_config - user_id={current_user.user_id}, stream_id={stream_id}")
+
+    try:
+        # Verify ownership
+        stream = await service.get_research_stream(current_user, stream_id)
+        if not stream:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stream not found")
+
+        # Check if user can modify this stream
+        _check_can_modify_stream(stream, current_user)
+
+        # Prepare enrichment config dict
+        config_dict = request.enrichment_config.dict() if request.enrichment_config else None
+
+        # Update via async method
+        await service.update_research_stream(stream_id, {"enrichment_config": config_dict})
+
+        logger.info(f"Enrichment config saved for stream {stream_id}")
+        return {"status": "success", "message": "Enrichment config updated"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"update_enrichment_config failed - user_id={current_user.user_id}, stream_id={stream_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update enrichment config: {str(e)}"
+        )
+
+
+@router.get("/{stream_id}/categorization-prompt", response_model=CategorizationPromptResponse)
+async def get_stream_categorization_prompt(
+    stream_id: int,
+    service: ResearchStreamService = Depends(get_research_stream_service),
+    current_user: User = Depends(get_current_user)
+):
+    """Get categorization prompt for a stream (or defaults if not set)"""
+    logger.info(f"get_categorization_prompt - user_id={current_user.user_id}, stream_id={stream_id}")
+
+    try:
+        # Verify ownership and get stream
+        stream = await service.get_research_stream(current_user, stream_id)
+        if not stream:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stream not found")
+
+        # Get categorization prompt from presentation_config
+        categorization_prompt = None
+        if stream.presentation_config and isinstance(stream.presentation_config, dict):
+            cat_prompt_data = stream.presentation_config.get("categorization_prompt")
+            if cat_prompt_data:
+                categorization_prompt = CategorizationPrompt(**cat_prompt_data)
+
+        # Get defaults
+        defaults_data = ArticleCategorizationService.get_default_prompts()
+        defaults = CategorizationPrompt(
+            system_prompt=defaults_data["system_prompt"],
+            user_prompt_template=defaults_data["user_prompt_template"]
+        )
+
+        return CategorizationPromptResponse(
+            categorization_prompt=categorization_prompt,
+            is_using_defaults=categorization_prompt is None,
+            defaults=defaults
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_categorization_prompt failed - user_id={current_user.user_id}, stream_id={stream_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get categorization prompt: {str(e)}"
+        )
+
+
+@router.put("/{stream_id}/categorization-prompt")
+async def update_stream_categorization_prompt(
+    stream_id: int,
+    request: UpdateCategorizationPromptRequest,
+    service: ResearchStreamService = Depends(get_research_stream_service),
+    current_user: User = Depends(get_current_user)
+):
+    """Update categorization prompt for a stream (set to null to reset to defaults)"""
+    logger.info(f"update_categorization_prompt - user_id={current_user.user_id}, stream_id={stream_id}")
+
+    try:
+        # Verify ownership
+        stream = await service.get_research_stream(current_user, stream_id)
+        if not stream:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stream not found")
+
+        # Check if user can modify this stream
+        _check_can_modify_stream(stream, current_user)
+
+        # Get current presentation_config
+        current_config = stream.presentation_config or {}
+        if isinstance(current_config, dict):
+            # Update categorization_prompt within presentation_config
+            if request.categorization_prompt:
+                current_config["categorization_prompt"] = request.categorization_prompt.dict()
+            else:
+                current_config.pop("categorization_prompt", None)
+
+        # Update via async method
+        await service.update_research_stream(stream_id, {"presentation_config": current_config})
+
+        logger.info(f"Categorization prompt saved for stream {stream_id}")
+        return {"status": "success", "message": "Categorization prompt updated"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"update_categorization_prompt failed - user_id={current_user.user_id}, stream_id={stream_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update categorization prompt: {str(e)}"
+        )
+
+
+# ============================================================================
 # Shared Retrieval Response Models
 # ============================================================================
 
@@ -963,230 +1170,6 @@ async def validate_concepts(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Concept validation failed: {str(e)}"
-        )
-
-
-# ============================================================================
-# Query Testing (Same Path as Pipeline)
-# ============================================================================
-
-class QueryTestRequest(BaseModel):
-    """Request to test a query against a source"""
-    source_id: str = Field(..., description="Source to test against")
-    query_expression: str = Field(..., description="Query expression to test")
-    max_results: int = Field(10, ge=1, le=100, description="Maximum sample articles to return")
-    start_date: Optional[str] = Field(None, description="Start date for filtering (YYYY/MM/DD) - PubMed only")
-    end_date: Optional[str] = Field(None, description="End date for filtering (YYYY/MM/DD) - PubMed only")
-    date_type: Optional[str] = Field('publication', description="Date type for filtering (entry, publication, etc.) - PubMed only")
-    sort_by: Optional[str] = Field('relevance', description="Sort order (relevance, date) - PubMed only")
-
-
-@router.post("/{stream_id}/test-query", response_model=QueryTestResponse)
-async def test_source_query(
-    stream_id: int,
-    request: QueryTestRequest,
-    stream_service: ResearchStreamService = Depends(get_research_stream_service),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Test a query expression against a source.
-
-    Uses the SAME code path as pipeline execution to ensure consistency.
-    This allows testing query expressions to see how many articles would be
-    returned and preview sample results.
-    """
-    from services.pubmed_service import PubMedService
-    from datetime import datetime, timedelta
-
-    try:
-        # Get stream (raises 404 if not found or not authorized)
-        stream = await stream_service.get_research_stream(current_user, stream_id)
-        if not stream:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
-
-        # Validate source
-        valid_sources = [src.source_id for src in INFORMATION_SOURCES]
-        if request.source_id not in valid_sources:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid source_id. Must be one of: {', '.join(valid_sources)}"
-            )
-
-        # Apply default date range if not provided (7 days like pipeline)
-        start_date = request.start_date
-        end_date = request.end_date
-
-        if not start_date or not end_date:
-            end_date_obj = datetime.now()
-            start_date_obj = end_date_obj - timedelta(days=7)
-            start_date = start_date_obj.strftime("%Y/%m/%d")
-            end_date = end_date_obj.strftime("%Y/%m/%d")
-
-        # Execute query using same service as pipeline
-        if request.source_id.lower() == "pubmed":
-            pubmed_service = PubMedService()
-            articles, metadata = pubmed_service.search_articles(
-                query=request.query_expression,
-                max_results=request.max_results,
-                offset=0,
-                start_date=start_date,
-                end_date=end_date,
-                date_type=request.date_type,
-                sort_by=request.sort_by
-            )
-
-            return QueryTestResponse(
-                success=True,
-                article_count=metadata.get('total_results', 0),
-                sample_articles=articles,
-                error_message=None
-            )
-        else:
-            # Other sources not yet implemented
-            raise HTTPException(
-                status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                detail=f"Source '{request.source_id}' not yet implemented for query testing"
-            )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Query test failed: {e}", exc_info=True)
-        return QueryTestResponse(
-            success=False,
-            article_count=0,
-            sample_articles=[],
-            error_message=str(e)
-        )
-
-
-# ============================================================================
-# Layer 4: Pipeline Execution & Testing
-# ============================================================================
-
-class ExecutePipelineRequest(BaseModel):
-    """Request to execute the full pipeline for a research stream"""
-    run_type: Optional[str] = Field("manual", description="Type of run: manual or scheduled")
-    start_date: Optional[str] = Field(None, description="Start date for retrieval (YYYY/MM/DD). Defaults to 7 days ago.")
-    end_date: Optional[str] = Field(None, description="End date for retrieval (YYYY/MM/DD). Defaults to today.")
-    report_name: Optional[str] = Field(None, description="Custom name for the generated report. Defaults to YYYY.MM.DD format.")
-
-
-@router.post("/{stream_id}/execute-pipeline")
-@track_endpoint("execute_pipeline")
-async def execute_pipeline(
-    stream_id: int,
-    request: ExecutePipelineRequest,
-    db: AsyncSession = Depends(get_async_db),
-    stream_service: ResearchStreamService = Depends(get_research_stream_service),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Execute the full end-to-end pipeline for a research stream.
-
-    This endpoint streams real-time progress updates using Server-Sent Events (SSE).
-
-    Pipeline stages:
-    1. Load configuration
-    2. Execute retrieval queries
-    3. Deduplicate within groups
-    4. Apply semantic filters
-    5. Deduplicate globally
-    6. Categorize articles
-    7. Generate report
-
-    The response is a stream of JSON objects, one per line, each representing a status update.
-    """
-    try:
-        # Verify stream exists and user has access
-        stream = await stream_service.get_research_stream(current_user, stream_id)
-        if not stream:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
-
-        # Check if user can run this stream (based on scope and role)
-        _check_can_modify_stream(stream, current_user)
-
-        # Parse run type (defaults to TEST for direct execution)
-        run_type_value = RunType.TEST
-        if request.run_type:
-            try:
-                run_type_value = RunType(request.run_type.lower())
-            except ValueError:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid run_type. Must be one of: test, scheduled, manual"
-                )
-
-        # Calculate date range (default to last 7 days)
-        from datetime import datetime, timedelta
-
-        if request.end_date:
-            end_date = request.end_date
-        else:
-            end_date = datetime.now().strftime("%Y/%m/%d")
-
-        if request.start_date:
-            start_date = request.start_date
-        else:
-            start_date = (datetime.now() - timedelta(days=7)).strftime("%Y/%m/%d")
-
-        # Create pipeline service
-        pipeline_service = PipelineService(db)
-
-        # Extract user_id before generator to avoid session detachment issues
-        user_id = current_user.user_id
-
-        # Define SSE generator
-        async def event_generator():
-            """Generate SSE events from pipeline status updates"""
-            try:
-                # Use run_pipeline_direct which:
-                # 1. Creates execution record with RUNNING status (worker ignores it)
-                # 2. Runs pipeline directly in this process
-                # 3. Marks execution completed/failed
-                async for status in pipeline_service.run_pipeline_direct(
-                    stream_id=stream_id,
-                    user_id=user_id,
-                    run_type=run_type_value,
-                    start_date=start_date,
-                    end_date=end_date,
-                    report_name=request.report_name
-                ):
-                    # Format as SSE event
-                    status_dict = status.to_dict()
-                    event_data = json.dumps(status_dict)
-                    yield f"data: {event_data}\n\n"
-
-                # Send final completion event
-                yield "data: {\"stage\": \"done\"}\n\n"
-
-            except Exception as e:
-                # Send error event
-                error_data = json.dumps({
-                    "stage": "error",
-                    "message": str(e),
-                    "error_type": type(e).__name__
-                })
-                yield f"data: {error_data}\n\n"
-
-        # Return streaming response
-        return StreamingResponse(
-            event_generator(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no"  # Disable nginx buffering
-            }
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Pipeline execution failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Pipeline execution failed: {str(e)}"
         )
 
 

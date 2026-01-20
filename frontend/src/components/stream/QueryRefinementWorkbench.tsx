@@ -23,6 +23,8 @@ import {
     TrashIcon
 } from '@heroicons/react/24/outline';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
+import { retrievalTestingApi } from '../../lib/api/retrievalTestingApi';
+import { promptTestingApi } from '../../lib/api/promptTestingApi';
 import { ResearchStream } from '../../types';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
 import { copyToClipboard } from '../../lib/utils/clipboard';
@@ -457,7 +459,7 @@ export default function QueryRefinementWorkbench({ streamId, stream, onStreamUpd
                                 onUseAsSource={async (pmids, _label) => {
                                     // Fetch the articles for these PMIDs
                                     try {
-                                        const response = await researchStreamApi.fetchManualPMIDs({ pmids });
+                                        const response = await retrievalTestingApi.fetchByPmids({ pmids });
 
                                         // Update the first source step with config AND results
                                         setSteps(prev => prev.map((step, idx) => {
@@ -739,16 +741,17 @@ function SourceStepContent({ step, onUpdate, stream, streamId, onExpandResults, 
                 let response;
                 if (hasChanges) {
                     // Test custom query expression (allows testing before saving)
-                    response = await researchStreamApi.testCustomQuery({
+                    response = await retrievalTestingApi.testQuery({
                         query_expression: testExpression,
                         start_date: config.startDate,
                         end_date: config.endDate
                     });
                 } else {
                     // Run saved query from stream
-                    response = await researchStreamApi.runQuery({
+                    response = await retrievalTestingApi.testQuery({
                         stream_id: streamId,
                         query_index: queryIndex,
+                        query_expression: testExpression,
                         start_date: config.startDate,
                         end_date: config.endDate
                     });
@@ -784,7 +787,7 @@ function SourceStepContent({ step, onUpdate, stream, streamId, onExpandResults, 
                     throw new Error('No PMIDs provided');
                 }
 
-                const response = await researchStreamApi.fetchManualPMIDs({ pmids });
+                const response = await retrievalTestingApi.fetchByPmids({ pmids });
 
                 onUpdate({
                     results: response
@@ -1135,7 +1138,7 @@ function FilterStepContent({ step, onUpdate, previousSteps, streamId, stream, on
 
             const articles: CanonicalResearchArticle[] = inputStep.results.articles;
 
-            const response = await researchStreamApi.filterArticles({
+            const response = await retrievalTestingApi.testFilter({
                 articles,
                 filter_criteria: testCriteria,
                 threshold: testThreshold
@@ -1428,7 +1431,7 @@ function CategorizeStepContent({ step, onUpdate, previousSteps, streamId, onExpa
 
             const articles: CanonicalResearchArticle[] = inputStep.results.articles;
 
-            const response = await researchStreamApi.categorizeArticles({
+            const response = await promptTestingApi.testCategorization({
                 stream_id: streamId,
                 articles
             });
@@ -1928,7 +1931,7 @@ function CompareResultsView({ step, compareIds, onCompareIdsChange }: { step: Wo
                     .filter((id: string) => id);
             }
 
-            const result = await researchStreamApi.comparePMIDs({
+            const result = await retrievalTestingApi.comparePmids({
                 retrieved_pmids: retrievedPmids,
                 expected_pmids: expectedPmids
             });
@@ -2528,7 +2531,7 @@ function SnapshotCompareView({ snapshotA, snapshotB, onClose, onUseAsSource, onA
         setFilterError(null);
 
         try {
-            const response = await researchStreamApi.filterArticles({
+            const response = await retrievalTestingApi.testFilter({
                 articles,
                 filter_criteria: filterCriteria,
                 threshold: filterThreshold

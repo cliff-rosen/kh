@@ -5,19 +5,28 @@ For platform operations, not platform admin.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sse_starlette.sse import EventSourceResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 from typing import List, Optional
+from datetime import datetime, timedelta
 import logging
 import httpx
 import json
 
-from models import User
+from database import get_async_db
+from models import User, RunType
 from services import auth_service
 from services.operations_service import (
     OperationsService,
     get_operations_service,
 )
+from services.research_stream_service import (
+    ResearchStreamService,
+    get_research_stream_service,
+)
+from services.pipeline_service import PipelineService
 from config.settings import settings
 
 # Import domain types from schemas
@@ -70,6 +79,15 @@ class TriggerRunResponse(BaseModel):
     stream_id: int
     status: str
     message: str
+
+
+class DirectRunRequest(BaseModel):
+    """Request to execute pipeline directly (SSE)."""
+    stream_id: int
+    run_type: str = Field("test", description="Type of run: manual, test, or scheduled")
+    start_date: Optional[str] = Field(None, description="Start date for retrieval (YYYY/MM/DD). Defaults to 7 days ago.")
+    end_date: Optional[str] = Field(None, description="End date for retrieval (YYYY/MM/DD). Defaults to today.")
+    report_name: Optional[str] = Field(None, description="Custom name for the generated report. Defaults to YYYY.MM.DD format.")
 
 
 class RunStatusResponse(BaseModel):
@@ -282,6 +300,123 @@ async def trigger_run(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to trigger run: {str(e)}"
+        )
+
+
+@router.post(
+    "/runs/direct",
+    summary="Execute pipeline directly via SSE"
+)
+async def execute_run_direct(
+    request: DirectRunRequest,
+    db: AsyncSession = Depends(get_async_db),
+    stream_service: ResearchStreamService = Depends(get_research_stream_service),
+    current_user: User = Depends(auth_service.validate_token),
+):
+    """
+    Execute the full end-to-end pipeline directly, streaming progress via SSE.
+
+    Unlike POST /runs which queues the job for the worker, this endpoint runs the
+    pipeline directly in this process and streams real-time status updates.
+
+    Pipeline stages:
+    1. Load configuration
+    2. Execute retrieval queries
+    3. Deduplicate within groups
+    4. Apply semantic filters
+    5. Deduplicate globally
+    6. Categorize articles
+    7. Generate report
+
+    The response is a stream of JSON objects, one per line, each representing a status update.
+    """
+    logger.info(f"execute_run_direct - user_id={current_user.user_id}, stream_id={request.stream_id}")
+
+    try:
+        # Verify stream exists and user has access
+        stream = await stream_service.get_research_stream(current_user, request.stream_id)
+        if not stream:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research stream not found")
+
+        # Parse run type (defaults to TEST for direct execution)
+        run_type_value = RunType.TEST
+        if request.run_type:
+            try:
+                run_type_value = RunType(request.run_type.lower())
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid run_type. Must be one of: test, scheduled, manual"
+                )
+
+        # Calculate date range (default to last 7 days)
+        if request.end_date:
+            end_date = request.end_date
+        else:
+            end_date = datetime.now().strftime("%Y/%m/%d")
+
+        if request.start_date:
+            start_date = request.start_date
+        else:
+            start_date = (datetime.now() - timedelta(days=7)).strftime("%Y/%m/%d")
+
+        # Create pipeline service
+        pipeline_service = PipelineService(db)
+
+        # Extract user_id before generator to avoid session detachment issues
+        user_id = current_user.user_id
+
+        # Define SSE generator
+        async def event_generator():
+            """Generate SSE events from pipeline status updates"""
+            try:
+                # Use run_pipeline_direct which:
+                # 1. Creates execution record with RUNNING status (worker ignores it)
+                # 2. Runs pipeline directly in this process
+                # 3. Marks execution completed/failed
+                async for pipeline_status in pipeline_service.run_pipeline_direct(
+                    stream_id=request.stream_id,
+                    user_id=user_id,
+                    run_type=run_type_value,
+                    start_date=start_date,
+                    end_date=end_date,
+                    report_name=request.report_name
+                ):
+                    # Format as SSE event
+                    status_dict = pipeline_status.to_dict()
+                    event_data = json.dumps(status_dict)
+                    yield f"data: {event_data}\n\n"
+
+                # Send final completion event
+                yield "data: {\"stage\": \"done\"}\n\n"
+
+            except Exception as e:
+                # Send error event
+                error_data = json.dumps({
+                    "stage": "error",
+                    "message": str(e),
+                    "error_type": type(e).__name__
+                })
+                yield f"data: {error_data}\n\n"
+
+        # Return streaming response
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"  # Disable nginx buffering
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"execute_run_direct failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Pipeline execution failed: {str(e)}"
         )
 
 

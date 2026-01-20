@@ -5,7 +5,7 @@
  */
 
 import { api } from './index';
-import { subscribeToSSE } from './streamUtils';
+import { subscribeToSSE, makeStreamRequest } from './streamUtils';
 
 // Import domain types from types/
 import type {
@@ -99,6 +99,21 @@ export interface TriggerRunRequest {
     end_date?: string;
 }
 
+export interface DirectRunRequest {
+    stream_id: number;
+    run_type?: 'manual' | 'test' | 'scheduled';
+    start_date?: string;  // YYYY/MM/DD format
+    end_date?: string;    // YYYY/MM/DD format
+    report_name?: string;
+}
+
+export interface PipelineStatus {
+    stage: string;
+    message: string;
+    data?: Record<string, any>;
+    timestamp: string;
+}
+
 export interface TriggerRunResponse {
     execution_id: string;
     stream_id: number;
@@ -166,4 +181,47 @@ export function subscribeToRunStatus(
     );
 
     return () => cleanup?.();
+}
+
+/**
+ * Execute pipeline directly via SSE (not queued to worker).
+ *
+ * This runs the pipeline in the API process and streams real-time status updates.
+ * Use this for immediate testing/execution rather than queued runs.
+ *
+ * Pipeline stages:
+ * 1. Load configuration
+ * 2. Execute retrieval queries
+ * 3. Deduplicate within groups
+ * 4. Apply semantic filters
+ * 5. Deduplicate globally
+ * 6. Categorize articles
+ * 7. Generate report
+ */
+export async function* executeRunDirect(
+    request: DirectRunRequest
+): AsyncGenerator<PipelineStatus> {
+    const stream = makeStreamRequest(
+        '/api/operations/runs/direct',
+        request,
+        'POST'
+    );
+
+    for await (const update of stream) {
+        // Parse SSE data (format: "data: {json}\n\n")
+        const lines = update.data.split('\n');
+        for (const line of lines) {
+            if (line.startsWith('data: ')) {
+                const jsonData = line.slice(6); // Remove "data: " prefix
+                if (jsonData.trim()) {
+                    try {
+                        const status = JSON.parse(jsonData) as PipelineStatus;
+                        yield status;
+                    } catch (e) {
+                        console.error('Failed to parse pipeline status:', e);
+                    }
+                }
+            }
+        }
+    }
 }

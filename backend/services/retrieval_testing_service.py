@@ -1,5 +1,5 @@
 """
-Refinement Workbench Service
+Retrieval Testing Service
 
 Service for testing and refining queries, filters, and categorization.
 Provides isolated testing capabilities for each pipeline component.
@@ -23,7 +23,7 @@ from agents.prompts.llm import LLMOptions
 logger = logging.getLogger(__name__)
 
 
-class RefinementWorkbenchService:
+class RetrievalTestingService:
     """Service for refinement workbench operations."""
 
     def __init__(self, db: AsyncSession):
@@ -473,13 +473,13 @@ Journal: {{journal}}
         }
 
 
-# Dependency injection provider for async refinement workbench service
+# Dependency injection provider for retrieval testing service
 from fastapi import Depends
 from database import get_async_db
 
 
-async def get_refinement_workbench_service(
+async def get_retrieval_testing_service(
     db: AsyncSession = Depends(get_async_db)
-) -> RefinementWorkbenchService:
-    """Get a RefinementWorkbenchService instance with async database session."""
-    return RefinementWorkbenchService(db)
+) -> RetrievalTestingService:
+    """Get a RetrievalTestingService instance with async database session."""
+    return RetrievalTestingService(db)

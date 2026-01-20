@@ -1776,9 +1776,9 @@ class ReportService:
 
         return PipelineAnalytics(
             report_id=report_id,
-            run_type=execution.run_type if execution else None,
+            run_type=execution.run_type.value if execution and execution.run_type else None,
             report_date=report.report_date.isoformat() if report.report_date else "",
-            pipeline_metrics=execution.pipeline_metrics if execution else None,
+            pipeline_metrics=None,  # Not currently stored in PipelineExecution model
             summary=summary,
             by_group=by_group,
             filter_reasons=filter_reasons,

@@ -1,89 +1,29 @@
 import { api } from './index';
 import { ResearchStream, InformationSource, Concept, RetrievalConfig, SemanticSpace, PresentationConfig, BroadQuery, ScheduleConfig, PipelineLLMConfig } from '../../types';
-import { makeStreamRequest } from './streamUtils';
-import { CanonicalResearchArticle } from '../../types/canonical_types';
 
 // ============================================================================
-// Refinement Workbench API Types
+// Enrichment & Categorization Config Types
 // ============================================================================
 
-export interface RunQueryRequest {
-    stream_id: number;
-    query_index: number;
-    start_date: string;  // YYYY-MM-DD
-    end_date: string;    // YYYY-MM-DD
+export interface PromptTemplate {
+    system_prompt: string;
+    user_prompt_template: string;
 }
 
-export interface TestCustomQueryRequest {
-    query_expression: string;
-    start_date: string;  // YYYY-MM-DD
-    end_date: string;    // YYYY-MM-DD
+export interface EnrichmentConfig {
+    prompts: Record<string, PromptTemplate>;
 }
 
-export interface ManualPMIDsRequest {
-    pmids: string[];
+export interface EnrichmentConfigResponse {
+    enrichment_config: EnrichmentConfig | null;
+    is_using_defaults: boolean;
+    defaults: Record<string, PromptTemplate>;
 }
 
-export interface SourceResponse {
-    articles: CanonicalResearchArticle[];
-    count: number;  // Number of articles actually returned
-    total_count: number;  // Total number of articles matching the query
-    all_matched_pmids: string[];  // ALL PMIDs matching the query (for comparison)
-    metadata?: Record<string, any>;
-}
-
-export interface FilterArticlesRequest {
-    articles: CanonicalResearchArticle[];
-    filter_criteria: string;
-    threshold: number;  // 0.0-1.0
-    output_type?: 'boolean' | 'number' | 'text';  // Expected output type
-}
-
-export interface FilterResult {
-    article: CanonicalResearchArticle;
-    passed: boolean;
-    score: number;
-    reasoning: string;
-}
-
-export interface FilterResponse {
-    results: FilterResult[];
-    count: number;
-    passed: number;
-    failed: number;
-}
-
-export interface CategorizeArticlesRequest {
-    stream_id: number;
-    articles: CanonicalResearchArticle[];
-}
-
-export interface CategoryAssignment {
-    article: CanonicalResearchArticle;
-    assigned_categories: string[];
-}
-
-export interface CategorizeResponse {
-    results: CategoryAssignment[];
-    count: number;
-    category_distribution: Record<string, number>;
-}
-
-export interface ComparePMIDsRequest {
-    retrieved_pmids: string[];
-    expected_pmids: string[];
-}
-
-export interface ComparisonResult {
-    matched: string[];
-    missed: string[];
-    extra: string[];
-    matched_count: number;
-    missed_count: number;
-    extra_count: number;
-    recall: number;
-    precision: number;
-    f1_score: number;
+export interface CategorizationPromptResponse {
+    categorization_prompt: PromptTemplate | null;
+    is_using_defaults: boolean;
+    defaults: PromptTemplate;
 }
 
 /**
@@ -117,41 +57,6 @@ export interface ResearchStreamUpdateRequest {
 export interface QueryGenerationResponse {
     query_expression: string;
     reasoning: string;
-}
-
-// ============================================================================
-// Pipeline Execution API Types (Layer 4: Test & Execute)
-// ============================================================================
-
-export interface PipelineStatus {
-    stage: string;
-    message: string;
-    data?: Record<string, any>;
-    timestamp: string;
-}
-
-export interface ExecutePipelineRequest {
-    run_type?: 'test' | 'scheduled' | 'manual';
-    start_date?: string;  // YYYY/MM/DD format
-    end_date?: string;    // YYYY/MM/DD format
-    report_name?: string;  // Custom name for the report
-}
-
-export interface QueryTestRequest {
-    source_id: string;
-    query_expression: string;
-    max_results?: number;
-    start_date?: string;  // YYYY/MM/DD - PubMed only
-    end_date?: string;    // YYYY/MM/DD - PubMed only
-    date_type?: string;   // 'entry', 'publication', etc. - PubMed only
-    sort_by?: string;     // 'relevance', 'date' - PubMed only
-}
-
-export interface QueryTestResponse {
-    success: boolean;
-    article_count: number;
-    sample_articles: CanonicalResearchArticle[];
-    error_message?: string;
 }
 
 export const researchStreamApi = {
@@ -309,127 +214,8 @@ export const researchStreamApi = {
     },
 
     // ========================================================================
-    // Query Testing (Same Path as Pipeline)
+    // Stream Configuration Updates (for Refinement Workbench)
     // ========================================================================
-
-    /**
-     * Test a query against a source (uses same code path as pipeline)
-     */
-    async testSourceQuery(
-        streamId: number,
-        request: QueryTestRequest
-    ): Promise<QueryTestResponse> {
-        const response = await api.post(
-            `/api/research-streams/${streamId}/test-query`,
-            request
-        );
-        return response.data;
-    },
-
-
-    // ========================================================================
-    // Pipeline Execution (Layer 4: Test & Execute)
-    // ========================================================================
-
-    async* executePipeline(
-        streamId: number,
-        request: ExecutePipelineRequest = {}
-    ): AsyncGenerator<PipelineStatus> {
-        const stream = makeStreamRequest(
-            `/api/research-streams/${streamId}/execute-pipeline`,
-            request,
-            'POST'
-        );
-
-        for await (const update of stream) {
-            // Parse SSE data (format: "data: {json}\n\n")
-            const lines = update.data.split('\n');
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const jsonData = line.slice(6); // Remove "data: " prefix
-                    if (jsonData.trim()) {
-                        try {
-                            const status = JSON.parse(jsonData) as PipelineStatus;
-                            yield status;
-                        } catch (e) {
-                            console.error('Failed to parse pipeline status:', e);
-                        }
-                    }
-                }
-            }
-        }
-    },
-
-
-    // ========================================================================
-    // Refinement Workbench (Layer 4: Test & Refine)
-    // ========================================================================
-
-    /**
-     * Execute a broad query from a stream's retrieval config
-     */
-    async runQuery(request: RunQueryRequest): Promise<SourceResponse> {
-        const response = await api.post(
-            '/api/refinement-workbench/source/run-query',
-            request
-        );
-        return response.data;
-    },
-
-    /**
-     * Test a custom query expression (not necessarily saved to stream)
-     */
-    async testCustomQuery(request: TestCustomQueryRequest): Promise<SourceResponse> {
-        const response = await api.post(
-            '/api/refinement-workbench/source/test-custom-query',
-            request
-        );
-        return response.data;
-    },
-
-    /**
-     * Fetch articles by PMID list
-     */
-    async fetchManualPMIDs(request: ManualPMIDsRequest): Promise<SourceResponse> {
-        const response = await api.post(
-            '/api/refinement-workbench/source/manual-pmids',
-            request
-        );
-        return response.data;
-    },
-
-    /**
-     * Apply semantic filtering to articles
-     */
-    async filterArticles(request: FilterArticlesRequest): Promise<FilterResponse> {
-        const response = await api.post(
-            '/api/refinement-workbench/filter',
-            request
-        );
-        return response.data;
-    },
-
-    /**
-     * Categorize articles using stream's Layer 3 categories
-     */
-    async categorizeArticles(request: CategorizeArticlesRequest): Promise<CategorizeResponse> {
-        const response = await api.post(
-            '/api/refinement-workbench/categorize',
-            request
-        );
-        return response.data;
-    },
-
-    /**
-     * Compare retrieved vs expected PMID lists
-     */
-    async comparePMIDs(request: ComparePMIDsRequest): Promise<ComparisonResult> {
-        const response = await api.post(
-            '/api/refinement-workbench/compare',
-            request
-        );
-        return response.data;
-    },
 
     /**
      * Update a specific broad query's expression
@@ -461,6 +247,52 @@ export const researchStreamApi = {
             filter
         );
         return response.data;
+    },
+
+    // ========================================================================
+    // Enrichment & Categorization Configuration
+    // ========================================================================
+
+    /**
+     * Get enrichment config for a stream (or defaults if not set)
+     */
+    async getEnrichmentConfig(streamId: number): Promise<EnrichmentConfigResponse> {
+        const response = await api.get(`/api/research-streams/${streamId}/enrichment-config`);
+        return response.data;
+    },
+
+    /**
+     * Update enrichment config for a stream (set to null to reset to defaults)
+     */
+    async updateEnrichmentConfig(
+        streamId: number,
+        enrichmentConfig: EnrichmentConfig | null
+    ): Promise<void> {
+        await api.put(
+            `/api/research-streams/${streamId}/enrichment-config`,
+            { enrichment_config: enrichmentConfig }
+        );
+    },
+
+    /**
+     * Get categorization prompt for a stream (or defaults if not set)
+     */
+    async getCategorizationPrompt(streamId: number): Promise<CategorizationPromptResponse> {
+        const response = await api.get(`/api/research-streams/${streamId}/categorization-prompt`);
+        return response.data;
+    },
+
+    /**
+     * Update categorization prompt for a stream (set to null to reset to defaults)
+     */
+    async updateCategorizationPrompt(
+        streamId: number,
+        categorizationPrompt: PromptTemplate | null
+    ): Promise<void> {
+        await api.put(
+            `/api/research-streams/${streamId}/categorization-prompt`,
+            { categorization_prompt: categorizationPrompt }
+        );
     },
 
     /**

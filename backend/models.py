@@ -176,7 +176,7 @@ class ResearchStream(Base):
     retrieval_config = Column(JSON, nullable=False)
 
     # Layer 3: PRESENTATION CONFIG - How to organize results for users
-    # Stores PresentationConfig (categories) as JSON
+    # Stores PresentationConfig (categories) and categorization prompt as JSON
     # Format: {"categories": [{...}, {...}]}
     presentation_config = Column(JSON, nullable=False)
 

@@ -56,7 +56,8 @@ import { WorkbenchState } from '../components/stream/QueryRefinementWorkbench';
 import ContentEnrichmentForm from '../components/stream/ContentEnrichmentForm';
 import CategorizationPromptForm from '../components/stream/CategorizationPromptForm';
 import ChatTray from '../components/chat/ChatTray';
-import { promptWorkbenchApi, PromptTemplate, SlugInfo } from '../lib/api/promptWorkbenchApi';
+import { promptTestingApi, PromptTemplate, SlugInfo } from '../lib/api/promptTestingApi';
+import { researchStreamApi } from '../lib/api/researchStreamApi';
 import SchemaProposalCard from '../components/chat/SchemaProposalCard';
 import PresentationCategoriesCard from '../components/chat/PresentationCategoriesCard';
 import PromptSuggestionsCard from '../components/chat/PromptSuggestionsCard';
@@ -273,8 +274,8 @@ export default function EditStreamPage() {
 
             try {
                 const [defaultsResponse, configResponse] = await Promise.all([
-                    promptWorkbenchApi.getDefaults(),
-                    promptWorkbenchApi.getStreamEnrichmentConfig(Number(streamId))
+                    promptTestingApi.getDefaults(),
+                    researchStreamApi.getEnrichmentConfig(Number(streamId))
                 ]);
 
                 const currentPrompts = configResponse.enrichment_config?.prompts

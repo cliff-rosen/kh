@@ -270,6 +270,39 @@ testCategorization(request)             → POST   /api/prompt-testing/test-cate
 
 ---
 
+## File Disposition
+
+### Backend Routers (`backend/routers/`)
+
+| File | Disposition | Notes |
+|------|-------------|-------|
+| `refinement_workbench.py` | DELETE | Replaced by `retrieval_testing.py` |
+| `prompt_workbench.py` | DELETE | Replaced by `prompt_testing.py` |
+| `research_streams.py` | MODIFY | Add enrichment-config and categorization-prompt endpoints; remove test-query and execute-pipeline |
+| `operations.py` | MODIFY | Add `POST /runs/direct` for direct SSE execution |
+| `retrieval_testing.py` | NEW | Query testing, filter testing, PMID comparison |
+| `prompt_testing.py` | NEW | Prompt testing (summary + categorization) |
+
+### Backend Services (`backend/services/`)
+
+| File | Disposition | Notes |
+|------|-------------|-------|
+| `refinement_workbench_service.py` | RENAME | → `retrieval_testing_service.py`; remove `categorize_articles` |
+| `prompt_workbench_service.py` | RENAME | → `prompt_testing_service.py`; add `test_categorization` |
+
+### Frontend API Files (`frontend/src/lib/api/`)
+
+| File | Disposition | Notes |
+|------|-------------|-------|
+| `promptWorkbenchApi.ts` | DELETE | Replaced by `promptTestingApi.ts` |
+| `researchStreamApi.ts` | MODIFY | Add enrichment/categorization config; remove refinement workbench calls |
+| `operationsApi.ts` | MODIFY | Add `executeRunDirect` |
+| `index.ts` | MODIFY | Export new API files |
+| `retrievalTestingApi.ts` | NEW | Query testing, filter testing, PMID comparison |
+| `promptTestingApi.ts` | NEW | Prompt testing (defaults + summary + categorization) |
+
+---
+
 ## Changes Required
 
 ### Backend

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { PlayIcon, CheckCircleIcon, ExclamationCircleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
-import { researchStreamApi, PipelineStatus } from '../../lib/api/researchStreamApi';
+import { executeRunDirect, PipelineStatus } from '../../lib/api/operationsApi';
 
 interface ExecutePipelineTabProps {
     streamId: number;
@@ -48,8 +48,9 @@ export default function ExecutePipelineTab({ streamId, canModify = true }: Execu
             const formattedStartDate = startDate.replace(/-/g, '/');
             const formattedEndDate = endDate.replace(/-/g, '/');
 
-            // Use the API method to execute pipeline
-            const stream = researchStreamApi.executePipeline(streamId, {
+            // Use the operations API to execute pipeline directly
+            const stream = executeRunDirect({
+                stream_id: streamId,
                 run_type: 'manual',
                 start_date: formattedStartDate,
                 end_date: formattedEndDate,

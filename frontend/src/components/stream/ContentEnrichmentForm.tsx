@@ -29,14 +29,13 @@ import {
     XMarkIcon
 } from '@heroicons/react/24/outline';
 import {
-    promptWorkbenchApi,
+    promptTestingApi,
     PromptTemplate,
     SlugInfo,
-    EnrichmentConfig,
     TestSummaryPromptResponse
-} from '../../lib/api/promptWorkbenchApi';
+} from '../../lib/api/promptTestingApi';
 import { reportApi } from '../../lib/api/reportApi';
-import { researchStreamApi } from '../../lib/api/researchStreamApi';
+import { researchStreamApi, EnrichmentConfig } from '../../lib/api/researchStreamApi';
 import { llmApi } from '../../lib/api/llmApi';
 import { Report, Category, ResearchStream, ModelConfig, ModelInfo, DEFAULT_MODEL_CONFIG } from '../../types';
 import { copyToClipboard } from '../../lib/utils/clipboard';
@@ -125,8 +124,8 @@ export default function ContentEnrichmentForm({
             try {
                 // Load all data in parallel
                 const [defaultsResponse, configResponse, streamReports, stream] = await Promise.all([
-                    promptWorkbenchApi.getDefaults(),
-                    promptWorkbenchApi.getStreamEnrichmentConfig(streamId),
+                    promptTestingApi.getDefaults(),
+                    researchStreamApi.getEnrichmentConfig(streamId),
                     reportApi.getReportsForStream(streamId),
                     researchStreamApi.getResearchStream(streamId)
                 ]);
@@ -277,7 +276,7 @@ export default function ContentEnrichmentForm({
             const allDefaults = allPromptsUsingDefaults();
             const config: EnrichmentConfig | null = allDefaults ? null : { prompts };
             console.log('Saving enrichment config:', { allDefaults, config, prompts });
-            await promptWorkbenchApi.updateStreamEnrichmentConfig(streamId, config);
+            await researchStreamApi.updateEnrichmentConfig(streamId, config);
             console.log('Save successful');
             // Update saved state
             setSavedPrompts(prompts);
@@ -343,7 +342,7 @@ export default function ContentEnrichmentForm({
                 request.llm_config = customModelConfig;
             }
 
-            const result = await promptWorkbenchApi.testSummaryPrompt(request);
+            const result = await promptTestingApi.testSummaryPrompt(request);
 
             // Add to history
             const newEntry: HistoryEntry = {

@@ -28,11 +28,12 @@ import {
     ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 import {
-    promptWorkbenchApi,
+    promptTestingApi,
     PromptTemplate,
     SlugInfo,
     TestCategorizationPromptResponse,
-} from '../../lib/api/promptWorkbenchApi';
+} from '../../lib/api/promptTestingApi';
+import { researchStreamApi } from '../../lib/api/researchStreamApi';
 import { reportApi } from '../../lib/api/reportApi';
 import { llmApi } from '../../lib/api/llmApi';
 import { Report, ResearchStream, ModelInfo, ModelConfig, DEFAULT_MODEL_CONFIG } from '../../types';
@@ -115,8 +116,8 @@ export default function CategorizationPromptForm({ streamId, stream }: Categoriz
         try {
             // Load defaults, config, and reports in parallel
             const [defaultsRes, configRes, streamReports] = await Promise.all([
-                promptWorkbenchApi.getCategorizationDefaults(),
-                promptWorkbenchApi.getStreamCategorizationConfig(streamId),
+                promptTestingApi.getCategorizationDefaults(),
+                researchStreamApi.getCategorizationPrompt(streamId),
                 reportApi.getReportsForStream(streamId),
             ]);
 
@@ -164,7 +165,7 @@ export default function CategorizationPromptForm({ streamId, stream }: Categoriz
         try {
             // Save null if using defaults, otherwise save the custom prompt
             const usingDefault = isUsingDefaultPrompt();
-            await promptWorkbenchApi.updateStreamCategorizationConfig(
+            await researchStreamApi.updateCategorizationPrompt(
                 streamId,
                 usingDefault ? null : prompt
             );
@@ -250,7 +251,7 @@ export default function CategorizationPromptForm({ streamId, stream }: Categoriz
                 request.llm_config = customModelConfig;
             }
 
-            const result = await promptWorkbenchApi.testCategorizationPrompt(request);
+            const result = await promptTestingApi.testCategorizationPrompt(request);
 
             // Add to history
             const newEntry: HistoryEntry = {

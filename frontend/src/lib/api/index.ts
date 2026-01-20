@@ -206,4 +206,6 @@ export const formatTimestamp = (timestamp: string): string => {
 
 // Export all APIs
 export * from './googleScholarApi';
-export * from './researchStreamApi'; 
+export * from './researchStreamApi';
+export * from './retrievalTestingApi';
+export * from './promptTestingApi'; 
