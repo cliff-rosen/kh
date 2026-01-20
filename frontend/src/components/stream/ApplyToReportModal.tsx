@@ -39,7 +39,7 @@ interface ApplyToReportModalProps {
     llmConfig?: RegenerateSummariesLLMConfig;
 }
 
-type ModalStage = 'loading' | 'review' | 'generating' | 'compare' | 'saving';
+type ModalStage = 'loading' | 'review' | 'generating' | 'compare' | 'saving' | 'success';
 
 export default function ApplyToReportModal({
     isOpen,
@@ -54,6 +54,7 @@ export default function ApplyToReportModal({
     const [previews, setPreviews] = useState<ArticleSummaryPreviewItem[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [error, setError] = useState<string | null>(null);
+    const [updateCount, setUpdateCount] = useState<number>(0);
 
     // Fetch current summaries when modal opens
     useEffect(() => {
@@ -149,8 +150,8 @@ export default function ApplyToReportModal({
                 }));
 
             const result = await batchUpdateArticleSummaries(reportId, { updates });
-            showSuccessToast(result.message);
-            onClose();
+            setUpdateCount(result.updated_count);
+            setStage('success');
         } catch (err: any) {
             console.error('Error applying summaries:', err);
             setError(err.message || 'Failed to apply summaries');
@@ -469,6 +470,22 @@ export default function ApplyToReportModal({
                             </p>
                         </div>
                     )}
+
+                    {/* Success Stage */}
+                    {stage === 'success' && (
+                        <div className="max-w-xl mx-auto text-center py-12">
+                            <CheckCircleIcon className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                            <h4 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                                Update Complete
+                            </h4>
+                            <p className="text-gray-600 dark:text-gray-400 mb-2">
+                                Successfully updated <span className="font-semibold text-green-600 dark:text-green-400">{updateCount}</span> article {updateCount === 1 ? 'summary' : 'summaries'}.
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                The changes have been saved to the report.
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Footer */}
@@ -501,6 +518,18 @@ export default function ApplyToReportModal({
                         >
                             <CheckIcon className="h-5 w-5" />
                             Apply {selectedIds.size} Selected
+                        </button>
+                    </div>
+                )}
+
+                {stage === 'success' && (
+                    <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-center flex-shrink-0">
+                        <button
+                            onClick={onClose}
+                            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                        >
+                            <CheckIcon className="h-5 w-5" />
+                            Close
                         </button>
                     </div>
                 )}
