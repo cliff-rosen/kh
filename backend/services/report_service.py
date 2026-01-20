@@ -279,6 +279,14 @@ class CurationHistoryData:
     total_count: int
 
 
+@dataclass
+class RegenerateSummariesResult:
+    """Result of regenerating summaries with a custom prompt."""
+    updated_count: int
+    message: str
+    prompt_type: str
+
+
 class ReportService:
     """
     Service for all Report and ReportArticleAssociation operations.
@@ -1784,6 +1792,218 @@ class ReportService:
             filter_reasons=filter_reasons,
             category_counts=category_counts,
             wip_articles=wip_articles_data,
+        )
+
+    async def regenerate_summaries_with_prompt(
+        self,
+        report_id: int,
+        user_id: int,
+        prompt_type: str,
+        system_prompt: str,
+        user_prompt_template: str,
+        llm_config: Optional[Dict[str, Any]] = None,
+    ) -> RegenerateSummariesResult:
+        """
+        Regenerate summaries for a report using a custom prompt.
+
+        This method allows users to apply a tested prompt to regenerate:
+        - article_summary: All article AI summaries in the report
+        - category_summary: All category summaries in the report
+        - executive_summary: The executive summary
+
+        Records a CurationEvent for audit trail.
+        Only allowed for non-approved reports.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID (for access verification and audit)
+            prompt_type: One of 'article_summary', 'category_summary', 'executive_summary'
+            system_prompt: The system prompt to use
+            user_prompt_template: The user prompt template to use
+            llm_config: Optional LLM configuration (model_id, temperature, max_tokens, reasoning_effort)
+
+        Returns:
+            RegenerateSummariesResult with updated count, message, and prompt type
+
+        Raises:
+            HTTPException: If report not found, access denied, or invalid prompt_type
+        """
+        from models import CurationEvent
+        from services.report_summary_service import ReportSummaryService
+        from sqlalchemy.orm.attributes import flag_modified
+
+        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+
+        # Check approval status - cannot modify approved reports
+        if report.approval_status == ApprovalStatus.APPROVED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot modify approved reports"
+            )
+
+        # Validate prompt_type
+        valid_prompt_types = ['article_summary', 'category_summary', 'executive_summary']
+        if prompt_type not in valid_prompt_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid prompt_type. Must be one of: {valid_prompt_types}"
+            )
+
+        # Build enrichment_config from the custom prompt
+        enrichment_config = {
+            "prompts": {
+                prompt_type: {
+                    "system_prompt": system_prompt,
+                    "user_prompt_template": user_prompt_template,
+                }
+            }
+        }
+
+        # Build model_config if provided
+        model_config = None
+        if llm_config:
+            from agents.prompts.llm import ModelConfig as LLMModelConfig
+            model_config = LLMModelConfig(
+                model_id=llm_config.get("model_id", ""),
+                temperature=llm_config.get("temperature"),
+                max_tokens=llm_config.get("max_tokens"),
+                reasoning_effort=llm_config.get("reasoning_effort"),
+            )
+
+        # RETRIEVE: Get visible associations
+        associations = await self.association_service.get_visible_for_report(report_id)
+
+        if not associations:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No articles in report to regenerate summaries for"
+            )
+
+        summary_service = ReportSummaryService()
+        updated_count = 0
+        old_value_summary = ""
+
+        if prompt_type == 'article_summary':
+            # BUILD ITEMS
+            items = summary_service.build_article_summary_items(associations, stream)
+
+            if not items:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No articles with abstracts to summarize"
+                )
+
+            old_value_summary = f"{len(items)} article summaries"
+
+            # GENERATE
+            results = await summary_service.generate_article_summary(
+                items=items,
+                enrichment_config=enrichment_config,
+                model_config=model_config,
+            )
+
+            # WRITE: Update associations
+            articles_with_abstracts = [a for a in associations if a.article and a.article.abstract]
+            for i, result in enumerate(results):
+                if result.ok and result.data:
+                    assoc = articles_with_abstracts[i]
+                    assoc.ai_summary = result.data
+                    updated_count += 1
+
+        elif prompt_type == 'category_summary':
+            # Get categories from stream
+            categories = stream.presentation_config.get('categories', []) if stream and stream.presentation_config else []
+
+            if not categories:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No categories configured for this stream"
+                )
+
+            # BUILD ITEMS
+            items = summary_service.build_category_summary_items(associations, categories, stream)
+
+            if not items:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No categories have articles to summarize"
+                )
+
+            old_value_summary = f"{len(items)} category summaries"
+
+            # GENERATE
+            results = await summary_service.generate_category_summary(
+                items=items,
+                enrichment_config=enrichment_config,
+                model_config=model_config,
+            )
+
+            # WRITE: Update report enrichments
+            enrichments = report.enrichments or {}
+            category_summaries = enrichments.get('category_summaries', {})
+
+            for i, result in enumerate(results):
+                if result.ok and result.data:
+                    cat_id = items[i]["category_id"]
+                    category_summaries[cat_id] = result.data
+                    updated_count += 1
+
+            enrichments['category_summaries'] = category_summaries
+            report.enrichments = enrichments
+            flag_modified(report, "enrichments")
+
+        elif prompt_type == 'executive_summary':
+            # Get existing category summaries
+            enrichments = report.enrichments or {}
+            category_summaries = enrichments.get('category_summaries', {})
+
+            old_value_summary = "executive summary"
+
+            # BUILD ITEM
+            item = summary_service.build_executive_summary_item(
+                associations=associations,
+                category_summaries=category_summaries,
+                stream=stream,
+            )
+
+            # GENERATE
+            result = await summary_service.generate_executive_summary(
+                items=item,
+                enrichment_config=enrichment_config,
+                model_config=model_config,
+            )
+
+            # WRITE: Update report enrichments
+            if result.ok and result.data:
+                enrichments['executive_summary'] = result.data
+                report.enrichments = enrichments
+                flag_modified(report, "enrichments")
+                updated_count = 1
+
+        # Record CurationEvent
+        event = CurationEvent(
+            report_id=report_id,
+            event_type='regenerate_summaries',
+            field_name=prompt_type,
+            old_value=old_value_summary,
+            new_value=f"Regenerated {updated_count} using custom prompt",
+            notes="Applied custom prompt from Layer 4 testing",
+            curator_id=user_id,
+        )
+        self.db.add(event)
+
+        # Update curation tracking
+        report.has_curation_edits = True
+        report.last_curated_by = user_id
+        report.last_curated_at = datetime.utcnow()
+
+        # Commit everything in one transaction
+        await self.db.commit()
+
+        return RegenerateSummariesResult(
+            updated_count=updated_count,
+            message=f"Successfully regenerated {updated_count} {prompt_type.replace('_', ' ')}(s)",
+            prompt_type=prompt_type,
         )
 
 

@@ -38,8 +38,10 @@ import {
 import { reportApi } from '../../lib/api/reportApi';
 import { researchStreamApi, EnrichmentConfig } from '../../lib/api/researchStreamApi';
 import { llmApi } from '../../lib/api/llmApi';
+import { regenerateSummariesWithPrompt, RegenerateSummariesRequest } from '../../lib/api/curationApi';
 import { Report, Category, ResearchStream, ModelConfig, ModelInfo, DEFAULT_MODEL_CONFIG } from '../../types';
 import { copyToClipboard } from '../../lib/utils/clipboard';
+import { showSuccessToast, showErrorToast } from '../../lib/errorToast';
 
 interface PromptSuggestion {
     target: 'system_prompt' | 'user_prompt_template';
@@ -97,6 +99,7 @@ export default function ContentEnrichmentForm({
     const [selectedArticleIndex, setSelectedArticleIndex] = useState<number>(0);
     const [pastedData, setPastedData] = useState('');
     const [isTesting, setIsTesting] = useState(false);
+    const [isApplyingToReport, setIsApplyingToReport] = useState(false);
     const [useStreamModel, setUseStreamModel] = useState(true);  // Use stream's configured model
     const [customModelConfig, setCustomModelConfig] = useState<ModelConfig>({ ...DEFAULT_MODEL_CONFIG });
     const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
@@ -437,6 +440,41 @@ export default function ContentEnrichmentForm({
         }));
     };
 
+    // Apply the current prompt to regenerate summaries in a report
+    const handleApplyToReport = async (reportId: number) => {
+        const entry = currentHistoryEntry;
+        if (!entry || entry.dataSource.type !== 'report') return;
+
+        setIsApplyingToReport(true);
+        try {
+            const request: RegenerateSummariesRequest = {
+                prompt_type: entry.promptType,
+                prompt: {
+                    system_prompt: entry.prompts.system_prompt,
+                    user_prompt_template: entry.prompts.user_prompt_template,
+                },
+            };
+
+            // Include LLM config if not using stream default
+            if (!useStreamModel && customModelConfig) {
+                request.llm_config = {
+                    model_id: customModelConfig.model_id,
+                    temperature: customModelConfig.temperature,
+                    max_tokens: customModelConfig.max_tokens,
+                    reasoning_effort: customModelConfig.reasoning_effort,
+                };
+            }
+
+            const result = await regenerateSummariesWithPrompt(reportId, request);
+            showSuccessToast(result.message);
+        } catch (err: any) {
+            console.error('Error applying prompt to report:', err);
+            showErrorToast(err, 'Failed to apply prompt to report');
+        } finally {
+            setIsApplyingToReport(false);
+        }
+    };
+
     const isViewingLatest = historyIndex === history.length - 1;
 
     // Restore prompts from a history entry
@@ -556,6 +594,38 @@ export default function ContentEnrichmentForm({
                                     <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
                                         {testResult.llm_response}
                                     </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Apply to Report - only show if test was successful and from a report */}
+                        {testResult?.llm_response && !testResult?.error && entry.dataSource.type === 'report' && (
+                            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                <div className="flex items-center justify-between">
+                                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                                        <p className="font-medium">Apply to Report</p>
+                                        <p className="text-xs mt-0.5">
+                                            Regenerate all {entry.promptType.replace('_', ' ')}s in Report #{entry.dataSource.reportId} using this prompt
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleApplyToReport(entry.dataSource.type === 'report' ? entry.dataSource.reportId : 0)}
+                                        disabled={isApplyingToReport}
+                                        className="px-4 py-2 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                    >
+                                        {isApplyingToReport ? (
+                                            <>
+                                                <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                                Applying...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <SparklesIcon className="h-4 w-4" />
+                                                Apply to Report
+                                            </>
+                                        )}
+                                    </button>
                                 </div>
                             </div>
                         )}

@@ -10,7 +10,10 @@ Uses the unified call_llm interface for all LLM calls.
 Supports custom prompts via enrichment_config with slug replacement.
 """
 
-from typing import List, Dict, Optional, Any, Union
+from typing import List, Dict, Optional, Any, Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from models import ReportArticleAssociation, ResearchStream
 
 from agents.prompts.llm import call_llm, ModelConfig, LLMOptions, LLMResult
 import logging
@@ -423,7 +426,172 @@ class ReportSummaryService:
         return results
 
     # =========================================================================
-    # Helper Methods
+    # Item Building Helpers - Build items dicts from associations
+    # Used by both pipeline (first generation) and curation (regeneration)
+    # =========================================================================
+
+    def build_article_summary_items(
+        self,
+        associations: List[Any],  # List[ReportArticleAssociation]
+        stream: Any,  # ResearchStream
+    ) -> List[Dict[str, Any]]:
+        """
+        Build items list for article summary generation from associations.
+
+        Args:
+            associations: List of ReportArticleAssociation with loaded article relationship
+            stream: ResearchStream for context
+
+        Returns:
+            List of item dicts ready for generate_article_summary()
+        """
+        items = []
+        for assoc in associations:
+            article = assoc.article
+            if not article or not article.abstract:
+                continue
+
+            wip_article = assoc.wip_article
+            items.append({
+                "id": article.article_id,
+                "title": article.title or "Untitled",
+                "authors": self.format_authors(article.authors),
+                "journal": article.journal or "Unknown",
+                "year": str(article.year) if article.year else "Unknown",
+                "abstract": article.abstract or "",
+                "filter_reason": wip_article.filter_score_reason if wip_article else "",
+                "stream_name": stream.stream_name or "" if stream else "",
+                "stream_purpose": stream.purpose or "" if stream else "",
+            })
+        return items
+
+    def build_category_summary_items(
+        self,
+        associations: List[Any],  # List[ReportArticleAssociation]
+        categories: List[Any],  # List of category objects/dicts
+        stream: Any,  # ResearchStream
+    ) -> List[Dict[str, Any]]:
+        """
+        Build items list for category summary generation from associations.
+
+        Args:
+            associations: List of ReportArticleAssociation with loaded article relationship
+            categories: List of category objects (with id, name, topics, specific_inclusions)
+            stream: ResearchStream for context
+
+        Returns:
+            List of item dicts ready for generate_category_summary(), one per non-empty category
+        """
+        # Group associations by category
+        category_to_associations: Dict[str, List[Any]] = {}
+        for assoc in associations:
+            for cat_id in (assoc.presentation_categories or []):
+                if cat_id not in category_to_associations:
+                    category_to_associations[cat_id] = []
+                category_to_associations[cat_id].append(assoc)
+
+        items = []
+        for category in categories:
+            # Handle both object and dict categories
+            cat_id = category.id if hasattr(category, 'id') else category.get('id')
+            cat_name = category.name if hasattr(category, 'name') else category.get('name', '')
+            cat_topics = category.topics if hasattr(category, 'topics') else category.get('topics', [])
+            cat_inclusions = category.specific_inclusions if hasattr(category, 'specific_inclusions') else category.get('specific_inclusions', [])
+
+            category_assocs = category_to_associations.get(cat_id, [])
+
+            # Skip categories with no articles
+            if not category_assocs:
+                continue
+
+            # Prepare article info from associations
+            article_info = []
+            for assoc in category_assocs[:15]:
+                article = assoc.article
+                if article:
+                    article_info.append({
+                        "title": article.title,
+                        "authors": (article.authors or [])[:3],
+                        "journal": article.journal,
+                        "year": article.year,
+                        "abstract": (article.abstract or "")[:400],
+                    })
+
+            # Gather article summaries for this category
+            article_summaries = [assoc.ai_summary for assoc in category_assocs if assoc.ai_summary]
+            summaries_text = "\n\n".join([f"- {s}" for s in article_summaries])
+
+            # Build category description
+            category_description = f"{cat_name}. "
+            if cat_inclusions:
+                category_description += "Includes: " + ", ".join(cat_inclusions)
+
+            items.append({
+                "category_id": cat_id,
+                "category_name": cat_name,
+                "category_description": category_description,
+                "category_topics": ", ".join(cat_topics) if cat_topics else "",
+                "articles_count": str(len(category_assocs)),
+                "articles_formatted": self.format_articles_for_prompt(article_info),
+                "articles_summaries": summaries_text,
+                "stream_name": stream.stream_name or "" if stream else "",
+                "stream_purpose": stream.purpose or "" if stream else "",
+            })
+
+        return items
+
+    def build_executive_summary_item(
+        self,
+        associations: List[Any],  # List[ReportArticleAssociation]
+        category_summaries: Dict[str, str],  # {category_id: summary_text}
+        stream: Any,  # ResearchStream
+    ) -> Dict[str, Any]:
+        """
+        Build item dict for executive summary generation.
+
+        Args:
+            associations: List of ReportArticleAssociation with loaded article relationship
+            category_summaries: Dict mapping category IDs to their summary text
+            stream: ResearchStream for context
+
+        Returns:
+            Single item dict ready for generate_executive_summary()
+        """
+        # Prepare article info for prompt (limit to first 20 for context)
+        article_info = []
+        for assoc in associations[:20]:
+            article = assoc.article
+            if article:
+                article_info.append({
+                    "title": article.title,
+                    "authors": (article.authors or [])[:3],
+                    "journal": article.journal,
+                    "year": article.year,
+                    "abstract": (article.abstract or "")[:500],
+                })
+
+        # Gather AI-generated article summaries
+        article_summaries = [assoc.ai_summary for assoc in associations if assoc.ai_summary]
+        article_summaries_text = "\n\n".join([f"- {s}" for s in article_summaries[:30]])
+
+        # Format category summaries
+        category_summaries_text = "\n\n".join([
+            f"**{cat_id}**: {summary}"
+            for cat_id, summary in category_summaries.items()
+        ])
+
+        return {
+            "articles_count": str(len(associations)),
+            "articles_formatted": self.format_articles_for_prompt(article_info, max_articles=20),
+            "articles_summaries": article_summaries_text,
+            "categories_count": str(len(category_summaries)),
+            "categories_summaries": category_summaries_text,
+            "stream_name": stream.stream_name or "" if stream else "",
+            "stream_purpose": stream.purpose or "" if stream else "",
+        }
+
+    # =========================================================================
+    # Formatting Helper Methods
     # =========================================================================
 
     @staticmethod

@@ -741,7 +741,7 @@ class PipelineService:
         Returns:
             Number of summaries generated
         """
-        # Get associations - assoc.article gives us the Article with abstract
+        # RETRIEVE: Get associations with articles
         associations = await self.association_service.get_visible_for_report(report_id)
 
         # Filter to associations with articles that have abstracts
@@ -752,25 +752,13 @@ class PipelineService:
         if not articles_to_summarize:
             return 0
 
-        # Build items list for summary service
-        items = []
-        for assoc in articles_to_summarize:
-            article = assoc.article
-            wip_article = assoc.wip_article
+        # BUILD ITEMS: Use shared helper
+        items = self.summary_service.build_article_summary_items(articles_to_summarize, stream)
 
-            items.append({
-                "id": article.article_id,
-                "title": article.title or "Untitled",
-                "authors": self.summary_service.format_authors(article.authors),
-                "journal": article.journal or "Unknown",
-                "year": str(article.year) if article.year else "Unknown",
-                "abstract": article.abstract or "",
-                "filter_reason": wip_article.filter_score_reason if wip_article else "",
-                "stream_name": stream.stream_name or "",
-                "stream_purpose": stream.purpose or "",
-            })
+        if not items:
+            return 0
 
-        # Call summary service
+        # GENERATE: Call summary service
         results = await self.summary_service.generate_article_summary(
             items=items,
             enrichment_config=enrichment_config,
@@ -778,7 +766,7 @@ class PipelineService:
             options=self._get_llm_options(stage_config, on_progress),
         )
 
-        # Build association updates from results
+        # WRITE: Build association updates from results
         # Results are in same order as items/articles_to_summarize
         association_updates = []
         for i, result in enumerate(results):
@@ -786,7 +774,7 @@ class PipelineService:
                 assoc = articles_to_summarize[i]
                 association_updates.append((assoc, result.data))
 
-        # Write to associations
+        # Write to associations (no commit - parent manages transaction)
         if association_updates:
             return self.association_service.bulk_set_ai_summary_from_pipeline(
                 association_updates
@@ -805,7 +793,7 @@ class PipelineService:
         # Get configuration for category summary stage
         stage_config = get_stage_config(ctx.llm_config, "category_summary")
 
-        # Get associations - single source of truth for article data
+        # RETRIEVE: Get associations - single source of truth for article data
         if not ctx.report:
             ctx.category_summaries = {}
             yield PipelineStatus("category_summaries", "No report available", {})
@@ -817,56 +805,19 @@ class PipelineService:
             yield PipelineStatus("category_summaries", "No articles to summarize", {"categories": 0})
             return
 
-        # Group associations by category
-        category_to_associations: Dict[str, List[ReportArticleAssociation]] = {}
-        for assoc in associations:
-            for cat_id in (assoc.presentation_categories or []):
-                if cat_id not in category_to_associations:
-                    category_to_associations[cat_id] = []
-                category_to_associations[cat_id].append(assoc)
+        # BUILD ITEMS: Use shared helper
+        items = self.summary_service.build_category_summary_items(
+            associations=associations,
+            categories=ctx.presentation_config.categories,
+            stream=ctx.stream,
+        )
 
-        # Build items list for summary service - one item per category (skip empty categories)
-        items = []
-        for category in ctx.presentation_config.categories:
-            category_assocs = category_to_associations.get(category.id, [])
+        if not items:
+            ctx.category_summaries = {}
+            yield PipelineStatus("category_summaries", "No categories with articles", {"categories": 0})
+            return
 
-            # Skip categories with no articles
-            if not category_assocs:
-                continue
-
-            # Prepare article info from associations
-            article_info = []
-            for assoc in category_assocs[:15]:
-                article = assoc.article
-                if article:
-                    article_info.append({
-                        "title": article.title,
-                        "authors": (article.authors or [])[:3],
-                        "journal": article.journal,
-                        "year": article.year,
-                        "abstract": (article.abstract or "")[:400],
-                    })
-
-            # Gather article summaries for this category
-            article_summaries = [assoc.ai_summary for assoc in category_assocs if assoc.ai_summary]
-            summaries_text = "\n\n".join([f"- {s}" for s in article_summaries])
-
-            items.append({
-                "category_id": category.id,
-                "category_name": category.name,
-                "category_description": f"{category.name}. " + (
-                    "Includes: " + ", ".join(category.specific_inclusions)
-                    if category.specific_inclusions else ""
-                ),
-                "category_topics": ", ".join(category.topics) if category.topics else "",
-                "articles_count": str(len(category_assocs)),
-                "articles_formatted": self.summary_service.format_articles_for_prompt(article_info),
-                "articles_summaries": summaries_text,
-                "stream_name": ctx.stream.stream_name or "",
-                "stream_purpose": ctx.stream.purpose or "",
-            })
-
-        # Generate summaries in batch
+        # GENERATE: Call summary service
         results = await self.summary_service.generate_category_summary(
             items=items,
             enrichment_config=ctx.enrichment_config,
@@ -883,7 +834,7 @@ class PipelineService:
             else:
                 ctx.category_summaries[cat_id] = f"Error generating summary: {result.error}"
 
-        # Save category summaries to report
+        # WRITE: Save category summaries to report (no commit - parent manages transaction for final commit)
         if ctx.report:
             await self.db.refresh(ctx.report)
             enrichments = ctx.report.enrichments or {}
@@ -912,7 +863,7 @@ class PipelineService:
         # Get LLM config for executive summary
         stage_config = get_stage_config(ctx.llm_config, "executive_summary")
 
-        # Get associations - single source of truth for article data
+        # RETRIEVE: Get associations - single source of truth for article data
         if not ctx.report:
             ctx.executive_summary = "No report available for executive summary."
             yield PipelineStatus("executive_summary", "No report available", {})
@@ -924,41 +875,14 @@ class PipelineService:
             yield PipelineStatus("executive_summary", "No articles to summarize", {})
             return
 
-        # Prepare article info for prompt (limit to first 20 for context)
-        article_info = []
-        for assoc in associations[:20]:
-            article = assoc.article
-            if article:
-                article_info.append({
-                    "title": article.title,
-                    "authors": (article.authors or [])[:3],
-                    "journal": article.journal,
-                    "year": article.year,
-                    "abstract": (article.abstract or "")[:500],
-                })
+        # BUILD ITEM: Use shared helper
+        item = self.summary_service.build_executive_summary_item(
+            associations=associations,
+            category_summaries=ctx.category_summaries,
+            stream=ctx.stream,
+        )
 
-        # Gather AI-generated article summaries
-        article_summaries = [assoc.ai_summary for assoc in associations if assoc.ai_summary]
-        article_summaries_text = "\n\n".join([f"- {s}" for s in article_summaries[:30]])
-
-        # Format category summaries
-        category_summaries_text = "\n\n".join([
-            f"**{cat_id}**: {summary}"
-            for cat_id, summary in ctx.category_summaries.items()
-        ])
-
-        # Build item for executive summary
-        item = {
-            "articles_count": str(len(associations)),
-            "articles_formatted": self.summary_service.format_articles_for_prompt(article_info, max_articles=20),
-            "articles_summaries": article_summaries_text,
-            "categories_count": str(len(ctx.category_summaries)),
-            "categories_summaries": category_summaries_text,
-            "stream_name": ctx.stream.stream_name or "",
-            "stream_purpose": ctx.stream.purpose or "",
-        }
-
-        # Generate executive summary (single item)
+        # GENERATE: Call summary service (single item)
         result = await self.summary_service.generate_executive_summary(
             items=item,
             enrichment_config=ctx.enrichment_config,
@@ -970,7 +894,7 @@ class PipelineService:
         else:
             ctx.executive_summary = f"Error generating executive summary: {result.error}"
 
-        # Save executive summary to report and set original_enrichments
+        # WRITE: Save executive summary to report and set original_enrichments
         if ctx.report:
             await self.db.refresh(ctx.report)
             enrichments = ctx.report.enrichments or {}

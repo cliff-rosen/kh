@@ -21,7 +21,7 @@ from datetime import datetime
 import logging
 
 from database import get_async_db
-from models import User, UserRole
+from models import User, UserRole, CurationEvent
 from services import auth_service
 from services.report_service import ReportService, get_report_service
 from services.wip_article_service import WipArticleService, get_wip_article_service
@@ -86,6 +86,34 @@ class ApprovalRequestRequest(BaseModel):
 class UpdateWipArticleNotesRequest(BaseModel):
     """Request to update curation notes on a WipArticle"""
     curation_notes: str
+
+
+class PromptTemplate(BaseModel):
+    """Prompt template for summary generation"""
+    system_prompt: str
+    user_prompt_template: str
+
+
+class ModelConfig(BaseModel):
+    """LLM model configuration"""
+    model_id: str
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
+    reasoning_effort: Optional[str] = None
+
+
+class RegenerateSummariesRequest(BaseModel):
+    """Request to regenerate summaries using a custom prompt"""
+    prompt_type: str  # 'article_summary', 'category_summary', 'executive_summary'
+    prompt: PromptTemplate
+    llm_config: Optional[ModelConfig] = None
+
+
+class RegenerateSummariesResponse(BaseModel):
+    """Response from regenerating summaries"""
+    updated_count: int
+    message: str
+    prompt_type: str
 
 
 # --- Curation View Response Schemas ---
@@ -1210,4 +1238,62 @@ async def regenerate_article_summary(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to regenerate article summary: {str(e)}"
+        )
+
+
+@router.post("/{report_id}/regenerate-summaries", response_model=RegenerateSummariesResponse)
+async def regenerate_summaries_with_prompt(
+    report_id: int,
+    request: RegenerateSummariesRequest,
+    service: ReportService = Depends(get_report_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Regenerate summaries for a report using a custom prompt.
+
+    This endpoint allows users to apply a tested prompt to regenerate:
+    - article_summary: All article AI summaries in the report
+    - category_summary: All category summaries in the report
+    - executive_summary: The executive summary
+
+    Records a CurationEvent for audit trail.
+    Only allowed for non-approved reports.
+    """
+    logger.info(f"regenerate_summaries_with_prompt - user_id={current_user.user_id}, report_id={report_id}, prompt_type={request.prompt_type}")
+
+    try:
+        # Build llm_config dict if provided
+        llm_config = None
+        if request.llm_config:
+            llm_config = {
+                "model_id": request.llm_config.model_id,
+                "temperature": request.llm_config.temperature,
+                "max_tokens": request.llm_config.max_tokens,
+                "reasoning_effort": request.llm_config.reasoning_effort,
+            }
+
+        result = await service.regenerate_summaries_with_prompt(
+            report_id=report_id,
+            user_id=current_user.user_id,
+            prompt_type=request.prompt_type,
+            system_prompt=request.prompt.system_prompt,
+            user_prompt_template=request.prompt.user_prompt_template,
+            llm_config=llm_config,
+        )
+
+        logger.info(f"regenerate_summaries_with_prompt complete - user_id={current_user.user_id}, report_id={report_id}, prompt_type={request.prompt_type}, updated={result.updated_count}")
+
+        return RegenerateSummariesResponse(
+            updated_count=result.updated_count,
+            message=result.message,
+            prompt_type=result.prompt_type,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"regenerate_summaries_with_prompt failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to regenerate summaries: {str(e)}"
         )

@@ -428,3 +428,47 @@ export async function regenerateArticleSummary(
     );
     return response.data;
 }
+
+// ==================== Regenerate with Custom Prompt ====================
+
+export interface PromptTemplate {
+    system_prompt: string;
+    user_prompt_template: string;
+}
+
+export interface ModelConfig {
+    model_id: string;
+    temperature?: number;
+    max_tokens?: number;
+    reasoning_effort?: string;
+}
+
+export interface RegenerateSummariesRequest {
+    prompt_type: 'article_summary' | 'category_summary' | 'executive_summary';
+    prompt: PromptTemplate;
+    llm_config?: ModelConfig;
+}
+
+export interface RegenerateSummariesResponse {
+    updated_count: number;
+    message: string;
+    prompt_type: string;
+}
+
+/**
+ * Regenerate summaries for a report using a custom prompt.
+ * Used to apply a tested prompt from Layer 4 to a report's summaries.
+ *
+ * @param reportId - The report to update
+ * @param request - The prompt type, custom prompt, and optional LLM config
+ */
+export async function regenerateSummariesWithPrompt(
+    reportId: number,
+    request: RegenerateSummariesRequest
+): Promise<RegenerateSummariesResponse> {
+    const response = await api.post<RegenerateSummariesResponse>(
+        `${BASE_PATH}/${reportId}/regenerate-summaries`,
+        request
+    );
+    return response.data;
+}
