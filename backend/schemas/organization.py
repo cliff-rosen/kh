@@ -188,3 +188,26 @@ class ArticleNotesResponse(BaseModel):
     article_id: int
     notes: List[ArticleNote]
     total_count: int
+
+
+# ============================================================================
+# INVITATION TYPES
+# ============================================================================
+
+class Invitation(BaseModel):
+    """Invitation to join an organization."""
+    invitation_id: int
+    email: str
+    org_id: Optional[int] = None
+    org_name: Optional[str] = None
+    role: str
+    token: str
+    invite_url: str
+    created_at: datetime
+    expires_at: datetime
+    accepted_at: Optional[datetime] = None
+    is_revoked: bool = False
+    inviter_email: Optional[str] = None
+
+    class Config:
+        from_attributes = True

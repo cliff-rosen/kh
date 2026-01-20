@@ -7,12 +7,13 @@ import logging
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select
 from fastapi import HTTPException, status, Depends
 
-from models import Invitation, Organization, User
+from models import Invitation as InvitationModel, Organization, User
+from schemas.organization import Invitation
 from config.settings import settings
 from database import get_async_db
 
@@ -41,21 +42,21 @@ class InvitationService:
         org_id: Optional[int] = None,
         include_accepted: bool = False,
         include_expired: bool = False
-    ) -> List[Dict[str, Any]]:
+    ) -> List[Invitation]:
         """List invitations with optional filters."""
-        where_clauses = [Invitation.is_revoked == False]
+        where_clauses = [InvitationModel.is_revoked == False]
 
         if org_id:
-            where_clauses.append(Invitation.org_id == org_id)
+            where_clauses.append(InvitationModel.org_id == org_id)
         if not include_accepted:
-            where_clauses.append(Invitation.accepted_at == None)
+            where_clauses.append(InvitationModel.accepted_at == None)
         if not include_expired:
-            where_clauses.append(Invitation.expires_at > datetime.utcnow())
+            where_clauses.append(InvitationModel.expires_at > datetime.utcnow())
 
         result = await self.db.execute(
-            select(Invitation)
+            select(InvitationModel)
             .where(*where_clauses)
-            .order_by(Invitation.created_at.desc())
+            .order_by(InvitationModel.created_at.desc())
         )
         invitations = list(result.scalars().all())
 
@@ -75,20 +76,20 @@ class InvitationService:
                 )
                 inviter = inviter_result.scalars().first()
 
-            invitation_list.append({
-                "invitation_id": inv.invitation_id,
-                "email": inv.email,
-                "org_id": inv.org_id,
-                "org_name": org.name if org else None,
-                "role": inv.role,
-                "token": inv.token,
-                "invite_url": f"{settings.FRONTEND_URL}/register?token={inv.token}",
-                "created_at": inv.created_at,
-                "expires_at": inv.expires_at,
-                "accepted_at": inv.accepted_at,
-                "is_revoked": inv.is_revoked,
-                "inviter_email": inviter.email if inviter else None
-            })
+            invitation_list.append(Invitation(
+                invitation_id=inv.invitation_id,
+                email=inv.email,
+                org_id=inv.org_id,
+                org_name=org.name if org else None,
+                role=inv.role,
+                token=inv.token,
+                invite_url=f"{settings.FRONTEND_URL}/register?token={inv.token}",
+                created_at=inv.created_at,
+                expires_at=inv.expires_at,
+                accepted_at=inv.accepted_at,
+                is_revoked=inv.is_revoked,
+                inviter_email=inviter.email if inviter else None
+            ))
 
         logger.info(f"Listed {len(invitation_list)} invitations")
         return invitation_list
@@ -96,15 +97,15 @@ class InvitationService:
     async def get_pending_invitation_for_email(
         self,
         email: str
-    ) -> Optional[Invitation]:
+    ) -> Optional[InvitationModel]:
         """Check if a pending invitation exists for an email."""
         result = await self.db.execute(
-            select(Invitation).where(
+            select(InvitationModel).where(
                 and_(
-                    Invitation.email == email,
-                    Invitation.accepted_at == None,
-                    Invitation.is_revoked == False,
-                    Invitation.expires_at > datetime.utcnow()
+                    InvitationModel.email == email,
+                    InvitationModel.accepted_at == None,
+                    InvitationModel.is_revoked == False,
+                    InvitationModel.expires_at > datetime.utcnow()
                 )
             )
         )
@@ -117,7 +118,7 @@ class InvitationService:
         invited_by: int,
         org_id: Optional[int] = None,
         expires_in_days: int = 7
-    ) -> Dict[str, Any]:
+    ) -> Invitation:
         """Create a new invitation."""
         existing_invite = await self.get_pending_invitation_for_email(email)
         if existing_invite:
@@ -140,7 +141,7 @@ class InvitationService:
 
         token = secrets.token_urlsafe(32)
 
-        invitation = Invitation(
+        invitation = InvitationModel(
             email=email,
             token=token,
             org_id=org_id,
@@ -161,25 +162,25 @@ class InvitationService:
         org_info = f"org {org.name}" if org else "no org (platform admin)"
         logger.info(f"Created invitation for {email} to {org_info}")
 
-        return {
-            "invitation_id": invitation.invitation_id,
-            "email": invitation.email,
-            "org_id": invitation.org_id,
-            "org_name": org.name if org else None,
-            "role": invitation.role,
-            "token": invitation.token,
-            "invite_url": f"{settings.FRONTEND_URL}/register?token={invitation.token}",
-            "created_at": invitation.created_at,
-            "expires_at": invitation.expires_at,
-            "accepted_at": invitation.accepted_at,
-            "is_revoked": invitation.is_revoked,
-            "inviter_email": inviter.email if inviter else None
-        }
+        return Invitation(
+            invitation_id=invitation.invitation_id,
+            email=invitation.email,
+            org_id=invitation.org_id,
+            org_name=org.name if org else None,
+            role=invitation.role,
+            token=invitation.token,
+            invite_url=f"{settings.FRONTEND_URL}/register?token={invitation.token}",
+            created_at=invitation.created_at,
+            expires_at=invitation.expires_at,
+            accepted_at=invitation.accepted_at,
+            is_revoked=invitation.is_revoked,
+            inviter_email=inviter.email if inviter else None
+        )
 
     async def revoke_invitation(self, invitation_id: int) -> bool:
         """Revoke an invitation."""
         result = await self.db.execute(
-            select(Invitation).where(Invitation.invitation_id == invitation_id)
+            select(InvitationModel).where(InvitationModel.invitation_id == invitation_id)
         )
         invitation = result.scalars().first()
 
@@ -201,10 +202,10 @@ class InvitationService:
     async def get_invitation_by_id(
         self,
         invitation_id: int
-    ) -> Optional[Invitation]:
+    ) -> Optional[InvitationModel]:
         """Get an invitation by ID."""
         result = await self.db.execute(
-            select(Invitation).where(Invitation.invitation_id == invitation_id)
+            select(InvitationModel).where(InvitationModel.invitation_id == invitation_id)
         )
         return result.scalars().first()
 
@@ -218,7 +219,7 @@ class InvitationService:
         Returns InvitationValidationResult with validation status and details.
         """
         result = await self.db.execute(
-            select(Invitation).where(Invitation.token == token)
+            select(InvitationModel).where(InvitationModel.token == token)
         )
         invitation = result.scalars().first()
 

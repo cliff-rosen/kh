@@ -476,7 +476,7 @@ async def list_invitations(
             include_accepted=include_accepted,
             include_expired=include_expired
         )
-        result = [InvitationResponse(**inv) for inv in invitations]
+        result = [InvitationResponse.model_validate(inv.model_dump()) for inv in invitations]
         logger.info(f"list_invitations complete - count={len(result)}")
         return result
 
@@ -529,7 +529,7 @@ async def create_invitation(
             expires_in_days=invitation.expires_in_days
         )
         logger.info(f"create_invitation complete - email={invitation.email}")
-        return InvitationResponse(**result)
+        return InvitationResponse.model_validate(result.model_dump())
 
     except HTTPException:
         raise

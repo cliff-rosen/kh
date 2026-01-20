@@ -6,6 +6,7 @@ These tools are available on the reports page and article modal views.
 """
 
 import logging
+from dataclasses import asdict
 from typing import Any, Dict, List, Union
 
 from sqlalchemy.orm import Session
@@ -203,40 +204,40 @@ def execute_get_report_articles(
         if not result:
             return f"No report found with ID {report_id} or access denied."
 
-        if not result["articles"]:
+        if not result.articles:
             return f"No articles found in report {report_id}."
 
         # Format text for LLM
-        text_lines = [f"=== Articles in Report: {result['report_name']} ==="]
-        text_lines.append(f"Total: {result['total_articles']} articles\n")
+        text_lines = [f"=== Articles in Report: {result.report_name} ==="]
+        text_lines.append(f"Total: {result.total_articles} articles\n")
 
-        for i, article in enumerate(result["articles"], 1):
-            categories_str = ', '.join(article["categories"]) if article["categories"] else 'Uncategorized'
+        for i, article in enumerate(result.articles, 1):
+            categories_str = ', '.join(article.categories) if article.categories else 'Uncategorized'
 
             if mode == "condensed":
                 text_lines.append(f"""
-{i}. PMID: {article['pmid']}
-   Title: {article['title']}
-   Journal: {article['journal'] or 'Unknown'} ({article['publication_date']})
+{i}. PMID: {article.pmid}
+   Title: {article.title}
+   Journal: {article.journal or 'Unknown'} ({article.publication_date})
    Categories: {categories_str}
 """)
             else:  # expanded
                 text_lines.append(f"""
-{i}. PMID: {article['pmid']}
-   Title: {article['title']}
-   Authors: {article.get('authors') or 'Unknown'}
-   Journal: {article['journal'] or 'Unknown'} ({article['publication_date']})
+{i}. PMID: {article.pmid}
+   Title: {article.title}
+   Authors: {article.authors or 'Unknown'}
+   Journal: {article.journal or 'Unknown'} ({article.publication_date})
    Categories: {categories_str}
-   Relevance Score: {article['relevance_score'] or 'N/A'}
+   Relevance Score: {article.relevance_score or 'N/A'}
 
    Abstract:
-   {article.get('abstract') or 'No abstract available.'}
+   {article.abstract or 'No abstract available.'}
 """)
 
         payload = {
             "type": "report_articles",
             "data": {
-                **result,
+                **asdict(result),
                 "mode": mode
             }
         }

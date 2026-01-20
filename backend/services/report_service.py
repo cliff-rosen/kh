@@ -116,12 +116,16 @@ class ArticleMetadataResult:
 @dataclass
 class NotesUpdateResult:
     """Result of updating notes."""
+    report_id: int
+    article_id: int
     notes: Optional[str]
 
 
 @dataclass
 class EnrichmentsUpdateResult:
     """Result of updating enrichments."""
+    report_id: int
+    article_id: int
     ai_enrichments: Dict[str, Any]
 
 
@@ -297,6 +301,33 @@ class SuppliedArticleStatusData:
     retrieval_unit_id: Optional[str] = None
     filter_score: Optional[float] = None
     filter_score_reason: Optional[str] = None
+
+
+@dataclass
+class ReportArticleListItem:
+    """Article item in a report article list."""
+    pmid: Optional[str]
+    title: str
+    journal: Optional[str]
+    publication_date: str  # Year or "Unknown"
+    categories: List[str]
+    category_ids: List[str]
+    relevance_score: Optional[float]
+    ranking: Optional[int]
+    # Optional expanded fields
+    authors: Optional[List[str]] = None
+    abstract: Optional[str] = None
+    doi: Optional[str] = None
+
+
+@dataclass
+class ReportArticlesListData:
+    """Report with its list of articles."""
+    report_id: int
+    report_name: str
+    report_date: Optional[str]
+    total_articles: int
+    articles: List[ReportArticleListItem]
 
 
 @dataclass
@@ -687,7 +718,7 @@ class ReportService:
         report_id: int,
         user_id: int,
         include_abstract: bool = False
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[ReportArticlesListData]:
         """
         Get the list of articles in a report with metadata (async).
 
@@ -700,7 +731,7 @@ class ReportService:
             include_abstract: If True, include full abstracts (expanded mode)
 
         Returns:
-            Dict with report info and articles list, or None if not found/no access
+            ReportArticlesListData with report info and articles list, or None if not found/no access
         """
         result = await self.get_report_with_access(report_id, user_id)
         if not result:
@@ -725,31 +756,29 @@ class ReportService:
             category_ids = assoc.presentation_categories or []
             category_names = [category_map.get(cid, cid) for cid in category_ids]
 
-            article_data = {
-                "pmid": article.pmid,
-                "title": article.title,
-                "journal": article.journal,
-                "publication_date": article.year or "Unknown",
-                "categories": category_names,
-                "category_ids": category_ids,
-                "relevance_score": assoc.relevance_score,
-                "ranking": assoc.ranking
-            }
+            article_item = ReportArticleListItem(
+                pmid=article.pmid,
+                title=article.title,
+                journal=article.journal,
+                publication_date=str(article.year) if article.year else "Unknown",
+                categories=category_names,
+                category_ids=category_ids,
+                relevance_score=assoc.relevance_score,
+                ranking=assoc.ranking,
+                authors=article.authors if include_abstract else None,
+                abstract=article.abstract if include_abstract else None,
+                doi=article.doi if include_abstract else None
+            )
 
-            if include_abstract:
-                article_data["authors"] = article.authors
-                article_data["abstract"] = article.abstract
-                article_data["doi"] = article.doi
+            articles.append(article_item)
 
-            articles.append(article_data)
-
-        return {
-            "report_id": report_id,
-            "report_name": report.report_name,
-            "report_date": report.report_date.isoformat() if report.report_date else None,
-            "total_articles": len(articles),
-            "articles": articles
-        }
+        return ReportArticlesListData(
+            report_id=report_id,
+            report_name=report.report_name,
+            report_date=report.report_date.isoformat() if report.report_date else None,
+            total_articles=len(articles),
+            articles=articles
+        )
 
     async def get_wip_articles_for_report(
         self,
@@ -884,21 +913,14 @@ class ReportService:
         report_id: int,
         article_id: int
     ) -> Optional[ArticleMetadataResult]:
-        """Get full article metadata (async)."""
+        """Get notes and AI enrichments for an article in a report (async)."""
         assoc = await self.get_article_association(user, report_id, article_id)
         if not assoc:
             return None
 
-        stmt = select(Article).where(Article.article_id == article_id)
-        result = await self.db.execute(stmt)
-        article = result.scalars().first()
-
-        if not article:
-            return None
-
         return ArticleMetadataResult(
-            article=article,
-            association=assoc
+            notes=assoc.notes,
+            ai_enrichments=assoc.ai_enrichments
         )
 
     async def get_report_email_html(
