@@ -11,6 +11,7 @@ import time
 from dataclasses import dataclass, field, asdict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, func, select
+from sqlalchemy.orm import joinedload
 from typing import List, Optional, Dict, Any, Set, Tuple
 from datetime import date, datetime, timezone
 from fastapi import HTTPException, status
@@ -2269,11 +2270,16 @@ class ReportService:
         report, user, stream = await self._get_report_for_curation(report_id, user_id)
 
         # Get all articles in the report
+        # Use CASE to put NULLs last (MariaDB doesn't support NULLS LAST)
+        from sqlalchemy import case
         stmt = (
             select(ReportArticleAssociation)
             .options(joinedload(ReportArticleAssociation.article))
             .where(ReportArticleAssociation.report_id == report_id)
-            .order_by(ReportArticleAssociation.ranking.asc().nullslast())
+            .order_by(
+                case((ReportArticleAssociation.ranking.is_(None), 1), else_=0),
+                ReportArticleAssociation.ranking.asc()
+            )
         )
         result = await self.db.execute(stmt)
         associations = result.unique().scalars().all()
@@ -2282,7 +2288,7 @@ class ReportService:
         for assoc in associations:
             articles.append(CurrentArticleSummaryItem(
                 article_id=assoc.article_id,
-                association_id=assoc.id,
+                association_id=assoc.article_id,  # Composite PK, use article_id as identifier
                 title=assoc.article.title or "Untitled",
                 pmid=assoc.article.pmid,
                 journal=assoc.article.journal,
@@ -2398,7 +2404,7 @@ class ReportService:
             result = results[i]
             previews.append(ArticleSummaryPreviewItem(
                 article_id=assoc.article_id,
-                association_id=assoc.id,
+                association_id=assoc.article_id,  # Composite PK, use article_id as identifier
                 title=assoc.article.title or "Untitled",
                 pmid=assoc.article.pmid,
                 current_summary=assoc.ai_summary,
