@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { authApi, type LoginCredentials, type RegisterCredentials } from '../lib/api/authApi'
-import { setTokenRefreshedHandler, setAuthToken, getAuthToken, getUserData, setUserData, clearAuthData, type TokenPayload } from '../lib/api'
+import { setTokenRefreshedHandler, type TokenPayload } from '../lib/api'
+import { setAuthToken, getAuthToken, getUserData, setUserData, clearAuthData } from '../lib/authStorage'
 import { setStreamTokenRefreshedHandler } from '../lib/api/streamUtils'
 import { trackEvent } from '../lib/api/trackingApi'
 import type { AuthUser, UserRole } from '../types/user'
