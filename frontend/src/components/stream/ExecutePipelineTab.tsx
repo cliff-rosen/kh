@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { PlayIcon, CheckCircleIcon, ExclamationCircleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import { executeRunDirect, PipelineStatus } from '../../lib/api/operationsApi';
 
@@ -12,6 +12,7 @@ export default function ExecutePipelineTab({ streamId, canModify = true }: Execu
     const [statusLog, setStatusLog] = useState<PipelineStatus[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [reportId, setReportId] = useState<number | null>(null);
+    const logEndRef = useRef<HTMLDivElement>(null);
 
     // Calculate default dates (last 7 days)
     const getDefaultDates = () => {
@@ -36,6 +37,13 @@ export default function ExecutePipelineTab({ streamId, canModify = true }: Execu
     };
 
     const [reportName, setReportName] = useState(getDefaultReportName());
+
+    // Auto-scroll to bottom when new log entries are added
+    useEffect(() => {
+        if (logEndRef.current) {
+            logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [statusLog]);
 
     const executePipeline = async () => {
         setIsExecuting(true);
@@ -139,43 +147,28 @@ export default function ExecutePipelineTab({ streamId, canModify = true }: Execu
     };
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-orange-900 dark:text-orange-200 mb-2">
-                    Full Pipeline Execution
-                </h3>
-                <p className="text-sm text-orange-800 dark:text-orange-300">
-                    Execute the complete pipeline end-to-end: retrieval, deduplication, filtering, categorization, and report generation.
-                    This creates a full test report with real-time progress updates.
-                </p>
-            </div>
+        <div className="flex flex-col h-full">
+            {/* Compact Controls Row */}
+            <div className="flex-shrink-0 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg p-4 mb-4">
+                <div className="flex flex-wrap items-end gap-4">
+                    {/* Report Name */}
+                    <div className="flex-1 min-w-[150px]">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Report Name
+                        </label>
+                        <input
+                            type="text"
+                            value={reportName}
+                            onChange={(e) => setReportName(e.target.value)}
+                            disabled={isExecuting}
+                            placeholder="YYYY.MM.DD"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 text-sm"
+                        />
+                    </div>
 
-            {/* Report Name */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg p-4">
-                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Report Name</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Name for the generated report. Defaults to today's date.
-                </p>
-                <input
-                    type="text"
-                    value={reportName}
-                    onChange={(e) => setReportName(e.target.value)}
-                    disabled={isExecuting}
-                    placeholder="YYYY.MM.DD"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
-                />
-            </div>
-
-            {/* Date Range Selection */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg p-4">
-                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Date Range for Retrieval</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Retrieves articles that entered PubMed during this date range (using entry date).
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {/* Start Date */}
+                    <div className="min-w-[140px]">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Start Date
                         </label>
                         <input
@@ -183,11 +176,13 @@ export default function ExecutePipelineTab({ streamId, canModify = true }: Execu
                             value={startDate}
                             onChange={(e) => setStartDate(e.target.value)}
                             disabled={isExecuting}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 text-sm"
                         />
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+
+                    {/* End Date */}
+                    <div className="min-w-[140px]">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             End Date
                         </label>
                         <input
@@ -195,52 +190,52 @@ export default function ExecutePipelineTab({ streamId, canModify = true }: Execu
                             value={endDate}
                             onChange={(e) => setEndDate(e.target.value)}
                             disabled={isExecuting}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 text-sm"
                         />
+                    </div>
+
+                    {/* Execute Button */}
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={executePipeline}
+                            disabled={isExecuting || !canModify}
+                            title={!canModify ? 'You do not have permission to run this stream' : undefined}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors whitespace-nowrap ${
+                                isExecuting || !canModify
+                                    ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                                    : 'bg-orange-600 hover:bg-orange-700 text-white'
+                            }`}
+                        >
+                            {isExecuting ? (
+                                <>
+                                    <ArrowPathIcon className="h-5 w-5 animate-spin" />
+                                    Executing...
+                                </>
+                            ) : (
+                                <>
+                                    <PlayIcon className="h-5 w-5" />
+                                    Execute Pipeline
+                                </>
+                            )}
+                        </button>
+
+                        {reportId && (
+                            <a
+                                href={`/reports?stream=${streamId}&report=${reportId}`}
+                                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md font-medium transition-colors whitespace-nowrap"
+                            >
+                                <CheckCircleIcon className="h-5 w-5" />
+                                View Report
+                            </a>
+                        )}
                     </div>
                 </div>
             </div>
 
-            {/* Execute Button */}
-            <div className="flex items-center gap-4">
-                <button
-                    type="button"
-                    onClick={executePipeline}
-                    disabled={isExecuting || !canModify}
-                    title={!canModify ? 'You do not have permission to run this stream' : undefined}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${
-                        isExecuting || !canModify
-                            ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                            : 'bg-orange-600 hover:bg-orange-700 text-white'
-                    }`}
-                >
-                    {isExecuting ? (
-                        <>
-                            <ArrowPathIcon className="h-5 w-5 animate-spin" />
-                            Executing Pipeline...
-                        </>
-                    ) : (
-                        <>
-                            <PlayIcon className="h-5 w-5" />
-                            Execute Pipeline
-                        </>
-                    )}
-                </button>
-
-                {reportId && (
-                    <a
-                        href={`/reports?stream=${streamId}&report=${reportId}`}
-                        className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md font-medium transition-colors"
-                    >
-                        <CheckCircleIcon className="h-5 w-5" />
-                        View Report
-                    </a>
-                )}
-            </div>
-
             {/* Error Display */}
             {error && (
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <div className="flex-shrink-0 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
                     <div className="flex items-start gap-3">
                         <ExclamationCircleIcon className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                         <div>
@@ -251,13 +246,13 @@ export default function ExecutePipelineTab({ streamId, canModify = true }: Execu
                 </div>
             )}
 
-            {/* Status Log */}
-            {statusLog.length > 0 && (
-                <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
-                    <div className="bg-gray-100 dark:bg-gray-800 px-4 py-2 border-b border-gray-300 dark:border-gray-600">
-                        <h4 className="font-medium text-gray-900 dark:text-white">Execution Log</h4>
+            {/* Status Log - Takes remaining space */}
+            {statusLog.length > 0 ? (
+                <div className="flex-1 min-h-0 border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden flex flex-col">
+                    <div className="flex-shrink-0 bg-gray-100 dark:bg-gray-800 px-4 py-2 border-b border-gray-300 dark:border-gray-600">
+                        <h4 className="font-medium text-gray-900 dark:text-white text-sm">Execution Log</h4>
                     </div>
-                    <div className="bg-white dark:bg-gray-900 p-4 space-y-3 max-h-[500px] overflow-y-auto font-mono text-sm">
+                    <div className="flex-1 min-h-0 overflow-y-auto bg-white dark:bg-gray-900 p-4 space-y-2 font-mono text-sm">
                         {statusLog.map((status, idx) => (
                             <div key={idx} className="flex items-start gap-3">
                                 <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 font-mono">
@@ -266,8 +261,8 @@ export default function ExecutePipelineTab({ streamId, canModify = true }: Execu
                                 <span className={getStageBadge(status.stage)}>
                                     {status.stage}
                                 </span>
-                                <div className="flex-1">
-                                    <p className={`${getStageColor(status.stage)}`}>
+                                <div className="flex-1 min-w-0">
+                                    <p className={`${getStageColor(status.stage)} break-words`}>
                                         {status.message}
                                     </p>
                                     {status.data && Object.keys(status.data).length > 0 && (
@@ -283,16 +278,19 @@ export default function ExecutePipelineTab({ streamId, canModify = true }: Execu
                                 </div>
                             </div>
                         ))}
+                        <div ref={logEndRef} />
                     </div>
                 </div>
-            )}
-
-            {/* Empty State */}
-            {statusLog.length === 0 && !isExecuting && !error && (
-                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                    <PlayIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>Click "Execute Pipeline" to test your research stream configuration</p>
-                </div>
+            ) : (
+                /* Empty State */
+                !isExecuting && !error && (
+                    <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                        <div className="text-center">
+                            <PlayIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                            <p>Click "Execute Pipeline" to test your research stream configuration</p>
+                        </div>
+                    </div>
+                )
             )}
         </div>
     );

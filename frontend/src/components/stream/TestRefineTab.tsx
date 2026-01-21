@@ -49,9 +49,9 @@ export default function TestRefineTab({ streamId, stream, onStreamUpdate, canMod
     };
 
     return (
-        <div className="space-y-6">
+        <div className="flex flex-col h-full">
             {/* Sub-Tab Navigation */}
-            <div className="border-b border-gray-200 dark:border-gray-700">
+            <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700">
                 <nav className="-mb-px flex space-x-8">
                     <button
                         type="button"
@@ -109,7 +109,7 @@ export default function TestRefineTab({ streamId, stream, onStreamUpdate, canMod
             </div>
 
             {/* Sub-Tab Content */}
-            <div>
+            <div className="flex-1 min-h-0 pt-6">
                 {activeSubTab === 'workbench' && (
                     <QueryRefinementWorkbench
                         streamId={streamId}
