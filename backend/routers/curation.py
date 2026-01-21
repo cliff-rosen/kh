@@ -1213,13 +1213,32 @@ async def regenerate_article_summary(
 
         article = association.article
 
+        # Build item dict for the new API
+        item = {
+            "title": article.title or "Untitled",
+            "authors": summary_service.format_authors(article.authors),
+            "journal": article.journal or "Unknown",
+            "year": str(article.year) if article.year else "Unknown",
+            "abstract": article.abstract or "",
+            "filter_reason": association.wip_article.filter_score_reason if association.wip_article else "",
+            "stream_name": stream.stream_name if stream else "",
+            "stream_purpose": stream.purpose if stream else "",
+        }
+
         # Generate new article summary
-        new_summary = await summary_service.generate_article_summary(
-            article=article,
-            stream_purpose=stream.purpose if stream else "",
-            stream_name=stream.stream_name if stream else "",
+        result = await summary_service.generate_article_summary(
+            items=item,
             enrichment_config=enrichment_config
         )
+
+        # Extract summary from result
+        if not result.ok or not result.data:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to generate summary: {result.error or 'Unknown error'}"
+            )
+
+        new_summary = result.data
 
         # Save to association
         association.ai_summary = new_summary

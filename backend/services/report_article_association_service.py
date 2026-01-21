@@ -152,7 +152,12 @@ class ReportArticleAssociationService:
     async def find(self, report_id: int, article_id: int) -> Optional[ReportArticleAssociation]:
         """Find an association by report and article ID (async)."""
         result = await self.db.execute(
-            select(ReportArticleAssociation).where(
+            select(ReportArticleAssociation)
+            .options(
+                selectinload(ReportArticleAssociation.article),
+                selectinload(ReportArticleAssociation.wip_article)
+            )
+            .where(
                 and_(
                     ReportArticleAssociation.report_id == report_id,
                     ReportArticleAssociation.article_id == article_id
