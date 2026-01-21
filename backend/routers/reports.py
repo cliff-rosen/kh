@@ -21,10 +21,6 @@ logger = logging.getLogger(__name__)
 
 # --- Request/Response Schemas ---
 
-class UpdateArticleNotesRequest(BaseModel):
-    notes: Optional[str] = None
-
-
 class UpdateArticleEnrichmentsRequest(BaseModel):
     ai_enrichments: Dict[str, Any]
 
@@ -242,42 +238,6 @@ async def delete_report(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete report: {str(e)}"
-        )
-
-
-@router.patch("/{report_id}/articles/{article_id}/notes", response_model=UpdateSuccessResponse)
-async def update_article_notes(
-    report_id: int,
-    article_id: int,
-    request: UpdateArticleNotesRequest,
-    service: ReportService = Depends(get_report_service),
-    current_user: User = Depends(get_current_user)
-):
-    """Update notes for an article within a report (async)"""
-    logger.info(f"update_article_notes - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
-
-    try:
-        result = await service.update_article_notes(
-            current_user, report_id, article_id, request.notes
-        )
-
-        if not result:
-            logger.warning(f"update_article_notes - not found - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report or article not found"
-            )
-
-        logger.info(f"update_article_notes complete - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
-        return UpdateSuccessResponse(status="ok", **asdict(result))
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"update_article_notes failed - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update article notes: {str(e)}"
         )
 
 

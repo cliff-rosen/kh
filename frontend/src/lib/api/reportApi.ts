@@ -45,13 +45,6 @@ export const reportApi = {
     },
 
     /**
-     * Update notes for an article in a report
-     */
-    async updateArticleNotes(reportId: number, articleId: number, notes: string | null): Promise<void> {
-        await api.patch(`/api/reports/${reportId}/articles/${articleId}/notes`, { notes });
-    },
-
-    /**
      * Update AI enrichments for an article in a report
      */
     async updateArticleEnrichments(reportId: number, articleId: number, aiEnrichments: ArticleEnrichments): Promise<void> {

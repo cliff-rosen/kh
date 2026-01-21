@@ -108,14 +108,6 @@ class ReportWithArticleCount:
 
 
 @dataclass
-class NotesUpdateResult:
-    """Result of updating notes."""
-    report_id: int
-    article_id: int
-    notes: Optional[str]
-
-
-@dataclass
 class EnrichmentsUpdateResult:
     """Result of updating enrichments."""
     report_id: int
@@ -961,27 +953,6 @@ class ReportService:
         )
         result = await self.db.execute(stmt)
         return result.scalars().first()
-
-    async def update_article_notes(
-        self,
-        user: User,
-        report_id: int,
-        article_id: int,
-        notes: Optional[str]
-    ) -> Optional[NotesUpdateResult]:
-        """Update notes on an article association (async)."""
-        assoc = await self.get_article_association(user, report_id, article_id)
-        if not assoc:
-            return None
-
-        assoc.notes = notes
-        await self.db.commit()
-
-        return NotesUpdateResult(
-            report_id=report_id,
-            article_id=article_id,
-            notes=notes
-        )
 
     async def update_article_enrichments(
         self,
