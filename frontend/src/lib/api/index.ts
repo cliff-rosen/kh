@@ -102,6 +102,26 @@ export function setAuthToken(token: string): void {
 }
 
 /**
+ * Get the user data for the current app context.
+ */
+export function getUserData<T = unknown>(): T | null {
+  const data = localStorage.getItem(getUserStorageKey());
+  if (!data) return null;
+  try {
+    return JSON.parse(data) as T;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Store the user data for the current app context.
+ */
+export function setUserData<T>(user: T): void {
+  localStorage.setItem(getUserStorageKey(), JSON.stringify(user));
+}
+
+/**
  * Clear auth data (token and user) for the current app context.
  */
 export function clearAuthData(): void {

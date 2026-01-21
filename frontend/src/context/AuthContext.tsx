@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { authApi, type LoginCredentials, type RegisterCredentials } from '../lib/api/authApi'
-import { setTokenRefreshedHandler, setAuthToken, getAuthToken, clearAuthData, getUserStorageKey, type TokenPayload } from '../lib/api'
+import { setTokenRefreshedHandler, setAuthToken, getAuthToken, getUserData, setUserData, clearAuthData, type TokenPayload } from '../lib/api'
 import { setStreamTokenRefreshedHandler } from '../lib/api/streamUtils'
 import { trackEvent } from '../lib/api/trackingApi'
 import type { AuthUser, UserRole } from '../types/user'
@@ -50,10 +50,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     useEffect(() => {
         const token = getAuthToken()
-        const userData = localStorage.getItem(getUserStorageKey())
+        const userData = getUserData<AuthUser>()
         if (token && userData) {
             setIsAuthenticated(true)
-            setUser(JSON.parse(userData))
+            setUser(userData)
         }
     }, [])
 
@@ -93,7 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         setAuthToken(data.access_token)
-        localStorage.setItem(getUserStorageKey(), JSON.stringify(authUser))
+        setUserData(authUser)
         setUser(authUser)
         setIsAuthenticated(true)
     }
@@ -206,8 +206,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                            prevUser.email !== newUser.email
 
             if (changed) {
-                // Update localStorage
-                localStorage.setItem(getUserStorageKey(), JSON.stringify(newUser))
+                setUserData(newUser)
                 return newUser
             }
 
