@@ -436,6 +436,13 @@ class CurrentExecutiveSummaryResult:
     current_summary: Optional[str]
 
 
+@dataclass
+class EmailResult:
+    """Result of email operations - includes report_name to avoid extra queries."""
+    html: Optional[str]
+    report_name: str
+
+
 class ReportService:
     """
     Service for all Report and ReportArticleAssociation operations.
@@ -494,6 +501,36 @@ class ReportService:
         return self._article_service
 
     # =========================================================================
+    # UTILITIES
+    # =========================================================================
+
+    @staticmethod
+    def build_category_map(stream) -> Dict[str, str]:
+        """Build mapping from category ID to display name.
+
+        Args:
+            stream: ResearchStream with presentation_config
+
+        Returns:
+            Dict mapping category IDs to display names.
+            Falls back to ID if name not found.
+        """
+        if not stream or not stream.presentation_config:
+            return {}
+
+        config = stream.presentation_config
+        if isinstance(config, dict):
+            categories = config.get('categories', [])
+        else:
+            return {}
+
+        return {
+            cat.get('id', ''): cat.get('name', cat.get('id', ''))
+            for cat in categories
+            if isinstance(cat, dict)
+        }
+
+    # =========================================================================
     # ASYNC CREATE Operations
     # =========================================================================
 
@@ -543,7 +580,7 @@ class ReportService:
         return report
 
     # =========================================================================
-    # ASYNC Methods (for use with AsyncSession)
+    # ACCESS & READ
     # =========================================================================
 
     async def get_accessible_stream_ids(self, user: User) -> Set[int]:
@@ -757,25 +794,22 @@ class ReportService:
         user: User,
         report_id: int
     ) -> Optional[ReportWithArticlesData]:
-        """Get report with its articles (async)."""
+        """Get report with its visible articles (async).
+
+        Returns only articles where is_hidden=False, ordered by ranking.
+        Use get_curation_view for the full list including hidden articles.
+        """
         access_result = await self.get_report_with_access(report_id, user.user_id)
         if not access_result:
             return None
         report, _, stream = access_result
 
-        # Get articles with associations
-        stmt = (
-            select(ReportArticleAssociation, Article)
-            .join(Article, ReportArticleAssociation.article_id == Article.article_id)
-            .where(ReportArticleAssociation.report_id == report_id)
-            .order_by(ReportArticleAssociation.ranking)
-        )
-        result = await self.db.execute(stmt)
-        rows = result.all()
+        # Get visible articles using the canonical method
+        visible_associations = await self.association_service.get_visible_for_report(report_id)
 
         articles = [
-            ReportArticleInfo(article=article, association=assoc)
-            for assoc, article in rows
+            ReportArticleInfo(article=assoc.article, association=assoc)
+            for assoc in visible_associations
         ]
 
         # Get retrieval_params from pipeline execution
@@ -827,13 +861,8 @@ class ReportService:
             return None
         report, user, stream = result
 
-        # Build category ID -> name mapping from stream's presentation_config
-        category_map = {}
-        if stream and stream.presentation_config:
-            categories = stream.presentation_config.get("categories", [])
-            for cat in categories:
-                if isinstance(cat, dict):
-                    category_map[cat.get("id", "")] = cat.get("name", cat.get("id", "Unknown"))
+        # Build category ID -> name mapping
+        category_map = self.build_category_map(stream)
 
         # Get visible articles (excludes curator_excluded)
         visible_associations = await self.association_service.get_visible_for_report(report_id)
@@ -899,6 +928,10 @@ class ReportService:
             included_only=included_only
         )
 
+    # =========================================================================
+    # DELETE
+    # =========================================================================
+
     async def delete_report(self, user: User, report_id: int) -> bool:
         """Delete a report if user has access (async)."""
         access_result = await self.get_report_with_access(report_id, user.user_id)
@@ -935,6 +968,10 @@ class ReportService:
 
         await self.db.commit()
         return True
+
+    # =========================================================================
+    # ARTICLE OPERATIONS
+    # =========================================================================
 
     async def get_article_association(
         self,
@@ -975,31 +1012,34 @@ class ReportService:
             ai_enrichments=ai_enrichments
         )
 
+    # =========================================================================
+    # EMAIL
+    # =========================================================================
+
     async def get_report_email_html(
         self,
         user: User,
         report_id: int
-    ) -> Optional[str]:
+    ) -> Optional[EmailResult]:
         """Get stored email HTML for a report (async)."""
         access_result = await self.get_report_with_access(report_id, user.user_id)
         if not access_result:
             return None
         report, _, _ = access_result
 
-        if not report.enrichments:
-            return None
-        return report.enrichments.get('email_html')
+        html = report.enrichments.get('email_html') if report.enrichments else None
+        return EmailResult(html=html, report_name=report.report_name)
 
     async def store_report_email_html(
         self,
         user: User,
         report_id: int,
         html: str
-    ) -> bool:
+    ) -> Optional[EmailResult]:
         """Store email HTML for a report (async)."""
         access_result = await self.get_report_with_access(report_id, user.user_id)
         if not access_result:
-            return False
+            return None
         report, _, _ = access_result
 
         enrichments = report.enrichments or {}
@@ -1007,13 +1047,13 @@ class ReportService:
         report.enrichments = enrichments
         await self.db.commit()
 
-        return True
+        return EmailResult(html=html, report_name=report.report_name)
 
     async def generate_report_email_html(
         self,
         user: User,
         report_id: int
-    ) -> Optional[str]:
+    ) -> Optional[EmailResult]:
         """Generate HTML email content for a report (async)."""
         access_result = await self.get_report_with_access(report_id, user.user_id)
         if not access_result:
@@ -1023,12 +1063,8 @@ class ReportService:
         # Get visible articles using existing service method
         associations = await self.association_service.get_visible_for_report(report_id)
 
-        # Build category ID to display name mapping from stream config
-        category_id_to_name: Dict[str, str] = {}
-        if stream.presentation_config and isinstance(stream.presentation_config, dict):
-            for cat in stream.presentation_config.get('categories', []):
-                if isinstance(cat, dict):
-                    category_id_to_name[cat.get('id', '')] = cat.get('name', cat.get('id', ''))
+        # Build category ID -> name mapping
+        category_id_to_name = self.build_category_map(stream)
 
         # Build email data - group articles by category ID
         categories_dict: Dict[str, List[EmailArticle]] = {}
@@ -1080,7 +1116,12 @@ class ReportService:
 
         # Generate HTML
         template_service = EmailTemplateService()
-        return template_service.generate_report_email(email_data)
+        html = template_service.generate_report_email(email_data)
+        return EmailResult(html=html, report_name=report.report_name)
+
+    # =========================================================================
+    # APPROVAL WORKFLOW
+    # =========================================================================
 
     async def approve_report(
         self,
@@ -1186,6 +1227,10 @@ class ReportService:
             rejected_by=user_id,
             rejected_at=report.approved_at.isoformat(),
         )
+
+    # =========================================================================
+    # CURATION
+    # =========================================================================
 
     async def get_curation_history(
         self,
@@ -1796,6 +1841,10 @@ class ReportService:
             ai_summary=association.ai_summary,
         )
 
+    # =========================================================================
+    # ANALYTICS
+    # =========================================================================
+
     async def get_pipeline_analytics(
         self,
         report_id: int,
@@ -2059,6 +2108,10 @@ class ReportService:
             report_only_articles=report_only_articles,
             statistics=stats
         )
+
+    # =========================================================================
+    # SUMMARY GENERATION
+    # =========================================================================
 
     async def regenerate_summaries_with_prompt(
         self,

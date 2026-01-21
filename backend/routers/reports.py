@@ -291,20 +291,16 @@ async def generate_report_email(
 
     try:
         # Generate email HTML (no storage)
-        html = await service.generate_report_email_html(current_user, report_id)
+        result = await service.generate_report_email_html(current_user, report_id)
 
-        if not html:
+        if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Report not found"
             )
 
-        # Get report name for response
-        report_data = await service.get_report_with_articles(current_user, report_id)
-        report_name = report_data.report.report_name if report_data else ''
-
         logger.info(f"generate_report_email complete - user_id={current_user.user_id}, report_id={report_id}")
-        return EmailPreviewResponse(html=html, report_name=report_name)
+        return EmailPreviewResponse(html=result.html, report_name=result.report_name)
 
     except HTTPException:
         raise
@@ -330,20 +326,16 @@ async def store_report_email(
 
     try:
         # Store the email HTML
-        success = await service.store_report_email_html(current_user, report_id, request.html)
+        result = await service.store_report_email_html(current_user, report_id, request.html)
 
-        if not success:
+        if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Report not found"
             )
 
-        # Get report name for response
-        report_data = await service.get_report_with_articles(current_user, report_id)
-        report_name = report_data.report.report_name if report_data else ''
-
         logger.info(f"store_report_email complete - user_id={current_user.user_id}, report_id={report_id}")
-        return EmailPreviewResponse(html=request.html, report_name=report_name)
+        return EmailPreviewResponse(html=result.html, report_name=result.report_name)
 
     except HTTPException:
         raise
@@ -369,20 +361,22 @@ async def get_report_email(
 
     try:
         # Get stored email HTML
-        html = await service.get_report_email_html(current_user, report_id)
+        result = await service.get_report_email_html(current_user, report_id)
 
-        if not html:
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Report not found"
+            )
+
+        if not result.html:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Email not generated yet. Use POST /email/generate first."
             )
 
-        # Get report name for response
-        report_data = await service.get_report_with_articles(current_user, report_id)
-        report_name = report_data.report.report_name if report_data else ''
-
         logger.info(f"get_report_email complete - user_id={current_user.user_id}, report_id={report_id}")
-        return EmailPreviewResponse(html=html, report_name=report_name)
+        return EmailPreviewResponse(html=result.html, report_name=result.report_name)
 
     except HTTPException:
         raise
@@ -409,32 +403,30 @@ async def send_report_email(
 
     try:
         # Try to get stored email HTML, otherwise generate it
-        html = await service.get_report_email_html(current_user, report_id)
+        result = await service.get_report_email_html(current_user, report_id)
 
-        if not html:
-            # Generate on the fly
-            html = await service.generate_report_email_html(current_user, report_id)
-
-        if not html:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Could not generate email for this report."
-            )
-
-        # Get report name
-        report = await service.get_report_with_articles(current_user, report_id)
-        if not report:
+        if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Report not found"
+            )
+
+        # If no stored HTML, generate on the fly
+        if not result.html:
+            result = await service.generate_report_email_html(current_user, report_id)
+
+        if not result or not result.html:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Could not generate email for this report."
             )
 
         # Send emails
         email_service = EmailService()
         results = await email_service.send_bulk_report_emails(
             recipients=request.recipients,
-            report_name=report.report.report_name,
-            html_content=html
+            report_name=result.report_name,
+            html_content=result.html
         )
 
         logger.info(f"send_report_email complete - user_id={current_user.user_id}, report_id={report_id}, success={len(results['success'])}, failed={len(results['failed'])}")
