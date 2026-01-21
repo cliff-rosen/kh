@@ -27,11 +27,7 @@ export interface AuthResponse {
     role: string;
     user_id?: string;
     email?: string;
-    session_id?: string;
-    session_name?: string;
-    chat_id?: string;
-    mission_id?: string;
-    session_metadata?: Record<string, any>;
+    org_id?: number;
 }
 
 export const authApi = {
@@ -97,42 +93,6 @@ export const authApi = {
      */
     async validateInvitation(token: string): Promise<InvitationValidation> {
         const response = await api.get(`/api/auth/validate-invitation/${token}`);
-        return response.data;
-    },
-
-    /**
-     * Get current user info
-     */
-    async getCurrentUser(): Promise<any> {
-        const response = await api.get('/api/auth/me');
-        return response.data;
-    },
-
-    /**
-     * Get active session
-     */
-    async getActiveSession(): Promise<any> {
-        const response = await api.get('/api/sessions/active');
-        return response.data;
-    },
-
-    /**
-     * Update session mission
-     */
-    async updateSessionMission(sessionId: string, missionId: string): Promise<any> {
-        const response = await api.put(`/api/sessions/${sessionId}`, {
-            mission_id: missionId
-        });
-        return response.data;
-    },
-
-    /**
-     * Update session metadata
-     */
-    async updateSessionMetadata(sessionId: string, metadata: Record<string, any>): Promise<any> {
-        const response = await api.put(`/api/sessions/${sessionId}`, {
-            session_metadata: metadata
-        });
         return response.data;
     },
 
