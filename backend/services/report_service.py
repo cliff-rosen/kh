@@ -1050,14 +1050,20 @@ class ReportService:
                     pmid=article.pmid
                 ))
 
+        # Get enrichments for summaries
+        enrichments = report.enrichments or {}
+        executive_summary = enrichments.get('executive_summary', '')
+        category_summaries = enrichments.get('category_summaries', {})
+
         email_categories = [
-            EmailCategory(id=name.lower().replace(' ', '_'), name=name, articles=articles)
+            EmailCategory(
+                id=name.lower().replace(' ', '_'),
+                name=name,
+                summary=category_summaries.get(name, ''),
+                articles=articles
+            )
             for name, articles in categories_dict.items()
         ]
-
-        executive_summary = ''
-        if report.enrichments:
-            executive_summary = report.enrichments.get('executive_summary', '')
 
         email_data = EmailReportData(
             report_name=report.report_name,
