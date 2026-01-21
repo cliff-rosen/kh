@@ -390,6 +390,35 @@ class CurrentArticleSummariesResult:
     articles: List[CurrentArticleSummaryItem]
 
 
+@dataclass
+class ExecutiveSummaryPreviewResult:
+    """Result of previewing executive summary regeneration."""
+    report_id: int
+    report_name: str
+    current_summary: Optional[str]
+    new_summary: Optional[str]
+    error: Optional[str] = None
+
+
+@dataclass
+class CategorySummaryPreviewItem:
+    """Preview of a single category summary regeneration."""
+    category_id: str
+    category_name: str
+    current_summary: Optional[str]
+    new_summary: Optional[str]
+    error: Optional[str] = None
+
+
+@dataclass
+class CategorySummariesPreviewResult:
+    """Result of previewing category summaries regeneration."""
+    report_id: int
+    report_name: str
+    total_categories: int
+    previews: List[CategorySummaryPreviewItem]
+
+
 class ReportService:
     """
     Service for all Report and ReportArticleAssociation operations.
@@ -2504,6 +2533,337 @@ class ReportService:
                 "not_found": not_found_count,
             }
         )
+
+    async def preview_executive_summary(
+        self,
+        report_id: int,
+        user_id: int,
+        system_prompt: str,
+        user_prompt_template: str,
+        llm_config: Optional[Dict[str, Any]] = None,
+    ) -> ExecutiveSummaryPreviewResult:
+        """
+        Preview executive summary regeneration without saving.
+
+        Generates new executive summary and returns both current and new for comparison.
+        """
+        from services.report_summary_service import ReportSummaryService
+        from agents.prompts.llm import ModelConfig as LLMModelConfig
+
+        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+
+        # Check approval status
+        if report.approval_status == ApprovalStatus.APPROVED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot modify approved reports"
+            )
+
+        # Get current executive summary
+        enrichments = report.enrichments or {}
+        current_summary = enrichments.get('executive_summary')
+        category_summaries = enrichments.get('category_summaries', {})
+
+        # Build enrichment_config
+        enrichment_config = {
+            "prompts": {
+                "executive_summary": {
+                    "system_prompt": system_prompt,
+                    "user_prompt_template": user_prompt_template,
+                }
+            }
+        }
+
+        # Build model_config
+        model_config = None
+        if llm_config and llm_config.get("model_id"):
+            model_config = LLMModelConfig(
+                model_id=llm_config.get("model_id"),
+                temperature=llm_config.get("temperature"),
+                max_tokens=llm_config.get("max_tokens"),
+                reasoning_effort=llm_config.get("reasoning_effort"),
+            )
+        elif stream and stream.llm_config:
+            stage_config = stream.llm_config.get("executive_summary")
+            if stage_config and (stage_config.get("model_id") or stage_config.get("model")):
+                model_config = LLMModelConfig(
+                    model_id=stage_config.get("model_id") or stage_config.get("model"),
+                    temperature=stage_config.get("temperature"),
+                    max_tokens=stage_config.get("max_tokens"),
+                    reasoning_effort=stage_config.get("reasoning_effort"),
+                )
+
+        # Get visible associations
+        associations = await self.association_service.get_visible_for_report(report_id)
+
+        summary_service = ReportSummaryService()
+
+        # Build item
+        item = summary_service.build_executive_summary_item(
+            associations=associations,
+            category_summaries=category_summaries,
+            stream=stream,
+        )
+
+        # Generate
+        try:
+            result = await summary_service.generate_executive_summary(
+                items=item,
+                enrichment_config=enrichment_config,
+                model_config=model_config,
+            )
+
+            return ExecutiveSummaryPreviewResult(
+                report_id=report_id,
+                report_name=report.report_name or f"Report {report_id}",
+                current_summary=current_summary,
+                new_summary=result.data if result.ok else None,
+                error=result.error if not result.ok else None,
+            )
+        except Exception as e:
+            return ExecutiveSummaryPreviewResult(
+                report_id=report_id,
+                report_name=report.report_name or f"Report {report_id}",
+                current_summary=current_summary,
+                new_summary=None,
+                error=str(e),
+            )
+
+    async def save_executive_summary(
+        self,
+        report_id: int,
+        user_id: int,
+        new_summary: str,
+    ) -> Dict[str, Any]:
+        """
+        Save a new executive summary to the report.
+        """
+        from models import CurationEvent
+        from sqlalchemy.orm.attributes import flag_modified
+
+        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+
+        # Check approval status
+        if report.approval_status == ApprovalStatus.APPROVED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot modify approved reports"
+            )
+
+        # Get current summary for audit
+        enrichments = report.enrichments or {}
+        old_summary = enrichments.get('executive_summary', '')
+
+        # Update
+        enrichments['executive_summary'] = new_summary
+        report.enrichments = enrichments
+        flag_modified(report, "enrichments")
+
+        # Record CurationEvent
+        event = CurationEvent(
+            report_id=report_id,
+            event_type='regenerate_summary',
+            field_name='executive_summary',
+            old_value=old_summary[:500] if old_summary else None,
+            new_value=new_summary[:500] if new_summary else None,
+            notes="Applied custom prompt from Layer 6 testing",
+            curator_id=user_id,
+        )
+        self.db.add(event)
+
+        # Update curation tracking
+        report.has_curation_edits = True
+        report.last_curated_by = user_id
+        report.last_curated_at = datetime.utcnow()
+
+        await self.db.commit()
+
+        return {
+            "report_id": report_id,
+            "updated": True,
+            "message": "Executive summary updated successfully"
+        }
+
+    async def preview_category_summaries(
+        self,
+        report_id: int,
+        user_id: int,
+        system_prompt: str,
+        user_prompt_template: str,
+        llm_config: Optional[Dict[str, Any]] = None,
+    ) -> CategorySummariesPreviewResult:
+        """
+        Preview category summaries regeneration without saving.
+
+        Generates new category summaries and returns both current and new for comparison.
+        """
+        from services.report_summary_service import ReportSummaryService
+        from agents.prompts.llm import ModelConfig as LLMModelConfig
+
+        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+
+        # Check approval status
+        if report.approval_status == ApprovalStatus.APPROVED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot modify approved reports"
+            )
+
+        # Get categories from stream
+        categories = stream.presentation_config.get('categories', []) if stream and stream.presentation_config else []
+
+        if not categories:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No categories configured for this stream"
+            )
+
+        # Get current category summaries
+        enrichments = report.enrichments or {}
+        current_summaries = enrichments.get('category_summaries', {})
+
+        # Build enrichment_config
+        enrichment_config = {
+            "prompts": {
+                "category_summary": {
+                    "system_prompt": system_prompt,
+                    "user_prompt_template": user_prompt_template,
+                }
+            }
+        }
+
+        # Build model_config
+        model_config = None
+        if llm_config and llm_config.get("model_id"):
+            model_config = LLMModelConfig(
+                model_id=llm_config.get("model_id"),
+                temperature=llm_config.get("temperature"),
+                max_tokens=llm_config.get("max_tokens"),
+                reasoning_effort=llm_config.get("reasoning_effort"),
+            )
+        elif stream and stream.llm_config:
+            stage_config = stream.llm_config.get("category_summary")
+            if stage_config and (stage_config.get("model_id") or stage_config.get("model")):
+                model_config = LLMModelConfig(
+                    model_id=stage_config.get("model_id") or stage_config.get("model"),
+                    temperature=stage_config.get("temperature"),
+                    max_tokens=stage_config.get("max_tokens"),
+                    reasoning_effort=stage_config.get("reasoning_effort"),
+                )
+
+        # Get visible associations
+        associations = await self.association_service.get_visible_for_report(report_id)
+
+        summary_service = ReportSummaryService()
+
+        # Build items
+        items = summary_service.build_category_summary_items(associations, categories, stream)
+
+        if not items:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No categories have articles to summarize"
+            )
+
+        # Generate
+        results = await summary_service.generate_category_summary(
+            items=items,
+            enrichment_config=enrichment_config,
+            model_config=model_config,
+        )
+
+        # Build preview list
+        previews = []
+        for i, item in enumerate(items):
+            cat_id = item["category_id"]
+            cat_name = item.get("category_name", cat_id)
+            result = results[i]
+            previews.append(CategorySummaryPreviewItem(
+                category_id=cat_id,
+                category_name=cat_name,
+                current_summary=current_summaries.get(cat_id),
+                new_summary=result.data if result.ok else None,
+                error=result.error if not result.ok else None,
+            ))
+
+        return CategorySummariesPreviewResult(
+            report_id=report_id,
+            report_name=report.report_name or f"Report {report_id}",
+            total_categories=len(previews),
+            previews=previews,
+        )
+
+    async def save_category_summaries(
+        self,
+        report_id: int,
+        user_id: int,
+        updates: List[Dict[str, str]],
+    ) -> Dict[str, Any]:
+        """
+        Save selected category summaries to the report.
+
+        Args:
+            updates: List of dicts with 'category_id' and 'summary'
+        """
+        from models import CurationEvent
+        from sqlalchemy.orm.attributes import flag_modified
+
+        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+
+        # Check approval status
+        if report.approval_status == ApprovalStatus.APPROVED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot modify approved reports"
+            )
+
+        if not updates:
+            return {
+                "report_id": report_id,
+                "updated_count": 0,
+                "message": "No updates provided"
+            }
+
+        # Get current summaries for audit
+        enrichments = report.enrichments or {}
+        category_summaries = enrichments.get('category_summaries', {})
+
+        updated_count = 0
+        for update in updates:
+            cat_id = update.get("category_id")
+            new_summary = update.get("summary")
+            if cat_id and new_summary:
+                category_summaries[cat_id] = new_summary
+                updated_count += 1
+
+        enrichments['category_summaries'] = category_summaries
+        report.enrichments = enrichments
+        flag_modified(report, "enrichments")
+
+        # Record CurationEvent
+        event = CurationEvent(
+            report_id=report_id,
+            event_type='batch_update_summaries',
+            field_name='category_summary',
+            old_value=f"{len(updates)} summaries selected",
+            new_value=f"Updated {updated_count} category summaries",
+            notes="Applied custom prompt from Layer 5 testing (selective)",
+            curator_id=user_id,
+        )
+        self.db.add(event)
+
+        # Update curation tracking
+        report.has_curation_edits = True
+        report.last_curated_by = user_id
+        report.last_curated_at = datetime.utcnow()
+
+        await self.db.commit()
+
+        return {
+            "report_id": report_id,
+            "updated_count": updated_count,
+            "message": f"Updated {updated_count} category summaries"
+        }
 
 
 # =============================================================================

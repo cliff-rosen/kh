@@ -583,3 +583,111 @@ export async function batchUpdateArticleSummaries(
     );
     return response.data;
 }
+
+// ==================== Executive Summary Preview & Save ====================
+
+export interface ExecutiveSummaryPreviewResponse {
+    report_id: number;
+    report_name: string;
+    current_summary: string | null;
+    new_summary: string | null;
+    error: string | null;
+}
+
+export interface SaveExecutiveSummaryRequest {
+    summary: string;
+}
+
+export interface SaveExecutiveSummaryResponse {
+    report_id: number;
+    updated: boolean;
+    message: string;
+}
+
+/**
+ * Preview executive summary regeneration without saving.
+ */
+export async function previewExecutiveSummary(
+    reportId: number,
+    request: PreviewArticleSummariesRequest
+): Promise<ExecutiveSummaryPreviewResponse> {
+    const response = await api.post<ExecutiveSummaryPreviewResponse>(
+        `${BASE_PATH}/${reportId}/executive-summary/preview`,
+        request
+    );
+    return response.data;
+}
+
+/**
+ * Save a new executive summary to the report.
+ */
+export async function saveExecutiveSummary(
+    reportId: number,
+    request: SaveExecutiveSummaryRequest
+): Promise<SaveExecutiveSummaryResponse> {
+    const response = await api.post<SaveExecutiveSummaryResponse>(
+        `${BASE_PATH}/${reportId}/executive-summary/save`,
+        request
+    );
+    return response.data;
+}
+
+// ==================== Category Summaries Preview & Save ====================
+
+export interface CategorySummaryPreviewItem {
+    category_id: string;
+    category_name: string;
+    current_summary: string | null;
+    new_summary: string | null;
+    error: string | null;
+}
+
+export interface CategorySummariesPreviewResponse {
+    report_id: number;
+    report_name: string;
+    total_categories: number;
+    previews: CategorySummaryPreviewItem[];
+}
+
+export interface SaveCategorySummaryItem {
+    category_id: string;
+    summary: string;
+}
+
+export interface SaveCategorySummariesRequest {
+    updates: SaveCategorySummaryItem[];
+}
+
+export interface SaveCategorySummariesResponse {
+    report_id: number;
+    updated_count: number;
+    message: string;
+}
+
+/**
+ * Preview category summaries regeneration without saving.
+ */
+export async function previewCategorySummaries(
+    reportId: number,
+    request: PreviewArticleSummariesRequest
+): Promise<CategorySummariesPreviewResponse> {
+    const response = await api.post<CategorySummariesPreviewResponse>(
+        `${BASE_PATH}/${reportId}/category-summaries/preview`,
+        request
+    );
+    return response.data;
+}
+
+/**
+ * Save selected category summaries to the report.
+ */
+export async function saveCategorySummaries(
+    reportId: number,
+    request: SaveCategorySummariesRequest
+): Promise<SaveCategorySummariesResponse> {
+    const response = await api.post<SaveCategorySummariesResponse>(
+        `${BASE_PATH}/${reportId}/category-summaries/save`,
+        request
+    );
+    return response.data;
+}

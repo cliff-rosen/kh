@@ -1516,3 +1516,250 @@ async def batch_update_article_summaries(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update summaries: {str(e)}"
         )
+
+
+# ==================== Executive Summary Preview/Save ====================
+
+class ExecutiveSummaryPreviewResponse(BaseModel):
+    """Response for executive summary preview."""
+    report_id: int
+    report_name: str
+    current_summary: Optional[str] = None
+    new_summary: Optional[str] = None
+    error: Optional[str] = None
+
+
+class SaveExecutiveSummaryRequest(BaseModel):
+    """Request to save executive summary."""
+    summary: str
+
+
+class SaveExecutiveSummaryResponse(BaseModel):
+    """Response for saving executive summary."""
+    report_id: int
+    updated: bool
+    message: str
+
+
+@router.post("/{report_id}/executive-summary/preview", response_model=ExecutiveSummaryPreviewResponse)
+async def preview_executive_summary(
+    report_id: int,
+    request: PreviewArticleSummariesRequest,  # Reuse - same structure (prompt + llm_config)
+    service: ReportService = Depends(get_report_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Preview executive summary regeneration without saving.
+    """
+    logger.info(f"preview_executive_summary - user_id={current_user.user_id}, report_id={report_id}")
+
+    try:
+        llm_config = None
+        if request.llm_config:
+            llm_config = {
+                "model_id": request.llm_config.model_id,
+                "temperature": request.llm_config.temperature,
+                "max_tokens": request.llm_config.max_tokens,
+                "reasoning_effort": request.llm_config.reasoning_effort,
+            }
+
+        result = await service.preview_executive_summary(
+            report_id=report_id,
+            user_id=current_user.user_id,
+            system_prompt=request.prompt.system_prompt,
+            user_prompt_template=request.prompt.user_prompt_template,
+            llm_config=llm_config,
+        )
+
+        logger.info(f"preview_executive_summary complete - user_id={current_user.user_id}, report_id={report_id}")
+
+        return ExecutiveSummaryPreviewResponse(
+            report_id=result.report_id,
+            report_name=result.report_name,
+            current_summary=result.current_summary,
+            new_summary=result.new_summary,
+            error=result.error,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"preview_executive_summary failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to preview executive summary: {str(e)}"
+        )
+
+
+@router.post("/{report_id}/executive-summary/save", response_model=SaveExecutiveSummaryResponse)
+async def save_executive_summary(
+    report_id: int,
+    request: SaveExecutiveSummaryRequest,
+    service: ReportService = Depends(get_report_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Save a new executive summary to the report.
+    """
+    logger.info(f"save_executive_summary - user_id={current_user.user_id}, report_id={report_id}")
+
+    try:
+        result = await service.save_executive_summary(
+            report_id=report_id,
+            user_id=current_user.user_id,
+            new_summary=request.summary,
+        )
+
+        logger.info(f"save_executive_summary complete - user_id={current_user.user_id}, report_id={report_id}")
+
+        return SaveExecutiveSummaryResponse(
+            report_id=result["report_id"],
+            updated=result["updated"],
+            message=result["message"],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"save_executive_summary failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save executive summary: {str(e)}"
+        )
+
+
+# ==================== Category Summaries Preview/Save ====================
+
+class CategorySummaryPreviewItem(BaseModel):
+    """Preview of a single category summary."""
+    category_id: str
+    category_name: str
+    current_summary: Optional[str] = None
+    new_summary: Optional[str] = None
+    error: Optional[str] = None
+
+
+class CategorySummariesPreviewResponse(BaseModel):
+    """Response for category summaries preview."""
+    report_id: int
+    report_name: str
+    total_categories: int
+    previews: List[CategorySummaryPreviewItem]
+
+
+class SaveCategorySummaryItem(BaseModel):
+    """A single category summary to save."""
+    category_id: str
+    summary: str
+
+
+class SaveCategorySummariesRequest(BaseModel):
+    """Request to save category summaries."""
+    updates: List[SaveCategorySummaryItem]
+
+
+class SaveCategorySummariesResponse(BaseModel):
+    """Response for saving category summaries."""
+    report_id: int
+    updated_count: int
+    message: str
+
+
+@router.post("/{report_id}/category-summaries/preview", response_model=CategorySummariesPreviewResponse)
+async def preview_category_summaries(
+    report_id: int,
+    request: PreviewArticleSummariesRequest,  # Reuse - same structure (prompt + llm_config)
+    service: ReportService = Depends(get_report_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Preview category summaries regeneration without saving.
+    """
+    logger.info(f"preview_category_summaries - user_id={current_user.user_id}, report_id={report_id}")
+
+    try:
+        llm_config = None
+        if request.llm_config:
+            llm_config = {
+                "model_id": request.llm_config.model_id,
+                "temperature": request.llm_config.temperature,
+                "max_tokens": request.llm_config.max_tokens,
+                "reasoning_effort": request.llm_config.reasoning_effort,
+            }
+
+        result = await service.preview_category_summaries(
+            report_id=report_id,
+            user_id=current_user.user_id,
+            system_prompt=request.prompt.system_prompt,
+            user_prompt_template=request.prompt.user_prompt_template,
+            llm_config=llm_config,
+        )
+
+        logger.info(f"preview_category_summaries complete - user_id={current_user.user_id}, report_id={report_id}, count={result.total_categories}")
+
+        return CategorySummariesPreviewResponse(
+            report_id=result.report_id,
+            report_name=result.report_name,
+            total_categories=result.total_categories,
+            previews=[
+                CategorySummaryPreviewItem(
+                    category_id=p.category_id,
+                    category_name=p.category_name,
+                    current_summary=p.current_summary,
+                    new_summary=p.new_summary,
+                    error=p.error,
+                )
+                for p in result.previews
+            ],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"preview_category_summaries failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to preview category summaries: {str(e)}"
+        )
+
+
+@router.post("/{report_id}/category-summaries/save", response_model=SaveCategorySummariesResponse)
+async def save_category_summaries(
+    report_id: int,
+    request: SaveCategorySummariesRequest,
+    service: ReportService = Depends(get_report_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Save selected category summaries to the report.
+    """
+    logger.info(f"save_category_summaries - user_id={current_user.user_id}, report_id={report_id}, count={len(request.updates)}")
+
+    try:
+        updates = [
+            {"category_id": u.category_id, "summary": u.summary}
+            for u in request.updates
+        ]
+
+        result = await service.save_category_summaries(
+            report_id=report_id,
+            user_id=current_user.user_id,
+            updates=updates,
+        )
+
+        logger.info(f"save_category_summaries complete - user_id={current_user.user_id}, report_id={report_id}, updated={result['updated_count']}")
+
+        return SaveCategorySummariesResponse(
+            report_id=result["report_id"],
+            updated_count=result["updated_count"],
+            message=result["message"],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"save_category_summaries failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save category summaries: {str(e)}"
+        )

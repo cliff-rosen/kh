@@ -38,10 +38,9 @@ import {
 import { reportApi } from '../../lib/api/reportApi';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
 import { llmApi } from '../../lib/api/llmApi';
-import { regenerateSummariesWithPrompt, RegenerateSummariesRequest, RegenerateSummariesLLMConfig } from '../../lib/api/curationApi';
+import { RegenerateSummariesLLMConfig } from '../../lib/api/curationApi';
 import { Report, Category, ResearchStream, ModelConfig, ModelInfo, DEFAULT_MODEL_CONFIG, EnrichmentConfig } from '../../types';
 import { copyToClipboard } from '../../lib/utils/clipboard';
-import { showSuccessToast, showErrorToast } from '../../lib/errorToast';
 import ApplyToReportModal from './ApplyToReportModal';
 
 interface PromptSuggestion {
@@ -100,7 +99,6 @@ export default function ContentEnrichmentForm({
     const [selectedArticleIndex, setSelectedArticleIndex] = useState<number>(0);
     const [pastedData, setPastedData] = useState('');
     const [isTesting, setIsTesting] = useState(false);
-    const [isApplyingToReport, setIsApplyingToReport] = useState(false);
     const [useStreamModel, setUseStreamModel] = useState(true);  // Use stream's configured model
     const [customModelConfig, setCustomModelConfig] = useState<ModelConfig>({ ...DEFAULT_MODEL_CONFIG });
     const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
@@ -138,6 +136,7 @@ export default function ContentEnrichmentForm({
     const [applyModalReportId, setApplyModalReportId] = useState<number | null>(null);
     const [applyModalPrompt, setApplyModalPrompt] = useState<PromptTemplate | null>(null);
     const [applyModalLLMConfig, setApplyModalLLMConfig] = useState<RegenerateSummariesLLMConfig | undefined>(undefined);
+    const [applyModalPromptType, setApplyModalPromptType] = useState<PromptType>('article_summary');
 
     // Load initial data
     useEffect(() => {
@@ -448,60 +447,28 @@ export default function ContentEnrichmentForm({
     };
 
     // Apply the current prompt to regenerate summaries in a report
-    const handleApplyToReport = async (reportId: number) => {
+    const handleApplyToReport = (reportId: number) => {
         const entry = currentHistoryEntry;
         if (!entry || entry.dataSource.type !== 'report') return;
 
-        // For article_summary, open the preview/comparison modal
-        if (entry.promptType === 'article_summary') {
-            const llmConfig: RegenerateSummariesLLMConfig | undefined = !useStreamModel && customModelConfig
-                ? {
-                    model_id: customModelConfig.model_id,
-                    temperature: customModelConfig.temperature,
-                    max_tokens: customModelConfig.max_tokens,
-                    reasoning_effort: customModelConfig.reasoning_effort,
-                }
-                : undefined;
-
-            setApplyModalReportId(reportId);
-            setApplyModalPrompt({
-                system_prompt: entry.prompts.system_prompt,
-                user_prompt_template: entry.prompts.user_prompt_template,
-            });
-            setApplyModalLLMConfig(llmConfig);
-            setShowApplyModal(true);
-            return;
-        }
-
-        // For other prompt types, use the existing direct approach
-        setIsApplyingToReport(true);
-        try {
-            const request: RegenerateSummariesRequest = {
-                prompt_type: entry.promptType,
-                prompt: {
-                    system_prompt: entry.prompts.system_prompt,
-                    user_prompt_template: entry.prompts.user_prompt_template,
-                },
-            };
-
-            // Include LLM config if not using stream default
-            if (!useStreamModel && customModelConfig) {
-                request.llm_config = {
-                    model_id: customModelConfig.model_id,
-                    temperature: customModelConfig.temperature,
-                    max_tokens: customModelConfig.max_tokens,
-                    reasoning_effort: customModelConfig.reasoning_effort,
-                };
+        // Open the preview/comparison modal for all prompt types
+        const llmConfig: RegenerateSummariesLLMConfig | undefined = !useStreamModel && customModelConfig
+            ? {
+                model_id: customModelConfig.model_id,
+                temperature: customModelConfig.temperature,
+                max_tokens: customModelConfig.max_tokens,
+                reasoning_effort: customModelConfig.reasoning_effort,
             }
+            : undefined;
 
-            const result = await regenerateSummariesWithPrompt(reportId, request);
-            showSuccessToast(result.message);
-        } catch (err: any) {
-            console.error('Error applying prompt to report:', err);
-            showErrorToast(err, 'Failed to apply prompt to report');
-        } finally {
-            setIsApplyingToReport(false);
-        }
+        setApplyModalReportId(reportId);
+        setApplyModalPrompt({
+            system_prompt: entry.prompts.system_prompt,
+            user_prompt_template: entry.prompts.user_prompt_template,
+        });
+        setApplyModalLLMConfig(llmConfig);
+        setApplyModalPromptType(entry.promptType);
+        setShowApplyModal(true);
     };
 
     const isViewingLatest = historyIndex === history.length - 1;
@@ -649,20 +616,10 @@ export default function ContentEnrichmentForm({
                                     <button
                                         type="button"
                                         onClick={() => handleApplyToReport(entry.dataSource.type === 'report' ? entry.dataSource.reportId : 0)}
-                                        disabled={isApplyingToReport}
-                                        className="px-4 py-2 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                        className="px-4 py-2 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700 flex items-center gap-2"
                                     >
-                                        {isApplyingToReport ? (
-                                            <>
-                                                <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                                                Applying...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <SparklesIcon className="h-4 w-4" />
-                                                Apply to Report
-                                            </>
-                                        )}
+                                        <SparklesIcon className="h-4 w-4" />
+                                        Apply to Report
                                     </button>
                                 </div>
                             </div>
@@ -1269,7 +1226,7 @@ export default function ContentEnrichmentForm({
                 </div>
             )}
 
-            {/* Apply to Report Modal (for article_summary) */}
+            {/* Apply to Report Modal (for all prompt types) */}
             {applyModalReportId && applyModalPrompt && (
                 <ApplyToReportModal
                     isOpen={showApplyModal}
@@ -1277,6 +1234,7 @@ export default function ContentEnrichmentForm({
                     reportId={applyModalReportId}
                     prompt={applyModalPrompt}
                     llmConfig={applyModalLLMConfig}
+                    promptType={applyModalPromptType}
                 />
             )}
         </>

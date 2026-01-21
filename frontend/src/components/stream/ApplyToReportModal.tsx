@@ -1,12 +1,18 @@
 /**
  * Apply to Report Modal - Review current summaries and apply new ones
  *
+ * Handles all three prompt types:
+ * - article_summary: Multiple articles, select which to apply
+ * - category_summary: Multiple categories, select which to apply
+ * - executive_summary: Single summary, apply or cancel
+ *
  * Flow:
- * 1. Loading - Fetches current article summaries
+ * 1. Loading - Fetches current summaries
  * 2. Review - Shows current summaries in clean card format
  * 3. Generating - User clicks generate, AI creates new summaries
  * 4. Compare - Side-by-side comparison, user selects which to apply
  * 5. Saving - Applies selected summaries to the report
+ * 6. Success - Shows completion message
  */
 
 import { useState, useEffect } from 'react';
@@ -24,51 +30,88 @@ import {
     getCurrentArticleSummaries,
     previewArticleSummaries,
     batchUpdateArticleSummaries,
+    previewExecutiveSummary,
+    saveExecutiveSummary,
+    previewCategorySummaries,
+    saveCategorySummaries,
     CurrentArticleSummaryItem,
     ArticleSummaryPreviewItem,
+    CategorySummaryPreviewItem,
     RegenerateSummariesLLMConfig
 } from '../../lib/api/curationApi';
 import { PromptTemplate } from '../../types/research-stream';
-import { showSuccessToast, showErrorToast } from '../../lib/errorToast';
+import { showErrorToast } from '../../lib/errorToast';
+
+type PromptType = 'article_summary' | 'category_summary' | 'executive_summary';
 
 interface ApplyToReportModalProps {
     isOpen: boolean;
     onClose: () => void;
     reportId: number;
+    promptType: PromptType;
     prompt: PromptTemplate;
     llmConfig?: RegenerateSummariesLLMConfig;
 }
 
 type ModalStage = 'loading' | 'review' | 'generating' | 'compare' | 'saving' | 'success';
 
+// Type for executive summary preview
+interface ExecutivePreview {
+    current: string | null;
+    new: string | null;
+    error: string | null;
+}
+
 export default function ApplyToReportModal({
     isOpen,
     onClose,
     reportId,
+    promptType,
     prompt,
     llmConfig
 }: ApplyToReportModalProps) {
     const [stage, setStage] = useState<ModalStage>('loading');
     const [reportName, setReportName] = useState<string>('');
-    const [currentArticles, setCurrentArticles] = useState<CurrentArticleSummaryItem[]>([]);
-    const [previews, setPreviews] = useState<ArticleSummaryPreviewItem[]>([]);
-    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [error, setError] = useState<string | null>(null);
     const [updateCount, setUpdateCount] = useState<number>(0);
 
-    // Fetch current summaries when modal opens
+    // Article summary state
+    const [currentArticles, setCurrentArticles] = useState<CurrentArticleSummaryItem[]>([]);
+    const [articlePreviews, setArticlePreviews] = useState<ArticleSummaryPreviewItem[]>([]);
+    const [selectedArticleIds, setSelectedArticleIds] = useState<Set<number>>(new Set());
+
+    // Category summary state
+    const [categoryPreviews, setCategoryPreviews] = useState<CategorySummaryPreviewItem[]>([]);
+    const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(new Set());
+
+    // Executive summary state
+    const [executivePreview, setExecutivePreview] = useState<ExecutivePreview | null>(null);
+
+    // Reset state when modal opens
     useEffect(() => {
         if (isOpen) {
             setStage('loading');
-            setCurrentArticles([]);
-            setPreviews([]);
-            setSelectedIds(new Set());
+            setReportName('');
             setError(null);
-            fetchCurrentSummaries();
-        }
-    }, [isOpen, reportId]);
+            setUpdateCount(0);
+            setCurrentArticles([]);
+            setArticlePreviews([]);
+            setSelectedArticleIds(new Set());
+            setCategoryPreviews([]);
+            setSelectedCategoryIds(new Set());
+            setExecutivePreview(null);
 
-    const fetchCurrentSummaries = async () => {
+            if (promptType === 'article_summary') {
+                fetchCurrentArticleSummaries();
+            } else {
+                // For category and executive, go directly to review stage
+                // (we'll show the current summary from the preview response)
+                setStage('review');
+            }
+        }
+    }, [isOpen, reportId, promptType]);
+
+    const fetchCurrentArticleSummaries = async () => {
         try {
             const response = await getCurrentArticleSummaries(reportId);
             setReportName(response.report_name);
@@ -77,7 +120,7 @@ export default function ApplyToReportModal({
         } catch (err: any) {
             console.error('Error fetching current summaries:', err);
             setError(err.message || 'Failed to load current summaries');
-            setStage('review'); // Show error in review stage
+            setStage('review');
         }
     };
 
@@ -86,20 +129,41 @@ export default function ApplyToReportModal({
         setError(null);
 
         try {
-            const response = await previewArticleSummaries(reportId, {
-                prompt,
-                llm_config: llmConfig
-            });
+            const requestBody = { prompt, llm_config: llmConfig };
 
-            setPreviews(response.previews);
-            // Select all by default (only those without errors and with new summaries)
-            const allSuccessful = new Set(
-                response.previews
-                    .filter(p => p.new_summary && !p.error)
-                    .map(p => p.article_id)
-            );
-            setSelectedIds(allSuccessful);
-            setStage('compare');
+            if (promptType === 'article_summary') {
+                const response = await previewArticleSummaries(reportId, requestBody);
+                setArticlePreviews(response.previews);
+                const allSuccessful = new Set(
+                    response.previews
+                        .filter(p => p.new_summary && !p.error)
+                        .map(p => p.article_id)
+                );
+                setSelectedArticleIds(allSuccessful);
+                setStage('compare');
+
+            } else if (promptType === 'category_summary') {
+                const response = await previewCategorySummaries(reportId, requestBody);
+                setReportName(response.report_name);
+                setCategoryPreviews(response.previews);
+                const allSuccessful = new Set(
+                    response.previews
+                        .filter(p => p.new_summary && !p.error)
+                        .map(p => p.category_id)
+                );
+                setSelectedCategoryIds(allSuccessful);
+                setStage('compare');
+
+            } else if (promptType === 'executive_summary') {
+                const response = await previewExecutiveSummary(reportId, requestBody);
+                setReportName(response.report_name);
+                setExecutivePreview({
+                    current: response.current_summary,
+                    new: response.new_summary,
+                    error: response.error,
+                });
+                setStage('compare');
+            }
         } catch (err: any) {
             console.error('Error generating preview:', err);
             setError(err.message || 'Failed to generate preview');
@@ -107,8 +171,66 @@ export default function ApplyToReportModal({
         }
     };
 
-    const handleToggleSelection = (articleId: number) => {
-        setSelectedIds(prev => {
+    const handleApplySelected = async () => {
+        setStage('saving');
+        setError(null);
+
+        try {
+            if (promptType === 'article_summary') {
+                if (selectedArticleIds.size === 0) {
+                    showErrorToast(new Error('No articles selected'), 'Please select at least one article');
+                    setStage('compare');
+                    return;
+                }
+
+                const updates = articlePreviews
+                    .filter(p => selectedArticleIds.has(p.article_id) && p.new_summary)
+                    .map(p => ({
+                        article_id: p.article_id,
+                        ai_summary: p.new_summary!
+                    }));
+
+                const result = await batchUpdateArticleSummaries(reportId, { updates });
+                setUpdateCount(result.updated_count);
+
+            } else if (promptType === 'category_summary') {
+                if (selectedCategoryIds.size === 0) {
+                    showErrorToast(new Error('No categories selected'), 'Please select at least one category');
+                    setStage('compare');
+                    return;
+                }
+
+                const updates = categoryPreviews
+                    .filter(p => selectedCategoryIds.has(p.category_id) && p.new_summary)
+                    .map(p => ({
+                        category_id: p.category_id,
+                        summary: p.new_summary!
+                    }));
+
+                const result = await saveCategorySummaries(reportId, { updates });
+                setUpdateCount(result.updated_count);
+
+            } else if (promptType === 'executive_summary') {
+                if (!executivePreview?.new) {
+                    showErrorToast(new Error('No summary generated'), 'Please generate a new summary first');
+                    setStage('compare');
+                    return;
+                }
+
+                await saveExecutiveSummary(reportId, { summary: executivePreview.new });
+                setUpdateCount(1);
+            }
+
+            setStage('success');
+        } catch (err: any) {
+            console.error('Error applying summaries:', err);
+            setError(err.message || 'Failed to apply summaries');
+            setStage('compare');
+        }
+    };
+
+    const handleToggleArticleSelection = (articleId: number) => {
+        setSelectedArticleIds(prev => {
             const next = new Set(prev);
             if (next.has(articleId)) {
                 next.delete(articleId);
@@ -119,51 +241,67 @@ export default function ApplyToReportModal({
         });
     };
 
-    const handleSelectAll = () => {
+    const handleToggleCategorySelection = (categoryId: string) => {
+        setSelectedCategoryIds(prev => {
+            const next = new Set(prev);
+            if (next.has(categoryId)) {
+                next.delete(categoryId);
+            } else {
+                next.add(categoryId);
+            }
+            return next;
+        });
+    };
+
+    const handleSelectAllArticles = () => {
         const allSuccessful = new Set(
-            previews
+            articlePreviews
                 .filter(p => p.new_summary && !p.error)
                 .map(p => p.article_id)
         );
-        setSelectedIds(allSuccessful);
+        setSelectedArticleIds(allSuccessful);
     };
 
-    const handleSelectNone = () => {
-        setSelectedIds(new Set());
+    const handleSelectNoneArticles = () => {
+        setSelectedArticleIds(new Set());
     };
 
-    const handleApplySelected = async () => {
-        if (selectedIds.size === 0) {
-            showErrorToast(new Error('No articles selected'), 'Please select at least one article');
-            return;
-        }
+    const handleSelectAllCategories = () => {
+        const allSuccessful = new Set(
+            categoryPreviews
+                .filter(p => p.new_summary && !p.error)
+                .map(p => p.category_id)
+        );
+        setSelectedCategoryIds(allSuccessful);
+    };
 
-        setStage('saving');
-        setError(null);
-
-        try {
-            const updates = previews
-                .filter(p => selectedIds.has(p.article_id) && p.new_summary)
-                .map(p => ({
-                    article_id: p.article_id,
-                    ai_summary: p.new_summary!
-                }));
-
-            const result = await batchUpdateArticleSummaries(reportId, { updates });
-            setUpdateCount(result.updated_count);
-            setStage('success');
-        } catch (err: any) {
-            console.error('Error applying summaries:', err);
-            setError(err.message || 'Failed to apply summaries');
-            setStage('compare');
-        }
+    const handleSelectNoneCategories = () => {
+        setSelectedCategoryIds(new Set());
     };
 
     if (!isOpen) return null;
 
-    const successCount = previews.filter(p => p.new_summary && !p.error).length;
-    const errorCount = previews.filter(p => p.error).length;
+    const getTitle = () => {
+        switch (promptType) {
+            case 'article_summary': return 'Apply Article Summaries';
+            case 'category_summary': return 'Apply Category Summaries';
+            case 'executive_summary': return 'Apply Executive Summary';
+        }
+    };
+
+    const getItemLabel = () => {
+        switch (promptType) {
+            case 'article_summary': return 'article';
+            case 'category_summary': return 'category';
+            case 'executive_summary': return 'executive';
+        }
+    };
+
     const articlesWithSummaries = currentArticles.filter(a => a.current_summary).length;
+    const articleSuccessCount = articlePreviews.filter(p => p.new_summary && !p.error).length;
+    const articleErrorCount = articlePreviews.filter(p => p.error).length;
+    const categorySuccessCount = categoryPreviews.filter(p => p.new_summary && !p.error).length;
+    const categoryErrorCount = categoryPreviews.filter(p => p.error).length;
 
     return (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
@@ -174,7 +312,7 @@ export default function ApplyToReportModal({
                         <SparklesIcon className="h-6 w-6 text-purple-500" />
                         <div>
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                Apply Article Summaries to Report
+                                {getTitle()}
                             </h3>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
                                 {reportName || `Report #${reportId}`}
@@ -196,18 +334,17 @@ export default function ApplyToReportModal({
                         <div className="max-w-xl mx-auto text-center py-12">
                             <ArrowPathIcon className="h-16 w-16 text-blue-500 mx-auto mb-4 animate-spin" />
                             <h4 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                                Loading Current Summaries...
+                                Loading...
                             </h4>
                             <p className="text-gray-600 dark:text-gray-400">
-                                Fetching article data from the report.
+                                Fetching current data from the report.
                             </p>
                         </div>
                     )}
 
-                    {/* Review Stage - Show current summaries in card format */}
-                    {stage === 'review' && (
+                    {/* Review Stage - Article Summary */}
+                    {stage === 'review' && promptType === 'article_summary' && (
                         <div className="space-y-4">
-                            {/* Header with stats and generate button */}
                             <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
                                 <div className="flex items-center gap-4">
                                     <span className="text-sm text-gray-600 dark:text-gray-400">
@@ -240,14 +377,12 @@ export default function ApplyToReportModal({
                                 </div>
                             )}
 
-                            {/* Current summaries in card format */}
                             <div className="space-y-3">
                                 {currentArticles.map((article) => (
                                     <div
                                         key={article.article_id}
                                         className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
                                     >
-                                        {/* Article header */}
                                         <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800">
                                             <div className="flex items-start justify-between gap-3">
                                                 <div className="flex-1 min-w-0">
@@ -271,8 +406,6 @@ export default function ApplyToReportModal({
                                                 )}
                                             </div>
                                         </div>
-
-                                        {/* Summary content */}
                                         <div className="p-4">
                                             {article.current_summary ? (
                                                 <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
@@ -280,7 +413,7 @@ export default function ApplyToReportModal({
                                                 </p>
                                             ) : (
                                                 <p className="text-sm text-gray-400 dark:text-gray-500 italic">
-                                                    No summary available for this article.
+                                                    No summary available.
                                                 </p>
                                             )}
                                         </div>
@@ -290,55 +423,79 @@ export default function ApplyToReportModal({
                         </div>
                     )}
 
+                    {/* Review Stage - Category & Executive Summary */}
+                    {stage === 'review' && (promptType === 'category_summary' || promptType === 'executive_summary') && (
+                        <div className="max-w-xl mx-auto text-center py-12">
+                            <SparklesIcon className="h-16 w-16 text-purple-500 mx-auto mb-4" />
+                            <h4 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                                Generate {promptType === 'category_summary' ? 'Category Summaries' : 'Executive Summary'}
+                            </h4>
+                            <p className="text-gray-600 dark:text-gray-400 mb-6">
+                                {promptType === 'category_summary'
+                                    ? "This will generate new summaries for all categories in the report using your custom prompt. You'll be able to review and select which summaries to apply."
+                                    : "This will generate a new executive summary for the report using your custom prompt. You'll be able to review and decide whether to apply it."
+                                }
+                            </p>
+                            {error && (
+                                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg text-sm">
+                                    {error}
+                                </div>
+                            )}
+                            <button
+                                onClick={handleGeneratePreview}
+                                className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2 mx-auto"
+                            >
+                                <SparklesIcon className="h-5 w-5" />
+                                Generate Preview
+                            </button>
+                        </div>
+                    )}
+
                     {/* Generating Stage */}
                     {stage === 'generating' && (
                         <div className="max-w-xl mx-auto text-center py-12">
                             <ArrowPathIcon className="h-16 w-16 text-purple-500 mx-auto mb-4 animate-spin" />
                             <h4 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                                Generating New Summaries...
+                                Generating...
                             </h4>
                             <p className="text-gray-600 dark:text-gray-400">
-                                Processing {currentArticles.length} articles. This may take a moment.
+                                {promptType === 'article_summary' && `Processing ${currentArticles.length} articles.`}
+                                {promptType === 'category_summary' && 'Processing category summaries.'}
+                                {promptType === 'executive_summary' && 'Processing executive summary.'}
+                                {' '}This may take a moment.
                             </p>
                         </div>
                     )}
 
-                    {/* Compare Stage - Side-by-side comparison */}
-                    {stage === 'compare' && (
+                    {/* Compare Stage - Article Summary */}
+                    {stage === 'compare' && promptType === 'article_summary' && (
                         <div className="space-y-4">
-                            {/* Stats bar */}
                             <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
                                 <div className="flex items-center gap-4">
                                     <span className="text-sm text-gray-600 dark:text-gray-400">
-                                        <span className="font-medium text-gray-900 dark:text-white">{previews.length}</span> articles
+                                        <span className="font-medium text-gray-900 dark:text-white">{articlePreviews.length}</span> articles
                                     </span>
                                     <span className="text-sm text-green-600 dark:text-green-400">
                                         <CheckCircleIcon className="h-4 w-4 inline mr-1" />
-                                        {successCount} generated
+                                        {articleSuccessCount} generated
                                     </span>
-                                    {errorCount > 0 && (
+                                    {articleErrorCount > 0 && (
                                         <span className="text-sm text-red-600 dark:text-red-400">
                                             <ExclamationTriangleIcon className="h-4 w-4 inline mr-1" />
-                                            {errorCount} errors
+                                            {articleErrorCount} errors
                                         </span>
                                     )}
                                     <span className="text-sm text-purple-600 dark:text-purple-400">
                                         <CheckIcon className="h-4 w-4 inline mr-1" />
-                                        {selectedIds.size} selected
+                                        {selectedArticleIds.size} selected
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={handleSelectAll}
-                                        className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                                    >
+                                    <button onClick={handleSelectAllArticles} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
                                         Select All
                                     </button>
                                     <span className="text-gray-300 dark:text-gray-600">|</span>
-                                    <button
-                                        onClick={handleSelectNone}
-                                        className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                                    >
+                                    <button onClick={handleSelectNoneArticles} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
                                         Select None
                                     </button>
                                 </div>
@@ -350,33 +507,30 @@ export default function ApplyToReportModal({
                                 </div>
                             )}
 
-                            {/* Comparison list */}
                             <div className="space-y-4">
-                                {previews.map((preview) => (
+                                {articlePreviews.map((preview) => (
                                     <div
                                         key={preview.article_id}
                                         className={`border rounded-lg overflow-hidden ${
-                                            selectedIds.has(preview.article_id)
+                                            selectedArticleIds.has(preview.article_id)
                                                 ? 'border-purple-500 dark:border-purple-400'
                                                 : 'border-gray-200 dark:border-gray-700'
                                         }`}
                                     >
-                                        {/* Article header */}
                                         <div
                                             className={`px-4 py-3 flex items-center gap-3 cursor-pointer ${
-                                                selectedIds.has(preview.article_id)
+                                                selectedArticleIds.has(preview.article_id)
                                                     ? 'bg-purple-50 dark:bg-purple-900/20'
                                                     : 'bg-gray-50 dark:bg-gray-800'
                                             }`}
-                                            onClick={() => preview.new_summary && !preview.error && handleToggleSelection(preview.article_id)}
+                                            onClick={() => preview.new_summary && !preview.error && handleToggleArticleSelection(preview.article_id)}
                                         >
-                                            {/* Checkbox */}
                                             <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 ${
                                                 preview.error
                                                     ? 'bg-red-100 dark:bg-red-900/30'
                                                     : !preview.new_summary
                                                         ? 'bg-gray-100 dark:bg-gray-700'
-                                                        : selectedIds.has(preview.article_id)
+                                                        : selectedArticleIds.has(preview.article_id)
                                                             ? 'bg-purple-600'
                                                             : 'border-2 border-gray-300 dark:border-gray-600'
                                             }`}>
@@ -384,77 +538,194 @@ export default function ApplyToReportModal({
                                                     <ExclamationTriangleIcon className="h-3 w-3 text-red-600 dark:text-red-400" />
                                                 ) : !preview.new_summary ? (
                                                     <MinusCircleIcon className="h-3 w-3 text-gray-400" />
-                                                ) : selectedIds.has(preview.article_id) ? (
+                                                ) : selectedArticleIds.has(preview.article_id) ? (
                                                     <CheckIcon className="h-3 w-3 text-white" />
                                                 ) : null}
                                             </div>
-
-                                            {/* Title and PMID */}
                                             <div className="flex-1 min-w-0">
-                                                <p className="font-medium text-gray-900 dark:text-white truncate">
-                                                    {preview.title}
-                                                </p>
-                                                {preview.pmid && (
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                        PMID: {preview.pmid}
-                                                    </p>
-                                                )}
+                                                <p className="font-medium text-gray-900 dark:text-white truncate">{preview.title}</p>
+                                                {preview.pmid && <p className="text-xs text-gray-500 dark:text-gray-400">PMID: {preview.pmid}</p>}
                                             </div>
-
-                                            {/* Status badge */}
                                             {preview.error ? (
-                                                <span className="px-2 py-1 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">
-                                                    Error
-                                                </span>
+                                                <span className="px-2 py-1 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">Error</span>
                                             ) : !preview.new_summary ? (
-                                                <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
-                                                    No Change
-                                                </span>
+                                                <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">No Change</span>
                                             ) : preview.current_summary === preview.new_summary ? (
-                                                <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
-                                                    Same
-                                                </span>
+                                                <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">Same</span>
                                             ) : (
-                                                <span className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">
-                                                    New
-                                                </span>
+                                                <span className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">New</span>
                                             )}
                                         </div>
-
-                                        {/* Error message */}
                                         {preview.error && (
-                                            <div className="px-4 py-2 bg-red-50 dark:bg-red-900/10 text-sm text-red-700 dark:text-red-300">
-                                                {preview.error}
-                                            </div>
+                                            <div className="px-4 py-2 bg-red-50 dark:bg-red-900/10 text-sm text-red-700 dark:text-red-300">{preview.error}</div>
                                         )}
-
-                                        {/* Side-by-side comparison */}
                                         {!preview.error && preview.new_summary && (
                                             <div className="grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-700">
-                                                {/* Current summary */}
                                                 <div className="p-4">
-                                                    <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                                                        Current Summary
-                                                    </h5>
+                                                    <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Current</h5>
                                                     <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
                                                         {preview.current_summary || <span className="italic text-gray-400">No current summary</span>}
                                                     </p>
                                                 </div>
-
-                                                {/* New summary */}
                                                 <div className="p-4 bg-green-50/50 dark:bg-green-900/10">
-                                                    <h5 className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide mb-2">
-                                                        New Summary
-                                                    </h5>
-                                                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                                                        {preview.new_summary}
-                                                    </p>
+                                                    <h5 className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide mb-2">New</h5>
+                                                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{preview.new_summary}</p>
                                                 </div>
                                             </div>
                                         )}
                                     </div>
                                 ))}
                             </div>
+                        </div>
+                    )}
+
+                    {/* Compare Stage - Category Summary */}
+                    {stage === 'compare' && promptType === 'category_summary' && (
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
+                                <div className="flex items-center gap-4">
+                                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                                        <span className="font-medium text-gray-900 dark:text-white">{categoryPreviews.length}</span> categories
+                                    </span>
+                                    <span className="text-sm text-green-600 dark:text-green-400">
+                                        <CheckCircleIcon className="h-4 w-4 inline mr-1" />
+                                        {categorySuccessCount} generated
+                                    </span>
+                                    {categoryErrorCount > 0 && (
+                                        <span className="text-sm text-red-600 dark:text-red-400">
+                                            <ExclamationTriangleIcon className="h-4 w-4 inline mr-1" />
+                                            {categoryErrorCount} errors
+                                        </span>
+                                    )}
+                                    <span className="text-sm text-purple-600 dark:text-purple-400">
+                                        <CheckIcon className="h-4 w-4 inline mr-1" />
+                                        {selectedCategoryIds.size} selected
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={handleSelectAllCategories} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                                        Select All
+                                    </button>
+                                    <span className="text-gray-300 dark:text-gray-600">|</span>
+                                    <button onClick={handleSelectNoneCategories} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                                        Select None
+                                    </button>
+                                </div>
+                            </div>
+
+                            {error && (
+                                <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg text-sm">
+                                    {error}
+                                </div>
+                            )}
+
+                            <div className="space-y-4">
+                                {categoryPreviews.map((preview) => (
+                                    <div
+                                        key={preview.category_id}
+                                        className={`border rounded-lg overflow-hidden ${
+                                            selectedCategoryIds.has(preview.category_id)
+                                                ? 'border-purple-500 dark:border-purple-400'
+                                                : 'border-gray-200 dark:border-gray-700'
+                                        }`}
+                                    >
+                                        <div
+                                            className={`px-4 py-3 flex items-center gap-3 cursor-pointer ${
+                                                selectedCategoryIds.has(preview.category_id)
+                                                    ? 'bg-purple-50 dark:bg-purple-900/20'
+                                                    : 'bg-gray-50 dark:bg-gray-800'
+                                            }`}
+                                            onClick={() => preview.new_summary && !preview.error && handleToggleCategorySelection(preview.category_id)}
+                                        >
+                                            <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 ${
+                                                preview.error
+                                                    ? 'bg-red-100 dark:bg-red-900/30'
+                                                    : !preview.new_summary
+                                                        ? 'bg-gray-100 dark:bg-gray-700'
+                                                        : selectedCategoryIds.has(preview.category_id)
+                                                            ? 'bg-purple-600'
+                                                            : 'border-2 border-gray-300 dark:border-gray-600'
+                                            }`}>
+                                                {preview.error ? (
+                                                    <ExclamationTriangleIcon className="h-3 w-3 text-red-600 dark:text-red-400" />
+                                                ) : !preview.new_summary ? (
+                                                    <MinusCircleIcon className="h-3 w-3 text-gray-400" />
+                                                ) : selectedCategoryIds.has(preview.category_id) ? (
+                                                    <CheckIcon className="h-3 w-3 text-white" />
+                                                ) : null}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-medium text-gray-900 dark:text-white">{preview.category_name}</p>
+                                            </div>
+                                            {preview.error ? (
+                                                <span className="px-2 py-1 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">Error</span>
+                                            ) : !preview.new_summary ? (
+                                                <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">No Change</span>
+                                            ) : (
+                                                <span className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">New</span>
+                                            )}
+                                        </div>
+                                        {preview.error && (
+                                            <div className="px-4 py-2 bg-red-50 dark:bg-red-900/10 text-sm text-red-700 dark:text-red-300">{preview.error}</div>
+                                        )}
+                                        {!preview.error && preview.new_summary && (
+                                            <div className="grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-700">
+                                                <div className="p-4">
+                                                    <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Current</h5>
+                                                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                                        {preview.current_summary || <span className="italic text-gray-400">No current summary</span>}
+                                                    </p>
+                                                </div>
+                                                <div className="p-4 bg-green-50/50 dark:bg-green-900/10">
+                                                    <h5 className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide mb-2">New</h5>
+                                                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{preview.new_summary}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Compare Stage - Executive Summary */}
+                    {stage === 'compare' && promptType === 'executive_summary' && executivePreview && (
+                        <div className="space-y-4">
+                            {error && (
+                                <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg text-sm">
+                                    {error}
+                                </div>
+                            )}
+
+                            {executivePreview.error ? (
+                                <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg">
+                                    <p className="font-medium">Error generating executive summary:</p>
+                                    <p className="text-sm mt-1">{executivePreview.error}</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800">
+                                            <h5 className="font-medium text-gray-900 dark:text-white">Current Executive Summary</h5>
+                                        </div>
+                                        <div className="p-4">
+                                            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                                {executivePreview.current || <span className="italic text-gray-400">No current summary</span>}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="border border-green-300 dark:border-green-700 rounded-lg overflow-hidden">
+                                        <div className="px-4 py-3 bg-green-50 dark:bg-green-900/20">
+                                            <h5 className="font-medium text-green-700 dark:text-green-300">New Executive Summary</h5>
+                                        </div>
+                                        <div className="p-4 bg-green-50/50 dark:bg-green-900/10">
+                                            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                                {executivePreview.new || <span className="italic text-gray-400">Failed to generate</span>}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -466,7 +737,9 @@ export default function ApplyToReportModal({
                                 Applying Changes...
                             </h4>
                             <p className="text-gray-600 dark:text-gray-400">
-                                Saving {selectedIds.size} article summaries to the report.
+                                {promptType === 'article_summary' && `Saving ${selectedArticleIds.size} article summaries.`}
+                                {promptType === 'category_summary' && `Saving ${selectedCategoryIds.size} category summaries.`}
+                                {promptType === 'executive_summary' && 'Saving executive summary.'}
                             </p>
                         </div>
                     )}
@@ -479,7 +752,11 @@ export default function ApplyToReportModal({
                                 Update Complete
                             </h4>
                             <p className="text-gray-600 dark:text-gray-400 mb-2">
-                                Successfully updated <span className="font-semibold text-green-600 dark:text-green-400">{updateCount}</span> article {updateCount === 1 ? 'summary' : 'summaries'}.
+                                {promptType === 'executive_summary' ? (
+                                    'Successfully updated the executive summary.'
+                                ) : (
+                                    <>Successfully updated <span className="font-semibold text-green-600 dark:text-green-400">{updateCount}</span> {getItemLabel()} {updateCount === 1 ? 'summary' : 'summaries'}.</>
+                                )}
                             </p>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
                                 The changes have been saved to the report.
@@ -489,12 +766,9 @@ export default function ApplyToReportModal({
                 </div>
 
                 {/* Footer */}
-                {stage === 'review' && currentArticles.length > 0 && (
+                {stage === 'review' && promptType === 'article_summary' && currentArticles.length > 0 && (
                     <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
-                        <button
-                            onClick={onClose}
-                            className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                        >
+                        <button onClick={onClose} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
                             Cancel
                         </button>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -503,21 +777,58 @@ export default function ApplyToReportModal({
                     </div>
                 )}
 
-                {stage === 'compare' && (
+                {stage === 'review' && (promptType === 'category_summary' || promptType === 'executive_summary') && (
+                    <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-center flex-shrink-0">
+                        <button onClick={onClose} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                            Cancel
+                        </button>
+                    </div>
+                )}
+
+                {stage === 'compare' && promptType === 'article_summary' && (
                     <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
-                        <button
-                            onClick={onClose}
-                            className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                        >
+                        <button onClick={onClose} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
                             Cancel
                         </button>
                         <button
                             onClick={handleApplySelected}
-                            disabled={selectedIds.size === 0}
+                            disabled={selectedArticleIds.size === 0}
                             className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                         >
                             <CheckIcon className="h-5 w-5" />
-                            Apply {selectedIds.size} Selected
+                            Apply {selectedArticleIds.size} Selected
+                        </button>
+                    </div>
+                )}
+
+                {stage === 'compare' && promptType === 'category_summary' && (
+                    <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+                        <button onClick={onClose} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleApplySelected}
+                            disabled={selectedCategoryIds.size === 0}
+                            className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                        >
+                            <CheckIcon className="h-5 w-5" />
+                            Apply {selectedCategoryIds.size} Selected
+                        </button>
+                    </div>
+                )}
+
+                {stage === 'compare' && promptType === 'executive_summary' && (
+                    <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+                        <button onClick={onClose} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleApplySelected}
+                            disabled={!executivePreview?.new || !!executivePreview?.error}
+                            className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                        >
+                            <CheckIcon className="h-5 w-5" />
+                            Apply New Summary
                         </button>
                     </div>
                 )}
