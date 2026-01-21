@@ -1033,14 +1033,21 @@ class ReportService:
         result = await self.db.execute(stmt)
         rows = result.all()
 
-        # Build email data
+        # Build category ID to display name mapping from stream config
+        category_id_to_name: Dict[str, str] = {}
+        if stream.presentation_config and isinstance(stream.presentation_config, dict):
+            for cat in stream.presentation_config.get('categories', []):
+                if isinstance(cat, dict):
+                    category_id_to_name[cat.get('id', '')] = cat.get('name', cat.get('id', ''))
+
+        # Build email data - group articles by category ID
         categories_dict: Dict[str, List[EmailArticle]] = {}
         for assoc, article in rows:
-            cats = assoc.presentation_categories or ['Uncategorized']
-            for cat in cats:
-                if cat not in categories_dict:
-                    categories_dict[cat] = []
-                categories_dict[cat].append(EmailArticle(
+            cat_ids = assoc.presentation_categories or ['uncategorized']
+            for cat_id in cat_ids:
+                if cat_id not in categories_dict:
+                    categories_dict[cat_id] = []
+                categories_dict[cat_id].append(EmailArticle(
                     title=article.title or 'Untitled',
                     authors=article.authors[:3] if article.authors else None,
                     journal=article.journal or None,
@@ -1055,14 +1062,15 @@ class ReportService:
         executive_summary = enrichments.get('executive_summary', '')
         category_summaries = enrichments.get('category_summaries', {})
 
+        # Build email categories with proper display names and summaries
         email_categories = [
             EmailCategory(
-                id=name.lower().replace(' ', '_'),
-                name=name,
-                summary=category_summaries.get(name, ''),
+                id=cat_id,
+                name=category_id_to_name.get(cat_id, cat_id),  # Use display name, fallback to ID
+                summary=category_summaries.get(cat_id, ''),     # Summaries are keyed by ID
                 articles=articles
             )
-            for name, articles in categories_dict.items()
+            for cat_id, articles in categories_dict.items()
         ]
 
         email_data = EmailReportData(
