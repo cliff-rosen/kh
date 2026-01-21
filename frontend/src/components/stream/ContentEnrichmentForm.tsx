@@ -850,181 +850,194 @@ export default function ContentEnrichmentForm({
                         </div>
 
                         {/* Testing Section */}
-                        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 flex-shrink-0">
-                            <div className="flex items-center justify-between mb-4">
-                                <h4 className="text-md font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                                    <BeakerIcon className="h-5 w-5 text-blue-500" />
-                                    Test Prompt
-                                </h4>
-                                <div className="flex items-center gap-4">
-                                    <div className="flex items-center gap-2">
-                                        <label className="text-sm text-gray-600 dark:text-gray-400">Data source:</label>
-                                        <select
-                                            value={testMode}
-                                            onChange={(e) => setTestMode(e.target.value as 'report' | 'paste')}
-                                            className="px-3 py-1.5 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800"
-                                        >
-                                            <option value="report">From Report</option>
-                                            <option value="paste">Paste JSON</option>
-                                        </select>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={handleTest}
-                                        disabled={isTesting}
-                                        className="px-4 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
-                                    >
-                                        {isTesting ? (
-                                            <>
-                                                <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                                                Testing...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <BeakerIcon className="h-4 w-4" />
-                                                Run Test
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
+                        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 flex-shrink-0 space-y-4">
+                            {/* Header */}
+                            <h4 className="text-md font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                                <BeakerIcon className="h-5 w-5 text-blue-500" />
+                                Test Prompt
+                            </h4>
 
-                            {/* Test Data Input */}
-                            <div>
-                                {testMode === 'report' ? (
-                                    <div className="flex items-center gap-4">
-                                        <div>
-                                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Report</label>
-                                            <select
-                                                value={selectedReportId || ''}
-                                                onChange={(e) => setSelectedReportId(Number(e.target.value))}
-                                                className="px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-48"
-                                            >
-                                                {reports.map(report => (
-                                                    <option key={report.report_id} value={report.report_id}>
-                                                        {report.report_name}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
+                            {/* Row 1: Data Source + Report Selection */}
+                            <div className="flex items-center gap-6">
+                                {/* Data Source Radio Buttons */}
+                                <div className="flex items-center gap-4">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="testMode"
+                                            value="report"
+                                            checked={testMode === 'report'}
+                                            onChange={() => setTestMode('report')}
+                                            className="text-blue-600 focus:ring-blue-500"
+                                        />
+                                        <span className="text-sm text-gray-700 dark:text-gray-300">From Report</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="testMode"
+                                            value="paste"
+                                            checked={testMode === 'paste'}
+                                            onChange={() => setTestMode('paste')}
+                                            className="text-blue-600 focus:ring-blue-500"
+                                        />
+                                        <span className="text-sm text-gray-700 dark:text-gray-300">From JSON</span>
+                                    </label>
+                                </div>
+
+                                {/* Report/Category/Article Dropdowns (only when From Report) */}
+                                {testMode === 'report' && (
+                                    <div className="flex items-center gap-3 pl-4 border-l border-gray-300 dark:border-gray-600">
+                                        <select
+                                            value={selectedReportId || ''}
+                                            onChange={(e) => setSelectedReportId(Number(e.target.value))}
+                                            className="px-3 py-1.5 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-48"
+                                        >
+                                            {reports.map(report => (
+                                                <option key={report.report_id} value={report.report_id}>
+                                                    {report.report_name}
+                                                </option>
+                                            ))}
+                                        </select>
                                         {activePromptType === 'category_summary' && (
-                                            <div>
-                                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Category</label>
-                                                <select
-                                                    value={selectedCategoryId}
-                                                    onChange={(e) => setSelectedCategoryId(e.target.value)}
-                                                    className="px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-48"
-                                                >
-                                                    {categories.length === 0 ? (
-                                                        <option value="">No categories configured</option>
-                                                    ) : (
-                                                        categories.map(category => (
-                                                            <option key={category.id} value={category.id}>
-                                                                {category.name}
-                                                            </option>
-                                                        ))
-                                                    )}
-                                                </select>
-                                            </div>
+                                            <select
+                                                value={selectedCategoryId}
+                                                onChange={(e) => setSelectedCategoryId(e.target.value)}
+                                                className="px-3 py-1.5 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-48"
+                                            >
+                                                {categories.length === 0 ? (
+                                                    <option value="">No categories configured</option>
+                                                ) : (
+                                                    categories.map(category => (
+                                                        <option key={category.id} value={category.id}>
+                                                            {category.name}
+                                                        </option>
+                                                    ))
+                                                )}
+                                            </select>
                                         )}
                                         {activePromptType === 'article_summary' && selectedReportId && (
-                                            <div>
-                                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Article Index</label>
-                                                <select
-                                                    value={selectedArticleIndex}
-                                                    onChange={(e) => setSelectedArticleIndex(Number(e.target.value))}
-                                                    className="px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-32"
-                                                >
-                                                    {(() => {
-                                                        const selectedReport = reports.find(r => r.report_id === selectedReportId);
-                                                        const articleCount = selectedReport?.article_count || 10;
-                                                        return Array.from({ length: Math.min(articleCount, 50) }, (_, i) => (
-                                                            <option key={i} value={i}>
-                                                                Article {i + 1}
-                                                            </option>
-                                                        ));
-                                                    })()}
-                                                </select>
-                                            </div>
+                                            <select
+                                                value={selectedArticleIndex}
+                                                onChange={(e) => setSelectedArticleIndex(Number(e.target.value))}
+                                                className="px-3 py-1.5 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 min-w-32"
+                                            >
+                                                {(() => {
+                                                    const selectedReport = reports.find(r => r.report_id === selectedReportId);
+                                                    const articleCount = selectedReport?.article_count || 10;
+                                                    return Array.from({ length: Math.min(articleCount, 50) }, (_, i) => (
+                                                        <option key={i} value={i}>
+                                                            Article {i + 1}
+                                                        </option>
+                                                    ));
+                                                })()}
+                                            </select>
                                         )}
-                                        {/* Model Selection */}
-                                        <div className="flex items-center gap-2 ml-4 pl-4 border-l border-gray-300 dark:border-gray-600">
-                                            <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={useStreamModel}
-                                                    onChange={(e) => setUseStreamModel(e.target.checked)}
-                                                    className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
-                                                />
-                                                Use stream model
-                                            </label>
-                                            {!useStreamModel && (
-                                                <>
-                                                    <select
-                                                        value={customModelConfig.model_id}
-                                                        onChange={(e) => setCustomModelConfig(prev => ({ ...prev, model_id: e.target.value }))}
-                                                        className="px-2 py-1 text-xs text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
-                                                    >
-                                                        {availableModels.map(m => (
-                                                            <option key={m.model_id} value={m.model_id}>{m.display_name}</option>
-                                                        ))}
-                                                    </select>
-                                                    {/* Temperature or Reasoning Effort based on model */}
-                                                    {availableModels.find(m => m.model_id === customModelConfig.model_id)?.supports_reasoning_effort ? (
-                                                        <select
-                                                            value={customModelConfig.reasoning_effort || 'medium'}
-                                                            onChange={(e) => setCustomModelConfig(prev => ({ ...prev, reasoning_effort: e.target.value as any, temperature: undefined }))}
-                                                            className="px-2 py-1 text-xs text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
-                                                            title="Reasoning Effort"
-                                                        >
-                                                            <option value="minimal">Minimal</option>
-                                                            <option value="low">Low</option>
-                                                            <option value="medium">Medium</option>
-                                                            <option value="high">High</option>
-                                                        </select>
-                                                    ) : (
-                                                        <input
-                                                            type="number"
-                                                            min="0"
-                                                            max="2"
-                                                            step="0.1"
-                                                            value={customModelConfig.temperature ?? 0}
-                                                            onChange={(e) => setCustomModelConfig(prev => ({ ...prev, temperature: parseFloat(e.target.value), reasoning_effort: undefined }))}
-                                                            className="w-16 px-2 py-1 text-xs text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
-                                                            title="Temperature"
-                                                        />
-                                                    )}
-                                                    <input
-                                                        type="number"
-                                                        min="1"
-                                                        max="16000"
-                                                        placeholder="Max tokens"
-                                                        value={customModelConfig.max_tokens || ''}
-                                                        onChange={(e) => setCustomModelConfig(prev => ({ ...prev, max_tokens: e.target.value ? parseInt(e.target.value, 10) : undefined }))}
-                                                        className="w-24 px-2 py-1 text-xs text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 placeholder:text-gray-400"
-                                                        title="Max Tokens"
-                                                    />
-                                                </>
-                                            )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Row 2: JSON Textarea (only when From JSON) */}
+                            {testMode === 'paste' && (
+                                <div>
+                                    <textarea
+                                        value={pastedData}
+                                        onChange={(e) => setPastedData(e.target.value)}
+                                        rows={4}
+                                        placeholder='{"stream": {"name": "...", "purpose": "..."}, "articles": {"count": "10", "formatted": "..."}}'
+                                        className="w-full px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 font-mono placeholder-gray-400 dark:placeholder-gray-500"
+                                    />
+                                </div>
+                            )}
+
+                            {/* Row 3: Model Options (left) + Run Test Button (right) */}
+                            <div className="flex items-center justify-between">
+                                {/* Model Selection */}
+                                <div className="flex items-center gap-3">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={useStreamModel}
+                                            onChange={(e) => setUseStreamModel(e.target.checked)}
+                                            className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                                        />
+                                        <span className="text-sm text-gray-700 dark:text-gray-300">
+                                            Use stream model
                                             {useStreamModel && stream?.llm_config && (
-                                                <span className="text-xs text-gray-400">
+                                                <span className="text-gray-400 ml-1">
                                                     ({stream.llm_config[activePromptType as keyof typeof stream.llm_config]?.model_id || 'default'})
                                                 </span>
                                             )}
+                                        </span>
+                                    </label>
+                                    {!useStreamModel && (
+                                        <div className="flex items-center gap-2 pl-3 border-l border-gray-300 dark:border-gray-600">
+                                            <select
+                                                value={customModelConfig.model_id}
+                                                onChange={(e) => setCustomModelConfig(prev => ({ ...prev, model_id: e.target.value }))}
+                                                className="px-2 py-1.5 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+                                            >
+                                                {availableModels.map(m => (
+                                                    <option key={m.model_id} value={m.model_id}>{m.display_name}</option>
+                                                ))}
+                                            </select>
+                                            {availableModels.find(m => m.model_id === customModelConfig.model_id)?.supports_reasoning_effort ? (
+                                                <select
+                                                    value={customModelConfig.reasoning_effort || 'medium'}
+                                                    onChange={(e) => setCustomModelConfig(prev => ({ ...prev, reasoning_effort: e.target.value as any, temperature: undefined }))}
+                                                    className="px-2 py-1.5 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+                                                    title="Reasoning Effort"
+                                                >
+                                                    <option value="minimal">Minimal</option>
+                                                    <option value="low">Low</option>
+                                                    <option value="medium">Medium</option>
+                                                    <option value="high">High</option>
+                                                </select>
+                                            ) : (
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="2"
+                                                    step="0.1"
+                                                    value={customModelConfig.temperature ?? 0}
+                                                    onChange={(e) => setCustomModelConfig(prev => ({ ...prev, temperature: parseFloat(e.target.value), reasoning_effort: undefined }))}
+                                                    className="w-20 px-2 py-1.5 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+                                                    title="Temperature"
+                                                />
+                                            )}
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max="16000"
+                                                placeholder="Max tokens"
+                                                value={customModelConfig.max_tokens || ''}
+                                                onChange={(e) => setCustomModelConfig(prev => ({ ...prev, max_tokens: e.target.value ? parseInt(e.target.value, 10) : undefined }))}
+                                                className="w-28 px-2 py-1.5 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 placeholder:text-gray-400"
+                                                title="Max Tokens"
+                                            />
                                         </div>
-                                    </div>
-                                ) : (
-                                    <div>
-                                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Sample Data (JSON)</label>
-                                        <textarea
-                                            value={pastedData}
-                                            onChange={(e) => setPastedData(e.target.value)}
-                                            rows={4}
-                                            placeholder='{"stream": {"name": "...", "purpose": "..."}, "articles": {"count": "10", "formatted": "..."}}'
-                                            className="w-full px-3 py-2 text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 font-mono placeholder-gray-400 dark:placeholder-gray-500"
-                                        />
-                                    </div>
-                                )}
+                                    )}
+                                </div>
+
+                                {/* Run Test Button */}
+                                <button
+                                    type="button"
+                                    onClick={handleTest}
+                                    disabled={isTesting}
+                                    className="px-5 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {isTesting ? (
+                                        <>
+                                            <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                            Testing...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <BeakerIcon className="h-4 w-4" />
+                                            Run Test
+                                        </>
+                                    )}
+                                </button>
                             </div>
                         </div>
                     </div>
