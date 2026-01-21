@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "curl -s -d \"Claude Code needs your attention\" ntfy.sh/claude_code_ready"
+            "command": "echo %date% %time% Notification hook fired >> C:\\code\\kh\\.claude\\hooks.log && curl -s -d \"Claude Code needs your attention\" ntfy.sh/claude_code_ready"
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "curl -s -d \"Claude Code finished\" ntfy.sh/claude_code_ready"
+            "command": "echo %date% %time% Stop hook fired >> C:\\code\\kh\\.claude\\hooks.log && curl -s -d \"Claude Code finished\" ntfy.sh/claude_code_ready"
           }
         ]
       }
