@@ -1020,18 +1020,8 @@ class ReportService:
             return None
         report, _, stream = access_result
 
-        # Get visible articles for the email
-        stmt = (
-            select(ReportArticleAssociation, Article)
-            .join(Article, ReportArticleAssociation.article_id == Article.article_id)
-            .where(
-                ReportArticleAssociation.report_id == report_id,
-                ReportArticleAssociation.is_hidden == False
-            )
-            .order_by(ReportArticleAssociation.ranking)
-        )
-        result = await self.db.execute(stmt)
-        rows = result.all()
+        # Get visible articles using existing service method
+        associations = await self.association_service.get_visible_for_report(report_id)
 
         # Build category ID to display name mapping from stream config
         category_id_to_name: Dict[str, str] = {}
@@ -1042,7 +1032,8 @@ class ReportService:
 
         # Build email data - group articles by category ID
         categories_dict: Dict[str, List[EmailArticle]] = {}
-        for assoc, article in rows:
+        for assoc in associations:
+            article = assoc.article
             cat_ids = assoc.presentation_categories or ['uncategorized']
             for cat_id in cat_ids:
                 if cat_id not in categories_dict:
@@ -1054,7 +1045,8 @@ class ReportService:
                     publication_date=str(article.year) if article.year else None,
                     summary=assoc.ai_summary or (article.abstract[:300] + '...' if article.abstract and len(article.abstract) > 300 else article.abstract),
                     url=article.url or (f"https://pubmed.ncbi.nlm.nih.gov/{article.pmid}/" if article.pmid else None),
-                    pmid=article.pmid
+                    pmid=article.pmid,
+                    article_id=article.article_id
                 ))
 
         # Get enrichments for summaries
@@ -1073,12 +1065,17 @@ class ReportService:
             for cat_id, articles in categories_dict.items()
         ]
 
+        # Build report URL for "View Online" link
+        base_url = settings.FRONTEND_URL or 'http://localhost:5173'
+        report_url = f"{base_url}/reports?stream={stream.stream_id}&report={report_id}"
+
         email_data = EmailReportData(
             report_name=report.report_name,
             stream_name=stream.stream_name,
             report_date=report.report_date.strftime('%B %d, %Y') if report.report_date else '',
             executive_summary=executive_summary,
-            categories=email_categories
+            categories=email_categories,
+            report_url=report_url
         )
 
         # Generate HTML
