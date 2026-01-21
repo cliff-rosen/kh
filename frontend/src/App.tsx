@@ -9,6 +9,7 @@ import { ResearchStreamProvider } from './context/ResearchStreamContext';
 import { ChatProvider } from './context/ChatContext';
 
 // utils
+import { setSessionExpiredHandler } from './lib/api';
 import { setStreamSessionExpiredHandler } from './lib/api/streamUtils';
 
 // components
@@ -38,10 +39,14 @@ import OperationsPage from './pages/OperationsPage';
 function AppContent() {
   const { handleSessionExpired, isAuthenticated } = useAuth();
 
-  // Set up session expiry handler
+  // Set up session expiry handlers for both API and streaming
   useEffect(() => {
+    setSessionExpiredHandler(handleSessionExpired);
     setStreamSessionExpiredHandler(handleSessionExpired);
-    return () => setStreamSessionExpiredHandler(() => { });
+    return () => {
+      setSessionExpiredHandler(() => { });
+      setStreamSessionExpiredHandler(() => { });
+    };
   }, [handleSessionExpired]);
 
   // Main app content when authenticated

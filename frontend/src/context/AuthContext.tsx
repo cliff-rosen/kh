@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { authApi, type LoginCredentials, type RegisterCredentials } from '../lib/api/authApi'
-import { setTokenRefreshedHandler, type TokenPayload } from '../lib/api'
+import { setTokenRefreshedHandler, setAuthToken, getAuthToken, clearAuthData, getUserStorageKey, type TokenPayload } from '../lib/api'
 import { setStreamTokenRefreshedHandler } from '../lib/api/streamUtils'
 import { trackEvent } from '../lib/api/trackingApi'
 import type { AuthUser, UserRole } from '../types/user'
@@ -49,8 +49,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [isRegisterLoading, setIsRegisterLoading] = useState(false)
 
     useEffect(() => {
-        const token = localStorage.getItem('authToken')
-        const userData = localStorage.getItem('user')
+        const token = getAuthToken()
+        const userData = localStorage.getItem(getUserStorageKey())
         if (token && userData) {
             setIsAuthenticated(true)
             setUser(JSON.parse(userData))
@@ -92,8 +92,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             org_id: data.org_id
         }
 
-        localStorage.setItem('authToken', data.access_token)
-        localStorage.setItem('user', JSON.stringify(authUser))
+        setAuthToken(data.access_token)
+        localStorage.setItem(getUserStorageKey(), JSON.stringify(authUser))
         setUser(authUser)
         setIsAuthenticated(true)
     }
@@ -175,8 +175,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Track logout before clearing credentials
         trackEvent('logout')
 
-        localStorage.removeItem('authToken')
-        localStorage.removeItem('user')
+        clearAuthData()
         setIsAuthenticated(false)
         setUser(null)
     }
@@ -208,7 +207,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             if (changed) {
                 // Update localStorage
-                localStorage.setItem('user', JSON.stringify(newUser))
+                localStorage.setItem(getUserStorageKey(), JSON.stringify(newUser))
                 return newUser
             }
 
