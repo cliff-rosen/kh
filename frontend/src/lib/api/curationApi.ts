@@ -505,6 +505,59 @@ export async function getCurrentArticleSummaries(
     return response.data;
 }
 
+// ==================== Current Category Summaries ====================
+
+export interface CurrentCategorySummaryItem {
+    category_id: string;
+    category_name: string;
+    current_summary: string | null;
+}
+
+export interface CurrentCategorySummariesResponse {
+    report_id: number;
+    report_name: string;
+    total_categories: number;
+    categories: CurrentCategorySummaryItem[];
+}
+
+/**
+ * Get current category summaries for a report (no generation).
+ * Fetches all current category summaries for display before regeneration.
+ *
+ * @param reportId - The report to fetch summaries for
+ */
+export async function getCurrentCategorySummaries(
+    reportId: number
+): Promise<CurrentCategorySummariesResponse> {
+    const response = await api.get<CurrentCategorySummariesResponse>(
+        `${BASE_PATH}/${reportId}/category-summaries/current`
+    );
+    return response.data;
+}
+
+// ==================== Current Executive Summary ====================
+
+export interface CurrentExecutiveSummaryResponse {
+    report_id: number;
+    report_name: string;
+    current_summary: string | null;
+}
+
+/**
+ * Get current executive summary for a report (no generation).
+ * Fetches the current executive summary for display before regeneration.
+ *
+ * @param reportId - The report to fetch summary for
+ */
+export async function getCurrentExecutiveSummary(
+    reportId: number
+): Promise<CurrentExecutiveSummaryResponse> {
+    const response = await api.get<CurrentExecutiveSummaryResponse>(
+        `${BASE_PATH}/${reportId}/executive-summary/current`
+    );
+    return response.data;
+}
+
 // ==================== Article Summary Preview & Batch Update ====================
 
 export interface ArticleSummaryPreviewItem {

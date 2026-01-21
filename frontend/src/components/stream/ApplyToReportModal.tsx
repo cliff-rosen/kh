@@ -28,6 +28,8 @@ import {
 } from '@heroicons/react/24/outline';
 import {
     getCurrentArticleSummaries,
+    getCurrentCategorySummaries,
+    getCurrentExecutiveSummary,
     previewArticleSummaries,
     batchUpdateArticleSummaries,
     previewExecutiveSummary,
@@ -35,6 +37,7 @@ import {
     previewCategorySummaries,
     saveCategorySummaries,
     CurrentArticleSummaryItem,
+    CurrentCategorySummaryItem,
     ArticleSummaryPreviewItem,
     CategorySummaryPreviewItem,
     RegenerateSummariesLLMConfig
@@ -81,10 +84,12 @@ export default function ApplyToReportModal({
     const [selectedArticleIds, setSelectedArticleIds] = useState<Set<number>>(new Set());
 
     // Category summary state
+    const [currentCategories, setCurrentCategories] = useState<CurrentCategorySummaryItem[]>([]);
     const [categoryPreviews, setCategoryPreviews] = useState<CategorySummaryPreviewItem[]>([]);
     const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(new Set());
 
     // Executive summary state
+    const [currentExecutiveSummary, setCurrentExecutiveSummary] = useState<string | null>(null);
     const [executivePreview, setExecutivePreview] = useState<ExecutivePreview | null>(null);
 
     // Reset state when modal opens
@@ -97,16 +102,19 @@ export default function ApplyToReportModal({
             setCurrentArticles([]);
             setArticlePreviews([]);
             setSelectedArticleIds(new Set());
+            setCurrentCategories([]);
             setCategoryPreviews([]);
             setSelectedCategoryIds(new Set());
+            setCurrentExecutiveSummary(null);
             setExecutivePreview(null);
 
+            // Fetch current data based on prompt type
             if (promptType === 'article_summary') {
                 fetchCurrentArticleSummaries();
-            } else {
-                // For category and executive, go directly to review stage
-                // (we'll show the current summary from the preview response)
-                setStage('review');
+            } else if (promptType === 'category_summary') {
+                fetchCurrentCategorySummaries();
+            } else if (promptType === 'executive_summary') {
+                fetchCurrentExecutiveSummary();
             }
         }
     }, [isOpen, reportId, promptType]);
@@ -120,6 +128,32 @@ export default function ApplyToReportModal({
         } catch (err: any) {
             console.error('Error fetching current summaries:', err);
             setError(err.message || 'Failed to load current summaries');
+            setStage('review');
+        }
+    };
+
+    const fetchCurrentCategorySummaries = async () => {
+        try {
+            const response = await getCurrentCategorySummaries(reportId);
+            setReportName(response.report_name);
+            setCurrentCategories(response.categories);
+            setStage('review');
+        } catch (err: any) {
+            console.error('Error fetching current category summaries:', err);
+            setError(err.message || 'Failed to load current category summaries');
+            setStage('review');
+        }
+    };
+
+    const fetchCurrentExecutiveSummary = async () => {
+        try {
+            const response = await getCurrentExecutiveSummary(reportId);
+            setReportName(response.report_name);
+            setCurrentExecutiveSummary(response.current_summary);
+            setStage('review');
+        } catch (err: any) {
+            console.error('Error fetching current executive summary:', err);
+            setError(err.message || 'Failed to load current executive summary');
             setStage('review');
         }
     };
@@ -423,31 +457,136 @@ export default function ApplyToReportModal({
                         </div>
                     )}
 
-                    {/* Review Stage - Category & Executive Summary */}
-                    {stage === 'review' && (promptType === 'category_summary' || promptType === 'executive_summary') && (
-                        <div className="max-w-xl mx-auto text-center py-12">
-                            <SparklesIcon className="h-16 w-16 text-purple-500 mx-auto mb-4" />
-                            <h4 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                                Generate {promptType === 'category_summary' ? 'Category Summaries' : 'Executive Summary'}
-                            </h4>
-                            <p className="text-gray-600 dark:text-gray-400 mb-6">
-                                {promptType === 'category_summary'
-                                    ? "This will generate new summaries for all categories in the report using your custom prompt. You'll be able to review and select which summaries to apply."
-                                    : "This will generate a new executive summary for the report using your custom prompt. You'll be able to review and decide whether to apply it."
-                                }
-                            </p>
+                    {/* Review Stage - Category Summary */}
+                    {stage === 'review' && promptType === 'category_summary' && (
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
+                                <div className="flex items-center gap-4">
+                                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                                        <span className="font-medium text-gray-900 dark:text-white">{currentCategories.length}</span> categories
+                                    </span>
+                                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                                        <DocumentTextIcon className="h-4 w-4 inline mr-1" />
+                                        {currentCategories.filter(c => c.current_summary).length} with summaries
+                                    </span>
+                                </div>
+                                <button
+                                    onClick={handleGeneratePreview}
+                                    disabled={currentCategories.length === 0}
+                                    className="px-5 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                                >
+                                    <SparklesIcon className="h-5 w-5" />
+                                    Generate New Summaries
+                                </button>
+                            </div>
+
                             {error && (
-                                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg text-sm">
+                                <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg text-sm">
                                     {error}
                                 </div>
                             )}
-                            <button
-                                onClick={handleGeneratePreview}
-                                className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2 mx-auto"
-                            >
-                                <SparklesIcon className="h-5 w-5" />
-                                Generate Preview
-                            </button>
+
+                            {currentCategories.length === 0 && !error && (
+                                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                    No categories configured for this stream.
+                                </div>
+                            )}
+
+                            <div className="space-y-3">
+                                {currentCategories.map((category) => (
+                                    <div
+                                        key={category.category_id}
+                                        className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
+                                    >
+                                        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium text-gray-900 dark:text-white">
+                                                        {category.category_name}
+                                                    </p>
+                                                </div>
+                                                {category.current_summary ? (
+                                                    <span className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded flex-shrink-0">
+                                                        Has Summary
+                                                    </span>
+                                                ) : (
+                                                    <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded flex-shrink-0">
+                                                        No Summary
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="p-4">
+                                            {category.current_summary ? (
+                                                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                                    {category.current_summary}
+                                                </p>
+                                            ) : (
+                                                <p className="text-sm text-gray-400 dark:text-gray-500 italic">
+                                                    No summary available.
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Review Stage - Executive Summary */}
+                    {stage === 'review' && promptType === 'executive_summary' && (
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
+                                <div className="flex items-center gap-4">
+                                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                                        <DocumentTextIcon className="h-4 w-4 inline mr-1" />
+                                        {currentExecutiveSummary ? 'Has executive summary' : 'No executive summary'}
+                                    </span>
+                                </div>
+                                <button
+                                    onClick={handleGeneratePreview}
+                                    className="px-5 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                                >
+                                    <SparklesIcon className="h-5 w-5" />
+                                    Generate New Summary
+                                </button>
+                            </div>
+
+                            {error && (
+                                <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded-lg text-sm">
+                                    {error}
+                                </div>
+                            )}
+
+                            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800">
+                                    <div className="flex items-center justify-between">
+                                        <p className="font-medium text-gray-900 dark:text-white">
+                                            Current Executive Summary
+                                        </p>
+                                        {currentExecutiveSummary ? (
+                                            <span className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">
+                                                Has Summary
+                                            </span>
+                                        ) : (
+                                            <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded">
+                                                No Summary
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="p-4">
+                                    {currentExecutiveSummary ? (
+                                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                            {currentExecutiveSummary}
+                                        </p>
+                                    ) : (
+                                        <p className="text-sm text-gray-400 dark:text-gray-500 italic">
+                                            No executive summary available yet.
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -460,7 +599,7 @@ export default function ApplyToReportModal({
                             </h4>
                             <p className="text-gray-600 dark:text-gray-400">
                                 {promptType === 'article_summary' && `Processing ${currentArticles.length} articles.`}
-                                {promptType === 'category_summary' && 'Processing category summaries.'}
+                                {promptType === 'category_summary' && `Processing ${currentCategories.length} categories.`}
                                 {promptType === 'executive_summary' && 'Processing executive summary.'}
                                 {' '}This may take a moment.
                             </p>
@@ -777,11 +916,25 @@ export default function ApplyToReportModal({
                     </div>
                 )}
 
-                {stage === 'review' && (promptType === 'category_summary' || promptType === 'executive_summary') && (
-                    <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-center flex-shrink-0">
+                {stage === 'review' && promptType === 'category_summary' && currentCategories.length > 0 && (
+                    <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
                         <button onClick={onClose} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
                             Cancel
                         </button>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Click "Generate New Summaries" to create AI summaries using your custom prompt
+                        </p>
+                    </div>
+                )}
+
+                {stage === 'review' && promptType === 'executive_summary' && (
+                    <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+                        <button onClick={onClose} className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                            Cancel
+                        </button>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Click "Generate New Summary" to create an AI summary using your custom prompt
+                        </p>
                     </div>
                 )}
 

@@ -1367,6 +1367,112 @@ async def get_current_article_summaries(
         )
 
 
+class CurrentCategorySummaryItem(BaseModel):
+    """Current category summary info."""
+    category_id: str
+    category_name: str
+    current_summary: Optional[str] = None
+
+
+class CurrentCategorySummariesResponse(BaseModel):
+    """Response for fetching current category summaries."""
+    report_id: int
+    report_name: str
+    total_categories: int
+    categories: List[CurrentCategorySummaryItem]
+
+
+@router.get("/{report_id}/category-summaries/current", response_model=CurrentCategorySummariesResponse)
+async def get_current_category_summaries(
+    report_id: int,
+    service: ReportService = Depends(get_report_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get current category summaries for a report (no generation).
+
+    Fetches all current category summaries for display in a review modal
+    before generating new summaries.
+    """
+    logger.info(f"get_current_category_summaries - user_id={current_user.user_id}, report_id={report_id}")
+
+    try:
+        result = await service.get_current_category_summaries(
+            report_id=report_id,
+            user_id=current_user.user_id,
+        )
+
+        logger.info(f"get_current_category_summaries complete - user_id={current_user.user_id}, report_id={report_id}, count={result.total_categories}")
+
+        return CurrentCategorySummariesResponse(
+            report_id=result.report_id,
+            report_name=result.report_name,
+            total_categories=result.total_categories,
+            categories=[
+                CurrentCategorySummaryItem(
+                    category_id=c.category_id,
+                    category_name=c.category_name,
+                    current_summary=c.current_summary,
+                )
+                for c in result.categories
+            ],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_current_category_summaries failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch category summaries: {str(e)}"
+        )
+
+
+class CurrentExecutiveSummaryResponse(BaseModel):
+    """Response for fetching current executive summary."""
+    report_id: int
+    report_name: str
+    current_summary: Optional[str] = None
+
+
+@router.get("/{report_id}/executive-summary/current", response_model=CurrentExecutiveSummaryResponse)
+async def get_current_executive_summary(
+    report_id: int,
+    service: ReportService = Depends(get_report_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get current executive summary for a report (no generation).
+
+    Fetches the current executive summary for display in a review modal
+    before generating a new summary.
+    """
+    logger.info(f"get_current_executive_summary - user_id={current_user.user_id}, report_id={report_id}")
+
+    try:
+        result = await service.get_current_executive_summary(
+            report_id=report_id,
+            user_id=current_user.user_id,
+        )
+
+        logger.info(f"get_current_executive_summary complete - user_id={current_user.user_id}, report_id={report_id}")
+
+        return CurrentExecutiveSummaryResponse(
+            report_id=result.report_id,
+            report_name=result.report_name,
+            current_summary=result.current_summary,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_current_executive_summary failed - user_id={current_user.user_id}, report_id={report_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch executive summary: {str(e)}"
+        )
+
+
 class PreviewArticleSummariesRequest(BaseModel):
     """Request schema for previewing article summary regeneration."""
     prompt: PromptTemplate

@@ -419,6 +419,31 @@ class CategorySummariesPreviewResult:
     previews: List[CategorySummaryPreviewItem]
 
 
+@dataclass
+class CurrentCategorySummaryItem:
+    """Current category summary info for display."""
+    category_id: str
+    category_name: str
+    current_summary: Optional[str]
+
+
+@dataclass
+class CurrentCategorySummariesResult:
+    """Result of fetching current category summaries."""
+    report_id: int
+    report_name: str
+    total_categories: int
+    categories: List[CurrentCategorySummaryItem]
+
+
+@dataclass
+class CurrentExecutiveSummaryResult:
+    """Result of fetching current executive summary."""
+    report_id: int
+    report_name: str
+    current_summary: Optional[str]
+
+
 class ReportService:
     """
     Service for all Report and ReportArticleAssociation operations.
@@ -2330,6 +2355,80 @@ class ReportService:
             report_name=report.report_name or f"Report {report_id}",
             total_articles=len(articles),
             articles=articles,
+        )
+
+    async def get_current_category_summaries(
+        self,
+        report_id: int,
+        user_id: int,
+    ) -> CurrentCategorySummariesResult:
+        """
+        Get current category summaries for a report (no generation).
+
+        Fetches the current state of all category summaries in the report
+        for display in a modal before regeneration.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID (for access verification)
+
+        Returns:
+            CurrentCategorySummariesResult with all current category summaries
+        """
+        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+
+        # Get categories from stream
+        categories = stream.presentation_config.get('categories', []) if stream and stream.presentation_config else []
+
+        # Get current category summaries from report enrichments
+        enrichments = report.enrichments or {}
+        current_summaries = enrichments.get('category_summaries', {})
+
+        category_items = []
+        for cat in categories:
+            cat_id = cat.get('id', '')
+            cat_name = cat.get('name', cat_id)
+            category_items.append(CurrentCategorySummaryItem(
+                category_id=cat_id,
+                category_name=cat_name,
+                current_summary=current_summaries.get(cat_id),
+            ))
+
+        return CurrentCategorySummariesResult(
+            report_id=report_id,
+            report_name=report.report_name or f"Report {report_id}",
+            total_categories=len(category_items),
+            categories=category_items,
+        )
+
+    async def get_current_executive_summary(
+        self,
+        report_id: int,
+        user_id: int,
+    ) -> CurrentExecutiveSummaryResult:
+        """
+        Get current executive summary for a report (no generation).
+
+        Fetches the current executive summary for display in a modal
+        before regeneration.
+
+        Args:
+            report_id: The report ID
+            user_id: The user ID (for access verification)
+
+        Returns:
+            CurrentExecutiveSummaryResult with current executive summary
+        """
+        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+
+        # Get current executive summary from report enrichments
+        enrichments = report.enrichments or {}
+        current_summary = enrichments.get('executive_summary')
+
+        return CurrentExecutiveSummaryResult(
+            report_id=report_id,
+            report_name=report.report_name or f"Report {report_id}",
+            current_summary=current_summary,
         )
 
     async def preview_article_summaries(
