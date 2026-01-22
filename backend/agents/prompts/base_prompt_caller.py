@@ -363,7 +363,8 @@ class BasePromptCaller:
 
         # Parse response with error handling
         try:
-            message = response.choices[0].message
+            choice = response.choices[0]
+            message = choice.message
             response_text = message.content
 
             if not response_text:
@@ -371,8 +372,35 @@ class BasePromptCaller:
                 logger.error(f"OpenAI returned empty response content. Model: {use_model}")
                 logger.error(f"Response message: {message}")
                 logger.error(f"Full response: {response}")
+
+                # Check for specific error conditions and provide helpful messages
+                finish_reason = choice.finish_reason
+
+                if finish_reason == 'length':
+                    # Token limit exceeded - check if reasoning tokens consumed the budget
+                    usage = response.usage
+                    if usage and hasattr(usage, 'completion_tokens_details'):
+                        details = usage.completion_tokens_details
+                        if details and hasattr(details, 'reasoning_tokens') and details.reasoning_tokens:
+                            raise ValueError(
+                                f"Token limit exceeded: model used {details.reasoning_tokens} tokens for reasoning "
+                                f"but had no tokens left for output. Try increasing max_tokens or using a different model."
+                            )
+                    raise ValueError(
+                        "Token limit exceeded: response was cut off before completion. "
+                        "Try increasing max_tokens or simplifying the request."
+                    )
+
+                if finish_reason == 'content_filter':
+                    raise ValueError(
+                        "Content was filtered by OpenAI's safety system. "
+                        "The request or response may contain content that violates usage policies."
+                    )
+
                 if hasattr(message, 'refusal') and message.refusal:
                     logger.error(f"Model refused: {message.refusal}")
+                    raise ValueError(f"Model refused to respond: {message.refusal}")
+
                 raise ValueError("OpenAI returned empty response")
 
             # For text-only mode, return raw text; otherwise parse with Pydantic
