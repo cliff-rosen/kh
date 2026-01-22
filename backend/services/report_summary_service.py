@@ -14,6 +14,7 @@ from typing import List, Dict, Optional, Any, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from models import ReportArticleAssociation, ResearchStream
+    from schemas.research_stream import EnrichmentConfig
 
 from agents.prompts.llm import call_llm, ModelConfig, LLMOptions, LLMResult
 import logging
@@ -206,27 +207,26 @@ class ReportSummaryService:
     def _get_prompts(
         self,
         prompt_type: str,
-        enrichment_config: Optional[Dict[str, Any]] = None,
+        enrichment_config: Optional["EnrichmentConfig"] = None,
     ) -> tuple[str, str]:
         """
         Get system and user prompts, using custom prompts from enrichment_config if available.
 
         Args:
             prompt_type: One of "article_summary", "category_summary", "executive_summary"
-            enrichment_config: Optional custom prompts config
+            enrichment_config: Optional EnrichmentConfig with custom prompts
 
         Returns:
             Tuple of (system_message, user_message)
         """
         # Check for custom prompts
         custom_prompt = None
-        if enrichment_config:
-            prompts = enrichment_config.get("prompts", {})
-            custom_prompt = prompts.get(prompt_type)
+        if enrichment_config and enrichment_config.prompts:
+            custom_prompt = enrichment_config.prompts.get(prompt_type)
 
         if custom_prompt:
-            system_message = custom_prompt.get("system_prompt", DEFAULT_PROMPTS[prompt_type]["system_prompt"])
-            user_message = custom_prompt.get("user_prompt_template", DEFAULT_PROMPTS[prompt_type]["user_prompt_template"])
+            system_message = custom_prompt.system_prompt
+            user_message = custom_prompt.user_prompt_template
             # Convert nested slugs to flat placeholders for custom prompts
             mappings = SLUG_MAPPINGS.get(prompt_type, {})
             for old_slug, new_placeholder in mappings.items():
@@ -246,7 +246,7 @@ class ReportSummaryService:
     async def generate_article_summary(
         self,
         items: Union[Dict[str, Any], List[Dict[str, Any]]],
-        enrichment_config: Optional[Dict[str, Any]] = None,
+        enrichment_config: Optional["EnrichmentConfig"] = None,
         model_config: Optional[ModelConfig] = None,
         options: Optional[LLMOptions] = None,
     ) -> Union[LLMResult, List[LLMResult]]:
@@ -263,7 +263,7 @@ class ReportSummaryService:
                 - filter_reason: (optional) AI reasoning from semantic filter
                 - stream_name: (optional) Research stream name
                 - stream_purpose: (optional) Research stream purpose
-            enrichment_config: Optional custom prompts config
+            enrichment_config: Optional EnrichmentConfig with custom prompts
             model_config: Model configuration (model, temperature)
             options: Call options (max_concurrent, on_progress)
 
@@ -310,7 +310,7 @@ class ReportSummaryService:
     async def generate_category_summary(
         self,
         items: Union[Dict[str, Any], List[Dict[str, Any]]],
-        enrichment_config: Optional[Dict[str, Any]] = None,
+        enrichment_config: Optional["EnrichmentConfig"] = None,
         model_config: Optional[ModelConfig] = None,
         options: Optional[LLMOptions] = None,
     ) -> Union[LLMResult, List[LLMResult]]:
@@ -327,7 +327,7 @@ class ReportSummaryService:
                 - articles_summaries: (optional) AI summaries for articles
                 - stream_name: (optional) Research stream name
                 - stream_purpose: (optional) Research stream purpose
-            enrichment_config: Optional custom prompts config
+            enrichment_config: Optional EnrichmentConfig with custom prompts
             model_config: Model configuration (model, temperature)
             options: Call options (max_concurrent, on_progress)
 
@@ -374,7 +374,7 @@ class ReportSummaryService:
     async def generate_executive_summary(
         self,
         items: Union[Dict[str, Any], List[Dict[str, Any]]],
-        enrichment_config: Optional[Dict[str, Any]] = None,
+        enrichment_config: Optional["EnrichmentConfig"] = None,
         model_config: Optional[ModelConfig] = None,
         options: Optional[LLMOptions] = None,
     ) -> Union[LLMResult, List[LLMResult]]:
@@ -389,7 +389,7 @@ class ReportSummaryService:
                 - categories_summaries: Formatted category summaries
                 - stream_name: (optional) Research stream name
                 - stream_purpose: (optional) Research stream purpose
-            enrichment_config: Optional custom prompts config
+            enrichment_config: Optional EnrichmentConfig with custom prompts
             model_config: Model configuration (model, temperature)
             options: Call options (max_concurrent, on_progress)
 
