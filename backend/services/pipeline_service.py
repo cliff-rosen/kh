@@ -42,7 +42,7 @@ from models import (
     RunType,
     PipelineExecution,
 )
-from schemas.research_stream import RetrievalConfig, PresentationConfig, BroadQuery
+from schemas.research_stream import RetrievalConfig, PresentationConfig, BroadQuery, Category, EnrichmentConfig
 from schemas.llm import StageConfig, PipelineLLMConfig, get_stage_config
 from services.pubmed_service import PubMedService
 from services.ai_evaluation_service import get_ai_evaluation_service
@@ -76,10 +76,10 @@ class PipelineContext:
     end_date: Optional[str]
     report_name: Optional[str]
     queries: List[BroadQuery]
-    categories: List[Dict]  # From presentation_config (for LLM prompts)
-    presentation_config: Any  # Full PresentationConfig object
-    enrichment_config: Optional[Dict]  # Custom prompts configuration (snapshot)
-    llm_config: Optional[PipelineLLMConfig]  # LLM configuration for pipeline stages
+    categories: List[Category]
+    presentation_config: PresentationConfig
+    enrichment_config: Optional[EnrichmentConfig]
+    llm_config: Optional[PipelineLLMConfig]
 
     # === Mutable (accumulated during execution) ===
     total_retrieved: int = 0
@@ -284,27 +284,16 @@ class PipelineService:
             execution.presentation_config
         )
 
-        # Prepare categories for categorization
-        categories = []
-        if presentation_config.categories:
-            categories = [
-                {
-                    "id": cat.id,
-                    "name": cat.name,
-                    "topics": cat.topics,
-                    "specific_inclusions": cat.specific_inclusions,
-                }
-                for cat in presentation_config.categories
-            ]
+        # Parse enrichment_config from execution snapshot
+        enrichment_config = None
+        if execution.enrichment_config:
+            enrichment_config = EnrichmentConfig.model_validate(execution.enrichment_config)
 
-        # Get enrichment_config and llm_config from execution snapshot
-        enrichment_config = execution.enrichment_config
-
-        # Convert llm_config dict to PipelineLLMConfig (or None if not set)
+        # Parse llm_config from execution snapshot
         llm_config = None
         if execution.llm_config:
             try:
-                llm_config = PipelineLLMConfig(**execution.llm_config)
+                llm_config = PipelineLLMConfig.model_validate(execution.llm_config)
             except Exception as e:
                 logger.warning(f"Failed to parse llm_config, using defaults: {e}")
 
@@ -318,7 +307,7 @@ class PipelineService:
             end_date=execution.end_date,
             report_name=execution.report_name,
             queries=retrieval_config.broad_search.queries,
-            categories=categories,
+            categories=presentation_config.categories or [],
             presentation_config=presentation_config,
             enrichment_config=enrichment_config,
             llm_config=llm_config,
@@ -535,9 +524,6 @@ class PipelineService:
                 },
             )
 
-        # Stage commit
-        await self.wip_article_service.commit()
-
         yield PipelineStatus(
             "retrieval",
             f"Retrieval complete: {ctx.total_retrieved} articles",
@@ -729,8 +715,8 @@ class PipelineService:
     async def _generate_article_summaries(
         self,
         report_id: int,
-        stream: Any,
-        enrichment_config: Optional[Dict[str, Any]],
+        stream: "ResearchStream",
+        enrichment_config: Optional[EnrichmentConfig],
         stage_config: StageConfig,
         on_progress: Optional[ProgressCallback] = None,
     ) -> int:
@@ -1069,40 +1055,15 @@ class PipelineService:
             pass
 
         # Store results in wip_articles using WipArticleService
-        # Articles are CanonicalResearchArticle objects (Pydantic models)
         logger.info(f"Storing {len(articles)} articles for execution_id={execution_id}")
 
-        for article in articles:
-            # Parse publication_date string to date object if present
-            pub_date = None
-            if article.publication_date:
-                try:
-                    pub_date = datetime.fromisoformat(article.publication_date).date()
-                except (ValueError, AttributeError):
-                    pass  # Skip invalid dates
-
-            self.wip_article_service.create_wip_article(
-                research_stream_id=research_stream_id,
-                pipeline_execution_id=execution_id,
-                retrieval_group_id=retrieval_unit_id,
-                source_id=source_id,
-                title=article.title,
-                url=article.url,
-                authors=article.authors or [],
-                publication_date=pub_date,
-                abstract=article.abstract,
-                pmid=article.pmid
-                or (article.id if article.source == "pubmed" else None),
-                doi=article.doi,
-                journal=article.journal,
-                year=(
-                    int(article.publication_year) if article.publication_year else None
-                ),
-                source_specific_id=article.id,
-            )
-
-        await self.wip_article_service.commit()
-        return len(articles)
+        return await self.wip_article_service.create_wip_articles(
+            research_stream_id=research_stream_id,
+            execution_id=execution_id,
+            retrieval_group_id=retrieval_unit_id,
+            source_id=source_id,
+            articles=articles,
+        )
 
     async def _apply_semantic_filter(
         self,

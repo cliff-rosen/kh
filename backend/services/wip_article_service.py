@@ -6,12 +6,14 @@ All other services should use this service for WipArticle operations.
 """
 
 import logging
+from datetime import datetime
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, select
 from fastapi import HTTPException, status, Depends
 
 from models import WipArticle, InformationSource
+from schemas.canonical_types import CanonicalResearchArticle
 from database import get_async_db
 
 logger = logging.getLogger(__name__)
@@ -47,7 +49,7 @@ class WipArticleService:
         pmid: Optional[str] = None,
         doi: Optional[str] = None,
         url: Optional[str] = None,
-        source_specific_id: Optional[str] = None
+        source_specific_id: Optional[str] = None,
     ) -> WipArticle:
         """
         Create a new WipArticle record.
@@ -94,6 +96,63 @@ class WipArticleService:
         self.db.add(wip_article)
         return wip_article
 
+    async def create_wip_articles(
+        self,
+        research_stream_id: int,
+        execution_id: str,
+        retrieval_group_id: str,
+        source_id: int,
+        articles: List[CanonicalResearchArticle],
+    ) -> int:
+        """
+        Create WipArticle records from canonical articles and commit.
+
+        Maps CanonicalResearchArticle objects to WipArticle records and persists them
+        in a single transaction.
+
+        Args:
+            research_stream_id: ID of the research stream
+            execution_id: ID of the pipeline execution
+            retrieval_group_id: ID of the retrieval group (query_id)
+            source_id: ID of the information source
+            articles: List of CanonicalResearchArticle objects from the source
+
+        Returns:
+            Number of articles created
+        """
+        for article in articles:
+            # Parse publication_date string to date object if present
+            pub_date = None
+            if article.publication_date:
+                try:
+                    pub_date = datetime.fromisoformat(article.publication_date).date()
+                except (ValueError, AttributeError):
+                    pass
+
+            wip_article = WipArticle(
+                research_stream_id=research_stream_id,
+                pipeline_execution_id=execution_id,
+                retrieval_group_id=retrieval_group_id,
+                source_id=source_id,
+                title=article.title,
+                url=article.url,
+                authors=article.authors or [],
+                publication_date=pub_date,
+                abstract=article.abstract,
+                pmid=article.pmid or (article.id if article.source == "pubmed" else None),
+                doi=article.doi,
+                journal=article.journal,
+                year=int(article.publication_year) if article.publication_year else None,
+                source_specific_id=article.id,
+                is_duplicate=False,
+                passed_semantic_filter=None,
+                included_in_report=False,
+            )
+            self.db.add(wip_article)
+
+        await self.db.commit()
+        return len(articles)
+
     def bulk_create_wip_articles(self, articles: List[WipArticle]) -> None:
         """
         Bulk add WipArticle records.
@@ -107,11 +166,7 @@ class WipArticleService:
     # UPDATE Operations (in-memory only - no DB queries)
     # =========================================================================
 
-    def mark_as_duplicate(
-        self,
-        article: WipArticle,
-        duplicate_of_pmid: str
-    ) -> None:
+    def mark_as_duplicate(self, article: WipArticle, duplicate_of_pmid: str) -> None:
         """
         Mark an article as a duplicate.
 
@@ -127,7 +182,7 @@ class WipArticleService:
         article: WipArticle,
         passed: bool,
         score: Optional[float] = None,
-        score_reason: Optional[str] = None
+        score_reason: Optional[str] = None,
     ) -> None:
         """
         Update semantic filter results for an article.
@@ -164,9 +219,7 @@ class WipArticleService:
             article.included_in_report = True
 
     def update_presentation_category(
-        self,
-        article: WipArticle,
-        category_id: Optional[str]
+        self, article: WipArticle, category_id: Optional[str]
     ) -> None:
         """
         Update the presentation category for an article.
@@ -180,10 +233,7 @@ class WipArticleService:
         else:
             article.presentation_categories = []
 
-    def bulk_update_categories(
-        self,
-        categorization_results: List[tuple]
-    ) -> int:
+    def bulk_update_categories(self, categorization_results: List[tuple]) -> int:
         """
         Bulk update presentation categories from categorization results.
 
@@ -205,10 +255,7 @@ class WipArticleService:
     # =========================================================================
 
     def set_curator_included(
-        self,
-        article: WipArticle,
-        user_id: int,
-        notes: Optional[str] = None
+        self, article: WipArticle, user_id: int, notes: Optional[str] = None
     ) -> None:
         """
         Mark an article as curator-included.
@@ -221,6 +268,7 @@ class WipArticleService:
             notes: Optional curation notes
         """
         from datetime import datetime
+
         article.curator_included = True
         article.curator_excluded = False  # Clear any exclude flag
         article.included_in_report = True
@@ -230,10 +278,7 @@ class WipArticleService:
             article.curation_notes = notes
 
     def set_curator_excluded(
-        self,
-        article: WipArticle,
-        user_id: int,
-        notes: Optional[str] = None
+        self, article: WipArticle, user_id: int, notes: Optional[str] = None
     ) -> None:
         """
         Mark an article as curator-excluded.
@@ -246,6 +291,7 @@ class WipArticleService:
             notes: Optional curation notes
         """
         from datetime import datetime
+
         article.curator_excluded = True
         article.curator_included = False  # Clear any include flag
         article.included_in_report = False
@@ -262,13 +308,11 @@ class WipArticleService:
         This restores the article to its original pipeline decision (filtered out).
         """
         article.curator_included = False
-        article.included_in_report = False  # Restore to pipeline's decision (was filtered)
+        article.included_in_report = (
+            False  # Restore to pipeline's decision (was filtered)
+        )
 
-    def clear_curation_flags(
-        self,
-        article: WipArticle,
-        user_id: int
-    ) -> bool:
+    def clear_curation_flags(self, article: WipArticle, user_id: int) -> bool:
         """
         Clear curator override flags, restoring to pipeline decision.
 
@@ -283,8 +327,7 @@ class WipArticleService:
 
         # Determine pipeline's original decision
         pipeline_would_include = (
-            article.passed_semantic_filter is True and
-            not article.is_duplicate
+            article.passed_semantic_filter is True and not article.is_duplicate
         )
 
         article.curator_included = False
@@ -300,8 +343,7 @@ class WipArticleService:
     # =========================================================================
 
     async def get_articles_with_curation_notes_by_stream(
-        self,
-        stream_id: int
+        self, stream_id: int
     ) -> List[WipArticle]:
         """
         Get all WipArticles with curation notes for a stream (across all executions) - async version.
@@ -313,16 +355,21 @@ class WipArticleService:
             List of WipArticle instances with curation notes, ordered by curated_at desc
         """
         from sqlalchemy.orm import selectinload
-        stmt = select(WipArticle).options(
-            selectinload(WipArticle.curator),
-            selectinload(WipArticle.execution)
-        ).where(
-            and_(
-                WipArticle.research_stream_id == stream_id,
-                WipArticle.curation_notes != None,
-                WipArticle.curation_notes != ""
+
+        stmt = (
+            select(WipArticle)
+            .options(
+                selectinload(WipArticle.curator), selectinload(WipArticle.execution)
             )
-        ).order_by(WipArticle.curated_at.desc())
+            .where(
+                and_(
+                    WipArticle.research_stream_id == stream_id,
+                    WipArticle.curation_notes != None,
+                    WipArticle.curation_notes != "",
+                )
+            )
+            .order_by(WipArticle.curated_at.desc())
+        )
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
@@ -342,41 +389,18 @@ class WipArticleService:
             return await self.get_by_id(wip_article_id)
         except ValueError:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="WIP article not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="WIP article not found"
             )
 
-    async def get_source_id_by_name(self, source_name: str) -> int:
-        """Get the database source_id for a source name (e.g., 'pubmed').
-
-        Args:
-            source_name: The source name (e.g., 'pubmed', 'google_scholar')
-
-        Returns:
-            Integer source_id for use as foreign key
-
-        Raises:
-            ValueError: If source not found
-        """
-        result = await self.db.execute(
-            select(InformationSource).where(InformationSource.source_name == source_name)
-        )
-        source = result.scalars().first()
-        if not source:
-            raise ValueError(f"Information source '{source_name}' not found")
-        return source.source_id
-
     async def get_by_execution_id(
-        self,
-        execution_id: str,
-        included_only: bool = False
+        self, execution_id: str, included_only: bool = False
     ) -> List[WipArticle]:
         """Get all WipArticles for a pipeline execution (async)."""
         if included_only:
             result = await self.db.execute(
                 select(WipArticle).where(
                     WipArticle.pipeline_execution_id == execution_id,
-                    WipArticle.included_in_report == True
+                    WipArticle.included_in_report == True,
                 )
             )
         else:
@@ -388,9 +412,7 @@ class WipArticleService:
         return list(result.scalars().all())
 
     async def get_for_filtering(
-        self,
-        execution_id: str,
-        retrieval_group_id: str
+        self, execution_id: str, retrieval_group_id: str
     ) -> List[WipArticle]:
         """Get articles ready for semantic filtering (async)."""
         result = await self.db.execute(
@@ -399,7 +421,7 @@ class WipArticleService:
                     WipArticle.pipeline_execution_id == execution_id,
                     WipArticle.retrieval_group_id == retrieval_group_id,
                     WipArticle.is_duplicate == False,
-                    WipArticle.passed_semantic_filter == None
+                    WipArticle.passed_semantic_filter == None,
                 )
             )
         )
@@ -414,8 +436,8 @@ class WipArticleService:
                     WipArticle.is_duplicate == False,
                     or_(
                         WipArticle.passed_semantic_filter == True,
-                        WipArticle.passed_semantic_filter == None
-                    )
+                        WipArticle.passed_semantic_filter == None,
+                    ),
                 )
             )
         )
@@ -427,55 +449,46 @@ class WipArticleService:
             select(WipArticle).where(
                 and_(
                     WipArticle.pipeline_execution_id == execution_id,
-                    WipArticle.included_in_report == True
+                    WipArticle.included_in_report == True,
                 )
             )
         )
         return list(result.scalars().all())
 
     async def get_article_by_pmid(
-        self,
-        execution_id: str,
-        pmid: str
+        self, execution_id: str, pmid: str
     ) -> Optional[WipArticle]:
         """Find a WipArticle by PMID within an execution (async)."""
         result = await self.db.execute(
             select(WipArticle).where(
                 and_(
                     WipArticle.pipeline_execution_id == execution_id,
-                    WipArticle.pmid == pmid
+                    WipArticle.pmid == pmid,
                 )
             )
         )
         return result.scalars().first()
 
     async def get_all_articles_by_status(
-        self,
-        execution_id: str
+        self, execution_id: str
     ) -> Dict[str, List[WipArticle]]:
         """Get all articles for an execution grouped by status (async)."""
         result = await self.db.execute(
-            select(WipArticle).where(
-                WipArticle.pipeline_execution_id == execution_id
-            )
+            select(WipArticle).where(WipArticle.pipeline_execution_id == execution_id)
         )
         all_articles = list(result.scalars().all())
 
-        grouped = {
-            'included': [],
-            'filtered_out': [],
-            'duplicate': []
-        }
+        grouped = {"included": [], "filtered_out": [], "duplicate": []}
 
         for article in all_articles:
             if article.is_duplicate:
-                grouped['duplicate'].append(article)
+                grouped["duplicate"].append(article)
             elif article.passed_semantic_filter == False:
-                grouped['filtered_out'].append(article)
+                grouped["filtered_out"].append(article)
             elif article.included_in_report:
-                grouped['included'].append(article)
+                grouped["included"].append(article)
             else:
-                grouped['filtered_out'].append(article)
+                grouped["filtered_out"].append(article)
 
         return grouped
 
@@ -487,18 +500,15 @@ class WipArticleService:
                     WipArticle.pipeline_execution_id == execution_id,
                     or_(
                         WipArticle.curator_included == True,
-                        WipArticle.curator_excluded == True
-                    )
+                        WipArticle.curator_excluded == True,
+                    ),
                 )
             )
         )
         return list(result.scalars().all())
 
     async def update_curation_notes(
-        self,
-        wip_article_id: int,
-        user_id: int,
-        notes: str
+        self, wip_article_id: int, user_id: int, notes: str
     ) -> WipArticle:
         """Update curation notes for a WipArticle (async)."""
         from datetime import datetime
@@ -513,10 +523,7 @@ class WipArticleService:
         return article
 
     async def get_by_execution_and_identifiers(
-        self,
-        execution_id: str,
-        pmid: Optional[str] = None,
-        doi: Optional[str] = None
+        self, execution_id: str, pmid: Optional[str] = None, doi: Optional[str] = None
     ) -> Optional[WipArticle]:
         """Find a WipArticle by PMID or DOI within an execution (async)."""
         if pmid:
@@ -524,7 +531,7 @@ class WipArticleService:
                 select(WipArticle).where(
                     and_(
                         WipArticle.pipeline_execution_id == execution_id,
-                        WipArticle.pmid == pmid
+                        WipArticle.pmid == pmid,
                     )
                 )
             )
@@ -537,7 +544,7 @@ class WipArticleService:
                 select(WipArticle).where(
                     and_(
                         WipArticle.pipeline_execution_id == execution_id,
-                        WipArticle.doi == doi
+                        WipArticle.doi == doi,
                     )
                 )
             )
@@ -550,10 +557,9 @@ class WipArticleService:
     async def delete_by_execution_id(self, execution_id: str) -> int:
         """Delete all WipArticles for a pipeline execution (async)."""
         from sqlalchemy import delete
+
         result = await self.db.execute(
-            delete(WipArticle).where(
-                WipArticle.pipeline_execution_id == execution_id
-            )
+            delete(WipArticle).where(WipArticle.pipeline_execution_id == execution_id)
         )
         return result.rowcount
 
@@ -568,7 +574,7 @@ class WipArticleService:
 
 # Dependency injection provider for async wip article service
 async def get_wip_article_service(
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_async_db),
 ) -> WipArticleService:
     """Get a WipArticleService instance with async database session."""
     return WipArticleService(db)
