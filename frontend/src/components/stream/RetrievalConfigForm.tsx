@@ -1,11 +1,14 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { RetrievalConfig, BroadQuery } from '../../types';
 import { SparklesIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { useResearchStream } from '../../context/ResearchStreamContext';
 
 interface RetrievalConfigFormProps {
     retrievalConfig: RetrievalConfig;
     onChange: (updated: RetrievalConfig) => void;
 }
+
+const PUBMED_SOURCE_ID = 1; // Default source
 
 export default function RetrievalConfigForm({
     retrievalConfig,
@@ -13,6 +16,7 @@ export default function RetrievalConfigForm({
 }: RetrievalConfigFormProps) {
     const navigate = useNavigate();
     const { id } = useParams();
+    const { availableSources } = useResearchStream();
 
     // Ensure broad_search strategy is initialized
     const ensureBroadSearch = () => {
@@ -35,6 +39,7 @@ export default function RetrievalConfigForm({
         const queries = retrievalConfig.broad_search?.queries || [];
         const newQuery: BroadQuery = {
             query_id: `query_${Date.now()}`,
+            source_id: PUBMED_SOURCE_ID,
             search_terms: [],
             query_expression: '',
             rationale: '',
@@ -149,6 +154,24 @@ export default function RetrievalConfigForm({
                                     >
                                         <TrashIcon className="h-5 w-5" />
                                     </button>
+                                </div>
+
+                                {/* Source Selection */}
+                                <div className="flex-shrink-0 mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Source
+                                    </label>
+                                    <select
+                                        value={query.source_id}
+                                        onChange={(e) => updateBroadQuery(index, 'source_id', parseInt(e.target.value))}
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                    >
+                                        {availableSources.map((source) => (
+                                            <option key={source.source_id} value={source.source_id}>
+                                                {source.name}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
 
                                 {/* Query Expression */}

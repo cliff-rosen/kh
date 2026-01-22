@@ -22,6 +22,9 @@ from schemas.research_stream import BroadQuery, BroadSearchStrategy
 
 logger = logging.getLogger(__name__)
 
+# Default source for generated queries (PubMed)
+PUBMED_SOURCE_ID = 1
+
 
 @dataclass
 class CoverageAnalysis:
@@ -288,6 +291,7 @@ class BroadSearchService:
 
             query = BroadQuery(
                 query_id=query_data.get("query_id", f"bq_{idx+1}"),
+                source_id=PUBMED_SOURCE_ID,
                 search_terms=query_data.get("search_terms", []),
                 query_expression=query_data.get("query_expression", ""),
                 rationale=query_data.get("rationale", ""),

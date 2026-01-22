@@ -114,6 +114,7 @@ export interface Concept {
 
 export interface BroadQuery {
     query_id: string;
+    source_id: number;
     search_terms: string[];
     query_expression: string;
     rationale: string;
@@ -356,10 +357,7 @@ export enum SourceType {
 }
 
 export interface InformationSource {
-    source_id: string;
+    source_id: number;
     name: string;
-    source_type: SourceType;
-    description: string;
-    query_syntax: string;
-    url: string;
+    description?: string;
 }

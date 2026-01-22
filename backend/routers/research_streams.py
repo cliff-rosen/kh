@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 from database import get_async_db
-from models import User, StreamScope, UserRole
+from models import User, StreamScope, UserRole, InformationSource as InformationSourceModel
 
 from schemas.research_stream import (
     ResearchStream,
@@ -94,10 +94,31 @@ def _check_can_modify_stream(stream, current_user: User):
             )
 
 
-@router.get("/metadata/sources", response_model=List[InformationSource])
-async def get_information_sources():
-    """Get the authoritative list of information sources"""
-    return INFORMATION_SOURCES
+class InformationSourceResponse(BaseModel):
+    """Information source from database"""
+    source_id: int
+    name: str
+    description: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/metadata/sources", response_model=List[InformationSourceResponse])
+async def get_information_sources(db: AsyncSession = Depends(get_async_db)):
+    """Get the list of available information sources from the database"""
+    result = await db.execute(
+        select(InformationSourceModel).where(InformationSourceModel.is_active == True)
+    )
+    sources = result.scalars().all()
+    return [
+        InformationSourceResponse(
+            source_id=s.source_id,
+            name=s.source_name,
+            description=s.description
+        )
+        for s in sources
+    ]
 
 # ============================================================================
 # Research Stream CRUD Endpoints
