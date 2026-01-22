@@ -170,19 +170,15 @@ export default function RetrievalConfigForm({
                                         Source
                                     </label>
                                     <select
-                                        value={query.source_id || PUBMED_SOURCE_ID}
+                                        value={query.source_id}
                                         onChange={(e) => updateBroadQuery(index, 'source_id', parseInt(e.target.value))}
                                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                                     >
-                                        {availableSources.length === 0 ? (
-                                            <option value={PUBMED_SOURCE_ID}>Loading sources...</option>
-                                        ) : (
-                                            availableSources.map((source) => (
-                                                <option key={source.source_id} value={source.source_id}>
-                                                    {source.name}
-                                                </option>
-                                            ))
-                                        )}
+                                        {availableSources.map((source) => (
+                                            <option key={source.source_id} value={source.source_id}>
+                                                {source.name}
+                                            </option>
+                                        ))}
                                     </select>
                                 </div>
 
