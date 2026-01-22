@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, select
 from fastapi import HTTPException, status, Depends
 
-from models import WipArticle
+from models import WipArticle, InformationSource
 from database import get_async_db
 
 logger = logging.getLogger(__name__)
@@ -345,6 +345,26 @@ class WipArticleService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="WIP article not found"
             )
+
+    async def get_source_id_by_name(self, source_name: str) -> int:
+        """Get the database source_id for a source name (e.g., 'pubmed').
+
+        Args:
+            source_name: The source name (e.g., 'pubmed', 'google_scholar')
+
+        Returns:
+            Integer source_id for use as foreign key
+
+        Raises:
+            ValueError: If source not found
+        """
+        result = await self.db.execute(
+            select(InformationSource).where(InformationSource.source_name == source_name)
+        )
+        source = result.scalars().first()
+        if not source:
+            raise ValueError(f"Information source '{source_name}' not found")
+        return source.source_id
 
     async def get_by_execution_id(
         self,

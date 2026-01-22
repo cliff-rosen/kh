@@ -85,7 +85,7 @@ async def test_pubmed_query(
 
         # Execute query
         pubmed_service = PubMedService()
-        articles, metadata = pubmed_service.search_articles(
+        articles, metadata = await pubmed_service.search_articles(
             query=request.query_expression,
             max_results=request.max_results,
             offset=0,
@@ -139,7 +139,7 @@ async def check_pubmed_ids(
 
         # First, get the total count for the base query (for display purposes)
         logger.info(f"Getting total count for query with date_type={request.date_type}: {request.query_expression}")
-        _, total_count = pubmed_service.get_article_ids(
+        _, total_count = await pubmed_service.get_article_ids(
             query=request.query_expression,
             max_results=1,  # Just need the count
             sort_by='relevance',
@@ -168,7 +168,7 @@ async def check_pubmed_ids(
 
             try:
                 # Get IDs that match both the query AND are in our batch
-                matched_ids, _ = pubmed_service.get_article_ids(
+                matched_ids, _ = await pubmed_service.get_article_ids(
                     query=combined_query,
                     max_results=len(batch),
                     sort_by='relevance',
@@ -189,7 +189,7 @@ async def check_pubmed_ids(
         article_lookup = {}
         if user_pmids_clean:
             logger.info(f"Fetching full article data for {len(user_pmids_clean)} IDs")
-            articles = pubmed_service.get_articles_from_ids(user_pmids_clean)
+            articles = await pubmed_service.get_articles_from_ids(user_pmids_clean)
 
             # Convert to canonical format and build lookup
             for article in articles:

@@ -4,6 +4,7 @@ PubMed Tools
 Tools for searching and retrieving articles from PubMed.
 """
 
+import asyncio
 import logging
 from typing import Any, Dict, Union
 
@@ -34,10 +35,10 @@ def execute_search_pubmed(
 
     try:
         service = PubMedService()
-        articles, metadata = service.search_articles(
+        articles, metadata = asyncio.run(service.search_articles(
             query=query,
             max_results=max_results
-        )
+        ))
 
         if not articles:
             return f"No articles found for query: {query}"
@@ -127,7 +128,7 @@ def execute_get_pubmed_article(
 
     try:
         service = PubMedService()
-        articles = service.get_articles_from_ids([pmid])
+        articles = asyncio.run(service.get_articles_from_ids([pmid]))
 
         if not articles:
             return f"No article found with PMID: {pmid}"
@@ -210,7 +211,7 @@ def execute_get_full_text(
             if pmid.lower().startswith("pmid:"):
                 pmid = pmid[5:].strip()
 
-            articles = service.get_articles_from_ids([pmid])
+            articles = asyncio.run(service.get_articles_from_ids([pmid]))
             if not articles:
                 return f"No article found with PMID: {pmid}"
 
@@ -230,14 +231,14 @@ def execute_get_full_text(
                 pmc_id = f"PMC{pmc_id}"
 
         # Fetch the full text
-        full_text = service.get_pmc_full_text(pmc_id)
+        full_text = asyncio.run(service.get_pmc_full_text(pmc_id))
 
         if not full_text:
             return f"Could not retrieve full text for PMC ID: {pmc_id}. The article may not be available or there was an error."
 
         # If we don't have article metadata yet, try to fetch it
         if not article and pmid:
-            articles = service.get_articles_from_ids([pmid])
+            articles = asyncio.run(service.get_articles_from_ids([pmid]))
             if articles:
                 article = articles[0]
 

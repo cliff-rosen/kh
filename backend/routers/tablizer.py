@@ -69,7 +69,7 @@ async def search_pubmed(
         pubmed_service = PubMedService()
 
         # Get all PMIDs (fast - no article data)
-        all_pmids, total_count = pubmed_service.get_article_ids(
+        all_pmids, total_count = await pubmed_service.get_article_ids(
             query=request.query_expression,
             max_results=request.max_pmids,
             sort_by=request.sort_by,
@@ -84,7 +84,7 @@ async def search_pubmed(
         articles = []
         if all_pmids:
             pmids_to_fetch = all_pmids[:request.articles_to_fetch]
-            raw_articles = pubmed_service.get_articles_from_ids(pmids_to_fetch)
+            raw_articles = await pubmed_service.get_articles_from_ids(pmids_to_fetch)
 
             for article in raw_articles:
                 try:

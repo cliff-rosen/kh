@@ -70,7 +70,7 @@ async def get_article_full_text_links(
     This fetches live data from PubMed's ELink API.
     """
     try:
-        links = get_full_text_links(pmid)
+        links = await get_full_text_links(pmid)
         return FullTextLinksResponse(pmid=pmid, links=links)
     except Exception as e:
         logger.error(f"Error fetching full text links for {pmid}: {e}", exc_info=True)

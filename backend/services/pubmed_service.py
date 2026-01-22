@@ -1,8 +1,8 @@
-import requests
+import httpx
+import asyncio
 import xml.etree.ElementTree as ET
 import urllib.parse
 import logging
-import time
 import os
 from typing import List, Dict, Any, Optional
 
@@ -409,7 +409,7 @@ def get_citation_from_article(article: PubMedArticle) -> str:
     return f"{authors} ({year}). {title}. {journal}, {volume}({issue}), {pages}."
 
 
-def search_articles(
+async def search_articles(
     query: str,
     max_results: int = 100,
     offset: int = 0,
@@ -419,11 +419,11 @@ def search_articles(
     date_type: Optional[str] = None
 ) -> tuple[List['CanonicalResearchArticle'], Dict[str, Any]]:
     """
-    Module-level search function to match Google Scholar pattern.
-    Creates a service instance and calls _search_articles.
+    Module-level search function to match Google Scholar pattern (async).
+    Creates a service instance and calls search_articles.
     """
     service = PubMedService()
-    return service.search_articles(
+    return await service.search_articles(
         query=query,
         max_results=max_results,
         offset=offset,
@@ -456,7 +456,7 @@ class PubMedService:
         from config.settings import settings
         return settings.PUBMED_MAX_RESULTS_PER_CALL
     
-    def get_article_ids(
+    async def get_article_ids(
         self,
         query: str,
         max_results: int = 1000,
@@ -466,12 +466,12 @@ class PubMedService:
         date_type: Optional[str] = None
     ) -> tuple[List[str], int]:
         """
-        Get just the PubMed IDs from a search query (fast - no article fetching).
+        Get just the PubMed IDs from a search query (fast - no article fetching, async).
 
         Returns:
             Tuple of (list of PMIDs, total count)
         """
-        return self._get_article_ids(
+        return await self._get_article_ids(
             search_term=query,
             max_results=max_results,
             sort_by=sort_by,
@@ -480,7 +480,7 @@ class PubMedService:
             date_type=date_type
         )
 
-    def search_articles(
+    async def search_articles(
         self,
         query: str,
         max_results: int = 100,
@@ -491,15 +491,15 @@ class PubMedService:
         date_type: Optional[str] = None
     ) -> tuple[List['CanonicalResearchArticle'], Dict[str, Any]]:
         """
-        Search PubMed articles using the class method.
+        Search PubMed articles (async).
         """
         from schemas.canonical_types import CanonicalPubMedArticle
         from schemas.research_article_converters import pubmed_to_research_article
-        
+
         logger.info(f"PubMed search: query='{query}', max_results={max_results}, offset={offset}")
-        
+
         # Get article IDs with total count
-        article_ids, total_count = self._get_article_ids(
+        article_ids, total_count = await self._get_article_ids(
             search_term=query,
             max_results=offset + max_results,  # Get enough IDs for pagination
             sort_by=sort_by,
@@ -507,22 +507,22 @@ class PubMedService:
             end_date=end_date,
             date_type=date_type
         )
-        
+
         logger.info(f"Found {total_count} total results, retrieved {len(article_ids)} IDs")
-        
+
         # Apply pagination to IDs
         paginated_ids = article_ids[offset:offset + max_results]
-        
+
         if not paginated_ids:
             return [], {
                 "total_results": total_count,
                 "offset": offset,
                 "returned": 0
             }
-        
+
         # Get full article data for the current page
         logger.info(f"Fetching article data for {len(paginated_ids)} articles")
-        articles = self._get_articles_from_ids(paginated_ids)
+        articles = await self._get_articles_from_ids(paginated_ids)
         logger.info(f"Retrieved {len(articles)} articles")
         
         # Convert to canonical format
@@ -596,54 +596,53 @@ class PubMedService:
         clause = f'AND (("{start_date}"[{field}] : "{end_date}"[{field}]))'
         return clause
     
-    def _get_article_ids(
+    async def _get_article_ids(
         self,
-        search_term: str, 
-        max_results: int = 100, 
+        search_term: str,
+        max_results: int = 100,
         sort_by: str = "relevance",
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         date_type: str = "publication"
     ) -> tuple[List[str], int]:
-        """Search PubMed for article IDs with optional date filtering."""
+        """Search PubMed for article IDs with optional date filtering (async)."""
         url = self.search_url
-        
+
         # Build search term with optional date clause
         if start_date and end_date:
             full_term = f'({search_term}){self._get_date_clause(start_date, end_date, date_type)}'
         else:
             full_term = search_term
-        
+
         params = {
             'db': 'pubmed',
             'term': full_term,
             'retmax': min(max_results, self._get_max_results_per_call()),
             'retmode': 'json'
         }
-        
+
         # Map unified sort values to PubMed API sort values
         sort_mapping = {
             'relevance': None,  # Default, don't need to specify
             'date': 'pub_date'  # Sort by publication date
         }
-        
+
         pubmed_sort = sort_mapping.get(sort_by)
         if pubmed_sort:
             params['sort'] = pubmed_sort
-        
+
         headers = {
             'User-Agent': 'JamBot/1.0 (Research Assistant; Contact: admin@example.com)'
         }
-        
+
         # Add NCBI API key if available
         if self.api_key:
             params['api_key'] = self.api_key
-        
+
         logger.info(f'Retrieving article IDs for query: {full_term}')
         logger.debug(f'Parameters: {params}')
 
         # Check if the URL is too long (PubMed has a limit of about 2000-3000 characters)
-        # Build the full URL to check its length
         from urllib.parse import urlencode
         full_url = f"{url}?{urlencode(params)}"
         if len(full_url) > 2000:
@@ -654,52 +653,53 @@ class PubMedService:
         max_retries = 3
         retry_delay = 1
 
-        for attempt in range(max_retries):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for attempt in range(max_retries):
+                try:
+                    response = await client.get(url, params=params, headers=headers)
+                    break
+                except httpx.RequestError as e:
+                    if attempt < max_retries - 1:
+                        logger.warning(f"Request failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {retry_delay}s...")
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2
+                    else:
+                        logger.error(f"Request failed after {max_retries} attempts: {e}")
+                        raise
+
             try:
-                response = requests.get(url, params, headers=headers, timeout=30)
-                break
-            except requests.exceptions.RequestException as e:
-                if attempt < max_retries - 1:
-                    logger.warning(f"Request failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {retry_delay}s...")
-                    time.sleep(retry_delay)
-                    retry_delay *= 2
-                else:
-                    logger.error(f"Request failed after {max_retries} attempts: {e}")
-                    raise
-        
-        try:
-            response.raise_for_status()
-            
-            content_type = response.headers.get('content-type', '')
-            if 'application/json' not in content_type:
-                logger.error(f"Expected JSON but got content-type: {content_type}")
-                raise Exception(f"PubMed API returned non-JSON response. Content-Type: {content_type}")
-            
-            if not response.text:
-                logger.error("PubMed API returned empty response body")
-                raise Exception("PubMed API returned empty response")
-            
-            content = response.json()
-            
-            if 'esearchresult' not in content:
-                raise Exception("Invalid response format from PubMed API")
-                
-            count = int(content['esearchresult']['count'])
-            ids = content['esearchresult']['idlist']
-            
-            logger.info(f"Found {count} articles, returning {len(ids)} IDs")
-            return ids, count
-            
-        except requests.exceptions.RequestException as e:
-            logger.error(f"HTTP error in PubMed search: {e}", exc_info=True)
-            raise Exception(f"PubMed API request failed: {str(e)}")
-        except Exception as e:
-            logger.error(f"Error in PubMed search: {e}", exc_info=True)
-            raise
+                response.raise_for_status()
+
+                content_type = response.headers.get('content-type', '')
+                if 'application/json' not in content_type:
+                    logger.error(f"Expected JSON but got content-type: {content_type}")
+                    raise Exception(f"PubMed API returned non-JSON response. Content-Type: {content_type}")
+
+                if not response.text:
+                    logger.error("PubMed API returned empty response body")
+                    raise Exception("PubMed API returned empty response")
+
+                content = response.json()
+
+                if 'esearchresult' not in content:
+                    raise Exception("Invalid response format from PubMed API")
+
+                count = int(content['esearchresult']['count'])
+                ids = content['esearchresult']['idlist']
+
+                logger.info(f"Found {count} articles, returning {len(ids)} IDs")
+                return ids, count
+
+            except httpx.HTTPStatusError as e:
+                logger.error(f"HTTP error in PubMed search: {e}", exc_info=True)
+                raise Exception(f"PubMed API request failed: {str(e)}")
+            except Exception as e:
+                logger.error(f"Error in PubMed search: {e}", exc_info=True)
+                raise
     
-    def get_articles_from_ids(self, ids: List[str]) -> List[PubMedArticle]:
+    async def get_articles_from_ids(self, ids: List[str]) -> List[PubMedArticle]:
         """
-        Fetch full article data from PubMed IDs (public wrapper).
+        Fetch full article data from PubMed IDs (public wrapper, async).
 
         Args:
             ids: List of PubMed IDs
@@ -707,10 +707,10 @@ class PubMedService:
         Returns:
             List of PubMedArticle objects
         """
-        return self._get_articles_from_ids(ids)
+        return await self._get_articles_from_ids(ids)
 
-    def _get_articles_from_ids(self, ids: List[str]) -> List[PubMedArticle]:
-        """Fetch full article data from PubMed IDs."""
+    async def _get_articles_from_ids(self, ids: List[str]) -> List[PubMedArticle]:
+        """Fetch full article data from PubMed IDs (async)."""
         BATCH_SIZE = 100
         articles = []
         batch_size = BATCH_SIZE
@@ -719,74 +719,75 @@ class PubMedService:
         dropped_pmids: List[str] = []
         failed_batches: List[tuple[int, int, str]] = []
 
-        while low < len(ids):
-            logger.info(f"Processing articles {low} to {high}")
-            id_batch = ids[low: high]
-            url = self.fetch_url
-            params = {
-                'db': 'pubmed',
-                'id': ','.join(id_batch)
-            }
-            xml = ""
-            try:
-                response = requests.get(url, params)
-                response.raise_for_status()
-                xml = response.text
-            except Exception as e:
-                logger.error(f"Error fetching articles batch {low}-{high}: {e}", exc_info=True)
-                failed_batches.append((low, high, str(e)))
-                dropped_pmids.extend(id_batch)
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            while low < len(ids):
+                logger.info(f"Processing articles {low} to {high}")
+                id_batch = ids[low: high]
+                url = self.fetch_url
+                params = {
+                    'db': 'pubmed',
+                    'id': ','.join(id_batch)
+                }
+                xml = ""
+                try:
+                    response = await client.get(url, params=params)
+                    response.raise_for_status()
+                    xml = response.text
+                except Exception as e:
+                    logger.error(f"Error fetching articles batch {low}-{high}: {e}", exc_info=True)
+                    failed_batches.append((low, high, str(e)))
+                    dropped_pmids.extend(id_batch)
+                    low += batch_size
+                    high += batch_size
+                    continue
+
+                try:
+                    root = ET.fromstring(xml)
+                except ET.ParseError as e:
+                    logger.error(f"Error parsing XML for batch {low}-{high}: {e}")
+                    failed_batches.append((low, high, f"XML parse error: {e}"))
+                    dropped_pmids.extend(id_batch)
+                    low += batch_size
+                    high += batch_size
+                    continue
+
+                # Track which PMIDs we successfully parsed from this batch
+                batch_parsed_pmids = set()
+
+                # Parse regular PubmedArticle elements
+                for article_node in root.findall(".//PubmedArticle"):
+                    try:
+                        article = PubMedArticle.from_xml(ET.tostring(article_node))
+                        articles.append(article)
+                        batch_parsed_pmids.add(article.PMID)
+                    except Exception as e:
+                        # Try to extract PMID from the XML node for error reporting
+                        pmid_node = article_node.find('.//PMID')
+                        pmid = pmid_node.text if pmid_node is not None else 'unknown'
+                        logger.error(f"Error parsing article PMID {pmid}: {e}", exc_info=True)
+                        dropped_pmids.append(pmid)
+
+                # Parse book articles (PubmedBookArticle) - e.g., StatPearls chapters
+                for book_node in root.findall(".//PubmedBookArticle"):
+                    try:
+                        article = PubMedArticle.from_book_xml(ET.tostring(book_node))
+                        articles.append(article)
+                        batch_parsed_pmids.add(article.PMID)
+                        logger.debug(f"Parsed book article PMID {article.PMID}: '{article.title}'")
+                    except Exception as e:
+                        pmid_node = book_node.find('.//PMID')
+                        pmid = pmid_node.text if pmid_node is not None else 'unknown'
+                        logger.error(f"Error parsing book article PMID {pmid}: {e}", exc_info=True)
+                        dropped_pmids.append(f"{pmid} (book parse error)")
+
+                # Check for PMIDs that were requested but not returned in XML at all
+                for pmid in id_batch:
+                    if pmid not in batch_parsed_pmids:
+                        logger.warning(f"PMID {pmid} was requested but not found in PubMed response at all")
+                        dropped_pmids.append(pmid)
+
                 low += batch_size
                 high += batch_size
-                continue
-
-            try:
-                root = ET.fromstring(xml)
-            except ET.ParseError as e:
-                logger.error(f"Error parsing XML for batch {low}-{high}: {e}")
-                failed_batches.append((low, high, f"XML parse error: {e}"))
-                dropped_pmids.extend(id_batch)
-                low += batch_size
-                high += batch_size
-                continue
-
-            # Track which PMIDs we successfully parsed from this batch
-            batch_parsed_pmids = set()
-
-            # Parse regular PubmedArticle elements
-            for article_node in root.findall(".//PubmedArticle"):
-                try:
-                    article = PubMedArticle.from_xml(ET.tostring(article_node))
-                    articles.append(article)
-                    batch_parsed_pmids.add(article.PMID)
-                except Exception as e:
-                    # Try to extract PMID from the XML node for error reporting
-                    pmid_node = article_node.find('.//PMID')
-                    pmid = pmid_node.text if pmid_node is not None else 'unknown'
-                    logger.error(f"Error parsing article PMID {pmid}: {e}", exc_info=True)
-                    dropped_pmids.append(pmid)
-
-            # Parse book articles (PubmedBookArticle) - e.g., StatPearls chapters
-            for book_node in root.findall(".//PubmedBookArticle"):
-                try:
-                    article = PubMedArticle.from_book_xml(ET.tostring(book_node))
-                    articles.append(article)
-                    batch_parsed_pmids.add(article.PMID)
-                    logger.debug(f"Parsed book article PMID {article.PMID}: '{article.title}'")
-                except Exception as e:
-                    pmid_node = book_node.find('.//PMID')
-                    pmid = pmid_node.text if pmid_node is not None else 'unknown'
-                    logger.error(f"Error parsing book article PMID {pmid}: {e}", exc_info=True)
-                    dropped_pmids.append(f"{pmid} (book parse error)")
-
-            # Check for PMIDs that were requested but not returned in XML at all
-            for pmid in id_batch:
-                if pmid not in batch_parsed_pmids:
-                    logger.warning(f"PMID {pmid} was requested but not found in PubMed response at all")
-                    dropped_pmids.append(pmid)
-
-            low += batch_size
-            high += batch_size
 
         # Summary logging for dropped articles
         if dropped_pmids:
@@ -799,9 +800,9 @@ class PubMedService:
 
         return articles
 
-    def get_full_text_links(self, pmid: str) -> List[Dict[str, Any]]:
+    async def get_full_text_links(self, pmid: str) -> List[Dict[str, Any]]:
         """
-        Get full text link options for a PubMed article using the ELink API.
+        Get full text link options for a PubMed article using the ELink API (async).
 
         Args:
             pmid: PubMed ID
@@ -821,9 +822,10 @@ class PubMedService:
             params['api_key'] = self.api_key
 
         try:
-            response = requests.get(url, params=params, timeout=15)
-            response.raise_for_status()
-            data = response.json()
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                data = response.json()
 
             links = []
 
@@ -872,16 +874,16 @@ class PubMedService:
 
             return unique_links
 
-        except requests.exceptions.RequestException as e:
+        except httpx.RequestError as e:
             logger.error(f"Error fetching full text links for PMID {pmid}: {e}")
             return []
         except Exception as e:
             logger.error(f"Error parsing full text links for PMID {pmid}: {e}")
             return []
 
-    def get_pmc_full_text(self, pmc_id: str) -> Optional[str]:
+    async def get_pmc_full_text(self, pmc_id: str) -> Optional[str]:
         """
-        Fetch full text from PubMed Central for an article with a PMC ID.
+        Fetch full text from PubMed Central for an article with a PMC ID (async).
 
         Args:
             pmc_id: The PMC ID (e.g., "PMC1234567" or just "1234567")
@@ -904,9 +906,10 @@ class PubMedService:
             params['api_key'] = self.api_key
 
         try:
-            response = requests.get(url, params=params, timeout=30)
-            response.raise_for_status()
-            xml_content = response.text
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                xml_content = response.text
 
             # Parse the XML to extract text content
             root = ET.fromstring(xml_content)
@@ -945,7 +948,7 @@ class PubMedService:
                 logger.warning(f"No text content found in PMC article {pmc_id}")
                 return None
 
-        except requests.exceptions.RequestException as e:
+        except httpx.RequestError as e:
             logger.error(f"Error fetching PMC article {pmc_id}: {e}")
             return None
         except ET.ParseError as e:
@@ -953,9 +956,9 @@ class PubMedService:
             return None
 
 
-def get_pmc_full_text(pmc_id: str) -> Optional[str]:
+async def get_pmc_full_text(pmc_id: str) -> Optional[str]:
     """
-    Module-level function to fetch full text from PubMed Central.
+    Module-level function to fetch full text from PubMed Central (async).
 
     Args:
         pmc_id: The PMC ID (e.g., "PMC1234567" or just "1234567")
@@ -964,18 +967,18 @@ def get_pmc_full_text(pmc_id: str) -> Optional[str]:
         The full text of the article, or None if not available.
     """
     service = PubMedService()
-    return service.get_pmc_full_text(pmc_id)
+    return await service.get_pmc_full_text(pmc_id)
 
 
 # Keep the old function for backward compatibility but have it call the new one
-def search_articles_by_date_range(filter_term: str, start_date: str, end_date: str, date_type: str = "publication", sort_by: str = "relevance") -> tuple[List['CanonicalResearchArticle'], Dict[str, Any]]:
+async def search_articles_by_date_range(filter_term: str, start_date: str, end_date: str, date_type: str = "publication", sort_by: str = "relevance") -> tuple[List['CanonicalResearchArticle'], Dict[str, Any]]:
     """
     DEPRECATED: Use search_articles() instead.
 
-    This function is kept for backward compatibility and now returns (articles, metadata) tuple.
+    This function is kept for backward compatibility and now returns (articles, metadata) tuple (async).
     """
     # Just call the new unified search function
-    articles, metadata = search_articles(
+    articles, metadata = await search_articles(
         query=filter_term,
         max_results=_get_pubmed_max_results(),
         offset=0,
@@ -987,9 +990,9 @@ def search_articles_by_date_range(filter_term: str, start_date: str, end_date: s
     return articles, metadata
 
 
-def fetch_articles_by_ids(pubmed_ids: List[str]) -> List[PubMedArticle]:
+async def fetch_articles_by_ids(pubmed_ids: List[str]) -> List[PubMedArticle]:
     """
-    Fetch PubMed articles by their PMID.
+    Fetch PubMed articles by their PMID (async).
 
     Args:
         pubmed_ids: List of PubMed IDs to fetch
@@ -998,12 +1001,12 @@ def fetch_articles_by_ids(pubmed_ids: List[str]) -> List[PubMedArticle]:
         List of PubMedArticle objects
     """
     service = PubMedService()
-    return service._get_articles_from_ids(pubmed_ids)
+    return await service._get_articles_from_ids(pubmed_ids)
 
 
-def search_pubmed_count(search_term: str) -> int:
+async def search_pubmed_count(search_term: str) -> int:
     """
-    Get the count of results for a PubMed search without fetching articles.
+    Get the count of results for a PubMed search without fetching articles (async).
 
     Args:
         search_term: PubMed search query
@@ -1012,13 +1015,13 @@ def search_pubmed_count(search_term: str) -> int:
         Number of results found
     """
     service = PubMedService()
-    _, count = service._get_article_ids(search_term, max_results=1)  # Only get count, not actual results
+    _, count = await service._get_article_ids(search_term, max_results=1)  # Only get count, not actual results
     return count
 
 
-def get_full_text_links(pmid: str) -> List[Dict[str, Any]]:
+async def get_full_text_links(pmid: str) -> List[Dict[str, Any]]:
     """
-    Get full text link options for a PubMed article using the ELink API.
+    Get full text link options for a PubMed article using the ELink API (async).
 
     Args:
         pmid: PubMed ID
@@ -1027,4 +1030,4 @@ def get_full_text_links(pmid: str) -> List[Dict[str, Any]]:
         List of link dictionaries with provider, url, and category info
     """
     service = PubMedService()
-    return service.get_full_text_links(pmid)
+    return await service.get_full_text_links(pmid)

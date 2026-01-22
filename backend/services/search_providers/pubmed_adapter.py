@@ -7,7 +7,7 @@ Implements the SearchProvider interface for PubMed searches.
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-import requests
+import httpx
 
 from services.search_providers.base import (
     SearchProvider, UnifiedSearchParams, SearchResponse, 
@@ -86,7 +86,7 @@ class PubMedAdapter(SearchProvider):
             
             # Call the unified PubMed service
             from services.pubmed_service import search_articles
-            articles, service_metadata = search_articles(
+            articles, service_metadata = await search_articles(
                 query=params.query,
                 max_results=params.num_results,
                 offset=offset,
@@ -154,7 +154,7 @@ class PubMedAdapter(SearchProvider):
     async def is_available(self) -> bool:
         """
         Check if PubMed API is available.
-        
+
         Returns:
             True if PubMed is accessible, False otherwise
         """
@@ -163,26 +163,24 @@ class PubMedAdapter(SearchProvider):
             time_since_check = (datetime.utcnow() - self._last_availability_check).total_seconds()
             if time_since_check < self._cache_duration and self._is_available_cache is not None:
                 return self._is_available_cache
-        
+
         try:
             # Simple health check - search for a known PMID
-            response = requests.get(
-                f"{self._base_url}esummary.fcgi",
-                params={"db": "pubmed", "id": "1"},
-                timeout=5
-            )
-            
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(
+                    f"{self._base_url}esummary.fcgi",
+                    params={"db": "pubmed", "id": "1"}
+                )
+
             is_available = response.status_code == 200
-            
+
             # Cache the result
             self._is_available_cache = is_available
             self._last_availability_check = datetime.utcnow()
-            
+
             return is_available
-            
+
         except Exception as e:
-            print("ERROR")
-            print(e)
             logger.warning(f"PubMed availability check failed: {e}")
             self._is_available_cache = False
             self._last_availability_check = datetime.utcnow()

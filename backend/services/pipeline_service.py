@@ -39,7 +39,6 @@ from models import (
     ReportArticleAssociation,
     Article,
     WipArticle,
-    InformationSource,
     RunType,
     PipelineExecution,
 )
@@ -489,6 +488,9 @@ class PipelineService:
         Stage: Execute retrieval for each broad search query.
         Commits: WipArticle records for all retrieved articles.
         """
+        # Resolve source ID once for all queries in this stage
+        pubmed_source_id = await self.wip_article_service.get_source_id_by_name("pubmed")
+
         yield PipelineStatus(
             "retrieval",
             f"Starting retrieval for {len(ctx.queries)} queries",
@@ -518,7 +520,7 @@ class PipelineService:
                 research_stream_id=ctx.research_stream_id,
                 execution_id=ctx.execution_id,
                 retrieval_unit_id=query.query_id,
-                source_id="pubmed",
+                source_id=pubmed_source_id,
                 query_expression=query.query_expression,
                 start_date=ctx.start_date,
                 end_date=ctx.end_date,
@@ -1030,7 +1032,7 @@ class PipelineService:
         research_stream_id: int,
         execution_id: str,
         retrieval_unit_id: str,
-        source_id: str,
+        source_id: int,
         query_expression: str,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
@@ -1045,7 +1047,7 @@ class PipelineService:
             research_stream_id: Stream ID
             execution_id: UUID of this pipeline execution
             retrieval_unit_id: Retrieval unit ID (concept_id or query_id)
-            source_id: Source identifier
+            source_id: Database source ID (integer FK)
             query_expression: Query to execute
             start_date: Start date for retrieval (YYYY/MM/DD format)
             end_date: End date for retrieval (YYYY/MM/DD format)
@@ -1053,27 +1055,17 @@ class PipelineService:
         Returns:
             Number of articles retrieved and stored
         """
-        # Get source from database
-        stmt = select(InformationSource).where(InformationSource.source_name == source_id)
-        result = await self.db.execute(stmt)
-        source = result.scalars().first()
-
-        if not source:
-            raise ValueError(f"Source '{source_id}' not found")
-
-        # Execute query based on source type
+        # Execute query - currently only PubMed is implemented
         articles = []
-        if source_id.lower() == "pubmed":
-            # Use PubMed service to execute query (returns tuple of articles and metadata)
-            # Run in thread pool to avoid blocking the event loop (requests is synchronous)
-            articles, metadata = await asyncio.to_thread(
-                self.pubmed_service.search_articles,
+        # TODO: Use source_id to determine which service to call when more sources are added
+        if True:  # Currently only PubMed
+            articles, metadata = await self.pubmed_service.search_articles(
                 query=query_expression,
                 max_results=self.MAX_ARTICLES_PER_SOURCE,
                 start_date=start_date,
                 end_date=end_date,
-                date_type="publication",  # Use publication date for filtering
-                sort_by="relevance",  # Most relevant first
+                date_type="publication",
+                sort_by="relevance",
             )
         else:
             # Other sources not yet implemented
@@ -1088,9 +1080,7 @@ class PipelineService:
             pub_date = None
             if article.publication_date:
                 try:
-                    from datetime import datetime as dt
-
-                    pub_date = dt.fromisoformat(article.publication_date).date()
+                    pub_date = datetime.fromisoformat(article.publication_date).date()
                 except (ValueError, AttributeError):
                     pass  # Skip invalid dates
 
@@ -1098,7 +1088,7 @@ class PipelineService:
                 research_stream_id=research_stream_id,
                 pipeline_execution_id=execution_id,
                 retrieval_group_id=retrieval_unit_id,
-                source_id=source.source_id,
+                source_id=source_id,
                 title=article.title,
                 url=article.url,
                 authors=article.authors or [],

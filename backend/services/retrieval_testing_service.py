@@ -82,7 +82,7 @@ class RetrievalTestingService:
 
         # Get ALL matched PMIDs (just IDs, not full articles) for comparison
         # Using a single API call ensures consistency between comparison and display
-        all_pmids, total_count = self.pubmed_service.get_article_ids(
+        all_pmids, total_count = await self.pubmed_service.get_article_ids(
             query=query_expression,
             max_results=10000,  # Get up to 10k PMIDs for comparison
             start_date=start_date_formatted,
@@ -93,7 +93,7 @@ class RetrievalTestingService:
 
         # Fetch full articles for the FIRST 100 of the same PMIDs (ensures consistency)
         display_pmids = all_pmids[:100]
-        raw_articles = self.pubmed_service.get_articles_from_ids(display_pmids) if display_pmids else []
+        raw_articles = await self.pubmed_service.get_articles_from_ids(display_pmids) if display_pmids else []
 
         # Convert to canonical format
         articles: List[CanonicalResearchArticle] = []
@@ -144,7 +144,7 @@ class RetrievalTestingService:
 
         # Get ALL matched PMIDs (just IDs, not full articles) for comparison
         # Using a single API call ensures consistency between comparison and display
-        all_pmids, total_count = self.pubmed_service.get_article_ids(
+        all_pmids, total_count = await self.pubmed_service.get_article_ids(
             query=query_expression,
             max_results=10000,  # Get up to 10k PMIDs for comparison
             start_date=start_date_formatted,
@@ -155,7 +155,7 @@ class RetrievalTestingService:
 
         # Fetch full articles for the FIRST N of the same PMIDs (ensures consistency)
         display_pmids = all_pmids[:self.MAX_ARTICLES_PER_SOURCE]
-        raw_articles = self.pubmed_service.get_articles_from_ids(display_pmids) if display_pmids else []
+        raw_articles = await self.pubmed_service.get_articles_from_ids(display_pmids) if display_pmids else []
 
         # Convert to canonical format
         articles: List[CanonicalResearchArticle] = []
@@ -192,7 +192,7 @@ class RetrievalTestingService:
             Tuple of (articles, metadata dict, all_matched_pmids)
         """
         # Fetch articles from PubMed - returns List[PubMedArticle]
-        pubmed_articles = fetch_articles_by_ids(pmids)
+        pubmed_articles = await fetch_articles_by_ids(pmids)
 
         # Convert PubMedArticle to CanonicalResearchArticle
         articles = []
