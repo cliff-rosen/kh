@@ -148,7 +148,7 @@ async def get_report_with_articles(
     try:
         from schemas.report import ReportArticle as ReportArticleSchema
 
-        result = await service.get_report_with_articles(current_user, report_id)
+        result = await service.get_report_with_articles(current_user.user_id, report_id)
 
         if not result:
             logger.warning(f"get_report_with_articles - not found - user_id={current_user.user_id}, report_id={report_id}")

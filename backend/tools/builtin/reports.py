@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func, case
 
 from tools.registry import ToolConfig, ToolResult, register_tool
-from models import Report, Article, ReportArticleAssociation, ResearchStream, User
+from models import Report, Article, ReportArticleAssociation, User
 from services.notes_service import NotesService
 
 logger = logging.getLogger(__name__)
@@ -191,21 +191,10 @@ def execute_get_report_articles(
     async def _get_articles():
         async with AsyncSessionLocal() as async_db:
             service = ReportService(async_db)
-            # Get user for access check
-            user = db.query(User).filter(User.user_id == user_id).first()
-            if not user:
-                return None, None
-            result = await service.get_report_with_articles(user, report_id)
-            if not result:
-                return None, None
-            # Get stream for category mapping
-            stream = db.query(ResearchStream).filter(
-                ResearchStream.stream_id == result.report.research_stream_id
-            ).first()
-            return result, stream
+            return await service.get_report_with_articles(user_id, report_id)
 
     try:
-        result, stream = asyncio.run(_get_articles())
+        result = asyncio.run(_get_articles())
 
         if not result:
             return f"No report found with ID {report_id} or access denied."
@@ -213,8 +202,8 @@ def execute_get_report_articles(
         if not result.articles:
             return f"No articles found in report {report_id}."
 
-        # Build category ID -> name mapping
-        category_map = ReportService.build_category_map(stream)
+        # Use category map from the service result
+        category_map = result.category_map or {}
 
         # Format text for LLM
         text_lines = [f"=== Articles in Report: {result.report.report_name} ==="]

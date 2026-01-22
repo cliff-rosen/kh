@@ -129,6 +129,7 @@ class ReportWithArticlesData:
     articles: List[ReportArticleInfo]
     article_count: int
     retrieval_params: Optional[Dict[str, Any]] = None
+    category_map: Optional[Dict[str, str]] = None  # category_id -> display_name
 
 
 @dataclass
@@ -764,7 +765,7 @@ class ReportService:
 
     async def get_report_with_articles(
         self,
-        user: User,
+        user_id: int,
         report_id: int
     ) -> Optional[ReportWithArticlesData]:
         """Get report with its visible articles (async).
@@ -772,7 +773,7 @@ class ReportService:
         Returns only articles where is_hidden=False, ordered by ranking.
         Use get_curation_view for the full list including hidden articles.
         """
-        access_result = await self.get_report_with_access(report_id, user.user_id)
+        access_result = await self.get_report_with_access(report_id, user_id)
         if not access_result:
             return None
         report, _, stream = access_result
@@ -802,11 +803,15 @@ class ReportService:
                     'presentation_config': exec_obj.presentation_config,
                 }
 
+        # Build category map for callers that need it
+        category_map = self.build_category_map(stream)
+
         return ReportWithArticlesData(
             report=report,
             articles=articles,
             article_count=len(articles),
-            retrieval_params=retrieval_params
+            retrieval_params=retrieval_params,
+            category_map=category_map
         )
 
     async def get_wip_articles_for_report(
