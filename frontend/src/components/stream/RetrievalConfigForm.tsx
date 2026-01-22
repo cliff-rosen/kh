@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { RetrievalConfig, BroadQuery } from '../../types';
 import { SparklesIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
@@ -16,7 +17,14 @@ export default function RetrievalConfigForm({
 }: RetrievalConfigFormProps) {
     const navigate = useNavigate();
     const { id } = useParams();
-    const { availableSources } = useResearchStream();
+    const { availableSources, loadAvailableSources } = useResearchStream();
+
+    // Load available sources on mount
+    useEffect(() => {
+        if (availableSources.length === 0) {
+            loadAvailableSources();
+        }
+    }, [availableSources.length, loadAvailableSources]);
 
     // Ensure broad_search strategy is initialized
     const ensureBroadSearch = () => {
@@ -162,15 +170,19 @@ export default function RetrievalConfigForm({
                                         Source
                                     </label>
                                     <select
-                                        value={query.source_id}
+                                        value={query.source_id || PUBMED_SOURCE_ID}
                                         onChange={(e) => updateBroadQuery(index, 'source_id', parseInt(e.target.value))}
                                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                                     >
-                                        {availableSources.map((source) => (
-                                            <option key={source.source_id} value={source.source_id}>
-                                                {source.name}
-                                            </option>
-                                        ))}
+                                        {availableSources.length === 0 ? (
+                                            <option value={PUBMED_SOURCE_ID}>Loading sources...</option>
+                                        ) : (
+                                            availableSources.map((source) => (
+                                                <option key={source.source_id} value={source.source_id}>
+                                                    {source.name}
+                                                </option>
+                                            ))
+                                        )}
                                     </select>
                                 </div>
 
