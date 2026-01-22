@@ -12,12 +12,12 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Optional, List
 
-from models import Report, WipArticle, ReportArticleAssociation
+from models import Report
 from schemas.research_stream import EnrichmentConfig, PromptTemplate, CategorizationPrompt, ResearchStream as ResearchStreamSchema
 from schemas.llm import ModelConfig, DEFAULT_MODEL_CONFIG
 from services.report_summary_service import ReportSummaryService, DEFAULT_PROMPTS, AVAILABLE_SLUGS
 from services.research_stream_service import ResearchStreamService
-from services.report_service import ReportService
+from services.report_service import ReportService, ReportArticleInfo
 from services.report_article_association_service import ReportArticleAssociationService
 from services.article_categorization_service import ArticleCategorizationService
 
@@ -161,54 +161,51 @@ class PromptTestingService:
         article_index: Optional[int] = 0
     ) -> Dict[str, Any]:
         """Get flat item dict from report (same format as pipeline passes to summary service)."""
-        from fastapi import HTTPException
+        # Get the report with articles (includes access check)
+        result = await self.report_service.get_report_with_articles(user_id, report_id)
+        if not result:
+            raise PermissionError("Report not found or you don't have access")
 
-        # Get the report with access check
-        try:
-            result = await self.report_service.get_report_with_access(report_id, user_id, raise_on_not_found=True)
-            report, _, stream = result
-        except HTTPException:
-            raise PermissionError("You don't have access to this report")
+        report = result.report
+        articles = result.articles  # List[ReportArticleInfo]
 
-        # Get articles that were included in the report
-        wip_articles = await self.report_service.get_wip_articles_for_report(
-            report_id, user_id, included_only=True
-        )
+        # Get stream for config access
+        stream = await self.stream_service.get_stream(report.research_stream_id)
+        if not stream:
+            raise ValueError("Research stream not found")
 
         if prompt_type == "executive_summary":
-            return self._build_executive_summary_item(stream, wip_articles, report)
+            return self._build_executive_summary_item(stream, articles, report)
         elif prompt_type == "category_summary":
             if not category_id:
                 raise ValueError("category_id is required for category_summary prompt type")
-            # For category summary, we need associations which have presentation_categories
-            associations = await self.association_service.get_visible_for_report(report_id)
-            return self._build_category_summary_item(stream, associations, category_id)
+            return self._build_category_summary_item(stream, articles, category_id)
         elif prompt_type == "article_summary":
-            return self._build_article_summary_item(stream, wip_articles, article_index or 0)
+            return self._build_article_summary_item(stream, articles, article_index or 0)
         else:
             raise ValueError(f"Unknown prompt type: {prompt_type}")
 
     def _build_executive_summary_item(
         self,
         stream: ResearchStreamSchema,
-        wip_articles: List[WipArticle],
+        articles: List[ReportArticleInfo],
         report: Report
     ) -> Dict[str, Any]:
         """Build flat item dict for executive summary (matches pipeline format)."""
         articles_formatted = self._format_articles([
             {
-                "title": a.title,
-                "authors": a.authors[:3] if a.authors else [],
-                "journal": a.journal,
-                "year": a.year,
-                "abstract": a.abstract[:500] if a.abstract else None
+                "title": item.article.title,
+                "authors": item.article.authors[:3] if item.article.authors else [],
+                "journal": item.article.journal,
+                "year": item.article.year,
+                "abstract": item.article.abstract[:500] if item.article.abstract else None
             }
-            for a in wip_articles[:20]
+            for item in articles[:20]
         ])
 
-        # Build article summaries text
+        # Build article summaries text (ai_summary is on the association)
         articles_summaries = ""
-        summaries = [a.summary for a in wip_articles if a.summary]
+        summaries = [item.association.ai_summary for item in articles if item.association.ai_summary]
         if summaries:
             articles_summaries = "\n\n".join(summaries[:20])
 
@@ -229,7 +226,7 @@ class PromptTestingService:
         return {
             "stream_name": stream.stream_name or "",
             "stream_purpose": stream.purpose or "",
-            "articles_count": str(len(wip_articles)),
+            "articles_count": str(len(articles)),
             "articles_formatted": articles_formatted,
             "articles_summaries": articles_summaries,
             "categories_count": str(category_count),
@@ -239,7 +236,7 @@ class PromptTestingService:
     def _build_category_summary_item(
         self,
         stream: ResearchStreamSchema,
-        associations: List[ReportArticleAssociation],
+        articles: List[ReportArticleInfo],
         category_id: str
     ) -> Dict[str, Any]:
         """Build flat item dict for category summary (matches pipeline format)."""
@@ -249,28 +246,27 @@ class PromptTestingService:
         if not category:
             raise ValueError(f"Category {category_id} not found in stream")
 
-        # Filter associations by category (presentation_categories is on the association)
-        category_associations = [
-            assoc for assoc in associations
-            if assoc.presentation_categories and category_id in assoc.presentation_categories
+        # Filter articles by category (presentation_categories is on the association)
+        category_articles = [
+            item for item in articles
+            if item.association.presentation_categories and category_id in item.association.presentation_categories
         ]
 
-        # Build article info from associations (article is loaded via relationship)
+        # Build article info
         articles_formatted = self._format_articles([
             {
-                "title": assoc.article.title if assoc.article else "",
-                "authors": (assoc.article.authors[:3] if assoc.article and assoc.article.authors else []),
-                "journal": assoc.article.journal if assoc.article else "",
-                "year": assoc.article.year if assoc.article else "",
-                "abstract": (assoc.article.abstract[:400] if assoc.article and assoc.article.abstract else None)
+                "title": item.article.title,
+                "authors": item.article.authors[:3] if item.article.authors else [],
+                "journal": item.article.journal,
+                "year": item.article.year,
+                "abstract": item.article.abstract[:400] if item.article.abstract else None
             }
-            for assoc in category_associations[:15]
-            if assoc.article
+            for item in category_articles[:15]
         ])
 
         # Build article summaries text (ai_summary is on the association)
         articles_summaries = ""
-        summaries = [assoc.ai_summary for assoc in category_associations if assoc.ai_summary]
+        summaries = [item.association.ai_summary for item in category_articles if item.association.ai_summary]
         if summaries:
             articles_summaries = "\n\n".join(summaries[:15])
 
@@ -290,7 +286,7 @@ class PromptTestingService:
             "category_name": category_name,
             "category_description": category_description,
             "category_topics": ", ".join(category_topics),
-            "articles_count": str(len(category_associations)),
+            "articles_count": str(len(category_articles)),
             "articles_formatted": articles_formatted,
             "articles_summaries": articles_summaries,
         }
@@ -298,21 +294,22 @@ class PromptTestingService:
     def _build_article_summary_item(
         self,
         stream: ResearchStreamSchema,
-        wip_articles: List[WipArticle],
+        articles: List[ReportArticleInfo],
         article_index: int = 0
     ) -> Dict[str, Any]:
         """Build flat item dict for article summary (matches pipeline format)."""
-        if not wip_articles:
+        if not articles:
             raise ValueError("No articles available for testing")
 
         # Clamp article_index to valid range
-        if article_index < 0 or article_index >= len(wip_articles):
+        if article_index < 0 or article_index >= len(articles):
             article_index = 0
 
-        test_article = wip_articles[article_index]
+        item = articles[article_index]
+        article = item.article
 
         # Format authors (same as pipeline does via summary_service.format_authors)
-        authors = test_article.authors if test_article.authors else []
+        authors = article.authors if article.authors else []
         if isinstance(authors, list):
             if len(authors) > 3:
                 authors_str = ", ".join(authors[:3]) + " et al."
@@ -321,16 +318,21 @@ class PromptTestingService:
         else:
             authors_str = str(authors) if authors else "Unknown"
 
+        # Get filter_reason from wip_article if available (joined via association)
+        filter_reason = ""
+        if item.association.wip_article:
+            filter_reason = item.association.wip_article.filter_score_reason or ""
+
         # Return flat keys matching PROMPT_SLUGS for article_summary
         return {
             "stream_name": stream.stream_name or "",
             "stream_purpose": stream.purpose or "",
-            "title": test_article.title or "Untitled",
+            "title": article.title or "Untitled",
             "authors": authors_str or "Unknown",
-            "journal": test_article.journal or "Unknown",
-            "year": str(test_article.year) if test_article.year else "Unknown",
-            "abstract": test_article.abstract or "",
-            "filter_reason": test_article.filter_score_reason or "",
+            "journal": article.journal or "Unknown",
+            "year": str(article.year) if article.year else "Unknown",
+            "abstract": article.abstract or "",
+            "filter_reason": filter_reason,
         }
 
     def _format_articles(self, articles: List[Dict]) -> str:

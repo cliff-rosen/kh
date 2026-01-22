@@ -814,36 +814,6 @@ class ReportService:
             category_map=category_map
         )
 
-    async def get_wip_articles_for_report(
-        self,
-        report_id: int,
-        user_id: int,
-        included_only: bool = True
-    ) -> List[WipArticle]:
-        """
-        Get WIP articles for a report (async).
-
-        Args:
-            report_id: The report ID
-            user_id: The user ID (for access verification)
-            included_only: If True, only return articles with included_in_report=True
-
-        Returns:
-            List of WipArticle objects
-        """
-        result = await self.get_report_with_access(report_id, user_id)
-        if not result:
-            return []
-        report, _, stream = result
-
-        if not report.pipeline_execution_id:
-            return []
-
-        return await self.wip_article_service.get_by_execution_id(
-            report.pipeline_execution_id,
-            included_only=included_only
-        )
-
     # =========================================================================
     # DELETE
     # =========================================================================
