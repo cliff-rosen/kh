@@ -277,6 +277,10 @@ async def update_article_enrichments(
         )
 
 
+# ============================================================================
+# REPORT EMAIL ENDPOINTS
+# ============================================================================
+
 @router.post("/{report_id}/email/generate", response_model=EmailPreviewResponse)
 async def generate_report_email(
     report_id: int,
