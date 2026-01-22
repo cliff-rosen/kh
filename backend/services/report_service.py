@@ -290,33 +290,6 @@ class SuppliedArticleStatusData:
 
 
 @dataclass
-class ReportArticleListItem:
-    """Article item in a report article list."""
-    pmid: Optional[str]
-    title: str
-    journal: Optional[str]
-    publication_date: str  # Year or "Unknown"
-    categories: List[str]
-    category_ids: List[str]
-    relevance_score: Optional[float]
-    ranking: Optional[int]
-    # Optional expanded fields
-    authors: Optional[List[str]] = None
-    abstract: Optional[str] = None
-    doi: Optional[str] = None
-
-
-@dataclass
-class ReportArticlesListData:
-    """Report with its list of articles."""
-    report_id: int
-    report_name: str
-    report_date: Optional[str]
-    total_articles: int
-    articles: List[ReportArticleListItem]
-
-
-@dataclass
 class ReportOnlyArticleData:
     """Article that was in the report but not in supplied PMIDs."""
     pmid: str
@@ -834,68 +807,6 @@ class ReportService:
             articles=articles,
             article_count=len(articles),
             retrieval_params=retrieval_params
-        )
-
-    async def get_report_articles_list(
-        self,
-        report_id: int,
-        user_id: int,
-        include_abstract: bool = False
-    ) -> Optional[ReportArticlesListData]:
-        """
-        Get the list of articles in a report with metadata (async).
-
-        This is optimized for LLM consumption - returns a structured list
-        with category names resolved from IDs.
-
-        Args:
-            report_id: The report ID
-            user_id: The user ID (for access verification)
-            include_abstract: If True, include full abstracts (expanded mode)
-
-        Returns:
-            ReportArticlesListData with report info and articles list, or None if not found/no access
-        """
-        result = await self.get_report_with_access(report_id, user_id)
-        if not result:
-            return None
-        report, user, stream = result
-
-        # Build category ID -> name mapping
-        category_map = self.build_category_map(stream)
-
-        # Get visible articles (excludes curator_excluded)
-        visible_associations = await self.association_service.get_visible_for_report(report_id)
-
-        articles = []
-        for assoc in visible_associations:
-            article = assoc.article
-            # Resolve category IDs to names
-            category_ids = assoc.presentation_categories or []
-            category_names = [category_map.get(cid, cid) for cid in category_ids]
-
-            article_item = ReportArticleListItem(
-                pmid=article.pmid,
-                title=article.title,
-                journal=article.journal,
-                publication_date=str(article.year) if article.year else "Unknown",
-                categories=category_names,
-                category_ids=category_ids,
-                relevance_score=assoc.relevance_score,
-                ranking=assoc.ranking,
-                authors=article.authors if include_abstract else None,
-                abstract=article.abstract if include_abstract else None,
-                doi=article.doi if include_abstract else None
-            )
-
-            articles.append(article_item)
-
-        return ReportArticlesListData(
-            report_id=report_id,
-            report_name=report.report_name,
-            report_date=report.report_date.isoformat() if report.report_date else None,
-            total_articles=len(articles),
-            articles=articles
         )
 
     async def get_wip_articles_for_report(

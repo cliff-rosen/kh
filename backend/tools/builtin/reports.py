@@ -6,7 +6,6 @@ These tools are available on the reports page and article modal views.
 """
 
 import logging
-from dataclasses import asdict
 from typing import Any, Dict, List, Union
 
 from sqlalchemy.orm import Session
@@ -192,14 +191,21 @@ def execute_get_report_articles(
     async def _get_articles():
         async with AsyncSessionLocal() as async_db:
             service = ReportService(async_db)
-            return await service.get_report_articles_list(
-                report_id=report_id,
-                user_id=user_id,
-                include_abstract=(mode == "expanded")
-            )
+            # Get user for access check
+            user = db.query(User).filter(User.user_id == user_id).first()
+            if not user:
+                return None, None
+            result = await service.get_report_with_articles(user, report_id)
+            if not result:
+                return None, None
+            # Get stream for category mapping
+            stream = db.query(ResearchStream).filter(
+                ResearchStream.stream_id == result.report.research_stream_id
+            ).first()
+            return result, stream
 
     try:
-        result = asyncio.run(_get_articles())
+        result, stream = asyncio.run(_get_articles())
 
         if not result:
             return f"No report found with ID {report_id} or access denied."
@@ -207,18 +213,29 @@ def execute_get_report_articles(
         if not result.articles:
             return f"No articles found in report {report_id}."
 
-        # Format text for LLM
-        text_lines = [f"=== Articles in Report: {result.report_name} ==="]
-        text_lines.append(f"Total: {result.total_articles} articles\n")
+        # Build category ID -> name mapping
+        category_map = ReportService.build_category_map(stream)
 
-        for i, article in enumerate(result.articles, 1):
-            categories_str = ', '.join(article.categories) if article.categories else 'Uncategorized'
+        # Format text for LLM
+        text_lines = [f"=== Articles in Report: {result.report.report_name} ==="]
+        text_lines.append(f"Total: {result.article_count} articles\n")
+
+        articles_data = []
+        for i, article_info in enumerate(result.articles, 1):
+            article = article_info.article
+            assoc = article_info.association
+
+            # Resolve category IDs to names
+            category_ids = assoc.presentation_categories or []
+            category_names = [category_map.get(cid, cid) for cid in category_ids]
+            categories_str = ', '.join(category_names) if category_names else 'Uncategorized'
+            publication_date = str(article.year) if article.year else "Unknown"
 
             if mode == "condensed":
                 text_lines.append(f"""
 {i}. PMID: {article.pmid}
    Title: {article.title}
-   Journal: {article.journal or 'Unknown'} ({article.publication_date})
+   Journal: {article.journal or 'Unknown'} ({publication_date})
    Categories: {categories_str}
 """)
             else:  # expanded
@@ -226,18 +243,37 @@ def execute_get_report_articles(
 {i}. PMID: {article.pmid}
    Title: {article.title}
    Authors: {article.authors or 'Unknown'}
-   Journal: {article.journal or 'Unknown'} ({article.publication_date})
+   Journal: {article.journal or 'Unknown'} ({publication_date})
    Categories: {categories_str}
-   Relevance Score: {article.relevance_score or 'N/A'}
+   Relevance Score: {assoc.relevance_score or 'N/A'}
 
    Abstract:
    {article.abstract or 'No abstract available.'}
 """)
 
+            # Build article data for payload
+            articles_data.append({
+                "pmid": article.pmid,
+                "title": article.title,
+                "journal": article.journal,
+                "publication_date": publication_date,
+                "categories": category_names,
+                "category_ids": category_ids,
+                "relevance_score": assoc.relevance_score,
+                "ranking": assoc.ranking,
+                "authors": article.authors if mode == "expanded" else None,
+                "abstract": article.abstract if mode == "expanded" else None,
+                "doi": article.doi if mode == "expanded" else None
+            })
+
         payload = {
             "type": "report_articles",
             "data": {
-                **asdict(result),
+                "report_id": report_id,
+                "report_name": result.report.report_name,
+                "report_date": result.report.report_date.isoformat() if result.report.report_date else None,
+                "total_articles": result.article_count,
+                "articles": articles_data,
                 "mode": mode
             }
         }
