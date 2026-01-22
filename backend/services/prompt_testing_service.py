@@ -170,9 +170,7 @@ class PromptTestingService:
         articles = result.articles  # List[ReportArticleInfo]
 
         # Get stream for config access
-        stream = await self.stream_service.get_stream(report.research_stream_id)
-        if not stream:
-            raise ValueError("Research stream not found")
+        stream = await self.stream_service.get_stream_by_id(report.research_stream_id)
 
         if prompt_type == "executive_summary":
             return self._build_executive_summary_item(stream, articles, report)
