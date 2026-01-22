@@ -153,8 +153,9 @@ class Concept(BaseModel):
 class BroadQuery(BaseModel):
     """A broad, general search query designed to capture all relevant literature"""
     query_id: str = Field(description="Unique identifier for this query")
+    source_id: int = Field(description="ID of the information source (e.g., 1 for PubMed)")
     search_terms: List[str] = Field(description="Core search terms (e.g., ['asbestos', 'mesothelioma'])")
-    query_expression: str = Field(description="Boolean query expression usable as-is for PubMed")
+    query_expression: str = Field(description="Boolean query expression for the specified source")
     rationale: str = Field(description="Why these terms capture all relevant literature")
     covered_topics: List[str] = Field(description="List of topic_ids this query covers")
     estimated_weekly_volume: Optional[int] = Field(None, description="Estimated number of articles per week")

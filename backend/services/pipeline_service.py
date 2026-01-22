@@ -42,7 +42,7 @@ from models import (
     RunType,
     PipelineExecution,
 )
-from schemas.research_stream import RetrievalConfig, PresentationConfig
+from schemas.research_stream import RetrievalConfig, PresentationConfig, BroadQuery
 from schemas.llm import StageConfig, PipelineLLMConfig, get_stage_config
 from services.pubmed_service import PubMedService
 from services.ai_evaluation_service import get_ai_evaluation_service
@@ -75,7 +75,7 @@ class PipelineContext:
     start_date: Optional[str]
     end_date: Optional[str]
     report_name: Optional[str]
-    queries: List[Any]  # List of BroadSearchQuery from retrieval_config
+    queries: List[BroadQuery]
     categories: List[Dict]  # From presentation_config (for LLM prompts)
     presentation_config: Any  # Full PresentationConfig object
     enrichment_config: Optional[Dict]  # Custom prompts configuration (snapshot)
@@ -488,9 +488,6 @@ class PipelineService:
         Stage: Execute retrieval for each broad search query.
         Commits: WipArticle records for all retrieved articles.
         """
-        # Resolve source ID once for all queries in this stage
-        pubmed_source_id = await self.wip_article_service.get_source_id_by_name("pubmed")
-
         yield PipelineStatus(
             "retrieval",
             f"Starting retrieval for {len(ctx.queries)} queries",
@@ -520,7 +517,7 @@ class PipelineService:
                 research_stream_id=ctx.research_stream_id,
                 execution_id=ctx.execution_id,
                 retrieval_unit_id=query.query_id,
-                source_id=pubmed_source_id,
+                source_id=query.source_id,
                 query_expression=query.query_expression,
                 start_date=ctx.start_date,
                 end_date=ctx.end_date,
