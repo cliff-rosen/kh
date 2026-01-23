@@ -137,7 +137,7 @@ async def analyze_article_stance(
 
     try:
         # Load the research stream via service (handles access control)
-        stream = await stream_service.get_research_stream(request.stream_id, current_user.user_id)
+        stream = await stream_service.get_research_stream(current_user, request.stream_id)
 
         logger.info(f"Stance analysis request from user {current_user.user_id} for stream {stream.stream_name}")
 
