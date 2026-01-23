@@ -662,7 +662,7 @@ class ReportService:
         self,
         report_id: int,
         user_id: int,
-        raise_on_not_found: bool = False
+        raise_on_not_found: bool = True
     ) -> Optional[Tuple[Report, User, ResearchStream]]:
         """
         Get report with user access verification (async).
@@ -676,11 +676,11 @@ class ReportService:
         Args:
             report_id: The report ID
             user_id: The user ID
-            raise_on_not_found: If True, raises HTTPException 404 on failure.
+            raise_on_not_found: If True (default), raises HTTPException 404 on failure.
                                If False, returns None on failure.
 
         Returns:
-            Tuple of (report, user, stream) if found and accessible, None otherwise.
+            Tuple of (report, user, stream) if found and accessible, None if raise_on_not_found=False.
 
         Raises:
             HTTPException: 404 if raise_on_not_found=True and report not found or no access
@@ -773,7 +773,7 @@ class ReportService:
         Returns only articles where is_hidden=False, ordered by ranking.
         Use get_curation_view for the full list including hidden articles.
         """
-        access_result = await self.get_report_with_access(report_id, user_id)
+        access_result = await self.get_report_with_access(report_id, user_id, raise_on_not_found=False)
         if not access_result:
             return None
         report, _, stream = access_result
@@ -820,7 +820,7 @@ class ReportService:
 
     async def delete_report(self, user: User, report_id: int) -> bool:
         """Delete a report if user has access (async)."""
-        access_result = await self.get_report_with_access(report_id, user.user_id)
+        access_result = await self.get_report_with_access(report_id, user.user_id, raise_on_not_found=False)
         if not access_result:
             return False
         report, _, _ = access_result
@@ -866,7 +866,7 @@ class ReportService:
         article_id: int
     ) -> Optional[ReportArticleAssociation]:
         """Get article association if user has access (async)."""
-        access_result = await self.get_report_with_access(report_id, user.user_id)
+        access_result = await self.get_report_with_access(report_id, user.user_id, raise_on_not_found=False)
         if not access_result:
             return None
 
@@ -908,7 +908,7 @@ class ReportService:
         report_id: int
     ) -> Optional[EmailResult]:
         """Get stored email HTML for a report (async)."""
-        access_result = await self.get_report_with_access(report_id, user.user_id)
+        access_result = await self.get_report_with_access(report_id, user.user_id, raise_on_not_found=False)
         if not access_result:
             return None
         report, _, _ = access_result
@@ -923,7 +923,7 @@ class ReportService:
         html: str
     ) -> Optional[EmailResult]:
         """Store email HTML for a report (async)."""
-        access_result = await self.get_report_with_access(report_id, user.user_id)
+        access_result = await self.get_report_with_access(report_id, user.user_id, raise_on_not_found=False)
         if not access_result:
             return None
         report, _, _ = access_result
@@ -941,7 +941,7 @@ class ReportService:
         report_id: int
     ) -> Optional[EmailResult]:
         """Generate HTML email content for a report (async)."""
-        access_result = await self.get_report_with_access(report_id, user.user_id)
+        access_result = await self.get_report_with_access(report_id, user.user_id, raise_on_not_found=False)
         if not access_result:
             return None
         report, _, stream = access_result
@@ -1175,28 +1175,6 @@ class ReportService:
             total_count=len(events),
         )
 
-    async def _get_report_for_curation(
-        self,
-        report_id: int,
-        user_id: int
-    ) -> tuple[Report, User, ResearchStream]:
-        """
-        Get report with access verification for curation operations (async).
-
-        Returns:
-            Tuple of (report, user, stream)
-
-        Raises:
-            HTTPException: 404 if report not found or user doesn't have access
-        """
-        result = await self.get_report_with_access(report_id, user_id)
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found or access denied"
-            )
-        return result
-
     async def get_report_config(self, report_id: int, user_id: int) -> ReportConfigData:
         """
         Get lightweight config data for a report (async).
@@ -1205,7 +1183,7 @@ class ReportService:
         - retrieval_config, enrichment_config, llm_config from execution
         - Falls back to stream config if execution config is not available
         """
-        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         # Initialize with defaults
         retrieval_config = None
@@ -1249,7 +1227,7 @@ class ReportService:
         """
         Get full curation view data for a report (async).
         """
-        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         # Get categories from stream config
         categories = []
@@ -1386,7 +1364,7 @@ class ReportService:
         category_summaries: Optional[Dict[str, str]] = None
     ) -> ReportContentUpdateResult:
         """Update report content (name, summaries) for curation (async)."""
-        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         from models import CurationEvent
         import json
@@ -1446,7 +1424,7 @@ class ReportService:
         notes: Optional[str] = None
     ) -> ExcludeArticleResult:
         """Curator excludes an article from the report (async)."""
-        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         # Get the association
         association = await self.association_service.get(report_id, article_id)
@@ -1520,7 +1498,7 @@ class ReportService:
         notes: Optional[str] = None
     ) -> IncludeArticleResult:
         """Curator includes a filtered article into the report (async)."""
-        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         # Get the WipArticle
         wip_article = await self.wip_article_service.get_by_id_or_404(wip_article_id)
@@ -1591,7 +1569,7 @@ class ReportService:
         user_id: int
     ) -> ResetCurationResult:
         """Reset curation for an article (async)."""
-        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         # Get the WipArticle
         wip_article = await self.wip_article_service.get_by_id_or_404(wip_article_id)
@@ -1673,7 +1651,7 @@ class ReportService:
         ai_summary: Optional[str] = None
     ) -> UpdateArticleResult:
         """Edit an article within the report (async)."""
-        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         association = await self.association_service.get(report_id, article_id)
 
@@ -1737,7 +1715,7 @@ class ReportService:
         user_id: int
     ) -> PipelineAnalytics:
         """Get pipeline analytics for a report (async)."""
-        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         # Initialize empty analytics
         summary = PipelineAnalyticsSummary(
@@ -2037,7 +2015,7 @@ class ReportService:
         from services.report_summary_service import ReportSummaryService
         from sqlalchemy.orm.attributes import flag_modified
 
-        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         # Check approval status - cannot modify approved reports
         if report.approval_status == ApprovalStatus.APPROVED:
@@ -2242,7 +2220,7 @@ class ReportService:
         Returns:
             CurrentArticleSummariesResult with all current article summaries
         """
-        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         # Get all articles in the report
         # Use CASE to put NULLs last (MariaDB doesn't support NULLS LAST)
@@ -2296,7 +2274,7 @@ class ReportService:
         Returns:
             CurrentCategorySummariesResult with all current category summaries
         """
-        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         # Get categories from stream
         categories = stream.presentation_config.get('categories', []) if stream and stream.presentation_config else []
@@ -2340,7 +2318,7 @@ class ReportService:
         Returns:
             CurrentExecutiveSummaryResult with current executive summary
         """
-        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         # Get current executive summary from report enrichments
         enrichments = report.enrichments or {}
@@ -2379,7 +2357,7 @@ class ReportService:
         from services.report_summary_service import ReportSummaryService
         from agents.prompts.llm import ModelConfig as LLMModelConfig
 
-        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         # Check approval status
         if report.approval_status == ApprovalStatus.APPROVED:
@@ -2489,7 +2467,7 @@ class ReportService:
         """
         from models import CurationEvent
 
-        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         # Check approval status
         if report.approval_status == ApprovalStatus.APPROVED:
@@ -2570,7 +2548,7 @@ class ReportService:
         from services.report_summary_service import ReportSummaryService
         from agents.prompts.llm import ModelConfig as LLMModelConfig
 
-        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         # Check approval status
         if report.approval_status == ApprovalStatus.APPROVED:
@@ -2661,7 +2639,7 @@ class ReportService:
         from models import CurationEvent
         from sqlalchemy.orm.attributes import flag_modified
 
-        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         # Check approval status
         if report.approval_status == ApprovalStatus.APPROVED:
@@ -2720,7 +2698,7 @@ class ReportService:
         from services.report_summary_service import ReportSummaryService
         from agents.prompts.llm import ModelConfig as LLMModelConfig
 
-        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         # Check approval status
         if report.approval_status == ApprovalStatus.APPROVED:
@@ -2828,7 +2806,7 @@ class ReportService:
         from models import CurationEvent
         from sqlalchemy.orm.attributes import flag_modified
 
-        report, user, stream = await self._get_report_for_curation(report_id, user_id)
+        report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         # Check approval status
         if report.approval_status == ApprovalStatus.APPROVED:

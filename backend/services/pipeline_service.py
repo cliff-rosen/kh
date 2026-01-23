@@ -1023,9 +1023,6 @@ class PipelineService:
         """
         Fetch articles from a source and store all results in wip_articles table.
 
-        IMPORTANT: This method has a critical side effect - it persists ALL retrieved
-        articles to the wip_articles table for the entire pipeline to process.
-
         Args:
             research_stream_id: Stream ID
             execution_id: UUID of this pipeline execution
@@ -1037,11 +1034,18 @@ class PipelineService:
 
         Returns:
             Number of articles retrieved and stored
+
+        Raises:
+            Exception: If fetching or storing fails
         """
+        logger.info(
+            f"Fetching articles: query='{query_expression[:100]}...', "
+            f"source_id={source_id}, dates={start_date} to {end_date}"
+        )
+
         # Execute query - currently only PubMed is implemented
-        articles = []
         # TODO: Use source_id to determine which service to call when more sources are added
-        if True:  # Currently only PubMed
+        try:
             articles, metadata = await self.pubmed_service.search_articles(
                 query=query_expression,
                 max_results=self.MAX_ARTICLES_PER_SOURCE,
@@ -1050,20 +1054,36 @@ class PipelineService:
                 date_type="publication",
                 sort_by="relevance",
             )
-        else:
-            # Other sources not yet implemented
-            pass
+        except Exception as e:
+            logger.error(
+                f"Failed to fetch articles: query='{query_expression[:100]}...', "
+                f"source_id={source_id}, error={e}"
+            )
+            raise
 
-        # Store results in wip_articles using WipArticleService
-        logger.info(f"Storing {len(articles)} articles for execution_id={execution_id}")
-
-        return await self.wip_article_service.create_wip_articles(
-            research_stream_id=research_stream_id,
-            execution_id=execution_id,
-            retrieval_group_id=retrieval_unit_id,
-            source_id=source_id,
-            articles=articles,
+        logger.info(
+            f"Fetched {len(articles)} articles from source_id={source_id}, "
+            f"total_results={metadata.get('total_results', 'unknown')}"
         )
+
+        # Store results in wip_articles
+        try:
+            count = await self.wip_article_service.create_wip_articles(
+                research_stream_id=research_stream_id,
+                execution_id=execution_id,
+                retrieval_group_id=retrieval_unit_id,
+                source_id=source_id,
+                articles=articles,
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to store articles: execution_id={execution_id}, "
+                f"retrieval_unit_id={retrieval_unit_id}, count={len(articles)}, error={e}"
+            )
+            raise
+
+        logger.info(f"Stored {count} articles for execution_id={execution_id}")
+        return count
 
     async def _apply_semantic_filter(
         self,

@@ -779,13 +779,8 @@ async def update_wip_article_notes(
     logger.info(f"update_wip_article_notes - user_id={current_user.user_id}, report_id={report_id}, wip_article_id={wip_article_id}")
 
     try:
-        # Verify user has access to this report
-        result = await service.get_report_with_access(report_id, current_user.user_id)
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found or access denied"
-            )
+        # Verify user has access to this report (raises 404 if not found)
+        await service.get_report_with_access(report_id, current_user.user_id)
 
         # Update the WipArticle curation notes
         article = await wip_service.update_curation_notes(
@@ -899,13 +894,8 @@ async def send_approval_request(
     logger.info(f"send_approval_request - user_id={current_user.user_id}, report_id={report_id}, admin_id={request.admin_user_id}")
 
     try:
-        result = await service.get_report_with_access(report_id, current_user.user_id)
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found or access denied"
-            )
-        report, user, stream = result
+        # Raises 404 if not found or no access
+        report, user, stream = await service.get_report_with_access(report_id, current_user.user_id)
 
         # Get admin user using service
         admin = await service.user_service.get_user_by_id(request.admin_user_id)

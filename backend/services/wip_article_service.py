@@ -119,7 +119,16 @@ class WipArticleService:
 
         Returns:
             Number of articles created
+
+        Raises:
+            Exception: If database commit fails
         """
+        logger.debug(
+            f"Creating {len(articles)} WipArticles: "
+            f"execution_id={execution_id}, retrieval_group_id={retrieval_group_id}"
+        )
+
+        date_parse_failures = 0
         for article in articles:
             # Parse publication_date string to date object if present
             pub_date = None
@@ -127,7 +136,7 @@ class WipArticleService:
                 try:
                     pub_date = datetime.fromisoformat(article.publication_date).date()
                 except (ValueError, AttributeError):
-                    pass
+                    date_parse_failures += 1
 
             wip_article = WipArticle(
                 research_stream_id=research_stream_id,
@@ -150,7 +159,15 @@ class WipArticleService:
             )
             self.db.add(wip_article)
 
+        if date_parse_failures > 0:
+            logger.warning(
+                f"Failed to parse publication_date for {date_parse_failures}/{len(articles)} articles"
+            )
+
         await self.db.commit()
+        logger.info(
+            f"Created {len(articles)} WipArticles for execution_id={execution_id}"
+        )
         return len(articles)
 
     def bulk_create_wip_articles(self, articles: List[WipArticle]) -> None:
