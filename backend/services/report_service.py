@@ -1456,20 +1456,11 @@ class ReportService:
         """Curator includes a filtered article into the report (async)."""
         report, user, stream = await self.get_report_with_access(report_id, user_id)
 
-        # Get the WipArticle
-        try:
-            wip_article = await self.wip_article_service.get_by_id(wip_article_id)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="WIP article not found"
-            )
+        # Get the WipArticle (raises ValueError if not found)
+        wip_article = await self.wip_article_service.get_by_id(wip_article_id)
 
         if wip_article.pipeline_execution_id != report.pipeline_execution_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="WIP article not found for this report"
-            )
+            raise ValueError("WIP article not found for this report")
 
         if wip_article.included_in_report:
             raise HTTPException(
@@ -1533,20 +1524,11 @@ class ReportService:
         """Reset curation for an article (async)."""
         report, user, stream = await self.get_report_with_access(report_id, user_id)
 
-        # Get the WipArticle
-        try:
-            wip_article = await self.wip_article_service.get_by_id(wip_article_id)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="WIP article not found"
-            )
+        # Get the WipArticle (raises ValueError if not found)
+        wip_article = await self.wip_article_service.get_by_id(wip_article_id)
 
         if wip_article.pipeline_execution_id != report.pipeline_execution_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="WIP article not found for this report"
-            )
+            raise ValueError("WIP article not found for this report")
 
         was_curator_included = wip_article.curator_included
         was_curator_excluded = wip_article.curator_excluded

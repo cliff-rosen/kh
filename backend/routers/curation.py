@@ -676,6 +676,11 @@ async def exclude_article(
         logger.info(f"exclude_article complete - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
         return ExcludeArticleResponse(**asdict(result))
 
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -713,6 +718,11 @@ async def include_article(
         logger.info(f"include_article complete - user_id={current_user.user_id}, report_id={report_id}, article_id={result.article_id}")
         return IncludeArticleResponse(**asdict(result))
 
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -748,6 +758,11 @@ async def reset_curation(
         logger.info(f"reset_curation complete - user_id={current_user.user_id}, report_id={report_id}")
         return ResetCurationResponse(**asdict(result))
 
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
     except HTTPException:
         raise
     except Exception as e:
