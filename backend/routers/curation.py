@@ -850,6 +850,11 @@ async def update_article_in_report(
             ai_summary=result.ai_summary,
         )
 
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -1208,13 +1213,10 @@ async def regenerate_article_summary(
         # Get enrichment config from stream
         enrichment_config = stream.enrichment_config if stream else None
 
-        # Get the article association
+        # Get the article association (raises ValueError if not found)
         association = await service.association_service.get(report_id, article_id)
-        if not association or not association.article:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Article {article_id} not found in report {report_id}"
-            )
+        if not association.article:
+            raise ValueError(f"Article {article_id} has no article data")
 
         article = association.article
 
@@ -1252,6 +1254,11 @@ async def regenerate_article_summary(
         logger.info(f"regenerate_article_summary complete - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
         return RegenerateArticleSummaryResponse(article_id=article_id, ai_summary=new_summary)
 
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
     except HTTPException:
         raise
     except Exception as e:

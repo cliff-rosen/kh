@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select, func
 from sqlalchemy.orm import selectinload
-from fastapi import HTTPException, status, Depends
+from fastapi import Depends
 
 from models import ReportArticleAssociation
 from database import get_async_db
@@ -119,13 +119,10 @@ class ReportArticleAssociationService:
         return result.scalars().first()
 
     async def get(self, report_id: int, article_id: int) -> ReportArticleAssociation:
-        """Get an association, raising 404 if not found (async)."""
+        """Get an association, raises ValueError if not found."""
         association = await self.find(report_id, article_id)
         if not association:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Article not found in report"
-            )
+            raise ValueError(f"Article {article_id} not found in report {report_id}")
         return association
 
     async def get_visible_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
