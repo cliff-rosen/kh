@@ -101,20 +101,6 @@ class WipArticleService:
 
         return None
 
-    async def get_article_by_pmid(
-        self, execution_id: str, pmid: str
-    ) -> Optional[WipArticle]:
-        """Find a WipArticle by PMID within an execution."""
-        result = await self.db.execute(
-            select(WipArticle).where(
-                and_(
-                    WipArticle.pipeline_execution_id == execution_id,
-                    WipArticle.pmid == pmid,
-                )
-            )
-        )
-        return result.scalars().first()
-
     async def get_for_filtering(
         self, execution_id: str, retrieval_group_id: str
     ) -> List[WipArticle]:
