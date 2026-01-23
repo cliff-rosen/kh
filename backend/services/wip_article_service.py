@@ -580,6 +580,37 @@ class WipArticleService:
         )
         return result.rowcount
 
+    # =========================================================================
+    # BUILD Operations (transform WipArticles for external services)
+    # =========================================================================
+
+    def build_filter_eval_items(
+        self, articles: List[WipArticle]
+    ) -> tuple[List[Dict[str, Any]], Dict[str, WipArticle]]:
+        """
+        Build evaluation items from WipArticles for semantic filter.
+
+        Args:
+            articles: List of WipArticle objects
+
+        Returns:
+            Tuple of (items list for AI evaluation, article_map for result matching)
+        """
+        items = []
+        article_map = {}
+        for article in articles:
+            article_id = str(article.id)
+            article_map[article_id] = article
+            items.append({
+                "id": article_id,
+                "title": article.title or "",
+                "abstract": article.abstract or "",
+                "summary": article.summary or "",
+                "journal": article.journal or "",
+                "authors": article.authors or [],
+            })
+        return items, article_map
+
     async def commit(self) -> None:
         """Commit pending changes to the database (async)."""
         await self.db.commit()

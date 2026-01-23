@@ -496,6 +496,36 @@ class ReportService:
             if isinstance(cat, dict)
         }
 
+    def update_enrichment(
+        self,
+        report: "Report",
+        key: str,
+        value: Any,
+        set_original: bool = False
+    ) -> None:
+        """
+        Update a single enrichment key on a report.
+
+        Handles the SQLAlchemy JSON column update pattern with flag_modified.
+        Does not commit - caller manages the transaction.
+
+        Args:
+            report: The Report to update
+            key: Enrichment key (e.g., "category_summaries", "executive_summary")
+            value: Value to set
+            set_original: If True, also copy enrichments to original_enrichments
+        """
+        from sqlalchemy.orm.attributes import flag_modified
+
+        enrichments = report.enrichments or {}
+        enrichments[key] = value
+        report.enrichments = enrichments
+        flag_modified(report, "enrichments")
+
+        if set_original:
+            report.original_enrichments = report.enrichments.copy()
+            flag_modified(report, "original_enrichments")
+
     # =========================================================================
     # ASYNC CREATE Operations
     # =========================================================================

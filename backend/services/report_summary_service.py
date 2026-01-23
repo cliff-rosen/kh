@@ -14,7 +14,7 @@ from typing import List, Dict, Optional, Any, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from models import ReportArticleAssociation, ResearchStream
-    from schemas.research_stream import EnrichmentConfig
+    from schemas.research_stream import EnrichmentConfig, Category
 
 from agents.prompts.llm import call_llm, ModelConfig, LLMOptions, LLMResult
 import logging
@@ -432,8 +432,8 @@ class ReportSummaryService:
 
     def build_article_summary_items(
         self,
-        associations: List[Any],  # List[ReportArticleAssociation]
-        stream: Any,  # ResearchStream
+        associations: List["ReportArticleAssociation"],
+        stream: "ResearchStream",
     ) -> List[Dict[str, Any]]:
         """
         Build items list for article summary generation from associations.
@@ -467,23 +467,23 @@ class ReportSummaryService:
 
     def build_category_summary_items(
         self,
-        associations: List[Any],  # List[ReportArticleAssociation]
-        categories: List[Any],  # List of category objects/dicts
-        stream: Any,  # ResearchStream
+        associations: List["ReportArticleAssociation"],
+        categories: List["Category"],
+        stream: "ResearchStream",
     ) -> List[Dict[str, Any]]:
         """
         Build items list for category summary generation from associations.
 
         Args:
             associations: List of ReportArticleAssociation with loaded article relationship
-            categories: List of category objects (with id, name, topics, specific_inclusions)
+            categories: List of Category objects (with id, name, topics, specific_inclusions)
             stream: ResearchStream for context
 
         Returns:
             List of item dicts ready for generate_category_summary(), one per non-empty category
         """
         # Group associations by category
-        category_to_associations: Dict[str, List[Any]] = {}
+        category_to_associations: Dict[str, List["ReportArticleAssociation"]] = {}
         for assoc in associations:
             for cat_id in (assoc.presentation_categories or []):
                 if cat_id not in category_to_associations:
@@ -542,9 +542,9 @@ class ReportSummaryService:
 
     def build_executive_summary_item(
         self,
-        associations: List[Any],  # List[ReportArticleAssociation]
-        category_summaries: Dict[str, str],  # {category_id: summary_text}
-        stream: Any,  # ResearchStream
+        associations: List["ReportArticleAssociation"],
+        category_summaries: Dict[str, str],
+        stream: "ResearchStream",
     ) -> Dict[str, Any]:
         """
         Build item dict for executive summary generation.
@@ -636,7 +636,7 @@ class ReportSummaryService:
         return "\n\n".join(formatted)
 
     @staticmethod
-    def format_authors(authors: Any) -> str:
+    def format_authors(authors: Optional[Union[List[str], str]]) -> str:
         """
         Format authors list for display.
 

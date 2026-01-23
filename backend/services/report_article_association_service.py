@@ -48,34 +48,6 @@ class ReportArticleAssociationService:
         """
         association.is_hidden = hidden
 
-    def update_ranking(
-        self,
-        association: ReportArticleAssociation,
-        ranking: int
-    ) -> None:
-        """
-        Update the ranking of an association.
-
-        Args:
-            association: The association to update
-            ranking: New ranking
-        """
-        association.ranking = ranking
-
-    def update_categories(
-        self,
-        association: ReportArticleAssociation,
-        categories: List[str]
-    ) -> None:
-        """
-        Update the presentation categories of an association.
-
-        Args:
-            association: The association to update
-            categories: New category list
-        """
-        association.presentation_categories = categories
-
     def bulk_set_categories_from_pipeline(
         self,
         categorization_results: List[Tuple[ReportArticleAssociation, str]]
@@ -124,26 +96,6 @@ class ReportArticleAssociationService:
                 association.original_ai_summary = summary
                 summary_count += 1
         return summary_count
-
-    def update_ai_summary(
-        self,
-        association: ReportArticleAssociation,
-        summary: str
-    ) -> None:
-        """
-        Update the AI summary of an association.
-
-        Preserves original_ai_summary on first edit.
-
-        Args:
-            association: The association to update
-            summary: New summary text
-        """
-        # Preserve original on first edit
-        if association.original_ai_summary is None and association.ai_summary:
-            association.original_ai_summary = association.ai_summary
-
-        association.ai_summary = summary
 
     # =========================================================================
     # ASYNC Methods
@@ -237,39 +189,6 @@ class ReportArticleAssociationService:
             return None
 
         assoc.ai_enrichments = ai_enrichments
-        await self.db.commit()
-        return assoc
-
-    async def update_notes(
-        self,
-        report_id: int,
-        article_id: int,
-        notes: List[Dict[str, Any]]
-    ) -> Optional[ReportArticleAssociation]:
-        """
-        Update notes on an association.
-
-        Args:
-            report_id: The report ID
-            article_id: The article ID
-            notes: The notes list to set
-
-        Returns:
-            Updated association, or None if not found
-        """
-        result = await self.db.execute(
-            select(ReportArticleAssociation).where(
-                and_(
-                    ReportArticleAssociation.report_id == report_id,
-                    ReportArticleAssociation.article_id == article_id
-                )
-            )
-        )
-        assoc = result.scalars().first()
-        if not assoc:
-            return None
-
-        assoc.notes = notes
         await self.db.commit()
         return assoc
 
@@ -383,48 +302,6 @@ class ReportArticleAssociationService:
     async def delete(self, association: ReportArticleAssociation) -> None:
         """Delete an association (async)."""
         await self.db.delete(association)
-
-    async def delete_by_ids(self, report_id: int, article_id: int) -> bool:
-        """Delete an association by IDs (async)."""
-        association = await self.find(report_id, article_id)
-        if association:
-            await self.db.delete(association)
-            return True
-        return False
-
-    async def get_hidden_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
-        """Get hidden associations for a report (async)."""
-        result = await self.db.execute(
-            select(ReportArticleAssociation)
-            .options(
-                selectinload(ReportArticleAssociation.article),
-                selectinload(ReportArticleAssociation.wip_article)
-            )
-            .where(
-                and_(
-                    ReportArticleAssociation.report_id == report_id,
-                    ReportArticleAssociation.is_hidden == True
-                )
-            )
-        )
-        return list(result.scalars().all())
-
-    async def get_curator_added_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
-        """Get curator-added associations for a report (async)."""
-        result = await self.db.execute(
-            select(ReportArticleAssociation)
-            .options(
-                selectinload(ReportArticleAssociation.article),
-                selectinload(ReportArticleAssociation.wip_article)
-            )
-            .where(
-                and_(
-                    ReportArticleAssociation.report_id == report_id,
-                    ReportArticleAssociation.curator_added == True
-                )
-            )
-        )
-        return list(result.scalars().all())
 
     async def delete_all_for_report(self, report_id: int) -> int:
         """Delete all associations for a report (async)."""

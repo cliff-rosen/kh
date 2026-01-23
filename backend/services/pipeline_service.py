@@ -20,7 +20,6 @@ Retrieval Strategy:
 from typing import AsyncGenerator, Dict, List, Optional, Tuple, Any, Callable, Coroutine
 from dataclasses import dataclass, field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import and_, or_, select
 from datetime import date, datetime
 import asyncio
@@ -655,6 +654,9 @@ class PipelineService:
 
         ctx.categorized_count, ctx.categorize_errors = result
 
+        # Stage commit
+        await self.db.commit()
+
         if ctx.categorize_errors > 0:
             yield PipelineStatus(
                 "categorize",
@@ -818,13 +820,12 @@ class PipelineService:
             else:
                 ctx.category_summaries[cat_id] = f"Error generating summary: {result.error}"
 
-        # WRITE: Save category summaries to report (no commit - parent manages transaction for final commit)
+        # WRITE: Save category summaries to report
         if ctx.report:
             await self.db.refresh(ctx.report)
-            enrichments = ctx.report.enrichments or {}
-            enrichments["category_summaries"] = ctx.category_summaries
-            ctx.report.enrichments = enrichments
-            flag_modified(ctx.report, "enrichments")
+            self.report_service.update_enrichment(
+                ctx.report, "category_summaries", ctx.category_summaries
+            )
             await self.db.commit()
 
         logger.info(f"Generated {len(ctx.category_summaries)} category summaries for report {ctx.report.report_id}")
@@ -881,12 +882,9 @@ class PipelineService:
         # WRITE: Save executive summary to report and set original_enrichments
         if ctx.report:
             await self.db.refresh(ctx.report)
-            enrichments = ctx.report.enrichments or {}
-            enrichments["executive_summary"] = ctx.executive_summary
-            ctx.report.enrichments = enrichments
-            flag_modified(ctx.report, "enrichments")
-            ctx.report.original_enrichments = ctx.report.enrichments.copy()
-            flag_modified(ctx.report, "original_enrichments")
+            self.report_service.update_enrichment(
+                ctx.report, "executive_summary", ctx.executive_summary, set_original=True
+            )
             await self.db.commit()
 
         logger.info(f"Generated executive summary for report {ctx.report.report_id}")
@@ -1137,22 +1135,8 @@ Authors: {{authors}}
 
 Score from {{min_value}} to {{max_value}}."""
 
-        # Convert WipArticle objects to dicts for evaluation
-        items = []
-        article_map = {}  # Map from id to WipArticle for result matching
-        for article in articles:
-            article_id = str(article.id)  # Use database primary key
-            article_map[article_id] = article
-            items.append(
-                {
-                    "id": article_id,
-                    "title": article.title or "",
-                    "abstract": article.abstract or "",
-                    "summary": article.summary or "",
-                    "journal": article.journal or "",
-                    "authors": article.authors or [],
-                }
-            )
+        # Build evaluation items from WipArticles
+        items, article_map = self.wip_article_service.build_filter_eval_items(articles)
 
         # Use AIEvaluationService score to get relevance scores
         results = await self.eval_service.score(
@@ -1199,7 +1183,7 @@ Score from {{min_value}} to {{max_value}}."""
             else:
                 rejected += 1
 
-        await self.wip_article_service.commit()
+        # No commit here - stage manages the transaction
         logger.info(
             f"Filtering complete: {passed} passed, {rejected} rejected, {errors} errors out of {len(articles)} total"
         )
@@ -1249,7 +1233,7 @@ Score from {{min_value}} to {{max_value}}."""
                 else:
                     seen_titles[title_normalized] = article.pmid or str(article.id)
 
-        await self.wip_article_service.commit()
+        # No commit here - stage manages the transaction
         return duplicates_found
 
     async def _mark_articles_for_report(self, execution_id: str) -> int:
@@ -1269,7 +1253,7 @@ Score from {{min_value}} to {{max_value}}."""
         # Get non-duplicate articles that passed filtering (same criteria as deduplication input)
         articles = await self.wip_article_service.get_for_deduplication(execution_id)
         self.wip_article_service.mark_all_for_inclusion(articles)
-        await self.wip_article_service.commit()
+        # No commit here - stage manages the transaction
         return len(articles)
 
     async def _categorize_articles(
@@ -1353,11 +1337,10 @@ Score from {{min_value}} to {{max_value}}."""
                 error_count += 1
                 association_results.append((assoc, None))
 
-        # Update associations with results
+        # Update associations with results (no commit - stage manages transaction)
         categorized = self.association_service.bulk_set_categories_from_pipeline(
             association_results
         )
-        await self.db.commit()
         logger.info(
             f"Categorization complete: {categorized} articles categorized, {error_count} errors"
         )
