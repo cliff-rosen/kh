@@ -1172,7 +1172,7 @@ Score from {{min_value}} to {{max_value}}."""
             reasoning = result.data.get("reasoning", "") if result.data else ""
             is_relevant = score >= threshold
 
-            self.wip_article_service.update_filter_result(
+            self.wip_article_service.set_filter_result(
                 article=article,
                 passed=is_relevant,
                 score=score,

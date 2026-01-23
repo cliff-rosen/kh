@@ -194,14 +194,14 @@ class WipArticleService:
         article.is_duplicate = True
         article.duplicate_of_pmid = duplicate_of_pmid
 
-    def update_filter_result(
+    def set_filter_result(
         self,
         article: WipArticle,
         passed: bool,
         score: Optional[float] = None,
         score_reason: Optional[str] = None,
     ) -> None:
-        """Update semantic filter results for an article."""
+        """Set semantic filter results for an article."""
         article.passed_semantic_filter = passed
         if score is not None:
             article.filter_score = score
