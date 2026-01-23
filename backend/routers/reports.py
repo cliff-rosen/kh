@@ -12,6 +12,10 @@ from pydantic import BaseModel
 from models import User
 from schemas.report import Report, ReportWithArticles
 from services.report_service import ReportService, get_report_service
+from services.report_article_association_service import (
+    ReportArticleAssociationService,
+    get_association_service
+)
 from services.email_service import EmailService
 from services.user_tracking_service import track_endpoint
 from routers.auth import get_current_user
@@ -246,26 +250,34 @@ async def update_article_enrichments(
     report_id: int,
     article_id: int,
     request: UpdateArticleEnrichmentsRequest,
-    service: ReportService = Depends(get_report_service),
+    report_service: ReportService = Depends(get_report_service),
+    association_service: ReportArticleAssociationService = Depends(get_association_service),
     current_user: User = Depends(get_current_user)
 ):
     """Update AI enrichments for an article within a report (async)"""
     logger.info(f"update_article_enrichments - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
 
     try:
-        result = await service.update_article_enrichments(
-            current_user, report_id, article_id, request.ai_enrichments
+        # Access check (raises 404 if not found or no access)
+        await report_service.get_report_with_access(report_id, current_user.user_id)
+
+        # Update via association service
+        assoc = await association_service.update_enrichments(
+            report_id, article_id, request.ai_enrichments
         )
 
-        if not result:
-            logger.warning(f"update_article_enrichments - not found - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
+        if not assoc:
+            logger.warning(f"update_article_enrichments - article not found - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report or article not found"
+                detail="Article not found in report"
             )
 
         logger.info(f"update_article_enrichments complete - user_id={current_user.user_id}, report_id={report_id}, article_id={article_id}")
-        return UpdateSuccessResponse(status="ok", **asdict(result))
+        return UpdateSuccessResponse(
+            status="ok",
+            ai_enrichments=request.ai_enrichments
+        )
 
     except HTTPException:
         raise

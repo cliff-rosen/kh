@@ -6,7 +6,7 @@ All association operations should go through this service.
 """
 
 import logging
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select, func
 from sqlalchemy.orm import selectinload
@@ -206,6 +206,39 @@ class ReportArticleAssociationService:
             ).order_by(ReportArticleAssociation.ranking)
         )
         return list(result.scalars().all())
+
+    async def update_enrichments(
+        self,
+        report_id: int,
+        article_id: int,
+        ai_enrichments: Dict[str, Any]
+    ) -> Optional[ReportArticleAssociation]:
+        """
+        Update AI enrichments on an association.
+
+        Args:
+            report_id: The report ID
+            article_id: The article ID
+            ai_enrichments: The enrichments dict to set
+
+        Returns:
+            Updated association, or None if not found
+        """
+        result = await self.db.execute(
+            select(ReportArticleAssociation).where(
+                and_(
+                    ReportArticleAssociation.report_id == report_id,
+                    ReportArticleAssociation.article_id == article_id
+                )
+            )
+        )
+        assoc = result.scalars().first()
+        if not assoc:
+            return None
+
+        assoc.ai_enrichments = ai_enrichments
+        await self.db.commit()
+        return assoc
 
     async def count_visible(self, report_id: int) -> int:
         """Count visible articles in a report (async)."""

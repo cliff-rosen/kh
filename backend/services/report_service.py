@@ -108,14 +108,6 @@ class ReportWithArticleCount:
 
 
 @dataclass
-class EnrichmentsUpdateResult:
-    """Result of updating enrichments."""
-    report_id: int
-    article_id: int
-    ai_enrichments: Dict[str, Any]
-
-
-@dataclass
 class ReportArticleInfo:
     """Article with association metadata."""
     article: Article
@@ -854,49 +846,6 @@ class ReportService:
 
         await self.db.commit()
         return True
-
-    # =========================================================================
-    # ARTICLE OPERATIONS
-    # =========================================================================
-
-    async def get_article_association(
-        self,
-        user: User,
-        report_id: int,
-        article_id: int
-    ) -> Optional[ReportArticleAssociation]:
-        """Get article association if user has access (async)."""
-        access_result = await self.get_report_with_access(report_id, user.user_id, raise_on_not_found=False)
-        if not access_result:
-            return None
-
-        stmt = select(ReportArticleAssociation).where(
-            ReportArticleAssociation.report_id == report_id,
-            ReportArticleAssociation.article_id == article_id
-        )
-        result = await self.db.execute(stmt)
-        return result.scalars().first()
-
-    async def update_article_enrichments(
-        self,
-        user: User,
-        report_id: int,
-        article_id: int,
-        ai_enrichments: Dict[str, Any]
-    ) -> Optional[EnrichmentsUpdateResult]:
-        """Update AI enrichments on an article association (async)."""
-        assoc = await self.get_article_association(user, report_id, article_id)
-        if not assoc:
-            return None
-
-        assoc.ai_enrichments = ai_enrichments
-        await self.db.commit()
-
-        return EnrichmentsUpdateResult(
-            report_id=report_id,
-            article_id=article_id,
-            ai_enrichments=ai_enrichments
-        )
 
     # =========================================================================
     # EMAIL
@@ -2220,34 +2169,22 @@ class ReportService:
         Returns:
             CurrentArticleSummariesResult with all current article summaries
         """
-        report, user, stream = await self.get_report_with_access(report_id, user_id)
+        report, _, _ = await self.get_report_with_access(report_id, user_id)
 
-        # Get all articles in the report
-        # Use CASE to put NULLs last (MariaDB doesn't support NULLS LAST)
-        from sqlalchemy import case
-        stmt = (
-            select(ReportArticleAssociation)
-            .options(joinedload(ReportArticleAssociation.article))
-            .where(ReportArticleAssociation.report_id == report_id)
-            .order_by(
-                case((ReportArticleAssociation.ranking.is_(None), 1), else_=0),
-                ReportArticleAssociation.ranking.asc()
-            )
-        )
-        result = await self.db.execute(stmt)
-        associations = result.unique().scalars().all()
+        associations = await self.association_service.get_all_for_report(report_id)
 
-        articles = []
-        for assoc in associations:
-            articles.append(CurrentArticleSummaryItem(
+        articles = [
+            CurrentArticleSummaryItem(
                 article_id=assoc.article_id,
-                association_id=assoc.article_id,  # Composite PK, use article_id as identifier
+                association_id=assoc.article_id,
                 title=assoc.article.title or "Untitled",
                 pmid=assoc.article.pmid,
                 journal=assoc.article.journal,
                 year=assoc.article.year,
                 current_summary=assoc.ai_summary,
-            ))
+            )
+            for assoc in associations
+        ]
 
         return CurrentArticleSummariesResult(
             report_id=report_id,
