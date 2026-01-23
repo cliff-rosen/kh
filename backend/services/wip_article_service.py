@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, select
 from fastapi import HTTPException, status, Depends
 
-from models import WipArticle, InformationSource
+from models import WipArticle
 from schemas.canonical_types import CanonicalResearchArticle
 from database import get_async_db
 
@@ -33,68 +33,6 @@ class WipArticleService:
     # =========================================================================
     # CREATE Operations
     # =========================================================================
-
-    def create_wip_article(
-        self,
-        research_stream_id: int,
-        pipeline_execution_id: str,
-        retrieval_group_id: str,
-        source_id: int,
-        title: str,
-        abstract: Optional[str] = None,
-        authors: Optional[List[str]] = None,
-        journal: Optional[str] = None,
-        year: Optional[int] = None,
-        publication_date: Optional[Any] = None,
-        pmid: Optional[str] = None,
-        doi: Optional[str] = None,
-        url: Optional[str] = None,
-        source_specific_id: Optional[str] = None,
-    ) -> WipArticle:
-        """
-        Create a new WipArticle record.
-
-        Args:
-            research_stream_id: ID of the research stream
-            pipeline_execution_id: ID of the pipeline execution
-            retrieval_group_id: ID of the retrieval group (concept_id or query_id)
-            source_id: ID of the information source
-            title: Article title
-            abstract: Article abstract
-            authors: List of author names
-            journal: Journal name
-            year: Publication year
-            publication_date: Full publication date
-            pmid: PubMed ID
-            doi: Digital Object Identifier
-            url: Article URL
-            source_specific_id: Source-specific identifier
-
-        Returns:
-            Created WipArticle instance
-        """
-        wip_article = WipArticle(
-            research_stream_id=research_stream_id,
-            pipeline_execution_id=pipeline_execution_id,
-            retrieval_group_id=retrieval_group_id,
-            source_id=source_id,
-            title=title,
-            abstract=abstract,
-            authors=authors or [],
-            journal=journal,
-            year=year,
-            publication_date=publication_date,
-            pmid=pmid,
-            doi=doi,
-            url=url,
-            source_specific_id=source_specific_id,
-            # Defaults
-            is_duplicate=False,
-            passed_semantic_filter=None,
-            included_in_report=False,
-        )
-        self.db.add(wip_article)
-        return wip_article
 
     async def create_wip_articles(
         self,
@@ -170,15 +108,6 @@ class WipArticleService:
         )
         return len(articles)
 
-    def bulk_create_wip_articles(self, articles: List[WipArticle]) -> None:
-        """
-        Bulk add WipArticle records.
-
-        Args:
-            articles: List of WipArticle instances to add
-        """
-        self.db.add_all(articles)
-
     # =========================================================================
     # UPDATE Operations (in-memory only - no DB queries)
     # =========================================================================
@@ -216,15 +145,6 @@ class WipArticleService:
         if score_reason:
             article.filter_score_reason = score_reason
 
-    def mark_for_inclusion(self, article: WipArticle) -> None:
-        """
-        Mark an article for inclusion in the report.
-
-        Args:
-            article: WipArticle to mark
-        """
-        article.included_in_report = True
-
     def mark_all_for_inclusion(self, articles: List[WipArticle]) -> None:
         """
         Mark multiple articles for inclusion in the report.
@@ -234,38 +154,6 @@ class WipArticleService:
         """
         for article in articles:
             article.included_in_report = True
-
-    def update_presentation_category(
-        self, article: WipArticle, category_id: Optional[str]
-    ) -> None:
-        """
-        Update the presentation category for an article.
-
-        Args:
-            article: WipArticle to update
-            category_id: Category ID to assign (or None)
-        """
-        if category_id:
-            article.presentation_categories = [category_id]
-        else:
-            article.presentation_categories = []
-
-    def bulk_update_categories(self, categorization_results: List[tuple]) -> int:
-        """
-        Bulk update presentation categories from categorization results.
-
-        Args:
-            categorization_results: List of (WipArticle, category_id) tuples
-
-        Returns:
-            Number of articles categorized
-        """
-        categorized_count = 0
-        for article, category_id in categorization_results:
-            if category_id:
-                article.presentation_categories = [category_id]
-                categorized_count += 1
-        return categorized_count
 
     # =========================================================================
     # CURATION Operations
@@ -486,44 +374,6 @@ class WipArticleService:
         )
         return result.scalars().first()
 
-    async def get_all_articles_by_status(
-        self, execution_id: str
-    ) -> Dict[str, List[WipArticle]]:
-        """Get all articles for an execution grouped by status (async)."""
-        result = await self.db.execute(
-            select(WipArticle).where(WipArticle.pipeline_execution_id == execution_id)
-        )
-        all_articles = list(result.scalars().all())
-
-        grouped = {"included": [], "filtered_out": [], "duplicate": []}
-
-        for article in all_articles:
-            if article.is_duplicate:
-                grouped["duplicate"].append(article)
-            elif article.passed_semantic_filter == False:
-                grouped["filtered_out"].append(article)
-            elif article.included_in_report:
-                grouped["included"].append(article)
-            else:
-                grouped["filtered_out"].append(article)
-
-        return grouped
-
-    async def get_curated_articles(self, execution_id: str) -> List[WipArticle]:
-        """Get articles with curator overrides for an execution (async)."""
-        result = await self.db.execute(
-            select(WipArticle).where(
-                and_(
-                    WipArticle.pipeline_execution_id == execution_id,
-                    or_(
-                        WipArticle.curator_included == True,
-                        WipArticle.curator_excluded == True,
-                    ),
-                )
-            )
-        )
-        return list(result.scalars().all())
-
     async def update_curation_notes(
         self, wip_article_id: int, user_id: int, notes: str
     ) -> WipArticle:
@@ -571,15 +421,6 @@ class WipArticleService:
 
         return None
 
-    async def delete_by_execution_id(self, execution_id: str) -> int:
-        """Delete all WipArticles for a pipeline execution (async)."""
-        from sqlalchemy import delete
-
-        result = await self.db.execute(
-            delete(WipArticle).where(WipArticle.pipeline_execution_id == execution_id)
-        )
-        return result.rowcount
-
     # =========================================================================
     # BUILD Operations (transform WipArticles for external services)
     # =========================================================================
@@ -614,10 +455,6 @@ class WipArticleService:
     async def commit(self) -> None:
         """Commit pending changes to the database (async)."""
         await self.db.commit()
-
-    async def flush(self) -> None:
-        """Flush pending changes without committing (async)."""
-        await self.db.flush()
 
 
 # Dependency injection provider for async wip article service
