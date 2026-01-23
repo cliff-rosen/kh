@@ -36,7 +36,6 @@ ProgressCallback = Callable[[int, int], Coroutine[Any, Any, None]]
 from models import (
     ResearchStream,
     Report,
-    ReportArticleAssociation,
     Article,
     WipArticle,
     RunType,
@@ -980,22 +979,23 @@ class PipelineService:
         # Get only INCLUDED articles (included_in_report=True)
         wip_articles = await self.wip_article_service.get_included_articles(ctx.execution_id)
 
-        # Create Article records and associations for included articles only
+        # Create Article records and build association items
+        association_items = []
         for idx, wip_article in enumerate(wip_articles):
             # Find or create Article record (via ArticleService)
             article = await self.article_service.find_or_create_from_wip(wip_article)
 
-            # Create bare association - categories and summaries populated in later stages
-            association = ReportArticleAssociation(
-                report_id=report.report_id,
-                article_id=article.article_id,
-                wip_article_id=wip_article.id,  # Link back to pipeline data
-                ranking=idx + 1,
-                is_read=False,
-                is_starred=False,
-                original_ranking=idx + 1,
-            )
-            self.db.add(association)
+            # Build item for bulk_create - categories and summaries populated in later stages
+            association_items.append({
+                "article_id": article.article_id,
+                "wip_article_id": wip_article.id,
+                "ranking": idx + 1,
+                "relevance_score": wip_article.relevance_score,
+                "relevance_rationale": wip_article.relevance_rationale,
+            })
+
+        # Bulk create associations
+        await self.association_service.bulk_create(report.report_id, association_items)
 
         # Set bidirectional link: execution -> report
         # This MUST be set before commit to persist the link

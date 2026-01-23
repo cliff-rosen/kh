@@ -10,12 +10,12 @@ This service handles:
 import logging
 from sqlalchemy import desc, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, TYPE_CHECKING
 from fastapi import HTTPException, status, Depends
 
 from models import (
     Report, ResearchStream, PipelineExecution, User,
-    ReportArticleAssociation, Article, WipArticle as WipArticleModel,
+    WipArticle as WipArticleModel,
     ApprovalStatus, ExecutionStatus
 )
 from schemas.research_stream import (
@@ -33,6 +33,9 @@ from schemas.research_stream import (
 from schemas.report import ReportArticle
 from database import get_async_db
 
+if TYPE_CHECKING:
+    from services.report_article_association_service import ReportArticleAssociationService
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,6 +44,15 @@ class OperationsService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self._association_service: Optional["ReportArticleAssociationService"] = None
+
+    @property
+    def association_service(self) -> "ReportArticleAssociationService":
+        """Lazy-load ReportArticleAssociationService."""
+        if self._association_service is None:
+            from services.report_article_association_service import ReportArticleAssociationService
+            self._association_service = ReportArticleAssociationService(self.db)
+        return self._association_service
 
     # ==================== Async Methods ====================
 
@@ -153,11 +165,7 @@ class OperationsService:
                             report.pipeline_metrics.get('article_count', 0)
                         )
                     if not article_count:
-                        assoc_count = await self.db.execute(
-                            select(func.count(ReportArticleAssociation.article_id))
-                            .where(ReportArticleAssociation.report_id == report.report_id)
-                        )
-                        article_count = assoc_count.scalar() or 0
+                        article_count = await self.association_service.count_all(report.report_id)
 
                     # Get approver email
                     if report.approved_by:
@@ -309,28 +317,15 @@ class OperationsService:
                     executive_summary = report.enrichments.get("executive_summary")
                     category_summaries = report.enrichments.get("category_summaries")
 
-                # Get visible report articles
-                assoc_result = await self.db.execute(
-                    select(ReportArticleAssociation)
-                    .join(Article, ReportArticleAssociation.article_id == Article.article_id)
-                    .where(
-                        ReportArticleAssociation.report_id == report.report_id,
-                        ReportArticleAssociation.is_hidden == False
-                    )
-                )
-                visible_associations = assoc_result.scalars().all()
+                # Get visible report articles (association service eagerly loads articles)
+                visible_associations = await self.association_service.get_visible_for_report(report.report_id)
 
                 categories_dict: dict[str, CategoryCount] = {}
 
                 for ra in visible_associations:
-                    # Need to get article separately since we're not eagerly loading
-                    article_result = await self.db.execute(
-                        select(Article).where(Article.article_id == ra.article_id)
-                    )
-                    article = article_result.scalars().first()
-
+                    article = ra.article
                     if article:
-                        presentation_categories = getattr(ra, 'presentation_categories', None) or []
+                        presentation_categories = ra.presentation_categories or []
 
                         articles_list.append(ReportArticle(
                             article_id=article.article_id,
@@ -442,11 +437,7 @@ class OperationsService:
                                 report.pipeline_metrics.get('article_count', 0)
                             )
                         if not article_count:
-                            assoc_count = await self.db.execute(
-                                select(func.count(ReportArticleAssociation.article_id))
-                                .where(ReportArticleAssociation.report_id == report.report_id)
-                            )
-                            article_count = assoc_count.scalar() or 0
+                            article_count = await self.association_service.count_all(report.report_id)
 
                 last_exec = LastExecution(
                     id=exec_db.id,

@@ -635,14 +635,7 @@ class ReportService:
 
         reports = []
         for report, stream in rows:
-            # Count articles
-            count_result = await self.db.execute(
-                select(func.count(ReportArticleAssociation.article_id)).where(
-                    ReportArticleAssociation.report_id == report.report_id
-                )
-            )
-            article_count = count_result.scalar() or 0
-
+            article_count = await self.association_service.count_all(report.report_id)
             reports.append(ReportWithArticleCount(
                 report=report,
                 article_count=article_count
@@ -741,13 +734,7 @@ class ReportService:
 
         reports = []
         for report, stream in rows:
-            count_result = await self.db.execute(
-                select(func.count(ReportArticleAssociation.article_id)).where(
-                    ReportArticleAssociation.report_id == report.report_id
-                )
-            )
-            article_count = count_result.scalar() or 0
-
+            article_count = await self.association_service.count_all(report.report_id)
             reports.append(ReportWithArticleCount(
                 report=report,
                 article_count=article_count
@@ -825,11 +812,7 @@ class ReportService:
         )
 
         # Delete associations first
-        await self.db.execute(
-            ReportArticleAssociation.__table__.delete().where(
-                ReportArticleAssociation.report_id == report_id
-            )
-        )
+        await self.association_service.delete_all_for_report(report_id)
 
         # Delete WIP articles if any
         if report.pipeline_execution_id:
@@ -980,13 +963,7 @@ class ReportService:
             )
 
         # Count visible articles
-        count_result = await self.db.execute(
-            select(func.count(ReportArticleAssociation.article_id)).where(
-                ReportArticleAssociation.report_id == report_id,
-                ReportArticleAssociation.is_hidden == False
-            )
-        )
-        article_count = count_result.scalar() or 0
+        article_count = await self.association_service.count_visible(report_id)
 
         if article_count == 0:
             raise HTTPException(

@@ -240,6 +240,39 @@ class ReportArticleAssociationService:
         await self.db.commit()
         return assoc
 
+    async def update_notes(
+        self,
+        report_id: int,
+        article_id: int,
+        notes: List[Dict[str, Any]]
+    ) -> Optional[ReportArticleAssociation]:
+        """
+        Update notes on an association.
+
+        Args:
+            report_id: The report ID
+            article_id: The article ID
+            notes: The notes list to set
+
+        Returns:
+            Updated association, or None if not found
+        """
+        result = await self.db.execute(
+            select(ReportArticleAssociation).where(
+                and_(
+                    ReportArticleAssociation.report_id == report_id,
+                    ReportArticleAssociation.article_id == article_id
+                )
+            )
+        )
+        assoc = result.scalars().first()
+        if not assoc:
+            return None
+
+        assoc.notes = notes
+        await self.db.commit()
+        return assoc
+
     async def count_visible(self, report_id: int) -> int:
         """Count visible articles in a report (async)."""
         result = await self.db.execute(
@@ -248,6 +281,15 @@ class ReportArticleAssociationService:
                     ReportArticleAssociation.report_id == report_id,
                     ReportArticleAssociation.is_hidden == False
                 )
+            )
+        )
+        return result.scalar() or 0
+
+    async def count_all(self, report_id: int) -> int:
+        """Count all associations for a report (async)."""
+        result = await self.db.execute(
+            select(func.count(ReportArticleAssociation.article_id)).where(
+                ReportArticleAssociation.report_id == report_id
             )
         )
         return result.scalar() or 0
@@ -270,10 +312,11 @@ class ReportArticleAssociationService:
         presentation_categories: Optional[List[str]] = None,
         ai_summary: Optional[str] = None,
         relevance_score: Optional[float] = None,
+        relevance_rationale: Optional[str] = None,
         curator_added: bool = False,
         wip_article_id: Optional[int] = None
     ) -> ReportArticleAssociation:
-        """Create a new association (async)."""
+        """Create a new association (async). Does not commit."""
         categories = presentation_categories or []
 
         association = ReportArticleAssociation(
@@ -287,6 +330,7 @@ class ReportArticleAssociationService:
             ai_summary=ai_summary,
             original_ai_summary=ai_summary if not curator_added else None,
             relevance_score=relevance_score,
+            relevance_rationale=relevance_rationale,
             curator_added=curator_added,
             is_hidden=False,
             is_starred=False,
@@ -294,6 +338,47 @@ class ReportArticleAssociationService:
         )
         self.db.add(association)
         return association
+
+    async def bulk_create(
+        self,
+        report_id: int,
+        items: List[Dict[str, Any]]
+    ) -> List[ReportArticleAssociation]:
+        """
+        Bulk create associations for a report.
+
+        Args:
+            report_id: The report ID
+            items: List of dicts with keys:
+                - article_id (required)
+                - wip_article_id (optional)
+                - ranking (required)
+                - relevance_score (optional)
+                - relevance_rationale (optional)
+
+        Returns:
+            List of created associations. Does not commit.
+        """
+        associations = []
+        for item in items:
+            association = ReportArticleAssociation(
+                report_id=report_id,
+                article_id=item["article_id"],
+                wip_article_id=item.get("wip_article_id"),
+                ranking=item["ranking"],
+                relevance_score=item.get("relevance_score"),
+                relevance_rationale=item.get("relevance_rationale"),
+                presentation_categories=[],
+                original_presentation_categories=[],
+                original_ranking=item["ranking"],
+                is_hidden=False,
+                is_starred=False,
+                is_read=False,
+                curator_added=False
+            )
+            self.db.add(association)
+            associations.append(association)
+        return associations
 
     async def delete(self, association: ReportArticleAssociation) -> None:
         """Delete an association (async)."""
@@ -337,6 +422,33 @@ class ReportArticleAssociationService:
                     ReportArticleAssociation.report_id == report_id,
                     ReportArticleAssociation.curator_added == True
                 )
+            )
+        )
+        return list(result.scalars().all())
+
+    async def get_starred_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
+        """Get starred associations for a report (async)."""
+        result = await self.db.execute(
+            select(ReportArticleAssociation)
+            .options(
+                selectinload(ReportArticleAssociation.article),
+                selectinload(ReportArticleAssociation.wip_article)
+            )
+            .where(
+                and_(
+                    ReportArticleAssociation.report_id == report_id,
+                    ReportArticleAssociation.is_starred == True
+                )
+            )
+            .order_by(ReportArticleAssociation.ranking)
+        )
+        return list(result.scalars().all())
+
+    async def get_article_ids_for_report(self, report_id: int) -> List[int]:
+        """Get just the article IDs for a report (for deduplication checks)."""
+        result = await self.db.execute(
+            select(ReportArticleAssociation.article_id).where(
+                ReportArticleAssociation.report_id == report_id
             )
         )
         return list(result.scalars().all())

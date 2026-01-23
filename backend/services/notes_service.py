@@ -4,16 +4,19 @@ Service for managing article notes with JSON storage and visibility control.
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 from datetime import datetime
 import uuid
 import json
 import logging
 from fastapi import Depends
 
-from models import User, ReportArticleAssociation, Report
+from models import User
 from services.user_service import UserService
 from database import get_async_db
+
+if TYPE_CHECKING:
+    from services.report_article_association_service import ReportArticleAssociationService
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +49,7 @@ class NotesService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self._user_service: Optional[UserService] = None
+        self._association_service: Optional["ReportArticleAssociationService"] = None
 
     @property
     def user_service(self) -> UserService:
@@ -54,29 +58,15 @@ class NotesService:
             self._user_service = UserService(self.db)
         return self._user_service
 
+    @property
+    def association_service(self) -> "ReportArticleAssociationService":
+        """Lazy-load ReportArticleAssociationService."""
+        if self._association_service is None:
+            from services.report_article_association_service import ReportArticleAssociationService
+            self._association_service = ReportArticleAssociationService(self.db)
+        return self._association_service
+
     # ==================== Async Methods ====================
-
-    async def _async_get_article_association(
-        self,
-        report_id: int,
-        article_id: int,
-        user: User
-    ) -> Optional[ReportArticleAssociation]:
-        """Get the report-article association (async)."""
-        result = await self.db.execute(
-            select(Report).where(Report.report_id == report_id)
-        )
-        report = result.scalars().first()
-        if not report:
-            return None
-
-        result = await self.db.execute(
-            select(ReportArticleAssociation).where(
-                ReportArticleAssociation.report_id == report_id,
-                ReportArticleAssociation.article_id == article_id
-            )
-        )
-        return result.scalars().first()
 
     async def get_notes(
         self,
@@ -85,7 +75,7 @@ class NotesService:
         user: User
     ) -> List[dict]:
         """Get all visible notes for an article (async)."""
-        association = await self._async_get_article_association(report_id, article_id, user)
+        association = await self.association_service.find(report_id, article_id)
         if not association:
             return []
 
@@ -135,7 +125,7 @@ class NotesService:
         visibility: str = "personal"
     ) -> Optional[dict]:
         """Create a new note on an article (async)."""
-        association = await self._async_get_article_association(report_id, article_id, user)
+        association = await self.association_service.find(report_id, article_id)
         if not association:
             return None
 
@@ -181,7 +171,7 @@ class NotesService:
         visibility: Optional[str] = None
     ) -> Optional[dict]:
         """Update an existing note (async). Only the author can update their note."""
-        association = await self._async_get_article_association(report_id, article_id, user)
+        association = await self.association_service.find(report_id, article_id)
         if not association:
             return None
 
@@ -222,7 +212,7 @@ class NotesService:
         user: User
     ) -> bool:
         """Delete a note (async)."""
-        association = await self._async_get_article_association(report_id, article_id, user)
+        association = await self.association_service.find(report_id, article_id)
         if not association:
             return False
 
