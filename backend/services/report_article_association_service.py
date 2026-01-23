@@ -426,33 +426,6 @@ class ReportArticleAssociationService:
         )
         return list(result.scalars().all())
 
-    async def get_starred_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
-        """Get starred associations for a report (async)."""
-        result = await self.db.execute(
-            select(ReportArticleAssociation)
-            .options(
-                selectinload(ReportArticleAssociation.article),
-                selectinload(ReportArticleAssociation.wip_article)
-            )
-            .where(
-                and_(
-                    ReportArticleAssociation.report_id == report_id,
-                    ReportArticleAssociation.is_starred == True
-                )
-            )
-            .order_by(ReportArticleAssociation.ranking)
-        )
-        return list(result.scalars().all())
-
-    async def get_article_ids_for_report(self, report_id: int) -> List[int]:
-        """Get just the article IDs for a report (for deduplication checks)."""
-        result = await self.db.execute(
-            select(ReportArticleAssociation.article_id).where(
-                ReportArticleAssociation.report_id == report_id
-            )
-        )
-        return list(result.scalars().all())
-
     async def delete_all_for_report(self, report_id: int) -> int:
         """Delete all associations for a report (async)."""
         from sqlalchemy import delete as sql_delete

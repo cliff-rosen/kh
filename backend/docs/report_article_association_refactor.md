@@ -81,9 +81,6 @@ class ReportArticleAssociationService:
     async def get_curator_added_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
         """Curator-added associations only."""
 
-    async def get_starred_for_report(self, report_id: int) -> List[ReportArticleAssociation]:
-        """Starred associations only."""
-
     # === Counts ===
 
     async def count_all(self, report_id: int) -> int:
@@ -96,9 +93,6 @@ class ReportArticleAssociationService:
 
     async def get_next_ranking(self, report_id: int) -> int:
         """Get the next available ranking value."""
-
-    async def get_article_ids_for_report(self, report_id: int) -> List[int]:
-        """Get just the article IDs (for deduplication checks)."""
 ```
 
 ### Writes
@@ -315,7 +309,7 @@ class ReportArticleAssociationService:
 
 | File | Action |
 |------|--------|
-| `report_article_association_service.py` | Add missing methods: `count_all`, `get_starred_for_report`, `get_article_ids_for_report`, `update_notes`, `bulk_create` |
+| `report_article_association_service.py` | Add missing methods: `count_all`, `update_notes`, `bulk_create` |
 | `report_service.py` | Remove direct SQL, use association service |
 | `notes_service.py` | Remove `_async_get_article_association`, use association service |
 | `operations_service.py` | Remove direct SQL, use association service |
@@ -413,7 +407,7 @@ article_count = db.query(ReportArticleAssociation).filter(...).count()
 
 | Service | Status |
 |---------|--------|
-| `ReportArticleAssociationService` | Added missing methods (count_all, get_starred_for_report, get_article_ids_for_report, update_notes, bulk_create) |
+| `ReportArticleAssociationService` | Added missing methods (count_all, update_notes, bulk_create) |
 | `ReportService` | Migrated - uses association service for counts and deletes |
 | `NotesService` | Migrated - removed `_async_get_article_association()` |
 | `OperationsService` | Migrated - uses association service for counts and visible articles |
