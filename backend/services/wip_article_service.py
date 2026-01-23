@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, select
-from fastapi import HTTPException, status, Depends
+from fastapi import Depends
 
 from models import WipArticle
 from schemas.canonical_types import CanonicalResearchArticle
@@ -32,26 +32,23 @@ class WipArticleService:
 
     # =========================================================================
     # Getters (async, DB reads)
+    # - find_* returns Optional (None if not found)
+    # - get_* raises ValueError if not found
     # =========================================================================
 
-    async def get_by_id(self, wip_article_id: int) -> WipArticle:
-        """Get a WipArticle by ID, raising ValueError if not found."""
+    async def find_by_id(self, wip_article_id: int) -> Optional[WipArticle]:
+        """Find a WipArticle by ID, returns None if not found."""
         result = await self.db.execute(
             select(WipArticle).where(WipArticle.id == wip_article_id)
         )
-        article = result.scalars().first()
+        return result.scalars().first()
+
+    async def get_by_id(self, wip_article_id: int) -> WipArticle:
+        """Get a WipArticle by ID, raises ValueError if not found."""
+        article = await self.find_by_id(wip_article_id)
         if not article:
             raise ValueError(f"WipArticle {wip_article_id} not found")
         return article
-
-    async def get_by_id_or_404(self, wip_article_id: int) -> WipArticle:
-        """Get a WipArticle by ID, raising HTTPException 404 if not found."""
-        try:
-            return await self.get_by_id(wip_article_id)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="WIP article not found"
-            )
 
     async def get_by_execution_id(
         self, execution_id: str, included_only: bool = False
@@ -324,8 +321,8 @@ class WipArticleService:
     async def update_curation_notes(
         self, wip_article_id: int, user_id: int, notes: str
     ) -> WipArticle:
-        """Update curation notes for a WipArticle and commit."""
-        article = await self.get_by_id_or_404(wip_article_id)
+        """Update curation notes for a WipArticle and commit. Raises ValueError if not found."""
+        article = await self.get_by_id(wip_article_id)
         article.curation_notes = notes
         article.curated_by = user_id
         article.curated_at = datetime.utcnow()

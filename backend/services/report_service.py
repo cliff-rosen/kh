@@ -1457,7 +1457,13 @@ class ReportService:
         report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         # Get the WipArticle
-        wip_article = await self.wip_article_service.get_by_id_or_404(wip_article_id)
+        try:
+            wip_article = await self.wip_article_service.get_by_id(wip_article_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="WIP article not found"
+            )
 
         if wip_article.pipeline_execution_id != report.pipeline_execution_id:
             raise HTTPException(
@@ -1528,7 +1534,13 @@ class ReportService:
         report, user, stream = await self.get_report_with_access(report_id, user_id)
 
         # Get the WipArticle
-        wip_article = await self.wip_article_service.get_by_id_or_404(wip_article_id)
+        try:
+            wip_article = await self.wip_article_service.get_by_id(wip_article_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="WIP article not found"
+            )
 
         if wip_article.pipeline_execution_id != report.pipeline_execution_id:
             raise HTTPException(
