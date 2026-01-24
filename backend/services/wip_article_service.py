@@ -97,6 +97,19 @@ class WipArticleService:
         )
         return list(result.scalars().all())
 
+    async def get_passed_filter(self, execution_id: str) -> List[WipArticle]:
+        """Get non-duplicate articles that passed the semantic filter."""
+        result = await self.db.execute(
+            select(WipArticle).where(
+                and_(
+                    WipArticle.pipeline_execution_id == execution_id,
+                    WipArticle.is_duplicate == False,
+                    WipArticle.passed_semantic_filter == True,
+                )
+            )
+        )
+        return list(result.scalars().all())
+
     async def get_included_articles(self, execution_id: str) -> List[WipArticle]:
         """Get articles marked for report inclusion."""
         result = await self.db.execute(

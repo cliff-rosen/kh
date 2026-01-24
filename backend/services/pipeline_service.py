@@ -540,10 +540,18 @@ class PipelineService:
 
         for query in ctx.queries:
             if not query.semantic_filter.enabled:
+                # When filter is disabled, mark all non-duplicate articles as passed
+                articles = await self.wip_article_service.get_for_filtering(
+                    ctx.execution_id, query.query_id
+                )
+                for article in articles:
+                    article.passed_semantic_filter = True
+                await self.wip_article_service.commit()
+
                 yield PipelineStatus(
                     "filter",
-                    "Filter disabled for query",
-                    {"query_id": query.query_id, "filtered": False},
+                    f"Filter disabled - {len(articles)} articles auto-passed",
+                    {"query_id": query.query_id, "filtered": False, "auto_passed": len(articles)},
                 )
                 continue
 
@@ -580,16 +588,22 @@ class PipelineService:
                 {"query_id": query.query_id, "passed": passed, "rejected": rejected},
             )
 
+        # Mark articles for inclusion (after filtering completes)
+        ctx.included_count = await self._mark_articles_for_report(ctx.execution_id)
+        await self.wip_article_service.commit()
+
         yield PipelineStatus(
-            "filter", "Semantic filtering complete", {"stats": ctx.filter_stats}
+            "filter",
+            f"Semantic filtering complete. {ctx.included_count} articles marked for inclusion.",
+            {"stats": ctx.filter_stats, "included": ctx.included_count}
         )
 
     async def _stage_deduplicate(
         self, ctx: PipelineContext
     ) -> AsyncGenerator[PipelineStatus, None]:
         """
-        Stage: Deduplicate globally and mark articles for inclusion.
-        Commits: Duplicate flags and included_in_report flags.
+        Stage: Deduplicate globally (runs before semantic filtering).
+        Commits: Duplicate flags on WipArticles.
         """
         yield PipelineStatus("dedup_global", "Deduplicating against previous reports and within execution...")
 
@@ -598,22 +612,13 @@ class PipelineService:
         )
         ctx.global_duplicates = historical_dupes + execution_dupes
 
-        yield PipelineStatus(
-            "dedup_global",
-            f"Found {ctx.global_duplicates} duplicates ({historical_dupes} from previous reports, {execution_dupes} within execution)",
-            {"duplicates": ctx.global_duplicates, "historical": historical_dupes, "within_execution": execution_dupes},
-        )
-
-        # Mark articles for inclusion
-        ctx.included_count = await self._mark_articles_for_report(ctx.execution_id)
-
         # Stage commit
         await self.wip_article_service.commit()
 
         yield PipelineStatus(
             "dedup_global",
-            f"Marked {ctx.included_count} articles for report inclusion",
-            {"included": ctx.included_count},
+            f"Found {ctx.global_duplicates} duplicates ({historical_dupes} from previous reports, {execution_dupes} within execution)",
+            {"duplicates": ctx.global_duplicates, "historical": historical_dupes, "within_execution": execution_dupes},
         )
 
     async def _stage_categorize(
@@ -1220,7 +1225,7 @@ Score from {{min_value}} to {{max_value}}."""
 
         An article is included if:
         - NOT a duplicate
-        - Passed semantic filter OR no filter was applied
+        - Passed semantic filter
 
         Args:
             execution_id: UUID of this pipeline execution
@@ -1228,8 +1233,8 @@ Score from {{min_value}} to {{max_value}}."""
         Returns:
             Number of articles marked for inclusion
         """
-        # Get non-duplicate articles that passed filtering (same criteria as deduplication input)
-        articles = await self.wip_article_service.get_for_deduplication(execution_id)
+        # Get non-duplicate articles that passed the semantic filter
+        articles = await self.wip_article_service.get_passed_filter(execution_id)
         self.wip_article_service.mark_all_for_inclusion(articles)
         # No commit here - stage manages the transaction
         return len(articles)
