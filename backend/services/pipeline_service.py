@@ -1160,8 +1160,7 @@ Score from {{min_value}} to {{max_value}}."""
         self, research_stream_id: int, execution_id: str
     ) -> Tuple[int, int]:
         """
-        Find and mark duplicates across all groups (after filtering) for this execution.
-        Only considers articles that passed semantic filter and aren't already marked as dupes.
+        Find and mark duplicates for this execution (runs before semantic filtering).
 
         Deduplication checks (in order):
         1. Historical: Articles that appeared in previous reports for this stream (via SQL join)
