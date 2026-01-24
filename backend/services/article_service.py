@@ -56,28 +56,17 @@ class ArticleService:
             }
         )
 
-    async def get_article_by_pmid(self, pmid: str) -> Optional[CanonicalResearchArticle]:
-        """Get an article by its PMID (async)."""
-        result = await self.db.execute(
-            select(Article).where(Article.pmid == pmid)
-        )
-        article = result.scalars().first()
+    # =========================================================================
+    # Getters (async, DB reads)
+    # - find_* returns Optional (None if not found)
+    # - get_* raises ValueError if not found
+    # =========================================================================
 
+    async def get_article_by_pmid(self, pmid: str) -> CanonicalResearchArticle:
+        """Get an article by its PMID, raises ValueError if not found."""
+        article = await self.find_by_pmid(pmid)
         if not article:
-            return None
-
-        return self._to_canonical(article)
-
-    async def get_article_by_id(self, article_id: int) -> Optional[CanonicalResearchArticle]:
-        """Get an article by its internal ID (async)."""
-        result = await self.db.execute(
-            select(Article).where(Article.article_id == article_id)
-        )
-        article = result.scalars().first()
-
-        if not article:
-            return None
-
+            raise ValueError(f"Article with PMID {pmid} not found")
         return self._to_canonical(article)
 
     async def find_by_pmid(self, pmid: str) -> Optional[Article]:
@@ -93,6 +82,10 @@ class ArticleService:
             select(Article).where(Article.doi == doi)
         )
         return result.scalars().first()
+
+    # =========================================================================
+    # Writers (async, stages DB writes - caller must commit)
+    # =========================================================================
 
     async def find_or_create_from_wip(self, wip_article: WipArticle) -> Article:
         """

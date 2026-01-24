@@ -41,17 +41,12 @@ async def get_article_by_pmid(
     This fetches from our stored articles, not from PubMed directly.
     """
     try:
-        article = await service.get_article_by_pmid(pmid)
-
-        if not article:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Article with PMID {pmid} not found in database"
-            )
-
-        return article
-    except HTTPException:
-        raise
+        return await service.get_article_by_pmid(pmid)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
     except Exception as e:
         logger.error(f"Error fetching article {pmid}: {e}", exc_info=True)
         raise HTTPException(
