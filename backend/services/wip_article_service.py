@@ -69,38 +69,6 @@ class WipArticleService:
             )
         return list(result.scalars().all())
 
-    async def get_by_execution_and_identifiers(
-        self, execution_id: str, pmid: Optional[str] = None, doi: Optional[str] = None
-    ) -> Optional[WipArticle]:
-        """Find a WipArticle by PMID or DOI within an execution."""
-        if pmid:
-            result = await self.db.execute(
-                select(WipArticle).where(
-                    and_(
-                        WipArticle.pipeline_execution_id == execution_id,
-                        WipArticle.pmid == pmid,
-                    )
-                )
-            )
-            article = result.scalars().first()
-            if article:
-                return article
-
-        if doi:
-            result = await self.db.execute(
-                select(WipArticle).where(
-                    and_(
-                        WipArticle.pipeline_execution_id == execution_id,
-                        WipArticle.doi == doi,
-                    )
-                )
-            )
-            article = result.scalars().first()
-            if article:
-                return article
-
-        return None
-
     async def get_for_filtering(
         self, execution_id: str, retrieval_group_id: str
     ) -> List[WipArticle]:

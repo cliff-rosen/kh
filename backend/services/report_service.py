@@ -1206,12 +1206,6 @@ class ReportService:
         curator_added_count = 0
         curator_removed_count = 0
 
-        # Build lookup map for WipArticle IDs and objects by PMID/DOI
-        wip_by_pmid: Dict[str, int] = {}
-        wip_by_doi: Dict[str, int] = {}
-        wip_objects_by_pmid: Dict[str, WipArticle] = {}
-        wip_objects_by_doi: Dict[str, WipArticle] = {}
-
         # Fetch execution for retrieval config access
         execution: Optional[PipelineExecution] = None
         wip_articles: List[WipArticle] = []
@@ -1227,15 +1221,6 @@ class ReportService:
             wip_articles = await self.wip_article_service.get_by_execution_id(
                 report.pipeline_execution_id
             )
-
-            for wip in wip_articles:
-                # Build lookup maps
-                if wip.pmid:
-                    wip_by_pmid[wip.pmid] = wip.id
-                    wip_objects_by_pmid[wip.pmid] = wip
-                if wip.doi:
-                    wip_by_doi[wip.doi] = wip.id
-                    wip_objects_by_doi[wip.doi] = wip
 
             for wip in wip_articles:
                 # Count pipeline decisions
@@ -1261,23 +1246,10 @@ class ReportService:
                 if wip.curator_included or wip.curator_excluded:
                     curated_articles.append(wip)
 
-        # Build included articles with WipArticle data lookup
-        def get_wip_for_association(assoc: ReportArticleAssociation) -> Optional[WipArticle]:
-            """Get WipArticle for an association, using direct ID or PMID/DOI fallback."""
-            if assoc.wip_article_id:
-                for wip in wip_articles:
-                    if wip.id == assoc.wip_article_id:
-                        return wip
-            article = assoc.article
-            if article.pmid and article.pmid in wip_objects_by_pmid:
-                return wip_objects_by_pmid[article.pmid]
-            elif article.doi and article.doi in wip_objects_by_doi:
-                return wip_objects_by_doi[article.doi]
-            return None
-
+        # Build included articles - wip_article is already loaded via selectinload
         included_articles = []
         for assoc in visible_associations:
-            wip = get_wip_for_association(assoc)
+            wip = assoc.wip_article
             included_articles.append(IncludedArticleData(
                 article=assoc.article,
                 association=assoc,
@@ -1393,19 +1365,8 @@ class ReportService:
                 wip_article_updated=False,
             )
 
-        # Get the Article for WipArticle lookup
-        article_result = await self.db.execute(
-            select(Article).where(Article.article_id == article_id)
-        )
-        article: Article | None = article_result.scalars().first()
-
-        wip_article = None
-        if report.pipeline_execution_id and article:
-            wip_article = await self.wip_article_service.get_by_execution_and_identifiers(
-                report.pipeline_execution_id,
-                pmid=article.pmid,
-                doi=article.doi
-            )
+        # WipArticle is already loaded via selectinload on association
+        wip_article = association.wip_article
 
         was_curator_added = association.curator_added or False
 
@@ -1835,17 +1796,14 @@ class ReportService:
         wip_by_pmid = {wip.pmid: wip for wip in wip_articles if wip.pmid}
 
         # Get all articles in the report with their associations
+        # (article is already loaded via selectinload)
         associations = await self.association_service.get_all_for_report(report_id)
 
         # Build lookup of report PMIDs to articles
         report_pmids = set()
         report_articles_map = {}
         for assoc in associations:
-            # Need to get the article's PMID
-            article_result = await self.db.execute(
-                select(Article).where(Article.article_id == assoc.article_id)
-            )
-            article = article_result.scalars().first()
+            article = assoc.article
             if article and article.pmid:
                 report_pmids.add(article.pmid)
                 report_articles_map[article.pmid] = article
