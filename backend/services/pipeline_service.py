@@ -430,9 +430,9 @@ class PipelineService:
             # Execute pipeline stages
             async for status in self._stage_retrieval(ctx):
                 yield status
-            async for status in self._stage_semantic_filter(ctx):
-                yield status
             async for status in self._stage_deduplicate(ctx):
+                yield status
+            async for status in self._stage_semantic_filter(ctx):
                 yield status
             async for status in self._stage_generate_report(ctx):
                 yield status  # Creates bare associations

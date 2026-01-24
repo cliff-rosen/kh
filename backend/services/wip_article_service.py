@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from typing import List, Optional, Dict, Any, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, select
 from fastapi import Depends
 
 from models import WipArticle
@@ -86,16 +86,12 @@ class WipArticleService:
         return list(result.scalars().all())
 
     async def get_for_deduplication(self, execution_id: str) -> List[WipArticle]:
-        """Get articles ready for cross-group deduplication."""
+        """Get articles ready for deduplication (runs before semantic filter)."""
         result = await self.db.execute(
             select(WipArticle).where(
                 and_(
                     WipArticle.pipeline_execution_id == execution_id,
                     WipArticle.is_duplicate == False,
-                    or_(
-                        WipArticle.passed_semantic_filter == True,
-                        WipArticle.passed_semantic_filter == None,
-                    ),
                 )
             )
         )

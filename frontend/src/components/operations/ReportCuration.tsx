@@ -739,18 +739,22 @@ export default function ReportCuration() {
                             {/* Pipeline Stats - Original vs Current */}
                             <div className="flex items-center gap-6 text-sm">
                                 {/* Original Pipeline Stats */}
-                                <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400">
-                                    <span className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Pipeline:</span>
-                                    <span title="Total articles retrieved from query">
-                                        <span className="font-medium text-gray-700 dark:text-gray-300">{stats.pipeline_included + stats.pipeline_filtered + stats.pipeline_duplicates}</span> retrieved
+                                <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+                                    <span className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500 mr-2">Pipeline:</span>
+                                    <span className="font-medium text-gray-700 dark:text-gray-300" title="Total articles retrieved">
+                                        {stats.pipeline_included + stats.pipeline_filtered + stats.pipeline_duplicates}
                                     </span>
-                                    <span className="text-gray-300 dark:text-gray-600">→</span>
-                                    <span title="Articles filtered out by semantic filter" className="text-red-600 dark:text-red-400">
-                                        {stats.pipeline_filtered} filtered
+                                    <span className="text-gray-400">→</span>
+                                    <span className="text-gray-500" title={`${stats.pipeline_duplicates} duplicates removed`}>
+                                        -{stats.pipeline_duplicates} dup
                                     </span>
-                                    <span className="text-gray-300 dark:text-gray-600">→</span>
-                                    <span title="Articles included by pipeline" className="text-green-600 dark:text-green-400">
-                                        {stats.pipeline_included} included
+                                    <span className="text-gray-400">→</span>
+                                    <span className="text-gray-500" title={`${stats.pipeline_filtered} filtered out`}>
+                                        -{stats.pipeline_filtered} filt
+                                    </span>
+                                    <span className="text-gray-400">→</span>
+                                    <span className="font-medium text-gray-700 dark:text-gray-300" title="Pipeline included">
+                                        {stats.pipeline_included}
                                     </span>
                                 </div>
                                 {/* Curator Changes */}
