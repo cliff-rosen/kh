@@ -978,8 +978,8 @@ class PipelineService:
                 "article_id": article.article_id,
                 "wip_article_id": wip_article.id,
                 "ranking": idx + 1,
-                "relevance_score": wip_article.relevance_score,
-                "relevance_rationale": wip_article.relevance_rationale,
+                "relevance_score": wip_article.filter_score,
+                "relevance_rationale": wip_article.filter_score_reason,
             })
 
         # Bulk create associations
