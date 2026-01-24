@@ -7,7 +7,7 @@ All other services should use this service for WipArticle operations.
 
 import logging
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, select
 from fastapi import Depends
@@ -177,20 +177,6 @@ class WipArticleService:
         article.is_duplicate = True
         article.duplicate_of_pmid = duplicate_of_pmid
 
-    def set_filter_result(
-        self,
-        article: WipArticle,
-        passed: bool,
-        score: Optional[float] = None,
-        score_reason: Optional[str] = None,
-    ) -> None:
-        """Set semantic filter results for an article."""
-        article.passed_semantic_filter = passed
-        if score is not None:
-            article.filter_score = score
-        if score_reason:
-            article.filter_score_reason = score_reason
-
     def mark_all_for_inclusion(self, articles: List[WipArticle]) -> None:
         """Mark multiple articles for inclusion in the report."""
         for article in articles:
@@ -315,6 +301,53 @@ class WipArticleService:
 
         await self.db.commit()
         return article
+
+    async def bulk_update_filter_results(
+        self,
+        results: List[Any],
+        article_map: Dict[str, WipArticle],
+        threshold: float
+    ) -> Tuple[int, int, int]:
+        """Apply filter results to WipArticles and commit.
+
+        Args:
+            results: List of AIEvaluationResult from eval_service.score()
+            article_map: Dict mapping result IDs to WipArticle objects
+            threshold: Score threshold for pass/fail
+
+        Returns:
+            Tuple of (passed_count, rejected_count, error_count)
+        """
+        passed = 0
+        rejected = 0
+        errors = 0
+
+        for result in results:
+            article = article_map.get(result.input["id"])
+            if not article:
+                continue
+
+            if not result.ok:
+                errors += 1
+                article.filter_score = None
+                article.filter_score_reason = f"ERROR: {result.error}"
+                continue
+
+            score = result.data.get("value", 0.0) if result.data else 0.0
+            reasoning = result.data.get("reasoning", "") if result.data else ""
+            is_relevant = score >= threshold
+
+            article.passed_semantic_filter = is_relevant
+            article.filter_score = score
+            article.filter_score_reason = reasoning
+
+            if is_relevant:
+                passed += 1
+            else:
+                rejected += 1
+
+        await self.db.commit()
+        return passed, rejected, errors
 
     async def commit(self) -> None:
         """Commit pending changes to the database."""

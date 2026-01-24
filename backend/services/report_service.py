@@ -1397,7 +1397,7 @@ class ReportService:
         article_result = await self.db.execute(
             select(Article).where(Article.article_id == article_id)
         )
-        article = article_result.scalars().first()
+        article: Article | None = article_result.scalars().first()
 
         wip_article = None
         if report.pipeline_execution_id and article:

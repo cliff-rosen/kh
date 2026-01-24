@@ -163,17 +163,17 @@ class ReportArticleAssociationService:
     def update_ai_summary(self, association: ReportArticleAssociation, summary: str) -> None:
         """Update ai_summary (preserves original on first edit)."""
 
-    def bulk_set_categories_from_pipeline(
+    def bulk_update_categories_from_pipeline(
         self,
         results: List[Tuple[ReportArticleAssociation, str]]
     ) -> int:
-        """Bulk set categories from pipeline results."""
+        """Bulk update categories from pipeline results."""
 
-    def bulk_set_ai_summary_from_pipeline(
+    def bulk_update_ai_summaries_from_pipeline(
         self,
         results: List[Tuple[ReportArticleAssociation, str]]
     ) -> int:
-        """Bulk set summaries from pipeline results."""
+        """Bulk update summaries from pipeline results."""
 ```
 
 ---

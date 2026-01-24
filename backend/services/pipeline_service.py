@@ -582,9 +582,6 @@ class PipelineService:
                 {"query_id": query.query_id, "passed": passed, "rejected": rejected},
             )
 
-        # Stage commit
-        await self.wip_article_service.commit()
-
         yield PipelineStatus(
             "filter", "Semantic filtering complete", {"stats": ctx.filter_stats}
         )
@@ -654,9 +651,6 @@ class PipelineService:
 
         ctx.categorized_count, ctx.categorize_errors = result
 
-        # Stage commit
-        await self.db.commit()
-
         if ctx.categorize_errors > 0:
             yield PipelineStatus(
                 "categorize",
@@ -703,9 +697,6 @@ class PipelineService:
                 result = res
             else:
                 yield status
-
-        # Stage commit
-        await self.db.commit()
 
         yield PipelineStatus(
             "article_summaries",
@@ -760,9 +751,9 @@ class PipelineService:
                 assoc = articles_to_summarize[i]
                 association_updates.append((assoc, result.data))
 
-        # Write to associations (no commit - parent manages transaction)
+        # Write to associations and commit
         if association_updates:
-            return self.association_service.bulk_set_ai_summary_from_pipeline(
+            return await self.association_service.bulk_update_ai_summaries_from_pipeline(
                 association_updates
             )
         return 0
@@ -1149,41 +1140,13 @@ Score from {{min_value}} to {{max_value}}."""
             options=self._get_llm_options(stage_config, on_progress),
         )
 
-        # Update database with results using WipArticleService
-        passed = 0
-        rejected = 0
-        errors = 0
+        # Update database with results and commit
+        passed, rejected, errors = await self.wip_article_service.bulk_update_filter_results(
+            results=results,
+            article_map=article_map,
+            threshold=threshold
+        )
 
-        for result in results:
-            article = article_map.get(result.input["id"])
-            if not article:
-                continue
-
-            if not result.ok:
-                # Error occurred - record it but leave passed_semantic_filter as None (unprocessed)
-                # so it can be retried. Store error in filter_score_reason for visibility.
-                errors += 1
-                article.filter_score = None
-                article.filter_score_reason = f"ERROR: {result.error}"
-                # Don't set passed_semantic_filter - leave as None
-                continue
-
-            score = result.data.get("value", 0.0) if result.data else 0.0
-            reasoning = result.data.get("reasoning", "") if result.data else ""
-            is_relevant = score >= threshold
-
-            self.wip_article_service.set_filter_result(
-                article=article,
-                passed=is_relevant,
-                score=score,
-                score_reason=reasoning,
-            )
-            if is_relevant:
-                passed += 1
-            else:
-                rejected += 1
-
-        # No commit here - stage manages the transaction
         logger.info(
             f"Filtering complete: {passed} passed, {rejected} rejected, {errors} errors out of {len(articles)} total"
         )
@@ -1337,8 +1300,8 @@ Score from {{min_value}} to {{max_value}}."""
                 error_count += 1
                 association_results.append((assoc, None))
 
-        # Update associations with results (no commit - stage manages transaction)
-        categorized = self.association_service.bulk_set_categories_from_pipeline(
+        # Update associations with results and commit
+        categorized = await self.association_service.bulk_update_categories_from_pipeline(
             association_results
         )
         logger.info(

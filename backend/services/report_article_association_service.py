@@ -29,76 +29,9 @@ class ReportArticleAssociationService:
         self.db = db
 
     # =========================================================================
-    # In-Memory Operations (no database queries, just modify objects)
-    # =========================================================================
-
-    def set_hidden(
-        self,
-        association: ReportArticleAssociation,
-        hidden: bool
-    ) -> None:
-        """
-        Set the is_hidden flag on an association.
-
-        Note: Curation audit trail (who/when/why) is stored on WipArticle, not here.
-
-        Args:
-            association: The association to update
-            hidden: True to hide, False to restore
-        """
-        association.is_hidden = hidden
-
-    def bulk_set_categories_from_pipeline(
-        self,
-        categorization_results: List[Tuple[ReportArticleAssociation, str]]
-    ) -> int:
-        """
-        Bulk set presentation categories from pipeline categorization results.
-
-        Sets both presentation_categories and original_presentation_categories
-        since this is the initial assignment from the pipeline.
-
-        Args:
-            categorization_results: List of (association, category_id) tuples
-
-        Returns:
-            Number of associations categorized
-        """
-        categorized_count = 0
-        for association, category_id in categorization_results:
-            if category_id:
-                categories = [category_id]
-                association.presentation_categories = categories
-                association.original_presentation_categories = categories
-                categorized_count += 1
-        return categorized_count
-
-    def bulk_set_ai_summary_from_pipeline(
-        self,
-        summary_results: List[Tuple[ReportArticleAssociation, str]]
-    ) -> int:
-        """
-        Bulk set AI summaries from pipeline summarization results.
-
-        Sets both ai_summary and original_ai_summary since this is the
-        initial assignment from the pipeline.
-
-        Args:
-            summary_results: List of (association, summary) tuples
-
-        Returns:
-            Number of associations with summaries set
-        """
-        summary_count = 0
-        for association, summary in summary_results:
-            if summary:
-                association.ai_summary = summary
-                association.original_ai_summary = summary
-                summary_count += 1
-        return summary_count
-
-    # =========================================================================
-    # ASYNC Methods
+    # Getters (async, DB reads)
+    # - find_* returns Optional (None if not found)
+    # - get_* raises ValueError if not found
     # =========================================================================
 
     async def find(self, report_id: int, article_id: int) -> Optional[ReportArticleAssociation]:
@@ -156,39 +89,6 @@ class ReportArticleAssociationService:
         )
         return list(result.scalars().all())
 
-    async def update_enrichments(
-        self,
-        report_id: int,
-        article_id: int,
-        ai_enrichments: Dict[str, Any]
-    ) -> Optional[ReportArticleAssociation]:
-        """
-        Update AI enrichments on an association.
-
-        Args:
-            report_id: The report ID
-            article_id: The article ID
-            ai_enrichments: The enrichments dict to set
-
-        Returns:
-            Updated association, or None if not found
-        """
-        result = await self.db.execute(
-            select(ReportArticleAssociation).where(
-                and_(
-                    ReportArticleAssociation.report_id == report_id,
-                    ReportArticleAssociation.article_id == article_id
-                )
-            )
-        )
-        assoc = result.scalars().first()
-        if not assoc:
-            return None
-
-        assoc.ai_enrichments = ai_enrichments
-        await self.db.commit()
-        return assoc
-
     async def count_visible(self, report_id: int) -> int:
         """Count visible articles in a report (async)."""
         result = await self.db.execute(
@@ -219,6 +119,30 @@ class ReportArticleAssociationService:
         )
         max_ranking = result.scalar()
         return (max_ranking + 1) if max_ranking else 1
+
+    # =========================================================================
+    # Setters (in-memory, no DB I/O - caller must commit)
+    # =========================================================================
+
+    def set_hidden(
+        self,
+        association: ReportArticleAssociation,
+        hidden: bool
+    ) -> None:
+        """
+        Set the is_hidden flag on an association.
+
+        Note: Curation audit trail (who/when/why) is stored on WipArticle, not here.
+
+        Args:
+            association: The association to update
+            hidden: True to hide, False to restore
+        """
+        association.is_hidden = hidden
+
+    # =========================================================================
+    # Writers (async, stages DB writes - caller must commit)
+    # =========================================================================
 
     async def create(
         self,
@@ -297,11 +221,11 @@ class ReportArticleAssociationService:
         return associations
 
     async def delete(self, association: ReportArticleAssociation) -> None:
-        """Delete an association (async)."""
+        """Delete an association (async). Does not commit."""
         await self.db.delete(association)
 
     async def delete_all_for_report(self, report_id: int) -> int:
-        """Delete all associations for a report (async)."""
+        """Delete all associations for a report (async). Does not commit."""
         from sqlalchemy import delete as sql_delete
         result = await self.db.execute(
             sql_delete(ReportArticleAssociation).where(
@@ -309,6 +233,84 @@ class ReportArticleAssociationService:
             )
         )
         return result.rowcount
+
+    # =========================================================================
+    # Mutators (async, DB writes + commit)
+    # =========================================================================
+
+    async def update_enrichments(
+        self,
+        report_id: int,
+        article_id: int,
+        ai_enrichments: Dict[str, Any]
+    ) -> Optional[ReportArticleAssociation]:
+        """
+        Update AI enrichments on an association and commit.
+
+        Args:
+            report_id: The report ID
+            article_id: The article ID
+            ai_enrichments: The enrichments dict to set
+
+        Returns:
+            Updated association, or None if not found
+        """
+        result = await self.db.execute(
+            select(ReportArticleAssociation).where(
+                and_(
+                    ReportArticleAssociation.report_id == report_id,
+                    ReportArticleAssociation.article_id == article_id
+                )
+            )
+        )
+        assoc = result.scalars().first()
+        if not assoc:
+            return None
+
+        assoc.ai_enrichments = ai_enrichments
+        await self.db.commit()
+        return assoc
+
+    async def bulk_update_categories_from_pipeline(
+        self,
+        categorization_results: List[Tuple[ReportArticleAssociation, Optional[str]]]
+    ) -> int:
+        """Bulk update presentation categories from pipeline and commit.
+
+        Sets both presentation_categories and original_presentation_categories.
+
+        Returns:
+            Number of associations categorized
+        """
+        categorized_count = 0
+        for association, category_id in categorization_results:
+            if category_id:
+                categories = [category_id]
+                association.presentation_categories = categories
+                association.original_presentation_categories = categories
+                categorized_count += 1
+        await self.db.commit()
+        return categorized_count
+
+    async def bulk_update_ai_summaries_from_pipeline(
+        self,
+        summary_results: List[Tuple[ReportArticleAssociation, str]]
+    ) -> int:
+        """Bulk update AI summaries from pipeline and commit.
+
+        Sets both ai_summary and original_ai_summary.
+
+        Returns:
+            Number of associations with summaries set
+        """
+        summary_count = 0
+        for association, summary in summary_results:
+            if summary:
+                association.ai_summary = summary
+                association.original_ai_summary = summary
+                summary_count += 1
+        await self.db.commit()
+        return summary_count
 
 
 # Dependency injection provider for async association service
