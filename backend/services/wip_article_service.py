@@ -50,23 +50,13 @@ class WipArticleService:
             raise ValueError(f"WipArticle {wip_article_id} not found")
         return article
 
-    async def get_by_execution_id(
-        self, execution_id: str, included_only: bool = False
-    ) -> List[WipArticle]:
+    async def get_by_execution_id(self, execution_id: str) -> List[WipArticle]:
         """Get all WipArticles for a pipeline execution."""
-        if included_only:
-            result = await self.db.execute(
-                select(WipArticle).where(
-                    WipArticle.pipeline_execution_id == execution_id,
-                    WipArticle.included_in_report == True,
-                )
+        result = await self.db.execute(
+            select(WipArticle).where(
+                WipArticle.pipeline_execution_id == execution_id
             )
-        else:
-            result = await self.db.execute(
-                select(WipArticle).where(
-                    WipArticle.pipeline_execution_id == execution_id
-                )
-            )
+        )
         return list(result.scalars().all())
 
     async def get_for_filtering(
@@ -80,18 +70,6 @@ class WipArticleService:
                     WipArticle.retrieval_group_id == retrieval_group_id,
                     WipArticle.is_duplicate == False,
                     WipArticle.passed_semantic_filter == None,
-                )
-            )
-        )
-        return list(result.scalars().all())
-
-    async def get_for_deduplication(self, execution_id: str) -> List[WipArticle]:
-        """Get articles ready for deduplication (runs before semantic filter)."""
-        result = await self.db.execute(
-            select(WipArticle).where(
-                and_(
-                    WipArticle.pipeline_execution_id == execution_id,
-                    WipArticle.is_duplicate == False,
                 )
             )
         )

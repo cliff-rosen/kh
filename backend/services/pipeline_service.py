@@ -1174,11 +1174,17 @@ Score from {{min_value}} to {{max_value}}."""
         Returns:
             Tuple of (historical_duplicates, within_execution_duplicates)
         """
+        # Get all articles for this execution (one query)
+        all_articles = await self.wip_article_service.get_by_execution_id(execution_id)
+
         # 1. Historical deduplication: Single SQL join to find matches
         historical_matches = await self.association_service.find_historical_duplicates(
             stream_id=research_stream_id,
             execution_id=execution_id
         )
+
+        # Track historical duplicate IDs to skip in within-execution check
+        historical_dup_ids = {wip_id for wip_id, _ in historical_matches}
 
         # Mark historical duplicates
         historical_duplicates = await self.wip_article_service.mark_duplicates_by_ids(
@@ -1186,14 +1192,14 @@ Score from {{min_value}} to {{max_value}}."""
         )
 
         # 2. Within-execution deduplication
-        # Get articles that aren't already marked as duplicates
-        articles = await self.wip_article_service.get_for_deduplication(execution_id)
-
         within_execution_duplicates = 0
         seen_dois = {}
         seen_titles = {}
 
-        for article in articles:
+        for article in all_articles:
+            # Skip articles already marked as historical duplicates
+            if article.id in historical_dup_ids:
+                continue
             # Check DOI-based deduplication
             if article.doi and article.doi.strip():
                 doi_normalized = article.doi.lower().strip()
