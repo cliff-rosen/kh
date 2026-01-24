@@ -344,10 +344,8 @@ class PipelineService:
 
         yield PipelineStatus("init", "Creating execution record...")
 
-        # Load stream to get configuration
+        # Load stream to get configuration (raises ValueError if not found)
         stream = await self.research_stream_service.get_stream_by_id(stream_id)
-        if not stream:
-            raise ValueError(f"Stream {stream_id} not found")
 
         # Normalize date format (accept both YYYY/MM/DD and YYYY-MM-DD)
         if start_date:
