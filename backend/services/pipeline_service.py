@@ -591,16 +591,17 @@ class PipelineService:
         Stage: Deduplicate globally and mark articles for inclusion.
         Commits: Duplicate flags and included_in_report flags.
         """
-        yield PipelineStatus("dedup_global", "Deduplicating across all groups...")
+        yield PipelineStatus("dedup_global", "Deduplicating against previous reports and within execution...")
 
-        ctx.global_duplicates = await self._deduplicate_globally(
+        historical_dupes, execution_dupes = await self._deduplicate_globally(
             ctx.research_stream_id, ctx.execution_id
         )
+        ctx.global_duplicates = historical_dupes + execution_dupes
 
         yield PipelineStatus(
             "dedup_global",
-            f"Found {ctx.global_duplicates} cross-query duplicates",
-            {"duplicates": ctx.global_duplicates},
+            f"Found {ctx.global_duplicates} duplicates ({historical_dupes} from previous reports, {execution_dupes} within execution)",
+            {"duplicates": ctx.global_duplicates, "historical": historical_dupes, "within_execution": execution_dupes},
         )
 
         # Mark articles for inclusion
@@ -1152,22 +1153,38 @@ Score from {{min_value}} to {{max_value}}."""
 
     async def _deduplicate_globally(
         self, research_stream_id: int, execution_id: str
-    ) -> int:
+    ) -> Tuple[int, int]:
         """
         Find and mark duplicates across all groups (after filtering) for this execution.
         Only considers articles that passed semantic filter and aren't already marked as dupes.
 
+        Deduplication checks (in order):
+        1. Historical: Articles that appeared in previous reports for this stream (via SQL join)
+        2. Within-execution: Duplicates within the current execution (by DOI or title)
+
         Args:
-            research_stream_id: Stream ID (for context, not used in query)
+            research_stream_id: Stream ID for historical deduplication
             execution_id: UUID of this pipeline execution
 
         Returns:
-            Number of duplicates found
+            Tuple of (historical_duplicates, within_execution_duplicates)
         """
-        # Get all articles that passed filtering and aren't already marked as duplicates
+        # 1. Historical deduplication: Single SQL join to find matches
+        historical_matches = await self.association_service.find_historical_duplicates(
+            stream_id=research_stream_id,
+            execution_id=execution_id
+        )
+
+        # Mark historical duplicates
+        historical_duplicates = await self.wip_article_service.mark_duplicates_by_ids(
+            [(wip_id, identifier) for wip_id, identifier in historical_matches]
+        )
+
+        # 2. Within-execution deduplication
+        # Get articles that aren't already marked as duplicates
         articles = await self.wip_article_service.get_for_deduplication(execution_id)
 
-        duplicates_found = 0
+        within_execution_duplicates = 0
         seen_dois = {}
         seen_titles = {}
 
@@ -1179,7 +1196,7 @@ Score from {{min_value}} to {{max_value}}."""
                     self.wip_article_service.mark_as_duplicate(
                         article, seen_dois[doi_normalized]
                     )
-                    duplicates_found += 1
+                    within_execution_duplicates += 1
                 else:
                     seen_dois[doi_normalized] = article.pmid or str(article.id)
 
@@ -1190,12 +1207,12 @@ Score from {{min_value}} to {{max_value}}."""
                     self.wip_article_service.mark_as_duplicate(
                         article, seen_titles[title_normalized]
                     )
-                    duplicates_found += 1
+                    within_execution_duplicates += 1
                 else:
                     seen_titles[title_normalized] = article.pmid or str(article.id)
 
         # No commit here - stage manages the transaction
-        return duplicates_found
+        return historical_duplicates, within_execution_duplicates
 
     async def _mark_articles_for_report(self, execution_id: str) -> int:
         """

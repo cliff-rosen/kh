@@ -200,6 +200,45 @@ class WipArticleService:
     # Mutators (async, DB writes + commit)
     # =========================================================================
 
+    async def mark_duplicates_by_ids(
+        self, duplicates: List[Tuple[int, str]]
+    ) -> int:
+        """
+        Mark multiple WipArticles as duplicates by their IDs.
+
+        Uses bulk SQL update for efficiency. Does not commit - caller must commit.
+
+        Args:
+            duplicates: List of (wip_article_id, duplicate_of_identifier) tuples
+
+        Returns:
+            Number of articles marked as duplicates
+        """
+        if not duplicates:
+            return 0
+
+        from sqlalchemy import update, case
+
+        # Build a CASE expression for duplicate_of_pmid values
+        wip_ids = [d[0] for d in duplicates]
+        id_to_identifier = {d[0]: d[1] for d in duplicates}
+
+        # Update all matching records in a single statement
+        stmt = (
+            update(WipArticle)
+            .where(WipArticle.id.in_(wip_ids))
+            .values(
+                is_duplicate=True,
+                duplicate_of_pmid=case(
+                    id_to_identifier,
+                    value=WipArticle.id
+                )
+            )
+        )
+
+        result = await self.db.execute(stmt)
+        return result.rowcount
+
     async def create_wip_articles(
         self,
         research_stream_id: int,

@@ -120,6 +120,62 @@ class ReportArticleAssociationService:
         max_ranking = result.scalar()
         return (max_ranking + 1) if max_ranking else 1
 
+    async def find_historical_duplicates(
+        self,
+        stream_id: int,
+        execution_id: str
+    ) -> List[Tuple[int, str]]:
+        """
+        Find WipArticles that match articles already visible in previous reports for this stream.
+
+        Uses a single SQL join to efficiently find duplicates in the database.
+
+        Args:
+            stream_id: The research stream ID
+            execution_id: Current execution ID (WipArticles to check)
+
+        Returns:
+            List of (wip_article_id, matched_identifier) tuples for duplicates found
+        """
+        from models import Report, Article, WipArticle
+        from sqlalchemy import or_
+
+        # Single query: join WipArticle with historical visible articles by PMID or DOI
+        query = (
+            select(WipArticle.id, Article.pmid, Article.doi)
+            .select_from(WipArticle)
+            .join(
+                Article,
+                or_(
+                    and_(WipArticle.pmid != None, WipArticle.pmid == Article.pmid),
+                    and_(WipArticle.doi != None, func.lower(WipArticle.doi) == func.lower(Article.doi))
+                )
+            )
+            .join(ReportArticleAssociation, Article.article_id == ReportArticleAssociation.article_id)
+            .join(Report, ReportArticleAssociation.report_id == Report.report_id)
+            .where(
+                and_(
+                    WipArticle.pipeline_execution_id == execution_id,
+                    WipArticle.is_duplicate == False,
+                    Report.research_stream_id == stream_id,
+                    Report.pipeline_execution_id != execution_id,
+                    ReportArticleAssociation.is_hidden == False
+                )
+            )
+            .distinct()
+        )
+
+        result = await self.db.execute(query)
+        rows = result.all()
+
+        # Return (wip_id, identifier) tuples
+        duplicates = []
+        for row in rows:
+            identifier = row.pmid if row.pmid else row.doi
+            duplicates.append((row.id, f"historical:{identifier}"))
+
+        return duplicates
+
     # =========================================================================
     # Setters (in-memory, no DB I/O - caller must commit)
     # =========================================================================
