@@ -346,10 +346,8 @@ class EmailTemplateService:
 
         meta_html = ' &bull; '.join(meta_parts) if meta_parts else ''
 
-        # Get summary
+        # Get summary (include full summary, no truncation)
         summary = article.summary or ''
-        if len(summary) > 300:
-            summary = summary[:297] + '...'
 
         return f'''
                 <div class="article">
