@@ -1186,7 +1186,7 @@ Score from {{min_value}} to {{max_value}}."""
         historical_dup_ids = {wip_id for wip_id, _ in historical_matches}
 
         # Mark historical duplicates
-        historical_duplicates = await self.wip_article_service.mark_duplicates_by_ids(
+        historical_duplicates = await self.wip_article_service.bulk_update_duplicates(
             [(wip_id, identifier) for wip_id, identifier in historical_matches]
         )
 

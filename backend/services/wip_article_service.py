@@ -187,11 +187,11 @@ class WipArticleService:
     # Mutators (async, DB writes + commit)
     # =========================================================================
 
-    async def mark_duplicates_by_ids(
+    async def bulk_update_duplicates(
         self, duplicates: List[Tuple[int, str]]
     ) -> int:
         """
-        Mark multiple WipArticles as duplicates by their IDs.
+        Update multiple WipArticles as duplicates by their IDs.
 
         Uses bulk SQL update for efficiency. Does not commit - caller must commit.
 
