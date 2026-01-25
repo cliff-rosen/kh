@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeftIcon, CogIcon, ArrowRightIcon, UserIcon, BuildingOfficeIcon, GlobeAltIcon, ArrowUpIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, UserIcon, BuildingOfficeIcon, GlobeAltIcon, ArrowUpIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 
 import {
     ReportFrequency,
@@ -150,7 +150,6 @@ export default function EditStreamPage() {
             lookback_days: null
         } as ScheduleConfig,
         is_active: true,
-        chat_instructions: '',
 
         // === LAYER 1: SEMANTIC SPACE ===
         semantic_space: {
@@ -248,7 +247,6 @@ export default function EditStreamPage() {
                             lookback_days: null
                         },
                         is_active: foundStream.is_active,
-                        chat_instructions: foundStream.chat_instructions || '',
                         semantic_space: foundStream.semantic_space,
                         retrieval_config: foundStream.retrieval_config || {
                             concepts: [],
@@ -320,7 +318,6 @@ export default function EditStreamPage() {
             stream_name: form.stream_name,
             schedule_config: form.schedule_config,
             is_active: form.is_active,
-            // Note: chat_instructions is now managed via Article Analysis tab (article_analysis_config)
             // Layer 1: Semantic space (ground truth)
             semantic_space: form.semantic_space,
             // Layer 2: Retrieval config (edited via wizard)
