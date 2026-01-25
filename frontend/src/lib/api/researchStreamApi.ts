@@ -1,5 +1,5 @@
 import { api } from './index';
-import { ResearchStream, InformationSource, Concept, RetrievalConfig, SemanticSpace, PresentationConfig, BroadQuery, ScheduleConfig, PipelineLLMConfig, EnrichmentConfig, PromptTemplate } from '../../types';
+import { ResearchStream, InformationSource, Concept, RetrievalConfig, SemanticSpace, PresentationConfig, BroadQuery, ScheduleConfig, PipelineLLMConfig, EnrichmentConfig, PromptTemplate, ArticleAnalysisConfig } from '../../types';
 
 // ============================================================================
 // Enrichment & Categorization Config Response Types (API-specific)
@@ -17,6 +17,21 @@ export interface CategorizationPromptResponse {
     categorization_prompt: PromptTemplate | null;
     is_using_defaults: boolean;
     defaults: PromptTemplate;
+}
+
+export interface SlugInfo {
+    slug: string;
+    description: string;
+}
+
+export interface ArticleAnalysisConfigResponse {
+    article_analysis_config: ArticleAnalysisConfig | null;
+    is_using_defaults: boolean;
+    defaults: {
+        stance_analysis_prompt: PromptTemplate;
+        chat_instructions: string | null;
+    };
+    available_slugs: SlugInfo[];
 }
 
 /**
@@ -285,6 +300,27 @@ export const researchStreamApi = {
         await api.put(
             `/api/research-streams/${streamId}/categorization-prompt`,
             { categorization_prompt: categorizationPrompt }
+        );
+    },
+
+    /**
+     * Get article analysis config for a stream (or defaults if not set)
+     */
+    async getArticleAnalysisConfig(streamId: number): Promise<ArticleAnalysisConfigResponse> {
+        const response = await api.get(`/api/research-streams/${streamId}/article-analysis-config`);
+        return response.data;
+    },
+
+    /**
+     * Update article analysis config for a stream (set to null to reset to defaults)
+     */
+    async updateArticleAnalysisConfig(
+        streamId: number,
+        articleAnalysisConfig: ArticleAnalysisConfig | null
+    ): Promise<void> {
+        await api.put(
+            `/api/research-streams/${streamId}/article-analysis-config`,
+            { article_analysis_config: articleAnalysisConfig }
         );
     },
 

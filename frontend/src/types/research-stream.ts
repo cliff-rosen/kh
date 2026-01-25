@@ -170,6 +170,19 @@ export interface EnrichmentConfig {
 }
 
 // ============================================================================
+// ARTICLE ANALYSIS CONFIG
+// ============================================================================
+
+/**
+ * Configuration for article-level analysis features.
+ * Contains stance analysis prompt and chat instructions.
+ */
+export interface ArticleAnalysisConfig {
+    stance_analysis_prompt?: PromptTemplate | null;
+    chat_instructions?: string | null;
+}
+
+// ============================================================================
 // PIPELINE EXECUTION
 // ============================================================================
 
@@ -235,11 +248,13 @@ export interface ResearchStream {
     presentation_config: PresentationConfig;
     // Layer 4: ENRICHMENT CONFIG
     enrichment_config?: EnrichmentConfig | null;
+    // Article Analysis Config (stance prompt + chat instructions)
+    article_analysis_config?: ArticleAnalysisConfig | null;
 
     // === CONTROL PANEL ===
     llm_config?: PipelineLLMConfig | null;
 
-    // === CHAT ===
+    // === CHAT (deprecated - moved to article_analysis_config) ===
     chat_instructions?: string | null;
 
     // === SCHEDULING ===

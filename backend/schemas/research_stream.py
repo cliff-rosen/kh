@@ -255,6 +255,32 @@ class EnrichmentConfig(BaseModel):
 
 
 # ============================================================================
+# ARTICLE ANALYSIS CONFIG (Stance Analysis + Chat)
+# ============================================================================
+
+class ArticleAnalysisConfig(BaseModel):
+    """
+    Configuration for article-level analysis features.
+
+    Contains:
+    - stance_analysis_prompt: Custom prompt for stance/position analysis
+    - chat_instructions: Instructions for chat assistant (moved from Layer 1)
+
+    Slugs available for stance_analysis:
+    - {stream.name}, {stream.purpose}
+    - {article.title}, {article.authors}, {article.journal}, {article.year}, {article.abstract}
+    """
+    stance_analysis_prompt: Optional[PromptTemplate] = Field(
+        None,
+        description="Custom prompt for stance analysis (None = use defaults)"
+    )
+    chat_instructions: Optional[str] = Field(
+        None,
+        description="Stream-specific instructions for the chat assistant"
+    )
+
+
+# ============================================================================
 # MODEL CONFIGURATION (LLM Selection)
 # ============================================================================
 
@@ -347,11 +373,14 @@ class ResearchStream(BaseModel):
     # Layer 4: ENRICHMENT CONFIG
     enrichment_config: Optional[EnrichmentConfig] = Field(None, description="Layer 4: Custom prompts for summaries")
 
+    # === ARTICLE ANALYSIS ===
+    article_analysis_config: Optional[ArticleAnalysisConfig] = Field(None, description="Article analysis config: stance analysis prompt + chat instructions")
+
     # === CONTROL PANEL ===
     llm_config: Optional[PipelineLLMConfig] = Field(None, description="LLM configuration for pipeline stages")
 
-    # === CHAT ===
-    chat_instructions: Optional[str] = Field(None, description="Stream-specific instructions for the chat assistant")
+    # === CHAT (DEPRECATED - use article_analysis_config.chat_instructions) ===
+    chat_instructions: Optional[str] = Field(None, description="DEPRECATED: Use article_analysis_config.chat_instructions instead")
 
     # === SCHEDULING ===
     schedule_config: Optional[ScheduleConfig] = Field(None, description="Scheduling configuration")

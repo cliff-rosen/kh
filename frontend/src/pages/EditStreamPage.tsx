@@ -55,6 +55,7 @@ import TestRefineTab, { ExecuteSubTab } from '../components/stream/TestRefineTab
 import { WorkbenchState } from '../components/stream/QueryRefinementWorkbench';
 import ContentEnrichmentForm from '../components/stream/ContentEnrichmentForm';
 import CategorizationPromptForm from '../components/stream/CategorizationPromptForm';
+import ArticleAnalysisForm from '../components/stream/ArticleAnalysisForm';
 import ChatTray from '../components/chat/ChatTray';
 import { promptTestingApi, PromptTemplate, SlugInfo } from '../lib/api/promptTestingApi';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
@@ -65,7 +66,7 @@ import RetrievalProposalCard from '../components/chat/RetrievalProposalCard';
 import QuerySuggestionCard from '../components/chat/QuerySuggestionCard';
 import FilterSuggestionCard from '../components/chat/FilterSuggestionCard';
 
-type TabType = 'semantic' | 'retrieval' | 'presentation' | 'enrichment' | 'execute';
+type TabType = 'semantic' | 'retrieval' | 'presentation' | 'enrichment' | 'article-analysis' | 'execute';
 type PresentationSubTab = 'categories' | 'categorization-prompt';
 
 interface PromptSuggestion {
@@ -319,7 +320,7 @@ export default function EditStreamPage() {
             stream_name: form.stream_name,
             schedule_config: form.schedule_config,
             is_active: form.is_active,
-            chat_instructions: form.chat_instructions || null,
+            // Note: chat_instructions is now managed via Article Analysis tab (article_analysis_config)
             // Layer 1: Semantic space (ground truth)
             semantic_space: form.semantic_space,
             // Layer 2: Retrieval config (edited via wizard)
@@ -891,6 +892,19 @@ export default function EditStreamPage() {
                             </button>
                             <button
                                 type="button"
+                                onClick={() => setActiveTab('article-analysis')}
+                                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'article-analysis'
+                                    ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                                    }`}
+                            >
+                                <div className="flex flex-col items-start">
+                                    <span>Article Analysis</span>
+                                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Stance analysis & chat settings</span>
+                                </div>
+                            </button>
+                            <button
+                                type="button"
                                 onClick={() => setActiveTab('execute')}
                                 className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'execute'
                                     ? 'border-orange-500 text-orange-600 dark:text-orange-400'
@@ -929,24 +943,6 @@ export default function EditStreamPage() {
                                     semanticSpace={form.semantic_space}
                                     onChange={(updated) => setForm({ ...form, semantic_space: updated })}
                                 />
-
-                                {/* Chat Instructions */}
-                                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Chat Instructions
-                                        <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">(Optional)</span>
-                                    </label>
-                                    <textarea
-                                        value={form.chat_instructions}
-                                        onChange={(e) => setForm({ ...form, chat_instructions: e.target.value })}
-                                        placeholder="Enter stream-specific instructions for the AI assistant. For example: classification rules, domain expertise, terminology guidance..."
-                                        rows={4}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                    />
-                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                        These instructions will be included in the system prompt when chatting about this stream's reports and articles.
-                                    </p>
-                                </div>
                             </div>
                         )}
 
@@ -1019,6 +1015,15 @@ export default function EditStreamPage() {
                         </div>
                     )}
 
+                    {/* Article Analysis Tab - outside form, has own save */}
+                    {activeTab === 'article-analysis' && stream && (
+                        <div className="flex-1 min-h-0 flex flex-col">
+                            <ArticleAnalysisForm
+                                streamId={parseInt(streamId!)}
+                            />
+                        </div>
+                    )}
+
                     {/* Control Panel Tab - outside form, has own controls */}
                     {activeTab === 'execute' && stream && (
                         <div className="flex-1 min-h-0 flex flex-col">
@@ -1063,9 +1068,9 @@ export default function EditStreamPage() {
                         >
                             {canModify ? 'Cancel' : 'Back to Streams'}
                         </button>
-                        {/* Hide main save button on enrichment tab and categorization prompt subtab - they have their own controls */}
+                        {/* Hide main save button on enrichment/article-analysis tabs and categorization prompt subtab - they have their own controls */}
                         {/* Also hide save button if user can't modify this stream */}
-                        {canModify && activeTab !== 'enrichment' && !(activeTab === 'presentation' && presentationSubTab === 'categorization-prompt') && (
+                        {canModify && activeTab !== 'enrichment' && activeTab !== 'article-analysis' && !(activeTab === 'presentation' && presentationSubTab === 'categorization-prompt') && (
                             <button
                                 type="button"
                                 onClick={(e) => {

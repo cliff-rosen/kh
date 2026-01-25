@@ -29,7 +29,8 @@ from schemas.research_stream import (
     PipelineLLMConfig,
     EnrichmentConfig,
     PromptTemplate,
-    CategorizationPrompt
+    CategorizationPrompt,
+    ArticleAnalysisConfig,
 )
 from schemas.semantic_space import SemanticSpace
 from schemas.sources import INFORMATION_SOURCES, InformationSource
@@ -52,6 +53,10 @@ from services.broad_search_service import BroadSearchService
 from services.user_tracking_service import track_endpoint
 from services.report_summary_service import DEFAULT_PROMPTS
 from services.article_categorization_service import ArticleCategorizationService
+from services.article_analysis_service import (
+    DEFAULT_STANCE_PROMPT,
+    get_stance_available_slugs,
+)
 
 from routers.auth import get_current_user
 
@@ -641,6 +646,22 @@ class UpdateCategorizationPromptRequest(BaseModel):
     )
 
 
+class ArticleAnalysisConfigResponse(BaseModel):
+    """Response containing stream's article analysis config or defaults"""
+    article_analysis_config: Optional[ArticleAnalysisConfig]
+    is_using_defaults: bool
+    defaults: Dict[str, Any]  # {stance_analysis_prompt: {...}, chat_instructions: None}
+    available_slugs: List[Dict[str, str]]  # [{slug: str, description: str}, ...]
+
+
+class UpdateArticleAnalysisConfigRequest(BaseModel):
+    """Request to update article analysis config"""
+    article_analysis_config: Optional[ArticleAnalysisConfig] = Field(
+        None,
+        description="Set to null to reset to defaults"
+    )
+
+
 @router.get("/{stream_id}/enrichment-config", response_model=EnrichmentConfigResponse)
 async def get_stream_enrichment_config(
     stream_id: int,
@@ -809,6 +830,86 @@ async def update_stream_categorization_prompt(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update categorization prompt: {str(e)}"
+        )
+
+
+@router.get("/{stream_id}/article-analysis-config", response_model=ArticleAnalysisConfigResponse)
+async def get_stream_article_analysis_config(
+    stream_id: int,
+    service: ResearchStreamService = Depends(get_research_stream_service),
+    current_user: User = Depends(get_current_user)
+):
+    """Get article analysis config for a stream (or defaults if not set)"""
+    logger.info(f"get_article_analysis_config - user_id={current_user.user_id}, stream_id={stream_id}")
+
+    try:
+        # Verify ownership and get stream
+        stream = await service.get_research_stream(current_user, stream_id)
+        if not stream:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stream not found")
+
+        # Build response
+        article_analysis_config = None
+        if stream.article_analysis_config:
+            article_analysis_config = ArticleAnalysisConfig(**stream.article_analysis_config)
+
+        defaults = {
+            "stance_analysis_prompt": DEFAULT_STANCE_PROMPT,
+            "chat_instructions": None,  # No default chat instructions
+        }
+
+        return ArticleAnalysisConfigResponse(
+            article_analysis_config=article_analysis_config,
+            is_using_defaults=article_analysis_config is None,
+            defaults=defaults,
+            available_slugs=get_stance_available_slugs()
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_article_analysis_config failed - user_id={current_user.user_id}, stream_id={stream_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get article analysis config: {str(e)}"
+        )
+
+
+@router.put("/{stream_id}/article-analysis-config")
+async def update_stream_article_analysis_config(
+    stream_id: int,
+    request: UpdateArticleAnalysisConfigRequest,
+    service: ResearchStreamService = Depends(get_research_stream_service),
+    current_user: User = Depends(get_current_user)
+):
+    """Update article analysis config for a stream (set to null to reset to defaults)"""
+    logger.info(f"update_article_analysis_config - user_id={current_user.user_id}, stream_id={stream_id}")
+
+    try:
+        # Verify ownership
+        stream = await service.get_research_stream(current_user, stream_id)
+        if not stream:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stream not found")
+
+        # Check if user can modify this stream
+        _check_can_modify_stream(stream, current_user)
+
+        # Prepare config dict
+        config_dict = request.article_analysis_config.model_dump() if request.article_analysis_config else None
+
+        # Update via async method
+        await service.update_research_stream(stream_id, {"article_analysis_config": config_dict})
+
+        logger.info(f"Article analysis config saved for stream {stream_id}")
+        return {"status": "success", "message": "Article analysis config updated"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"update_article_analysis_config failed - user_id={current_user.user_id}, stream_id={stream_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update article analysis config: {str(e)}"
         )
 
 

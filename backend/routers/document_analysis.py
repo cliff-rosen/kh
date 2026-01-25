@@ -12,6 +12,7 @@ from models import User
 from services import auth_service
 from services.document_analysis_service import get_document_analysis_service
 from services.research_stream_service import ResearchStreamService, get_research_stream_service
+from services.article_analysis_service import analyze_article_stance as analyze_stance
 from schemas.document_analysis import (
     DocumentAnalysisRequest,
     DocumentAnalysisResult,
@@ -121,17 +122,17 @@ async def analyze_document_stream(
 
 
 @router.post("/analyze-stance", response_model=StanceAnalysisResult)
-async def analyze_article_stance(
+async def analyze_article_stance_endpoint(
     request: StanceAnalysisRequest,
     stream_service: ResearchStreamService = Depends(get_research_stream_service),
     current_user: User = Depends(auth_service.validate_token)
 ):
     """
     Analyze an article's stance (pro-defense vs pro-plaintiff) based on
-    stream-specific classification instructions.
+    stream-specific configurable prompts.
 
-    Requires a stream_id to load the stream's chat_instructions which define
-    the classification criteria.
+    Requires a stream_id to load the stream's article_analysis_config which defines
+    the stance analysis prompt.
     """
     logger.info(f"[STANCE] Endpoint entered - user_id={current_user.user_id}, stream_id={request.stream_id}")
 
@@ -141,9 +142,13 @@ async def analyze_article_stance(
 
         logger.info(f"Stance analysis request from user {current_user.user_id} for stream {stream.stream_name}")
 
-        service = get_document_analysis_service()
+        # Extract stance_analysis_prompt from article_analysis_config if present
+        stance_analysis_prompt = None
+        if stream.article_analysis_config:
+            stance_analysis_prompt = stream.article_analysis_config.get("stance_analysis_prompt")
 
-        result = await service.analyze_article_stance(
+        # Call article_analysis_service directly (uses call_llm pattern)
+        result = await analyze_stance(
             article_title=request.article.title,
             article_abstract=request.article.abstract,
             article_authors=request.article.authors,
@@ -151,7 +156,7 @@ async def analyze_article_stance(
             article_year=request.article.publication_year,
             stream_name=stream.stream_name,
             stream_purpose=stream.purpose,
-            chat_instructions=stream.chat_instructions
+            stance_analysis_prompt=stance_analysis_prompt
         )
 
         logger.info(f"Stance analysis complete: {result.get('stance')} (confidence: {result.get('confidence')})")
