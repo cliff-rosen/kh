@@ -11,7 +11,9 @@ import {
     RetrievalConfig,
     Concept,
     ResearchStream,
-    ScheduleConfig
+    ScheduleConfig,
+    BroadQuery,
+    SemanticFilter
 } from '../types';
 
 import { useResearchStream } from '../context/ResearchStreamContext';
@@ -81,6 +83,41 @@ interface AppliedPromptSuggestions {
     suggestions: PromptSuggestion[];
 }
 
+interface RetrievalProposalQuery {
+    query_id: string;
+    query_string: string;
+    rationale?: string;
+    covered_topics?: string[];
+}
+
+interface RetrievalProposalFilter {
+    target_id: string;
+    semantic_filter: SemanticFilter;
+}
+
+interface RetrievalProposal {
+    update_type?: 'queries_only' | 'filters_only' | 'both';
+    queries?: RetrievalProposalQuery[];
+    filters?: RetrievalProposalFilter[];
+}
+
+interface SchemaProposal {
+    proposed_changes?: Record<string, unknown>;
+}
+
+interface PresentationCategoriesProposal {
+    categories?: Category[];
+}
+
+interface QuerySuggestionData {
+    query_expression: string;
+}
+
+interface FilterSuggestionData {
+    criteria: string;
+    threshold?: number;
+}
+
 export default function EditStreamPage() {
     const { streamId } = useParams<{ streamId: string }>();
     const navigate = useNavigate();
@@ -88,7 +125,7 @@ export default function EditStreamPage() {
     const { researchStreams, loadResearchStreams, loadResearchStream, updateResearchStream, deleteResearchStream, isLoading, error, clearError } = useResearchStream();
     const { user, isPlatformAdmin, isOrgAdmin } = useAuth();
 
-    const [stream, setStream] = useState<any>(null);
+    const [stream, setStream] = useState<ResearchStream | null>(null);
     const formInitializedRef = useRef(false);
 
     // Check if user can modify this stream (edit/delete/run)
@@ -133,7 +170,7 @@ export default function EditStreamPage() {
 
     // State for pending query/filter updates (from chat suggestions to workbench)
     const [pendingQueryUpdate, setPendingQueryUpdate] = useState<string | null>(null);
-    const [pendingFilterUpdate, setPendingFilterUpdate] = useState<{ criteria: string; threshold?: number } | null>(null);
+    const [pendingFilterUpdate, setPendingFilterUpdate] = useState<FilterSuggestionData | null>(null);
 
     // Check URL params for initial tab
     const initialTab = (searchParams.get('tab') as TabType) || 'semantic';
@@ -368,7 +405,7 @@ export default function EditStreamPage() {
                 // Reload stream to get updated scope
                 await loadResearchStream(Number(streamId));
                 // Update local stream state
-                setStream((prev: any) => ({ ...prev, scope: 'global' }));
+                setStream((prev) => prev ? { ...prev, scope: 'global' as const } : null);
             } catch (err) {
                 showErrorToast(err, 'Failed to promote stream');
             } finally {
@@ -378,7 +415,7 @@ export default function EditStreamPage() {
     };
 
     // Payload handlers for chat
-    const handleSchemaProposalAccept = (proposalData: any) => {
+    const handleSchemaProposalAccept = (proposalData: SchemaProposal) => {
         const changes = proposalData.proposed_changes || {};
 
         console.log('Applying schema proposal changes:', changes);
@@ -396,14 +433,15 @@ export default function EditStreamPage() {
             } else if (key.startsWith('semantic_space.')) {
                 // Handle nested semantic_space fields
                 const path = key.replace('semantic_space.', '').split('.');
-                let target: any = updatedForm.semantic_space;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                let target: Record<string, any> = updatedForm.semantic_space as Record<string, any>;
 
                 // Navigate to the nested property
                 for (let i = 0; i < path.length - 1; i++) {
                     if (!target[path[i]]) {
                         target[path[i]] = {};
                     }
-                    target = target[path[i]];
+                    target = target[path[i]] as Record<string, unknown>;
                 }
 
                 // Set the value
@@ -422,7 +460,7 @@ export default function EditStreamPage() {
         console.log('Schema proposal rejected');
     };
 
-    const handlePresentationCategoriesAccept = (proposalData: any) => {
+    const handlePresentationCategoriesAccept = (proposalData: PresentationCategoriesProposal) => {
         const categories = proposalData.categories || [];
 
         console.log('Applying presentation categories:', categories);
@@ -459,7 +497,7 @@ export default function EditStreamPage() {
         setAppliedPromptSuggestions(null);
     };
 
-    const handleRetrievalProposalAccept = (proposalData: any) => {
+    const handleRetrievalProposalAccept = (proposalData: RetrievalProposal) => {
         console.log('Applying retrieval proposal:', proposalData);
 
         const updateType = proposalData.update_type || 'both';
@@ -470,7 +508,7 @@ export default function EditStreamPage() {
             const newConfig = { ...prev.retrieval_config };
 
             // Apply query updates
-            if ((updateType === 'queries_only' || updateType === 'both') && hasQueries) {
+            if ((updateType === 'queries_only' || updateType === 'both') && hasQueries && proposalData.queries) {
                 // Determine if we're working with broad_search or concepts
                 if (newConfig.broad_search) {
                     // Update broad search queries
@@ -478,15 +516,16 @@ export default function EditStreamPage() {
                     const updatedQueries = [...existingQueries];
 
                     for (const q of proposalData.queries) {
-                        const existingIndex = updatedQueries.findIndex((eq) => eq.query_id === q.query_id);
+                        const existingIndex = updatedQueries.findIndex((eq: BroadQuery) => eq.query_id === q.query_id);
                         const existingQuery = existingIndex >= 0 ? updatedQueries[existingIndex] : null;
 
-                        const newQuery = {
+                        const newQuery: BroadQuery = {
                             query_id: q.query_id,
+                            source_id: existingQuery?.source_id ?? 0,
                             search_terms: existingQuery?.search_terms || [],
                             query_expression: q.query_string,
                             rationale: q.rationale || '',
-                            covered_topics: q.covered_topics,
+                            covered_topics: q.covered_topics || [],
                             estimated_weekly_volume: existingQuery?.estimated_weekly_volume || null,
                             semantic_filter: existingQuery?.semantic_filter || { enabled: false, criteria: '', threshold: 0.7 }
                         };
@@ -505,12 +544,13 @@ export default function EditStreamPage() {
                 } else {
                     // Create new broad_search config
                     newConfig.broad_search = {
-                        queries: proposalData.queries.map((q: any) => ({
+                        queries: proposalData.queries.map((q: RetrievalProposalQuery): BroadQuery => ({
                             query_id: q.query_id,
+                            source_id: 0,
                             search_terms: [],
                             query_expression: q.query_string,
                             rationale: q.rationale || '',
-                            covered_topics: q.covered_topics,
+                            covered_topics: q.covered_topics || [],
                             estimated_weekly_volume: null,
                             semantic_filter: { enabled: false, criteria: '', threshold: 0.7 }
                         })),
@@ -521,10 +561,10 @@ export default function EditStreamPage() {
             }
 
             // Apply filter updates
-            if ((updateType === 'filters_only' || updateType === 'both') && hasFilters) {
+            if ((updateType === 'filters_only' || updateType === 'both') && hasFilters && proposalData.filters) {
                 if (newConfig.broad_search?.queries) {
-                    const updatedQueries = newConfig.broad_search.queries.map((q: any) => {
-                        const filterUpdate = proposalData.filters.find((f: any) => f.target_id === q.query_id);
+                    const updatedQueries = newConfig.broad_search.queries.map((q: BroadQuery) => {
+                        const filterUpdate = proposalData.filters!.find((f: RetrievalProposalFilter) => f.target_id === q.query_id);
                         if (filterUpdate) {
                             return {
                                 ...q,
@@ -538,8 +578,8 @@ export default function EditStreamPage() {
                         queries: updatedQueries
                     };
                 } else if (newConfig.concepts) {
-                    const updatedConcepts = newConfig.concepts.map((c: any) => {
-                        const filterUpdate = proposalData.filters.find((f: any) => f.target_id === c.concept_id);
+                    const updatedConcepts = newConfig.concepts.map((c: Concept) => {
+                        const filterUpdate = proposalData.filters!.find((f: RetrievalProposalFilter) => f.target_id === c.concept_id);
                         if (filterUpdate) {
                             return {
                                 ...c,
@@ -731,7 +771,7 @@ export default function EditStreamPage() {
                                 onReject={callbacks.onReject}
                             />
                         ),
-                        onAccept: async (data: any) => {
+                        onAccept: async (data: QuerySuggestionData) => {
                             // Update the workbench with the new query expression
                             setPendingQueryUpdate(data.query_expression);
                         },
@@ -750,7 +790,7 @@ export default function EditStreamPage() {
                                 onReject={callbacks.onReject}
                             />
                         ),
-                        onAccept: async (data: any) => {
+                        onAccept: async (data: FilterSuggestionData) => {
                             // Update the workbench with the new filter criteria
                             setPendingFilterUpdate({ criteria: data.criteria, threshold: data.threshold });
                         },
