@@ -57,7 +57,8 @@ import TestRefineTab, { ExecuteSubTab } from '../components/stream/TestRefineTab
 import { WorkbenchState } from '../components/stream/QueryRefinementWorkbench';
 import ContentEnrichmentForm from '../components/stream/ContentEnrichmentForm';
 import CategorizationPromptForm from '../components/stream/CategorizationPromptForm';
-import ArticleAnalysisForm from '../components/stream/ArticleAnalysisForm';
+import ChatInstructionsForm from '../components/stream/ChatInstructionsForm';
+import StanceAnalysisPromptForm from '../components/stream/StanceAnalysisPromptForm';
 import ChatTray from '../components/chat/ChatTray';
 import { promptTestingApi, PromptTemplate, SlugInfo } from '../lib/api/promptTestingApi';
 import { researchStreamApi } from '../lib/api/researchStreamApi';
@@ -70,6 +71,7 @@ import FilterSuggestionCard from '../components/chat/FilterSuggestionCard';
 
 type TabType = 'semantic' | 'retrieval' | 'presentation' | 'enrichment' | 'article-analysis' | 'execute';
 type PresentationSubTab = 'categories' | 'categorization-prompt';
+type ArticleAnalysisSubTab = 'stance-prompt' | 'chat-instructions';
 
 interface PromptSuggestion {
     target: 'system_prompt' | 'user_prompt_template';
@@ -176,6 +178,7 @@ export default function EditStreamPage() {
     const initialTab = (searchParams.get('tab') as TabType) || 'semantic';
     const [activeTab, setActiveTab] = useState<TabType>(initialTab);
     const [presentationSubTab, setPresentationSubTab] = useState<PresentationSubTab>('categories');
+    const [articleAnalysisSubTab, setArticleAnalysisSubTab] = useState<ArticleAnalysisSubTab>('stance-prompt');
     const [form, setForm] = useState({
         stream_name: '',
         schedule_config: {
@@ -1055,9 +1058,48 @@ export default function EditStreamPage() {
                     {/* Article Analysis Tab - outside form, has own save */}
                     {activeTab === 'article-analysis' && stream && (
                         <div className="flex-1 min-h-0 flex flex-col">
-                            <ArticleAnalysisForm
-                                streamId={parseInt(streamId!)}
-                            />
+                            {/* Article Analysis Subtabs */}
+                            <div className="flex gap-4 border-b border-gray-200 dark:border-gray-700 mb-4 flex-shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setArticleAnalysisSubTab('stance-prompt')}
+                                    className={`pb-2 text-sm font-medium transition-colors ${
+                                        articleAnalysisSubTab === 'stance-prompt'
+                                            ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-500'
+                                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                                    }`}
+                                >
+                                    Stance Analysis Prompt
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setArticleAnalysisSubTab('chat-instructions')}
+                                    className={`pb-2 text-sm font-medium transition-colors ${
+                                        articleAnalysisSubTab === 'chat-instructions'
+                                            ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-500'
+                                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                                    }`}
+                                >
+                                    Chat Instructions
+                                </button>
+                            </div>
+
+                            {/* Subtab Content */}
+                            {articleAnalysisSubTab === 'stance-prompt' && (
+                                <div className="flex-1 min-h-0">
+                                    <StanceAnalysisPromptForm
+                                        streamId={parseInt(streamId!)}
+                                        stream={stream}
+                                    />
+                                </div>
+                            )}
+                            {articleAnalysisSubTab === 'chat-instructions' && (
+                                <div className="flex-1 min-h-0">
+                                    <ChatInstructionsForm
+                                        streamId={parseInt(streamId!)}
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
 

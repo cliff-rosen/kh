@@ -75,6 +75,22 @@ export interface TestCategorizationRequest {
     llm_config?: ModelConfig;
 }
 
+export interface TestStanceAnalysisPromptRequest {
+    prompt: PromptTemplate;
+    sample_data?: Record<string, unknown>;
+    report_id?: number;
+    article_index?: number;
+    llm_config?: ModelConfig;
+}
+
+export interface TestStanceAnalysisPromptResponse {
+    rendered_system_prompt: string;
+    rendered_user_prompt: string;
+    llm_response?: string;
+    parsed_stance?: string;
+    error?: string;
+}
+
 export interface CategoryAssignment {
     article: CanonicalResearchArticle;
     assigned_categories: string[];
@@ -133,6 +149,16 @@ export const promptTestingApi = {
      */
     async testCategorization(request: TestCategorizationRequest): Promise<TestCategorizationResponse> {
         const response = await api.post(`${API_BASE}/test-categorization`, request);
+        return response.data;
+    },
+
+    /**
+     * Test a stance analysis prompt by rendering it with sample data and running through LLM
+     */
+    async testStanceAnalysisPrompt(
+        request: TestStanceAnalysisPromptRequest
+    ): Promise<TestStanceAnalysisPromptResponse> {
+        const response = await api.post(`${API_BASE}/test-stance-analysis-prompt`, request);
         return response.data;
     }
 };
