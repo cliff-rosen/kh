@@ -73,6 +73,7 @@ STANCE_ANALYSIS_SLUGS = [
     ("{article.journal}", "article_journal", "Journal where the article was published"),
     ("{article.year}", "article_year", "Publication year"),
     ("{article.abstract}", "article_abstract", "Full abstract of the article"),
+    ("{article.summary}", "article_summary", "AI-generated summary of the article"),
 ]
 
 
@@ -185,6 +186,7 @@ async def analyze_article_stance(
     stream_purpose: Optional[str],
     stance_analysis_prompt: Optional[Dict[str, str]] = None,
     model_config: Optional[ModelConfig] = None,
+    article_summary: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Analyze an article's stance using the call_llm pattern.
@@ -200,6 +202,7 @@ async def analyze_article_stance(
         stance_analysis_prompt: Custom prompt dict with 'system_prompt' and
                                'user_prompt_template' keys (None = use defaults)
         model_config: Optional model configuration override
+        article_summary: AI-generated summary of the article
 
     Returns:
         Dict with stance, confidence, analysis, key_factors, relevant_quotes
@@ -226,6 +229,7 @@ async def analyze_article_stance(
         "article_journal": article_journal or "Unknown",
         "article_year": str(article_year) if article_year else "Unknown",
         "article_abstract": article_abstract,
+        "article_summary": article_summary or "No AI summary available",
     }
 
     # Get model config from task config if not provided

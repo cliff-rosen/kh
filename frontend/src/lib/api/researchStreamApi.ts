@@ -19,10 +19,9 @@ export interface CategorizationPromptResponse {
     defaults: PromptTemplate;
 }
 
-export interface SlugInfo {
-    slug: string;
-    description: string;
-}
+// SlugInfo is imported from promptTestingApi to avoid duplicate export
+import type { SlugInfo } from './promptTestingApi';
+export type { SlugInfo };
 
 export interface ArticleAnalysisConfigResponse {
     article_analysis_config: ArticleAnalysisConfig | null;
