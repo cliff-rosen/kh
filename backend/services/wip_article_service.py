@@ -187,45 +187,6 @@ class WipArticleService:
     # Mutators (async, DB writes + commit)
     # =========================================================================
 
-    async def bulk_update_duplicates(
-        self, duplicates: List[Tuple[int, str]]
-    ) -> int:
-        """
-        Update multiple WipArticles as duplicates by their IDs.
-
-        Uses bulk SQL update for efficiency. Does not commit - caller must commit.
-
-        Args:
-            duplicates: List of (wip_article_id, duplicate_of_identifier) tuples
-
-        Returns:
-            Number of articles marked as duplicates
-        """
-        if not duplicates:
-            return 0
-
-        from sqlalchemy import update, case
-
-        # Build a CASE expression for duplicate_of_pmid values
-        wip_ids = [d[0] for d in duplicates]
-        id_to_identifier = {d[0]: d[1] for d in duplicates}
-
-        # Update all matching records in a single statement
-        stmt = (
-            update(WipArticle)
-            .where(WipArticle.id.in_(wip_ids))
-            .values(
-                is_duplicate=True,
-                duplicate_of_pmid=case(
-                    id_to_identifier,
-                    value=WipArticle.id
-                )
-            )
-        )
-
-        result = await self.db.execute(stmt)
-        return result.rowcount
-
     async def create_wip_articles(
         self,
         research_stream_id: int,
@@ -284,17 +245,63 @@ class WipArticleService:
         )
         return len(articles)
 
-    async def update_curation_notes(
-        self, wip_article_id: int, user_id: int, notes: str
-    ) -> WipArticle:
-        """Update curation notes for a WipArticle and commit. Raises ValueError if not found."""
-        article = await self.get_by_id(wip_article_id)
-        article.curation_notes = notes
-        article.curated_by = user_id
-        article.curated_at = datetime.utcnow()
+    async def bulk_update_filter_bypassed(
+        self, articles: List[WipArticle]
+    ) -> int:
+        """
+        Mark articles as passed when semantic filter is disabled and commit.
 
+        Sets passed_semantic_filter=True for all provided articles.
+
+        Args:
+            articles: List of WipArticle objects to mark as passed
+
+        Returns:
+            Number of articles updated
+        """
+        for article in articles:
+            article.passed_semantic_filter = True
         await self.db.commit()
-        return article
+        return len(articles)
+
+    async def bulk_update_duplicates(
+        self, duplicates: List[Tuple[int, str]]
+    ) -> int:
+        """
+        Update multiple WipArticles as duplicates by their IDs.
+
+        Uses bulk SQL update for efficiency. Does not commit - caller must commit.
+
+        Args:
+            duplicates: List of (wip_article_id, duplicate_of_identifier) tuples
+
+        Returns:
+            Number of articles marked as duplicates
+        """
+        if not duplicates:
+            return 0
+
+        from sqlalchemy import update, case
+
+        # Build a CASE expression for duplicate_of_pmid values
+        wip_ids = [d[0] for d in duplicates]
+        id_to_identifier = {d[0]: d[1] for d in duplicates}
+
+        # Update all matching records in a single statement
+        stmt = (
+            update(WipArticle)
+            .where(WipArticle.id.in_(wip_ids))
+            .values(
+                is_duplicate=True,
+                duplicate_of_pmid=case(
+                    id_to_identifier,
+                    value=WipArticle.id
+                )
+            )
+        )
+
+        result = await self.db.execute(stmt)
+        return result.rowcount
 
     async def bulk_update_filter_results(
         self,
@@ -342,6 +349,19 @@ class WipArticleService:
 
         await self.db.commit()
         return passed, rejected, errors
+
+    async def update_curation_notes(
+        self, wip_article_id: int, user_id: int, notes: str
+    ) -> WipArticle:
+        """Update curation notes for a WipArticle and commit. Raises ValueError if not found."""
+        article = await self.get_by_id(wip_article_id)
+        article.curation_notes = notes
+        article.curated_by = user_id
+        article.curated_at = datetime.utcnow()
+
+        await self.db.commit()
+        return article
+
 
     async def commit(self) -> None:
         """Commit pending changes to the database."""

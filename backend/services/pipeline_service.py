@@ -544,14 +544,12 @@ class PipelineService:
                 articles = await self.wip_article_service.get_for_filtering(
                     ctx.execution_id, query.query_id
                 )
-                for article in articles:
-                    article.passed_semantic_filter = True
-                await self.wip_article_service.commit()
+                count = await self.wip_article_service.bulk_update_filter_bypassed(articles)
 
                 yield PipelineStatus(
                     "filter",
-                    f"Filter disabled - {len(articles)} articles auto-passed",
-                    {"query_id": query.query_id, "filtered": False, "auto_passed": len(articles)},
+                    f"Filter disabled - {count} articles auto-passed",
+                    {"query_id": query.query_id, "filtered": False, "auto_passed": count},
                 )
                 continue
 
