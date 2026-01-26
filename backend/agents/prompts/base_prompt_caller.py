@@ -332,10 +332,10 @@ class BasePromptCaller:
                 api_params["max_tokens"] = max_tokens
 
         # Add reasoning effort if supported and valid (nested format per OpenAI API)
-        # NOTE: Disabled until openai SDK is updated to support reasoning parameter
-        # if use_reasoning_effort:
-        #     api_params["reasoning"] = {"effort": use_reasoning_effort}
-        
+        if use_reasoning_effort:
+            api_params["reasoning"] = {"effort": use_reasoning_effort}
+            logger.info(f"Using reasoning effort: {use_reasoning_effort} for model {use_model}")
+
         # Add temperature only if the model supports it
         if supports_temperature(use_model):
             api_params["temperature"] = use_temperature
