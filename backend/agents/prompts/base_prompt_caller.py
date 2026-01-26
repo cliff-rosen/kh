@@ -331,10 +331,12 @@ class BasePromptCaller:
             else:
                 api_params["max_tokens"] = max_tokens
 
-        # Add reasoning effort if supported and valid (nested format per OpenAI API)
+        # Add reasoning effort if supported and valid (top-level parameter for Chat Completions API)
         if use_reasoning_effort:
-            api_params["reasoning"] = {"effort": use_reasoning_effort}
-            logger.info(f"Using reasoning effort: {use_reasoning_effort} for model {use_model}")
+            # Ensure we pass the string value, not an enum object
+            effort_value = use_reasoning_effort.value if hasattr(use_reasoning_effort, 'value') else str(use_reasoning_effort)
+            api_params["reasoning_effort"] = effort_value
+            logger.info(f"Using reasoning effort: {effort_value} for model {use_model}")
 
         # Add temperature only if the model supports it
         if supports_temperature(use_model):
