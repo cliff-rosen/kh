@@ -911,6 +911,9 @@ class ReportService:
         # Get visible articles using existing service method
         associations = await self.association_service.get_visible_for_report(report_id)
 
+        # Get ordered categories from presentation config (defines display order)
+        config_categories = stream.presentation_config.get('categories', []) if stream.presentation_config else []
+
         # Build category ID -> name mapping
         category_id_to_name = self.build_category_map(stream)
 
@@ -938,16 +941,27 @@ class ReportService:
         executive_summary = enrichments.get('executive_summary', '')
         category_summaries = enrichments.get('category_summaries', {})
 
-        # Build email categories with proper display names and summaries
-        email_categories = [
-            EmailCategory(
-                id=cat_id,
-                name=category_id_to_name.get(cat_id, cat_id),  # Use display name, fallback to ID
-                summary=category_summaries.get(cat_id, ''),     # Summaries are keyed by ID
-                articles=articles
-            )
-            for cat_id, articles in categories_dict.items()
-        ]
+        # Build email categories in presentation config order (same order as category config screen)
+        email_categories = []
+        for cat_config in config_categories:
+            cat_id = cat_config.get('id') if isinstance(cat_config, dict) else getattr(cat_config, 'id', None)
+            if cat_id and cat_id in categories_dict:
+                email_categories.append(EmailCategory(
+                    id=cat_id,
+                    name=category_id_to_name.get(cat_id, cat_id),
+                    summary=category_summaries.get(cat_id, ''),
+                    articles=categories_dict[cat_id]
+                ))
+
+        # Add any categories not in config (e.g., 'uncategorized') at the end
+        for cat_id, articles in categories_dict.items():
+            if not any(ec.id == cat_id for ec in email_categories):
+                email_categories.append(EmailCategory(
+                    id=cat_id,
+                    name=category_id_to_name.get(cat_id, cat_id),
+                    summary=category_summaries.get(cat_id, ''),
+                    articles=articles
+                ))
 
         # Build report URL for "View Online" link
         base_url = settings.FRONTEND_URL or 'http://localhost:5173'

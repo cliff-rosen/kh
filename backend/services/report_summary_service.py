@@ -576,20 +576,30 @@ class ReportSummaryService:
         article_summaries = [assoc.ai_summary for assoc in associations if assoc.ai_summary]
         article_summaries_text = "\n\n".join([f"- {s}" for s in article_summaries[:30]])
 
-        # Build category ID to name mapping
+        # Build category ID to name mapping and get ordered category IDs
         category_id_to_name: Dict[str, str] = {}
+        ordered_category_ids: List[str] = []
         if categories:
             for cat in categories:
                 cat_id = cat.id if hasattr(cat, 'id') else cat.get('id')
                 cat_name = cat.name if hasattr(cat, 'name') else cat.get('name', cat_id)
                 if cat_id:
                     category_id_to_name[cat_id] = cat_name
+                    ordered_category_ids.append(cat_id)
 
-        # Format category summaries with names (fallback to ID if name not found)
-        category_summaries_text = "\n\n".join([
-            f"**{category_id_to_name.get(cat_id, cat_id)}**: {summary}"
-            for cat_id, summary in category_summaries.items()
-        ])
+        # Format category summaries in presentation config order (same as category config screen)
+        category_summaries_parts = []
+        # First, add summaries for categories in config order
+        for cat_id in ordered_category_ids:
+            if cat_id in category_summaries:
+                cat_name = category_id_to_name.get(cat_id, cat_id)
+                category_summaries_parts.append(f"**{cat_name}**: {category_summaries[cat_id]}")
+        # Then, add any remaining summaries not in config (e.g., uncategorized)
+        for cat_id, summary in category_summaries.items():
+            if cat_id not in ordered_category_ids:
+                cat_name = category_id_to_name.get(cat_id, cat_id)
+                category_summaries_parts.append(f"**{cat_name}**: {summary}")
+        category_summaries_text = "\n\n".join(category_summaries_parts)
 
         return {
             "articles_count": str(len(associations)),
