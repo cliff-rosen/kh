@@ -109,14 +109,14 @@ class PromptTestingService:
             raise ValueError("Either sample_data or report_id must be provided")
 
         # Build enrichment_config with custom prompt
-        enrichment_config = {
-            "prompts": {
-                prompt_type: {
-                    "system_prompt": prompt.system_prompt,
-                    "user_prompt_template": prompt.user_prompt_template
-                }
+        enrichment_config = EnrichmentConfig(
+            prompts={
+                prompt_type: PromptTemplate(
+                    system_prompt=prompt.system_prompt,
+                    user_prompt_template=prompt.user_prompt_template
+                )
             }
-        }
+        )
 
         # Call appropriate summary service method (same path as pipeline)
         if prompt_type == "article_summary":
