@@ -858,6 +858,7 @@ class PipelineService:
             associations=associations,
             category_summaries=ctx.category_summaries,
             stream=ctx.stream,
+            categories=ctx.categories,
         )
 
         # GENERATE: Call summary service (single item)

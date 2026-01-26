@@ -2061,6 +2061,9 @@ class ReportService:
             enrichments = report.enrichments or {}
             category_summaries = enrichments.get('category_summaries', {})
 
+            # Get categories from stream for ID-to-name mapping
+            categories = stream.presentation_config.get('categories', []) if stream and stream.presentation_config else []
+
             old_value_summary = "executive summary"
 
             # BUILD ITEM
@@ -2068,6 +2071,7 @@ class ReportService:
                 associations=associations,
                 category_summaries=category_summaries,
                 stream=stream,
+                categories=categories,
             )
 
             # GENERATE
@@ -2490,6 +2494,9 @@ class ReportService:
         # Get visible associations
         associations = await self.association_service.get_visible_for_report(report_id)
 
+        # Get categories from stream for ID-to-name mapping
+        categories = stream.presentation_config.get('categories', []) if stream and stream.presentation_config else []
+
         summary_service = ReportSummaryService()
 
         # Build item
@@ -2497,6 +2504,7 @@ class ReportService:
             associations=associations,
             category_summaries=category_summaries,
             stream=stream,
+            categories=categories,
         )
 
         # Generate

@@ -10,14 +10,13 @@ Default prompts are sourced from ReportSummaryService (single source of truth).
 
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 
-from models import Report
-from schemas.research_stream import EnrichmentConfig, PromptTemplate, CategorizationPrompt, ResearchStream as ResearchStreamSchema
+from schemas.research_stream import EnrichmentConfig, PromptTemplate, CategorizationPrompt
 from schemas.llm import ModelConfig, DEFAULT_MODEL_CONFIG
 from services.report_summary_service import ReportSummaryService, DEFAULT_PROMPTS, AVAILABLE_SLUGS
 from services.research_stream_service import ResearchStreamService
-from services.report_service import ReportService, ReportArticleInfo
+from services.report_service import ReportService
 from services.report_article_association_service import ReportArticleAssociationService
 from services.article_categorization_service import ArticleCategorizationService
 
@@ -160,7 +159,10 @@ class PromptTestingService:
         category_id: Optional[str] = None,
         article_index: Optional[int] = 0
     ) -> Dict[str, Any]:
-        """Get flat item dict from report (same format as pipeline passes to summary service)."""
+        """Get flat item dict from report (same format as pipeline passes to summary service).
+
+        Delegates to ReportSummaryService.build_*_items methods (single source of truth).
+        """
         # Get the report with articles (includes access check)
         result = await self.report_service.get_report_with_articles(user_id, report_id)
         if not result:
@@ -172,188 +174,50 @@ class PromptTestingService:
         # Get stream for config access
         stream = await self.stream_service.get_stream_by_id(report.research_stream_id)
 
+        # Extract associations from ReportArticleInfo - this is what ReportSummaryService expects
+        associations = [info.association for info in articles]
+
+        # Get categories from stream for ID-to-name mapping
+        categories = stream.presentation_config.get('categories', []) if stream.presentation_config else []
+
         if prompt_type == "executive_summary":
-            return self._build_executive_summary_item(stream, articles, report)
+            # Get category summaries from report enrichments
+            category_summaries = report.enrichments.get('category_summaries', {}) if report.enrichments else {}
+            return self.summary_service.build_executive_summary_item(
+                associations=associations,
+                category_summaries=category_summaries,
+                stream=stream,
+                categories=categories,
+            )
         elif prompt_type == "category_summary":
             if not category_id:
                 raise ValueError("category_id is required for category_summary prompt type")
-            return self._build_category_summary_item(stream, articles, category_id)
+            # Build all category items and find the one we need
+            items = self.summary_service.build_category_summary_items(
+                associations=associations,
+                categories=categories,
+                stream=stream,
+            )
+            # Find the item for the requested category
+            item = next((i for i in items if i.get("category_id") == category_id), None)
+            if not item:
+                raise ValueError(f"Category {category_id} not found or has no articles")
+            return item
         elif prompt_type == "article_summary":
-            return self._build_article_summary_item(stream, articles, article_index or 0)
+            # Build all article items and find the one at the requested index
+            items = self.summary_service.build_article_summary_items(
+                associations=associations,
+                stream=stream,
+            )
+            if not items:
+                raise ValueError("No articles available for testing")
+            # Clamp article_index to valid range
+            idx = article_index or 0
+            if idx < 0 or idx >= len(items):
+                idx = 0
+            return items[idx]
         else:
             raise ValueError(f"Unknown prompt type: {prompt_type}")
-
-    def _build_executive_summary_item(
-        self,
-        stream: ResearchStreamSchema,
-        articles: List[ReportArticleInfo],
-        report: Report
-    ) -> Dict[str, Any]:
-        """Build flat item dict for executive summary (matches pipeline format)."""
-        articles_formatted = self._format_articles([
-            {
-                "title": item.article.title,
-                "authors": item.article.authors[:3] if item.article.authors else [],
-                "journal": item.article.journal,
-                "year": item.article.year,
-                "abstract": item.article.abstract[:500] if item.article.abstract else None
-            }
-            for item in articles[:20]
-        ])
-
-        # Build article summaries text (ai_summary is on the association)
-        articles_summaries = ""
-        summaries = [item.association.ai_summary for item in articles if item.association.ai_summary]
-        if summaries:
-            articles_summaries = "\n\n".join(summaries[:20])
-
-        category_summaries = ""
-        if report.enrichments and report.enrichments.get("category_summaries"):
-            category_summaries = "\n\n".join([
-                f"**{cat_id}**: {summary}"
-                for cat_id, summary in report.enrichments["category_summaries"].items()
-            ])
-
-        # Get category count from presentation_config (stored as JSON dict in SQLAlchemy model)
-        category_count = 0
-        if stream.presentation_config:
-            categories = stream.presentation_config.get("categories", [])
-            category_count = len(categories)
-
-        # Return flat keys matching PROMPT_SLUGS for executive_summary
-        return {
-            "stream_name": stream.stream_name or "",
-            "stream_purpose": stream.purpose or "",
-            "articles_count": str(len(articles)),
-            "articles_formatted": articles_formatted,
-            "articles_summaries": articles_summaries,
-            "categories_count": str(category_count),
-            "categories_summaries": category_summaries,
-        }
-
-    def _build_category_summary_item(
-        self,
-        stream: ResearchStreamSchema,
-        articles: List[ReportArticleInfo],
-        category_id: str
-    ) -> Dict[str, Any]:
-        """Build flat item dict for category summary (matches pipeline format)."""
-        # presentation_config is stored as JSON dict in SQLAlchemy model
-        categories = stream.presentation_config.get("categories", []) if stream.presentation_config else []
-        category = next((c for c in categories if c.get("id") == category_id), None)
-        if not category:
-            raise ValueError(f"Category {category_id} not found in stream")
-
-        # Filter articles by category (presentation_categories is on the association)
-        category_articles = [
-            item for item in articles
-            if item.association.presentation_categories and category_id in item.association.presentation_categories
-        ]
-
-        # Build article info
-        articles_formatted = self._format_articles([
-            {
-                "title": item.article.title,
-                "authors": item.article.authors[:3] if item.article.authors else [],
-                "journal": item.article.journal,
-                "year": item.article.year,
-                "abstract": item.article.abstract[:400] if item.article.abstract else None
-            }
-            for item in category_articles[:15]
-        ])
-
-        # Build article summaries text (ai_summary is on the association)
-        articles_summaries = ""
-        summaries = [item.association.ai_summary for item in category_articles if item.association.ai_summary]
-        if summaries:
-            articles_summaries = "\n\n".join(summaries[:15])
-
-        # Return flat keys matching PROMPT_SLUGS for category_summary
-        category_name = category.get("name", "")
-        category_topics = category.get("topics", []) or []
-        category_inclusions = category.get("specific_inclusions", []) or []
-
-        # Build category description matching report_summary_service format
-        category_description = f"{category_name}. "
-        if category_inclusions:
-            category_description += "Includes: " + ", ".join(category_inclusions)
-
-        return {
-            "stream_name": stream.stream_name or "",
-            "stream_purpose": stream.purpose or "",
-            "category_name": category_name,
-            "category_description": category_description,
-            "category_topics": ", ".join(category_topics),
-            "articles_count": str(len(category_articles)),
-            "articles_formatted": articles_formatted,
-            "articles_summaries": articles_summaries,
-        }
-
-    def _build_article_summary_item(
-        self,
-        stream: ResearchStreamSchema,
-        articles: List[ReportArticleInfo],
-        article_index: int = 0
-    ) -> Dict[str, Any]:
-        """Build flat item dict for article summary (matches pipeline format)."""
-        if not articles:
-            raise ValueError("No articles available for testing")
-
-        # Clamp article_index to valid range
-        if article_index < 0 or article_index >= len(articles):
-            article_index = 0
-
-        item = articles[article_index]
-        article = item.article
-
-        # Format authors (same as pipeline does via summary_service.format_authors)
-        authors = article.authors if article.authors else []
-        if isinstance(authors, list):
-            if len(authors) > 3:
-                authors_str = ", ".join(authors[:3]) + " et al."
-            else:
-                authors_str = ", ".join(authors)
-        else:
-            authors_str = str(authors) if authors else "Unknown"
-
-        # Get filter_reason from wip_article if available (joined via association)
-        filter_reason = ""
-        if item.association.wip_article:
-            filter_reason = item.association.wip_article.filter_score_reason or ""
-
-        # Return flat keys matching PROMPT_SLUGS for article_summary
-        return {
-            "stream_name": stream.stream_name or "",
-            "stream_purpose": stream.purpose or "",
-            "title": article.title or "Untitled",
-            "authors": authors_str or "Unknown",
-            "journal": article.journal or "Unknown",
-            "year": str(article.year) if article.year else "Unknown",
-            "abstract": article.abstract or "",
-            "filter_reason": filter_reason,
-        }
-
-    def _format_articles(self, articles: List[Dict]) -> str:
-        """Format articles for inclusion in LLM prompt"""
-        formatted = []
-        for i, article in enumerate(articles, 1):
-            authors_str = ", ".join(article.get("authors", [])) if article.get("authors") else "Unknown"
-            if len(article.get("authors", [])) > 3:
-                authors_str += " et al."
-
-            journal_year = []
-            if article.get("journal"):
-                journal_year.append(article["journal"])
-            if article.get("year"):
-                journal_year.append(f"({article['year']})")
-
-            location = " ".join(journal_year) if journal_year else "Unknown source"
-            formatted.append(f"{i}. {article.get('title', 'Unknown')}\n   {authors_str} - {location}")
-
-            if article.get("abstract"):
-                formatted.append(f"   Abstract: {article['abstract']}")
-
-        return "\n\n".join(formatted)
 
     def _render_prompt(self, template: str, context: Dict[str, Any]) -> str:
         """Render a prompt template by replacing slugs with context values"""

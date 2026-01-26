@@ -545,6 +545,7 @@ class ReportSummaryService:
         associations: List["ReportArticleAssociation"],
         category_summaries: Dict[str, str],
         stream: "ResearchStream",
+        categories: Optional[List["Category"]] = None,
     ) -> Dict[str, Any]:
         """
         Build item dict for executive summary generation.
@@ -553,6 +554,7 @@ class ReportSummaryService:
             associations: List of ReportArticleAssociation with loaded article relationship
             category_summaries: Dict mapping category IDs to their summary text
             stream: ResearchStream for context
+            categories: Optional list of Category objects for ID-to-name mapping
 
         Returns:
             Single item dict ready for generate_executive_summary()
@@ -574,9 +576,18 @@ class ReportSummaryService:
         article_summaries = [assoc.ai_summary for assoc in associations if assoc.ai_summary]
         article_summaries_text = "\n\n".join([f"- {s}" for s in article_summaries[:30]])
 
-        # Format category summaries
+        # Build category ID to name mapping
+        category_id_to_name: Dict[str, str] = {}
+        if categories:
+            for cat in categories:
+                cat_id = cat.id if hasattr(cat, 'id') else cat.get('id')
+                cat_name = cat.name if hasattr(cat, 'name') else cat.get('name', cat_id)
+                if cat_id:
+                    category_id_to_name[cat_id] = cat_name
+
+        # Format category summaries with names (fallback to ID if name not found)
         category_summaries_text = "\n\n".join([
-            f"**{cat_id}**: {summary}"
+            f"**{category_id_to_name.get(cat_id, cat_id)}**: {summary}"
             for cat_id, summary in category_summaries.items()
         ])
 
