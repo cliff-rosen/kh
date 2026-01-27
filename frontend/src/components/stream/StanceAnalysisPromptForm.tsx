@@ -264,8 +264,8 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
             }
 
             // Add LLM config
-            if (useStreamModel && stream?.llm_config?.article_summary) {
-                request.llm_config = stream.llm_config.article_summary;
+            if (useStreamModel && stream?.llm_config?.stance_analysis) {
+                request.llm_config = stream.llm_config.stance_analysis;
             } else if (!useStreamModel) {
                 request.llm_config = customModelConfig;
             }
@@ -756,9 +756,9 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                                         className="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
                                     />
                                     Use stream model
-                                    {useStreamModel && stream?.llm_config?.article_summary && (
+                                    {useStreamModel && stream?.llm_config?.stance_analysis && (
                                         <span className="text-gray-400">
-                                            ({stream.llm_config.article_summary.model_id})
+                                            ({stream.llm_config.stance_analysis.model_id})
                                         </span>
                                     )}
                                 </label>

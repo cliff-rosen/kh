@@ -20,13 +20,25 @@ const REASONING_EFFORT_OPTIONS: { value: ReasoningEffort; label: string }[] = [
     { value: 'high', label: 'High' },
 ];
 
-const STAGE_LABELS: Record<PipelineStage, { name: string; description: string }> = {
+// Pipeline stages (part of report generation pipeline)
+const PIPELINE_STAGE_LABELS: Record<string, { name: string; description: string }> = {
     semantic_filter: { name: 'Semantic Filter', description: 'Evaluates article relevance during retrieval' },
     categorization: { name: 'Article Categorization', description: 'Assigns articles to presentation categories' },
     article_summary: { name: 'Article Summaries', description: 'Generates per-article AI summaries' },
     category_summary: { name: 'Category Summaries', description: 'Generates category-level summaries' },
     executive_summary: { name: 'Executive Summary', description: 'Generates overall report summary' },
 };
+
+// Non-pipeline stages (on-demand features)
+const OTHER_STAGE_LABELS: Record<string, { name: string; description: string }> = {
+    stance_analysis: { name: 'Stance Analysis', description: 'Analyzes article stance (pro-defense vs pro-plaintiff)' },
+};
+
+// Combined for type compatibility
+const STAGE_LABELS: Record<PipelineStage, { name: string; description: string }> = {
+    ...PIPELINE_STAGE_LABELS,
+    ...OTHER_STAGE_LABELS,
+} as Record<PipelineStage, { name: string; description: string }>;
 
 interface PhaseConfigFormProps {
     stream: ResearchStream;
@@ -263,16 +275,31 @@ export default function PhaseConfigForm({ stream, onConfigUpdate, canModify = tr
             {/* Header */}
             <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
                 <h3 className="text-sm font-semibold text-orange-900 dark:text-orange-200 mb-2">
-                    Phase Configuration
+                    Pipeline Phase Configuration
                 </h3>
                 <p className="text-sm text-orange-800 dark:text-orange-300">
                     Configure AI model and concurrency settings for each pipeline phase.
                 </p>
             </div>
 
-            {/* Stage Configurations */}
+            {/* Pipeline Stage Configurations */}
             <div className="space-y-4">
-                {(Object.keys(STAGE_LABELS) as PipelineStage[]).map(stage => renderStageConfig(stage))}
+                {(Object.keys(PIPELINE_STAGE_LABELS) as PipelineStage[]).map(stage => renderStageConfig(stage))}
+            </div>
+
+            {/* Other Features Section */}
+            <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4 mt-6">
+                <h3 className="text-sm font-semibold text-indigo-900 dark:text-indigo-200 mb-2">
+                    Other AI Features
+                </h3>
+                <p className="text-sm text-indigo-800 dark:text-indigo-300">
+                    Configure AI settings for on-demand features (not part of the pipeline).
+                </p>
+            </div>
+
+            {/* Other Stage Configurations */}
+            <div className="space-y-4">
+                {(Object.keys(OTHER_STAGE_LABELS) as PipelineStage[]).map(stage => renderStageConfig(stage))}
             </div>
 
             {/* Actions */}

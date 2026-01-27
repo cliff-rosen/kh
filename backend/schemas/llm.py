@@ -82,12 +82,13 @@ class PipelineLLMConfig(BaseModel):
     semantic_filter: Optional[StageConfig] = Field(None, description="Config for semantic filtering stage")
     categorization: Optional[StageConfig] = Field(None, description="Config for article categorization stage")
     article_summary: Optional[StageConfig] = Field(None, description="Config for article summary generation")
+    stance_analysis: Optional[StageConfig] = Field(None, description="Config for stance analysis")
     category_summary: Optional[StageConfig] = Field(None, description="Config for category summary generation")
     executive_summary: Optional[StageConfig] = Field(None, description="Config for executive summary generation")
 
 
 # Type alias for pipeline stage names
-PipelineStage = Literal["semantic_filter", "categorization", "article_summary", "category_summary", "executive_summary"]
+PipelineStage = Literal["semantic_filter", "categorization", "article_summary", "stance_analysis", "category_summary", "executive_summary"]
 
 
 # =============================================================================
@@ -111,6 +112,7 @@ DEFAULT_PIPELINE_CONFIG: PipelineLLMConfig = PipelineLLMConfig(
     semantic_filter=StageConfig(model_id="gpt-4.1", temperature=0.0, max_tokens=2000, max_concurrent=10),
     categorization=StageConfig(model_id="gpt-4.1", temperature=0.0, max_tokens=2000, max_concurrent=10),
     article_summary=StageConfig(model_id="gpt-4.1", temperature=0.0, max_tokens=2000, max_concurrent=5),
+    stance_analysis=StageConfig(model_id="gpt-4.1", temperature=0.0, max_tokens=2000, max_concurrent=5),
     category_summary=StageConfig(model_id="gpt-4.1", temperature=0.0, max_tokens=2000, max_concurrent=5),
     executive_summary=StageConfig(model_id="gpt-4.1", temperature=0.0, max_tokens=2000, max_concurrent=1),
 )

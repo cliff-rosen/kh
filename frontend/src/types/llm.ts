@@ -60,6 +60,7 @@ export interface PipelineLLMConfig {
     semantic_filter?: StageConfig;
     categorization?: StageConfig;
     article_summary?: StageConfig;
+    stance_analysis?: StageConfig;
     category_summary?: StageConfig;
     executive_summary?: StageConfig;
 }
@@ -90,6 +91,7 @@ export const DEFAULT_PIPELINE_CONFIG: Required<PipelineLLMConfig> = {
     semantic_filter: { model_id: 'gpt-4.1', temperature: 0.0, max_tokens: 2000, max_concurrent: 10 },
     categorization: { model_id: 'gpt-4.1', temperature: 0.0, max_tokens: 2000, max_concurrent: 10 },
     article_summary: { model_id: 'gpt-4.1', temperature: 0.0, max_tokens: 2000, max_concurrent: 5 },
+    stance_analysis: { model_id: 'gpt-4.1', temperature: 0.0, max_tokens: 2000, max_concurrent: 5 },
     category_summary: { model_id: 'gpt-4.1', temperature: 0.0, max_tokens: 2000, max_concurrent: 5 },
     executive_summary: { model_id: 'gpt-4.1', temperature: 0.0, max_tokens: 2000, max_concurrent: 1 },
 };

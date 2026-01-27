@@ -147,6 +147,11 @@ async def analyze_article_stance_endpoint(
         if stream.article_analysis_config:
             stance_analysis_prompt = stream.article_analysis_config.get("stance_analysis_prompt")
 
+        # Extract model_config from stream's llm_config if present
+        model_config = None
+        if stream.llm_config and stream.llm_config.get("stance_analysis"):
+            model_config = stream.llm_config["stance_analysis"]
+
         # Call article_analysis_service directly (uses call_llm pattern)
         result = await analyze_stance(
             article_title=request.article.title,
@@ -156,7 +161,8 @@ async def analyze_article_stance_endpoint(
             article_year=request.article.publication_year,
             stream_name=stream.stream_name,
             stream_purpose=stream.purpose,
-            stance_analysis_prompt=stance_analysis_prompt
+            stance_analysis_prompt=stance_analysis_prompt,
+            model_config=model_config
         )
 
         logger.info(f"Stance analysis complete: {result.get('stance')} (confidence: {result.get('confidence')})")
