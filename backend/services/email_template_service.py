@@ -49,6 +49,9 @@ class EmailReportData:
     categories: List[EmailCategory]
     uncategorized_articles: List[EmailArticle] = None
     report_url: Optional[str] = None  # Link to view full report on site
+    date_range_start: Optional[str] = None  # Start of date range (e.g., "Jan 18, 2026")
+    date_range_end: Optional[str] = None  # End of date range (e.g., "Jan 24, 2026")
+    logo_url: Optional[str] = None  # URL to logo image
 
     def __post_init__(self):
         if self.uncategorized_articles is None:
@@ -69,7 +72,7 @@ class EmailTemplateService:
             str: Complete HTML email content
         """
         html_parts = [
-            self._html_header(data.report_name, data.stream_name, data.report_date),
+            self._html_header(data),
             self._view_online_section(data.report_url),
             self._executive_summary_section(data.executive_summary),
         ]
@@ -91,14 +94,24 @@ class EmailTemplateService:
 
         return '\n'.join(html_parts)
 
-    def _html_header(self, report_name: str, stream_name: str, report_date: str) -> str:
-        """Generate HTML header with styles"""
+    def _html_header(self, data: 'EmailReportData') -> str:
+        """Generate HTML header with styles and logo"""
+        # Build date range string if available
+        date_range_html = ''
+        if data.date_range_start and data.date_range_end:
+            date_range_html = f'<p class="date-range">Range: {data.date_range_start} – {data.date_range_end}</p>'
+
+        # Logo HTML (if URL provided)
+        logo_html = ''
+        if data.logo_url:
+            logo_html = f'<img src="{data.logo_url}" alt="Knowledge Horizon" class="logo" />'
+
         return f'''<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{report_name}</title>
+    <title>{data.report_name}</title>
     <style>
         body {{
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -116,24 +129,29 @@ class EmailTemplateService:
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }}
         .header {{
-            border-bottom: 2px solid #2563eb;
+            border-bottom: 2px solid #1e40af;
             padding-bottom: 20px;
             margin-bottom: 30px;
         }}
+        .header .logo {{
+            height: 40px;
+            margin-bottom: 16px;
+        }}
         .header h1 {{
             color: #1e40af;
-            margin: 0 0 8px 0;
-            font-size: 24px;
+            margin: 0 0 12px 0;
+            font-size: 22px;
+            font-weight: 600;
         }}
-        .header .stream-name {{
+        .header .date-range {{
+            color: #4b5563;
+            font-size: 14px;
+            margin: 0 0 4px 0;
+        }}
+        .header .date {{
             color: #6b7280;
             font-size: 14px;
             margin: 0;
-        }}
-        .header .date {{
-            color: #9ca3af;
-            font-size: 14px;
-            margin: 4px 0 0 0;
         }}
         .executive-summary {{
             background-color: #f0f9ff;
@@ -253,9 +271,10 @@ class EmailTemplateService:
 <body>
     <div class="container">
         <div class="header">
-            <h1>{report_name}</h1>
-            <p class="stream-name">{stream_name}</p>
-            <p class="date">{report_date}</p>
+            {logo_html}
+            <h1>{data.stream_name}:</h1>
+            {date_range_html}
+            <p class="date">Generated: {data.report_date}</p>
         </div>'''
 
     def _view_online_section(self, report_url: Optional[str]) -> str:

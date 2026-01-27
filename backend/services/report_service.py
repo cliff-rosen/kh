@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass, field, asdict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, or_, func, select
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from typing import List, Optional, Dict, Any, Set, Tuple
 from datetime import date, datetime, timezone
 from fastapi import HTTPException, status
@@ -407,6 +407,8 @@ class EmailResult:
     """Result of email operations - includes report_name to avoid extra queries."""
     html: Optional[str]
     report_name: str
+    subject: Optional[str] = None
+    from_name: str = "Knowledge Horizon"
 
 
 class ReportService:
@@ -700,8 +702,12 @@ class ReportService:
         Raises:
             HTTPException: 404 if raise_on_not_found=True and report not found or no access
         """
-        # Get report
-        stmt = select(Report).where(Report.report_id == report_id)
+        # Get report with execution relationship for date range info
+        stmt = (
+            select(Report)
+            .options(selectinload(Report.execution))
+            .where(Report.report_id == report_id)
+        )
         result = await self.db.execute(stmt)
         report = result.scalars().first()
         if not report:
@@ -967,19 +973,47 @@ class ReportService:
         base_url = settings.FRONTEND_URL or 'http://localhost:5173'
         report_url = f"{base_url}/reports?stream={stream.stream_id}&report={report_id}"
 
+        # Get date range from execution if available
+        date_range_start = None
+        date_range_end = None
+        if report.execution:
+            if report.execution.start_date:
+                try:
+                    start_dt = datetime.strptime(report.execution.start_date, '%Y-%m-%d')
+                    date_range_start = start_dt.strftime('%b %d, %Y')
+                except ValueError:
+                    pass
+            if report.execution.end_date:
+                try:
+                    end_dt = datetime.strptime(report.execution.end_date, '%Y-%m-%d')
+                    date_range_end = end_dt.strftime('%b %d, %Y')
+                except ValueError:
+                    pass
+
+        # Logo URL (served from frontend static assets)
+        logo_url = f"{base_url}/logos/KH%20logo%20black.png"
+
         email_data = EmailReportData(
             report_name=report.report_name,
             stream_name=stream.stream_name,
-            report_date=report.report_date.strftime('%B %d, %Y') if report.report_date else '',
+            report_date=report.report_date.strftime('%b %d, %Y') if report.report_date else '',
             executive_summary=executive_summary,
             categories=email_categories,
-            report_url=report_url
+            report_url=report_url,
+            date_range_start=date_range_start,
+            date_range_end=date_range_end,
+            logo_url=logo_url
         )
 
         # Generate HTML
         template_service = EmailTemplateService()
         html = template_service.generate_report_email(email_data)
-        return EmailResult(html=html, report_name=report.report_name)
+
+        # Build subject line: "Stream Name: [date one day after end date]"
+        subject_date = report.report_date.strftime('%b %d, %Y') if report.report_date else ''
+        subject = f"{stream.stream_name}: {subject_date}"
+
+        return EmailResult(html=html, report_name=report.report_name, subject=subject)
 
     # =========================================================================
     # APPROVAL WORKFLOW

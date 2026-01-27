@@ -96,7 +96,8 @@ class EmailService:
         html_content: str,
         text_content: Optional[str] = None,
         cc: Optional[List[str]] = None,
-        bcc: Optional[List[str]] = None
+        bcc: Optional[List[str]] = None,
+        from_name: Optional[str] = None
     ) -> bool:
         """
         Send an HTML email.
@@ -108,14 +109,22 @@ class EmailService:
             text_content: Plain text fallback (optional, will be auto-generated if not provided)
             cc: List of CC recipients
             bcc: List of BCC recipients
+            from_name: Display name for the From field (optional)
 
         Returns:
             bool: True if email sent successfully, False otherwise
         """
         try:
+            # Build From header with optional display name
+            if from_name:
+                from_header = f"{from_name} <{self.from_email}>"
+            else:
+                from_header = self.from_email
+
             # For development, log instead of sending
             if not self.smtp_username or not self.smtp_password:
                 logger.info(f"DEV MODE: Would send email to {to_email}")
+                logger.info(f"DEV MODE: From: {from_header}")
                 logger.info(f"DEV MODE: Subject: {subject}")
                 logger.info(f"DEV MODE: HTML content length: {len(html_content)} chars")
                 return True
@@ -123,7 +132,7 @@ class EmailService:
             # Create multipart message
             msg = MIMEMultipart('alternative')
             msg['Subject'] = subject
-            msg['From'] = self.from_email
+            msg['From'] = from_header
             msg['To'] = to_email
 
             if cc:
@@ -167,33 +176,41 @@ class EmailService:
         to_email: str,
         report_name: str,
         html_content: str,
-        cc: Optional[List[str]] = None
+        cc: Optional[List[str]] = None,
+        subject: Optional[str] = None,
+        from_name: Optional[str] = None
     ) -> bool:
         """
         Send a report email.
 
         Args:
             to_email: Recipient email address
-            report_name: Name of the report (used in subject)
+            report_name: Name of the report (used in subject if not provided)
             html_content: HTML report content
             cc: List of CC recipients
+            subject: Custom subject line (optional, defaults to app_name + report_name)
+            from_name: Custom from name (optional, defaults to app_name)
 
         Returns:
             bool: True if email sent successfully, False otherwise
         """
-        subject = f"{self.app_name} Report: {report_name}"
+        if not subject:
+            subject = f"{self.app_name} Report: {report_name}"
         return await self.send_html_email(
             to_email=to_email,
             subject=subject,
             html_content=html_content,
-            cc=cc
+            cc=cc,
+            from_name=from_name
         )
 
     async def send_bulk_report_emails(
         self,
         recipients: List[str],
         report_name: str,
-        html_content: str
+        html_content: str,
+        subject: Optional[str] = None,
+        from_name: Optional[str] = None
     ) -> dict:
         """
         Send a report to multiple recipients.
@@ -202,6 +219,8 @@ class EmailService:
             recipients: List of recipient email addresses
             report_name: Name of the report
             html_content: HTML report content
+            subject: Custom subject line (optional)
+            from_name: Custom from name (optional)
 
         Returns:
             dict: {'success': [emails], 'failed': [emails]}
@@ -212,7 +231,9 @@ class EmailService:
             success = await self.send_report_email(
                 to_email=email,
                 report_name=report_name,
-                html_content=html_content
+                html_content=html_content,
+                subject=subject,
+                from_name=from_name
             )
             if success:
                 results['success'].append(email)

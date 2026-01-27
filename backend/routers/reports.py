@@ -418,18 +418,8 @@ async def send_report_email(
     logger.info(f"send_report_email - user_id={current_user.user_id}, report_id={report_id}, recipients={request.recipients}")
 
     try:
-        # Try to get stored email HTML, otherwise generate it
-        result = await service.get_report_email_html(current_user, report_id)
-
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Report not found"
-            )
-
-        # If no stored HTML, generate on the fly
-        if not result.html:
-            result = await service.generate_report_email_html(current_user, report_id)
+        # Always generate email HTML to get proper subject and from_name
+        result = await service.generate_report_email_html(current_user, report_id)
 
         if not result or not result.html:
             raise HTTPException(
@@ -442,7 +432,9 @@ async def send_report_email(
         results = await email_service.send_bulk_report_emails(
             recipients=request.recipients,
             report_name=result.report_name,
-            html_content=result.html
+            html_content=result.html,
+            subject=result.subject,
+            from_name=result.from_name
         )
 
         logger.info(f"send_report_email complete - user_id={current_user.user_id}, report_id={report_id}, success={len(results['success'])}, failed={len(results['failed'])}")
