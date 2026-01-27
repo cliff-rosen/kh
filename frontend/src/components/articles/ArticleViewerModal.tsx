@@ -7,22 +7,21 @@ import {
     ChevronLeftIcon,
     ChevronRightIcon,
     LinkIcon,
-    ShieldCheckIcon,
     ScaleIcon,
-    ExclamationTriangleIcon,
     FunnelIcon
 } from '@heroicons/react/24/outline';
-import { CheckBadgeIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/solid';
+import { ChatBubbleLeftRightIcon, CheckBadgeIcon } from '@heroicons/react/24/solid';
 import { documentAnalysisApi } from '../../lib/api/documentAnalysisApi';
 import { articleApi, FullTextLink } from '../../lib/api/articleApi';
 import { reportApi } from '../../lib/api/reportApi';
 import { trackEvent } from '../../lib/api/trackingApi';
 import { ReportArticle } from '../../types/report';
 import { CanonicalResearchArticle } from '../../types/canonical_types';
-import { StanceAnalysisResult, StanceType } from '../../types/document_analysis';
+import { StanceAnalysisResult } from '../../types/document_analysis';
 import ChatTray from '../chat/ChatTray';
 import { PayloadHandler } from '../../types/chat';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
+import StanceAnalysisDisplay, { getStanceInfo } from '../ui/StanceAnalysisDisplay';
 import ArticleNotes from './ArticleNotes';
 
 type WorkspaceTab = 'analysis' | 'notes' | 'links';
@@ -303,22 +302,6 @@ export default function ArticleViewerModal({
             setAnalysisError(err instanceof Error ? err.message : 'Analysis failed');
         } finally {
             setIsAnalyzing(false);
-        }
-    };
-
-    // Helper to get stance display info
-    const getStanceInfo = (stance: StanceType) => {
-        switch (stance) {
-            case 'pro-defense':
-                return { label: 'Pro-Defense', color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-100 dark:bg-blue-900/30', icon: ShieldCheckIcon };
-            case 'pro-plaintiff':
-                return { label: 'Pro-Plaintiff', color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-100 dark:bg-red-900/30', icon: ExclamationTriangleIcon };
-            case 'neutral':
-                return { label: 'Neutral', color: 'text-gray-600 dark:text-gray-400', bgColor: 'bg-gray-100 dark:bg-gray-700', icon: ScaleIcon };
-            case 'mixed':
-                return { label: 'Mixed', color: 'text-amber-600 dark:text-amber-400', bgColor: 'bg-amber-100 dark:bg-amber-900/30', icon: ScaleIcon };
-            default:
-                return { label: 'Unclear', color: 'text-gray-500 dark:text-gray-500', bgColor: 'bg-gray-100 dark:bg-gray-700', icon: ScaleIcon };
         }
     };
 
@@ -681,73 +664,11 @@ export default function ArticleViewerModal({
 
                                     {/* Results state */}
                                     {stanceResult && (
-                                        <div className="p-6 space-y-6">
-                                            {/* Stance header */}
-                                            <div className={`p-6 rounded-lg ${getStanceInfo(stanceResult.stance).bgColor}`}>
-                                                <div className="flex items-center gap-4">
-                                                    {(() => {
-                                                        const StanceIcon = getStanceInfo(stanceResult.stance).icon;
-                                                        return <StanceIcon className={`h-12 w-12 ${getStanceInfo(stanceResult.stance).color}`} />;
-                                                    })()}
-                                                    <div>
-                                                        <h3 className={`text-2xl font-bold ${getStanceInfo(stanceResult.stance).color}`}>
-                                                            {getStanceInfo(stanceResult.stance).label}
-                                                        </h3>
-                                                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                                            Confidence: {Math.round(stanceResult.confidence * 100)}%
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Analysis explanation */}
-                                            <div>
-                                                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                                    Analysis
-                                                </h4>
-                                                <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                                                    {stanceResult.analysis}
-                                                </p>
-                                            </div>
-
-                                            {/* Key factors */}
-                                            {stanceResult.key_factors.length > 0 && (
-                                                <div>
-                                                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                                        Key Factors
-                                                    </h4>
-                                                    <ul className="space-y-2">
-                                                        {stanceResult.key_factors.map((factor, idx) => (
-                                                            <li key={idx} className="flex items-start gap-2">
-                                                                <CheckBadgeIcon className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
-                                                                <span className="text-gray-700 dark:text-gray-300">{factor}</span>
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                            )}
-
-                                            {/* Relevant quotes */}
-                                            {stanceResult.relevant_quotes.length > 0 && (
-                                                <div>
-                                                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                                                        Relevant Quotes
-                                                    </h4>
-                                                    <div className="space-y-3">
-                                                        {stanceResult.relevant_quotes.map((quote, idx) => (
-                                                            <blockquote
-                                                                key={idx}
-                                                                className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic text-gray-600 dark:text-gray-400"
-                                                            >
-                                                                "{quote}"
-                                                            </blockquote>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
+                                        <div className="p-6">
+                                            <StanceAnalysisDisplay result={stanceResult} />
 
                                             {/* Re-analyze button */}
-                                            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                                            <div className="pt-4 mt-6 border-t border-gray-200 dark:border-gray-700">
                                                 <button
                                                     type="button"
                                                     onClick={runAnalysis}

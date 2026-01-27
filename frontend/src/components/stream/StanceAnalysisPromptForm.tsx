@@ -39,8 +39,10 @@ import { researchStreamApi } from '../../lib/api/researchStreamApi';
 import { reportApi } from '../../lib/api/reportApi';
 import { llmApi } from '../../lib/api/llmApi';
 import { Report, ResearchStream, ModelInfo, ModelConfig, DEFAULT_MODEL_CONFIG, ArticleAnalysisConfig } from '../../types';
+import { StanceAnalysisResult } from '../../types/document_analysis';
 import { copyToClipboard } from '../../lib/utils/clipboard';
 import { showErrorToast, showSuccessToast } from '../../lib/errorToast';
+import StanceAnalysisDisplay from '../ui/StanceAnalysisDisplay';
 
 interface StanceAnalysisPromptFormProps {
     streamId: number;
@@ -362,16 +364,16 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
         const testResult = entry?.result;
 
         return (
-            <div className={`space-y-4 ${isFullMode ? 'max-w-6xl mx-auto' : ''}`}>
+            <div className={`${isFullMode ? 'max-w-6xl mx-auto h-full flex flex-col gap-4' : 'space-y-4'}`}>
                 {!entry ? (
                     <div className="text-center text-gray-500 dark:text-gray-400 py-8">
                         <BeakerIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
                         <p className="text-sm">Run a test to see results</p>
                     </div>
                 ) : (
-                    <>
+                    <div className={`${isFullMode ? 'flex-1 flex flex-col gap-4 min-h-0' : 'space-y-4'}`}>
                         {/* Entry metadata */}
-                        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 pb-2 border-b border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 pb-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
                             <div className="flex items-center gap-2">
                                 <span className="font-medium">{formatTimestamp(entry.timestamp)}</span>
                                 {entry.dataSource.type === 'report' && (
@@ -392,7 +394,7 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                         </div>
 
                         {/* Rendered Prompts (collapsible) */}
-                        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden flex-shrink-0">
                             <button
                                 type="button"
                                 onClick={() => setShowRenderedPrompts(!showRenderedPrompts)}
@@ -432,27 +434,51 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                             )}
                         </div>
 
-                        {/* LLM Response */}
-                        {testResult?.llm_response && (
-                            <div className="flex flex-col">
-                                <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                                    LLM Response
-                                </h5>
-                                <div className={`bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4 border border-indigo-200 dark:border-indigo-800 overflow-y-auto resize-y ${isFullMode ? 'min-h-[150px] flex-1' : 'min-h-[100px]'}`}>
-                                    <pre className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap font-mono">
-                                        {testResult.llm_response}
-                                    </pre>
-                                </div>
-                                {testResult.parsed_stance && (
-                                    <div className="mt-2 flex items-center gap-2">
-                                        <span className="text-xs text-gray-500">Parsed Stance:</span>
-                                        <span className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded text-xs font-medium">
-                                            {testResult.parsed_stance}
-                                        </span>
+                        {/* Stance Analysis Result */}
+                        {testResult?.llm_response && (() => {
+                            // Try to parse the LLM response as a StanceAnalysisResult
+                            let stanceResult: StanceAnalysisResult | null = null;
+                            try {
+                                stanceResult = JSON.parse(testResult.llm_response);
+                            } catch {
+                                // If parsing fails, show raw response
+                            }
+
+                            if (stanceResult && stanceResult.stance) {
+                                return (
+                                    <div className={`flex flex-col ${isFullMode ? 'flex-1 min-h-0' : ''}`}>
+                                        <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-wide flex-shrink-0">
+                                            Stance Analysis Result
+                                        </h5>
+                                        <div className={`bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 overflow-y-auto ${isFullMode ? 'flex-1 min-h-0' : 'max-h-[400px]'}`}>
+                                            <StanceAnalysisDisplay result={stanceResult} compact={!isFullMode} />
+                                        </div>
                                     </div>
-                                )}
-                            </div>
-                        )}
+                                );
+                            }
+
+                            // Fallback to raw JSON if parsing failed
+                            return (
+                                <div className="flex flex-col">
+                                    <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                        LLM Response
+                                    </h5>
+                                    <div className={`bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4 border border-indigo-200 dark:border-indigo-800 overflow-y-auto resize-y ${isFullMode ? 'min-h-[150px] flex-1' : 'min-h-[100px]'}`}>
+                                        <pre className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap font-mono">
+                                            {testResult.llm_response}
+                                        </pre>
+                                    </div>
+                                    {testResult.parsed_stance && (
+                                        <div className="mt-2 flex items-center gap-2">
+                                            <span className="text-xs text-gray-500">Parsed Stance:</span>
+                                            <span className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded text-xs font-medium">
+                                                {testResult.parsed_stance}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
 
                         {/* Error */}
                         {testResult?.error && (
@@ -462,7 +488,7 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                                 </p>
                             </div>
                         )}
-                    </>
+                    </div>
                 )}
             </div>
         );
