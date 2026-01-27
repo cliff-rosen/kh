@@ -364,7 +364,7 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
         const testResult = entry?.result;
 
         return (
-            <div className={`${isFullMode ? 'max-w-6xl mx-auto h-full flex flex-col gap-4' : 'space-y-4'}`}>
+            <div className={`${isFullMode ? 'max-w-6xl mx-auto flex-1 min-h-0 flex flex-col gap-4' : 'space-y-4'}`}>
                 {!entry ? (
                     <div className="text-center text-gray-500 dark:text-gray-400 py-8">
                         <BeakerIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
