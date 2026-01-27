@@ -644,7 +644,7 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                         <textarea
                             value={prompt?.system_prompt || ''}
                             onChange={(e) => updatePrompt('system_prompt', e.target.value)}
-                            className="w-full h-48 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            className="w-full h-[400px] px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                             placeholder="Define the LLM's role for stance analysis..."
                         />
                     </div>
