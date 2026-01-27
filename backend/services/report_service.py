@@ -990,28 +990,51 @@ class ReportService:
                 except ValueError:
                     pass
 
-        # Logo URL (served from frontend static assets)
-        logo_url = f"{base_url}/logos/KH%20logo%20black.png"
+        # Read logo file and convert to base64 for email embedding
+        import base64
+        import os
+        logo_base64 = None
+        try:
+            # Logo path relative to backend directory
+            logo_path = os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'logos', 'KH logo black.png')
+            logo_path = os.path.normpath(logo_path)
+            if os.path.exists(logo_path):
+                with open(logo_path, 'rb') as f:
+                    logo_base64 = base64.b64encode(f.read()).decode('utf-8')
+        except Exception as e:
+            logger.warning(f"Could not read logo file: {e}")
+
+        # Calculate publication date early so it can be used in email_data
+        from datetime import timedelta
+        publication_date = ''
+        if report.execution and report.execution.end_date:
+            try:
+                end_dt = datetime.strptime(report.execution.end_date, '%Y-%m-%d')
+                pub_dt = end_dt + timedelta(days=1)
+                publication_date = pub_dt.strftime('%b %d, %Y')
+            except ValueError:
+                pass
+        if not publication_date and report.report_date:
+            publication_date = report.report_date.strftime('%b %d, %Y')
 
         email_data = EmailReportData(
             report_name=report.report_name,
             stream_name=stream.stream_name,
-            report_date=report.report_date.strftime('%b %d, %Y') if report.report_date else '',
+            report_date=publication_date,  # Use publication date (end_date + 1) for Generated date
             executive_summary=executive_summary,
             categories=email_categories,
             report_url=report_url,
             date_range_start=date_range_start,
             date_range_end=date_range_end,
-            logo_url=logo_url
+            logo_base64=logo_base64
         )
 
         # Generate HTML
         template_service = EmailTemplateService()
         html = template_service.generate_report_email(email_data)
 
-        # Build subject line: "Stream Name: [date one day after end date]"
-        subject_date = report.report_date.strftime('%b %d, %Y') if report.report_date else ''
-        subject = f"{stream.stream_name}: {subject_date}"
+        # Subject uses the same publication_date calculated above
+        subject = f"{stream.stream_name}: {publication_date}"
 
         return EmailResult(html=html, report_name=report.report_name, subject=subject)
 

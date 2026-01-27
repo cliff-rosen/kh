@@ -51,7 +51,8 @@ class EmailReportData:
     report_url: Optional[str] = None  # Link to view full report on site
     date_range_start: Optional[str] = None  # Start of date range (e.g., "Jan 18, 2026")
     date_range_end: Optional[str] = None  # End of date range (e.g., "Jan 24, 2026")
-    logo_url: Optional[str] = None  # URL to logo image
+    logo_url: Optional[str] = None  # URL to logo image (deprecated, use logo_base64)
+    logo_base64: Optional[str] = None  # Base64-encoded logo image data
 
     def __post_init__(self):
         if self.uncategorized_articles is None:
@@ -101,9 +102,11 @@ class EmailTemplateService:
         if data.date_range_start and data.date_range_end:
             date_range_html = f'<p class="date-range">Range: {data.date_range_start} – {data.date_range_end}</p>'
 
-        # Logo HTML (if URL provided)
+        # Logo HTML - prefer base64 embedded image for email compatibility
         logo_html = ''
-        if data.logo_url:
+        if data.logo_base64:
+            logo_html = f'<img src="data:image/png;base64,{data.logo_base64}" alt="Knowledge Horizon" class="logo" />'
+        elif data.logo_url:
             logo_html = f'<img src="{data.logo_url}" alt="Knowledge Horizon" class="logo" />'
 
         return f'''<!DOCTYPE html>
@@ -132,6 +135,7 @@ class EmailTemplateService:
             border-bottom: 2px solid #1e40af;
             padding-bottom: 20px;
             margin-bottom: 30px;
+            text-align: center;
         }}
         .header .logo {{
             height: 40px;
@@ -272,7 +276,7 @@ class EmailTemplateService:
     <div class="container">
         <div class="header">
             {logo_html}
-            <h1>{data.stream_name}:</h1>
+            <h1>Asbestos and Talc Litigation Science Alert:</h1>
             {date_range_html}
             <p class="date">Generated: {data.report_date}</p>
         </div>'''
