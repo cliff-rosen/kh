@@ -635,16 +635,16 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                 )}
 
                 {/* Prompt Editors */}
-                <div className="flex-1 min-w-0 flex flex-col min-h-0 overflow-y-auto">
-                    {/* System Prompt */}
-                    <div className="flex flex-col flex-shrink-0 mb-4">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <div className="flex-1 min-w-0 flex flex-col min-h-0">
+                    {/* System Prompt - gets 2x the space of user prompt */}
+                    <div className="flex flex-col flex-[2] min-h-0 mb-4">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex-shrink-0">
                             System Prompt
                         </label>
                         <textarea
                             value={prompt?.system_prompt || ''}
                             onChange={(e) => updatePrompt('system_prompt', e.target.value)}
-                            className="w-full h-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            className="flex-1 min-h-[100px] w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                             placeholder="Define the LLM's role for stance analysis..."
                         />
                     </div>
@@ -658,7 +658,7 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                         <textarea
                             value={prompt?.user_prompt_template || ''}
                             onChange={(e) => updatePrompt('user_prompt_template', e.target.value)}
-                            className="flex-1 min-h-[200px] w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            className="flex-1 min-h-[100px] w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono resize-y focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                             placeholder="Write the stance analysis prompt template with slugs..."
                         />
                     </div>
