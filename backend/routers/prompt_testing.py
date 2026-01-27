@@ -109,6 +109,24 @@ class TestCategorizationResponse(BaseModel):
     category_distribution: Dict[str, int] = Field(..., description="Count per category")
 
 
+class TestStanceAnalysisPromptRequest(BaseModel):
+    """Request to test a stance analysis prompt"""
+    prompt: PromptTemplate = Field(..., description="The stance analysis prompt to test")
+    sample_data: Optional[Dict[str, Any]] = Field(None, description="Sample article data")
+    report_id: Optional[int] = Field(None, description="Reference to an existing report to get an article from")
+    article_index: Optional[int] = Field(0, description="Which article to use from the report (default: first)")
+    llm_config: Optional[ModelConfig] = Field(None, description="LLM model configuration (uses defaults if not provided)")
+
+
+class TestStanceAnalysisPromptResponse(BaseModel):
+    """Response from testing a stance analysis prompt"""
+    rendered_system_prompt: str
+    rendered_user_prompt: str
+    llm_response: Optional[str] = None
+    parsed_stance: Optional[str] = None
+    error: Optional[str] = None
+
+
 # =============================================================================
 # Endpoints
 # =============================================================================
@@ -263,3 +281,40 @@ async def test_categorization(
     except Exception as e:
         logger.error(f"Error testing categorization: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post("/test-stance-analysis-prompt", response_model=TestStanceAnalysisPromptResponse)
+async def test_stance_analysis_prompt(
+    request: TestStanceAnalysisPromptRequest,
+    service: PromptTestingService = Depends(get_prompt_testing_service),
+    current_user: User = Depends(get_current_user)
+):
+    """Test a stance analysis prompt by rendering it with sample data and running through LLM"""
+    if not request.sample_data and not request.report_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either sample_data or report_id must be provided"
+        )
+
+    try:
+        result = await service.test_stance_analysis_prompt(
+            prompt=request.prompt,
+            user_id=current_user.user_id,
+            sample_data=request.sample_data,
+            report_id=request.report_id,
+            article_index=request.article_index or 0,
+            llm_config=request.llm_config
+        )
+        return TestStanceAnalysisPromptResponse(**result)
+
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error testing stance analysis prompt: {e}", exc_info=True)
+        return TestStanceAnalysisPromptResponse(
+            rendered_system_prompt=request.prompt.system_prompt,
+            rendered_user_prompt=request.prompt.user_prompt_template,
+            error=str(e)
+        )

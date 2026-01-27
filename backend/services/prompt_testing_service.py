@@ -19,6 +19,11 @@ from services.research_stream_service import ResearchStreamService
 from services.report_service import ReportService
 from services.report_article_association_service import ReportArticleAssociationService
 from services.article_categorization_service import ArticleCategorizationService
+from services.article_analysis_service import (
+    get_stance_prompts,
+    analyze_article_stance,
+    STANCE_SLUG_MAPPINGS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -435,6 +440,153 @@ class PromptTestingService:
             "journal": article.journal or "",
             "year": str(article.year) if article.year else "",
             "categories_json": json.dumps(categories_for_context, indent=2)
+        }
+
+    async def test_stance_analysis_prompt(
+        self,
+        prompt: PromptTemplate,
+        user_id: int,
+        sample_data: Optional[Dict[str, Any]] = None,
+        report_id: Optional[int] = None,
+        article_index: int = 0,
+        llm_config: Optional[ModelConfig] = None
+    ) -> Dict[str, Any]:
+        """
+        Test a stance analysis prompt with sample data or an article from a report.
+
+        Args:
+            prompt: The stance analysis prompt to test
+            user_id: User ID for access verification
+            sample_data: Optional sample data with article fields
+            report_id: Optional report ID to get an article from
+            article_index: Which article to use from the report (default: first)
+            llm_config: Optional LLM configuration
+
+        Returns:
+            Dict with rendered_system_prompt, rendered_user_prompt, llm_response,
+            parsed_stance, and error (if any)
+        """
+        import json
+
+        if not sample_data and not report_id:
+            raise ValueError("Either sample_data or report_id must be provided")
+
+        # Get sample data from report if needed
+        if report_id:
+            sample_data = await self._get_stance_analysis_context_from_report(
+                report_id, user_id, article_index
+            )
+
+        assert sample_data is not None  # Validated above
+
+        # Convert frontend slugs to flat keys in the prompt
+        system_prompt = prompt.system_prompt
+        user_prompt = prompt.user_prompt_template
+        for old_slug, new_placeholder in STANCE_SLUG_MAPPINGS.items():
+            system_prompt = system_prompt.replace(old_slug, new_placeholder)
+            user_prompt = user_prompt.replace(old_slug, new_placeholder)
+
+        # Render prompts with actual values
+        rendered_system = system_prompt
+        rendered_user = user_prompt
+        for key, value in sample_data.items():
+            rendered_user = rendered_user.replace(f"{{{key}}}", str(value))
+
+        # Call stance analysis
+        result = await analyze_article_stance(
+            article_title=sample_data.get("article_title", ""),
+            article_abstract=sample_data.get("article_abstract"),
+            article_authors=sample_data.get("article_authors", "").split(", ") if sample_data.get("article_authors") else None,
+            article_journal=sample_data.get("article_journal"),
+            article_year=int(sample_data["article_year"]) if sample_data.get("article_year") and sample_data["article_year"].isdigit() else None,
+            stream_name=sample_data.get("stream_name", ""),
+            stream_purpose=sample_data.get("stream_purpose"),
+            stance_analysis_prompt={
+                "system_prompt": system_prompt,
+                "user_prompt_template": user_prompt
+            },
+            model_config=llm_config,
+            article_summary=sample_data.get("article_summary"),
+        )
+
+        # Format response
+        llm_response = None
+        parsed_stance = None
+        error = None
+
+        if result.get("stance") == "unclear" and "failed" in result.get("analysis", "").lower():
+            error = result.get("analysis")
+        else:
+            parsed_stance = result.get("stance")
+            llm_response = json.dumps(result, indent=2)
+
+        return {
+            "rendered_system_prompt": rendered_system,
+            "rendered_user_prompt": rendered_user,
+            "llm_response": llm_response,
+            "parsed_stance": parsed_stance,
+            "error": error
+        }
+
+    async def _get_stance_analysis_context_from_report(
+        self,
+        report_id: int,
+        user_id: int,
+        article_index: int = 0
+    ) -> Dict[str, Any]:
+        """
+        Get stance analysis context data from an existing report.
+
+        Args:
+            report_id: Report ID
+            user_id: User ID for access verification
+            article_index: Which article to use (0-indexed)
+
+        Returns:
+            Dict with article and stream fields for stance analysis
+        """
+        # Get the report with access check (returns report, user, stream)
+        try:
+            result = await self.report_service.get_report_with_access(
+                report_id, user_id, raise_on_not_found=True
+            )
+            _, _, stream = result
+        except Exception:
+            raise PermissionError("You don't have access to this report")
+
+        # Get visible articles via the association service
+        associations = await self.association_service.get_visible_for_report(report_id)
+
+        if not associations:
+            raise ValueError("Report has no articles")
+
+        # Get the requested article
+        if article_index >= len(associations):
+            article_index = 0
+
+        assoc = associations[article_index]
+        article = assoc.article
+
+        if not article:
+            raise ValueError("Article not found")
+
+        # Format authors
+        authors_str = ""
+        if article.authors:
+            if len(article.authors) > 3:
+                authors_str = ", ".join(article.authors[:3]) + " et al."
+            else:
+                authors_str = ", ".join(article.authors)
+
+        return {
+            "stream_name": stream.stream_name or "",
+            "stream_purpose": stream.purpose or "",
+            "article_title": article.title or "",
+            "article_authors": authors_str,
+            "article_journal": article.journal or "",
+            "article_year": str(article.year) if article.year else "",
+            "article_abstract": article.abstract or "",
+            "article_summary": assoc.ai_summary or "",
         }
 
 
