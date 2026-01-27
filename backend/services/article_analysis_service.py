@@ -21,19 +21,27 @@ logger = logging.getLogger(__name__)
 # Default Prompts - Single source of truth for stance analysis defaults
 # =============================================================================
 
-DEFAULT_STANCE_SYSTEM_PROMPT = """You are an expert analyst evaluating scientific articles for their relevance and stance in research contexts.
+DEFAULT_STANCE_SYSTEM_PROMPT = """You are an expert litigation analyst evaluating scientific articles for their implications in legal contexts, specifically product liability and toxic tort litigation.
 
-Your task is to analyze the provided article and determine its stance with respect to the research stream's purpose and any classification criteria provided.
+Your task is to analyze whether the article's findings and conclusions would tend to support a defense position or a plaintiff position in litigation.
 
-When analyzing stance:
-- Consider the article's conclusions and how they relate to the research question
-- Look for explicit statements of position or recommendation
-- Note any caveats, limitations, or conflicting findings
-- Consider the weight of evidence presented
+Stance classifications:
+- **pro-defense**: Findings suggest the product/substance is safe, risks are minimal, causation is not established, or methodology of plaintiff-favorable studies is flawed
+- **pro-plaintiff**: Findings suggest the product/substance causes harm, establishes causation, identifies risks, or supports injury claims
+- **neutral**: Article is purely descriptive, methodological, or does not take a position relevant to litigation
+- **mixed**: Article contains findings that could support both sides, or presents conflicting evidence
+- **unclear**: Insufficient information to determine litigation relevance
 
-Provide a thorough but concise analysis."""
+When analyzing:
+- Focus on conclusions about causation, safety, and risk
+- Consider how findings would be used by expert witnesses
+- Note the strength and quality of evidence presented
+- Identify limitations that could be exploited by either side
+- Consider whether the article supports or undermines common litigation arguments
 
-DEFAULT_STANCE_USER_PROMPT = """Analyze the stance of this article:
+Provide a thorough but concise analysis focused on litigation implications."""
+
+DEFAULT_STANCE_USER_PROMPT = """Analyze this article's stance in the context of litigation support:
 
 # Research Stream Context
 Stream: {stream_name}
@@ -48,7 +56,10 @@ Year: {article_year}
 # Abstract
 {article_abstract}
 
-Analyze the article's stance and provide your assessment."""
+# AI-Generated Summary
+{article_summary}
+
+Determine whether this article's findings would primarily support a defense position (product/substance is safe, no causation) or a plaintiff position (product/substance causes harm, establishes causation) in litigation. Consider how each side's expert witnesses might use or attack this article."""
 
 # Combined default prompt dict for API responses
 DEFAULT_STANCE_PROMPT = {
@@ -69,7 +80,11 @@ STANCE_ANALYSIS_SLUGS = [
     ("{stream.name}", "stream_name", "Name of the research stream"),
     ("{stream.purpose}", "stream_purpose", "Purpose/description of the stream"),
     ("{article.title}", "article_title", "Title of the article"),
-    ("{article.authors}", "article_authors", "Authors of the article (comma-separated)"),
+    (
+        "{article.authors}",
+        "article_authors",
+        "Authors of the article (comma-separated)",
+    ),
     ("{article.journal}", "article_journal", "Journal where the article was published"),
     ("{article.year}", "article_year", "Publication year"),
     ("{article.abstract}", "article_abstract", "Full abstract of the article"),
@@ -84,7 +99,9 @@ def get_stance_slug_mappings() -> Dict[str, str]:
 
 def get_stance_available_slugs() -> List[Dict[str, str]]:
     """Get available slugs for UI/help for stance analysis."""
-    return [{"slug": slug, "description": desc} for slug, _, desc in STANCE_ANALYSIS_SLUGS]
+    return [
+        {"slug": slug, "description": desc} for slug, _, desc in STANCE_ANALYSIS_SLUGS
+    ]
 
 
 def get_stance_required_keys() -> List[str]:
@@ -106,36 +123,37 @@ STANCE_RESULT_SCHEMA = {
         "stance": {
             "type": "string",
             "enum": ["pro-defense", "pro-plaintiff", "neutral", "mixed", "unclear"],
-            "description": "The article's overall stance"
+            "description": "The article's overall stance",
         },
         "confidence": {
             "type": "number",
             "minimum": 0,
             "maximum": 1,
-            "description": "Confidence in the stance assessment (0-1)"
+            "description": "Confidence in the stance assessment (0-1)",
         },
         "analysis": {
             "type": "string",
-            "description": "Detailed explanation of the stance assessment"
+            "description": "Detailed explanation of the stance assessment",
         },
         "key_factors": {
             "type": "array",
             "items": {"type": "string"},
-            "description": "Key factors that influenced the stance determination"
+            "description": "Key factors that influenced the stance determination",
         },
         "relevant_quotes": {
             "type": "array",
             "items": {"type": "string"},
-            "description": "Relevant quotes from the abstract supporting the analysis"
-        }
+            "description": "Relevant quotes from the abstract supporting the analysis",
+        },
     },
-    "required": ["stance", "confidence", "analysis", "key_factors", "relevant_quotes"]
+    "required": ["stance", "confidence", "analysis", "key_factors", "relevant_quotes"],
 }
 
 
 # =============================================================================
 # Prompt Resolution
 # =============================================================================
+
 
 def _convert_frontend_slugs_to_flat(text: str) -> str:
     """Convert frontend slugs like {stream.name} to flat keys like {stream_name}."""
@@ -145,7 +163,7 @@ def _convert_frontend_slugs_to_flat(text: str) -> str:
 
 
 def get_stance_prompts(
-    custom_prompt: Optional[Dict[str, str]] = None
+    custom_prompt: Optional[Dict[str, str]] = None,
 ) -> tuple[str, str]:
     """
     Get system and user prompts for stance analysis.
@@ -158,8 +176,12 @@ def get_stance_prompts(
         Tuple of (system_prompt, user_prompt_template) with flat placeholders
     """
     if custom_prompt:
-        system_message = custom_prompt.get("system_prompt", DEFAULT_STANCE_SYSTEM_PROMPT)
-        user_message = custom_prompt.get("user_prompt_template", DEFAULT_STANCE_USER_PROMPT)
+        system_message = custom_prompt.get(
+            "system_prompt", DEFAULT_STANCE_SYSTEM_PROMPT
+        )
+        user_message = custom_prompt.get(
+            "user_prompt_template", DEFAULT_STANCE_USER_PROMPT
+        )
 
         # Convert nested slugs to flat placeholders for custom prompts
         system_message = _convert_frontend_slugs_to_flat(system_message)
@@ -175,6 +197,7 @@ def get_stance_prompts(
 # =============================================================================
 # Main Service Function
 # =============================================================================
+
 
 async def analyze_article_stance(
     article_title: str,
@@ -214,7 +237,7 @@ async def analyze_article_stance(
             "confidence": 0.0,
             "analysis": "No abstract available for analysis.",
             "key_factors": [],
-            "relevant_quotes": []
+            "relevant_quotes": [],
         }
 
     # Get prompt templates (custom or defaults)
@@ -225,7 +248,9 @@ async def analyze_article_stance(
         "stream_name": stream_name,
         "stream_purpose": stream_purpose or "Not specified",
         "article_title": article_title,
-        "article_authors": ", ".join(article_authors) if article_authors else "Unknown authors",
+        "article_authors": (
+            ", ".join(article_authors) if article_authors else "Unknown authors"
+        ),
         "article_journal": article_journal or "Unknown",
         "article_year": str(article_year) if article_year else "Unknown",
         "article_abstract": article_abstract,
@@ -258,7 +283,7 @@ async def analyze_article_stance(
             "confidence": 0.0,
             "analysis": f"Analysis failed: {result.error}",
             "key_factors": [],
-            "relevant_quotes": []
+            "relevant_quotes": [],
         }
 
     # Return structured response
@@ -267,5 +292,5 @@ async def analyze_article_stance(
         "confidence": result.data.get("confidence", 0.5),
         "analysis": result.data.get("analysis", ""),
         "key_factors": result.data.get("key_factors", []),
-        "relevant_quotes": result.data.get("relevant_quotes", [])
+        "relevant_quotes": result.data.get("relevant_quotes", []),
     }
