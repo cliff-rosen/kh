@@ -51,8 +51,7 @@ class EmailReportData:
     report_url: Optional[str] = None  # Link to view full report on site
     date_range_start: Optional[str] = None  # Start of date range (e.g., "Jan 18, 2026")
     date_range_end: Optional[str] = None  # End of date range (e.g., "Jan 24, 2026")
-    logo_url: Optional[str] = None  # URL to logo image (deprecated, use logo_base64)
-    logo_base64: Optional[str] = None  # Base64-encoded logo image data
+    # Note: Logo is embedded by EmailService using CID attachment (src="cid:kh_logo")
 
     def __post_init__(self):
         if self.uncategorized_articles is None:
@@ -102,12 +101,9 @@ class EmailTemplateService:
         if data.date_range_start and data.date_range_end:
             date_range_html = f'<p class="date-range">Range: {data.date_range_start} – {data.date_range_end}</p>'
 
-        # Logo HTML - prefer base64 embedded image for email compatibility
-        logo_html = ''
-        if data.logo_base64:
-            logo_html = f'<img src="data:image/png;base64,{data.logo_base64}" alt="Knowledge Horizon" class="logo" />'
-        elif data.logo_url:
-            logo_html = f'<img src="{data.logo_url}" alt="Knowledge Horizon" class="logo" />'
+        # Logo HTML - use CID reference for email compatibility
+        # The actual image will be attached as a MIME part by the email service
+        logo_html = '<img src="cid:kh_logo" alt="Knowledge Horizon" class="logo" />'
 
         return f'''<!DOCTYPE html>
 <html>
@@ -133,28 +129,28 @@ class EmailTemplateService:
         }}
         .header {{
             border-bottom: 2px solid #1e40af;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
             text-align: center;
         }}
         .header .logo {{
-            height: 40px;
-            margin-bottom: 16px;
+            height: 60px;
+            margin-bottom: 8px;
         }}
         .header h1 {{
             color: #1e40af;
-            margin: 0 0 12px 0;
+            margin: 0 0 4px 0;
             font-size: 22px;
             font-weight: 600;
         }}
         .header .date-range {{
             color: #4b5563;
-            font-size: 14px;
-            margin: 0 0 4px 0;
+            font-size: 12px;
+            margin: 0 0 2px 0;
         }}
         .header .date {{
             color: #6b7280;
-            font-size: 14px;
+            font-size: 12px;
             margin: 0;
         }}
         .executive-summary {{
@@ -247,25 +243,25 @@ class EmailTemplateService:
         }}
         .view-online {{
             text-align: center;
-            margin-bottom: 24px;
-            padding: 16px;
+            margin-bottom: 16px;
+            padding: 10px;
             background-color: #f8fafc;
-            border-radius: 8px;
+            border-radius: 6px;
         }}
         .view-online p {{
-            margin: 0 0 12px 0;
+            margin: 0 0 6px 0;
             color: #64748b;
-            font-size: 14px;
+            font-size: 12px;
         }}
         .view-online a.button {{
             display: inline-block;
-            padding: 10px 24px;
+            padding: 8px 16px;
             background-color: #2563eb;
             color: #ffffff !important;
             text-decoration: none;
-            border-radius: 6px;
+            border-radius: 4px;
             font-weight: 500;
-            font-size: 14px;
+            font-size: 13px;
         }}
         .view-online a.button:hover {{
             background-color: #1d4ed8;

@@ -14,7 +14,8 @@ import smtplib
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from typing import List, Optional
+from email.mime.image import MIMEImage
+from typing import List, Optional, Dict
 
 from config.settings import settings
 
@@ -97,7 +98,8 @@ class EmailService:
         text_content: Optional[str] = None,
         cc: Optional[List[str]] = None,
         bcc: Optional[List[str]] = None,
-        from_name: Optional[str] = None
+        from_name: Optional[str] = None,
+        images: Optional[Dict[str, bytes]] = None
     ) -> bool:
         """
         Send an HTML email.
@@ -110,6 +112,7 @@ class EmailService:
             cc: List of CC recipients
             bcc: List of BCC recipients
             from_name: Display name for the From field (optional)
+            images: Dict of Content-ID -> image bytes for embedded images
 
         Returns:
             bool: True if email sent successfully, False otherwise
@@ -127,10 +130,20 @@ class EmailService:
                 logger.info(f"DEV MODE: From: {from_header}")
                 logger.info(f"DEV MODE: Subject: {subject}")
                 logger.info(f"DEV MODE: HTML content length: {len(html_content)} chars")
+                if images:
+                    logger.info(f"DEV MODE: Images: {list(images.keys())}")
                 return True
 
-            # Create multipart message
-            msg = MIMEMultipart('alternative')
+            # Create message structure
+            # If we have images, use multipart/related as outer container
+            if images:
+                msg = MIMEMultipart('related')
+                msg_alternative = MIMEMultipart('alternative')
+                msg.attach(msg_alternative)
+            else:
+                msg = MIMEMultipart('alternative')
+                msg_alternative = msg
+
             msg['Subject'] = subject
             msg['From'] = from_header
             msg['To'] = to_email
@@ -144,11 +157,19 @@ class EmailService:
             if not text_content:
                 text_content = self._html_to_text(html_content)
             part1 = MIMEText(text_content, 'plain')
-            msg.attach(part1)
+            msg_alternative.attach(part1)
 
             # Add HTML version
             part2 = MIMEText(html_content, 'html')
-            msg.attach(part2)
+            msg_alternative.attach(part2)
+
+            # Attach images with Content-ID
+            if images:
+                for cid, image_data in images.items():
+                    img = MIMEImage(image_data)
+                    img.add_header('Content-ID', f'<{cid}>')
+                    img.add_header('Content-Disposition', 'inline', filename=f'{cid}.png')
+                    msg.attach(img)
 
             # Build recipient list
             recipients = [to_email]
@@ -178,7 +199,8 @@ class EmailService:
         html_content: str,
         cc: Optional[List[str]] = None,
         subject: Optional[str] = None,
-        from_name: Optional[str] = None
+        from_name: Optional[str] = None,
+        images: Optional[Dict[str, bytes]] = None
     ) -> bool:
         """
         Send a report email.
@@ -190,18 +212,21 @@ class EmailService:
             cc: List of CC recipients
             subject: Custom subject line (optional, defaults to app_name + report_name)
             from_name: Custom from name (optional, defaults to app_name)
+            images: Dict of Content-ID -> image bytes for embedded images
 
         Returns:
             bool: True if email sent successfully, False otherwise
         """
         if not subject:
             subject = f"{self.app_name} Report: {report_name}"
+
         return await self.send_html_email(
             to_email=to_email,
             subject=subject,
             html_content=html_content,
             cc=cc,
-            from_name=from_name
+            from_name=from_name,
+            images=images
         )
 
     async def send_bulk_report_emails(
@@ -210,7 +235,8 @@ class EmailService:
         report_name: str,
         html_content: str,
         subject: Optional[str] = None,
-        from_name: Optional[str] = None
+        from_name: Optional[str] = None,
+        images: Optional[Dict[str, bytes]] = None
     ) -> dict:
         """
         Send a report to multiple recipients.
@@ -221,6 +247,7 @@ class EmailService:
             html_content: HTML report content
             subject: Custom subject line (optional)
             from_name: Custom from name (optional)
+            images: Dict of Content-ID -> image bytes for embedded images
 
         Returns:
             dict: {'success': [emails], 'failed': [emails]}
@@ -233,7 +260,8 @@ class EmailService:
                 report_name=report_name,
                 html_content=html_content,
                 subject=subject,
-                from_name=from_name
+                from_name=from_name,
+                images=images
             )
             if success:
                 results['success'].append(email)

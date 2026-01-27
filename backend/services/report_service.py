@@ -409,6 +409,7 @@ class EmailResult:
     report_name: str
     subject: Optional[str] = None
     from_name: str = "Knowledge Horizon"
+    images: Optional[Dict[str, bytes]] = None  # CID -> image bytes for embedded images
 
 
 class ReportService:
@@ -990,20 +991,6 @@ class ReportService:
                 except ValueError:
                     pass
 
-        # Read logo file and convert to base64 for email embedding
-        import base64
-        import os
-        logo_base64 = None
-        try:
-            # Logo path relative to backend directory
-            logo_path = os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'public', 'logos', 'KH logo black.png')
-            logo_path = os.path.normpath(logo_path)
-            if os.path.exists(logo_path):
-                with open(logo_path, 'rb') as f:
-                    logo_base64 = base64.b64encode(f.read()).decode('utf-8')
-        except Exception as e:
-            logger.warning(f"Could not read logo file: {e}")
-
         # Calculate publication date early so it can be used in email_data
         from datetime import timedelta
         publication_date = ''
@@ -1025,8 +1012,8 @@ class ReportService:
             categories=email_categories,
             report_url=report_url,
             date_range_start=date_range_start,
-            date_range_end=date_range_end,
-            logo_base64=logo_base64
+            date_range_end=date_range_end
+            # Logo is now embedded by EmailService using CID attachment
         )
 
         # Generate HTML
@@ -1036,7 +1023,22 @@ class ReportService:
         # Subject uses the same publication_date calculated above
         subject = f"{stream.stream_name}: {publication_date}"
 
-        return EmailResult(html=html, report_name=report.report_name, subject=subject)
+        # Load logo image for CID embedding
+        import os
+        images = None
+        try:
+            logo_path = os.path.join(
+                os.path.dirname(__file__), '..', '..',
+                'frontend', 'public', 'logos', 'KH logo black.png'
+            )
+            logo_path = os.path.normpath(logo_path)
+            if os.path.exists(logo_path):
+                with open(logo_path, 'rb') as f:
+                    images = {'kh_logo': f.read()}
+        except Exception as e:
+            logger.warning(f"Could not load logo for email: {e}")
+
+        return EmailResult(html=html, report_name=report.report_name, subject=subject, images=images)
 
     # =========================================================================
     # APPROVAL WORKFLOW

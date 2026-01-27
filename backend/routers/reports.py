@@ -434,7 +434,8 @@ async def send_report_email(
             report_name=result.report_name,
             html_content=result.html,
             subject=result.subject,
-            from_name=result.from_name
+            from_name=result.from_name,
+            images=result.images
         )
 
         logger.info(f"send_report_email complete - user_id={current_user.user_id}, report_id={report_id}, success={len(results['success'])}, failed={len(results['failed'])}")
