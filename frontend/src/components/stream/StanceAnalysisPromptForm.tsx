@@ -983,7 +983,7 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
                         </button>
                     </div>
                 </div>
-                <div className="p-6 overflow-y-auto flex-1">
+                <div className="p-6 flex-1 min-h-0 flex flex-col">
                     {renderResultsContent(true)}
                 </div>
             </div>
