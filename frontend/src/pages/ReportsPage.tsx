@@ -50,8 +50,20 @@ export default function ReportsPage() {
 
     // UI state
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-    const [reportView, setReportView] = useState<ReportView>('all');
+    const isAdmin = isPlatformAdmin || isOrgAdmin;
+    const [reportView, setReportView] = useState<ReportView>(() => {
+        const saved = localStorage.getItem('reportView');
+        return (saved === 'all' || saved === 'by-category' || saved === 'tablizer') ? saved : 'by-category';
+    });
     const [cardFormat, setCardFormat] = useState<CardFormat>('compact');
+
+    // Reset tablizer view if user is not an admin (e.g., role was demoted)
+    useEffect(() => {
+        if (reportView === 'tablizer' && !isAdmin) {
+            setReportView('by-category');
+            localStorage.setItem('reportView', 'by-category');
+        }
+    }, [reportView, isAdmin]);
     const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
     const [executiveSummaryCollapsed, setExecutiveSummaryCollapsed] = useState(false);
 
@@ -266,6 +278,7 @@ export default function ReportsPage() {
         if (reportView !== view) {
             trackViewChange(reportView, view, 'reports');
             setReportView(view);
+            localStorage.setItem('reportView', view);
         }
     };
 
@@ -611,6 +624,7 @@ export default function ReportsPage() {
                                         cardFormat={cardFormat}
                                         hasPipelineData={hasPipelineData}
                                         showAdminControls={isPlatformAdmin}
+                                        showTablizer={isPlatformAdmin || isOrgAdmin}
                                         onViewChange={handleViewChange}
                                         onCardFormatChange={handleCardFormatChange}
                                         onShowExecutionConfig={() => {

@@ -20,6 +20,7 @@ export interface ReportHeaderProps {
     cardFormat: CardFormat;
     hasPipelineData: boolean;
     showAdminControls?: boolean;
+    showTablizer?: boolean;
     onViewChange: (view: ReportView) => void;
     onCardFormatChange: (format: CardFormat) => void;
     onShowExecutionConfig: () => void;
@@ -33,6 +34,7 @@ export default function ReportHeader({
     cardFormat,
     hasPipelineData,
     showAdminControls = false,
+    showTablizer = false,
     onViewChange,
     onCardFormatChange,
     onShowExecutionConfig,
@@ -114,17 +116,19 @@ export default function ReportHeader({
                             <Squares2X2Icon className="h-4 w-4" />
                             By Category
                         </button>
-                        <button
-                            onClick={() => onViewChange('tablizer')}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                                reportView === 'tablizer'
-                                    ? 'bg-purple-600 text-white'
-                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                            }`}
-                        >
-                            <TableCellsIcon className="h-4 w-4" />
-                            Tablizer
-                        </button>
+                        {showTablizer && (
+                            <button
+                                onClick={() => onViewChange('tablizer')}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                                    reportView === 'tablizer'
+                                        ? 'bg-purple-600 text-white'
+                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                }`}
+                            >
+                                <TableCellsIcon className="h-4 w-4" />
+                                Tablizer
+                            </button>
+                        )}
                     </div>
                     {/* Card format toggle */}
                     <div className="flex gap-1 border-l border-gray-300 dark:border-gray-600 pl-4">
