@@ -32,7 +32,10 @@
       "Bash(netstat:*)",
       "Bash(findstr:*)",
       "Bash(sort:*)",
-      "WebFetch(domain:platform.openai.com)"
+      "WebFetch(domain:platform.openai.com)",
+      "WebFetch(domain:www.nlm.nih.gov)",
+      "WebFetch(domain:pubmed.ncbi.nlm.nih.gov)",
+      "WebFetch(domain:nsaunders.wordpress.com)"
     ],
     "deny": [],
     "ask": [],
