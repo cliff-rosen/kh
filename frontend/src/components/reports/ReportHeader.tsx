@@ -21,6 +21,7 @@ export interface ReportHeaderProps {
     hasPipelineData: boolean;
     showAdminControls?: boolean;
     showTablizer?: boolean;
+    showDelete?: boolean;
     onViewChange: (view: ReportView) => void;
     onCardFormatChange: (format: CardFormat) => void;
     onShowExecutionConfig: () => void;
@@ -35,6 +36,7 @@ export default function ReportHeader({
     hasPipelineData,
     showAdminControls = false,
     showTablizer = false,
+    showDelete = false,
     onViewChange,
     onCardFormatChange,
     onShowExecutionConfig,
@@ -69,13 +71,15 @@ export default function ReportHeader({
                             )}
                         </>
                     )}
-                    <button
-                        onClick={onDeleteReport}
-                        className="p-2 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400"
-                        title="Delete report"
-                    >
-                        <TrashIcon className="h-5 w-5" />
-                    </button>
+                    {showDelete && (
+                        <button
+                            onClick={onDeleteReport}
+                            className="p-2 rounded-md transition-colors bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400"
+                            title="Delete report"
+                        >
+                            <TrashIcon className="h-5 w-5" />
+                        </button>
+                    )}
                 </div>
             </div>
 

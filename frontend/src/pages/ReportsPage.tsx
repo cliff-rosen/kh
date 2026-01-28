@@ -605,7 +605,7 @@ export default function ReportsPage() {
                                 setSidebarCollapsed(!sidebarCollapsed);
                             }}
                             onSelectReport={handleReportClick}
-                            onDeleteReport={handleDeleteReport}
+                            onDeleteReport={isAdmin ? handleDeleteReport : undefined}
                         />
 
                         {/* Report Details */}
@@ -624,7 +624,8 @@ export default function ReportsPage() {
                                         cardFormat={cardFormat}
                                         hasPipelineData={hasPipelineData}
                                         showAdminControls={isPlatformAdmin}
-                                        showTablizer={isPlatformAdmin || isOrgAdmin}
+                                        showTablizer={isAdmin}
+                                        showDelete={isAdmin}
                                         onViewChange={handleViewChange}
                                         onCardFormatChange={handleCardFormatChange}
                                         onShowExecutionConfig={() => {
