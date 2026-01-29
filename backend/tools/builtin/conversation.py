@@ -4,13 +4,15 @@ Conversation Tools
 Tools for accessing conversation data like stored payloads.
 """
 
+import asyncio
 import json
 import logging
-from typing import Any, Dict, Union
+from typing import Any, Dict
 
 from sqlalchemy.orm import Session
 
-from tools.registry import ToolConfig, ToolResult, register_tool
+from tools.registry import ToolConfig, register_tool
+from database import AsyncSessionLocal
 from services.chat_service import ChatService
 
 logger = logging.getLogger(__name__)
@@ -38,33 +40,42 @@ def execute_get_payload(
     if not conversation_id:
         return "Error: No active conversation. Cannot retrieve payloads."
 
+    async def _get_payload():
+        async with AsyncSessionLocal() as async_db:
+            chat_service = ChatService(async_db)
+            messages = await chat_service.get_messages(conversation_id, user_id)
+
+            # Search through messages for the payload
+            for msg in messages:
+                if msg.role != 'assistant' or not msg.extras:
+                    continue
+
+                payloads = msg.extras.get("payloads", [])
+                for payload in payloads:
+                    if payload.get("payload_id") == payload_id:
+                        return payload
+
+            return None
+
     try:
-        chat_service = ChatService(db)
-        messages = chat_service.get_messages(conversation_id, user_id)
+        payload = asyncio.run(_get_payload())
 
-        # Search through messages for the payload
-        for msg in messages:
-            if msg.role != 'assistant' or not msg.extras:
-                continue
+        if not payload:
+            return f"Error: Payload with ID '{payload_id}' not found in conversation history."
 
-            payloads = msg.extras.get("payloads", [])
-            for payload in payloads:
-                if payload.get("payload_id") == payload_id:
-                    payload_type = payload.get("type", "unknown")
-                    payload_data = payload.get("data", {})
-                    summary = payload.get("summary", "")
+        payload_type = payload.get("type", "unknown")
+        payload_data = payload.get("data", {})
+        summary = payload.get("summary", "")
 
-                    # Format the payload data nicely for the LLM
-                    formatted_data = json.dumps(payload_data, indent=2, default=str)
+        # Format the payload data nicely for the LLM
+        formatted_data = json.dumps(payload_data, indent=2, default=str)
 
-                    return f"""Retrieved payload [{payload_id}]:
+        return f"""Retrieved payload [{payload_id}]:
 Type: {payload_type}
 Summary: {summary}
 
 Data:
 {formatted_data}"""
-
-        return f"Error: Payload with ID '{payload_id}' not found in conversation history."
 
     except Exception as e:
         logger.error(f"Error retrieving payload: {e}", exc_info=True)
@@ -77,13 +88,13 @@ Data:
 
 register_tool(ToolConfig(
     name="get_payload",
-    description="Retrieve the full data of a payload from earlier in this conversation. Use this when the user refers to a previous result (e.g., 'that search', 'the article you found'). Check the AVAILABLE PAYLOADS section in your context for payload IDs.",
+    description="Retrieve the full data of a payload from earlier in this conversation. Use this when the user refers to a previous result (e.g., 'that search', 'the article you found'). Check the CONVERSATION DATA section for available payload IDs.",
     input_schema={
         "type": "object",
         "properties": {
             "payload_id": {
                 "type": "string",
-                "description": "The payload ID from the AVAILABLE PAYLOADS manifest (e.g., 'a1b2c3d4')."
+                "description": "The payload ID from the CONVERSATION DATA manifest (e.g., 'a1b2c3d4')."
             }
         },
         "required": ["payload_id"]
