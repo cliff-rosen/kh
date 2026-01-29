@@ -38,7 +38,7 @@ import {
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
 import { reportApi } from '../../lib/api/reportApi';
 import { llmApi } from '../../lib/api/llmApi';
-import { Report, ResearchStream, ModelInfo, ModelConfig, DEFAULT_MODEL_CONFIG, ArticleAnalysisConfig } from '../../types';
+import { Report, ResearchStream, ModelInfo, ModelConfig, DEFAULT_MODEL_CONFIG } from '../../types';
 import { StanceAnalysisResult } from '../../types/document_analysis';
 import { copyToClipboard } from '../../lib/utils/clipboard';
 import { showErrorToast, showSuccessToast } from '../../lib/errorToast';
@@ -68,8 +68,6 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
     const [isUsingDefaults, setIsUsingDefaults] = useState(true);
     const [savedIsUsingDefaults, setSavedIsUsingDefaults] = useState(true);
     const [hasChanges, setHasChanges] = useState(false);
-    // Keep track of chat instructions so we don't overwrite them
-    const [chatInstructions, setChatInstructions] = useState<string | null>(null);
 
     // State for testing
     const [testMode, setTestMode] = useState<'report' | 'paste'>('report');
@@ -138,7 +136,6 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
             setSavedPrompt(currentPrompt);
             setIsUsingDefaults(usingDefaults);
             setSavedIsUsingDefaults(usingDefaults);
-            setChatInstructions(config?.chat_instructions || null);
 
             setReports(streamReports);
             if (streamReports.length > 0) {
@@ -173,14 +170,11 @@ export default function StanceAnalysisPromptForm({ streamId, stream }: StanceAna
             // Save null if using defaults, otherwise save the custom prompt
             const usingDefault = isUsingDefaultPrompt();
 
-            // Build config preserving chat instructions
-            let config: ArticleAnalysisConfig | null = null;
-            if (!usingDefault || chatInstructions) {
-                config = {
-                    stance_analysis_prompt: usingDefault ? null : prompt,
-                    chat_instructions: chatInstructions,
-                };
-            }
+            // Build config - only contains stance_analysis_prompt
+            // (chat_instructions is now stored in a separate field on the stream)
+            const config = usingDefault ? null : {
+                stance_analysis_prompt: prompt,
+            };
 
             await researchStreamApi.updateArticleAnalysisConfig(streamId, config);
 

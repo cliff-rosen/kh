@@ -28,7 +28,6 @@ export interface ArticleAnalysisConfigResponse {
     is_using_defaults: boolean;
     defaults: {
         stance_analysis_prompt: PromptTemplate;
-        chat_instructions: string | null;
     };
     available_slugs: SlugInfo[];
 }
@@ -51,6 +50,7 @@ export interface ResearchStreamUpdateRequest {
     purpose?: string;
     schedule_config?: ScheduleConfig;
     is_active?: boolean;
+    chat_instructions?: string | null;
     semantic_space?: SemanticSpace;
     retrieval_config?: RetrievalConfig;
     presentation_config?: PresentationConfig;

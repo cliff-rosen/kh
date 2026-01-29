@@ -650,7 +650,7 @@ class ArticleAnalysisConfigResponse(BaseModel):
     """Response containing stream's article analysis config or defaults"""
     article_analysis_config: Optional[ArticleAnalysisConfig]
     is_using_defaults: bool
-    defaults: Dict[str, Any]  # {stance_analysis_prompt: {...}, chat_instructions: None}
+    defaults: Dict[str, Any]  # {stance_analysis_prompt: {...}}
     available_slugs: List[Dict[str, str]]  # [{slug: str, description: str}, ...]
 
 
@@ -855,7 +855,6 @@ async def get_stream_article_analysis_config(
 
         defaults = {
             "stance_analysis_prompt": DEFAULT_STANCE_PROMPT,
-            "chat_instructions": None,  # No default chat instructions
         }
 
         return ArticleAnalysisConfigResponse(

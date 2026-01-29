@@ -939,8 +939,8 @@ export default function EditStreamPage() {
                                     }`}
                             >
                                 <div className="flex flex-col items-start">
-                                    <span>Article Analysis</span>
-                                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Stance analysis & chat settings</span>
+                                    <span>AI Settings</span>
+                                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">Stance analysis & chat assistant</span>
                                 </div>
                             </button>
                             <button
@@ -1055,10 +1055,10 @@ export default function EditStreamPage() {
                         </div>
                     )}
 
-                    {/* Article Analysis Tab - outside form, has own save */}
+                    {/* AI Settings Tab - outside form, has own save */}
                     {activeTab === 'article-analysis' && stream && (
                         <div className="flex-1 min-h-0 flex flex-col">
-                            {/* Article Analysis Subtabs */}
+                            {/* AI Settings Subtabs */}
                             <div className="flex gap-4 border-b border-gray-200 dark:border-gray-700 mb-4 flex-shrink-0">
                                 <button
                                     type="button"
@@ -1147,7 +1147,7 @@ export default function EditStreamPage() {
                         >
                             {canModify ? 'Cancel' : 'Back to Streams'}
                         </button>
-                        {/* Hide main save button on enrichment/article-analysis tabs and categorization prompt subtab - they have their own controls */}
+                        {/* Hide main save button on enrichment/AI settings tabs and categorization prompt subtab - they have their own controls */}
                         {/* Also hide save button if user can't modify this stream */}
                         {canModify && activeTab !== 'enrichment' && activeTab !== 'article-analysis' && !(activeTab === 'presentation' && presentationSubTab === 'categorization-prompt') && (
                             <button

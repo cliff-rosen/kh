@@ -3,6 +3,8 @@
  *
  * A simple form for editing chat instructions that help the assistant understand
  * the context when discussing articles from this stream.
+ *
+ * Uses the direct chat_instructions field on the stream (not nested in article_analysis_config).
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -13,7 +15,6 @@ import {
     ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 import { researchStreamApi } from '../../lib/api/researchStreamApi';
-import { ArticleAnalysisConfig } from '../../types';
 import { showErrorToast, showSuccessToast } from '../../lib/errorToast';
 
 interface ChatInstructionsFormProps {
@@ -28,7 +29,6 @@ export default function ChatInstructionsForm({
     // State
     const [chatInstructions, setChatInstructions] = useState<string>('');
     const [savedChatInstructions, setSavedChatInstructions] = useState<string>('');
-    const [stancePrompt, setStancePrompt] = useState<ArticleAnalysisConfig['stance_analysis_prompt']>(null);
     const [hasChanges, setHasChanges] = useState(false);
 
     // UI state
@@ -36,20 +36,17 @@ export default function ChatInstructionsForm({
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Load initial data
+    // Load initial data from the stream's direct chat_instructions field
     useEffect(() => {
         const loadData = async () => {
             setLoading(true);
             setError(null);
             try {
-                const response = await researchStreamApi.getArticleAnalysisConfig(streamId);
-                const config = response.article_analysis_config;
-                const currentChatInstructions = config?.chat_instructions || '';
+                const stream = await researchStreamApi.getResearchStream(streamId);
+                const currentChatInstructions = stream.chat_instructions || '';
 
                 setChatInstructions(currentChatInstructions);
                 setSavedChatInstructions(currentChatInstructions);
-                // Keep track of stance prompt so we don't overwrite it
-                setStancePrompt(config?.stance_analysis_prompt || null);
             } catch (err: unknown) {
                 console.error('Error loading chat instructions:', err);
                 const message = err instanceof Error ? err.message : 'Failed to load configuration';
@@ -74,23 +71,16 @@ export default function ChatInstructionsForm({
         setHasChanges(false);
     }, [savedChatInstructions]);
 
-    // Save changes
+    // Save changes to the stream's direct chat_instructions field
     const handleSave = async () => {
         setSaving(true);
         setError(null);
         try {
-            const hasCustomChatInstructions = chatInstructions.trim().length > 0;
+            const trimmedInstructions = chatInstructions.trim();
 
-            // Build config preserving the stance prompt
-            let config: ArticleAnalysisConfig | null = null;
-            if (stancePrompt || hasCustomChatInstructions) {
-                config = {
-                    stance_analysis_prompt: stancePrompt,
-                    chat_instructions: hasCustomChatInstructions ? chatInstructions : null,
-                };
-            }
-
-            await researchStreamApi.updateArticleAnalysisConfig(streamId, config);
+            await researchStreamApi.updateResearchStream(streamId, {
+                chat_instructions: trimmedInstructions.length > 0 ? trimmedInstructions : null,
+            });
 
             // Update saved state
             setSavedChatInstructions(chatInstructions);

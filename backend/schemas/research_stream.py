@@ -255,7 +255,7 @@ class EnrichmentConfig(BaseModel):
 
 
 # ============================================================================
-# ARTICLE ANALYSIS CONFIG (Stance Analysis + Chat)
+# ARTICLE ANALYSIS CONFIG (Stance Analysis)
 # ============================================================================
 
 class ArticleAnalysisConfig(BaseModel):
@@ -264,7 +264,8 @@ class ArticleAnalysisConfig(BaseModel):
 
     Contains:
     - stance_analysis_prompt: Custom prompt for stance/position analysis
-    - chat_instructions: Instructions for chat assistant (moved from Layer 1)
+
+    Note: chat_instructions is stored directly on the stream, not here.
 
     Slugs available for stance_analysis:
     - {stream.name}, {stream.purpose}
@@ -273,10 +274,6 @@ class ArticleAnalysisConfig(BaseModel):
     stance_analysis_prompt: Optional[PromptTemplate] = Field(
         None,
         description="Custom prompt for stance analysis (None = use defaults)"
-    )
-    chat_instructions: Optional[str] = Field(
-        None,
-        description="Stream-specific instructions for the chat assistant"
     )
 
 
@@ -374,13 +371,13 @@ class ResearchStream(BaseModel):
     enrichment_config: Optional[EnrichmentConfig] = Field(None, description="Layer 4: Custom prompts for summaries")
 
     # === ARTICLE ANALYSIS ===
-    article_analysis_config: Optional[ArticleAnalysisConfig] = Field(None, description="Article analysis config: stance analysis prompt + chat instructions")
+    article_analysis_config: Optional[ArticleAnalysisConfig] = Field(None, description="Article analysis config: stance analysis prompt")
 
     # === CONTROL PANEL ===
     llm_config: Optional[PipelineLLMConfig] = Field(None, description="LLM configuration for pipeline stages")
 
-    # === CHAT (DEPRECATED - use article_analysis_config.chat_instructions) ===
-    chat_instructions: Optional[str] = Field(None, description="DEPRECATED: Use article_analysis_config.chat_instructions instead")
+    # === CHAT ===
+    chat_instructions: Optional[str] = Field(None, description="Stream-specific instructions for the chat assistant")
 
     # === SCHEDULING ===
     schedule_config: Optional[ScheduleConfig] = Field(None, description="Scheduling configuration")

@@ -185,8 +185,8 @@ class ResearchStream(Base):
     # Format: {"prompts": {"executive_summary": {...}, "category_summary": {...}}}
     enrichment_config = Column(JSON, nullable=True)
 
-    # ARTICLE ANALYSIS CONFIG - Stance analysis prompt + chat instructions
-    # Format: {"stance_analysis_prompt": {"system_prompt": "...", "user_prompt_template": "..."}, "chat_instructions": "..."}
+    # ARTICLE ANALYSIS CONFIG - Stance analysis prompt
+    # Format: {"stance_analysis_prompt": {"system_prompt": "...", "user_prompt_template": "..."}}
     article_analysis_config = Column(JSON, nullable=True)
 
     # LLM CONFIG - Which LLMs to use for each pipeline stage
