@@ -29,6 +29,7 @@ async def execute_list_stream_reports(
 ) -> Union[str, ToolResult]:
     """List all reports for the current research stream."""
     from services.report_service import ReportService
+    from services.user_service import UserService
 
     stream_id = context.get("stream_id") or params.get("stream_id")
 
@@ -36,17 +37,25 @@ async def execute_list_stream_reports(
         return "Error: No stream context available. This tool requires being on a report page."
 
     try:
-        service = ReportService(db)
-        reports = await service.get_reports_for_stream(stream_id, user_id)
+        # Get User object (service methods require User, not user_id)
+        user_service = UserService(db)
+        user = await user_service.get_user(user_id)
+        if not user:
+            return "Error: User not found."
 
-        if not reports:
+        service = ReportService(db)
+        # Returns List[ReportWithArticleCount] - access .report for the Report model
+        results = await service.get_reports_for_stream(user, stream_id)
+
+        if not results:
             return "No reports found for this research stream."
 
         # Format results for LLM
-        text_lines = [f"Found {len(reports)} reports for this research stream:\n"]
+        text_lines = [f"Found {len(results)} reports for this research stream:\n"]
         reports_data = []
 
-        for i, report in enumerate(reports, 1):
+        for i, item in enumerate(results, 1):
+            report = item.report  # Extract Report from ReportWithArticleCount
             # Get key highlights preview
             highlights_preview = ""
             if report.key_highlights:
@@ -56,6 +65,7 @@ async def execute_list_stream_reports(
 {i}. Report ID: {report.report_id}
    Name: {report.report_name}
    Date: {report.report_date.strftime('%Y-%m-%d') if report.report_date else 'Unknown'}
+   Articles: {item.article_count}
    Highlights: {highlights_preview or 'None'}
 """)
 
@@ -63,6 +73,7 @@ async def execute_list_stream_reports(
                 "report_id": report.report_id,
                 "report_name": report.report_name,
                 "report_date": report.report_date.isoformat() if report.report_date else None,
+                "article_count": item.article_count,
                 "has_highlights": bool(report.key_highlights),
                 "has_thematic_analysis": bool(report.thematic_analysis)
             })
@@ -71,7 +82,7 @@ async def execute_list_stream_reports(
             "type": "report_list",
             "data": {
                 "stream_id": stream_id,
-                "total_reports": len(reports),
+                "total_reports": len(results),
                 "reports": reports_data
             }
         }
@@ -383,7 +394,8 @@ async def execute_get_article_details(
     context: Dict[str, Any]
 ) -> Union[str, ToolResult]:
     """Get full details of a specific article including notes and relevance info."""
-    from services.article_service import ArticleService
+    from sqlalchemy import select
+    from models import Article
     from services.report_article_association_service import ReportArticleAssociationService
     from services.notes_service import NotesService
     from services.user_service import UserService
@@ -396,13 +408,14 @@ async def execute_get_article_details(
         return "Error: Either article_id or pmid must be provided."
 
     try:
-        article_service = ArticleService(db)
-
-        # Get article
+        # Get article directly
         if article_id:
-            article = await article_service.get_by_id(article_id)
+            stmt = select(Article).where(Article.article_id == article_id)
         else:
-            article = await article_service.get_by_pmid(pmid)
+            stmt = select(Article).where(Article.pmid == pmid)
+
+        result = await db.execute(stmt)
+        article = result.scalars().first()
 
         if not article:
             return f"No article found with {'ID ' + str(article_id) if article_id else 'PMID ' + str(pmid)}"
