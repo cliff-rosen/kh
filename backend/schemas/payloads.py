@@ -1067,3 +1067,230 @@ AI_COLUMN: {
         "required": ["name", "criteria", "type"]
     }
 ))
+
+
+# =============================================================================
+# Report Tool Payloads
+# =============================================================================
+
+def _summarize_report_list(data: Dict[str, Any]) -> str:
+    """Summarize a report list."""
+    total = data.get("total_reports", 0)
+    return f"List of {total} reports for the stream"
+
+
+def _summarize_report_summary(data: Dict[str, Any]) -> str:
+    """Summarize report summary data."""
+    name = data.get("report_name", "Unknown")
+    article_count = data.get("article_count", 0)
+    if len(name) > 40:
+        name = name[:37] + "..."
+    return f"Report summary: '{name}' ({article_count} articles)"
+
+
+def _summarize_report_articles(data: Dict[str, Any]) -> str:
+    """Summarize report articles list."""
+    name = data.get("report_name", "Unknown")
+    total = data.get("total_articles", 0)
+    mode = data.get("mode", "condensed")
+    if len(name) > 30:
+        name = name[:27] + "..."
+    return f"{total} articles from '{name}' ({mode})"
+
+
+def _summarize_article_search_results(data: Dict[str, Any]) -> str:
+    """Summarize article search results."""
+    query = data.get("query", "unknown")
+    total = data.get("total_results", 0)
+    if len(query) > 30:
+        query = query[:27] + "..."
+    return f"Article search for '{query}': {total} results"
+
+
+def _summarize_article_details(data: Dict[str, Any]) -> str:
+    """Summarize article details."""
+    pmid = data.get("pmid", "unknown")
+    title = data.get("title", "Untitled")
+    if len(title) > 50:
+        title = title[:47] + "..."
+    return f"Article PMID:{pmid} - {title}"
+
+
+def _summarize_article_notes(data: Dict[str, Any]) -> str:
+    """Summarize article notes."""
+    article_id = data.get("article_id", "unknown")
+    total = data.get("total_notes", 0)
+    return f"{total} notes for article {article_id}"
+
+
+def _summarize_report_comparison(data: Dict[str, Any]) -> str:
+    """Summarize report comparison."""
+    r1 = data.get("report_1", {})
+    r2 = data.get("report_2", {})
+    only_1 = data.get("only_in_report_1", 0)
+    only_2 = data.get("only_in_report_2", 0)
+    return f"Comparison: {only_2} new, {only_1} removed"
+
+
+def _summarize_starred_articles(data: Dict[str, Any]) -> str:
+    """Summarize starred articles."""
+    total = data.get("total_starred", 0)
+    return f"{total} starred articles in stream"
+
+
+register_payload_type(PayloadType(
+    name="report_list",
+    description="List of reports for a research stream",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_report_list,
+    schema={
+        "type": "object",
+        "properties": {
+            "stream_id": {"type": "integer"},
+            "total_reports": {"type": "integer"},
+            "reports": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "report_id": {"type": "integer"},
+                        "report_name": {"type": "string"},
+                        "report_date": {"type": ["string", "null"]},
+                        "has_highlights": {"type": "boolean"},
+                        "has_thematic_analysis": {"type": "boolean"}
+                    }
+                }
+            }
+        }
+    }
+))
+
+register_payload_type(PayloadType(
+    name="report_summary",
+    description="Summary, highlights, and analysis for a report",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_report_summary,
+    schema={
+        "type": "object",
+        "properties": {
+            "report_id": {"type": "integer"},
+            "report_name": {"type": "string"},
+            "report_date": {"type": ["string", "null"]},
+            "article_count": {"type": "integer"},
+            "key_highlights": {"type": ["string", "null"]},
+            "thematic_analysis": {"type": ["string", "null"]},
+            "executive_summary": {"type": ["string", "null"]},
+            "category_summaries": {"type": "array"}
+        }
+    }
+))
+
+register_payload_type(PayloadType(
+    name="report_articles",
+    description="List of articles in a report",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_report_articles,
+    schema={
+        "type": "object",
+        "properties": {
+            "report_id": {"type": "integer"},
+            "report_name": {"type": "string"},
+            "total_articles": {"type": "integer"},
+            "articles": {"type": "array"},
+            "mode": {"type": "string"}
+        }
+    }
+))
+
+register_payload_type(PayloadType(
+    name="article_search_results",
+    description="Search results for articles across reports",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_article_search_results,
+    schema={
+        "type": "object",
+        "properties": {
+            "query": {"type": "string"},
+            "total_results": {"type": "integer"},
+            "articles": {"type": "array"}
+        }
+    }
+))
+
+register_payload_type(PayloadType(
+    name="article_details",
+    description="Full details of a specific article",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_article_details,
+    schema={
+        "type": "object",
+        "properties": {
+            "article_id": {"type": "integer"},
+            "pmid": {"type": "string"},
+            "title": {"type": "string"},
+            "authors": {"type": "string"},
+            "abstract": {"type": ["string", "null"]},
+            "journal": {"type": "string"},
+            "year": {"type": ["string", "integer", "null"]},
+            "relevance_score": {"type": ["number", "null"]},
+            "is_starred": {"type": ["boolean", "null"]},
+            "notes_count": {"type": "integer"}
+        }
+    }
+))
+
+register_payload_type(PayloadType(
+    name="article_notes",
+    description="Notes for a specific article",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_article_notes,
+    schema={
+        "type": "object",
+        "properties": {
+            "article_id": {"type": "integer"},
+            "report_id": {"type": "integer"},
+            "total_notes": {"type": "integer"},
+            "notes": {"type": "array"}
+        }
+    }
+))
+
+register_payload_type(PayloadType(
+    name="report_comparison",
+    description="Comparison between two reports",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_report_comparison,
+    schema={
+        "type": "object",
+        "properties": {
+            "report_1": {"type": "object"},
+            "report_2": {"type": "object"},
+            "only_in_report_1": {"type": "integer"},
+            "only_in_report_2": {"type": "integer"},
+            "in_both": {"type": "integer"}
+        }
+    }
+))
+
+register_payload_type(PayloadType(
+    name="starred_articles",
+    description="Starred articles across a stream's reports",
+    source="tool",
+    is_global=True,
+    summarize=_summarize_starred_articles,
+    schema={
+        "type": "object",
+        "properties": {
+            "stream_id": {"type": "integer"},
+            "total_starred": {"type": "integer"},
+            "articles": {"type": "array"}
+        }
+    }
+))
